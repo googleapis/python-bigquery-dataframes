@@ -17,10 +17,9 @@ import os
 
 import setuptools
 
-
 # Package metadata.
 
-name = "bigframse"
+name = "bigframes"
 description = "Scalable DataFrames with BigQuery"
 
 # Should be one of:
@@ -29,7 +28,9 @@ description = "Scalable DataFrames with BigQuery"
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
-    "ibis",
+    # Workaround table ID regression in Ibis 3.2.0
+    # https://github.com/ibis-project/ibis-bigquery/issues/152
+    "ibis-framework <3.2.0dev",
     "ibis-bigquery",
     "google-cloud-bigquery[bqstorage,pandas]",
 ]
