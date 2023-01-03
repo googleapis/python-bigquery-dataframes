@@ -28,9 +28,7 @@ description = "Scalable DataFrames with BigQuery"
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
-    # Workaround table ID regression in Ibis 3.2.0
-    # https://github.com/ibis-project/ibis-bigquery/issues/152
-    "ibis-framework <3.2.0dev",
+    "ibis-framework <4.0.0dev",
     "ibis-bigquery",
     "google-cloud-bigquery[bqstorage,pandas]",
 ]
