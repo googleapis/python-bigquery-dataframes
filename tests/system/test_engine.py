@@ -1,5 +1,5 @@
-def test_read_gbq(engine, table_id_scalars, schema_scalars):
-    df = engine.read_gbq(table_id_scalars)
+def test_read_gbq(engine, scalars_table_id, scalars_schema):
+    df = engine.read_gbq(scalars_table_id)
     # TODO(swast): Test against public properties like columns or dtypes. Also,
     # check the names and data types match up.
-    assert len(df._table.schema()) == len(schema_scalars)
+    assert len(df._table.schema()) == len(scalars_schema)

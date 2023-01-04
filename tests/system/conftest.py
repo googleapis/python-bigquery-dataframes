@@ -48,7 +48,7 @@ def dataset_id(bigquery_client: bigquery.Client):
 
 
 @pytest.fixture(scope="session")
-def schema_scalars(bigquery_client: bigquery.Client):
+def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
     # See also: https://github.com/ibis-project/ibis-bigquery/pull/67
     schema = bigquery_client.schema_from_json(DATA_DIR / "scalars_schema.json")
@@ -56,20 +56,31 @@ def schema_scalars(bigquery_client: bigquery.Client):
 
 
 @pytest.fixture(scope="session")
-def table_id_scalars(
+def scalars_load_job(
     dataset_id: str,
     bigquery_client: bigquery.Client,
-    schema_scalars: Collection[bigquery.SchemaField],
-) -> str:
+    scalars_schema: Collection[bigquery.SchemaField],
+) -> bigquery.LoadJob:
     """Create a temporary table with test data."""
     job_config = bigquery.LoadJobConfig()
     job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-    job_config.schema = schema_scalars
+    job_config.schema = scalars_schema
     table_id = f"{dataset_id}.scalars"
     with open(DATA_DIR / "scalars.jsonl", "rb") as input_file:
         job = bigquery_client.load_table_from_file(
             input_file, table_id, job_config=job_config
         )
-    job.result()
     # No cleanup necessary, as the surrounding dataset will delete contents.
-    return table_id
+    return job.result()
+
+
+@pytest.fixture(scope="session")
+def scalars_table_id(scalars_load_job: bigquery.LoadJob) -> str:
+    table_ref = scalars_load_job.destination
+    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+
+
+@pytest.fixture(scope="session")
+def scalars_df(scalars_table_id: str, engine: bigframes.Engine) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return engine.read_gbq(scalars_table_id)

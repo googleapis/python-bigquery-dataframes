@@ -72,7 +72,7 @@ class Engine:
         table_expression = self.ibis_client.table(
             parts[2], database=f"{parts[0]}.{parts[1]}"
         )
-        return DataFrame(self, table_expression)
+        return DataFrame(table_expression)
 
 
 def connect(context: Optional[Context] = None) -> Engine:
