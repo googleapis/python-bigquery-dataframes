@@ -28,9 +28,10 @@ description = "Scalable DataFrames with BigQuery"
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
-    "ibis-framework <4.0.0dev",
-    "ibis-bigquery",
-    "google-cloud-bigquery[bqstorage,pandas]",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.0.0",
+    "ibis-framework[bigquery] >=4.0.0",
+    "sqlalchemy >=1.4,<2.0",
+    "pandas >=1.2.5",
 ]
 
 # Setup boilerplate below this line.
@@ -79,7 +80,7 @@ setuptools.setup(
     platforms="Posix; MacOS X; Windows",
     packages=packages,
     install_requires=dependencies,
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     include_package_data=True,
     zip_safe=False,
 )

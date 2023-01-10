@@ -32,7 +32,7 @@ LINT_PATHS = ["docs", "bigframes", "tests", "noxfile.py", "setup.py"]
 
 DEFAULT_PYTHON_VERSION = "3.8"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.8", "3.9", "3.10", "3.11"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -43,12 +43,7 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 UNIT_TEST_EXTERNAL_DEPENDENCIES = []
 UNIT_TEST_LOCAL_DEPENDENCIES = []
 UNIT_TEST_DEPENDENCIES = []
-UNIT_TEST_EXTRAS = [
-    "tests",
-    "fastavro",
-    "pandas",
-    "pyarrow",
-]
+UNIT_TEST_EXTRAS = []
 UNIT_TEST_EXTRAS_BY_PYTHON = {}
 
 SYSTEM_TEST_PYTHON_VERSIONS = ["3.8", "3.10"]
@@ -62,11 +57,7 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 ]
 SYSTEM_TEST_LOCAL_DEPENDENCIES = []
 SYSTEM_TEST_DEPENDENCIES = []
-SYSTEM_TEST_EXTRAS = [
-    "fastavro",
-    "pandas",
-    "pyarrow",
-]
+SYSTEM_TEST_EXTRAS = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON = {}
 
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
@@ -74,7 +65,9 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
     "unit",
+    "unit_prerelease",
     "system",
+    "system_prerelease",
     "cover",
     "lint",
     "lint_setup_py",
@@ -348,20 +341,39 @@ def docfx(session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
-def prerelease_deps(session):
-    """Run all tests with prerelease versions of dependencies installed."""
-
-    # Install all dependencies
-    session.install("-e", ".[all, tests, tracing]")
-    unit_deps_all = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_EXTERNAL_DEPENDENCIES
-    session.install(*unit_deps_all)
-    system_deps_all = (
-        SYSTEM_TEST_STANDARD_DEPENDENCIES
-        + SYSTEM_TEST_EXTERNAL_DEPENDENCIES
-        + SYSTEM_TEST_EXTRAS
+def prerelease(session, tests_path):
+    constraints_path = str(
+        CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
-    session.install(*system_deps_all)
+
+    # PyArrow prerelease packages are published to an alternative PyPI host.
+    # https://arrow.apache.org/docs/python/install.html#installing-nightly-packages
+    session.install(
+        "--extra-index-url",
+        "https://pypi.fury.io/arrow-nightlies/",
+        "--prefer-binary",
+        "--pre",
+        "--upgrade",
+        "pyarrow",
+    )
+    session.install(
+        "--extra-index-url",
+        "https://pypi.anaconda.org/scipy-wheels-nightly/simple",
+        "--prefer-binary",
+        "--pre",
+        "--upgrade",
+        "pandas",
+    )
+    session.install(
+        "--pre",
+        "--upgrade",
+        "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
+    )
+    session.install(
+        *set(UNIT_TEST_STANDARD_DEPENDENCIES + SYSTEM_TEST_STANDARD_DEPENDENCIES),
+        "-c",
+        constraints_path,
+    )
 
     # Because we test minimum dependency versions on the minimum Python
     # version, the first version we test with in the unit tests sessions has a
@@ -375,65 +387,44 @@ def prerelease_deps(session):
         constraints_text = constraints_file.read()
 
     # Ignore leading whitespace and comment lines.
-    constraints_deps = [
+    deps = [
         match.group(1)
         for match in re.finditer(
             r"^\s*(\S+)(?===\S+)", constraints_text, flags=re.MULTILINE
         )
     ]
 
-    session.install(*constraints_deps)
+    # We use --no-deps to ensure that pre-release versions aren't overwritten
+    # by the version ranges in setup.py.
+    session.install(*deps)
+    session.install("--no-deps", "-e", ".")
 
-    prerel_deps = [
-        "protobuf",
-        # dependency of grpc
-        "six",
-        "googleapis-common-protos",
-        # Exclude version 1.49.0rc1 which has a known issue. See https://github.com/grpc/grpc/pull/30642
-        "grpcio!=1.49.0rc1",
-        "grpcio-status",
-        "google-api-core",
-        "proto-plus",
-        "google-cloud-testutils",
-        # dependencies of google-cloud-testutils"
-        "click",
-    ]
+    # Print out prerelease package versions.
+    session.run("python", "-m", "pip", "freeze")
 
-    for dep in prerel_deps:
-        session.install("--pre", "--no-deps", "--upgrade", dep)
-
-    # Remaining dependencies
-    other_deps = [
-        "requests",
-        "google-auth",
-    ]
-    session.install(*other_deps)
-
-    # Print out prerelease package versions
+    # Run py.test against the unit tests.
     session.run(
-        "python", "-c", "import google.protobuf; print(google.protobuf.__version__)"
+        "py.test",
+        "--quiet",
+        f"--junitxml={os.path.split(tests_path)[-1]}_prerelease_{session.python}_sponge_log.xml",
+        "--cov=db_dtypes",
+        "--cov=tests/unit",
+        "--cov-append",
+        "--cov-config=.coveragerc",
+        "--cov-report=",
+        "--cov-fail-under=0",
+        tests_path,
+        *session.posargs,
     )
-    session.run("python", "-c", "import grpc; print(grpc.__version__)")
 
-    session.run("py.test", "tests/unit")
 
-    system_test_path = os.path.join("tests", "system.py")
-    system_test_folder_path = os.path.join("tests", "system")
+@nox.session(python=UNIT_TEST_PYTHON_VERSIONS[-1])
+def unit_prerelease(session):
+    """Run the unit test suite with prerelease dependencies."""
+    prerelease(session, os.path.join("tests", "unit"))
 
-    # Only run system tests if found.
-    if os.path.exists(system_test_path):
-        session.run(
-            "py.test",
-            "--verbose",
-            f"--junitxml=system_{session.python}_sponge_log.xml",
-            system_test_path,
-            *session.posargs,
-        )
-    if os.path.exists(system_test_folder_path):
-        session.run(
-            "py.test",
-            "--verbose",
-            f"--junitxml=system_{session.python}_sponge_log.xml",
-            system_test_folder_path,
-            *session.posargs,
-        )
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def system_prerelease(session):
+    """Run the system test suite with prerelease dependencies."""
+    prerelease(session, os.path.join("tests", "system"))

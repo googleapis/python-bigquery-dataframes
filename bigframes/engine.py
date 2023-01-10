@@ -4,7 +4,7 @@ from typing import Optional
 
 import google.auth.credentials
 import google.cloud.bigquery
-import ibis_bigquery
+import ibis
 
 from bigframes.dataframe import DataFrame
 
@@ -54,12 +54,12 @@ class Engine:
                 project=context.project,
                 location=context.location,
             )
-            self.ibis_client = ibis_bigquery.connect(
+            self.ibis_client = ibis.bigquery.connect(
                 project_id=context.project, credentials=context.credentials
             )
         else:
             self.bqclient = google.cloud.bigquery.Client()
-            self.ibis_client = ibis_bigquery.connect(project_id=self.bqclient.project)
+            self.ibis_client = ibis.bigquery.connect(project_id=self.bqclient.project)
 
     def read_gbq(self, table: str) -> "DataFrame":
         """Loads data from Google BigQuery."""

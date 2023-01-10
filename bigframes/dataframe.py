@@ -3,11 +3,7 @@
 import typing
 from typing import Optional
 
-try:
-    from ibis.expr.types import Table
-except ImportError:
-    from ibis.expr.types import TableExpr as Table
-
+from ibis.expr.types import Table
 import pandas
 
 # Avoid circular import just to type check.
