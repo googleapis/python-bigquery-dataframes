@@ -229,6 +229,32 @@ def test_reverse(scalars_dfs):
     pd.testing.assert_series_equal(pd_result, bf_result)
 
 
+def test_isnull(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "float64_col"
+    bf_series = scalars_df[col_name].isnull().compute()
+    pd_series = scalars_pandas_df[col_name].isnull()
+
+    if pd_series.index.name != "rowindex":
+        bf_series = bf_series.sort_values(ignore_index=True)
+        pd_series = pd_series.sort_values(ignore_index=True)
+
+    pd.testing.assert_series_equal(pd_series, bf_series)
+
+
+def test_notnull(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series = scalars_df[col_name].notnull().compute()
+    pd_series = scalars_pandas_df[col_name].notnull()
+
+    if pd_series.index.name != "rowindex":
+        bf_series = bf_series.sort_values(ignore_index=True)
+        pd_series = pd_series.sort_values(ignore_index=True)
+
+    pd.testing.assert_series_equal(pd_series, bf_series)
+
+
 def test_round(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"

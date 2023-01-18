@@ -90,6 +90,32 @@ class Series:
             self._value_column,
         )
 
+    def isnull(self) -> "Series":
+        """Returns a boolean same-sized object indicating if the values are NULL/missing."""
+        return Series(
+            self._block.copy(
+                [
+                    self._value.isnull().name(self._value_column),
+                ]
+            ),
+            self._value_column,
+        )
+
+    isna = isnull
+
+    def notnull(self) -> "Series":
+        """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
+        return Series(
+            self._block.copy(
+                [
+                    self._value.notnull().name(self._value_column),
+                ]
+            ),
+            self._value_column,
+        )
+
+    notna = notnull
+
     def lower(self) -> "Series":
         """Convert strings in the Series to lowercase."""
         return Series(
