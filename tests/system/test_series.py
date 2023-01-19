@@ -1,5 +1,4 @@
 import numpy
-import pandas
 import pytest
 import pandas as pd
 
@@ -59,38 +58,41 @@ def test_upper(scalars_df):
         series_pandas, pd.Series(["HELLO, WORLD!", "こんにちは", None], name=col_name)
     )
 
+
 @pytest.mark.parametrize(
-    ("other",),
+    (
+        "other",
+        "expected",
+    ),
     [
-        (3,),
-        (-6.2,),
         (
-            pandas.Series(
-                [
-                    1,
-                    1,
-                    1,
-                ],
-                index=["a", "b", "c"],
-            ),
+            3,
+            pd.Series([4.25, 4.25, numpy.nan], name="float64_col"),
+        ),
+        (
+            -6.2,
+            pd.Series([-4.95, -4.95, numpy.nan], name="float64_col"),
         ),
     ],
 )
-def test_series_add(scalars_df, other):
-    result = scalars_df["float64_col"] + other
-    # TODO: how to check result?
-    assert result == ""
+def test_series_add_scalar(scalars_df, other, expected):
+    pd.testing.assert_series_equal(
+        (scalars_df["float64_col"] + other).compute(), expected
+    )
 
 
-@pytest.mark.parametrize(
-    ("other",),
-    [
-        ("str",),
-        (numpy.array([1, 2, 3, 4]),),
-        (pandas.Series(["f", "j", "h"], index=["a", "b", "c"]),),
-    ],
-)
-def test_series_add_invalid_type_error(scalars_df, other):
-    result = scalars_df["float64_col"] + other
-    # TODO: how to check result?
-    assert result == ""
+def test_series_add_bigframes_series(scalars_df):
+    pd.testing.assert_series_equal(
+        (scalars_df["float64_col"] + scalars_df["float64_col"]).compute(),
+        pd.Series([2.5, 2.5, numpy.nan], name="float64_col"),
+    )
+
+
+def test_series_add_pandas_series_not_implemented(scalars_df):
+    with pytest.raises(AssertionError):
+        (
+            scalars_df["float64_col"]
+            + pd.Series(
+                [1, 1, 1, 1],
+            )
+        ).compute()

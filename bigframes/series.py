@@ -41,6 +41,11 @@ class Series:
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
         if isinstance(other, Series):
-            return Series(self._table, self._value.__add__(other._value))
+            return Series(
+                self._table,
+                self._value.__add__(other._value).name(self._value.get_name()),
+            )
         else:
-            return Series(self._table, self._value.__add__(other))
+            return Series(
+                self._table, self._value.__add__(other).name(self._value.get_name())
+            )
