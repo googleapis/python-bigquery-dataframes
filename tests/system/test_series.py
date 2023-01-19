@@ -1,5 +1,6 @@
 import numpy
 import pytest
+import pandas as pd
 
 
 @pytest.mark.parametrize(
@@ -38,3 +39,21 @@ def test_get_column(scalars_df, scalars_load_job, col_name, expected_dtype):
     assert series_pandas.dtype == expected_dtype
     # TODO(swast): Compare lengths with DataFrame length computed by Bigframes.
     assert series_pandas.shape[0] == scalars_load_job.output_rows
+
+
+def test_lower(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.lower().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["hello, world!", "こんにちは", None], name=col_name)
+    )
+
+
+def test_upper(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.upper().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["HELLO, WORLD!", "こんにちは", None], name=col_name)
+    )

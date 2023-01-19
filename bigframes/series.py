@@ -22,9 +22,17 @@ class Series:
         self._value = value
 
     def _to_ibis_expr(self):
-        return self._table.projection([self._value]).get_column(self._value.get_name())
+        return self._table.select(self._value).get_column(self._value.get_name())
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
         value = self._to_ibis_expr()
         return value.execute()
+
+    def lower(self) -> "Series":
+        """Convert strings in the Series to lowercase."""
+        return Series(self._table, self._value.lower().name(self._value.get_name()))
+
+    def upper(self) -> "Series":
+        """Convert strings in the Series to uppercase."""
+        return Series(self._table, self._value.upper().name(self._value.get_name()))

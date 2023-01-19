@@ -62,7 +62,7 @@ class DataFrame:
     def _to_ibis_expr(self):
         table = self._table
         if self._columns is not None:
-            table = self._table.projection(self._columns)
+            table = self._table.select(self._columns)
         return table
 
     def compute(self) -> pandas.DataFrame:
