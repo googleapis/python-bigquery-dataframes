@@ -32,7 +32,9 @@ class DataFrame:
         self._columns = columns
         self._column_names = {column.get_name(): column for column in columns}
 
-    def __getitem__(self, key: Union[str, Iterable[str]]) -> bigframes.series.Series:
+    def __getitem__(
+        self, key: Union[str, Iterable[str]]
+    ) -> Union[bigframes.series.Series, "DataFrame"]:
         """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in
         # https://pandas.pydata.org/docs/getting_started/intro_tutorials/03_subset_data.html
