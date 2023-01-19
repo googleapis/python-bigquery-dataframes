@@ -1,4 +1,5 @@
 import numpy
+import pandas
 import pytest
 import pandas as pd
 
@@ -57,3 +58,39 @@ def test_upper(scalars_df):
     pd.testing.assert_series_equal(
         series_pandas, pd.Series(["HELLO, WORLD!", "こんにちは", None], name=col_name)
     )
+
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        (3,),
+        (-6.2,),
+        (
+            pandas.Series(
+                [
+                    1,
+                    1,
+                    1,
+                ],
+                index=["a", "b", "c"],
+            ),
+        ),
+    ],
+)
+def test_series_add(scalars_df, other):
+    result = scalars_df["float64_col"] + other
+    # TODO: how to check result?
+    assert result == ""
+
+
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        ("str",),
+        (numpy.array([1, 2, 3, 4]),),
+        (pandas.Series(["f", "j", "h"], index=["a", "b", "c"]),),
+    ],
+)
+def test_series_add_invalid_type_error(scalars_df, other):
+    result = scalars_df["float64_col"] + other
+    # TODO: how to check result?
+    assert result == ""
