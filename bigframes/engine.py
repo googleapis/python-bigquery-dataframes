@@ -32,15 +32,15 @@ class Context:
         self._location = location
 
     @property
-    def credentials(self) -> google.auth.credentials.Credentials:
+    def credentials(self) -> Optional[google.auth.credentials.Credentials]:
         return self._credentials
 
     @property
-    def project(self) -> str:
+    def project(self) -> Optional[str]:
         return self._project
 
     @property
-    def location(self) -> str:
+    def location(self) -> Optional[str]:
         return self._location
 
 

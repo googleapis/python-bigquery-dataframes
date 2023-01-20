@@ -71,7 +71,8 @@ nox.options.sessions = [
     "cover",
     "lint",
     "lint_setup_py",
-    "blacken",
+    "mypy",
+    "format",
     "docs",
 ]
 
@@ -188,6 +189,47 @@ def default(session):
 def unit(session):
     """Run the unit test suite."""
     default(session)
+
+
+@nox.session(python=DEFAULT_PYTHON_VERSION)
+def mypy(session):
+    """Run type checks with mypy."""
+    session.install("-e", ".")
+
+    # TODO(swast): Ibis is included in the dependencies for
+    # bigframes, but we type with the types on GitHub. We can
+    # remove this when
+    # https://github.com/ibis-project/ibis/issues/5279 is released.
+    session.install(
+        "-e",  # Use -e so that py.typed file is included.
+        "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
+    )
+
+    # Just install the dependencies' type info directly, since "mypy --install-types"
+    # might require an additional pass.
+    deps = (
+        set(
+            [
+                "mypy",
+                "pandas-stubs",
+                "types-protobuf",
+                "types-python-dateutil",
+                "types-requests",
+                "types-setuptools",
+            ]
+        )
+        | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
+        | set(UNIT_TEST_STANDARD_DEPENDENCIES)
+    )
+
+    session.install(*deps)
+    shutil.rmtree(".mypy_cache", ignore_errors=True)
+    session.run(
+        "mypy",
+        "bigframes",
+        os.path.join("tests", "system"),
+        os.path.join("tests", "unit"),
+    )
 
 
 def install_systemtest_dependencies(session, *constraints):

@@ -1,6 +1,6 @@
 import numpy
-import pytest
 import pandas as pd
+import pytest
 
 
 @pytest.mark.parametrize(
@@ -89,13 +89,14 @@ def test_series_add_bigframes_series(scalars_df):
 
 
 def test_series_add_pandas_series_not_implemented(scalars_df):
-    with pytest.raises(AssertionError):
+    with pytest.raises(TypeError):
         (
             scalars_df["float64_col"]
             + pd.Series(
                 [1, 1, 1, 1],
             )
         ).compute()
+
 
 def test_reverse(scalars_df):
     col_name = "string_col"

@@ -1,4 +1,5 @@
 import pathlib
+import typing
 from typing import Collection
 
 from google.cloud import bigquery
@@ -71,7 +72,7 @@ def scalars_load_job(
             input_file, table_id, job_config=job_config
         )
     # No cleanup necessary, as the surrounding dataset will delete contents.
-    return job.result()
+    return typing.cast(bigquery.LoadJob, job.result())
 
 
 @pytest.fixture(scope="session")
