@@ -49,3 +49,7 @@ class Series:
             return Series(
                 self._table, self._value.__add__(other).name(self._value.get_name())
             )
+
+    def reverse(self) -> "Series":
+        """Reverse strings in the Series."""
+        return Series(self._table, self._value.reverse().name(self._value.get_name()))

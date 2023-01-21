@@ -96,3 +96,11 @@ def test_series_add_pandas_series_not_implemented(scalars_df):
                 [1, 1, 1, 1],
             )
         ).compute()
+
+def test_reverse(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.reverse().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["!dlroW ,olleH", "はちにんこ", None], name=col_name)
+    )
