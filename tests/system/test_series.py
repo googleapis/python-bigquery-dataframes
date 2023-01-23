@@ -57,3 +57,50 @@ def test_upper(scalars_df):
     pd.testing.assert_series_equal(
         series_pandas, pd.Series(["HELLO, WORLD!", "こんにちは", None], name=col_name)
     )
+
+
+@pytest.mark.parametrize(
+    (
+        "other",
+        "expected",
+    ),
+    [
+        (
+            3,
+            pd.Series([4.25, 4.25, numpy.nan], name="float64_col"),
+        ),
+        (
+            -6.2,
+            pd.Series([-4.95, -4.95, numpy.nan], name="float64_col"),
+        ),
+    ],
+)
+def test_series_add_scalar(scalars_df, other, expected):
+    pd.testing.assert_series_equal(
+        (scalars_df["float64_col"] + other).compute(), expected
+    )
+
+
+def test_series_add_bigframes_series(scalars_df):
+    pd.testing.assert_series_equal(
+        (scalars_df["float64_col"] + scalars_df["float64_col"]).compute(),
+        pd.Series([2.5, 2.5, numpy.nan], name="float64_col"),
+    )
+
+
+def test_series_add_pandas_series_not_implemented(scalars_df):
+    with pytest.raises(AssertionError):
+        (
+            scalars_df["float64_col"]
+            + pd.Series(
+                [1, 1, 1, 1],
+            )
+        ).compute()
+
+def test_reverse(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.reverse().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["!dlroW ,olleH", "はちにんこ", None], name=col_name)
+    )

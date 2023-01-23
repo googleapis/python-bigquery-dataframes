@@ -1,11 +1,13 @@
 """Series is a 1 dimensional data structure."""
 
+from __future__ import annotations
 import pandas
 
 try:
     from ibis.expr.types import Table, Value
 except ImportError:
-    from ibis.expr.types import TableExpr as Table, ValueExpr as Value
+    from ibis.expr.types import TableExpr as Table
+    from ibis.expr.types import ValueExpr as Value
 
 
 class Series:
@@ -36,3 +38,18 @@ class Series:
     def upper(self) -> "Series":
         """Convert strings in the Series to uppercase."""
         return Series(self._table, self._value.upper().name(self._value.get_name()))
+
+    def __add__(self, other: float | int | Series | pandas.Series) -> Series:
+        if isinstance(other, Series):
+            return Series(
+                self._table,
+                self._value.__add__(other._value).name(self._value.get_name()),
+            )
+        else:
+            return Series(
+                self._table, self._value.__add__(other).name(self._value.get_name())
+            )
+
+    def reverse(self) -> "Series":
+        """Reverse strings in the Series."""
+        return Series(self._table, self._value.reverse().name(self._value.get_name()))
