@@ -5,6 +5,7 @@ from typing import Collection
 import pytest
 import test_utils.prefixer
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes
 
@@ -85,3 +86,9 @@ def scalars_table_id(scalars_load_job: bigquery.LoadJob) -> str:
 def scalars_df(scalars_table_id: str, engine: bigframes.Engine) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
     return engine.read_gbq(scalars_table_id)
+
+
+@pytest.fixture(scope="session")
+def scalars_pandas_df() -> pd.DataFrame:
+    """pandas.DataFrame pointing at test data."""
+    return pd.read_json(DATA_DIR / "scalars.jsonl", lines=True)
