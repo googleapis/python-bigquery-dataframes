@@ -2,8 +2,8 @@
 
 from typing import Collection, Iterable, Optional, Union
 
-from ibis.expr.types import Column, Table
 import pandas
+from ibis.expr.types import Column, Table
 
 import bigframes.series
 

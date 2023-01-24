@@ -2,9 +2,9 @@ import pathlib
 import typing
 from typing import Collection
 
-from google.cloud import bigquery
 import pytest
 import test_utils.prefixer
+from google.cloud import bigquery
 
 import bigframes
 
