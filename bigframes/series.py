@@ -22,7 +22,7 @@ class Series:
         self._value = value
 
     def _to_ibis_expr(self):
-        return self._table.select(self._value).get_column(self._value.get_name())
+        return self._table.select(self._value)[self._value.get_name()]
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""

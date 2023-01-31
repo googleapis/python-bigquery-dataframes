@@ -25,7 +25,7 @@ class DataFrame:
 
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
-            columns = [table.get_column(key) for key in table.columns]
+            columns = [table[key] for key in table.columns]
 
         self._table = table
         # TODO(swast): Validate that each column references the same table.

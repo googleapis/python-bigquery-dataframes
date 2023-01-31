@@ -2,10 +2,10 @@ import pathlib
 import typing
 from typing import Collection
 
+import pandas as pd
 import pytest
 import test_utils.prefixer
 from google.cloud import bigquery
-import pandas as pd
 
 import bigframes
 
