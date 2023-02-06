@@ -67,11 +67,11 @@ def test_upper(scalars_df, scalars_pandas_df):
     [
         (
             3,
-            pd.Series([4.25, 4.25, numpy.nan], name="float64_col"),
+            pd.Series([4.25, 5.5, numpy.nan], name="float64_col"),
         ),
         (
             -6.2,
-            pd.Series([-4.95, -4.95, numpy.nan], name="float64_col"),
+            pd.Series([-4.95, -3.7, numpy.nan], name="float64_col"),
         ),
     ],
 )
@@ -84,7 +84,7 @@ def test_series_add_scalar(scalars_df, other, expected):
 def test_series_add_bigframes_series(scalars_df):
     pd.testing.assert_series_equal(
         (scalars_df["float64_col"] + scalars_df["float64_col"]).compute(),
-        pd.Series([2.5, 2.5, numpy.nan], name="float64_col"),
+        pd.Series([2.5, 5.0, numpy.nan], name="float64_col"),
     )
 
 
@@ -104,4 +104,13 @@ def test_reverse(scalars_df):
     series_pandas = series.reverse().compute()
     pd.testing.assert_series_equal(
         series_pandas, pd.Series(["!dlroW ,olleH", "はちにんこ", None], name=col_name)
+    )
+
+
+def test_round(scalars_df):
+    col_name = "float64_col"
+    series = scalars_df[col_name]
+    series_pandas = series.round().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([1, 3, None], name=col_name)
     )

@@ -27,7 +27,7 @@ import warnings
 import nox
 
 BLACK_VERSION = "black==22.3.0"
-ISORT_VERSION = "isort==5.10.1"
+ISORT_VERSION = "isort==5.12.0"
 LINT_PATHS = ["docs", "bigframes", "tests", "noxfile.py", "setup.py"]
 
 DEFAULT_PYTHON_VERSION = "3.8"

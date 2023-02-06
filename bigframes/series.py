@@ -71,3 +71,12 @@ class Series:
             .reverse()
             .name(self._value.get_name()),
         )
+
+    def round(self, decimals=0) -> "Series":
+        """Round each value in a Series to the given number of decimals."""
+        return Series(
+            self._table,
+            typing.cast(ibis_types.NumericValue, self._value)
+            .round(digits=decimals)
+            .name(self._value.get_name()),
+        )
