@@ -28,6 +28,7 @@ description = "Scalable DataFrames with BigQuery"
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
+    "google-auth >2.14.1,<3.0dev",
     "google-cloud-bigquery[bqstorage,pandas] >=3.0.0",
     "ibis-framework[bigquery] >=4.0.0",
     "sqlalchemy >=1.4,<2.0",

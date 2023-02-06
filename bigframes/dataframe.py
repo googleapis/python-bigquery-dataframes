@@ -1,10 +1,10 @@
 """DataFrame is a two dimensional data structure."""
 
-from typing import Collection, Iterable, Optional, Union
+from typing import Iterable, Optional, Union
 
 import pandas
-from ibis.expr.types import Column, Table
 
+import bigframes.core
 import bigframes.series
 
 
@@ -13,24 +13,16 @@ class DataFrame:
 
     .. warning::
         This constructor is **private**. Use a public method such as
-        ``Engine.read_gbq`` to construct a DataFrame.
+        ``Session.read_gbq`` to construct a DataFrame.
     """
 
     def __init__(
         self,
-        table: Table,
-        columns: Optional[Collection[Column]] = None,
+        expr: bigframes.core.BigFramesExpr,
     ):
-        super().__init__()
-
-        # Allow creating a DataFrame directly from an Ibis table expression.
-        if columns is None:
-            columns = [table[key] for key in table.columns]
-
-        self._table = table
-        # TODO(swast): Validate that each column references the same table.
-        self._columns = columns
-        self._column_names = {column.get_name(): column for column in columns}
+        # TODO(swast): To support mutable cells (such as with inplace=True),
+        # we might want to store columns as a collection of Series instead.
+        self._expr = expr
 
     def __getitem__(
         self, key: Union[str, Iterable[str]]
@@ -40,8 +32,8 @@ class DataFrame:
         # https://pandas.pydata.org/docs/getting_started/intro_tutorials/03_subset_data.html
 
         if isinstance(key, str):
-            column = self._column_names[key]
-            return bigframes.series.Series(self._table, column)
+            column = self._expr.get_column(key)
+            return bigframes.series.Series(self._expr, column)
 
         # TODO(swast): Allow for filtering of rows by a boolean Series, returning a
         # filtered version of this DataFrame instead of a Series.
@@ -56,23 +48,22 @@ class DataFrame:
         # Series objects to still work with the new / mutated DataFrame. We
         # avoid applying a projection in Ibis until it's absolutely necessary
         # to provide pandas-like semantics.
-        return DataFrame(
-            self._table,
-            [self._column_names[column_name] for column_name in key],
+        expr = self._expr.projection(
+            [self._expr.get_column(column_name) for column_name in key]
         )
-
-    def _to_ibis_expr(self):
-        table = self._table
-        if self._columns is not None:
-            table = self._table.select(self._columns)
-        return table
+        return DataFrame(expr)
 
     def compute(self) -> pandas.DataFrame:
         """Executes deferred operations and downloads the results."""
-        table = self._to_ibis_expr()
-        return table.execute()
+        job = self._expr.start_query()
+        return job.result().to_dataframe()
 
     def head(self, max_results: Optional[int] = 5) -> pandas.DataFrame:
-        """Executes deferred operations and downloads a specific number of rows."""
-        table = self._to_ibis_expr()
-        return table.execute(limit=max_results)
+        """Limits DataFrame to a specific number of rows."""
+        # TOOD(swast): This will be deferred once more opportunistic style
+        # execution is implemented.
+        job = self._expr.start_query()
+        # TODO(swast): Type annotations to be corrected here:
+        # https://github.com/googleapis/python-bigquery/pull/1487
+        rows = job.result(max_results=max_results)  # type: ignore
+        return rows.to_dataframe()

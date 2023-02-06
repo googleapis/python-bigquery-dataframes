@@ -6,6 +6,7 @@ import google.auth.credentials
 import google.cloud.bigquery
 import ibis
 
+from bigframes.core import BigFramesExpr
 from bigframes.dataframe import DataFrame
 
 
@@ -66,6 +67,8 @@ class Session:
         """Loads data from Google BigQuery."""
         parts = table.replace(":", ".").split(".")
         # TODO(swast): allow for a default project and/or dataset
+        # TODO(swast): If a table ID, make sure we read from a snapshot to
+        # better emulate pandas.read_gbq.
         if len(parts) != 3:
             raise ValueError(
                 "read_gbq requires a full table ID, including project and dataset."
@@ -73,8 +76,9 @@ class Session:
         table_expression = self.ibis_client.table(
             parts[2], database=f"{parts[0]}.{parts[1]}"
         )
-        return DataFrame(table_expression)
+        return DataFrame(BigFramesExpr(self, table_expression))
 
 
 def connect(context: Optional[Context] = None) -> Session:
+    # TODO(swast): Start a BigQuery Session too.
     return Session(context)

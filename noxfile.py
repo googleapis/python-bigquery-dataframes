@@ -64,7 +64,10 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    "unit",
+    # TODO(swast): Re-enable unit tests on a released version of Ibis. As of
+    # 2023-02-07, using nullable dtypes with the ibis pandas backend requires
+    # running ibis at HEAD. See: https://github.com/ibis-project/ibis/pull/5345
+    # "unit",
     "unit_prerelease",
     "system",
     "system_prerelease",
@@ -314,7 +317,7 @@ def cover(session):
     test runs (not system test runs), and then erases coverage data.
     """
     session.install("coverage", "pytest-cov")
-    session.run("coverage", "report", "--show-missing", "--fail-under=46")
+    session.run("coverage", "report", "--show-missing", "--fail-under=48")
 
     session.run("coverage", "erase")
 
