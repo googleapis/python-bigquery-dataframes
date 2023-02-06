@@ -181,6 +181,90 @@ def test_round(scalars_df):
     )
 
 
+def test_eq_scalar(scalars_df):
+    col_name = "rowindex"
+    series_pandas = scalars_df[col_name].eq(0).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([True, True, False], name=col_name)
+    )
+
+
+def test_eq_wider_type_scalar(scalars_df):
+    col_name = "rowindex"
+    series_pandas = scalars_df[col_name].eq(1.0).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([False, False, True], name=col_name)
+    )
+
+
+def test_ne_scalar(scalars_df):
+    col_name = "rowindex"
+    series_pandas = (scalars_df[col_name] != 0).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([False, False, True], name=col_name)
+    )
+
+
+def test_eq_int_scalar(scalars_df):
+    col_name = "rowindex"
+    series_pandas = (0 == scalars_df[col_name]).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([True, True, False], name=col_name)
+    )
+
+
+def test_eq_obj_series(scalars_df):
+    col_name = "string_col"
+    series_pandas = (scalars_df[col_name] == scalars_df[col_name]).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([True, True, False], name=col_name)
+    )
+
+
+def test_ne_obj_series(scalars_df):
+    col_name = "string_col"
+    series_pandas = (scalars_df[col_name] != scalars_df[col_name]).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([False, False, True], name=col_name)
+    )
+
+
+def test_eq_float_series(scalars_df):
+    col_name = "float64_col"
+    series_pandas = (scalars_df[col_name] == scalars_df[col_name]).compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([True, True, False], name=col_name)
+    )
+
+
+def test_indexing_using_unselected_series(scalars_df):
+    col_name = "string_col"
+    series_pandas = scalars_df[col_name][scalars_df["rowindex"].eq(0)].compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["Hello, World!", "こんにちは"], name=col_name)
+    )
+
+
+def test_indexing_using_selected_series(scalars_df):
+    col_name = "string_col"
+    series_pandas = scalars_df[col_name][
+        scalars_df["string_col"].eq("Hello, World!")
+    ].compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["Hello, World!"], name=col_name)
+    )
+
+
+def test_nested_filter(scalars_df):
+    string_col = scalars_df["string_col"]
+    rowindex = scalars_df["rowindex"]
+    bool_col = scalars_df["bool_col"]
+    series_pandas = string_col[rowindex == 0][~bool_col].compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series(["こんにちは"], name="string_col")
+    )
+
+
 def test_mean(scalars_df):
     col_name = "int64_col"
     series = scalars_df[col_name]

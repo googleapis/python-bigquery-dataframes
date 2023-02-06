@@ -27,6 +27,7 @@ class BigFramesExpr:
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.
+        predicates: A list of filters on the data frame.
     """
 
     def __init__(
@@ -34,10 +35,12 @@ class BigFramesExpr:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Collection[ibis_types.Value]] = None,
+        predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
         limit: Optional[int] = None,
     ):
         self._session = session
         self._table = table
+        self._predicates = predicates or []
         self._limit = limit
 
         # Allow creating a DataFrame directly from an Ibis table expression.
@@ -60,13 +63,17 @@ class BigFramesExpr:
     def limit(self) -> Optional[int]:
         return self._limit
 
+    @property
+    def predicates(self) -> Collection[ibis_types.BooleanValue]:
+        return self._predicates
+
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
         # Since BigFramesExpr is intended to be immutable (immutability offers
         # potential opportunities for caching, though we might need to introduce
         # more node types for that to be useful), we create a builder class.
         return BigFramesExprBuilder(
-            self._session, self._table, self._columns, self._limit
+            self._session, self._table, self._columns, self._predicates, self._limit
         )
 
     def get_column(self, key: str) -> ibis_types.Value:
@@ -87,11 +94,19 @@ class BigFramesExpr:
         expr.columns = list(columns)
         return expr.build()
 
+    def filter(self, predicate: ibis_types.BooleanValue) -> BigFramesExpr:
+        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
+        expr = self.builder()
+        expr.predicates = [*self._predicates, predicate]
+        return expr.build()
+
     def to_ibis_expr(self):
         """Creates an Ibis table expression representing the DataFrame."""
         table = self._table
+        if len(self._predicates) > 0:
+            table = table.filter(self._predicates)
         if self._columns is not None:
-            table = self._table.select(self._columns)
+            table = table.select(self._columns)
         if self._limit is not None:
             table = table.limit(self._limit)
         return table
@@ -121,12 +136,20 @@ class BigFramesExprBuilder:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Collection[ibis_types.Value]] = None,
+        predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
         limit: Optional[int] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns) if columns is not None else None
+        self.predicates = list(predicates) if predicates is not None else None
         self.limit = limit
 
     def build(self) -> BigFramesExpr:
-        return BigFramesExpr(self.session, self.table, self.columns, self.limit)
+        return BigFramesExpr(
+            session=self.session,
+            table=self.table,
+            columns=self.columns,
+            predicates=self.predicates,
+            limit=self.limit,
+        )

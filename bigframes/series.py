@@ -22,11 +22,7 @@ class Series:
         ``DataFrame[column_name]`` to construct a Series.
     """
 
-    def __init__(
-        self,
-        expr: bigframes.core.BigFramesExpr,
-        value: ibis_types.Value,
-    ):
+    def __init__(self, expr: bigframes.core.BigFramesExpr, value: ibis_types.Value):
         self._expr = expr
         # TODO(swast): How can we consolidate BigFramesExpr and ImplicitJoiner?
         self._index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
@@ -112,31 +108,16 @@ class Series:
         )
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
-        if isinstance(other, Series):
-            combined_index, (left_has_value, right_has_value) = self._index.join(
-                other.index, how="outer"
-            )
-            left_value = (
-                ibis.case().when(left_has_value, self._value).else_(ibis.null()).end()
-            )
-            right_value = (
-                ibis.case().when(right_has_value, other._value).else_(ibis.null()).end()
-            )
-
-            return Series(
-                combined_index._expr,
-                (
-                    typing.cast(ibis_types.NumericValue, left_value)
-                    + typing.cast(ibis_types.NumericValue, right_value)
-                ).name(self._value.get_name()),
-            )
-        else:
-            return Series(
-                self._expr,
-                typing.cast(
-                    ibis_types.NumericValue, self._value + other  # type: ignore
-                ).name(self._value.get_name()),
-            )
+        (left, right, expr) = self._align(other)
+        return Series(
+            expr,
+            (
+                typing.cast(ibis_types.NumericValue, left)
+                + typing.cast(ibis_types.NumericValue, right)
+            ).name(  # type: ignore
+                self._value.get_name()
+            ),
+        )
 
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
@@ -185,3 +166,90 @@ class Series:
                 self._value.get_name()
             ),
         )
+
+    def __eq__(self, other: object) -> Series:  # type: ignore
+        """Element-wise equals between the series and another series or literal."""
+        return self.eq(other)
+
+    def __ne__(self, other: object) -> Series:  # type: ignore
+        """Element-wise not-equals between the series and another series or literal."""
+        return self.ne(other)
+
+    def __invert__(self) -> Series:
+        """Element-wise logical negation. Does not handle null or nan values."""
+        return Series(
+            self._expr,
+            typing.cast(ibis_types.NumericValue, self._value)
+            .negate()
+            .name(self._value.get_name()),
+        )
+
+    def eq(self, other: object) -> Series:
+        """
+        Element-wise equals between the series and another series or literal.
+        None and NaN are not equal to themselves.
+        This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
+        """
+        # TODO: enforce stricter alignment
+        (left, right, expr) = self._align(other)
+        return Series(
+            expr,
+            (left == right).fillna(ibis.literal(False)).name(self._value.get_name()),
+        )
+
+    def ne(self, other: object) -> Series:
+        """
+        Element-wise not-equals between the series and another series or literal.
+        None and NaN are not equal to themselves.
+        This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
+        """
+        # TODO: enforce stricter alignment
+        (left, right, expr) = self._align(other)
+        return Series(
+            expr,
+            (left != right).fillna(ibis.literal(True)).name(self._value.get_name()),
+        )
+
+    def __getitem__(self, indexer: Series):
+        """Get items using index. Only works with a boolean series derived from the base table."""
+        # TODO: enforce stricter alignment
+        if indexer._expr._table != self._expr._table:
+            raise ValueError(
+                "BigFrames expressions can only be filtered with expressions referencing the same table."
+            )
+        filtered_expr = self._expr.filter(
+            typing.cast(ibis_types.BooleanValue, indexer._value)
+        )
+        return Series(filtered_expr, self._value)
+
+    def _align(self, other: typing.Any, fill_value: typing.Any = None) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.BigFramesExpr]:  # type: ignore
+        """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
+        # TODO: Support deferred scalar
+        fill_ibis_value = (
+            ibis.null() if fill_value is None else ibis_types.literal(fill_value)
+        )
+        if isinstance(other, Series):
+            combined_index, (left_has_value, right_has_value) = self._index.join(
+                other.index, how="outer"
+            )
+            left_value = (
+                ibis.case()
+                .when(left_has_value, self._value)
+                .else_(fill_ibis_value)
+                .end()
+            )
+            right_value = (
+                ibis.case()
+                .when(right_has_value, other._value)
+                .else_(fill_ibis_value)
+                .end()
+            )
+            expr = combined_index._expr
+        elif isinstance(other, bigframes.scalar.Scalar):
+            # TODO(tbereron): support deferred scalars.
+            raise ValueError("Deferred scalar not yet supported for binary operations.")
+        else:
+            left_value = self._value
+            right_value = other
+            expr = self._expr
+        return (left_value, right_value, expr)

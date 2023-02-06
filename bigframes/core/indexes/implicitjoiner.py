@@ -44,6 +44,12 @@ class ImplicitJoiner:
                 f"right based on: {other._expr.table.compile()}"
             )
 
+        if self._expr._predicates != other._expr._predicates:
+            # TODO(tbergeron): Implement join on tables with predicates.
+            raise NotImplementedError(
+                "Join not yet supported on differently filtered tables."
+            )
+
         combined_expr = self._expr.builder()
         # TODO(swast): We assume an outer join, but the pandas default is actually a left join.
         combined_limit, (left_has_value, right_has_value) = _outer_join_limits(
