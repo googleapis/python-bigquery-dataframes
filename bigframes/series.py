@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing
-from typing import Optional
 
 import ibis.expr.types as ibis_types
 import pandas
@@ -27,6 +26,23 @@ class Series:
     ):
         self._expr = expr
         self._value = value
+
+    def __repr__(self) -> str:
+        """Converts a Series to a string."""
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        job = self._execute_query().result(max_results=10)
+        rows = job.total_rows
+        preview = job.to_dataframe()[job.schema[0].name]
+
+        # TODO(swast): Print the SQL too?
+        lines = [repr(preview)]
+        if rows > len(preview.index):
+            lines.append("...")
+
+        lines.append("")
+        lines.append(f"[{rows} rows]")
+        return "\n".join(lines)
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""
@@ -52,12 +68,12 @@ class Series:
         value = self._to_ibis_expr()
         return value.execute()
 
-    def head(self, max_results: Optional[int] = 5) -> pandas.DataFrame:
-        """Limits DataFrame to a specific number of rows."""
-        # TOOD(swast): This will be deferred once more opportunistic style
-        # execution is implemented.
-        value = self._to_ibis_expr()
-        return value.execute()
+    def head(self, n: int = 5) -> Series:
+        """Limits Series to a specific number of rows."""
+        return Series(
+            self._expr.limit(n),
+            self._value,
+        )
 
     def lower(self) -> "Series":
         """Convert strings in the Series to lowercase."""

@@ -1,6 +1,8 @@
 """DataFrame is a two dimensional data structure."""
 
-from typing import Iterable, Optional, Union
+from __future__ import annotations
+
+from typing import Iterable, Union
 
 import pandas
 
@@ -53,17 +55,30 @@ class DataFrame:
         )
         return DataFrame(expr)
 
+    def __repr__(self) -> str:
+        """Converts a DataFrame to a string."""
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        job = self._expr.start_query().result(max_results=10)
+        rows = job.total_rows
+        columns = len(job.schema)
+        preview = job.to_dataframe()
+
+        # TODO(swast): Print the SQL too?
+        lines = [repr(preview)]
+        if rows > len(preview.index):
+            lines.append("...")
+
+        lines.append("")
+        lines.append(f"[{rows} rows x {columns} columns]")
+        return "\n".join(lines)
+
     def compute(self) -> pandas.DataFrame:
         """Executes deferred operations and downloads the results."""
         job = self._expr.start_query()
         return job.result().to_dataframe()
 
-    def head(self, max_results: Optional[int] = 5) -> pandas.DataFrame:
+    def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
-        # TOOD(swast): This will be deferred once more opportunistic style
-        # execution is implemented.
-        job = self._expr.start_query()
-        # TODO(swast): Type annotations to be corrected here:
-        # https://github.com/googleapis/python-bigquery/pull/1487
-        rows = job.result(max_results=max_results)  # type: ignore
-        return rows.to_dataframe()
+        expr = self._expr.limit(n)
+        return DataFrame(expr)

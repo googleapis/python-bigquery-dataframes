@@ -14,6 +14,37 @@ def test_constructor_from_ibis_table_adds_all_columns(
     assert len(actual._columns) == len(scalars_ibis_table.columns)
 
 
+def test_builder_doesnt_change_original(session):
+    mock_table = mock.create_autospec(Table)
+    mock_column = mock.create_autospec(Column)
+    original = core.BigFramesExpr(
+        session=session, table=mock_table, columns=[mock_column]
+    )
+    assert original._table is mock_table
+    assert len(original._columns) == 1
+    assert original._columns[0] is mock_column
+
+    # Create a new expression from a builder.
+    builder = original.builder()
+    new_table = mock.create_autospec(Table)
+    assert new_table is not mock_table
+    builder.table = new_table
+    new_column = mock.create_autospec(Column)
+    assert new_column is not mock_column
+    builder.columns.append(new_column)
+    actual = builder.build()
+
+    # Expected values are present.
+    assert actual._table is new_table
+    assert len(actual._columns) == 2
+    assert actual._columns[0] is mock_column
+    assert actual._columns[1] is new_column
+    # Don't modify the original.
+    assert original._table is mock_table
+    assert len(original._columns) == 1
+    assert original._columns[0] is mock_column
+
+
 def test_projection_doesnt_change_original(session):
     mock_table = mock.create_autospec(Table)
     mock_column = mock.create_autospec(Column)
