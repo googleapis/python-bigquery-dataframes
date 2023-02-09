@@ -173,17 +173,18 @@ def default(session):
     install_unittest_dependencies(session, "-c", constraints_path)
 
     # Run py.test against the unit tests.
+    tests_path = os.path.join("tests", "unit")
     session.run(
         "py.test",
         "--quiet",
         f"--junitxml=unit_{session.python}_sponge_log.xml",
         "--cov=bigframes",
-        "--cov=tests/unit",
+        f"--cov={tests_path}",
         "--cov-append",
         "--cov-config=.coveragerc",
-        "--cov-report=",
+        "--cov-report=term-missing",
         "--cov-fail-under=0",
-        os.path.join("tests", "unit"),
+        tests_path,
         *session.posargs,
     )
 
@@ -317,7 +318,7 @@ def cover(session):
     test runs (not system test runs), and then erases coverage data.
     """
     session.install("coverage", "pytest-cov")
-    session.run("coverage", "report", "--show-missing", "--fail-under=48")
+    session.run("coverage", "report", "--show-missing", "--fail-under=90")
 
     session.run("coverage", "erase")
 
@@ -452,11 +453,11 @@ def prerelease(session, tests_path):
         "py.test",
         "--quiet",
         f"--junitxml={os.path.split(tests_path)[-1]}_prerelease_{session.python}_sponge_log.xml",
-        "--cov=db_dtypes",
-        "--cov=tests/unit",
+        "--cov=bigframes",
+        f"--cov={tests_path}",
         "--cov-append",
         "--cov-config=.coveragerc",
-        "--cov-report=",
+        "--cov-report=term-missing",
         "--cov-fail-under=0",
         tests_path,
         *session.posargs,
