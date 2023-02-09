@@ -10,6 +10,7 @@ __all__ = [
     "Context",
     "Session",
     "DataFrame",
+    "ml",
     "Series",
     "__version__",
 ]
