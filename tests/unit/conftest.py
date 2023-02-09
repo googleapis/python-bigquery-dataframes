@@ -1,12 +1,15 @@
 import math
+from typing import Union
 from unittest import mock
 
+import google.api_core.exceptions
 import google.auth
 import google.cloud.bigquery
 import ibis
 import ibis.expr.types as ibis_types
 import pandas
 import pytest
+from google.cloud.bigquery.table import TableReference
 
 import bigframes
 
@@ -17,11 +20,28 @@ def mock_bigquery_client(monkeypatch):
     # Constructor returns the mock itself, so this mock can be treated as the
     # constructor or the instance.
     mock_client.return_value = mock_client
-    mock_client.project = "test-project"
+    mock_client.project = "default-project"
+    mock_client.get_table = mock_bigquery_client_get_table
     monkeypatch.setattr(google.cloud.bigquery, "Client", mock_client)
     mock_client.reset_mock()
 
     return mock_client
+
+
+def mock_bigquery_client_get_table(table_ref: Union[TableReference, str]):
+    if isinstance(table_ref, TableReference):
+        table_name = table_ref.__str__()
+    else:
+        table_name = table_ref
+
+    if table_name == "project.dataset.table":
+        return google.cloud.bigquery.Table(
+            table_name, [{"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"}]
+        )
+    elif table_name == "default-project.dataset.table":
+        return google.cloud.bigquery.Table(table_name)
+    else:
+        raise google.api_core.exceptions.NotFound("Not Found Table")
 
 
 @pytest.fixture

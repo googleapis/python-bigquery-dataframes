@@ -15,17 +15,13 @@ prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
 
 
 @pytest.fixture(scope="session")
-def bigquery_client() -> bigquery.Client:
-    return bigquery.Client()
+def bigquery_client(session: bigframes.Session) -> bigquery.Client:
+    return session.bqclient
 
 
 @pytest.fixture(scope="session")
-def session(bigquery_client: bigquery.Client) -> bigframes.Session:
-    context = bigframes.Context(
-        credentials=bigquery_client._credentials,
-        project=bigquery_client.project,
-    )
-    return bigframes.Session(context)
+def session() -> bigframes.Session:
+    return bigframes.Session()
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -22,7 +22,7 @@ class BigFramesExpr:
 
     Args:
         session:
-            A BigFrames sessionto allow more flexibility in running
+            A BigFrames session to allow more flexibility in running
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.

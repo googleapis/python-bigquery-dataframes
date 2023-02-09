@@ -5,6 +5,7 @@ from typing import Optional
 import google.auth.credentials
 import google.cloud.bigquery
 import ibis
+from google.cloud.bigquery.table import TableReference
 
 from bigframes.core import BigFramesExpr
 from bigframes.dataframe import DataFrame
@@ -65,16 +66,13 @@ class Session:
 
     def read_gbq(self, table: str) -> "DataFrame":
         """Loads data from Google BigQuery."""
-        parts = table.replace(":", ".").split(".")
-        # TODO(swast): allow for a default project and/or dataset
         # TODO(swast): If a table ID, make sure we read from a snapshot to
         # better emulate pandas.read_gbq.
-        if len(parts) != 3:
-            raise ValueError(
-                "read_gbq requires a full table ID, including project and dataset."
-            )
+        table_ref = TableReference.from_string(
+            table, default_project=self.bqclient.project
+        )
         table_expression = self.ibis_client.table(
-            parts[2], database=f"{parts[0]}.{parts[1]}"
+            table_ref.table_id, database=f"{table_ref.project}.{table_ref.dataset_id}"
         )
         return DataFrame(BigFramesExpr(self, table_expression))
 
