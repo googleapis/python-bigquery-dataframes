@@ -41,6 +41,20 @@ def test_get_column(scalars_df, scalars_load_job, col_name, expected_dtype):
     assert series_pandas.shape[0] == scalars_load_job.output_rows
 
 
+def test_abs_floats(scalars_df, scalars_pandas_df):
+    col_name = "float64_col"
+    series = scalars_df[col_name]
+    series_pandas = series.abs().compute()
+    pd.testing.assert_series_equal(series_pandas, scalars_pandas_df[col_name].abs())
+
+
+def test_abs_ints(scalars_df, scalars_pandas_df):
+    col_name = "rowindex"
+    series = scalars_df[col_name]
+    series_pandas = series.abs().compute()
+    pd.testing.assert_series_equal(series_pandas, scalars_pandas_df[col_name].abs())
+
+
 def test_lower(scalars_df, scalars_pandas_df):
     col_name = "string_col"
     series = scalars_df[col_name]

@@ -63,6 +63,15 @@ class Series:
                 ).name(self._value.get_name()),
             )
 
+    def abs(self) -> "Series":
+        """Calculate absolute value of numbers in the Series."""
+        return Series(
+            self._table,
+            typing.cast(ibis_types.NumericValue, self._value)
+            .abs()
+            .name(self._value.get_name()),
+        )
+
     def reverse(self) -> "Series":
         """Reverse strings in the Series."""
         return Series(
