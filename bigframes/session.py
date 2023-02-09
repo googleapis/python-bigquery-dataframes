@@ -1,4 +1,4 @@
-"""Engine manages the connection to BigQuery."""
+"""Session manages the connection to BigQuery."""
 
 from typing import Optional
 
@@ -10,7 +10,7 @@ from bigframes.dataframe import DataFrame
 
 
 class Context:
-    """Encapsulates configuration for working with an Engine.
+    """Encapsulates configuration for working with an Session.
 
     Attributes:
       credentials: The OAuth2 Credentials to use for this client. If not passed
@@ -44,10 +44,11 @@ class Context:
         return self._location
 
 
-class Engine:
-    """A DataFrame interface to BigQuery."""
+class Session:
+    """Establishes a BigQuery connection to capture a group of job activities related to DataFrames."""
 
     def __init__(self, context: Optional[Context] = None):
+        # TODO(chelsealin): create a BigQuery Session at connect time.
         if context is not None:
             self.bqclient = google.cloud.bigquery.Client(
                 credentials=context.credentials,
@@ -75,5 +76,5 @@ class Engine:
         return DataFrame(table_expression)
 
 
-def connect(context: Optional[Context] = None) -> Engine:
-    return Engine(context)
+def connect(context: Optional[Context] = None) -> Session:
+    return Session(context)

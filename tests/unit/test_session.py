@@ -9,6 +9,6 @@ import pytest
         ("dataset.table",),
     ],
 )
-def test_read_gbq_missing_parts(engine, bad_table_id):
+def test_read_gbq_missing_parts(session, bad_table_id):
     with pytest.raises(ValueError):
-        engine.read_gbq(bad_table_id)
+        session.read_gbq(bad_table_id)

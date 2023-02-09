@@ -20,12 +20,12 @@ def bigquery_client() -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def engine(bigquery_client: bigquery.Client) -> bigframes.Engine:
+def session(bigquery_client: bigquery.Client) -> bigframes.Session:
     context = bigframes.Context(
         credentials=bigquery_client._credentials,
         project=bigquery_client.project,
     )
-    return bigframes.Engine(context)
+    return bigframes.Session(context)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -83,9 +83,11 @@ def scalars_table_id(scalars_load_job: bigquery.LoadJob) -> str:
 
 
 @pytest.fixture(scope="session")
-def scalars_df(scalars_table_id: str, engine: bigframes.Engine) -> bigframes.DataFrame:
+def scalars_df(
+    scalars_table_id: str, session: bigframes.Session
+) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
-    return engine.read_gbq(scalars_table_id)
+    return session.read_gbq(scalars_table_id)
 
 
 @pytest.fixture(scope="session")

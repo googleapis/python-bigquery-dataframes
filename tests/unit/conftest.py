@@ -20,5 +20,5 @@ def mock_bigquery_client(monkeypatch):
 
 
 @pytest.fixture
-def engine(mock_bigquery_client) -> bigframes.Engine:
-    return bigframes.Engine()
+def session(mock_bigquery_client) -> bigframes.Session:
+    return bigframes.Session()
