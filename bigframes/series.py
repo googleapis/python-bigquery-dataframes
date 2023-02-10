@@ -9,6 +9,7 @@ import pandas
 from google.cloud import bigquery
 
 import bigframes.core
+import bigframes.scalar
 
 
 class Series:
@@ -134,4 +135,16 @@ class Series:
             typing.cast(ibis_types.NumericValue, self._value)
             .round(digits=decimals)
             .name(self._value.get_name()),
+        )
+
+    def mean(self) -> bigframes.scalar.Scalar:
+        """Finds the mean of the numeric values in the series. Ignores null/nan."""
+        return bigframes.scalar.Scalar(
+            typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).mean()
+        )
+
+    def sum(self) -> bigframes.scalar.Scalar:
+        """Sums the numeric values in the series. Ignores null/nan."""
+        return bigframes.scalar.Scalar(
+            typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).sum()
         )

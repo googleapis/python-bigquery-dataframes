@@ -128,3 +128,17 @@ def test_round(scalars_df):
     pd.testing.assert_series_equal(
         series_pandas, pd.Series([1, 3, None], name=col_name)
     )
+
+
+def test_mean(scalars_df):
+    col_name = "int64_col"
+    series = scalars_df[col_name]
+    pandas_scalar = series.mean().compute()
+    assert pandas_scalar == -432098766
+
+
+def test_sum(scalars_df):
+    col_name = "int64_col"
+    series = scalars_df[col_name]
+    pandas_scalar = series.sum().compute()
+    assert pandas_scalar == -864197532
