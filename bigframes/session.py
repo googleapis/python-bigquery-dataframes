@@ -3,8 +3,7 @@
 from typing import Optional
 
 import google.auth.credentials
-import google.cloud.bigquery
-from google.cloud.bigquery.table import TableReference
+import google.cloud.bigquery as bigquery
 import ibis
 
 from bigframes.core import BigFramesExpr
@@ -47,29 +46,59 @@ class Context:
 
 
 class Session:
-    """Establishes a BigQuery connection to capture a group of job activities related to DataFrames."""
+    """Establishes a BigQuery connection to capture a group of job activities related to
+    DataFrames."""
 
     def __init__(self, context: Optional[Context] = None):
-        # TODO(chelsealin): create a BigQuery Session at connect time.
+        # TODO(chelsealin): the ibis_client object has one more bq client, which takes additional
+        # connection time on authentications etc, and does not have the session id assorted. A
+        # change required in the ibis library to reuse the bq client or its _credential object.
         if context is not None:
-            self.bqclient = google.cloud.bigquery.Client(
+            self.bqclient = bigquery.Client(
                 credentials=context.credentials,
                 project=context.project,
                 location=context.location,
+                default_query_job_config=bigquery.QueryJobConfig(),
             )
             self.ibis_client = ibis.bigquery.connect(
                 project_id=context.project, credentials=context.credentials
             )
         else:
-            self.bqclient = google.cloud.bigquery.Client()
+            self.bqclient = bigquery.Client()
             self.ibis_client = ibis.bigquery.connect(project_id=self.bqclient.project)
+
+        self._create_and_bind_bq_session()
+
+    def _create_and_bind_bq_session(self):
+        """Create a BQ session and bind the session id with clients to capture BQ activities:
+        go/bigframes-transient-data"""
+        job_config = bigquery.QueryJobConfig(create_session=True)
+        query_job = self.bqclient.query("SELECT 1", job_config=job_config)
+        self._session_id = query_job.session_info.session_id
+
+        # TODO(chelsealin): Don't call the private objects after sending a PR to BQ Python client
+        # library.
+        self.bqclient._default_query_job_config = bigquery.QueryJobConfig(
+            connection_properties=[
+                bigquery.ConnectionProperty("session_id", self._session_id)
+            ]
+        )
+
+    def close(self):
+        """Terminated the BQ session, otherwises the session will be terminated automatically after
+        24 hours of inactivity or after 7 days."""
+        if self._session_id is not None and self.bqclient is not None:
+            abort_session_query = "CALL BQ.ABORT_SESSION('{}')".format(self._session_id)
+            query_job = self.bqclient.query(abort_session_query)
+            query_job.result()  # blocks until finished
+            self._session_id = None
 
     def read_gbq(self, table: str) -> "DataFrame":
         """Loads data from Google BigQuery."""
         # TODO(swast): If a table ID, make sure we read from a snapshot to
         # better emulate pandas.read_gbq's point-in-time download. See:
         # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
-        table_ref = TableReference.from_string(
+        table_ref = bigquery.table.TableReference.from_string(
             table, default_project=self.bqclient.project
         )
         table_expression = self.ibis_client.table(

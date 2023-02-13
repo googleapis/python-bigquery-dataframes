@@ -1,11 +1,11 @@
 import math
-from typing import Mapping, Union
+from typing import Mapping, Optional, Union
 from unittest import mock
 
 import google.api_core.exceptions
 import google.auth
-import google.cloud.bigquery
-from google.cloud.bigquery.table import TableReference
+import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.table
 import google.oauth2.credentials  # type: ignore
 import ibis.expr.types as ibis_types
 import pandas
@@ -20,50 +20,54 @@ SCALARS_TABLE_ID = "project.dataset.scalars_table"
 @pytest.fixture(autouse=True)
 def mock_bigquery_client(
     monkeypatch, scalars_pandas_df: pandas.DataFrame
-) -> google.cloud.bigquery.Client:
-    mock_client = mock.create_autospec(google.cloud.bigquery.Client)
+) -> bigquery.Client:
+    mock_client = mock.create_autospec(bigquery.Client)
     # Constructor returns the mock itself, so this mock can be treated as the
     # constructor or the instance.
     mock_client.return_value = mock_client
     mock_client.project = "default-project"
     mock_client.get_table = mock_bigquery_client_get_table
 
-    def mock_bigquery_client_query(sql: str) -> google.cloud.bigquery.QueryJob:
+    def mock_bigquery_client_query(
+        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
+    ) -> bigquery.QueryJob:
         def mock_result(max_results=None):
-            mock_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
+            mock_job = mock.create_autospec(bigquery.QueryJob)
             mock_job.total_rows = len(scalars_pandas_df.index)
             mock_job.schema = [
-                google.cloud.bigquery.SchemaField(name=name, field_type="INT64")
+                bigquery.SchemaField(name=name, field_type="INT64")
                 for name in scalars_pandas_df.columns
             ]
             # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
             mock_job.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
             return mock_job
 
-        mock_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
+        mock_job = mock.create_autospec(bigquery.QueryJob)
         mock_job.result = mock_result
         return mock_job
 
     mock_client.query = mock_bigquery_client_query
-    monkeypatch.setattr(google.cloud.bigquery, "Client", mock_client)
+    monkeypatch.setattr(bigquery, "Client", mock_client)
     mock_client.reset_mock()
     return mock_client
 
 
-def mock_bigquery_client_get_table(table_ref: Union[TableReference, str]):
-    if isinstance(table_ref, TableReference):
+def mock_bigquery_client_get_table(
+    table_ref: Union[google.cloud.bigquery.table.TableReference, str]
+):
+    if isinstance(table_ref, google.cloud.bigquery.table.TableReference):
         table_name = table_ref.__str__()
     else:
         table_name = table_ref
 
     if table_name == "project.dataset.table":
-        return google.cloud.bigquery.Table(
+        return bigquery.Table(
             table_name, [{"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"}]
         )
     elif table_name == "default-project.dataset.table":
-        return google.cloud.bigquery.Table(table_name)
+        return bigquery.Table(table_name)
     elif table_name == SCALARS_TABLE_ID:
-        return google.cloud.bigquery.Table(
+        return bigquery.Table(
             table_name,
             [
                 {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
