@@ -140,6 +140,14 @@ class Series:
 
         return self._apply_unary_op(cummin_op)
 
+    def fillna(self, value) -> "Series":
+        """Fills NULL values."""
+
+        def fillna_op(x: ibis_types.Value):
+            return x.fillna(value)
+
+        return self._apply_unary_op(fillna_op)
+
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
         return ViewSeries(
@@ -257,6 +265,14 @@ class Series:
     def count(self) -> bigframes.scalar.Scalar:
         """Counts the number of values in the series. Ignores null/nan."""
         return self._apply_aggregation(agg_ops.count_op)
+
+    def max(self) -> bigframes.scalar.Scalar:
+        """Return the maximum values over the requested axis."""
+        return self._apply_aggregation(agg_ops.max_op)
+
+    def min(self) -> bigframes.scalar.Scalar:
+        """Return the maximum values over the requested axis."""
+        return self._apply_aggregation(agg_ops.min_op)
 
     def mean(self) -> bigframes.scalar.Scalar:
         """Finds the mean of the numeric values in the series. Ignores null/nan.

@@ -27,6 +27,14 @@ def mean_op(column: ibis_types.NumericColumn) -> ibis_types.NumericScalar:
     return column.mean()
 
 
+def max_op(column: ibis_types.Column) -> ibis_types.Scalar:
+    return column.max()
+
+
+def min_op(column: ibis_types.Column) -> ibis_types.Scalar:
+    return column.min()
+
+
 def count_op(column: ibis_types.Column) -> ibis_types.IntegerScalar:
     return column.count()
 

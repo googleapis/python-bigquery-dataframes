@@ -83,6 +83,17 @@ def test_find(scalars_dfs):
     )
 
 
+def test_fillna(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = scalars_df[col_name].fillna("Missing").compute()
+    pd_result = scalars_pandas_df[col_name].fillna("Missing")
+    assert_series_equal_ignoring_order(
+        pd_result.astype("object"),
+        bf_result,
+    )
+
+
 def test_len(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -108,6 +119,34 @@ def test_lower(scalars_dfs):
         pd_result.astype("object"),
         bf_result,
     )
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("string_col",),
+        ("int64_col",),
+    ),
+)
+def test_max(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].max().compute()
+    pd_result = scalars_pandas_df[col_name].max()
+    assert pd_result == bf_result
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("string_col",),
+        ("int64_col",),
+    ),
+)
+def test_min(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].min().compute()
+    pd_result = scalars_pandas_df[col_name].min()
+    assert pd_result == bf_result
 
 
 def test_upper(scalars_dfs):
