@@ -54,6 +54,15 @@ def test_abs_ints(scalars_df, scalars_pandas_df):
     pd.testing.assert_series_equal(series_pandas, scalars_pandas_df[col_name].abs())
 
 
+def test_len(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.len().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([13, 5, None], name=col_name)
+    )
+
+
 def test_lower(scalars_df, scalars_pandas_df):
     col_name = "string_col"
     series = scalars_df[col_name]

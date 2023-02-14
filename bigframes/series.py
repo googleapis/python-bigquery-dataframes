@@ -84,6 +84,15 @@ class Series:
             self._value,
         )
 
+    def len(self) -> "Series":
+        """Compute the length of each string."""
+        return Series(
+            self._expr,
+            typing.cast(ibis_types.StringValue, self._value)
+            .length()
+            .name(self._value.get_name()),
+        )
+
     def lower(self) -> "Series":
         """Convert strings in the Series to lowercase."""
         return Series(
