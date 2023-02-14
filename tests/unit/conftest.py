@@ -1,30 +1,52 @@
 import math
-from typing import Union
+from typing import Mapping, Union
 from unittest import mock
 
 import google.api_core.exceptions
 import google.auth
 import google.cloud.bigquery
-import ibis
+import google.oauth2.credentials  # type: ignore
 import ibis.expr.types as ibis_types
 import pandas
 import pytest
 from google.cloud.bigquery.table import TableReference
 
 import bigframes
+import bigframes.core
+
+SCALARS_TABLE_ID = "project.dataset.scalars_table"
 
 
 @pytest.fixture(autouse=True)
-def mock_bigquery_client(monkeypatch):
+def mock_bigquery_client(
+    monkeypatch, scalars_pandas_df: pandas.DataFrame
+) -> google.cloud.bigquery.Client:
     mock_client = mock.create_autospec(google.cloud.bigquery.Client)
     # Constructor returns the mock itself, so this mock can be treated as the
     # constructor or the instance.
     mock_client.return_value = mock_client
     mock_client.project = "default-project"
     mock_client.get_table = mock_bigquery_client_get_table
+
+    def mock_bigquery_client_query(sql: str) -> google.cloud.bigquery.QueryJob:
+        def mock_result(max_results=None):
+            mock_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
+            mock_job.total_rows = len(scalars_pandas_df.index)
+            mock_job.schema = [
+                google.cloud.bigquery.SchemaField(name=name, field_type="INT64")
+                for name in scalars_pandas_df.columns
+            ]
+            # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
+            mock_job.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
+            return mock_job
+
+        mock_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
+        mock_job.result = mock_result
+        return mock_job
+
+    mock_client.query = mock_bigquery_client_query
     monkeypatch.setattr(google.cloud.bigquery, "Client", mock_client)
     mock_client.reset_mock()
-
     return mock_client
 
 
@@ -40,13 +62,40 @@ def mock_bigquery_client_get_table(table_ref: Union[TableReference, str]):
         )
     elif table_name == "default-project.dataset.table":
         return google.cloud.bigquery.Table(table_name)
+    elif table_name == SCALARS_TABLE_ID:
+        return google.cloud.bigquery.Table(
+            table_name,
+            [
+                {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
+                {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
+                {"mode": "NULLABLE", "name": "float64_col", "type": "FLOAT"},
+                {"mode": "NULLABLE", "name": "string_col", "type": "STRING"},
+            ],
+        )
     else:
         raise google.api_core.exceptions.NotFound("Not Found Table")
 
 
 @pytest.fixture
-def session(mock_bigquery_client) -> bigframes.Session:
-    return bigframes.Session()
+def session() -> bigframes.Session:
+    return bigframes.Session(
+        context=bigframes.Context(
+            credentials=mock.create_autospec(google.oauth2.credentials.Credentials),
+            project="unit-test-project",
+        )
+    )
+
+
+@pytest.fixture
+def scalars_df(session) -> bigframes.DataFrame:
+    return session.read_gbq(SCALARS_TABLE_ID)
+
+
+@pytest.fixture
+def session_tables(scalars_pandas_df) -> Mapping[str, pandas.DataFrame]:
+    return {
+        SCALARS_TABLE_ID: scalars_pandas_df,
+    }
 
 
 @pytest.fixture
@@ -57,11 +106,34 @@ def scalars_pandas_df() -> pandas.DataFrame:
     return pandas.DataFrame(
         {
             "bool_col": pandas.Series(
-                [True, None, False, True, None, False, True, None, False, True],
+                [
+                    True,
+                    None,
+                    False,
+                    True,
+                    None,
+                    False,
+                    True,
+                    None,
+                    False,
+                    True,
+                ],
                 dtype="boolean",
             ),
             "int64_col": pandas.Series(
-                [1, 2, 3, None, 0, -1, -2, 2**63 - 1, -(2**63), None], dtype="Int64"
+                [
+                    1,
+                    2,
+                    3,
+                    None,
+                    0,
+                    -1,
+                    -2,
+                    2**63 - 1,
+                    -(2**63),
+                    None,
+                ],
+                dtype="Int64",
             ),
             "float64_col": pandas.Series(
                 [
@@ -97,10 +169,5 @@ def scalars_pandas_df() -> pandas.DataFrame:
 
 
 @pytest.fixture
-def scalars_ibis_table(scalars_pandas_df) -> ibis_types.Table:
-    ibis_engine = ibis.pandas.connect(
-        dictionary={
-            "scalars_table": scalars_pandas_df,
-        }
-    )
-    return ibis_engine.table("scalars_table")
+def scalars_ibis_table(session) -> ibis_types.Table:
+    return session.ibis_client.table(SCALARS_TABLE_ID)

@@ -67,7 +67,9 @@ class DataFrame:
         preview = job.to_dataframe()
 
         # TODO(swast): Print the SQL too?
-        lines = [repr(preview)]
+        # Grab all but the final two lines so we can replace the row count with
+        # the actual row count from the query.
+        lines = repr(preview).split("\n")[:-2]
         if rows > len(preview.index):
             lines.append("...")
 
