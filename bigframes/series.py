@@ -148,3 +148,12 @@ class Series:
         return bigframes.scalar.Scalar(
             typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).sum()
         )
+
+    def slice(self, start=None, stop=None) -> "Series":
+        """Slice substrings from each element in the Series."""
+        return Series(
+            self._expr,
+            typing.cast(ibis_types.StringValue, self._value)[start:stop].name(
+                self._value.get_name()
+            ),
+        )

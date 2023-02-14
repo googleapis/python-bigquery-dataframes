@@ -142,3 +142,15 @@ def test_sum(scalars_df):
     series = scalars_df[col_name]
     pandas_scalar = series.sum().compute()
     assert pandas_scalar == -864197532
+
+
+@pytest.mark.parametrize(
+    ["start", "stop"], [(0, 1), (3, 5), (100, 101), (None, 1), (0, 12), (0, None)]
+)
+def test_slice(scalars_df, scalars_pandas_df, start, stop):
+    col_name = "string_col"
+    bf_series = scalars_df[col_name]
+    bf_result = bf_series.slice(start, stop).compute()
+    pd_series = scalars_pandas_df[col_name]
+    pd_result = pd_series.str.slice(start, stop)
+    pd.testing.assert_series_equal(bf_result, pd_result)
