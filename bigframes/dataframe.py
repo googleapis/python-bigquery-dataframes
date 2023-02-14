@@ -57,6 +57,11 @@ class DataFrame:
         )
         return DataFrame(expr)
 
+    def __getattr__(self, key: str):
+        if key not in self._expr.column_names.keys():
+            raise AttributeError(key)
+        return self.__getitem__(key)
+
     def __repr__(self) -> str:
         """Converts a DataFrame to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
@@ -93,14 +98,12 @@ class DataFrame:
             columns = [columns]
 
         expr_builder = self._expr.builder()
-        # It should be always true, as the expr_builder is created from _expr where _expr.columns is always not None. While mypy complains iterating Optional[Collection].
-        if expr_builder.columns:
-            remain_cols = [
-                column
-                for column in expr_builder.columns
-                if column.get_name() not in columns
-            ]
-            expr_builder.columns = remain_cols
+        remain_cols = [
+            column
+            for column in expr_builder.columns
+            if column.get_name() not in columns
+        ]
+        expr_builder.columns = remain_cols
         return DataFrame(expr_builder.build())
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
@@ -109,9 +112,28 @@ class DataFrame:
         expr_builder = self._expr.builder()
         expr_builder.table = expr_builder.table.relabel(columns)
 
-        if expr_builder.columns:
-            for i, col in enumerate(expr_builder.columns):
-                if col.get_name() in columns.keys():
-                    expr_builder.columns[i] = col.name(columns[col.get_name()])
+        for i, col in enumerate(expr_builder.columns):
+            if col.get_name() in columns.keys():
+                expr_builder.columns[i] = col.name(columns[col.get_name()])
+
+        return DataFrame(expr_builder.build())
+
+    def assign(self, **kwargs) -> DataFrame:
+        """Assign new columns to a DataFrame.
+
+        Returns a new object with all original columns in addition to new ones. Existing columns that are re-assigned will be overwritten."""
+        # TODO(garrettwu) Support list-like values. Requires ordering.
+        # TODO(garrettwu) Support callable values.
+
+        expr_builder = self._expr.builder()
+        existing_col_pos_map = {
+            col.get_name(): i for i, col in enumerate(expr_builder.columns)
+        }
+        for k, v in kwargs.items():
+            expr_builder.table = expr_builder.table.mutate(**{k: v})
+            if k in existing_col_pos_map.keys():
+                expr_builder.columns[existing_col_pos_map[k]] = expr_builder.table[k]
+            else:
+                expr_builder.columns.append(expr_builder.table[k])
 
         return DataFrame(expr_builder.build())

@@ -69,6 +69,10 @@ class BigFramesExpr:
     def predicates(self) -> Collection[ibis_types.BooleanValue]:
         return self._predicates
 
+    @property
+    def column_names(self) -> dict[str, ibis_types.Value]:
+        return self._column_names
+
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
         # Since BigFramesExpr is intended to be immutable (immutability offers
@@ -131,19 +135,22 @@ class BigFramesExpr:
 
 
 class BigFramesExprBuilder:
-    """Mutable expression class."""
+    """Mutable expression class.
+
+    Use BigFramesExpr.builder() to create from a BigFramesExpr object.
+    """
 
     def __init__(
         self,
         session: Session,
         table: ibis_types.Table,
-        columns: Optional[Collection[ibis_types.Value]] = None,
+        columns: Collection[ibis_types.Value],
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
         limit: Optional[int] = None,
     ):
         self.session = session
         self.table = table
-        self.columns = list(columns) if columns is not None else None
+        self.columns = list(columns)
         self.predicates = list(predicates) if predicates is not None else None
         self.limit = limit
 
