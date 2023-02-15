@@ -82,3 +82,19 @@ class DataFrame:
         """Limits DataFrame to a specific number of rows."""
         expr = self._expr.limit(n)
         return DataFrame(expr)
+
+    def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
+        """Drop specified column(s)."""
+        if isinstance(columns, str):
+            columns = [columns]
+
+        expr_builder = self._expr.builder()
+        # It should be always true, as the expr_builder is created from _expr where _expr.columns is always not None. While mypy complains iterating Optional[Collection].
+        if expr_builder.columns:
+            remain_cols = [
+                column
+                for column in expr_builder.columns
+                if column.get_name() not in columns
+            ]
+            expr_builder.columns = remain_cols
+        return DataFrame(expr_builder.build())
