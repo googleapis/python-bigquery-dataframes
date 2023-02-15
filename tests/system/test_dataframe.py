@@ -31,3 +31,11 @@ def test_drop_columns(scalars_df, scalars_pandas_df):
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.drop(columns=col_names).columns
     )
+
+
+def test_rename(scalars_df, scalars_pandas_df):
+    col_name_dict = {"bool_col": "boolean_col"}
+    df_pandas = scalars_df.rename(col_name_dict).compute()
+    pd.testing.assert_index_equal(
+        df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
+    )

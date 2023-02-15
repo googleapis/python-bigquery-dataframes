@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Union
+from typing import Iterable, Mapping, Union
 
 import pandas
 
@@ -97,4 +97,17 @@ class DataFrame:
                 if column.get_name() not in columns
             ]
             expr_builder.columns = remain_cols
+        return DataFrame(expr_builder.build())
+
+    def rename(self, columns: Mapping[str, str]) -> DataFrame:
+        """Alter column labels."""
+        # TODO(garrettwu) Support function(Callable) as columns parameter.
+        expr_builder = self._expr.builder()
+        expr_builder.table = expr_builder.table.relabel(columns)
+
+        if expr_builder.columns:
+            for i, col in enumerate(expr_builder.columns):
+                if col.get_name() in columns.keys():
+                    expr_builder.columns[i] = col.name(columns[col.get_name()])
+
         return DataFrame(expr_builder.build())
