@@ -3,13 +3,14 @@ from __future__ import annotations
 import typing
 from typing import Collection, Optional
 
+import ibis.expr.types as ibis_types
 from google.cloud import bigquery
-from ibis.expr.types import Table, Value
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
 
 
+# TODO(swast): We might want to move this to it's own sub-module.
 class BigFramesExpr:
     """Immutable BigFrames expression tree.
 
@@ -31,8 +32,8 @@ class BigFramesExpr:
     def __init__(
         self,
         session: Session,
-        table: Table,
-        columns: Optional[Collection[Value]] = None,
+        table: ibis_types.Table,
+        columns: Optional[Collection[ibis_types.Value]] = None,
         limit: Optional[int] = None,
     ):
         self._session = session
@@ -51,6 +52,14 @@ class BigFramesExpr:
         # dictionary mapping names to column values.
         self._column_names = {column.get_name(): column for column in self._columns}
 
+    @property
+    def table(self) -> ibis_types.Table:
+        return self._table
+
+    @property
+    def limit(self) -> Optional[int]:
+        return self._limit
+
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
         # Since BigFramesExpr is intended to be immutable (immutability offers
@@ -60,16 +69,16 @@ class BigFramesExpr:
             self._session, self._table, self._columns, self._limit
         )
 
-    def get_column(self, key: str) -> Value:
+    def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         return self._column_names[key]
 
-    def limit(self, max_results: int) -> BigFramesExpr:
+    def apply_limit(self, max_results: int) -> BigFramesExpr:
         expr = self.builder()
         expr.limit = max_results if expr.limit is None else min(expr.limit, max_results)
         return expr.build()
 
-    def projection(self, columns: Collection[Value]) -> BigFramesExpr:
+    def projection(self, columns: Collection[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
         # from the same table expression instead of (in addition to?) at
@@ -110,8 +119,8 @@ class BigFramesExprBuilder:
     def __init__(
         self,
         session: Session,
-        table: Table,
-        columns: Optional[Collection[Value]] = None,
+        table: ibis_types.Table,
+        columns: Optional[Collection[ibis_types.Value]] = None,
         limit: Optional[int] = None,
     ):
         self.session = session

@@ -50,6 +50,8 @@ class DataFrame:
         # Series objects to still work with the new / mutated DataFrame. We
         # avoid applying a projection in Ibis until it's absolutely necessary
         # to provide pandas-like semantics.
+        # TODO(swast): Do we need to apply an implicit join when doing a
+        # projection?
         expr = self._expr.projection(
             [self._expr.get_column(column_name) for column_name in key]
         )
@@ -80,7 +82,7 @@ class DataFrame:
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
-        expr = self._expr.limit(n)
+        expr = self._expr.apply_limit(n)
         return DataFrame(expr)
 
     def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import typing
 
+import ibis
 import ibis.expr.types as ibis_types
 import pandas
 from google.cloud import bigquery
 
 import bigframes.core
+import bigframes.core.indexes.implicitjoiner
 import bigframes.scalar
 
 
@@ -26,7 +28,13 @@ class Series:
         value: ibis_types.Value,
     ):
         self._expr = expr
+        # TODO(swast): How can we consolidate BigFramesExpr and ImplicitJoiner?
+        self._index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
         self._value = value
+
+    @property
+    def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
+        return self._index
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -72,7 +80,7 @@ class Series:
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
         return Series(
-            self._expr.limit(n),
+            self._expr.apply_limit(n),
             self._value,
         )
 
@@ -96,11 +104,22 @@ class Series:
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
         if isinstance(other, Series):
+            combined_index, (left_has_value, right_has_value) = self._index.join(
+                other.index, how="outer"
+            )
+            left_value = (
+                ibis.case().when(left_has_value, self._value).else_(ibis.null()).end()
+            )
+            right_value = (
+                ibis.case().when(right_has_value, other._value).else_(ibis.null()).end()
+            )
+
             return Series(
-                self._expr,
-                typing.cast(ibis_types.NumericValue, self._value)
-                .__add__(typing.cast(ibis_types.NumericValue, other._value))
-                .name(self._value.get_name()),
+                combined_index._expr,
+                (
+                    typing.cast(ibis_types.NumericValue, left_value)
+                    + typing.cast(ibis_types.NumericValue, right_value)
+                ).name(self._value.get_name()),
             )
         else:
             return Series(

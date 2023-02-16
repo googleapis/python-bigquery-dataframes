@@ -33,12 +33,11 @@ import pytest
         ("timestamp_col", numpy.dtype("datetime64[ns]")),
     ],
 )
-def test_get_column(scalars_df, scalars_load_job, col_name, expected_dtype):
+def test_get_column(scalars_df, scalars_pandas_df, col_name, expected_dtype):
     series = scalars_df[col_name]
     series_pandas = series.compute()
     assert series_pandas.dtype == expected_dtype
-    # TODO(swast): Compare lengths with DataFrame length computed by Bigframes.
-    assert series_pandas.shape[0] == scalars_load_job.output_rows
+    assert series_pandas.shape[0] == scalars_pandas_df.shape[0]
 
 
 def test_abs_floats(scalars_df, scalars_pandas_df):
@@ -95,11 +94,54 @@ def test_series_add_scalar(scalars_df, other, expected):
     )
 
 
-def test_series_add_bigframes_series(scalars_df):
-    pd.testing.assert_series_equal(
-        (scalars_df["float64_col"] + scalars_df["float64_col"]).compute(),
-        pd.Series([2.5, 5.0, numpy.nan], name="float64_col"),
-    )
+@pytest.mark.parametrize(
+    ("left_col", "right_col"),
+    [
+        ("float64_col", "float64_col"),
+        ("int64_col", "float64_col"),
+        ("int64_col", "int64_col"),
+    ],
+)
+def test_series_add_bigframes_series(
+    scalars_df, scalars_pandas_df, left_col, right_col
+):
+    bf_result = (scalars_df[left_col] + scalars_df[right_col]).compute()
+    pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
+    pd_result.name = left_col
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("head_left", "head_right"),
+    [
+        (1, 2),
+        (None, 2),
+        (2, None),
+    ],
+)
+def test_series_add_bigframes_series_with_head(
+    scalars_df, scalars_pandas_df, head_left, head_right
+):
+    left_col = "float64_col"
+    right_col = "int64_col"
+    bf_left = scalars_df[left_col]
+    bf_left = bf_left if head_left is None else bf_left.head(head_left)
+    pd_left = scalars_pandas_df[left_col]
+    pd_left = pd_left if head_left is None else pd_left.head(head_left)
+    bf_right = scalars_df[right_col]
+    bf_right = bf_right if head_right is None else bf_right.head(head_right)
+    pd_right = scalars_pandas_df[right_col]
+    pd_right = pd_right if head_right is None else pd_right.head(head_right)
+    bf_result = (bf_left + bf_right).compute()
+    pd_result = pd_left + pd_right
+    pd_result.name = left_col
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_add_different_table_value_error(scalars_df, scalars_df_2):
+    with pytest.raises(ValueError, match="scalars_too"):
+        # Error should happen right away, not just at compute() time.
+        scalars_df["float64_col"] + scalars_df_2["float64_col"]
 
 
 def test_series_add_pandas_series_not_implemented(scalars_df):

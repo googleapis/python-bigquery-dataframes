@@ -53,9 +53,9 @@ def scalars_schema(bigquery_client: bigquery.Client):
     return tuple(schema)
 
 
-@pytest.fixture(scope="session")
-def scalars_load_job(
+def load_scalars(
     dataset_id: str,
+    table_id: str,
     bigquery_client: bigquery.Client,
     scalars_schema: Collection[bigquery.SchemaField],
 ) -> bigquery.LoadJob:
@@ -63,7 +63,7 @@ def scalars_load_job(
     job_config = bigquery.LoadJobConfig()
     job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
     job_config.schema = scalars_schema
-    table_id = f"{dataset_id}.scalars"
+    table_id = f"{dataset_id}.{table_id}"
     with open(DATA_DIR / "scalars.jsonl", "rb") as input_file:
         job = bigquery_client.load_table_from_file(
             input_file, table_id, job_config=job_config
@@ -73,7 +73,27 @@ def scalars_load_job(
 
 
 @pytest.fixture(scope="session")
-def scalars_table_id(scalars_load_job: bigquery.LoadJob) -> str:
+def scalars_table_id(
+    dataset_id: str,
+    bigquery_client: bigquery.Client,
+    scalars_schema: Collection[bigquery.SchemaField],
+) -> str:
+    scalars_load_job = load_scalars(
+        dataset_id, "scalars", bigquery_client, scalars_schema
+    )
+    table_ref = scalars_load_job.destination
+    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+
+
+@pytest.fixture(scope="session")
+def scalars_table_id_2(
+    dataset_id: str,
+    bigquery_client: bigquery.Client,
+    scalars_schema: Collection[bigquery.SchemaField],
+) -> str:
+    scalars_load_job = load_scalars(
+        dataset_id, "scalars_too", bigquery_client, scalars_schema
+    )
     table_ref = scalars_load_job.destination
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 
@@ -84,6 +104,14 @@ def scalars_df(
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(scalars_table_id)
+
+
+@pytest.fixture(scope="session")
+def scalars_df_2(
+    scalars_table_id_2: str, session: bigframes.Session
+) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(scalars_table_id_2)
 
 
 @pytest.fixture(scope="session")

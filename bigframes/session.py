@@ -67,7 +67,8 @@ class Session:
     def read_gbq(self, table: str) -> "DataFrame":
         """Loads data from Google BigQuery."""
         # TODO(swast): If a table ID, make sure we read from a snapshot to
-        # better emulate pandas.read_gbq.
+        # better emulate pandas.read_gbq's point-in-time download. See:
+        # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
         table_ref = TableReference.from_string(
             table, default_project=self.bqclient.project
         )
