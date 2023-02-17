@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import typing
-from typing import Collection, Optional
+from typing import Collection, Optional, Sequence
 
 from google.cloud import bigquery
-from ibis.expr.types import Scalar
 import ibis.expr.types as ibis_types
 from ibis.expr.types.groupby import GroupedTable
 
@@ -37,11 +36,13 @@ class BigFramesExpr:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Collection[ibis_types.Value]] = None,
+        ordering: Optional[Sequence[ibis_types.Value]] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
+        self._ordering = tuple(ordering) if ordering is not None else ()
 
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
@@ -67,6 +68,10 @@ class BigFramesExpr:
     def column_names(self) -> dict[str, ibis_types.Value]:
         return self._column_names
 
+    @property
+    def ordering(self) -> Sequence[ibis_types.Value]:
+        return self._ordering
+
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
         # Since BigFramesExpr is intended to be immutable (immutability offers
@@ -76,6 +81,7 @@ class BigFramesExpr:
             self._session,
             self._table,
             self._columns,
+            ordering=self._ordering,
             predicates=self._predicates,
         )
 
@@ -90,6 +96,17 @@ class BigFramesExpr:
         # sure we have the correct references.
         return BigFramesExpr(self._session, table)
 
+    def filter(self, predicate: ibis_types.BooleanValue) -> BigFramesExpr:
+        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
+        expr = self.builder()
+        expr.predicates = [*self._predicates, predicate]
+        return expr.build()
+
+    def order_by(self, by: Sequence[ibis_types.Value]) -> BigFramesExpr:
+        expr = self.builder()
+        expr.ordering = list(by)
+        return expr.build()
+
     def projection(self, columns: Collection[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
@@ -99,19 +116,15 @@ class BigFramesExpr:
         expr.columns = list(columns)
         return expr.build()
 
-    def filter(self, predicate: ibis_types.BooleanValue) -> BigFramesExpr:
-        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        expr = self.builder()
-        expr.predicates = [*self._predicates, predicate]
-        return expr.build()
-
     def to_ibis_expr(self):
         """Creates an Ibis table expression representing the DataFrame."""
         table = self._table
+        if len(self._ordering) > 0:
+            table = table.order_by(list(self._ordering))
         if len(self._predicates) > 0:
-            table = table.filter(self._predicates)
+            table = table.filter(list(self._predicates))
         if self._columns is not None:
-            table = table.select(self._columns)
+            table = table.select(list(self._columns))
         return table
 
     def start_query(self) -> bigquery.QueryJob:
@@ -141,12 +154,14 @@ class BigFramesExprBuilder:
         self,
         session: Session,
         table: ibis_types.Table,
-        columns: Collection[ibis_types.Value],
+        columns: Collection[ibis_types.Value] = (),
+        ordering: Sequence[ibis_types.Value] = (),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns)
+        self.ordering = list(ordering)
         self.predicates = list(predicates) if predicates is not None else None
 
     def build(self) -> BigFramesExpr:
@@ -154,6 +169,7 @@ class BigFramesExprBuilder:
             session=self.session,
             table=self.table,
             columns=self.columns,
+            ordering=self.ordering,
             predicates=self.predicates,
         )
 
@@ -170,7 +186,7 @@ class BigFramesGroupByExpr:
         """Creates an Ibis table expression representing the DataFrame."""
         return self._expr._table.group_by(self._by)
 
-    def aggregate(self, metrics: Collection[Scalar]) -> BigFramesExpr:
+    def aggregate(self, metrics: Collection[ibis_types.Scalar]) -> BigFramesExpr:
         table = self._to_ibis_expr().aggregate(metrics)
         # Since we make a new table expression, the old column references now
         # point to the wrong table. Use the BigFramesExpr constructor to make

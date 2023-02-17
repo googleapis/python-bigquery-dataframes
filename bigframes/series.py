@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing
+from typing import Optional
 
 import ibis
 import ibis.expr.types as ibis_types
@@ -10,6 +11,7 @@ import pandas
 
 import bigframes.core
 import bigframes.core.indexes.implicitjoiner
+import bigframes.core.indexes.index
 import bigframes.scalar
 
 
@@ -21,15 +23,29 @@ class Series:
         ``DataFrame[column_name]`` to construct a Series.
     """
 
-    def __init__(self, expr: bigframes.core.BigFramesExpr, value: ibis_types.Value):
+    def __init__(
+        self,
+        expr: bigframes.core.BigFramesExpr,
+        value: ibis_types.Value,
+        index: Optional[bigframes.core.indexes.implicitjoiner.ImplicitJoiner] = None,
+    ):
+        if index is None:
+            index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
+
         self._expr = expr
-        # TODO(swast): How can we consolidate BigFramesExpr and ImplicitJoiner?
-        self._index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
+        self._index = index
         self._value = value
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
         return self._index
+
+    @property
+    def name(self) -> str:
+        # TODO(swast): Introduce a level of indirection over Ibis to allow for
+        # more accurate pandas behavior (such as allowing for unnamed or
+        # non-uniquely named objects) without breaking SQL.
+        return self._value.get_name()
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -37,7 +53,7 @@ class Series:
         # maybe we just print the job metadata that we have so far?
         # TODO(swast): Avoid downloading the whole series by using job
         # metadata, like we do with DataFrame.
-        preview = self._execute_query()
+        preview = self.compute()
         return repr(preview)
 
     def _to_ibis_expr(self):
@@ -45,8 +61,8 @@ class Series:
         expr = self._expr.projection([self._value])
         return expr.to_ibis_expr()[self._value.get_name()]
 
-    def _execute_query(self) -> pandas.Series:
-        """Execute a query and return metadata about the results."""
+    def compute(self) -> pandas.Series:
+        """Executes deferred operations and downloads the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
         # for the results? We'd need a way to invalidate the cache if DataFrame
         # becomes mutable, though. Or move this method to the immutable
@@ -57,18 +73,30 @@ class Series:
         # a LocalSession for unit testing.
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        return self._to_ibis_expr().execute()
-
-    def compute(self) -> pandas.Series:
-        """Executes deferred operations and downloads the results."""
-        value = self._to_ibis_expr()
-        return value.execute()
+        # TODO(swast): How to handle MultiIndex?
+        if isinstance(self._index, bigframes.core.indexes.index.Index):
+            # TODO(swast): We need something that encapsulates data + index
+            # column(s) so that Series and DataFrame don't need to duplicate
+            # Index logic.
+            expr = self._expr.projection(
+                [self._value, self._expr.get_column(self._index._index_column)]
+            )
+            df = expr.to_ibis_expr().execute()
+            df = df.set_index(self._index._index_column)
+            df.index.name = self._index.name
+            return df[self.name]
+        else:
+            return self._to_ibis_expr().execute()
 
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
+        expr = self._expr.apply_limit(n)
+        index = self._index.copy()
+        index._expr = expr
         return Series(
-            self._expr.apply_limit(n),
+            expr,
             self._value,
+            index=index,
         )
 
     def len(self) -> "Series":
@@ -78,6 +106,7 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)
             .length()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def lower(self) -> "Series":
@@ -87,6 +116,7 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)
             .lower()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def upper(self) -> "Series":
@@ -96,10 +126,11 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)
             .upper()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
-        (left, right, expr) = self._align(other)
+        (left, right, expr, index) = self._align(other)
         return Series(
             expr,
             (
@@ -108,6 +139,7 @@ class Series:
             ).name(  # type: ignore
                 self._value.get_name()
             ),
+            index=index,
         )
 
     def abs(self) -> "Series":
@@ -117,6 +149,7 @@ class Series:
             typing.cast(ibis_types.NumericValue, self._value)
             .abs()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def reverse(self) -> "Series":
@@ -126,6 +159,7 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)
             .reverse()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def round(self, decimals=0) -> "Series":
@@ -135,6 +169,7 @@ class Series:
             typing.cast(ibis_types.NumericValue, self._value)
             .round(digits=decimals)
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def mean(self) -> bigframes.scalar.Scalar:
@@ -156,6 +191,7 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)[start:stop].name(
                 self._value.get_name()
             ),
+            index=self._index,
         )
 
     def __eq__(self, other: object) -> Series:  # type: ignore
@@ -173,6 +209,7 @@ class Series:
             typing.cast(ibis_types.NumericValue, self._value)
             .negate()
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def eq(self, other: object) -> Series:
@@ -182,10 +219,11 @@ class Series:
         This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
         """
         # TODO: enforce stricter alignment
-        (left, right, expr) = self._align(other)
+        (left, right, expr, index) = self._align(other)
         return Series(
             expr,
             (left == right).fillna(ibis.literal(False)).name(self._value.get_name()),
+            index=index,
         )
 
     def ne(self, other: object) -> Series:
@@ -195,10 +233,11 @@ class Series:
         This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
         """
         # TODO: enforce stricter alignment
-        (left, right, expr) = self._align(other)
+        (left, right, expr, index) = self._align(other)
         return Series(
             expr,
             (left != right).fillna(ibis.literal(True)).name(self._value.get_name()),
+            index=index,
         )
 
     def __getitem__(self, indexer: Series):
@@ -211,9 +250,11 @@ class Series:
         filtered_expr = self._expr.filter(
             typing.cast(ibis_types.BooleanValue, indexer._value)
         )
-        return Series(filtered_expr, self._value)
+        index = self._index.copy()
+        index._expr = filtered_expr
+        return Series(filtered_expr, self._value, index=index)
 
-    def _align(self, other: typing.Any) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.BigFramesExpr]:  # type: ignore
+    def _align(self, other: typing.Any) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.BigFramesExpr, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
         # TODO: Support deferred scalar
         if isinstance(other, Series):
@@ -227,10 +268,11 @@ class Series:
             # TODO(tbereron): support deferred scalars.
             raise ValueError("Deferred scalar not yet supported for binary operations.")
         else:
+            combined_index = self._index
             left_value = self._value
             right_value = other
             expr = self._expr
-        return (left_value, right_value, expr)
+        return (left_value, right_value, expr, combined_index)
 
     def find(self, sub, start=None, end=None) -> "Series":
         """Return the position of the first occurence of substring."""
@@ -239,6 +281,7 @@ class Series:
             typing.cast(ibis_types.StringValue, self._value)
             .find(sub, start, end)
             .name(self._value.get_name()),
+            index=self._index,
         )
 
     def groupby(self, by: Series):
@@ -274,7 +317,12 @@ class SeriesGroupyBy:
                 .name(result_name)
             ]
         )
-        return Series(new_table_expr, new_table_expr.get_column(result_name))
+        index = bigframes.core.indexes.index.Index(
+            new_table_expr, self._expr._by.get_name()
+        )
+        return Series(
+            new_table_expr, new_table_expr.get_column(result_name), index=index
+        )
 
     def mean(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
@@ -288,4 +336,9 @@ class SeriesGroupyBy:
                 .name(result_name)
             ]
         )
-        return Series(new_table_expr, new_table_expr.get_column(result_name))
+        index = bigframes.core.indexes.index.Index(
+            new_table_expr, self._expr._by.get_name()
+        )
+        return Series(
+            new_table_expr, new_table_expr.get_column(result_name), index=index
+        )

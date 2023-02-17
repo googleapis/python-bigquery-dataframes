@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Mapping, Union
+import typing
+from typing import Iterable, Mapping, Optional, Union
 
+import ibis
+import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core
+import bigframes.core.indexes.implicitjoiner
+import bigframes.core.indexes.index
 import bigframes.series
 
 
@@ -21,10 +26,20 @@ class DataFrame:
     def __init__(
         self,
         expr: bigframes.core.BigFramesExpr,
+        *,
+        index: Optional[bigframes.core.indexes.implicitjoiner.ImplicitJoiner] = None,
     ):
+        if index is None:
+            index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
+
         # TODO(swast): To support mutable cells (such as with inplace=True),
         # we might want to store columns as a collection of Series instead.
         self._expr = expr
+        self._index = index
+
+    @property
+    def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
+        return self._index
 
     def __getitem__(
         self, key: Union[str, Iterable[str]]
@@ -35,7 +50,7 @@ class DataFrame:
 
         if isinstance(key, str):
             column = self._expr.get_column(key)
-            return bigframes.series.Series(self._expr, column)
+            return bigframes.series.Series(self._expr, column, index=self._index)
 
         # TODO(swast): Allow for filtering of rows by a boolean Series, returning a
         # filtered version of this DataFrame instead of a Series.
@@ -52,10 +67,23 @@ class DataFrame:
         # to provide pandas-like semantics.
         # TODO(swast): Do we need to apply an implicit join when doing a
         # projection?
+
+        # TODO(swast): Probably need to include index column(s) here, too.
+        projection_keys = list(key)
+
+        if isinstance(self._index, bigframes.core.indexes.index.Index):
+            index_name = self._index._index_column
+            # TODO(swast): Should we disallow selecting the index column like
+            # any other column?
+            if index_name not in projection_keys:
+                projection_keys.append(index_name)
+
         expr = self._expr.projection(
-            [self._expr.get_column(column_name) for column_name in key]
+            [self._expr.get_column(column_name) for column_name in projection_keys]
         )
-        return DataFrame(expr)
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
 
     def __getattr__(self, key: str):
         if key not in self._expr.column_names.keys():
@@ -69,6 +97,7 @@ class DataFrame:
         job = self._expr.start_query().result(max_results=10)
         rows = job.total_rows
         columns = len(job.schema)
+        # TODO(swast): Need to set index if we have an index column(s)
         preview = job.to_dataframe()
 
         # TODO(swast): Print the SQL too?
@@ -84,19 +113,32 @@ class DataFrame:
 
     def compute(self) -> pandas.DataFrame:
         """Executes deferred operations and downloads the results."""
-        job = self._expr.start_query()
-        return job.result().to_dataframe()
+        # TODO(swast): Use Ibis for now for consistency with Series, but
+        # ideally we'd do our own thing via the BQ client library where we can
+        # more easily override the output dtypes to use nullable dtypes and
+        # avoid lossy conversions.
+        df = self._expr.to_ibis_expr().execute()
+        # TODO(swast): We need something that encapsulates data + index
+        # column(s) so that Series and DataFrame don't need to duplicate
+        # Index logic.
+        if isinstance(self._index, bigframes.core.indexes.index.Index):
+            df = df.set_index(self._index._index_column)
+            df.index.name = self._index.name
+        return df
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
         expr = self._expr.apply_limit(n)
-        return DataFrame(expr)
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
 
     def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
         """Drop specified column(s)."""
         if isinstance(columns, str):
             columns = [columns]
 
+        # TODO(swast): Validate that we aren't trying to drop the index column.
         expr_builder = self._expr.builder()
         remain_cols = [
             column
@@ -104,24 +146,30 @@ class DataFrame:
             if column.get_name() not in columns
         ]
         expr_builder.columns = remain_cols
-        return DataFrame(expr_builder.build())
+        expr = expr_builder.build()
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
         expr_builder = self._expr.builder()
-        expr_builder.table = expr_builder.table.relabel(columns)
 
         for i, col in enumerate(expr_builder.columns):
             if col.get_name() in columns.keys():
                 expr_builder.columns[i] = col.name(columns[col.get_name()])
 
-        return DataFrame(expr_builder.build())
+        expr = expr_builder.build()
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
 
-        Returns a new object with all original columns in addition to new ones. Existing columns that are re-assigned will be overwritten."""
+        Returns a new object with all original columns in addition to new ones. Existing columns that are re-assigned will be overwritten.
+        """
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
 
@@ -136,4 +184,18 @@ class DataFrame:
             else:
                 expr_builder.columns.append(expr_builder.table[k])
 
-        return DataFrame(expr_builder.build())
+        expr = expr_builder.build()
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
+
+    def set_index(self, key: str) -> DataFrame:
+        expr = self._expr
+        index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
+
+        if not self._expr.ordering:
+            expr = expr.order_by([ibis.asc(index_expr)])
+
+        # TODO(swast): Somehow need to separate index column from data columns.
+        index = bigframes.core.indexes.index.Index(expr, key)
+        return DataFrame(expr, index=index)

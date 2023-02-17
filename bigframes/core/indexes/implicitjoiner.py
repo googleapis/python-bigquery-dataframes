@@ -19,6 +19,10 @@ class ImplicitJoiner:
     def __init__(self, expr: BigFramesExpr):
         self._expr = expr
 
+    def copy(self) -> ImplicitJoiner:
+        """Make a copy of this object."""
+        return ImplicitJoiner(self._expr)
+
     # TODO(swast): In pandas, "left_indexer" and "right_indexer" are numpy
     # arrays that indicate where the rows line up. Do we want to wrap ibis to
     # emulate arrays? How might this change if we're doing a real join on the
@@ -42,6 +46,9 @@ class ImplicitJoiner:
         # TODO(swast): How will our validation change when we allow for mutable
         # cells and inplace methods?
         if self._expr.table != other._expr.table:
+            # TODO(swast): Raise a more specific exception (subclass of
+            # ValueError, though) to make it easier to catch only the intended
+            # failures.
             raise ValueError(
                 "Cannot combine objects without an explicit join/merge key. "
                 f"Left based on: {self._expr.table.compile()}, but "

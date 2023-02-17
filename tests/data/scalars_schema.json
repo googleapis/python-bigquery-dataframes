@@ -30,6 +30,11 @@
       "type": "INTEGER"
     },
     {
+      "mode": "REQUIRED",
+      "name": "int64_too",
+      "type": "INTEGER"
+    },
+    {
       "mode": "NULLABLE",
       "name": "numeric_col",
       "type": "NUMERIC"

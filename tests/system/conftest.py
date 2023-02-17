@@ -1,3 +1,6 @@
+import base64
+import datetime
+import decimal
 import pathlib
 import typing
 from typing import Collection
@@ -99,7 +102,7 @@ def scalars_table_id_2(
 
 
 @pytest.fixture(scope="session")
-def scalars_df(
+def scalars_df_no_index(
     scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
@@ -107,7 +110,13 @@ def scalars_df(
 
 
 @pytest.fixture(scope="session")
-def scalars_df_2(
+def scalars_df_index(scalars_df_no_index: bigframes.DataFrame) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return scalars_df_no_index.set_index("rowindex")
+
+
+@pytest.fixture(scope="session")
+def scalars_df_2_no_index(
     scalars_table_id_2: str, session: bigframes.Session
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
@@ -115,6 +124,55 @@ def scalars_df_2(
 
 
 @pytest.fixture(scope="session")
-def scalars_pandas_df() -> pd.DataFrame:
+def scalars_df_2_index(
+    scalars_df_2_no_index: bigframes.DataFrame,
+) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return scalars_df_2_no_index.set_index("rowindex")
+
+
+@pytest.fixture(scope="session")
+def scalars_pandas_df_default_index() -> pd.DataFrame:
     """pandas.DataFrame pointing at test data."""
-    return pd.read_json(DATA_DIR / "scalars.jsonl", lines=True)
+    df = pd.read_json(DATA_DIR / "scalars.jsonl", lines=True)
+    df["bool_col"] = df["bool_col"].astype("boolean")  # type: ignore
+    df["bytes_col"] = df["bytes_col"].apply(
+        lambda value: base64.b64decode(value) if value else value
+    )
+    # TODO(swast): Use db_dtypes.DateDtype() for BigQuery DATE columns. Needs
+    # microsecond precision support:
+    # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
+    df["date_col"] = pd.to_datetime(df["date_col"])
+    df["datetime_col"] = pd.to_datetime(df["datetime_col"])
+    # TODO(swast): Use db_dtypes.TimeDtype() for BigQuery TIME columns.
+    df["time_col"] = df["time_col"].apply(
+        lambda value: datetime.time.fromisoformat(value) if value else value
+    )
+    # TODO(swast): Ensure BigQuery TIMESTAMP columns have UTC timezone.
+    df["timestamp_col"] = pd.to_datetime(df["timestamp_col"])
+    df["numeric_col"] = df["numeric_col"].apply(
+        lambda value: decimal.Decimal(str(value)) if value else None  # type: ignore
+    )
+    return df
+
+
+@pytest.fixture(scope="session")
+def scalars_pandas_df_index(
+    scalars_pandas_df_default_index: pd.DataFrame,
+) -> pd.DataFrame:
+    """pandas.DataFrame pointing at test data."""
+    return scalars_pandas_df_default_index.set_index("rowindex").sort_index()
+
+
+@pytest.fixture(scope="session", params=("index", "no_index"))
+def scalars_dfs(
+    request,
+    scalars_df_no_index,
+    scalars_df_index,
+    scalars_pandas_df_default_index,
+    scalars_pandas_df_index,
+):
+    if request.param == "index":
+        return scalars_df_index, scalars_pandas_df_index
+    else:
+        return scalars_df_no_index, scalars_pandas_df_default_index
