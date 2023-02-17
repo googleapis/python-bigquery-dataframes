@@ -240,3 +240,51 @@ class Series:
             .find(sub, start, end)
             .name(self._value.get_name()),
         )
+
+    def groupby(self, by: Series):
+        """Group the series by a given list of column labels. Only supports grouping by values from another aligned Series."""
+        # TODO(tbegeron): support other grouping expressions and options
+        return SeriesGroupyBy(self._expr, self._value, by._value)
+
+
+class SeriesGroupyBy:
+    """Represents a deferred series with a grouping expression."""
+
+    def __init__(
+        self,
+        expr: bigframes.core.BigFramesExpr,
+        series_expr: ibis_types.Value,
+        grouping_expr: ibis_types.Value,
+    ):
+        # TODO(tbergeron): Validate alignment (potentially using new index abstraction)
+        self._expr = bigframes.core.BigFramesGroupByExpr(expr, grouping_expr)
+        self._series_expr = series_expr
+
+    def sum(self) -> Series:
+        """Sums the numeric values for each group in the series. Ignores null/nan."""
+        # Would be unnamed in pandas, but bigframes needs identifier for now.
+        result_name = (
+            self._series_expr.get_name() + "_sum"
+        )  # Would be unnamed in pandas, but bigframes needs identifier for now.
+        new_table_expr = self._expr.aggregate(
+            [
+                typing.cast(ibis_types.NumericColumn, self._series_expr)
+                .sum()
+                .name(result_name)
+            ]
+        )
+        return Series(new_table_expr, new_table_expr.get_column(result_name))
+
+    def mean(self) -> Series:
+        """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
+        result_name = (
+            self._series_expr.get_name() + "_mean"
+        )  # Would be unnamed in pandas, but bigframes needs identifier for now.
+        new_table_expr = self._expr.aggregate(
+            [
+                typing.cast(ibis_types.NumericColumn, self._series_expr)
+                .mean()
+                .name(result_name)
+            ]
+        )
+        return Series(new_table_expr, new_table_expr.get_column(result_name))

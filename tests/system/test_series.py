@@ -286,6 +286,24 @@ def test_sum(scalars_df):
     assert pandas_scalar == -864197532
 
 
+def test_groupby_sum(scalars_df):
+    col_name = "int64_col"
+    series = scalars_df[col_name]
+    series_pandas = series.groupby(scalars_df["rowindex"]).sum().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([-864197532.0, numpy.nan], name="int64_col_sum")
+    )
+
+
+def test_groupby_mean(scalars_df):
+    col_name = "int64_col"
+    series = scalars_df[col_name]
+    series_pandas = series.groupby(scalars_df["rowindex"]).mean().compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([-432098766.0, numpy.nan], name="int64_col_mean")
+    )
+
+
 @pytest.mark.parametrize(
     ["start", "stop"], [(0, 1), (3, 5), (100, 101), (None, 1), (0, 12), (0, None)]
 )

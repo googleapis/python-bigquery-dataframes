@@ -5,6 +5,8 @@ from typing import Collection, Optional
 
 import ibis.expr.types as ibis_types
 from google.cloud import bigquery
+from ibis.expr.types import Scalar
+from ibis.expr.types.groupby import GroupedTable
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
@@ -153,3 +155,22 @@ class BigFramesExprBuilder:
             predicates=self.predicates,
             limit=self.limit,
         )
+
+
+class BigFramesGroupByExpr:
+    """Represents a grouping on a table. Does not currently support projection, filtering or sorting."""
+
+    def __init__(self, expr: BigFramesExpr, by: typing.Any):
+        self._expr = expr
+        self._by = by
+
+    def _to_ibis_expr(self) -> GroupedTable:
+        """Creates an Ibis table expression representing the DataFrame."""
+        return self._expr._table.group_by(self._by)
+
+    def aggregate(self, metrics: Collection[Scalar]) -> BigFramesExpr:
+        builder = self._expr.builder()
+        builder.table = self._to_ibis_expr().aggregate(metrics)
+        builder.columns = None
+        builder.limit = None
+        return builder.build()
