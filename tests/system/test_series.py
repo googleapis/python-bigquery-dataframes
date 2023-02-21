@@ -272,6 +272,13 @@ def test_mean(scalars_df):
     assert pandas_scalar == -432098766
 
 
+def test_repr(scalars_df, scalars_pandas_df):
+    col_name = "string_col"
+    bf_series = scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name]
+    assert repr(bf_series) == repr(pd_series)
+
+
 def test_sum(scalars_df):
     col_name = "int64_col"
     series = scalars_df[col_name]

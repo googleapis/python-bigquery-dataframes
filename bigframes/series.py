@@ -7,7 +7,6 @@ import typing
 import ibis
 import ibis.expr.types as ibis_types
 import pandas
-from google.cloud import bigquery
 
 import bigframes.core
 import bigframes.core.indexes.implicitjoiner
@@ -36,25 +35,17 @@ class Series:
         """Converts a Series to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        job = self._execute_query().result(max_results=10)
-        rows = job.total_rows
-        preview = job.to_dataframe()[job.schema[0].name]
-
-        # TODO(swast): Print the SQL too?
-        lines = [repr(preview)]
-        if rows > len(preview.index):
-            lines.append("...")
-
-        lines.append("")
-        lines.append(f"[{rows} rows]")
-        return "\n".join(lines)
+        # TODO(swast): Avoid downloading the whole series by using job
+        # metadata, like we do with DataFrame.
+        preview = self._execute_query()
+        return repr(preview)
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""
         expr = self._expr.projection([self._value])
         return expr.to_ibis_expr()[self._value.get_name()]
 
-    def _execute_query(self) -> bigquery.QueryJob:
+    def _execute_query(self) -> pandas.Series:
         """Execute a query and return metadata about the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
         # for the results? We'd need a way to invalidate the cache if DataFrame

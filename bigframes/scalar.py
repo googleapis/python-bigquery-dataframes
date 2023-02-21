@@ -9,6 +9,12 @@ class Scalar:
     def __init__(self, value: ibis_types.Scalar):
         self._value = value
 
+    def __repr__(self) -> str:
+        """Converts a Series to a string."""
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        return repr(self.compute())
+
     def compute(self) -> typing.Any:
         """Executes deferred operations and downloads the resulting scalar."""
         return self._value.execute()
