@@ -244,3 +244,12 @@ class Series:
             right_value = other
             expr = self._expr
         return (left_value, right_value, expr)
+
+    def find(self, sub, start=None, end=None) -> "Series":
+        """Return the position of the first occurence of substring."""
+        return Series(
+            self._expr,
+            typing.cast(ibis_types.StringValue, self._value)
+            .find(sub, start, end)
+            .name(self._value.get_name()),
+        )

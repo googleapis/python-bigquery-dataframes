@@ -296,3 +296,12 @@ def test_slice(scalars_df, scalars_pandas_df, start, stop):
     pd_series = scalars_pandas_df[col_name]
     pd_result = pd_series.str.slice(start, stop)
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_find(scalars_df):
+    col_name = "string_col"
+    series = scalars_df[col_name]
+    series_pandas = series.find("W").compute()
+    pd.testing.assert_series_equal(
+        series_pandas, pd.Series([7, -1, None], name=col_name)
+    )
