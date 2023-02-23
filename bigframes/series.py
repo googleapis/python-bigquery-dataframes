@@ -213,28 +213,15 @@ class Series:
         )
         return Series(filtered_expr, self._value)
 
-    def _align(self, other: typing.Any, fill_value: typing.Any = None) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.BigFramesExpr]:  # type: ignore
+    def _align(self, other: typing.Any) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.BigFramesExpr]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
         # TODO: Support deferred scalar
-        fill_ibis_value = (
-            ibis.null() if fill_value is None else ibis_types.literal(fill_value)
-        )
         if isinstance(other, Series):
-            combined_index, (left_has_value, right_has_value) = self._index.join(
+            combined_index, (get_column_left, get_column_right) = self._index.join(
                 other.index, how="outer"
             )
-            left_value = (
-                ibis.case()
-                .when(left_has_value, self._value)
-                .else_(fill_ibis_value)
-                .end()
-            )
-            right_value = (
-                ibis.case()
-                .when(right_has_value, other._value)
-                .else_(fill_ibis_value)
-                .end()
-            )
+            left_value = get_column_left(self._value.get_name())
+            right_value = get_column_right(other._value.get_name())
             expr = combined_index._expr
         elif isinstance(other, bigframes.scalar.Scalar):
             # TODO(tbereron): support deferred scalars.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import ibis
 import ibis.expr.types as ibis_types
@@ -28,7 +28,10 @@ class ImplicitJoiner:
         other: ImplicitJoiner,
         *,
         how="left",
-    ) -> Tuple[ImplicitJoiner, Tuple[ibis_types.BooleanValue, ibis_types.BooleanValue]]:
+    ) -> Tuple[
+        ImplicitJoiner,
+        Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
+    ]:
         """Compute join_index and indexers to conform data structures to the new index."""
         if how != "outer":
             raise NotImplementedError("Only how='outer' currently supported")
@@ -44,6 +47,8 @@ class ImplicitJoiner:
                 f"right based on: {other._expr.table.compile()}"
             )
 
+        combined_table = self._expr.table
+
         if self._expr._predicates != other._expr._predicates:
             # TODO(tbergeron): Implement join on tables with predicates.
             raise NotImplementedError(
@@ -57,7 +62,20 @@ class ImplicitJoiner:
         )
         combined_expr.limit = combined_limit
 
-        return ImplicitJoiner(combined_expr.build()), (left_has_value, right_has_value)
+        def get_column_left(key: str) -> ibis_types.Value:
+            column = combined_table[key]
+            # TODO(swast): We can avoid the case statement if left_has_value is always True.
+            return ibis.case().when(left_has_value, column).else_(ibis.null()).end()
+
+        def get_column_right(key: str) -> ibis_types.Value:
+            column = combined_table[key]
+            # TODO(swast): We can avoid the case statement if right_has_value is always True.
+            return ibis.case().when(right_has_value, column).else_(ibis.null()).end()
+
+        return ImplicitJoiner(combined_expr.build()), (
+            get_column_left,
+            get_column_right,
+        )
 
 
 def _outer_join_limits(
