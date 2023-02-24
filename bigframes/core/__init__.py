@@ -3,9 +3,9 @@ from __future__ import annotations
 import typing
 from typing import Collection, Optional
 
-import ibis.expr.types as ibis_types
 from google.cloud import bigquery
 from ibis.expr.types import Scalar
+import ibis.expr.types as ibis_types
 from ibis.expr.types.groupby import GroupedTable
 
 if typing.TYPE_CHECKING:
@@ -41,7 +41,7 @@ class BigFramesExpr:
     ):
         self._session = session
         self._table = table
-        self._predicates = predicates or ()
+        self._predicates = tuple(predicates) if predicates is not None else ()
 
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
@@ -60,7 +60,7 @@ class BigFramesExpr:
         return self._table
 
     @property
-    def predicates(self) -> Collection[ibis_types.BooleanValue]:
+    def predicates(self) -> typing.Tuple[ibis_types.BooleanValue, ...]:
         return self._predicates
 
     @property

@@ -5,11 +5,11 @@ from unittest import mock
 import google.api_core.exceptions
 import google.auth
 import google.cloud.bigquery
+from google.cloud.bigquery.table import TableReference
 import google.oauth2.credentials  # type: ignore
 import ibis.expr.types as ibis_types
 import pandas
 import pytest
-from google.cloud.bigquery.table import TableReference
 
 import bigframes
 import bigframes.core

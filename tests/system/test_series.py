@@ -217,6 +217,42 @@ def test_nested_filter(scalars_df, scalars_pandas_df):
     pd.testing.assert_series_equal(pd_result, bf_result.compute(), check_index=False)
 
 
+def test_binop_different_predicates(scalars_df, scalars_pandas_df):
+    int64_col1 = scalars_df["int64_col"]
+    int64_col2 = scalars_df["int64_col"]
+    bool_col = scalars_df["bool_col"] == bool(True)  # Convert null to False
+    bf_result = (int64_col1[bool_col] + int64_col2[bool_col.__invert__()]).compute()
+
+    pd_int64_col1 = scalars_pandas_df["int64_col"]
+    pd_int64_col2 = scalars_pandas_df["int64_col"]
+    pd_bool_col = scalars_pandas_df["bool_col"] == bool(True)
+    pd_result = pd_int64_col1[pd_bool_col] + pd_int64_col2[pd_bool_col.__invert__()]
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_names=False,
+    )
+
+
+def test_binop_different_predicates2(scalars_df, scalars_pandas_df):
+    int64_col1 = scalars_df["int64_col"]
+    float64_col = scalars_df["float64_col"]
+    bool_col = scalars_df["bool_col"] == bool(True)  # Convert null to False
+    bf_series_pandas = (int64_col1[bool_col.__eq__(True)] + float64_col).compute()
+
+    pd_int64_col1 = scalars_pandas_df["int64_col"]
+    pd_float64_col = scalars_pandas_df["float64_col"]
+    pd_bool_col = scalars_pandas_df["bool_col"] == bool(True)
+    pd_series_pandas = pd_int64_col1[pd_bool_col] + pd_float64_col
+
+    pd.testing.assert_series_equal(
+        bf_series_pandas,
+        pd_series_pandas,
+        check_names=False,
+    )
+
+
 def test_mean(scalars_df, scalars_pandas_df):
     col_name = "int64_col"
     bf_result = scalars_df[col_name].mean().compute()
