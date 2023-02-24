@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import typing
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
-import ibis
 import ibis.expr.types as ibis_types
 
 if typing.TYPE_CHECKING:
@@ -56,48 +55,20 @@ class ImplicitJoiner:
             )
 
         combined_expr = self._expr.builder()
-        # TODO(swast): We assume an outer join, but the pandas default is actually a left join.
-        combined_limit, (left_has_value, right_has_value) = _outer_join_limits(
-            self._expr, other._expr
-        )
-        combined_expr.limit = combined_limit
 
         def get_column_left(key: str) -> ibis_types.Value:
-            column = combined_table[key]
-            # TODO(swast): We can avoid the case statement if left_has_value is always True.
-            return ibis.case().when(left_has_value, column).else_(ibis.null()).end()
+            # TODO(swast): We can emulate an outer join for predicates using
+            # something like the following:
+            # return ibis.case().when(left_has_value, column).else_(ibis.null()).end()
+            return combined_table[key]
 
         def get_column_right(key: str) -> ibis_types.Value:
-            column = combined_table[key]
-            # TODO(swast): We can avoid the case statement if right_has_value is always True.
-            return ibis.case().when(right_has_value, column).else_(ibis.null()).end()
+            # TODO(swast): We can emulate an outer join for predicates using
+            # something like the following:
+            # return ibis.case().when(right_has_value, column).else_(ibis.null()).end()
+            return combined_table[key]
 
         return ImplicitJoiner(combined_expr.build()), (
             get_column_left,
             get_column_right,
         )
-
-
-def _outer_join_limits(
-    left_expr, right_expr
-) -> Tuple[Optional[int], Tuple[ibis_types.BooleanValue, ibis_types.BooleanValue]]:
-    left_limit = left_expr.limit
-    right_limit = right_expr.limit
-
-    if left_limit is None or right_limit is None:
-        combined_limit = None
-    else:
-        combined_limit = max(left_limit, right_limit)
-
-    if left_limit is None:
-        left_has_values = typing.cast(ibis_types.BooleanValue, ibis.literal(True))
-    else:
-        # ibis.row_number() starts at 0, not 1 like native BigQuery.
-        left_has_values = ibis.row_number() < left_limit
-
-    if right_limit is None:
-        right_has_values = typing.cast(ibis_types.BooleanValue, ibis.literal(True))
-    else:
-        right_has_values = ibis.row_number() < right_limit
-
-    return combined_limit, (left_has_values, right_has_values)

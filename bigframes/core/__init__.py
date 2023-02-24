@@ -38,12 +38,10 @@ class BigFramesExpr:
         table: ibis_types.Table,
         columns: Optional[Collection[ibis_types.Value]] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
-        limit: Optional[int] = None,
     ):
         self._session = session
         self._table = table
-        self._predicates = predicates or []
-        self._limit = limit
+        self._predicates = predicates or ()
 
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
@@ -62,10 +60,6 @@ class BigFramesExpr:
         return self._table
 
     @property
-    def limit(self) -> Optional[int]:
-        return self._limit
-
-    @property
     def predicates(self) -> Collection[ibis_types.BooleanValue]:
         return self._predicates
 
@@ -79,7 +73,10 @@ class BigFramesExpr:
         # potential opportunities for caching, though we might need to introduce
         # more node types for that to be useful), we create a builder class.
         return BigFramesExprBuilder(
-            self._session, self._table, self._columns, self._predicates, self._limit
+            self._session,
+            self._table,
+            self._columns,
+            predicates=self._predicates,
         )
 
     def get_column(self, key: str) -> ibis_types.Value:
@@ -87,9 +84,11 @@ class BigFramesExpr:
         return self._column_names[key]
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
-        expr = self.builder()
-        expr.limit = max_results if expr.limit is None else min(expr.limit, max_results)
-        return expr.build()
+        table = self.to_ibis_expr().limit(max_results)
+        # Since we make a new table expression, the old column references now
+        # point to the wrong table. Use the BigFramesExpr constructor to make
+        # sure we have the correct references.
+        return BigFramesExpr(self._session, table)
 
     def projection(self, columns: Collection[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
@@ -113,8 +112,6 @@ class BigFramesExpr:
             table = table.filter(self._predicates)
         if self._columns is not None:
             table = table.select(self._columns)
-        if self._limit is not None:
-            table = table.limit(self._limit)
         return table
 
     def start_query(self) -> bigquery.QueryJob:
@@ -146,13 +143,11 @@ class BigFramesExprBuilder:
         table: ibis_types.Table,
         columns: Collection[ibis_types.Value],
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
-        limit: Optional[int] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns)
         self.predicates = list(predicates) if predicates is not None else None
-        self.limit = limit
 
     def build(self) -> BigFramesExpr:
         return BigFramesExpr(
@@ -160,7 +155,6 @@ class BigFramesExprBuilder:
             table=self.table,
             columns=self.columns,
             predicates=self.predicates,
-            limit=self.limit,
         )
 
 

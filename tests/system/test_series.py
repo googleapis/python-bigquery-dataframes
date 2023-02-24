@@ -120,34 +120,7 @@ def test_series_add_bigframes_series(
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
-@pytest.mark.parametrize(
-    ("head_left", "head_right"),
-    [
-        (1, 2),
-        (None, 2),
-        (2, None),
-    ],
-)
-def test_series_add_bigframes_series_with_head(
-    scalars_df, scalars_pandas_df, head_left, head_right
-):
-    left_col = "float64_col"
-    right_col = "int64_col"
-    bf_left = scalars_df[left_col]
-    bf_left = bf_left if head_left is None else bf_left.head(head_left)
-    pd_left = scalars_pandas_df[left_col]
-    pd_left = pd_left if head_left is None else pd_left.head(head_left)
-    bf_right = scalars_df[right_col]
-    bf_right = bf_right if head_right is None else bf_right.head(head_right)
-    pd_right = scalars_pandas_df[right_col]
-    pd_right = pd_right if head_right is None else pd_right.head(head_right)
-    bf_result = (bf_left + bf_right).compute()
-    pd_result = pd_left + pd_right
-    pd_result.name = left_col
-    pd.testing.assert_series_equal(bf_result, pd_result)
-
-
-def test_series_add_different_table_value_error(scalars_df, scalars_df_2):
+def test_series_add_different_table_no_index_value_error(scalars_df, scalars_df_2):
     with pytest.raises(ValueError, match="scalars_too"):
         # Error should happen right away, not just at compute() time.
         scalars_df["float64_col"] + scalars_df_2["float64_col"]
