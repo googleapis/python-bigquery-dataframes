@@ -32,7 +32,7 @@ dependencies = [
     "google-cloud-bigquery[bqstorage,pandas] >=3.0.0",
     "ibis-framework[bigquery] >=4.0.0",
     "sqlalchemy >=1.4,<2.0",
-    "pandas >=1.2.5",
+    "pandas >=1.3.5",
 ]
 
 # Setup boilerplate below this line.

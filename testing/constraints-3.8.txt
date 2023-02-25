@@ -1,6 +1,6 @@
 db-dtypes==1.0.0
 google-cloud-bigquery==3.0.0
 ibis-framework==4.0.0
-pandas==1.2.5
+pandas==1.3.5
 pydata-google-auth==1.5.0
 sqlalchemy==1.4.0

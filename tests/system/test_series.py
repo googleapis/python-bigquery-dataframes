@@ -42,65 +42,50 @@ def test_get_column(scalars_df, scalars_pandas_df, col_name, expected_dtype):
 
 def test_abs_floats(scalars_df, scalars_pandas_df):
     col_name = "float64_col"
-    series = scalars_df[col_name]
-    series_pandas = series.abs().compute()
-    pd.testing.assert_series_equal(series_pandas, scalars_pandas_df[col_name].abs())
+    bf_series = scalars_df[col_name].abs()
+    pandas_series = scalars_pandas_df[col_name].abs()
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
 def test_abs_ints(scalars_df, scalars_pandas_df):
     col_name = "rowindex"
-    series = scalars_df[col_name]
-    series_pandas = series.abs().compute()
-    pd.testing.assert_series_equal(series_pandas, scalars_pandas_df[col_name].abs())
+    bf_series = scalars_df[col_name].abs()
+    pandas_series = scalars_pandas_df[col_name].abs()
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
-def test_len(scalars_df):
+def test_len(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series = scalars_df[col_name]
-    series_pandas = series.len().compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([13, 5, None], name=col_name)
-    )
+    bf_series = scalars_df[col_name].len()
+    pandas_series = scalars_pandas_df[col_name].str.len()
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
 def test_lower(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series = scalars_df[col_name]
-    series_pandas = series.lower().compute()
-    pd.testing.assert_series_equal(
-        series_pandas, scalars_pandas_df[col_name].str.lower()
-    )
+    bf_series = scalars_df[col_name].lower()
+    pandas_series = scalars_pandas_df[col_name].str.lower()
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
 def test_upper(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series = scalars_df[col_name]
-    series_pandas = series.upper().compute()
-    pd.testing.assert_series_equal(
-        series_pandas, scalars_pandas_df[col_name].str.upper()
-    )
+    bf_series = scalars_df[col_name].upper()
+    pandas_series = scalars_pandas_df[col_name].str.upper()
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
 @pytest.mark.parametrize(
-    (
-        "other",
-        "expected",
-    ),
+    ("other",),
     [
-        (
-            3,
-            pd.Series([4.25, 5.5, numpy.nan], name="float64_col"),
-        ),
-        (
-            -6.2,
-            pd.Series([-4.95, -3.7, numpy.nan], name="float64_col"),
-        ),
+        (3,),
+        (-6.2,),
     ],
 )
-def test_series_add_scalar(scalars_df, other, expected):
-    pd.testing.assert_series_equal(
-        (scalars_df["float64_col"] + other).compute(), expected
-    )
+def test_series_add_scalar(scalars_df, scalars_pandas_df, other):
+    bf_series = scalars_df["float64_col"] + other
+    pandas_series = scalars_pandas_df["float64_col"] + other
+    pd.testing.assert_series_equal(pandas_series, bf_series.compute())
 
 
 @pytest.mark.parametrize(
@@ -114,10 +99,11 @@ def test_series_add_scalar(scalars_df, other, expected):
 def test_series_add_bigframes_series(
     scalars_df, scalars_pandas_df, left_col, right_col
 ):
-    bf_result = (scalars_df[left_col] + scalars_df[right_col]).compute()
-    pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
-    pd_result.name = left_col
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    bf_series = scalars_df[left_col] + scalars_df[right_col]
+    pandas_series = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
+    pd.testing.assert_series_equal(
+        pandas_series, bf_series.compute(), check_names=False
+    )
 
 
 def test_series_add_different_table_no_index_value_error(scalars_df, scalars_df_2):
@@ -136,113 +122,106 @@ def test_series_add_pandas_series_not_implemented(scalars_df):
         ).compute()
 
 
-def test_reverse(scalars_df):
+def test_reverse(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series = scalars_df[col_name]
-    series_pandas = series.reverse().compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series(["!dlroW ,olleH", "はちにんこ", None], name=col_name)
-    )
+    bf_result = scalars_df[col_name].reverse()
+    pd_result = scalars_pandas_df[col_name].map(lambda x: x[::-1] if x else x)
+    pd.testing.assert_series_equal(pd_result, bf_result.compute())
 
 
-def test_round(scalars_df):
+def test_round(scalars_df, scalars_pandas_df):
     col_name = "float64_col"
-    series = scalars_df[col_name]
-    series_pandas = series.round().compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([1, 3, None], name=col_name)
-    )
+    bf_series = scalars_df[col_name].round()
+    pd_series = scalars_pandas_df[col_name].round()
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_eq_scalar(scalars_df):
+def test_eq_scalar(scalars_df, scalars_pandas_df):
     col_name = "rowindex"
-    series_pandas = scalars_df[col_name].eq(0).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([True, True, False], name=col_name)
-    )
+    bf_series = scalars_df[col_name].eq(0)
+    pd_series = scalars_pandas_df[col_name].eq(0)
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_eq_wider_type_scalar(scalars_df):
+def test_eq_wider_type_scalar(scalars_df, scalars_pandas_df):
     col_name = "rowindex"
-    series_pandas = scalars_df[col_name].eq(1.0).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([False, False, True], name=col_name)
-    )
+    bf_series = scalars_df[col_name].eq(1.0)
+    pd_series = scalars_pandas_df[col_name].eq(1.0)
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_ne_scalar(scalars_df):
+def test_ne_scalar(scalars_df, scalars_pandas_df):
     col_name = "rowindex"
-    series_pandas = (scalars_df[col_name] != 0).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([False, False, True], name=col_name)
-    )
+    bf_series = scalars_df[col_name] != 0
+    pd_series = scalars_pandas_df[col_name] != 0
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_eq_int_scalar(scalars_df):
+def test_eq_int_scalar(scalars_df, scalars_pandas_df):
     col_name = "rowindex"
-    series_pandas = (0 == scalars_df[col_name]).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([True, True, False], name=col_name)
-    )
+    bf_series = scalars_df[col_name] == 0
+    pd_series = scalars_pandas_df[col_name] == 0
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_eq_obj_series(scalars_df):
+def test_eq_obj_series(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series_pandas = (scalars_df[col_name] == scalars_df[col_name]).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([True, True, False], name=col_name)
-    )
+    bf_series = scalars_df[col_name] == scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name] == scalars_pandas_df[col_name]
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_ne_obj_series(scalars_df):
+def test_ne_obj_series(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series_pandas = (scalars_df[col_name] != scalars_df[col_name]).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([False, False, True], name=col_name)
-    )
+    bf_series = scalars_df[col_name] != scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name] != scalars_pandas_df[col_name]
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_eq_float_series(scalars_df):
+def test_eq_float_series(scalars_df, scalars_pandas_df):
     col_name = "float64_col"
-    series_pandas = (scalars_df[col_name] == scalars_df[col_name]).compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([True, True, False], name=col_name)
-    )
+    bf_series = scalars_df[col_name] == scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name] == scalars_pandas_df[col_name]
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_indexing_using_unselected_series(scalars_df):
+def test_indexing_using_unselected_series(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series_pandas = scalars_df[col_name][scalars_df["rowindex"].eq(0)].compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series(["Hello, World!", "こんにちは"], name=col_name)
-    )
+    bf_series = scalars_df[col_name][scalars_df["rowindex"].eq(0)]
+    pd_series = scalars_pandas_df[col_name][scalars_pandas_df["rowindex"].eq(0)]
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_indexing_using_selected_series(scalars_df):
+def test_indexing_using_selected_series(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series_pandas = scalars_df[col_name][
-        scalars_df["string_col"].eq("Hello, World!")
-    ].compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series(["Hello, World!"], name=col_name)
-    )
+    bf_series = scalars_df[col_name][scalars_df["string_col"].eq("Hello, World!")]
+    pd_series = scalars_pandas_df[col_name][
+        scalars_pandas_df["string_col"].eq("Hello, World!")
+    ]
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())
 
 
-def test_nested_filter(scalars_df):
+def test_nested_filter(scalars_df, scalars_pandas_df):
     string_col = scalars_df["string_col"]
     rowindex = scalars_df["rowindex"]
     bool_col = scalars_df["bool_col"]
-    series_pandas = string_col[rowindex == 0][~bool_col].compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series(["こんにちは"], name="string_col")
-    )
+    bf_result = string_col[rowindex == 0][~bool_col]
+
+    pd_string_col = scalars_pandas_df["string_col"]
+    pd_rowindex = scalars_pandas_df["rowindex"]
+    pd_bool_col = scalars_pandas_df["bool_col"] == bool(
+        True
+    )  # Convert from nullable bool to nonnullable bool usable as indexer
+    pd_result = pd_string_col[pd_rowindex == 0][~pd_bool_col]
+
+    pd.testing.assert_series_equal(pd_result, bf_result.compute(), check_index=False)
 
 
-def test_mean(scalars_df):
+def test_mean(scalars_df, scalars_pandas_df):
     col_name = "int64_col"
-    series = scalars_df[col_name]
-    pandas_scalar = series.mean().compute()
-    assert pandas_scalar == -432098766
+    bf_result = scalars_df[col_name].mean().compute()
+    pd_result = scalars_pandas_df[col_name].mean()
+    assert pd_result == bf_result
 
 
 def test_repr(scalars_df, scalars_pandas_df):
@@ -252,28 +231,46 @@ def test_repr(scalars_df, scalars_pandas_df):
     assert repr(bf_series) == repr(pd_series)
 
 
-def test_sum(scalars_df):
+def test_sum(scalars_df, scalars_pandas_df):
     col_name = "int64_col"
-    series = scalars_df[col_name]
-    pandas_scalar = series.sum().compute()
-    assert pandas_scalar == -864197532
+    bf_result = scalars_df[col_name].sum().compute()
+    pd_result = scalars_pandas_df[col_name].sum()
+    assert pd_result == bf_result
 
 
-def test_groupby_sum(scalars_df):
+def test_groupby_sum(scalars_df, scalars_pandas_df):
     col_name = "int64_col"
-    series = scalars_df[col_name]
-    series_pandas = series.groupby(scalars_df["rowindex"]).sum().compute()
+    bf_series = scalars_df[col_name].groupby(scalars_df["rowindex"]).sum()
+    # TODO(swast): Type cast should be unnecessary when we use nullable dtypes
+    # everywhere.
+    pd_series = (
+        scalars_pandas_df[col_name]
+        .astype(pd.Int64Dtype())
+        .groupby(scalars_pandas_df["rowindex"])
+        .sum()
+    )
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    # TODO(swast): BigFrames groupby should result in the same names as pandas.
+    # e.g. int64_col_sum
     pd.testing.assert_series_equal(
-        series_pandas, pd.Series([-864197532.0, numpy.nan], name="int64_col_sum")
+        pd_series,
+        bf_series.compute().astype(pd.Int64Dtype()),
+        check_index=False,
+        check_names=False,
     )
 
 
-def test_groupby_mean(scalars_df):
+def test_groupby_mean(scalars_df, scalars_pandas_df):
     col_name = "int64_col"
-    series = scalars_df[col_name]
-    series_pandas = series.groupby(scalars_df["rowindex"]).mean().compute()
+    bf_series = scalars_df[col_name].groupby(scalars_df["rowindex"]).mean()
+    pd_series = (
+        scalars_pandas_df[col_name].groupby(scalars_pandas_df["rowindex"]).mean()
+    )
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    # TODO(swast): BigFrames groupby should result in the same names as pandas.
+    # e.g. int64_col_mean
     pd.testing.assert_series_equal(
-        series_pandas, pd.Series([-432098766.0, numpy.nan], name="int64_col_mean")
+        pd_series, bf_series.compute(), check_index=False, check_names=False
     )
 
 
@@ -289,10 +286,8 @@ def test_slice(scalars_df, scalars_pandas_df, start, stop):
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
-def test_find(scalars_df):
+def test_find(scalars_df, scalars_pandas_df):
     col_name = "string_col"
-    series = scalars_df[col_name]
-    series_pandas = series.find("W").compute()
-    pd.testing.assert_series_equal(
-        series_pandas, pd.Series([7, -1, None], name=col_name)
-    )
+    bf_series = scalars_df[col_name].find("W")
+    pd_series = scalars_pandas_df[col_name].str.find("W")
+    pd.testing.assert_series_equal(pd_series, bf_series.compute())

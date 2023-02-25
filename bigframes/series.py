@@ -270,6 +270,7 @@ class SeriesGroupyBy:
             [
                 typing.cast(ibis_types.NumericColumn, self._series_expr)
                 .sum()
+                .fillna(ibis.literal(0))
                 .name(result_name)
             ]
         )
