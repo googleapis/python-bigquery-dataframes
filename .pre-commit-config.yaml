@@ -33,4 +33,5 @@ repos:
     rev: 5.12.0
     hooks:
     -   id: isort
+        args: [ "--profile", "google" ]
         name: isort (python)

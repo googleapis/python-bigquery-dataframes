@@ -121,6 +121,7 @@ def format(session):
     session.run(
         "isort",
         "--fss",
+        "--profile google",
         *LINT_PATHS,
     )
     session.run(

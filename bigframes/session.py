@@ -4,8 +4,8 @@ from typing import Optional
 
 import google.auth.credentials
 import google.cloud.bigquery
-import ibis
 from google.cloud.bigquery.table import TableReference
+import ibis
 
 from bigframes.core import BigFramesExpr
 from bigframes.dataframe import DataFrame
