@@ -162,6 +162,7 @@ class BigFramesGroupByExpr:
     """Represents a grouping on a table. Does not currently support projection, filtering or sorting."""
 
     def __init__(self, expr: BigFramesExpr, by: typing.Any):
+        self._session = expr._session
         self._expr = expr
         self._by = by
 
@@ -170,8 +171,8 @@ class BigFramesGroupByExpr:
         return self._expr._table.group_by(self._by)
 
     def aggregate(self, metrics: Collection[Scalar]) -> BigFramesExpr:
-        builder = self._expr.builder()
-        builder.table = self._to_ibis_expr().aggregate(metrics)
-        builder.columns = None
-        builder.limit = None
-        return builder.build()
+        table = self._to_ibis_expr().aggregate(metrics)
+        # Since we make a new table expression, the old column references now
+        # point to the wrong table. Use the BigFramesExpr constructor to make
+        # sure we have the correct references.
+        return BigFramesExpr(self._session, table)
