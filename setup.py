@@ -31,6 +31,7 @@ dependencies = [
     "db-dtypes >=1.0.5",
     "google-auth >2.14.1,<3.0dev",
     "google-cloud-bigquery[bqstorage,pandas] >=3.0.0",
+    "google-cloud-functions >=1.10.1",
     "ibis-framework[bigquery] >=4.0.0",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",

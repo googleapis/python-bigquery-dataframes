@@ -6,6 +6,7 @@ import typing
 from typing import Collection
 
 from google.cloud import bigquery
+from ibis.backends.base import BaseBackend
 import pandas as pd
 import pytest
 import test_utils.prefixer
@@ -20,6 +21,11 @@ prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
 @pytest.fixture(scope="session")
 def bigquery_client(session: bigframes.Session) -> bigquery.Client:
     return session.bqclient
+
+
+@pytest.fixture(scope="session")
+def ibis_client(session: bigframes.Session) -> BaseBackend:
+    return session.ibis_client
 
 
 @pytest.fixture(scope="session")
@@ -187,3 +193,11 @@ def scalars_dfs(
         return scalars_df_index, scalars_pandas_df_index
     else:
         return scalars_df_no_index, scalars_pandas_df_default_index
+
+
+@pytest.fixture(scope="session")
+def bq_cf_connection() -> str:
+    """Pre-created BQ connection to invoke cloud function for bigframes-dev
+    $ bq show --connection --location=us --project_id=bigframes-dev bigframes-rf-conn
+    """
+    return "bigframes-rf-conn"

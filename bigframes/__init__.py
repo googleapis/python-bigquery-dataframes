@@ -2,6 +2,7 @@
 
 from bigframes.bigframes import concat
 from bigframes.dataframe import DataFrame
+from bigframes.remote_function import remote_function
 from bigframes.series import Series
 from bigframes.session import connect
 from bigframes.session import Context
@@ -16,5 +17,6 @@ __all__ = [
     "DataFrame",
     "ml",
     "Series",
+    "remote_function",
     "__version__",
 ]
