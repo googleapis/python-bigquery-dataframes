@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 
 def test_get_column(scalars_dfs):
@@ -106,6 +107,68 @@ def test_assign_existing_column(scalars_dfs):
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
     # dtype discrepencies of Int64(ibis) vs int64(pandas)
+    # TODO(garrettwu): enable check_type once BF type issue is solved.
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+def test_dropna(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    df = scalars_df.dropna()
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df.dropna()
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("rowindex", ignore_index=True)
+        pd_result = pd_result.sort_values("rowindex", ignore_index=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("merge_how",),
+    [
+        ("inner",),
+        ("outer",),
+        ("left",),
+        ("right",),
+    ],
+)
+def test_merge(scalars_dfs, merge_how):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # Pandas join allows on NaN, well BQ excludes those rows.
+    # TODO(garrettwu): Figure out how we want to deal with null values in joins.
+    scalars_df = scalars_df.dropna()
+    scalars_pandas_df = scalars_pandas_df.dropna()
+
+    left_columns = ["int64_col", "float64_col"]
+    right_columns = ["int64_col", "bool_col", "string_col"]
+    on = "int64_col"
+
+    left = scalars_df[left_columns]
+    right = scalars_df[right_columns]
+    df = left.merge(right, merge_how, on)
+    bf_result = df.compute()
+
+    pd_result = scalars_pandas_df[left_columns].merge(
+        scalars_pandas_df[right_columns], merge_how, on
+    )
+
+    # Sort by a column to get consistent results.
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(on, ignore_index=True)
+        pd_result = pd_result.sort_values(on, ignore_index=True)
     # TODO(garrettwu): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,

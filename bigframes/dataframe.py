@@ -86,7 +86,7 @@ class DataFrame:
         return DataFrame(expr, index=index)
 
     def __getattr__(self, key: str):
-        if key not in self._expr.column_names.keys():
+        if key not in self._expr.column_names:
             raise AttributeError(key)
         return self.__getitem__(key)
 
@@ -157,7 +157,7 @@ class DataFrame:
         expr_builder = self._expr.builder()
 
         for i, col in enumerate(expr_builder.columns):
-            if col.get_name() in columns.keys():
+            if col.get_name() in columns:
                 expr_builder.columns[i] = col.name(columns[col.get_name()])
 
         expr = expr_builder.build()
@@ -179,7 +179,7 @@ class DataFrame:
         }
         for k, v in kwargs.items():
             expr_builder.table = expr_builder.table.mutate(**{k: v})
-            if k in existing_col_pos_map.keys():
+            if k in existing_col_pos_map:
                 expr_builder.columns[existing_col_pos_map[k]] = expr_builder.table[k]
             else:
                 expr_builder.columns.append(expr_builder.table[k])
@@ -190,6 +190,7 @@ class DataFrame:
         return DataFrame(expr, index=index)
 
     def set_index(self, key: str) -> DataFrame:
+        """Set the DataFrame index using existing columns."""
         expr = self._expr
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
@@ -199,3 +200,56 @@ class DataFrame:
         # TODO(swast): Somehow need to separate index column from data columns.
         index = bigframes.core.indexes.index.Index(expr, key)
         return DataFrame(expr, index=index)
+
+    def dropna(self) -> DataFrame:
+        """Remove rows with missing values."""
+        # Can't dropna on original table expr, it will raise "not same table expression" on selection.
+        table = self._expr.to_ibis_expr()
+        table = table.dropna()
+
+        expr = bigframes.core.BigFramesExpr(self._expr._session, table)
+        index = self._index.copy()
+        index._expr = expr
+        return DataFrame(expr, index=index)
+
+    def merge(
+        self,
+        right: DataFrame,
+        how: str = "inner",  # TODO(garrettwu): Currently can take inner, outer, left and right. To support cross joins
+        # TODO(garrettwu): Support "on" list of columns and None. Currently a single column must be provided
+        on: Optional[str] = None,
+        suffixes: tuple[str, str] = ("_x", "_y"),
+    ) -> DataFrame:
+        """Merge DataFrame objects with a database-style join."""
+        if not on:
+            raise ValueError("Must specify a column to join on.")
+
+        # Drop index column in joins. Consistent with Pandas.
+        left_index_column = getattr(self._index, "index_column", None)
+        if left_index_column:
+            self = self.drop(left_index_column)
+        right_index_column = getattr(self._index, "index_column", None)
+        if right_index_column:
+            right = right.drop(right_index_column)
+
+        left_table = self._expr.to_ibis_expr()
+        right_table = right._expr.to_ibis_expr()
+
+        joined_table = left_table.join(
+            right_table, left_table[on] == right_table[on], how, suffixes=suffixes
+        )
+        joined_frame = DataFrame(
+            bigframes.core.BigFramesExpr(self._expr._session, joined_table)
+        )
+
+        # Ibis emits redundant columns for outer joins. https://ibis-project.org/ibis-for-pandas-users/#merging-tables
+        left_on_name = on + suffixes[0]
+        right_on_name = on + suffixes[1]
+        if (
+            left_on_name in joined_frame._expr.column_names
+            and right_on_name in joined_frame._expr.column_names
+        ):
+            joined_frame = joined_frame.drop(right_on_name)
+            joined_frame = joined_frame.rename({left_on_name: on})
+
+        return joined_frame

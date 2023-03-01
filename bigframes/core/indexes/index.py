@@ -31,6 +31,10 @@ class Index(ImplicitJoiner):
         # non-uniquely named objects) without breaking SQL.
         return self._name
 
+    @property
+    def index_column(self) -> str:
+        return self._index_column
+
     def copy(self) -> Index:
         """Make a copy of this object."""
         return Index(self._expr, self._index_column)
