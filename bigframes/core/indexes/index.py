@@ -26,14 +26,15 @@ class Index(ImplicitJoiner):
 
     @property
     def name(self) -> str:
-        # TODO(swast): Introduce a level of indirection over Ibis to allow for
-        # more accurate pandas behavior (such as allowing for unnamed or
-        # non-uniquely named objects) without breaking SQL.
+        """Name of the Series."""
+        # This introduces a level of indirection over Ibis to allow for more
+        # accurate pandas behavior (such as allowing for unnamed or
+        # non-uniquely named objects) without breaking SQL generation.
         return self._name
 
-    @property
-    def index_column(self) -> str:
-        return self._index_column
+    @name.setter
+    def name(self, value: str):
+        self._name = value
 
     def copy(self) -> Index:
         """Make a copy of this object."""

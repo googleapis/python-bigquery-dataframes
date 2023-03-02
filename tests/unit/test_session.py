@@ -22,4 +22,4 @@ def test_read_gdb_not_found_tables(session, not_found_table_id):
 )
 def test_read_gbq_good_tables(session, good_table_id, expected):
     df = session.read_gbq(good_table_id)
-    assert len(df._expr._columns) == expected
+    assert len(df._block.expr._columns) == expected

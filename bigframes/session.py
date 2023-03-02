@@ -7,6 +7,7 @@ import google.cloud.bigquery as bigquery
 import ibis
 
 from bigframes.core import BigFramesExpr
+import bigframes.core.blocks as blocks
 from bigframes.dataframe import DataFrame
 
 
@@ -104,7 +105,8 @@ class Session:
         table_expression = self.ibis_client.table(
             table_ref.table_id, database=f"{table_ref.project}.{table_ref.dataset_id}"
         )
-        return DataFrame(BigFramesExpr(self, table_expression))
+        block = blocks.Block(BigFramesExpr(self, table_expression))
+        return DataFrame(block)
 
 
 def connect(context: Optional[Context] = None) -> Session:

@@ -10,6 +10,7 @@ import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core
+import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
 import bigframes.series
@@ -25,21 +26,13 @@ class DataFrame:
 
     def __init__(
         self,
-        expr: bigframes.core.BigFramesExpr,
-        *,
-        index: Optional[bigframes.core.indexes.implicitjoiner.ImplicitJoiner] = None,
+        block: blocks.Block,
     ):
-        if index is None:
-            index = bigframes.core.indexes.implicitjoiner.ImplicitJoiner(expr)
-
-        # TODO(swast): To support mutable cells (such as with inplace=True),
-        # we might want to store columns as a collection of Series instead.
-        self._expr = expr
-        self._index = index
+        self._block = block
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
-        return self._index
+        return self._block.index
 
     def __getitem__(
         self, key: Union[str, Iterable[str]]
@@ -49,8 +42,12 @@ class DataFrame:
         # https://pandas.pydata.org/docs/getting_started/intro_tutorials/03_subset_data.html
 
         if isinstance(key, str):
-            column = self._expr.get_column(key)
-            return bigframes.series.Series(self._expr, column, index=self._index)
+            # Check that the column exists.
+            # TODO(swast): Make sure we can't select Index columns this way.
+            _ = self._block.expr.get_column(key)
+            # Return a view so that mutations on the Series can affect this DataFrame.
+            # TODO(swast): Copy if "copy-on-write" semantics are enabled.
+            return bigframes.series.Series(self._block, key)
 
         # TODO(swast): Allow for filtering of rows by a boolean Series, returning a
         # filtered version of this DataFrame instead of a Series.
@@ -68,25 +65,16 @@ class DataFrame:
         # TODO(swast): Do we need to apply an implicit join when doing a
         # projection?
 
-        # TODO(swast): Probably need to include index column(s) here, too.
-        projection_keys = list(key)
-
-        if isinstance(self._index, bigframes.core.indexes.index.Index):
-            index_name = self._index._index_column
-            # TODO(swast): Should we disallow selecting the index column like
-            # any other column?
-            if index_name not in projection_keys:
-                projection_keys.append(index_name)
-
-        expr = self._expr.projection(
-            [self._expr.get_column(column_name) for column_name in projection_keys]
+        # TODO(swast): Should we disallow selecting the index column like
+        # any other column?
+        block = self._block.copy()
+        block.replace_value_columns(
+            [self._block.expr.get_column(column_name) for column_name in key]
         )
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        return DataFrame(block)
 
     def __getattr__(self, key: str):
-        if key not in self._expr.column_names:
+        if key not in self._block.expr.column_names:
             raise AttributeError(key)
         return self.__getitem__(key)
 
@@ -94,7 +82,7 @@ class DataFrame:
         """Converts a DataFrame to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        job = self._expr.start_query().result(max_results=10)
+        job = self._block.expr.start_query().result(max_results=10)
         rows = job.total_rows
         columns = len(job.schema)
         # TODO(swast): Need to set index if we have an index column(s)
@@ -113,25 +101,13 @@ class DataFrame:
 
     def compute(self) -> pandas.DataFrame:
         """Executes deferred operations and downloads the results."""
-        # TODO(swast): Use Ibis for now for consistency with Series, but
-        # ideally we'd do our own thing via the BQ client library where we can
-        # more easily override the output dtypes to use nullable dtypes and
-        # avoid lossy conversions.
-        df = self._expr.to_ibis_expr().execute()
-        # TODO(swast): We need something that encapsulates data + index
-        # column(s) so that Series and DataFrame don't need to duplicate
-        # Index logic.
-        if isinstance(self._index, bigframes.core.indexes.index.Index):
-            df = df.set_index(self._index._index_column)
-            df.index.name = self._index.name
-        return df
+        return self._block.compute()
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
-        expr = self._expr.apply_limit(n)
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        block = self._block.copy()
+        block.expr = self._block.expr.apply_limit(n)
+        return DataFrame(block)
 
     def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
         """Drop specified column(s)."""
@@ -139,31 +115,29 @@ class DataFrame:
             columns = [columns]
 
         # TODO(swast): Validate that we aren't trying to drop the index column.
-        expr_builder = self._expr.builder()
+        expr_builder = self._block.expr.builder()
         remain_cols = [
             column
             for column in expr_builder.columns
             if column.get_name() not in columns
         ]
         expr_builder.columns = remain_cols
-        expr = expr_builder.build()
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        block = self._block.copy()
+        block.expr = expr_builder.build()
+        return DataFrame(block)
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
-        expr_builder = self._expr.builder()
+        expr_builder = self._block.expr.builder()
 
         for i, col in enumerate(expr_builder.columns):
             if col.get_name() in columns:
                 expr_builder.columns[i] = col.name(columns[col.get_name()])
 
-        expr = expr_builder.build()
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        block = self._block.copy()
+        block.expr = expr_builder.build()
+        return DataFrame(block)
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
@@ -173,7 +147,7 @@ class DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
 
-        expr_builder = self._expr.builder()
+        expr_builder = self._block.expr.builder()
         existing_col_pos_map = {
             col.get_name(): i for i, col in enumerate(expr_builder.columns)
         }
@@ -184,33 +158,32 @@ class DataFrame:
             else:
                 expr_builder.columns.append(expr_builder.table[k])
 
-        expr = expr_builder.build()
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        block = self._block.copy()
+        block.expr = expr_builder.build()
+        return DataFrame(block)
 
     def set_index(self, key: str) -> DataFrame:
         """Set the DataFrame index using existing columns."""
-        expr = self._expr
+        expr = self._block.expr
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
-        if not self._expr.ordering:
+        if not expr.ordering:
             expr = expr.order_by([ibis.asc(index_expr)])
 
-        # TODO(swast): Somehow need to separate index column from data columns.
-        index = bigframes.core.indexes.index.Index(expr, key)
-        return DataFrame(expr, index=index)
+        block = self._block.copy()
+        block.index = bigframes.core.indexes.index.Index(expr, key)
+        return DataFrame(block)
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
         # Can't dropna on original table expr, it will raise "not same table expression" on selection.
-        table = self._expr.to_ibis_expr()
+        table = self._block.expr.to_ibis_expr()
         table = table.dropna()
 
-        expr = bigframes.core.BigFramesExpr(self._expr._session, table)
-        index = self._index.copy()
-        index._expr = expr
-        return DataFrame(expr, index=index)
+        expr = bigframes.core.BigFramesExpr(self._block.expr._session, table)
+        block = self._block.copy()
+        block.expr = expr
+        return DataFrame(block)
 
     def merge(
         self,
@@ -225,29 +198,31 @@ class DataFrame:
             raise ValueError("Must specify a column to join on.")
 
         # Drop index column in joins. Consistent with Pandas.
-        left_index_column = getattr(self._index, "index_column", None)
-        if left_index_column:
-            self = self.drop(left_index_column)
-        right_index_column = getattr(self._index, "index_column", None)
-        if right_index_column:
-            right = right.drop(right_index_column)
+        left_index_columns = self._block.index_columns
+        if left_index_columns:
+            self = self.drop(left_index_columns)
+        right_index_columns = right._block.index_columns
+        if right_index_columns:
+            right = right.drop(right_index_columns)
 
-        left_table = self._expr.to_ibis_expr()
-        right_table = right._expr.to_ibis_expr()
+        left_table = self._block.expr.to_ibis_expr()
+        right_table = right._block.expr.to_ibis_expr()
 
         joined_table = left_table.join(
             right_table, left_table[on] == right_table[on], how, suffixes=suffixes
         )
-        joined_frame = DataFrame(
-            bigframes.core.BigFramesExpr(self._expr._session, joined_table)
+        block = blocks.Block(
+            bigframes.core.BigFramesExpr(self._block.expr._session, joined_table)
         )
+        joined_frame = DataFrame(block)
 
-        # Ibis emits redundant columns for outer joins. https://ibis-project.org/ibis-for-pandas-users/#merging-tables
+        # Ibis emits redundant columns for outer joins. See:
+        # https://ibis-project.org/ibis-for-pandas-users/#merging-tables
         left_on_name = on + suffixes[0]
         right_on_name = on + suffixes[1]
         if (
-            left_on_name in joined_frame._expr.column_names
-            and right_on_name in joined_frame._expr.column_names
+            left_on_name in joined_frame._block.expr.column_names
+            and right_on_name in joined_frame._block.expr.column_names
         ):
             joined_frame = joined_frame.drop(right_on_name)
             joined_frame = joined_frame.rename({left_on_name: on})

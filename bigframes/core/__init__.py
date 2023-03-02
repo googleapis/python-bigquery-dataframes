@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Collection, Optional, Sequence
+from typing import Collection, Iterable, Optional, Sequence
 
 from google.cloud import bigquery
 import ibis.expr.types as ibis_types
@@ -107,7 +107,7 @@ class BigFramesExpr:
         expr.ordering = list(by)
         return expr.build()
 
-    def projection(self, columns: Collection[ibis_types.Value]) -> BigFramesExpr:
+    def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
         # from the same table expression instead of (in addition to?) at
