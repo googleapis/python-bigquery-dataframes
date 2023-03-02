@@ -55,11 +55,12 @@ class ImplicitJoiner:
                 f"right based on: {other._expr.table.compile()}"
             )
 
-        combined_table = self._expr.table
-        combined_expr = self._expr.builder()
+        left_expr = self._expr
+        right_expr = other._expr
+        combined_expr = left_expr.builder()
 
-        left_predicates = self._expr._predicates
-        right_predicates = other._expr._predicates
+        left_predicates = left_expr._predicates
+        right_predicates = right_expr._predicates
         # TODO(tbergeron): Skip generating these for inner part of join
         (
             left_relative_predicates,
@@ -79,12 +80,12 @@ class ImplicitJoiner:
                 left_reduce_rel_pred = _reduce_predicate_list(left_relative_predicates)
                 return (
                     ibis.case()
-                    .when(left_reduce_rel_pred, combined_table[key])
+                    .when(left_reduce_rel_pred, left_expr.get_column(key))
                     .else_(ibis.null())
                     .end()
                 )
             else:
-                return combined_table[key]
+                return left_expr.get_column(key)
 
         def get_column_right(key: str) -> ibis_types.Value:
             if right_relative_predicates:
@@ -93,12 +94,12 @@ class ImplicitJoiner:
                 )
                 return (
                     ibis.case()
-                    .when(right_reduce_rel_pred, combined_table[key])
+                    .when(right_reduce_rel_pred, right_expr.get_column(key))
                     .else_(ibis.null())
                     .end()
                 )
             else:
-                return combined_table[key]
+                return right_expr.get_column(key)
 
         return ImplicitJoiner(combined_expr.build()), (
             get_column_left,

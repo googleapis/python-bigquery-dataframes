@@ -144,12 +144,39 @@ def test_series_add_scalar(scalars_dfs, other):
         ("float64_col", "float64_col"),
         ("int64_col", "float64_col"),
         ("int64_col", "int64_col"),
+        ("int64_col", "int64_too"),
     ],
 )
 def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (scalars_df[left_col] + scalars_df[right_col]).compute()
     pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_names=False)
+
+
+@pytest.mark.parametrize(
+    ("left_col", "right_col", "righter_col"),
+    [
+        ("float64_col", "float64_col", "float64_col"),
+        ("int64_col", "int64_col", "int64_col"),
+    ],
+)
+def test_series_add_bigframes_series_nested(
+    scalars_dfs, left_col, right_col, righter_col
+):
+    """Test that we can correctly add multiple times."""
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        (scalars_df[left_col] + scalars_df[right_col]) + scalars_df[righter_col]
+    ).compute()
+    pd_result = (
+        scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
+    ) + scalars_pandas_df[righter_col]
 
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
