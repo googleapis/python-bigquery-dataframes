@@ -73,6 +73,28 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_filter_df(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_bool_series = scalars_df["bool_col"]
+    bf_result = scalars_df[bf_bool_series].compute()
+
+    pd_bool_series = scalars_pandas_df["bool_col"]
+    pd_result = scalars_pandas_df[pd_bool_series]
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("rowindex", ignore_index=True)
+        pd_result = pd_result.sort_values("rowindex", ignore_index=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_assign_new_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     kwargs = {"new_col": 2}

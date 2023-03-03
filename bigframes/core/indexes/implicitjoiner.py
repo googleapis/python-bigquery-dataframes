@@ -38,8 +38,10 @@ class ImplicitJoiner:
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
     ]:
         """Compute join_index and indexers to conform data structures to the new index."""
-        if how != "outer":
-            raise NotImplementedError("Only how='outer' currently supported")
+        if how not in ["outer", "left"]:
+            raise NotImplementedError(
+                "Only how='outer' and how='left' currently supported"
+            )
 
         # TODO(swast): Allow different expressions in the cases where we can
         # emulate the desired kind of join.
@@ -76,7 +78,7 @@ class ImplicitJoiner:
             )  # builder expects mutable list
 
         def get_column_left(key: str) -> ibis_types.Value:
-            if left_relative_predicates:
+            if left_relative_predicates and how in ["right", "outer"]:
                 left_reduce_rel_pred = _reduce_predicate_list(left_relative_predicates)
                 return (
                     ibis.case()
@@ -88,7 +90,7 @@ class ImplicitJoiner:
                 return left_expr.get_column(key)
 
         def get_column_right(key: str) -> ibis_types.Value:
-            if right_relative_predicates:
+            if right_relative_predicates and how in ["left", "outer"]:
                 right_reduce_rel_pred = _reduce_predicate_list(
                     right_relative_predicates
                 )
@@ -123,6 +125,8 @@ def _join_predicates(
             _reduce_predicate_list(right_predicates)
         )
         return (joined_predicates,)
+    if join_type == "left":
+        return tuple(left_predicates)
     else:
         raise ValueError("Unsupported join_type: " + join_type)
 

@@ -6,6 +6,7 @@ import typing
 from typing import Iterable, Mapping, Optional, Union
 
 import ibis
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -35,7 +36,7 @@ class DataFrame:
         return self._block.index
 
     def __getitem__(
-        self, key: Union[str, Iterable[str]]
+        self, key: Union[str, Iterable[str], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
         """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in
@@ -49,8 +50,24 @@ class DataFrame:
             # TODO(swast): Copy if "copy-on-write" semantics are enabled.
             return bigframes.series.Series(self._block, key)
 
-        # TODO(swast): Allow for filtering of rows by a boolean Series, returning a
-        # filtered version of this DataFrame instead of a Series.
+        if isinstance(key, bigframes.series.Series):
+            if key._to_ibis_expr().type() == ibis_dtypes.bool:
+                # TODO: enforce stricter alignment
+                combined_index, (
+                    _,
+                    get_column_right,
+                ) = self._block.index.join(key.index, how="left")
+                right = get_column_right(key._value_column)
+
+                block = self._block.copy()
+                block.index = combined_index
+                filtered_expr = block.expr.filter((right == ibis.literal(True)))
+                block.expr = filtered_expr
+                return DataFrame(block)
+            else:
+                raise ValueError(
+                    "Only boolean series currently supported for indexing."
+                )
 
         # Select a subset of columns or re-order columns.
         # In Ibis after you apply a projection, any column objects from the
