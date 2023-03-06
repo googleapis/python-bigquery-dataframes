@@ -1,6 +1,6 @@
 """Session manages the connection to BigQuery."""
 
-from typing import Optional
+from typing import List, Optional
 
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
@@ -94,8 +94,27 @@ class Session:
             query_job.result()  # blocks until finished
             self._session_id = None
 
-    def read_gbq(self, table: str) -> "DataFrame":
-        """Loads data from Google BigQuery."""
+    def read_gbq(
+        self,
+        table: str,
+        *,
+        col_order: Optional[List[str]] = None,
+    ) -> "DataFrame":
+        """Loads DataFrame from Google BigQuery.
+
+        Parameters
+        ----------
+        table : str
+            BigQuery table name to be read, in the form `project.dataset.tablename` or
+            `dataset.tablename`
+        col_order : list(str), optional
+            List of BigQuery column names in the desired order for results DataFrame.
+
+        Returns
+        -------
+        df: DataFrame
+            DataFrame representing results of the table.
+        """
         # TODO(swast): If a table ID, make sure we read from a snapshot to
         # better emulate pandas.read_gbq's point-in-time download. See:
         # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
@@ -105,7 +124,14 @@ class Session:
         table_expression = self.ibis_client.table(
             table_ref.table_id, database=f"{table_ref.project}.{table_ref.dataset_id}"
         )
-        block = blocks.Block(BigFramesExpr(self, table_expression))
+        columns = None
+        if col_order is not None:
+            columns = tuple(
+                table_expression[key] for key in col_order if key in table_expression
+            )
+            if len(columns) != len(col_order):
+                raise ValueError("Column order does not match this table.")
+        block = blocks.Block(BigFramesExpr(self, table_expression, columns))
         return DataFrame(block)
 
 

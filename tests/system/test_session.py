@@ -11,6 +11,18 @@ def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
     assert len(df._block.expr._columns) == len(scalars_schema)
 
 
+def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
+    columns = list(column.name for column in scalars_schema)
+    df = session.read_gbq(scalars_table_id, col_order=columns)
+    assert len(df._block.expr._columns) == len(scalars_schema)
+
+    df = session.read_gbq(scalars_table_id, col_order=[columns[0]])
+    assert len(df._block.expr._columns) == 1
+
+    with pytest.raises(ValueError):
+        df = session.read_gbq(scalars_table_id, col_order=["unknown"])
+
+
 def test_session_id(session):
     assert session._session_id is not None
 

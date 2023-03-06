@@ -23,3 +23,15 @@ def test_read_gdb_not_found_tables(session, not_found_table_id):
 def test_read_gbq_good_tables(session, good_table_id, expected):
     df = session.read_gbq(good_table_id)
     assert len(df._block.expr._columns) == expected
+
+
+def test_read_gbq_w_col_order(session):
+    scalars_table_id = "project.dataset.scalars_table"
+    df = session.read_gbq(scalars_table_id)
+    assert len(df._block.expr._columns) == 4
+
+    df = session.read_gbq(scalars_table_id, col_order=["bool_col"])
+    assert len(df._block.expr._columns) == 1
+
+    with pytest.raises(ValueError):
+        df = session.read_gbq(scalars_table_id, col_order=["unknown"])

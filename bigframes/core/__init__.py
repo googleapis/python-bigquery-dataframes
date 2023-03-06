@@ -35,7 +35,7 @@ class BigFramesExpr:
         self,
         session: Session,
         table: ibis_types.Table,
-        columns: Optional[Collection[ibis_types.Value]] = None,
+        columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: Optional[Sequence[ibis_types.Value]] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
