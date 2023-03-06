@@ -50,6 +50,11 @@
       "type": "INTEGER"
     },
     {
+      "mode": "REQUIRED",
+      "name": "rowindex_2",
+      "type": "INTEGER"
+    },
+    {
       "mode": "NULLABLE",
       "name": "string_col",
       "type": "STRING"

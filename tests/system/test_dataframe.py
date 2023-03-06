@@ -241,6 +241,7 @@ def test_get_dtypes(scalars_df_no_index):
                 "numeric_col": np.dtype("O"),
                 "float64_col": pd.Float64Dtype(),
                 "rowindex": pd.Int64Dtype(),
+                "rowindex_2": pd.Int64Dtype(),
                 "string_col": pd.StringDtype(),
                 "time_col": db_dtypes.TimeDtype(),
                 # TODO(bmil): should be:
@@ -248,4 +249,45 @@ def test_get_dtypes(scalars_df_no_index):
                 "timestamp_col": np.dtype("datetime64[us]"),
             }
         ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("drop",),
+    ((True,), (False,)),
+)
+def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
+    df = scalars_df_index.reset_index(drop=drop)
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df_index.reset_index(drop=drop)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("index_column",),
+    (("int64_too",), ("string_col",), ("timestamp_col",)),
+)
+def test_set_index(scalars_dfs, index_column):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    df = scalars_df.set_index(index_column)
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df.set_index(index_column)
+
+    # Sort to disambiguate when there are duplicate index labels.
+    bf_result = bf_result.sort_values("rowindex_2")
+    pd_result = pd_result.sort_values("rowindex_2")
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
     )

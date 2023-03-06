@@ -85,6 +85,14 @@ class BigFramesExpr:
             predicates=self._predicates,
         )
 
+    def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
+        expr = self.builder()
+        remain_cols = [
+            column for column in expr.columns if column.get_name() not in columns
+        ]
+        expr.columns = remain_cols
+        return expr.build()
+
     def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         return self._column_names[key]

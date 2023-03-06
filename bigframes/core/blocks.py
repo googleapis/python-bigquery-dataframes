@@ -70,9 +70,26 @@ class Block:
         if len(columns) == 0:
             self._index = indexes.ImplicitJoiner(expr)
         elif len(columns) == 1:
-            name = self._index.name if hasattr(self._index, "name") else columns[0]
-            self._index = indexes.Index(expr, columns[0])
+            index_column = columns[0]
+            name = self._index.name if hasattr(self._index, "name") else index_column
+            self._index = indexes.Index(expr, index_column)
             self._index.name = name
+            # Rearrange so that index columns are first.
+            if expr._columns[0].get_name() != index_column:
+                expr_builder = expr.builder()
+                index_columns = [
+                    column
+                    for column in expr_builder.columns
+                    if column.get_name() == index_column
+                ]
+                value_columns = [
+                    column
+                    for column in expr_builder.columns
+                    if column.get_name() != index_column
+                ]
+                expr_builder.columns = index_columns + value_columns
+                # Avoid infinite loops by bypassing the property setter.
+                self._expr = expr_builder.build()
         else:
             raise NotImplementedError("MultiIndex not supported.")
 
@@ -82,14 +99,14 @@ class Block:
         expr = self._expr
 
         if value_keys is not None:
-            value_columns = (
-                self._expr.get_column(column_name) for column_name in value_keys
-            )
             index_columns = (
                 self._expr.get_column(column_name)
                 for column_name in self._index_columns
             )
-            expr = self.expr.projection(itertools.chain(value_columns, index_columns))
+            value_columns = (
+                self._expr.get_column(column_name) for column_name in value_keys
+            )
+            expr = self.expr.projection(itertools.chain(index_columns, value_columns))
 
         # TODO(swast): Use Ibis execute() for now, but ideally we'd do our own
         # thing via the BQ client library where we can more easily override the

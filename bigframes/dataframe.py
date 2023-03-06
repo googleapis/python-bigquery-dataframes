@@ -144,15 +144,8 @@ class DataFrame:
             columns = [columns]
 
         # TODO(swast): Validate that we aren't trying to drop the index column.
-        expr_builder = self._block.expr.builder()
-        remain_cols = [
-            column
-            for column in expr_builder.columns
-            if column.get_name() not in columns
-        ]
-        expr_builder.columns = remain_cols
         block = self._block.copy()
-        block.expr = expr_builder.build()
+        block.expr = self._block.expr.drop_columns(columns)
         return DataFrame(block)
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
@@ -193,9 +186,26 @@ class DataFrame:
         block.expr = expr_builder.build()
         return DataFrame(block)
 
+    def reset_index(self, *, drop: bool = False) -> DataFrame:
+        """Reset the index of the DataFrame, and use the default one instead."""
+        original_index_columns = self._block.index_columns
+        block = self._block.copy()
+        # TODO(swast): Only remove a specified number of levels from a
+        # MultiIndex.
+        block.index_columns = ()
+
+        if drop:
+            # Even though the index might be part of the ordering, keep that
+            # ordering expression as reset_index shouldn't change the row
+            # order.
+            block.expr = block.expr.drop_columns(original_index_columns)
+
+        return DataFrame(block)
+
     def set_index(self, key: str) -> DataFrame:
         """Set the DataFrame index using existing columns."""
         expr = self._block.expr
+        prev_index_columns = self._block.index_columns
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
         if not expr.ordering:
@@ -203,6 +213,7 @@ class DataFrame:
 
         block = self._block.copy()
         block.index = bigframes.core.indexes.index.Index(expr, key)
+        block.expr = block.expr.drop_columns(prev_index_columns)
         return DataFrame(block)
 
     def dropna(self) -> DataFrame:
@@ -229,21 +240,17 @@ class DataFrame:
             raise ValueError("Must specify a column to join on.")
 
         # Drop index column in joins. Consistent with Pandas.
-        left_index_columns = self._block.index_columns
-        if left_index_columns:
-            self = self.drop(left_index_columns)
-        right_index_columns = right._block.index_columns
-        if right_index_columns:
-            right = right.drop(right_index_columns)
+        left = self.reset_index(drop=True)
+        right = right.reset_index(drop=True)
 
-        left_table = self._block.expr.to_ibis_expr()
+        left_table = left._block.expr.to_ibis_expr()
         right_table = right._block.expr.to_ibis_expr()
 
         joined_table = left_table.join(
             right_table, left_table[on] == right_table[on], how, suffixes=suffixes
         )
         block = blocks.Block(
-            bigframes.core.BigFramesExpr(self._block.expr._session, joined_table)
+            bigframes.core.BigFramesExpr(left._block.expr._session, joined_table)
         )
         joined_frame = DataFrame(block)
 
