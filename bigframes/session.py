@@ -1,10 +1,12 @@
 """Session manages the connection to BigQuery."""
 
+import typing
 from typing import List, Optional
 
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import ibis
+from ibis.backends.bigquery import Backend
 
 from bigframes.core import BigFramesExpr
 import bigframes.core.blocks as blocks
@@ -51,23 +53,20 @@ class Session:
     DataFrames."""
 
     def __init__(self, context: Optional[Context] = None):
-        # TODO(chelsealin): the ibis_client object has one more bq client, which takes additional
-        # connection time on authentications etc, and does not have the session id assorted. A
-        # change required in the ibis library to reuse the bq client or its _credential object.
         if context is not None:
-            self.bqclient = bigquery.Client(
-                credentials=context.credentials,
-                project=context.project,
-                location=context.location,
-                default_query_job_config=bigquery.QueryJobConfig(),
-            )
-            self.ibis_client = ibis.bigquery.connect(
-                project_id=context.project, credentials=context.credentials
+            # TODO(chelsealin): Add the `location` parameter to ibis client.
+            self.ibis_client = typing.cast(
+                Backend,
+                ibis.bigquery.connect(
+                    project_id=context.project,
+                    credentials=context.credentials,
+                    application_name="bigframes",
+                ),
             )
         else:
-            self.bqclient = bigquery.Client()
-            self.ibis_client = ibis.bigquery.connect(project_id=self.bqclient.project)
+            self.ibis_client = typing.cast(Backend, ibis.bigquery.connect())
 
+        self.bqclient = self.ibis_client.client
         self._create_and_bind_bq_session()
 
     def _create_and_bind_bq_session(self):
@@ -84,6 +83,7 @@ class Session:
                 bigquery.ConnectionProperty("session_id", self._session_id)
             ]
         )
+        # TODO(chelsealin): Bind the session id with load jobs after updating BQ Python client.
 
     def close(self):
         """Terminated the BQ session, otherwises the session will be terminated automatically after
