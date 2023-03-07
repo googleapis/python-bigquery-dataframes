@@ -1,3 +1,5 @@
+import db_dtypes  # type: ignore
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -198,4 +200,30 @@ def test_merge(scalars_dfs, merge_how):
         check_column_type=False,
         check_dtype=False,
         check_index_type=False,
+    )
+
+
+def test_get_dtypes(scalars_df_no_index):
+    dtypes = scalars_df_no_index.dtypes
+    pd.testing.assert_series_equal(
+        dtypes,
+        pd.Series(
+            {
+                "bool_col": pd.BooleanDtype(),
+                "bytes_col": np.dtype("O"),
+                "date_col": db_dtypes.DateDtype(),
+                "datetime_col": np.dtype("datetime64[us]"),
+                "geography_col": np.dtype("O"),
+                "int64_col": pd.Int64Dtype(),
+                "int64_too": pd.Int64Dtype(),
+                "numeric_col": np.dtype("O"),
+                "float64_col": pd.Float64Dtype(),
+                "rowindex": pd.Int64Dtype(),
+                "string_col": pd.StringDtype(),
+                "time_col": db_dtypes.TimeDtype(),
+                # TODO(bmil): should be:
+                # "timestamp_col": pd.DatetimeTZDtype(unit="us", tz="UTC")}))
+                "timestamp_col": np.dtype("datetime64[us]"),
+            }
+        ),
     )

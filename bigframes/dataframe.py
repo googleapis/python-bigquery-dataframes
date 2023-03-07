@@ -14,6 +14,7 @@ import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
+import bigframes.dtypes
 import bigframes.series
 
 
@@ -34,6 +35,17 @@ class DataFrame:
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
         return self._block.index
+
+    @property
+    def dtypes(self) -> pandas.Series:
+        """Returns the dtypes as a Pandas Series object"""
+        schema_elements = self._block.expr.to_ibis_expr().schema().items()
+        column_names, ibis_dtypes = zip(*schema_elements)
+        bigframes_dtypes = [
+            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
+            for ibis_dtype in ibis_dtypes
+        ]
+        return pandas.Series(data=bigframes_dtypes, index=column_names)
 
     def __getitem__(
         self, key: Union[str, Iterable[str], bigframes.series.Series]
