@@ -5,6 +5,8 @@ from __future__ import annotations
 import typing
 
 import ibis
+import ibis.common.exceptions
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -143,23 +145,84 @@ class Series:
         )
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
-        (left, right, index) = self._align(other)
-        block = self._block.copy()
-        block.index = index
-        block.replace_value_columns(
-            [
-                (
-                    typing.cast(ibis_types.NumericValue, left)
-                    + typing.cast(ibis_types.NumericValue, right)
-                ).name(  # type: ignore
-                    self._value_column
-                ),
-            ]
-        )
-        return Series(
-            block,
-            self._value_column,
-        )
+        def add_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return typing.cast(ibis_types.NumericValue, x) + typing.cast(
+                ibis_types.NumericValue, y
+            )
+
+        return self._apply_binary_op(other, add_op)
+
+    def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
+        def sub_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return typing.cast(ibis_types.NumericValue, x) - typing.cast(
+                ibis_types.NumericValue, y
+            )
+
+        return self._apply_binary_op(other, sub_op)
+
+    def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
+        def mul_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return typing.cast(ibis_types.NumericValue, x) * typing.cast(
+                ibis_types.NumericValue, y
+            )
+
+        return self._apply_binary_op(other, mul_op)
+
+    def __truediv__(self, other: float | int | Series | pandas.Series) -> Series:
+        def div_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return typing.cast(ibis_types.NumericValue, x) / typing.cast(
+                ibis_types.NumericValue, y
+            )
+
+        return self._apply_binary_op(other, div_op, ibis_dtypes.float)
+
+    def __lt__(self, other) -> Series:  # type: ignore
+        def lt_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return (x < y).fillna(ibis.literal(False))
+
+        return self._apply_binary_op(other, lt_op, ibis_dtypes.bool)
+
+    def __le__(self, other) -> Series:  # type: ignore
+        def le_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return (x <= y).fillna(ibis.literal(False))
+
+        return self._apply_binary_op(other, le_op, ibis_dtypes.bool)
+
+    def __gt__(self, other) -> Series:  # type: ignore
+        def gt_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return (x > y).fillna(ibis.literal(False))
+
+        return self._apply_binary_op(other, gt_op, ibis_dtypes.bool)
+
+    def __ge__(self, other) -> Series:  # type: ignore
+        def ge_op(
+            x: ibis_types.Value,
+            y: ibis_types.Value,
+        ):
+            return (x >= y).fillna(ibis.literal(False))
+
+        return self._apply_binary_op(other, ge_op, ibis_dtypes.bool)
 
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
@@ -310,14 +373,46 @@ class Series:
             ) = self._block.index.join(other.index, how="outer")
             left_value = get_column_left(self._value_column)
             right_value = get_column_right(other._value.get_name())
+            return (left_value, right_value, combined_index)
         elif isinstance(other, bigframes.scalar.Scalar):
             # TODO(tbereron): support deferred scalars.
             raise ValueError("Deferred scalar not yet supported for binary operations.")
-        else:
+        as_literal_value = _interpret_as_ibis_literal(other)
+        if as_literal_value is not None:
             combined_index = self._block.index
             left_value = self._value
-            right_value = other
-        return (left_value, right_value, combined_index)
+            right_value = as_literal_value
+            return (left_value, right_value, combined_index)
+        else:
+            return NotImplemented
+
+    def _apply_binary_op(
+        self,
+        other: typing.Any,
+        op: typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value],
+        expected_dtype: typing.Optional[ibis_dtypes.DataType] = None,
+    ) -> Series:
+        """Applies a binary operator to the series and other."""
+        (left, right, index) = self._align(other)
+        block = self._block.copy()
+        block.index = index
+        if not isinstance(right, ibis_types.NullScalar):
+            result_expr = op(left, right).name(self._value_column)
+        else:
+            # Cannot do sql op with null literal, so just replace expression directly with default value
+            output_dtype = expected_dtype if expected_dtype else left.type()
+            # In pandas, bool isn't nullable, so operations often default to False with Null/NAN inputs
+            default_value = (
+                ibis_types.null().cast(output_dtype)
+                if output_dtype != ibis_dtypes.bool
+                else ibis_types.literal(False)
+            )
+            result_expr = default_value.name(self._value_column)
+        block.replace_value_columns([result_expr])
+        return Series(
+            block,
+            self._value_column,
+        )
 
     def find(self, sub, start=None, end=None) -> "Series":
         """Return the position of the first occurence of substring."""
@@ -382,3 +477,16 @@ class SeriesGroupyBy:
         )
         block = blocks.Block(new_table_expr, (self._expr._by.get_name(),))
         return Series(block, result_name)
+
+
+def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
+    if isinstance(value, Series) or isinstance(value, pandas.Series):
+        return None
+    if pandas.isna(value):
+        # TODO(tbergeron): Ensure correct handling of NaN - maybe not map to Null
+        return ibis_types.null()
+    try:
+        return ibis_types.literal(value)
+    except ibis.common.exceptions.IbisTypeError:
+        # Value cannot be converted into literal.
+        return None

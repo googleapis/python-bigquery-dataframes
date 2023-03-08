@@ -120,6 +120,81 @@ def test_upper(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x, y: x + y),
+        (lambda x, y: x - y),
+        (lambda x, y: x * y),
+        (lambda x, y: x / y),
+        (lambda x, y: x < y),
+        (lambda x, y: x > y),
+        (lambda x, y: x <= y),
+        (lambda x, y: x >= y),
+    ],
+    ids=[
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "less_than",
+        "greather_than",
+        "less_than_equal",
+        "greather_than_equal",
+    ],
+)
+@pytest.mark.parametrize(("other_scalar"), [-1, 0, 14, pd.NA])
+def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = operator(scalars_df["int64_col"], other_scalar).compute()
+    pd_result = operator(scalars_pandas_df["int64_col"], other_scalar)
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    pd.testing.assert_series_equal(
+        pd_result.astype("object"), bf_result.astype("object"), check_series_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x, y: x + y),
+        (lambda x, y: x - y),
+        (lambda x, y: x * y),
+        (lambda x, y: x / y),
+        (lambda x, y: x < y),
+        (lambda x, y: x > y),
+        (lambda x, y: x <= y),
+        (lambda x, y: x >= y),
+    ],
+    ids=[
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "less_than",
+        "greather_than",
+        "less_than_equal",
+        "greather_than_equal",
+    ],
+)
+def test_series_int_int_operators_series(scalars_dfs, operator):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
+    pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_names=False, check_series_type=False
+    )
+
+
+@pytest.mark.parametrize(
     ("other",),
     [
         (3,),
