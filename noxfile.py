@@ -50,6 +50,7 @@ SYSTEM_TEST_PYTHON_VERSIONS = ["3.8", "3.10"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "pytest",
+    "pytest-xdist",
     "google-cloud-testutils",
 ]
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
@@ -296,6 +297,7 @@ def system(session):
         session.run(
             "py.test",
             "--quiet",
+            "-n 20",
             f"--junitxml=system_{session.python}_sponge_log.xml",
             system_test_path,
             *session.posargs,
@@ -304,6 +306,7 @@ def system(session):
         session.run(
             "py.test",
             "--quiet",
+            "-n 20",
             f"--junitxml=system_{session.python}_sponge_log.xml",
             system_test_folder_path,
             *session.posargs,
@@ -448,10 +451,11 @@ def prerelease(session, tests_path):
     # Print out prerelease package versions.
     session.run("python", "-m", "pip", "freeze")
 
-    # Run py.test against the unit tests.
+    # Run py.test against the tests.
     session.run(
         "py.test",
         "--quiet",
+        "-n 20",
         f"--junitxml={os.path.split(tests_path)[-1]}_prerelease_{session.python}_sponge_log.xml",
         "--cov=bigframes",
         f"--cov={tests_path}",
