@@ -124,6 +124,8 @@ def test_upper(scalars_dfs):
         (lambda x, y: x - y),
         (lambda x, y: x * y),
         (lambda x, y: x / y),
+        (lambda x, y: x // y),
+        (lambda x, y: x % y),
         (lambda x, y: x < y),
         (lambda x, y: x > y),
         (lambda x, y: x <= y),
@@ -134,6 +136,8 @@ def test_upper(scalars_dfs):
         "subtract",
         "multiply",
         "divide",
+        "floordivide",
+        "modulo",
         "less_than",
         "greater_than",
         "less_than_equal",
@@ -141,10 +145,16 @@ def test_upper(scalars_dfs):
     ],
 )
 @pytest.mark.parametrize(("other_scalar"), [-1, 0, 14, pd.NA])
-def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
+@pytest.mark.parametrize(("reverse_operands"), [True, False])
+def test_series_int_int_operators_scalar(
+    scalars_dfs, operator, other_scalar, reverse_operands
+):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = operator(scalars_df["int64_col"], other_scalar).compute()
-    pd_result = operator(scalars_pandas_df["int64_col"], other_scalar)
+
+    maybe_reversed_op = (lambda x, y: operator(y, x)) if reverse_operands else operator
+
+    bf_result = maybe_reversed_op(scalars_df["int64_col"], other_scalar).compute()
+    pd_result = maybe_reversed_op(scalars_pandas_df["int64_col"], other_scalar)
 
     # TODO(chelsealin): Remove astype after b/273365359.
     if bf_result.dtype == numpy.dtype("float64"):
@@ -164,6 +174,8 @@ def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
         (lambda x, y: x > y),
         (lambda x, y: x <= y),
         (lambda x, y: x >= y),
+        (lambda x, y: x % y),
+        (lambda x, y: x // y),
     ],
     ids=[
         "add",
@@ -174,9 +186,12 @@ def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
         "greater_than",
         "less_than_equal",
         "greater_than_equal",
+        "modulo",
+        "floordivide",
     ],
 )
 def test_series_int_int_operators_series(scalars_dfs, operator):
+    # Enable floordivide and modulo once tests migrated fully to nullable types.
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])

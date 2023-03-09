@@ -14,6 +14,7 @@ import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
+import bigframes.operations as ops
 import bigframes.scalar
 import bigframes.view_windows
 
@@ -127,84 +128,52 @@ class Series:
         return self._apply_unary_op(upper_op)
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
-        def add_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return typing.cast(ibis_types.NumericValue, x) + typing.cast(
-                ibis_types.NumericValue, y
-            )
+        return self._apply_binary_op(other, ops.add_op)
 
-        return self._apply_binary_op(other, add_op)
+    __radd__ = __add__
 
     def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
-        def sub_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return typing.cast(ibis_types.NumericValue, x) - typing.cast(
-                ibis_types.NumericValue, y
-            )
+        return self._apply_binary_op(other, ops.sub_op)
 
-        return self._apply_binary_op(other, sub_op)
+    def __rsub__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
     def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
-        def mul_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return typing.cast(ibis_types.NumericValue, x) * typing.cast(
-                ibis_types.NumericValue, y
-            )
+        return self._apply_binary_op(other, ops.mul_op)
 
-        return self._apply_binary_op(other, mul_op)
+    __rmul__ = __mul__
 
     def __truediv__(self, other: float | int | Series | pandas.Series) -> Series:
-        def div_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return typing.cast(ibis_types.NumericValue, x) / typing.cast(
-                ibis_types.NumericValue, y
-            )
+        return self._apply_binary_op(other, ops.div_op, ibis_dtypes.float)
 
-        return self._apply_binary_op(other, div_op, ibis_dtypes.float)
+    def __rtruediv__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.reverse(ops.div_op), ibis_dtypes.float)
+
+    def __floordiv__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.floordiv_op, ibis_dtypes.int64)
+
+    def __rfloordiv__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(
+            other, ops.reverse(ops.floordiv_op), ibis_dtypes.int64
+        )
 
     def __lt__(self, other) -> Series:  # type: ignore
-        def lt_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return x < y
-
-        return self._apply_binary_op(other, lt_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.lt_op, ibis_dtypes.bool)
 
     def __le__(self, other) -> Series:  # type: ignore
-        def le_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return x <= y
-
-        return self._apply_binary_op(other, le_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.le_op, ibis_dtypes.bool)
 
     def __gt__(self, other) -> Series:  # type: ignore
-        def gt_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return x > y
-
-        return self._apply_binary_op(other, gt_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.gt_op, ibis_dtypes.bool)
 
     def __ge__(self, other) -> Series:  # type: ignore
-        def ge_op(
-            x: ibis_types.Value,
-            y: ibis_types.Value,
-        ):
-            return x >= y
+        return self._apply_binary_op(other, ops.ge_op, ibis_dtypes.bool)
 
-        return self._apply_binary_op(other, ge_op, ibis_dtypes.bool)
+    def __mod__(self, other) -> Series:  # type: ignore
+        return self._apply_binary_op(other, ops.mod_op, ibis_dtypes.int64)
+
+    def __rmod__(self, other) -> Series:  # type: ignore
+        return self._apply_binary_op(other, ops.reverse(ops.mod_op), ibis_dtypes.int64)
 
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
