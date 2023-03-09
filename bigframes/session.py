@@ -11,6 +11,9 @@ from ibis.backends.bigquery import Backend
 from bigframes.core import BigFramesExpr
 import bigframes.core.blocks as blocks
 from bigframes.dataframe import DataFrame
+import bigframes.version
+
+_APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
 
 
 class Context:
@@ -60,7 +63,7 @@ class Session:
                 ibis.bigquery.connect(
                     project_id=context.project,
                     credentials=context.credentials,
-                    application_name="bigframes",
+                    application_name=_APPLICATION_NAME,
                 ),
             )
         else:
