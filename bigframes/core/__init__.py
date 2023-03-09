@@ -192,7 +192,7 @@ class BigFramesGroupByExpr:
 
     def _to_ibis_expr(self) -> GroupedTable:
         """Creates an Ibis table expression representing the DataFrame."""
-        return self._expr._table.group_by(self._by)
+        return self._expr.to_ibis_expr().group_by(self._by)
 
     def aggregate(self, metrics: Collection[ibis_types.Scalar]) -> BigFramesExpr:
         table = self._to_ibis_expr().aggregate(metrics)

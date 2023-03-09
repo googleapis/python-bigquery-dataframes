@@ -555,14 +555,14 @@ def test_sum(scalars_dfs):
 
 def test_groupby_sum(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    col_name = "int64_col"
-    bf_series = scalars_df[col_name].groupby(scalars_df["int64_too"]).sum()
+    col_name = "int64_too"
+    bf_series = scalars_df[col_name].groupby(scalars_df["string_col"]).sum()
     # TODO(swast): Type cast should be unnecessary when we use nullable dtypes
     # everywhere.
     pd_series = (
         scalars_pandas_df[col_name]
         .astype(pd.Int64Dtype())
-        .groupby(scalars_pandas_df["int64_too"])
+        .groupby(scalars_pandas_df["string_col"])
         .sum()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
@@ -578,10 +578,14 @@ def test_groupby_sum(scalars_dfs):
 
 def test_groupby_mean(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    col_name = "int64_col"
-    bf_series = scalars_df[col_name].groupby(scalars_df["int64_too"]).mean()
+    col_name = "int64_too"
+    bf_series = (
+        scalars_df[col_name].groupby(scalars_df["string_col"], dropna=False).mean()
+    )
     pd_series = (
-        scalars_pandas_df[col_name].groupby(scalars_pandas_df["int64_too"]).mean()
+        scalars_pandas_df[col_name]
+        .groupby(scalars_pandas_df["string_col"], dropna=False)
+        .mean()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     # TODO(swast): BigFrames groupby should result in the same names as pandas.

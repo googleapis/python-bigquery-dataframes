@@ -38,9 +38,9 @@ class ImplicitJoiner:
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
     ]:
         """Compute join_index and indexers to conform data structures to the new index."""
-        if how not in ["outer", "left"]:
+        if how not in ["outer", "left", "inner"]:
             raise NotImplementedError(
-                "Only how='outer' and how='left' currently supported"
+                "Only how='outer','left','inner' currently supported"
             )
 
         # TODO(swast): Allow different expressions in the cases where we can
@@ -59,7 +59,7 @@ class ImplicitJoiner:
 
         left_expr = self._expr
         right_expr = other._expr
-        combined_expr = left_expr.builder()
+        combined_expr_builder = left_expr.builder()
 
         left_predicates = left_expr._predicates
         right_predicates = right_expr._predicates
@@ -71,11 +71,12 @@ class ImplicitJoiner:
 
         if left_predicates or right_predicates:
             joined_predicates = _join_predicates(
-                self._expr.predicates, other._expr.predicates, join_type=how
+                left_predicates, right_predicates, join_type=how
             )
-            combined_expr.predicates = list(
+            combined_expr_builder.predicates = list(
                 joined_predicates
             )  # builder expects mutable list
+        combined_expr = combined_expr_builder.build()
 
         def get_column_left(key: str) -> ibis_types.Value:
             if left_relative_predicates and how in ["right", "outer"]:
@@ -103,7 +104,7 @@ class ImplicitJoiner:
             else:
                 return right_expr.get_column(key)
 
-        return ImplicitJoiner(combined_expr.build()), (
+        return ImplicitJoiner(combined_expr), (
             get_column_left,
             get_column_right,
         )
@@ -127,6 +128,11 @@ def _join_predicates(
         return (joined_predicates,)
     if join_type == "left":
         return tuple(left_predicates)
+    if join_type == "inner":
+        _, right_relative_predicates = _get_relative_predicates(
+            left_predicates, right_predicates
+        )
+        return (*left_predicates, *right_relative_predicates)
     else:
         raise ValueError("Unsupported join_type: " + join_type)
 

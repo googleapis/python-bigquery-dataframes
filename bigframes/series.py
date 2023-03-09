@@ -350,27 +350,28 @@ class Series:
         )
 
     def __getitem__(self, indexer: Series):
-        """Get items using index. Only works with a boolean series derived from the base table."""
-        # TODO: enforce stricter alignment
-        if indexer._block.expr._table != self._block.expr._table:
-            raise ValueError(
-                "BigFrames expressions can only be filtered with expressions referencing the same table."
-            )
-        filtered_expr = self._block.expr.filter(
-            typing.cast(ibis_types.BooleanValue, indexer._value)
-        )
+        """Get items using boolean series indexer."""
+        # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
+        (left, right, index) = self._align(indexer, "left")
         block = self._block.copy()
+        block.index = index
+        block.replace_value_columns(
+            [
+                left,
+            ]
+        )
+        filtered_expr = block.expr.filter((right == ibis.literal(True)))
         block.expr = filtered_expr
         return Series(block, self._value_column)
 
-    def _align(self, other: typing.Any) -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
+    def _align(self, other: typing.Any, how="outer") -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
         # TODO: Support deferred scalar
         if isinstance(other, Series):
             combined_index, (
                 get_column_left,
                 get_column_right,
-            ) = self._block.index.join(other.index, how="outer")
+            ) = self._block.index.join(other.index, how=how)
             left_value = get_column_left(self._value_column)
             right_value = get_column_right(other._value.get_name())
             return (left_value, right_value, combined_index)
@@ -427,56 +428,53 @@ class Series:
             self._value_column,
         )
 
-    def groupby(self, by: Series):
+    def groupby(self, by: Series, *, dropna: bool = True):
         """Group the series by a given list of column labels. Only supports grouping by values from another aligned Series."""
-        # TODO(tbegeron): support other grouping expressions and options
-        return SeriesGroupyBy(self._block.expr, self._value, by._value)
+        # TODO: Support groupby level
+        if dropna:
+            by = by[by.notna()]
+        (value, key, index) = self._align(by, "inner" if dropna else "left")
+        block = self._block.copy()
+        block.index = index
+        block.replace_value_columns([key, value])
+        return SeriesGroupyBy(block, value.get_name(), key.get_name())
 
 
 class SeriesGroupyBy:
     """Represents a deferred series with a grouping expression."""
 
-    def __init__(
-        self,
-        expr: bigframes.core.BigFramesExpr,
-        series_expr: ibis_types.Value,
-        grouping_expr: ibis_types.Value,
-    ):
-        # TODO(tbergeron): Validate alignment (potentially using new index abstraction)
-        self._expr = bigframes.core.BigFramesGroupByExpr(expr, grouping_expr)
-        self._series_expr = series_expr
+    def __init__(self, block: blocks.Block, value_column: str, by: str):
+        # TODO(tbergeron): Support more group-by expression types
+        self._block = block
+        self._value_column = value_column
+        self._by = by
 
     def sum(self) -> Series:
         """Sums the numeric values for each group in the series. Ignores null/nan."""
-        # Would be unnamed in pandas, but bigframes needs identifier for now.
-        result_name = (
-            self._series_expr.get_name() + "_sum"
-        )  # Would be unnamed in pandas, but bigframes needs identifier for now.
-        new_table_expr = self._expr.aggregate(
-            [
-                typing.cast(ibis_types.NumericColumn, self._series_expr)
-                .sum()
-                .fillna(ibis.literal(0))
-                .name(result_name)
-            ]
+        return self._aggregate(
+            typing.cast(
+                ibis_types.NumericColumn,
+                self._block.expr.get_column(self._value_column),
+            )
+            .sum()
+            .name(self._value_column + "_sum")
         )
-        block = blocks.Block(new_table_expr, (self._expr._by.get_name(),))
-        return Series(block, result_name)
 
     def mean(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
-        result_name = (
-            self._series_expr.get_name() + "_mean"
-        )  # Would be unnamed in pandas, but bigframes needs identifier for now.
-        new_table_expr = self._expr.aggregate(
-            [
-                typing.cast(ibis_types.NumericColumn, self._series_expr)
-                .mean()
-                .name(result_name)
-            ]
+        return self._aggregate(
+            typing.cast(
+                ibis_types.NumericColumn,
+                self._block.expr.get_column(self._value_column),
+            )
+            .mean()
+            .name(self._value_column + "_mean")
         )
-        block = blocks.Block(new_table_expr, (self._expr._by.get_name(),))
-        return Series(block, result_name)
+
+    def _aggregate(self, metric: ibis_types.Scalar) -> Series:
+        group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
+        block = blocks.Block(group_expr.aggregate((metric,)), (self._by,))
+        return Series(block, metric.get_name())
 
 
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
