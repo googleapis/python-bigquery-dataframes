@@ -35,3 +35,7 @@ repos:
     -   id: isort
         args: [ "--profile", "google" ]
         name: isort (python)
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.1.1
+    hooks:
+    -   id: mypy
