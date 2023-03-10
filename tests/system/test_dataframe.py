@@ -141,6 +141,28 @@ def test_assign_existing_column(scalars_dfs):
     )
 
 
+def test_assign_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    column_name = "int64_col"
+    df = scalars_df.assign(new_col=scalars_df[column_name])
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df.assign(new_col=scalars_pandas_df[column_name])
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("rowindex", ignore_index=True)
+        pd_result = pd_result.sort_values("rowindex", ignore_index=True)
+
+    # dtype discrepencies of Int64(ibis) vs int64(pandas)
+    # TODO(garrettwu): enable check_type once BF type issue is solved.
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_dropna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df.dropna()

@@ -181,6 +181,8 @@ class DataFrame:
             col.get_name(): i for i, col in enumerate(expr_builder.columns)
         }
         for k, v in kwargs.items():
+            if type(v) == bigframes.series.Series:
+                v = v._value
             expr_builder.table = expr_builder.table.mutate(**{k: v})
             if k in existing_col_pos_map:
                 expr_builder.columns[existing_col_pos_map[k]] = expr_builder.table[k]
