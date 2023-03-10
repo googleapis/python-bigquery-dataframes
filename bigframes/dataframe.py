@@ -33,7 +33,12 @@ class DataFrame:
         self._block = block
 
     @property
-    def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
+    def index(
+        self,
+    ) -> Union[
+        bigframes.core.indexes.implicitjoiner.ImplicitJoiner,
+        bigframes.core.indexes.index.Index,
+    ]:
         return self._block.index
 
     @property
@@ -46,6 +51,11 @@ class DataFrame:
             for ibis_dtype in ibis_dtypes
         ]
         return pandas.Series(data=bigframes_dtypes, index=column_names)
+
+    @property
+    def sql(self) -> str:
+        """Compiles this dataframe's expression tree to SQL"""
+        return self._block.expr.to_ibis_expr().compile()
 
     def __getitem__(
         self, key: Union[str, Iterable[str], bigframes.series.Series]

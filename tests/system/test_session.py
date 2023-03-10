@@ -1,7 +1,13 @@
+from typing import Tuple, Union
+
 import google.api_core.exceptions
+import pandas as pd
 import pytest
 
 import bigframes
+import bigframes.core.indexes.index
+import bigframes.dataframe
+import bigframes.dtypes
 
 
 def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
@@ -21,6 +27,65 @@ def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
 
     with pytest.raises(ValueError):
         df = session.read_gbq(scalars_table_id, col_order=["unknown"])
+
+
+def test_read_gbq_sql(
+    session, scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame]
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    index_cols: Union[Tuple[str], Tuple] = ()
+    if isinstance(scalars_df.index, bigframes.core.indexes.index.Index):
+        sql = """SELECT
+                t.rowindex AS rowindex,
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools
+            FROM ({subquery}) AS t
+            ORDER BY t.rowindex""".format(
+            subquery=scalars_df.sql
+        )
+        index_cols = ("rowindex",)
+    else:
+        sql = """SELECT
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools
+            FROM ({subquery}) AS t
+            ORDER BY t.rowindex""".format(
+            subquery=scalars_df.sql
+        )
+        index_cols = ()
+
+    df = session.read_gbq(sql, index_cols=index_cols)
+    result = df.compute()
+
+    # TODO: temporarily fix type until we update IO
+    result["my_bools"] = result["my_bools"].astype("bool")
+
+    expected: pd.DataFrame = pd.concat(
+        [
+            pd.Series(scalars_pandas_df["float64_col"] * 2, name="my_floats"),
+            pd.Series(scalars_pandas_df["string_col"] + "_2", name="my_strings"),
+            pd.Series(scalars_pandas_df["int64_col"] > 0, name="my_bools"),
+        ],
+        axis=1,
+    )
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_read_gbq_sql_w_col_order(session):
+    sql = """SELECT 1 AS my_int_col, "hi" AS my_string_col, 0.2 AS my_float_col"""
+    df = session.read_gbq(sql, col_order=["my_float_col", "my_string_col"])
+    result = df.compute()
+    expected: pd.DataFrame = pd.concat(
+        [
+            pd.Series([0.2], name="my_float_col", dtype=pd.Float64Dtype()),
+            pd.Series(["hi"], name="my_string_col", dtype=pd.StringDtype()),
+        ],
+        axis=1,
+    )
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
 def test_session_id(session):

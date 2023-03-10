@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import itertools
 import typing
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Union
 
 import ibis.expr.types as ibis_types
 import pandas
@@ -30,7 +30,7 @@ class Block:
         self._reset_index()
 
     @property
-    def index(self) -> indexes.ImplicitJoiner:
+    def index(self) -> Union[indexes.ImplicitJoiner, indexes.Index]:
         """Row identities for values in the Block."""
         return self._index
 

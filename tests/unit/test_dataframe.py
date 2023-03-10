@@ -21,3 +21,9 @@ def test_get_dtypes(scalars_df):
             }
         ),
     )
+
+
+def test_sql(scalars_df):
+    # Note: Exact generated SQL depends on Ibis backend
+    # so don't test it here
+    assert "SELECT " in scalars_df.sql

@@ -1,7 +1,8 @@
 """Session manages the connection to BigQuery."""
 
+import re
 import typing
-from typing import List, Optional
+from typing import Iterable, List, Optional, Tuple, Union
 
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
@@ -14,6 +15,11 @@ from bigframes.dataframe import DataFrame
 import bigframes.version
 
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
+
+
+def _is_query(query_or_table: str) -> bool:
+    """Determine if `query_or_table` is a table ID or a SQL string"""
+    return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
 class Context:
@@ -99,34 +105,42 @@ class Session:
 
     def read_gbq(
         self,
-        table: str,
+        query_or_table: str,
         *,
         col_order: Optional[List[str]] = None,
+        index_cols: Union[Iterable[str], Tuple] = (),
     ) -> "DataFrame":
         """Loads DataFrame from Google BigQuery.
 
         Parameters
         ----------
-        table : str
+        query_or_table : str
             BigQuery table name to be read, in the form `project.dataset.tablename` or
-            `dataset.tablename`
+            `dataset.tablename`,  or a SQL string to be executed
         col_order : list(str), optional
             List of BigQuery column names in the desired order for results DataFrame.
+        index_cols: list(str), optional
+            List of column names to use as the index or multi-index
 
         Returns
         -------
         df: DataFrame
-            DataFrame representing results of the table.
+            DataFrame representing results of the query or table.
         """
-        # TODO(swast): If a table ID, make sure we read from a snapshot to
-        # better emulate pandas.read_gbq's point-in-time download. See:
-        # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
-        table_ref = bigquery.table.TableReference.from_string(
-            table, default_project=self.bqclient.project
-        )
-        table_expression = self.ibis_client.table(
-            table_ref.table_id, database=f"{table_ref.project}.{table_ref.dataset_id}"
-        )
+        if _is_query(query_or_table):
+            table_expression = self.ibis_client.sql(query_or_table)
+        else:
+            # TODO(swast): If a table ID, make sure we read from a snapshot to
+            # better emulate pandas.read_gbq's point-in-time download. See:
+            # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
+            table_ref = bigquery.table.TableReference.from_string(
+                query_or_table, default_project=self.bqclient.project
+            )
+            table_expression = self.ibis_client.table(
+                table_ref.table_id,
+                database=f"{table_ref.project}.{table_ref.dataset_id}",
+            )
+
         columns = None
         if col_order is not None:
             columns = tuple(
@@ -134,7 +148,7 @@ class Session:
             )
             if len(columns) != len(col_order):
                 raise ValueError("Column order does not match this table.")
-        block = blocks.Block(BigFramesExpr(self, table_expression, columns))
+        block = blocks.Block(BigFramesExpr(self, table_expression, columns), index_cols)
         return DataFrame(block)
 
 
