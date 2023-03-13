@@ -100,13 +100,10 @@ class Block:
 
         if value_keys is not None:
             index_columns = (
-                self._expr.get_column(column_name)
-                for column_name in self._index_columns
+                expr.get_column(column_name) for column_name in self._index_columns
             )
-            value_columns = (
-                self._expr.get_column(column_name) for column_name in value_keys
-            )
-            expr = self.expr.projection(itertools.chain(index_columns, value_columns))
+            value_columns = (expr.get_column(column_name) for column_name in value_keys)
+            expr = expr.projection(itertools.chain(index_columns, value_columns))
 
         # TODO(swast): Use Ibis execute() for now, but ideally we'd do our own
         # thing via the BQ client library where we can more easily override the

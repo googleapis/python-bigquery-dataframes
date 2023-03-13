@@ -9,19 +9,56 @@ from ibis.expr.types.groupby import GroupedTable
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
+ORDER_ID_COLUMN = "bigframes_ordering_id"
+
+
+class ExpressionOrdering:
+    """Immutable object that holds information about the ordering of rows in a BigFrames expression."""
+
+    def __init__(
+        self,
+        ordering_value_columns: Optional[Sequence[ibis_types.Value]] = None,
+        ordering_id_column: Optional[ibis_types.Value] = None,
+        is_sequential: bool = False,
+    ):
+        # TODO(tbergeron): Allow flag to reverse ordering
+        self._ordering_value_columns = (
+            tuple(ordering_value_columns) if ordering_value_columns else ()
+        )
+        self._ordering_id_column = ordering_id_column
+        self._is_sequential = is_sequential
+
+    def with_is_sequential(self, is_sequential: bool):
+        """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
+        return ExpressionOrdering(
+            self._ordering_value_columns, self._ordering_id_column, is_sequential
+        )
+
+    @property
+    def all_ordering_columns(self):
+        return (
+            list(self._ordering_value_columns)
+            if self._ordering_id_column is None
+            else [*self._ordering_value_columns, self._ordering_id_column]
+        )
+
+    @property
+    def is_sequential(self) -> bool:
+        return self._is_sequential
+
+    @property
+    def ordering_id(self) -> Optional[ibis_types.Value]:
+        return self._ordering_id_column
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
 class BigFramesExpr:
     """Immutable BigFrames expression tree.
-
     Note: Usage of this class is considered to be private and subject to change
     at any time.
-
     This class is a wrapper around Ibis expressions. Its purpose is to defer
     Ibis projection operations to keep generated SQL small and correct when
     mixing and matching columns from different versions of a DataFrame.
-
     Args:
         session:
             A BigFrames session to allow more flexibility in running
@@ -36,14 +73,13 @@ class BigFramesExpr:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Sequence[ibis_types.Value]] = None,
-        ordering: Optional[Sequence[ibis_types.Value]] = None,
+        ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
-        self._ordering = tuple(ordering) if ordering is not None else ()
-
+        self._ordering = ordering
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
             self._columns = tuple(table[key] for key in table.columns)
@@ -51,7 +87,6 @@ class BigFramesExpr:
             # TODO(swast): Validate that each column references the same table (or
             # no table for literal values).
             self._columns = tuple(columns)
-
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
         self._column_names = {column.get_name(): column for column in self._columns}
@@ -70,7 +105,7 @@ class BigFramesExpr:
 
     @property
     def ordering(self) -> Sequence[ibis_types.Value]:
-        return self._ordering
+        return self._ordering.all_ordering_columns if self._ordering else ()
 
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
@@ -107,13 +142,26 @@ class BigFramesExpr:
     def filter(self, predicate: ibis_types.BooleanValue) -> BigFramesExpr:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
         expr = self.builder()
+        if expr.ordering:
+            expr.ordering = expr.ordering.with_is_sequential(False)
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
     def order_by(self, by: Sequence[ibis_types.Value]) -> BigFramesExpr:
+        # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
         expr = self.builder()
-        expr.ordering = list(by)
+        expr.ordering = ExpressionOrdering(
+            ordering_value_columns=by,
+        )
         return expr.build()
+
+    @property
+    def offsets(self):
+        if not self._ordering.is_sequential:
+            raise ValueError(
+                "Expression does not have offsets. Generate them first using project_offsets."
+            )
+        return self._ordering.ordering_id
 
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
@@ -127,8 +175,8 @@ class BigFramesExpr:
     def to_ibis_expr(self):
         """Creates an Ibis table expression representing the DataFrame."""
         table = self._table
-        if len(self._ordering) > 0:
-            table = table.order_by(list(self._ordering))
+        if self._ordering:
+            table = table.order_by(list(self._ordering.all_ordering_columns))
         if len(self._predicates) > 0:
             table = table.filter(list(self._predicates))
         if self._columns is not None:
@@ -154,7 +202,6 @@ class BigFramesExpr:
 
 class BigFramesExprBuilder:
     """Mutable expression class.
-
     Use BigFramesExpr.builder() to create from a BigFramesExpr object.
     """
 
@@ -163,13 +210,13 @@ class BigFramesExprBuilder:
         session: Session,
         table: ibis_types.Table,
         columns: Collection[ibis_types.Value] = (),
-        ordering: Sequence[ibis_types.Value] = (),
+        ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns)
-        self.ordering = list(ordering)
+        self.ordering = ordering
         self.predicates = list(predicates) if predicates is not None else None
 
     def build(self) -> BigFramesExpr:
