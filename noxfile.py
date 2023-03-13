@@ -30,9 +30,9 @@ BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
 LINT_PATHS = ["docs", "bigframes", "tests", "noxfile.py", "setup.py"]
 
-DEFAULT_PYTHON_VERSION = "3.8"
+DEFAULT_PYTHON_VERSION = "3.9"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.8", "3.9", "3.10", "3.11"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -46,7 +46,7 @@ UNIT_TEST_DEPENDENCIES = []
 UNIT_TEST_EXTRAS = []
 UNIT_TEST_EXTRAS_BY_PYTHON = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.8", "3.10"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "pytest",
