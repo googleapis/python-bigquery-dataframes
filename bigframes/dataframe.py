@@ -53,6 +53,11 @@ class DataFrame:
         return pandas.Series(data=bigframes_dtypes, index=column_names)
 
     @property
+    def columns(self):
+        """Returns the column labels of the dataframe"""
+        return self.dtypes.index
+
+    @property
     def sql(self) -> str:
         """Compiles this dataframe's expression tree to SQL"""
         return self._block.expr.to_ibis_expr().compile()
