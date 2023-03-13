@@ -22,7 +22,9 @@ class Block:
     """A mutable 2D data structure."""
 
     def __init__(
-        self, expr: bigframes.core.BigFramesExpr, index_columns: Iterable[str] = ()
+        self,
+        expr: bigframes.core.BigFramesExpr,
+        index_columns: Iterable[str] = (),
     ):
         self._expr = expr
         self._index = indexes.ImplicitJoiner(expr)
@@ -68,12 +70,10 @@ class Block:
         expr = self._expr
         columns = self._index_columns
         if len(columns) == 0:
-            self._index = indexes.ImplicitJoiner(expr)
+            self._index = indexes.ImplicitJoiner(expr, self._index.name)
         elif len(columns) == 1:
             index_column = columns[0]
-            name = self._index.name if hasattr(self._index, "name") else index_column
-            self._index = indexes.Index(expr, index_column)
-            self._index.name = name
+            self._index = indexes.Index(expr, index_column, self._index.name)
             # Rearrange so that index columns are first.
             if expr._columns[0].get_name() != index_column:
                 expr_builder = expr.builder()
@@ -117,10 +117,10 @@ class Block:
         """Create a copy of this Block, replacing value columns if desired."""
         # BigFramesExpr and Tuple are immutable, so just need a new wrapper.
         block = Block(self._expr, self._index_columns)
-
         if value_columns is not None:
             block.replace_value_columns(value_columns)
 
+        block.index.name = self.index.name
         return block
 
     def replace_value_columns(self, value_columns: Iterable[ibis_types.Value]):

@@ -16,12 +16,25 @@ if typing.TYPE_CHECKING:
 class ImplicitJoiner:
     """Allow implicit joins without row labels on related table expressions."""
 
-    def __init__(self, expr: BigFramesExpr):
+    def __init__(self, expr: BigFramesExpr, name: typing.Optional[str] = None):
         self._expr = expr
+        self._name = name
 
     def copy(self) -> ImplicitJoiner:
         """Make a copy of this object."""
-        return ImplicitJoiner(self._expr)
+        return ImplicitJoiner(self._expr, self._name)
+
+    @property
+    def name(self) -> typing.Optional[str]:
+        """Name of the Series."""
+        # This introduces a level of indirection over Ibis to allow for more
+        # accurate pandas behavior (such as allowing for unnamed or
+        # non-uniquely named objects) without breaking SQL generation.
+        return self._name
+
+    @name.setter
+    def name(self, value: typing.Optional[str]):
+        self._name = value
 
     # TODO(swast): In pandas, "left_indexer" and "right_indexer" are numpy
     # arrays that indicate where the rows line up. Do we want to wrap ibis to
@@ -47,7 +60,7 @@ class ImplicitJoiner:
         # emulate the desired kind of join.
         # TODO(swast): How will our validation change when we allow for mutable
         # cells and inplace methods?
-        if self._expr.table != other._expr.table:
+        if not self._expr.table.equals(other._expr.table):
             # TODO(swast): Raise a more specific exception (subclass of
             # ValueError, though) to make it easier to catch only the intended
             # failures.

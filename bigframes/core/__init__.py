@@ -4,6 +4,7 @@ import typing
 from typing import Collection, Iterable, Optional, Sequence
 
 from google.cloud import bigquery
+import ibis
 import ibis.expr.types as ibis_types
 from ibis.expr.types.groupby import GroupedTable
 
@@ -162,6 +163,35 @@ class BigFramesExpr:
                 "Expression does not have offsets. Generate them first using project_offsets."
             )
         return self._ordering.ordering_id
+
+    def project_offsets(self) -> BigFramesExpr:
+        """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
+        table = self._table
+        # TODO(tbergeron): Enforce total ordering
+        # TODO(tbergeron): Preserve original ordering id or row id in order to facilitate mutation.
+        if not self._ordering:
+            raise ValueError(
+                "Offsets cannot be generated. Ordering not defined for this table."
+            )
+        if self._ordering.is_sequential:
+            return self  # No-op as ordering column already has offsets
+        table = table.order_by(list(self._ordering.all_ordering_columns))
+        if len(self._predicates) > 0:
+            table = table.filter(list(self._predicates))
+        table = table.select(
+            [
+                *self._columns,
+                ibis.row_number().name(ORDER_ID_COLUMN),
+            ]
+        )
+        expr = self.builder()
+        expr.table = table
+        # Exclude ordering id in list of columns as it is not a value column.
+        expr.columns = [table[column_name] for column_name in self._column_names]
+        expr.ordering = ExpressionOrdering(
+            ordering_id_column=table[ORDER_ID_COLUMN], is_sequential=True
+        )
+        return expr.build()
 
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""

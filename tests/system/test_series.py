@@ -3,6 +3,8 @@ import numpy
 import pandas as pd
 import pytest
 
+import bigframes.core.indexes
+
 
 def assert_float_close(left, right, allowed=1.0e-5):
     assert abs(left - right) < allowed
@@ -552,3 +554,60 @@ def test_slice(scalars_dfs, start, stop):
     pd_result = pd_series.str.slice(start, stop)
 
     assert_series_equal_ignoring_order(pd_result, bf_result)
+
+
+def test_head(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+        pytest.skip("Require explicit index for offset ops.")
+
+    bf_result = scalars_df["string_col"].head(2).compute()
+    pd_result = scalars_pandas_df["string_col"].head(2)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_head_then_scalar_operation(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+        pytest.skip("Require explicit index for offset ops.")
+
+    bf_result = (scalars_df["float64_col"].head(1) + 4).compute()
+    pd_result = scalars_pandas_df["float64_col"].head(1) + 4
+
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_head_then_series_operation(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+        pytest.skip("Require explicit index for offset ops.")
+
+    bf_result = (
+        scalars_df["float64_col"].head(4) + scalars_df["float64_col"].head(2)
+    ).compute()
+    pd_result = scalars_pandas_df["float64_col"].head(4) + scalars_pandas_df[
+        "float64_col"
+    ].head(2)
+
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )

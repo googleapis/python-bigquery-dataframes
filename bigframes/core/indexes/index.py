@@ -20,25 +20,13 @@ class Index(ImplicitJoiner):
     def __init__(
         self, expr: BigFramesExpr, index_column: str, name: Optional[str] = None
     ):
-        super().__init__(expr)
+        index_name = name if name is not None else index_column
+        super().__init__(expr, index_name)
         self._index_column = index_column
-        self._name = name if name is not None else index_column
-
-    @property
-    def name(self) -> str:
-        """Name of the Series."""
-        # This introduces a level of indirection over Ibis to allow for more
-        # accurate pandas behavior (such as allowing for unnamed or
-        # non-uniquely named objects) without breaking SQL generation.
-        return self._name
-
-    @name.setter
-    def name(self, value: str):
-        self._name = value
 
     def copy(self) -> Index:
         """Make a copy of this object."""
-        return Index(self._expr, self._index_column)
+        return Index(self._expr, self._index_column, name=self.name)
 
     def join(
         self,

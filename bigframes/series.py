@@ -15,6 +15,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
 import bigframes.scalar
+import bigframes.view_windows
 
 
 class Series:
@@ -36,11 +37,11 @@ class Series:
     @property
     def _value(self) -> ibis_types.Value:
         """Private property to get Ibis expression for the value column."""
-        return self._block.expr.get_column(self._value_column)
+        return self._viewed_block.expr.get_column(self._value_column)
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
-        return self._block.index
+        return self._viewed_block.index
 
     @property
     def name(self) -> str:
@@ -48,6 +49,11 @@ class Series:
         # more accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL.
         return self._value_column
+
+    @property
+    def _viewed_block(self) -> blocks.Block:
+        """Gets a copy of block after any views have been applied. Mutations to this copy do not affect any existing series/dataframes."""
+        return self._block.copy()
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -60,89 +66,65 @@ class Series:
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""
-        expr = self._block.expr.projection([self._value])
+        expr = self._viewed_block.expr.projection([self._value])
         return expr.to_ibis_expr()[self._value_column]
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
-        df = self._block.compute((self._value_column,))
+        df = self._viewed_block.compute((self._value_column,))
         # TODO(swast): Rename Series so name doesn't have to match Ibis
         # expression.
         return df[self._value_column]
 
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
-        block = self._block.copy()
-        block.expr = self._block.expr.apply_limit(n)
-        return Series(
-            block,
+        return ViewSeries(
+            self._block,
             self._value_column,
+            bigframes.view_windows.SliceViewWindow(0, n),
         )
 
     def len(self) -> "Series":
         """Compute the length of each string."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)
-                    .length()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def len_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).length()
+
+        return self._apply_unary_op(len_op)
 
     def isnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
-        return Series(
-            self._block.copy(
-                [
-                    self._value.isnull().name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
 
-    isna = isnull
+        def isnull_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).isnull()
+
+        return self._apply_unary_op(isnull_op)
 
     def notnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
-        return Series(
-            self._block.copy(
-                [
-                    self._value.notnull().name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def notnull_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).notnull()
+
+        return self._apply_unary_op(notnull_op)
 
     notna = notnull
 
     def lower(self) -> "Series":
         """Convert strings in the Series to lowercase."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)
-                    .lower()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def lower_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).lower()
+
+        return self._apply_unary_op(lower_op)
 
     def upper(self) -> "Series":
         """Convert strings in the Series to uppercase."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)
-                    .upper()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def upper_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).upper()
+
+        return self._apply_unary_op(upper_op)
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
         def add_op(
@@ -226,42 +208,27 @@ class Series:
 
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.NumericValue, self._value)
-                    .abs()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def abs_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.NumericValue, x).abs()
+
+        return self._apply_unary_op(abs_op)
 
     def reverse(self) -> "Series":
         """Reverse strings in the Series."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)
-                    .reverse()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def reverse_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).reverse()
+
+        return self._apply_unary_op(reverse_op)
 
     def round(self, decimals=0) -> "Series":
         """Round each value in a Series to the given number of decimals."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.NumericValue, self._value)
-                    .round(digits=decimals)
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def round_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.NumericValue, x).round(digits=decimals)
+
+        return self._apply_unary_op(round_op)
 
     def mean(self) -> bigframes.scalar.Scalar:
         """Finds the mean of the numeric values in the series. Ignores null/nan."""
@@ -277,16 +244,11 @@ class Series:
 
     def slice(self, start=None, stop=None) -> "Series":
         """Slice substrings from each element in the Series."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)[start:stop].name(
-                        self._value_column
-                    ),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def slice_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x)[start:stop]
+
+        return self._apply_unary_op(slice_op)
 
     def __eq__(self, other: object) -> Series:  # type: ignore
         """Element-wise equals between the series and another series or literal."""
@@ -298,16 +260,11 @@ class Series:
 
     def __invert__(self) -> Series:
         """Element-wise logical negation. Does not handle null or nan values."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.NumericValue, self._value)
-                    .negate()
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def invert_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.NumericValue, x).negate()
+
+        return self._apply_unary_op(invert_op)
 
     def eq(self, other: object) -> Series:
         """
@@ -317,7 +274,7 @@ class Series:
         """
         # TODO: enforce stricter alignment
         (left, right, index) = self._align(other)
-        block = self._block.copy()
+        block = self._viewed_block
         block.index = index
         block.replace_value_columns(
             [
@@ -337,7 +294,7 @@ class Series:
         """
         # TODO: enforce stricter alignment
         (left, right, index) = self._align(other)
-        block = self._block.copy()
+        block = self._viewed_block
         block.index = index
         block.replace_value_columns(
             [
@@ -353,7 +310,7 @@ class Series:
         """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
         (left, right, index) = self._align(indexer, "left")
-        block = self._block.copy()
+        block = self._viewed_block
         block.index = index
         block.replace_value_columns(
             [
@@ -371,7 +328,7 @@ class Series:
             combined_index, (
                 get_column_left,
                 get_column_right,
-            ) = self._block.index.join(other.index, how=how)
+            ) = self.index.join(other.index, how=how)
             left_value = get_column_left(self._value_column)
             right_value = get_column_right(other._value.get_name())
             return (left_value, right_value, combined_index)
@@ -380,12 +337,24 @@ class Series:
             raise ValueError("Deferred scalar not yet supported for binary operations.")
         as_literal_value = _interpret_as_ibis_literal(other)
         if as_literal_value is not None:
-            combined_index = self._block.index
+            combined_index = self.index
             left_value = self._value
             right_value = as_literal_value
             return (left_value, right_value, combined_index)
         else:
             return NotImplemented
+
+    def _apply_unary_op(
+        self,
+        op: typing.Callable[[ibis_types.Value], ibis_types.Value],
+    ) -> Series:
+        """Applies a binary operator to the series and other."""
+        block = self._viewed_block
+        block.replace_value_columns([op(self._value).name(self._value_column)])
+        return Series(
+            block,
+            self._value_column,
+        )
 
     def _apply_binary_op(
         self,
@@ -395,7 +364,7 @@ class Series:
     ) -> Series:
         """Applies a binary operator to the series and other."""
         (left, right, index) = self._align(other)
-        block = self._block.copy()
+        block = self._viewed_block
         block.index = index
         if not isinstance(right, ibis_types.NullScalar):
             result_expr = op(left, right).name(self._value_column)
@@ -413,16 +382,11 @@ class Series:
 
     def find(self, sub, start=None, end=None) -> "Series":
         """Return the position of the first occurence of substring."""
-        return Series(
-            self._block.copy(
-                [
-                    typing.cast(ibis_types.StringValue, self._value)
-                    .find(sub, start, end)
-                    .name(self._value_column),
-                ]
-            ),
-            self._value_column,
-        )
+
+        def find_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
+
+        return self._apply_unary_op(find_op)
 
     def groupby(self, by: Series, *, dropna: bool = True):
         """Group the series by a given list of column labels. Only supports grouping by values from another aligned Series."""
@@ -430,10 +394,36 @@ class Series:
         if dropna:
             by = by[by.notna()]
         (value, key, index) = self._align(by, "inner" if dropna else "left")
-        block = self._block.copy()
+        block = self._viewed_block
         block.index = index
         block.replace_value_columns([key, value])
         return SeriesGroupyBy(block, value.get_name(), key.get_name())
+
+
+class ViewSeries(Series):
+    """
+    A series representing a view of underlying data. May filter and/or reorder underlying data.
+
+    Mutations on cells in the view series propogate back to the parent series.
+    """
+
+    def __init__(
+        self,
+        block: blocks.Block,
+        value_column: str,
+        view_window: bigframes.view_windows.SliceViewWindow,
+    ):
+        super().__init__(block, value_column)
+        self._view_window = view_window
+
+    @property
+    def _viewed_block(self) -> blocks.Block:
+        """Gets a copy of block after any views have been applied. Mutations to this copy do not affect any existing series/dataframes."""
+        return self._view_window.apply_window(self._block)
+
+    def head(self, n: int = 5) -> Series:
+        # TODO(tbergeron): Implement stacked view windows.
+        raise NotImplementedError("Recursively applying windows not yet supported.")
 
 
 class SeriesGroupyBy:
