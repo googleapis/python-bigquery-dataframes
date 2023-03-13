@@ -193,7 +193,7 @@ class Series:
             x: ibis_types.Value,
             y: ibis_types.Value,
         ):
-            return (x < y).fillna(ibis.literal(False))
+            return x < y
 
         return self._apply_binary_op(other, lt_op, ibis_dtypes.bool)
 
@@ -202,7 +202,7 @@ class Series:
             x: ibis_types.Value,
             y: ibis_types.Value,
         ):
-            return (x <= y).fillna(ibis.literal(False))
+            return x <= y
 
         return self._apply_binary_op(other, le_op, ibis_dtypes.bool)
 
@@ -211,7 +211,7 @@ class Series:
             x: ibis_types.Value,
             y: ibis_types.Value,
         ):
-            return (x > y).fillna(ibis.literal(False))
+            return x > y
 
         return self._apply_binary_op(other, gt_op, ibis_dtypes.bool)
 
@@ -220,7 +220,7 @@ class Series:
             x: ibis_types.Value,
             y: ibis_types.Value,
         ):
-            return (x >= y).fillna(ibis.literal(False))
+            return x >= y
 
         return self._apply_binary_op(other, ge_op, ibis_dtypes.bool)
 
@@ -400,14 +400,10 @@ class Series:
         if not isinstance(right, ibis_types.NullScalar):
             result_expr = op(left, right).name(self._value_column)
         else:
-            # Cannot do sql op with null literal, so just replace expression directly with default value
+            # Cannot do sql op with null literal, so just replace expression directly with default
+            # value
             output_dtype = expected_dtype if expected_dtype else left.type()
-            # In pandas, bool isn't nullable, so operations often default to False with Null/NAN inputs
-            default_value = (
-                ibis_types.null().cast(output_dtype)
-                if output_dtype != ibis_dtypes.bool
-                else ibis_types.literal(False)
-            )
+            default_value = ibis_types.null().cast(output_dtype)
             result_expr = default_value.name(self._value_column)
         block.replace_value_columns([result_expr])
         return Series(

@@ -105,10 +105,7 @@ class Block:
             value_columns = (expr.get_column(column_name) for column_name in value_keys)
             expr = expr.projection(itertools.chain(index_columns, value_columns))
 
-        # TODO(swast): Use Ibis execute() for now, but ideally we'd do our own
-        # thing via the BQ client library where we can more easily override the
-        # output dtypes to use nullable dtypes and avoid lossy conversions.
-        df = expr.to_ibis_expr().execute()
+        df = expr.start_query().result().to_dataframe()
 
         if self.index_columns:
             df = df.set_index(list(self.index_columns))

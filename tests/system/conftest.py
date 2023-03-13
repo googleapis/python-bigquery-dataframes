@@ -134,8 +134,19 @@ def scalars_df_2_index(
 @pytest.fixture(scope="session")
 def scalars_pandas_df_default_index() -> pd.DataFrame:
     """pandas.DataFrame pointing at test data."""
-    df = pd.read_json(DATA_DIR / "scalars.jsonl", lines=True)
-    df["bool_col"] = df["bool_col"].astype("boolean")  # type: ignore
+
+    df = pd.read_json(
+        DATA_DIR / "scalars.jsonl",
+        lines=True,
+        # Convert default pandas dtypes to match BigFrames dtypes.
+        dtype={
+            "bool_col": pd.BooleanDtype(),
+            "int64_col": pd.Int64Dtype(),
+            "int64_too": pd.Int64Dtype(),
+            "float64_col": pd.Float64Dtype(),
+            "rowindex": pd.Int64Dtype(),
+        },
+    )
     df["bytes_col"] = df["bytes_col"].apply(
         lambda value: base64.b64decode(value) if value else value
     )

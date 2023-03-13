@@ -1,3 +1,4 @@
+import db_dtypes  # type: ignore
 import numpy
 import pandas as pd
 import pytest
@@ -10,31 +11,24 @@ def assert_float_close(left, right, allowed=1.0e-5):
 @pytest.mark.parametrize(
     ["col_name", "expected_dtype"],
     [
-        # TODO(swast): Use pandas.BooleanDtype() to represent nullable bool.
-        ("bool_col", numpy.dtype("object")),
+        ("bool_col", pd.BooleanDtype()),
         # TODO(swast): Use a more efficient type.
         ("bytes_col", numpy.dtype("object")),
-        # TODO(swast): Update ibis-bigquery backend to use
-        # db_dtypes.DateDtype() when available.
-        ("date_col", numpy.dtype("datetime64[ns]")),
+        ("date_col", db_dtypes.DateDtype()),
         ("datetime_col", numpy.dtype("datetime64[ns]")),
+        # TODO(chelsealin): Should be Float64 rather than "float64" after b/273365359.
         ("float64_col", numpy.dtype("float64")),
+        # TODO(swast): Use a more efficient type.
         ("geography_col", numpy.dtype("object")),
-        # TODO(swast): Don't accidentally discard data if NULL is present by
-        # casting to float.
-        ("int64_col", numpy.dtype("float64")),
+        ("int64_col", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
         ("numeric_col", numpy.dtype("object")),
-        # TODO(swast): Use a consistent dtype for integers whether NULL is
-        # present or not.
-        ("int64_too", numpy.dtype("int64")),
+        ("int64_too", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
         ("string_col", numpy.dtype("object")),
-        # TODO(swast): Update ibis-bigquery backend to use
-        # db_dtypes.TimeDtype() when available.
-        ("time_col", numpy.dtype("object")),
-        # TODO(swast): Make sure timestamps are associated with UTC timezone.
-        ("timestamp_col", numpy.dtype("datetime64[ns]")),
+        ("time_col", db_dtypes.TimeDtype()),
+        # TODO(chelsealin): Should be "us" rather than "ns" after b/273365359.
+        ("timestamp_col", pd.DatetimeTZDtype(unit="ns", tz="UTC")),
     ],
 )
 def test_get_column(scalars_dfs, col_name, expected_dtype):
@@ -57,6 +51,10 @@ def test_abs(scalars_dfs, col_name):
     bf_result = scalars_df[col_name].abs().compute()
     pd_result = scalars_pandas_df[col_name].abs()
 
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
+
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
@@ -74,9 +72,11 @@ def test_find(scalars_dfs):
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
+    # One of type mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
+    # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result,
+        pd_result.astype(pd.Int64Dtype()),
     )
 
 
@@ -90,7 +90,9 @@ def test_len(scalars_dfs):
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
+    # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
+    pd.testing.assert_series_equal(pd_result.astype(pd.Int64Dtype()), bf_result)
 
 
 def test_lower(scalars_dfs):
@@ -137,9 +139,9 @@ def test_upper(scalars_dfs):
         "multiply",
         "divide",
         "less_than",
-        "greather_than",
+        "greater_than",
         "less_than_equal",
-        "greather_than_equal",
+        "greater_than_equal",
     ],
 )
 @pytest.mark.parametrize(("other_scalar"), [-1, 0, 14, pd.NA])
@@ -175,15 +177,19 @@ def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
         "multiply",
         "divide",
         "less_than",
-        "greather_than",
+        "greater_than",
         "less_than_equal",
-        "greather_than_equal",
+        "greater_than_equal",
     ],
 )
 def test_series_int_int_operators_series(scalars_dfs, operator):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
+
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
 
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
@@ -206,6 +212,10 @@ def test_series_add_scalar(scalars_dfs, other):
     bf_result = (scalars_df["float64_col"] + other).compute()
     pd_result = scalars_pandas_df["float64_col"] + other
 
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
+
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
@@ -226,6 +236,10 @@ def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (scalars_df[left_col] + scalars_df[right_col]).compute()
     pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
+
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
 
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
@@ -253,6 +267,10 @@ def test_series_add_bigframes_series_nested(
         scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
     ) + scalars_pandas_df[righter_col]
 
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
+
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
@@ -277,7 +295,10 @@ def test_series_add_different_table_with_index(
     # DataFrame.
     pd_result = scalars_pandas_df["float64_col"] + scalars_pandas_df["int64_col"]
     pd_result.name = "float64_col"
-    pd.testing.assert_series_equal(bf_result.compute(), pd_result)
+    # TODO(chelsealin): Remove astype after b/273365359.
+    pd.testing.assert_series_equal(
+        bf_result.compute().astype(pd.Float64Dtype()), pd_result
+    )
 
 
 def test_series_add_pandas_series_not_implemented(scalars_dfs):
@@ -314,7 +335,9 @@ def test_isnull(scalars_dfs):
         bf_series = bf_series.sort_values(ignore_index=True)
         pd_series = pd_series.sort_values(ignore_index=True)
 
-    pd.testing.assert_series_equal(pd_series, bf_series)
+    # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
+    # the `pd_series.dtype` is `bool`.
+    pd.testing.assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_notnull(scalars_dfs):
@@ -327,7 +350,9 @@ def test_notnull(scalars_dfs):
         bf_series = bf_series.sort_values(ignore_index=True)
         pd_series = pd_series.sort_values(ignore_index=True)
 
-    pd.testing.assert_series_equal(pd_series, bf_series)
+    # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
+    # the `pd_series.dtype` is `bool`.
+    pd.testing.assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_round(scalars_dfs):
@@ -335,6 +360,10 @@ def test_round(scalars_dfs):
     col_name = "float64_col"
     bf_result = scalars_df[col_name].round().compute()
     pd_result = scalars_pandas_df[col_name].round()
+
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
 
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
@@ -413,7 +442,9 @@ def test_eq_same_type_series(scalars_dfs, col_name):
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
+    # the `pd_series.dtype` is `bool`.
+    pd.testing.assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_ne_obj_series(scalars_dfs):
@@ -426,7 +457,9 @@ def test_ne_obj_series(scalars_dfs):
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
+    # the `pd_series.dtype` is `bool`.
+    pd.testing.assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_indexing_using_unselected_series(scalars_dfs):
@@ -473,9 +506,9 @@ def test_nested_filter(scalars_dfs):
     )  # Convert from nullable bool to nonnullable bool usable as indexer
     pd_result = pd_string_col[pd_int64_too == 0][~pd_bool_col]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
+    # Re-apply the index ordering for the new expression.
+    bf_result = bf_result.sort_values(ignore_index=True)
+    pd_result = pd_result.sort_values(ignore_index=True)
 
     pd.testing.assert_series_equal(pd_result, bf_result)
 
@@ -492,9 +525,9 @@ def test_binop_different_predicates(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
     pd_result = pd_int64_col1[pd_bool_col] + pd_int64_col2[pd_bool_col.__invert__()]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
+    # Re-apply the index ordering for the new expression.
+    bf_result = bf_result.sort_values(ignore_index=True)
+    pd_result = pd_result.sort_values(ignore_index=True)
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -505,22 +538,22 @@ def test_binop_different_predicates(scalars_dfs):
 
 def test_binop_different_predicates2(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    int64_col1 = scalars_df["int64_col"]
+    int64_col = scalars_df["int64_col"]
     float64_col = scalars_df["float64_col"]
     bool_col = scalars_df["bool_col"] == bool(True)  # Convert null to False
-    bf_result = (int64_col1[bool_col.__eq__(True)] + float64_col).compute()
+    bf_result = (int64_col[bool_col.__eq__(True)] + float64_col).compute()
 
-    pd_int64_col1 = scalars_pandas_df["int64_col"]
+    pd_int64_col = scalars_pandas_df["int64_col"]
     pd_float64_col = scalars_pandas_df["float64_col"]
     pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
-    pd_result = pd_int64_col1[pd_bool_col] + pd_float64_col
+    pd_result = pd_int64_col[pd_bool_col] + pd_float64_col
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
+    bf_result = bf_result.sort_values(ignore_index=True)
+    pd_result = pd_result.sort_values(ignore_index=True)
 
+    # TODO(chelsealin): Remove astype after b/273365359.
     pd.testing.assert_series_equal(
-        bf_result,
+        bf_result.astype(pd.Float64Dtype()),
         pd_result,
         check_names=False,
     )
@@ -557,20 +590,13 @@ def test_groupby_sum(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
     bf_series = scalars_df[col_name].groupby(scalars_df["string_col"]).sum()
-    # TODO(swast): Type cast should be unnecessary when we use nullable dtypes
-    # everywhere.
     pd_series = (
-        scalars_pandas_df[col_name]
-        .astype(pd.Int64Dtype())
-        .groupby(scalars_pandas_df["string_col"])
-        .sum()
+        scalars_pandas_df[col_name].groupby(scalars_pandas_df["string_col"]).sum()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
-    # TODO(swast): BigFrames groupby should result in the same names as pandas.
-    # e.g. int64_col_sum
     pd.testing.assert_series_equal(
         pd_series.sort_index(),
-        bf_series.compute().astype(pd.Int64Dtype()).sort_index(),
+        bf_series.compute().sort_index(),
         check_exact=False,
         check_names=False,
     )
@@ -590,9 +616,10 @@ def test_groupby_mean(scalars_dfs):
     # TODO(swast): Update groupby to use index based on group by key(s).
     # TODO(swast): BigFrames groupby should result in the same names as pandas.
     # e.g. int64_col_mean
+    # TODO(chelsealin): Remove astype after b/273365359.
     pd.testing.assert_series_equal(
         pd_series.sort_index(),
-        bf_series.compute().sort_index(),
+        bf_series.compute().sort_index().astype(pd.Float64Dtype()),
         check_exact=False,
         check_names=False,
     )

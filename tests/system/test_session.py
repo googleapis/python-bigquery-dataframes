@@ -60,8 +60,8 @@ def test_read_gbq_sql(
     df = session.read_gbq(sql, index_cols=index_cols)
     result = df.compute()
 
-    # TODO: temporarily fix type until we update IO
-    result["my_bools"] = result["my_bools"].astype("bool")
+    # TODO(chelsealin): Remove astype after b/273365359.
+    result["my_floats"] = result["my_floats"].astype(pd.Float64Dtype())
 
     expected: pd.DataFrame = pd.concat(
         [
