@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import typing
 from typing import Iterable, Mapping, Optional, Union
 
@@ -133,9 +134,13 @@ class DataFrame:
         preview = job.to_dataframe()
 
         # TODO(swast): Print the SQL too?
-        # Grab all but the final two lines so we can replace the row count with
+        # Grab all but the final 2 lines if those are the shape of the DF. So we can replace the row count with
         # the actual row count from the query.
-        lines = repr(preview).split("\n")[:-2]
+        lines = repr(preview).split("\n")
+        pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
+        if pattern.match(lines[-1]):
+            lines = lines[:-2]
+
         if rows > len(preview.index):
             lines.append("...")
 
