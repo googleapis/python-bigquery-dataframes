@@ -8,6 +8,17 @@ def assert_float_close(left, right, allowed=1.0e-5):
     assert abs(left - right) < allowed
 
 
+def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):
+    if isinstance(left.index, pd.RangeIndex) or isinstance(right.index, pd.RangeIndex):
+        left = left.sort_values(ignore_index=True)
+        right = right.sort_values(ignore_index=True)
+    else:
+        left = left.sort_index()
+        right = right.sort_index()
+
+    pd.testing.assert_series_equal(left, right, **kwargs)
+
+
 @pytest.mark.parametrize(
     ["col_name", "expected_dtype"],
     [
@@ -55,11 +66,7 @@ def test_abs(scalars_dfs, col_name):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_find(scalars_dfs):
@@ -68,15 +75,11 @@ def test_find(scalars_dfs):
     bf_result = scalars_df[col_name].find("W").compute()
     pd_result = scalars_pandas_df[col_name].str.find("W")
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
     # One of type mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
     # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
-    pd.testing.assert_series_equal(
-        bf_result,
+    assert_series_equal_ignoring_order(
         pd_result.astype(pd.Int64Dtype()),
+        bf_result,
     )
 
 
@@ -86,13 +89,12 @@ def test_len(scalars_dfs):
     bf_result = scalars_df[col_name].len().compute()
     pd_result = scalars_pandas_df[col_name].str.len()
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
     # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
     # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
-    pd.testing.assert_series_equal(pd_result.astype(pd.Int64Dtype()), bf_result)
+    assert_series_equal_ignoring_order(
+        pd_result.astype(pd.Int64Dtype()),
+        bf_result,
+    )
 
 
 def test_lower(scalars_dfs):
@@ -101,11 +103,7 @@ def test_lower(scalars_dfs):
     bf_result = scalars_df[col_name].lower().compute()
     pd_result = scalars_pandas_df[col_name].str.lower()
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_upper(scalars_dfs):
@@ -114,11 +112,7 @@ def test_upper(scalars_dfs):
     bf_result = scalars_df[col_name].upper().compute()
     pd_result = scalars_pandas_df[col_name].str.upper()
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -150,13 +144,11 @@ def test_series_int_int_operators_scalar(scalars_dfs, operator, other_scalar):
     bf_result = operator(scalars_df["int64_col"], other_scalar).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], other_scalar)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
+    # TODO(chelsealin): Remove astype after b/273365359.
+    if bf_result.dtype == numpy.dtype("float64"):
+        bf_result = bf_result.astype(pd.Float64Dtype())
 
-    pd.testing.assert_series_equal(
-        pd_result.astype("object"), bf_result.astype("object"), check_series_type=False
-    )
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -191,13 +183,7 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(
-        pd_result, bf_result, check_names=False, check_series_type=False
-    )
+    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
 
 
 @pytest.mark.parametrize(
@@ -216,11 +202,7 @@ def test_series_add_scalar(scalars_dfs, other):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -241,11 +223,7 @@ def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result, check_names=False)
+    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
 
 
 @pytest.mark.parametrize(
@@ -271,11 +249,7 @@ def test_series_add_bigframes_series_nested(
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result, check_names=False)
+    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
 
 
 def test_series_add_different_table_no_index_value_error(
@@ -318,11 +292,7 @@ def test_reverse(scalars_dfs):
     bf_result = scalars_df[col_name].reverse().compute()
     pd_result = scalars_pandas_df[col_name].map(lambda x: x[::-1] if x else x)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_isnull(scalars_dfs):
@@ -331,13 +301,9 @@ def test_isnull(scalars_dfs):
     bf_series = scalars_df[col_name].isnull().compute()
     pd_series = scalars_pandas_df[col_name].isnull()
 
-    if pd_series.index.name != "rowindex":
-        bf_series = bf_series.sort_values(ignore_index=True)
-        pd_series = pd_series.sort_values(ignore_index=True)
-
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    pd.testing.assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
+    assert_series_equal_ignoring_order(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_notnull(scalars_dfs):
@@ -346,13 +312,9 @@ def test_notnull(scalars_dfs):
     bf_series = scalars_df[col_name].notnull().compute()
     pd_series = scalars_pandas_df[col_name].notnull()
 
-    if pd_series.index.name != "rowindex":
-        bf_series = bf_series.sort_values(ignore_index=True)
-        pd_series = pd_series.sort_values(ignore_index=True)
-
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    pd.testing.assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
+    assert_series_equal_ignoring_order(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_round(scalars_dfs):
@@ -365,11 +327,7 @@ def test_round(scalars_dfs):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_eq_scalar(scalars_dfs):
@@ -378,11 +336,7 @@ def test_eq_scalar(scalars_dfs):
     bf_result = scalars_df[col_name].eq(0).compute()
     pd_result = scalars_pandas_df[col_name].eq(0)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_eq_wider_type_scalar(scalars_dfs):
@@ -391,11 +345,7 @@ def test_eq_wider_type_scalar(scalars_dfs):
     bf_result = scalars_df[col_name].eq(1.0).compute()
     pd_result = scalars_pandas_df[col_name].eq(1.0)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_ne_scalar(scalars_dfs):
@@ -404,11 +354,7 @@ def test_ne_scalar(scalars_dfs):
     bf_result = (scalars_df[col_name] != 0).compute()
     pd_result = scalars_pandas_df[col_name] != 0
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_eq_int_scalar(scalars_dfs):
@@ -417,11 +363,7 @@ def test_eq_int_scalar(scalars_dfs):
     bf_result = (scalars_df[col_name] == 0).compute()
     pd_result = scalars_pandas_df[col_name] == 0
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -438,13 +380,9 @@ def test_eq_same_type_series(scalars_dfs, col_name):
     bf_result = (scalars_df[col_name] == scalars_df[col_name]).compute()
     pd_result = scalars_pandas_df[col_name] == scalars_pandas_df[col_name]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    pd.testing.assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
+    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_ne_obj_series(scalars_dfs):
@@ -453,13 +391,9 @@ def test_ne_obj_series(scalars_dfs):
     bf_result = (scalars_df[col_name] != scalars_df[col_name]).compute()
     pd_result = scalars_pandas_df[col_name] != scalars_pandas_df[col_name]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    pd.testing.assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
+    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_indexing_using_unselected_series(scalars_dfs):
@@ -468,11 +402,7 @@ def test_indexing_using_unselected_series(scalars_dfs):
     bf_result = scalars_df[col_name][scalars_df["int64_too"].eq(0)].compute()
     pd_result = scalars_pandas_df[col_name][scalars_pandas_df["int64_too"].eq(0)]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_indexing_using_selected_series(scalars_dfs):
@@ -485,11 +415,7 @@ def test_indexing_using_selected_series(scalars_dfs):
         scalars_pandas_df["string_col"].eq("Hello, World!")
     ]
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_nested_filter(scalars_dfs):
@@ -506,11 +432,7 @@ def test_nested_filter(scalars_dfs):
     )  # Convert from nullable bool to nonnullable bool usable as indexer
     pd_result = pd_string_col[pd_int64_too == 0][~pd_bool_col]
 
-    # Re-apply the index ordering for the new expression.
-    bf_result = bf_result.sort_values(ignore_index=True)
-    pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_binop_different_predicates(scalars_dfs):
@@ -525,11 +447,7 @@ def test_binop_different_predicates(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
     pd_result = pd_int64_col1[pd_bool_col] + pd_int64_col2[pd_bool_col.__invert__()]
 
-    # Re-apply the index ordering for the new expression.
-    bf_result = bf_result.sort_values(ignore_index=True)
-    pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(
+    assert_series_equal_ignoring_order(
         bf_result,
         pd_result,
         check_names=False,
@@ -548,11 +466,8 @@ def test_binop_different_predicates2(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
     pd_result = pd_int64_col[pd_bool_col] + pd_float64_col
 
-    bf_result = bf_result.sort_values(ignore_index=True)
-    pd_result = pd_result.sort_values(ignore_index=True)
-
     # TODO(chelsealin): Remove astype after b/273365359.
-    pd.testing.assert_series_equal(
+    assert_series_equal_ignoring_order(
         bf_result.astype(pd.Float64Dtype()),
         pd_result,
         check_names=False,
@@ -636,11 +551,4 @@ def test_slice(scalars_dfs, start, stop):
     pd_series = scalars_pandas_df[col_name]
     pd_result = pd_series.str.slice(start, stop)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(
-        bf_result,
-        pd_result,
-    )
+    assert_series_equal_ignoring_order(pd_result, bf_result)
