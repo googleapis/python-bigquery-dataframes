@@ -562,6 +562,42 @@ def test_groupby_sum(scalars_dfs):
     )
 
 
+def test_groupby_level_sum(scalars_dfs):
+    # TODO(tbergeron): Use a non-unique index once that becomes possible in tests
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    if scalars_pandas_df.index.name != "rowindex":
+        pytest.skip("Require index for groupby level.")
+
+    bf_series = scalars_df[col_name].groupby(level=0).sum()
+    pd_series = scalars_pandas_df[col_name].groupby(level=0).sum()
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    pd.testing.assert_series_equal(
+        pd_series.sort_index(),
+        bf_series.compute().sort_index(),
+        check_exact=False,
+        check_names=False,
+    )
+
+
+def test_groupby_level_list_sum(scalars_dfs):
+    # TODO(tbergeron): Use a non-unique index once that becomes possible in tests
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    if scalars_pandas_df.index.name != "rowindex":
+        pytest.skip("Require index for groupby level.")
+
+    bf_series = scalars_df[col_name].groupby(level=["rowindex"]).sum()
+    pd_series = scalars_pandas_df[col_name].groupby(level=["rowindex"]).sum()
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    pd.testing.assert_series_equal(
+        pd_series.sort_index(),
+        bf_series.compute().sort_index(),
+        check_exact=False,
+        check_names=False,
+    )
+
+
 def test_groupby_mean(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"

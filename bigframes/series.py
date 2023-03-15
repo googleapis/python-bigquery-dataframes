@@ -10,6 +10,8 @@ import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
+import pandas.core.dtypes.common
+import typing_extensions
 
 import bigframes.aggregations as agg_ops
 import bigframes.core
@@ -426,9 +428,67 @@ class Series:
 
         return self._apply_unary_op(find_op)
 
-    def groupby(self, by: Series, *, dropna: bool = True):
+    def groupby(
+        self,
+        by: typing.Optional[Series] = None,
+        axis=None,
+        level: typing.Optional[
+            int | str | typing.Sequence[int] | typing.Sequence[str]
+        ] = None,
+        as_index=True,
+        *,
+        dropna: bool = True,
+    ):
         """Group the series by a given list of column labels. Only supports grouping by values from another aligned Series."""
-        # TODO: Support groupby level
+        if (by is not None) and (level is not None):
+            raise ValueError("Do not specify both 'by' and 'level'")
+        if not as_index:
+            raise ValueError("as_index=False only valid with DataFrame")
+        if axis:
+            raise ValueError("No axis named {} for object type Series".format(level))
+        if by is not None:
+            return self._groupby_series(by, dropna)
+        if level is not None:
+            return self._groupby_level(level, dropna)
+        else:
+            raise TypeError("You have to supply one of 'by' and 'level'")
+
+    def _groupby_level(
+        self,
+        level: int | str | typing.Sequence[int] | typing.Sequence[str],
+        dropna: bool = True,
+    ):
+        # TODO(tbergeron): Add multi-index groupby when that feature is implemented.
+        if isinstance(level, int) and (level > 0 or level < -1):
+            raise ValueError("level > 0 or level < -1 only valid with MultiIndex")
+        if isinstance(level, str) and level != self.index.name:
+            raise ValueError("level name {} is not the name of the index".format(level))
+        if _is_list_like(level):
+            if len(level) > 1:
+                raise ValueError("multiple levels only valid with MultiIndex")
+            if len(level) == 0:
+                raise ValueError("No group keys passed!")
+            return self._groupby_level(level[0], dropna)
+        if level and not self._block.index_columns:
+            raise ValueError(
+                "groupby level requires and explicit index on the dataframe"
+            )
+        block = self._viewed_block
+        # If all validations passed, must be grouping on the single-level index
+        group_key = self._block.index_columns[0]
+        key = block._expr.get_column(group_key)
+        value = self._value
+        if dropna:
+            filtered_expr = block.expr.filter((key.notnull()))
+            block.expr = filtered_expr
+        return SeriesGroupyBy(block, value.get_name(), key.get_name())
+
+    def _groupby_series(
+        self,
+        by: Series,
+        dropna: bool = True,
+    ):
+        block = self._viewed_block
         if dropna:
             by = by[by.notna()]
         (value, key, index) = self[self.notna()]._align(
@@ -472,6 +532,7 @@ class SeriesGroupyBy:
 
     def __init__(self, block: blocks.Block, value_column: str, by: str):
         # TODO(tbergeron): Support more group-by expression types
+        # TODO(tbergeron): Implement as a view
         self._block = block
         self._value_column = value_column
         self._by = by
@@ -517,3 +578,7 @@ def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.
     except ibis.common.exceptions.IbisTypeError:
         # Value cannot be converted into literal.
         return None
+
+
+def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
+    return pandas.core.dtypes.common.is_list_like(obj)
