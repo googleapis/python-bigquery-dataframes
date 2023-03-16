@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing
+from typing import Optional
 
 import ibis
 import ibis.common.exceptions
@@ -31,9 +32,12 @@ class Series:
         self,
         block: blocks.Block,
         value_column: str,
+        *,
+        name: Optional[str] = None,
     ):
         self._block = block
         self._value_column = value_column
+        self._name = name
 
     @property
     def _value(self) -> ibis_types.Value:
@@ -45,11 +49,11 @@ class Series:
         return self._viewed_block.index
 
     @property
-    def name(self) -> str:
+    def name(self) -> Optional[str]:
         # TODO(swast): Introduce a level of indirection over Ibis to allow for
         # more accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL.
-        return self._value_column
+        return self._name
 
     @property
     def _viewed_block(self) -> blocks.Block:
@@ -68,14 +72,17 @@ class Series:
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""
         expr = self._viewed_block.expr.projection([self._value])
-        return expr.to_ibis_expr()[self._value_column]
+        ibis_expr = expr.to_ibis_expr()[self._value_column]
+        if self._name:
+            return ibis_expr.name(self._name)
+        return ibis_expr
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
         df = self._viewed_block.compute((self._value_column,))
-        # TODO(swast): Rename Series so name doesn't have to match Ibis
-        # expression.
-        return df[self._value_column]
+        series = df[self._value_column]
+        series.name = self._name
+        return series
 
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
@@ -83,6 +90,7 @@ class Series:
             self._block,
             self._value_column,
             bigframes.view_windows.SliceViewWindow(0, n),
+            name=self._name,
         )
 
     def len(self) -> "Series":
@@ -250,9 +258,13 @@ class Series:
                 (left == right).fillna(ibis.literal(False)).name(self._value_column),
             ]
         )
+        name = self._name
+        if isinstance(other, Series) and other.name != self.name:
+            name = None
         return Series(
             block,
             self._value_column,
+            name=name,
         )
 
     def ne(self, other: object) -> Series:
@@ -270,9 +282,13 @@ class Series:
                 (left != right).fillna(ibis.literal(True)).name(self._value_column),
             ]
         )
+        name = self._name
+        if isinstance(other, Series) and other.name != self.name:
+            name = None
         return Series(
             block,
             self._value_column,
+            name=name,
         )
 
     def __getitem__(self, indexer: Series):
@@ -288,7 +304,7 @@ class Series:
         )
         filtered_expr = block.expr.filter((right == ibis.literal(True)))
         block.expr = filtered_expr
-        return Series(block, self._value_column)
+        return Series(block, self._value_column, name=self._name)
 
     def _align(self, other: typing.Any, how="outer") -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
@@ -323,6 +339,7 @@ class Series:
         return Series(
             block,
             self._value_column,
+            name=self._name,
         )
 
     def _apply_binary_op(
@@ -344,9 +361,15 @@ class Series:
             default_value = ibis_types.null().cast(output_dtype)
             result_expr = default_value.name(self._value_column)
         block.replace_value_columns([result_expr])
+
+        name = self._name
+        if isinstance(other, Series) and other.name != self.name:
+            name = None
+
         return Series(
             block,
             self._value_column,
+            name=name,
         )
 
     def find(self, sub, start=None, end=None) -> "Series":
@@ -381,8 +404,9 @@ class ViewSeries(Series):
         block: blocks.Block,
         value_column: str,
         view_window: bigframes.view_windows.SliceViewWindow,
+        **kwargs,
     ):
-        super().__init__(block, value_column)
+        super().__init__(block, value_column, **kwargs)
         self._view_window = view_window
 
     @property
@@ -412,7 +436,7 @@ class SeriesGroupyBy:
                 self._block.expr.get_column(self._value_column),
             )
             .sum()
-            .name(self._value_column + "_sum")
+            .name(self._value_column)
         )
 
     def mean(self) -> Series:
@@ -423,13 +447,13 @@ class SeriesGroupyBy:
                 self._block.expr.get_column(self._value_column),
             )
             .mean()
-            .name(self._value_column + "_mean")
+            .name(self._value_column)
         )
 
     def _aggregate(self, metric: ibis_types.Scalar) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
         block = blocks.Block(group_expr.aggregate((metric,)), (self._by,))
-        return Series(block, metric.get_name())
+        return Series(block, metric.get_name(), name=metric.get_name())
 
 
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:

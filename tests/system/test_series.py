@@ -200,7 +200,7 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -240,7 +240,7 @@ def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -266,7 +266,7 @@ def test_series_add_bigframes_series_nested(
     if bf_result.dtype == numpy.dtype("float64"):
         bf_result = bf_result.astype(pd.Float64Dtype())
 
-    assert_series_equal_ignoring_order(pd_result, bf_result, check_names=False)
+    assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
 def test_series_add_different_table_no_index_value_error(
@@ -285,7 +285,6 @@ def test_series_add_different_table_with_index(
     # When index values are unique, we can emulate with values from the same
     # DataFrame.
     pd_result = scalars_pandas_df["float64_col"] + scalars_pandas_df["int64_col"]
-    pd_result.name = "float64_col"
     # TODO(chelsealin): Remove astype after b/273365359.
     pd.testing.assert_series_equal(
         bf_result.compute().astype(pd.Float64Dtype()), pd_result
@@ -467,7 +466,6 @@ def test_binop_different_predicates(scalars_dfs):
     assert_series_equal_ignoring_order(
         bf_result,
         pd_result,
-        check_names=False,
     )
 
 
@@ -487,7 +485,6 @@ def test_binop_different_predicates2(scalars_dfs):
     assert_series_equal_ignoring_order(
         bf_result.astype(pd.Float64Dtype()),
         pd_result,
-        check_names=False,
     )
 
 
@@ -530,7 +527,6 @@ def test_groupby_sum(scalars_dfs):
         pd_series.sort_index(),
         bf_series.compute().sort_index(),
         check_exact=False,
-        check_names=False,
     )
 
 
@@ -553,7 +549,6 @@ def test_groupby_mean(scalars_dfs):
         pd_series.sort_index(),
         bf_series.compute().sort_index().astype(pd.Float64Dtype()),
         check_exact=False,
-        check_names=False,
     )
 
 

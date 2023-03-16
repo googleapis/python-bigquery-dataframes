@@ -76,7 +76,7 @@ class DataFrame:
             _ = self._block.expr.get_column(key)
             # Return a view so that mutations on the Series can affect this DataFrame.
             # TODO(swast): Copy if "copy-on-write" semantics are enabled.
-            return bigframes.series.Series(self._block, key)
+            return bigframes.series.Series(self._block, key, name=key)
 
         if isinstance(key, bigframes.series.Series):
             if key._to_ibis_expr().type() == ibis_dtypes.bool:
