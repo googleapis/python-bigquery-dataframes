@@ -499,6 +499,11 @@ class Series:
         block.replace_value_columns([key, value])
         return SeriesGroupyBy(block, value.get_name(), key.get_name())
 
+    def apply(self, func) -> Series:
+        """Returns a series with a user defined function applied."""
+        # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
+        return self._apply_unary_op(func)
+
 
 class ViewSeries(Series):
     """

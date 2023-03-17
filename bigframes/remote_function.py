@@ -4,8 +4,10 @@ import itertools
 import json
 import logging
 import os
+import random
 from shutil import rmtree
 from shutil import which
+import string
 import tempfile
 import textwrap
 import time
@@ -18,7 +20,7 @@ import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
 
 # TODO(shobs): Pick up project, location and dataset from Session (session.py)
-gcp_project_id = os.popen("gcloud config get project").read().strip()
+gcp_project_id = "bigframes-dev"
 cloud_function_region = "us-central1"
 bq_location = "us-central1"
 bq_dataset = "test_us_central1"
@@ -33,12 +35,10 @@ logger = logging.getLogger(__name__)
 
 
 def create_bq_remote_function(
-    cloud_function_name, endpoint, def_, input_types, output_type
+    input_args, input_types, output_type, endpoint, bq_function_name
 ):
-    """Create a BigQuery remote function given a user defined function and a
-    corresponding cloud function."""
-    bq_function_name = def_.__name__  # use the same name for simplicity
-
+    """Create a BigQuery remote function given the artifacts of a user defined
+    function and the http endpoint of a corresponding cloud function."""
     # Command to show details of an existing BQ connection
     command_show = f"bq show --connection --format=json {gcp_project_id}.{bq_location}.{bq_connection_id}"
 
@@ -118,9 +118,8 @@ def create_bq_remote_function(
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
     bq_function_args = []
     bq_function_return_type = ibis_type_to_bigquery_type(output_type)
-    args = inspect.getargs(def_.__code__).args
-    # We are expecting the input type annotations to be 1:1 with the udf params
-    for idx, name in enumerate(args):
+    # We are expecting the input type annotations to be 1:1 with the input args
+    for idx, name in enumerate(input_args):
         bq_function_args.append(
             f"{name} {ibis_type_to_bigquery_type(input_types[idx])}"
         )
@@ -139,7 +138,6 @@ OPTIONS (
     logger.info(
         f"Created remote function `{gcp_project_id}.{bq_dataset}`.{bq_function_name}"
     )
-    return bq_function_name
 
 
 def get_cloud_function_endpoint(name):
@@ -213,7 +211,7 @@ def get_cloud_function_main_code(def_):
     return code, handler_func_name
 
 
-def create_cloud_function(def_):
+def create_cloud_function(def_, cf_name):
     """Create a cloud function from the given user defined function."""
     main_code, entry_point = get_cloud_function_main_code(def_)
 
@@ -235,7 +233,6 @@ def create_cloud_function(def_):
         # deploy a new cloud function
         # TODO(shobs): Figure out a way to skip this step if a cloud function
         # already exists with the same name and source code
-        cf_name = f'python-{entry_point.replace("_", "-")}'
         command = (
             "gcloud functions deploy"
             + f" {cf_name} --gen2"
@@ -289,20 +286,41 @@ def create_cloud_function(def_):
     return (cf_name, endpoint)
 
 
-def provision_bq_remote_function(def_, input_types, output_type):
-    """Provision a BigQuery remote function."""
-    cfname, endpoint = create_cloud_function(def_)
-    bq_rf_name = create_bq_remote_function(
-        cfname, endpoint, def_, input_types, output_type
-    )
+def get_cloud_function_name(def_, uniq_suffix=None):
+    """Get the name of the cloud function."""
+    cf_name = f'bigframes-{def_.__name__.replace("_", "-")}'
+    if uniq_suffix:
+        cf_name = f"{cf_name}-{uniq_suffix}"
+    return cf_name
+
+
+def get_remote_function_name(def_, uniq_suffix=None):
+    """Get the name for the BQ remote function."""
+    bq_rf_name = f"bigframes_{def_.__name__}"
+    if uniq_suffix:
+        bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
     return bq_rf_name
 
 
-def bq_remote_function_exists(def_):
+def provision_bq_remote_function(
+    def_, input_types, output_type, cloud_function_name, remote_function_name
+):
+    """Provision a BigQuery remote function."""
+    _, endpoint = create_cloud_function(def_, cloud_function_name)
+    input_args = inspect.getargs(def_.__code__).args
+    if len(input_args) != len(input_types):
+        raise ValueError("Exactly one type should be provided for every input arg.")
+    create_bq_remote_function(
+        input_args, input_types, output_type, endpoint, remote_function_name
+    )
+    return remote_function_name
+
+
+def bq_remote_function_exists(remote_function_name):
     """Check whether a remote function already exists for the udf."""
     routines = bq_client.list_routines(f"{gcp_project_id}.{bq_dataset}")
     for routine in routines:
-        if routine.reference.routine_id == def_.__name__:
+        if routine.reference.routine_id == remote_function_name:
             return True
     return False
 
@@ -328,29 +346,81 @@ def check_tools_and_permissions():
     # `cloudasset.googleapis.com`
 
 
-def provision_bq_remote_function_if_needed(def_, input_types, output_type):
+def provision_bq_remote_function_if_needed(
+    def_, input_types, output_type, uniq_suffix=None
+):
     """Provision a BigQuery remote function if it does not already exist."""
-    if not bq_remote_function_exists(def_):
+    remote_function_name = get_remote_function_name(def_, uniq_suffix)
+    if not bq_remote_function_exists(remote_function_name):
         logger.info(f"Provisioning new remote function {def_.__name__} ...")
         check_tools_and_permissions()
-        provision_bq_remote_function(def_, input_types, output_type)
+        cloud_function_name = get_cloud_function_name(def_, uniq_suffix)
+        return provision_bq_remote_function(
+            def_, input_types, output_type, cloud_function_name, remote_function_name
+        )
     else:
         logger.info(f"Remote function {def_.__name__} already exists, reusing ...")
+    return remote_function_name
+
+
+def get_remote_function_locations(bq_location):
+    """Get BQ location and cloud functions region given a BQ client."""
+    # TODO(shobs, b/274647164): Find the best way to determine default location.
+    # For now let's assume that if no BQ location is set in the client then it
+    # defaults to US multi region
+    bq_location = bq_client.location.lower() if bq_client.location else "us"
+
+    # Cloud function should be in the same region as the bigquery remote function
+    cloud_function_region = bq_location
+
+    # BigQuery has multi region but cloud functions does not.
+    # Any region in the multi region that supports cloud functions should work
+    # https://cloud.google.com/functions/docs/locations
+    if bq_location == "us":
+        cloud_function_region = "us-central1"
+    elif bq_location == "eu":
+        cloud_function_region = "europe-west1"
+
+    return bq_location, cloud_function_region
 
 
 #
-# Inspired by @udf decorator implemented in
+# Inspired by @udf decorator implemented in ibis-bigquery package
 # https://github.com/ibis-project/ibis-bigquery/blob/main/ibis_bigquery/udf/__init__.py
-#
+# which has moved as @js to the ibis package
+# https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
     input_types,
     output_type,
     bigquery_client: bigquery.Client,
     dataset: str,
     bigquery_connection: str,
+    reuse: bool = True,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
+    Parameters
+    ----------
+    input_types : list(ibis.expr.datatypes)
+        List of input data types in the user defined function.
+    output_type : ibis.expr.datatypes
+        Data type of the output in the user defined function.
+    bigquery_client : google.cloud.bigquery.client.Client
+        Client to use for BigQuery operations.
+    dataset : str
+        Dataset to use to create a BigQuery function. It should be in
+        `project_id.dataset_name` format
+    bigquery_connection : str
+        Name of the BigQuery connection. It should be pre created in the same
+        location as the `bigquery_client.location`.
+    reuse : bool
+        Reuse the remote function if already exists.
+        `True` by default, which will result in reusing an existing remote
+        function (if any) that was previously created for the same udf.
+        Setting it to false would force creating a unique remote function.
+
+    Prerequisites
+    -------------
     Please make sure following is setup before using this API:
 
     1. Have below APIs enabled for your project:
@@ -390,15 +460,16 @@ def remote_function(
     global gcp_project_id, cloud_function_region, bq_location, bq_dataset, bq_client, bq_connection_id
     bq_client = bigquery_client
     gcp_project_id, bq_dataset = dataset_parts
-    # If no BQ location is set in the client then it defaults to US mullti region
-    bq_location = bq_client.location.lower() if bq_client.location else "us"
-    if bq_location == "us":
-        # Any region in US that supports cloud functions should work
-        # https://cloud.google.com/functions/docs/locations
-        cloud_function_region = "us-central1"
-    else:
-        cloud_function_region = bq_location
+    bq_location, cloud_function_region = get_remote_function_locations(
+        bq_client.location
+    )
     bq_connection_id = bigquery_connection
+
+    uniq_suffix = None
+    if not reuse:
+        uniq_suffix = "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=8)
+        )
 
     def wrapper(f):
         if not callable(f):
@@ -419,17 +490,16 @@ def remote_function(
             rf_node_fields["output_dtype"] = property(lambda _: output_type)
             rf_node_fields["output_shape"] = rlz.shape_like("args")
 
-        rf_fully_qualified_name = f"`{gcp_project_id}.{bq_dataset}`.{f.__name__}"
-
+        rf_name = provision_bq_remote_function_if_needed(
+            f, input_types, output_type, uniq_suffix
+        )
+        rf_fully_qualified_name = f"`{gcp_project_id}.{bq_dataset}`.{rf_name}"
         rf_node = type(rf_fully_qualified_name, (ops.ValueOp,), rf_node_fields)
 
         @compiles(rf_node)
-        def compiles_rf_node(t, expr):
-            # TODO(shobs): Take care of the following error
-            # FutureWarning: `Node.op` is deprecated as of v4.0; remove
-            # intermediate .op() calls rf_node.__name__, ", ".join(map(t.translate, expr.op().args))
+        def compiles_rf_node(t, op):
             return "{}({})".format(
-                rf_node.__name__, ", ".join(map(t.translate, expr.op().args))
+                rf_node.__name__, ", ".join(map(t.translate, op.args))
             )
 
         @functools.wraps(f)
@@ -438,7 +508,6 @@ def remote_function(
             return node.to_expr()
 
         wrapped.__signature__ = signature
-        provision_bq_remote_function_if_needed(f, input_types, output_type)
         return wrapped
 
     return wrapper

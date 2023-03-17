@@ -193,11 +193,3 @@ def scalars_dfs(
         return scalars_df_index, scalars_pandas_df_index
     else:
         return scalars_df_no_index, scalars_pandas_df_default_index
-
-
-@pytest.fixture(scope="session")
-def bq_cf_connection() -> str:
-    """Pre-created BQ connection to invoke cloud function for bigframes-dev
-    $ bq show --connection --location=us --project_id=bigframes-dev bigframes-rf-conn
-    """
-    return "bigframes-rf-conn"
