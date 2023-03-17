@@ -11,6 +11,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
+import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
@@ -207,6 +208,18 @@ class Series:
 
         return self._apply_unary_op(round_op)
 
+    def all(self) -> bigframes.scalar.Scalar:
+        """Returns true if and only if all elements are True. Nulls are ignored"""
+        return self._apply_aggregation(agg_ops.all_op)
+
+    def any(self) -> bigframes.scalar.Scalar:
+        """Returns true if and only if at least one element is True. Nulls are ignored"""
+        return self._apply_aggregation(agg_ops.any_op)
+
+    def count(self) -> bigframes.scalar.Scalar:
+        """Counts the number of values in the series. Ignores null/nan."""
+        return self._apply_aggregation(agg_ops.count_op)
+
     def mean(self) -> bigframes.scalar.Scalar:
         """Finds the mean of the numeric values in the series. Ignores null/nan.
 
@@ -220,9 +233,7 @@ class Series:
             To get the numeric result call
             :func:`~bigframes.scalar.Scalar.compute()`.
         """
-        return bigframes.scalar.Scalar(
-            typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).mean()
-        )
+        return self._apply_aggregation(agg_ops.mean_op)
 
     def sum(self) -> bigframes.scalar.Scalar:
         """Sums the numeric values in the series. Ignores null/nan.
@@ -237,9 +248,7 @@ class Series:
             To get the numeric result call
             :func:`~bigframes.scalar.Scalar.compute()`.
         """
-        return bigframes.scalar.Scalar(
-            typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).sum()
-        )
+        return self._apply_aggregation(agg_ops.sum_op)
 
     def slice(self, start=None, stop=None) -> "Series":
         """Slice substrings from each element in the Series."""
@@ -351,6 +360,12 @@ class Series:
         else:
             return NotImplemented
 
+    def _apply_aggregation(
+        self,
+        op: typing.Callable[[ibis_types.Column], ibis_types.Scalar],
+    ) -> bigframes.scalar.Scalar:
+        return bigframes.scalar.Scalar(op(self[self.notnull()]._to_ibis_expr()))
+
     def _apply_unary_op(
         self,
         op: typing.Callable[[ibis_types.Value], ibis_types.Value],
@@ -407,7 +422,9 @@ class Series:
         # TODO: Support groupby level
         if dropna:
             by = by[by.notna()]
-        (value, key, index) = self._align(by, "inner" if dropna else "left")
+        (value, key, index) = self[self.notna()]._align(
+            by, "inner" if dropna else "left"
+        )
         block = self._viewed_block
         block.index = index
         block.replace_value_columns([key, value])
@@ -450,27 +467,29 @@ class SeriesGroupyBy:
         self._value_column = value_column
         self._by = by
 
+    @property
+    def value(self):
+        return self._block.expr.get_column(self._value_column)
+
+    def all(self) -> Series:
+        """Returns true if and only if all elements are True. Nulls are ignored"""
+        return self._aggregate(agg_ops.all_op(self.value).name(self._value_column))
+
+    def any(self) -> Series:
+        """Returns true if and only if at least one element is True. Nulls are ignored"""
+        return self._aggregate(agg_ops.any_op(self.value).name(self._value_column))
+
+    def count(self) -> Series:
+        """Counts the number of elements in each group. Ignores null/nan."""
+        return self._aggregate(agg_ops.count_op(self.value).name(self._value_column))
+
     def sum(self) -> Series:
         """Sums the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(
-            typing.cast(
-                ibis_types.NumericColumn,
-                self._block.expr.get_column(self._value_column),
-            )
-            .sum()
-            .name(self._value_column)
-        )
+        return self._aggregate(agg_ops.sum_op(self.value).name(self._value_column))
 
     def mean(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(
-            typing.cast(
-                ibis_types.NumericColumn,
-                self._block.expr.get_column(self._value_column),
-            )
-            .mean()
-            .name(self._value_column)
-        )
+        return self._aggregate(agg_ops.mean_op(self.value).name(self._value_column))
 
     def _aggregate(self, metric: ibis_types.Scalar) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)

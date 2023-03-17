@@ -513,6 +513,30 @@ def test_sum(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_count(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = scalars_df[col_name].count().compute()
+    pd_result = scalars_pandas_df[col_name].count()
+    assert pd_result == bf_result
+
+
+def test_all(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = scalars_df[col_name].all().compute()
+    pd_result = scalars_pandas_df[col_name].all()
+    assert pd_result == bf_result
+
+
+def test_any(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = scalars_df[col_name].any().compute()
+    pd_result = scalars_pandas_df[col_name].any()
+    assert pd_result == bf_result
+
+
 def test_groupby_sum(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
