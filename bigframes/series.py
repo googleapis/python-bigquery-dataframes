@@ -16,6 +16,7 @@ import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
+import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.scalar
 import bigframes.view_windows
@@ -48,6 +49,14 @@ class Series:
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
         return self._viewed_block.index
+
+    @property
+    def loc(self) -> bigframes.indexers.LocSeriesIndexer:
+        """Set items by index label.
+
+        No get or slice support currently supported.
+        """
+        return bigframes.indexers.LocSeriesIndexer(self)
 
     @property
     def name(self) -> Optional[str]:

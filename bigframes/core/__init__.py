@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Collection, Iterable, Optional, Sequence
+from typing import Collection, Dict, Iterable, Optional, Sequence
 
 from google.cloud import bigquery
 import ibis
@@ -101,7 +101,11 @@ class BigFramesExpr:
         return self._predicates
 
     @property
-    def column_names(self) -> dict[str, ibis_types.Value]:
+    def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
+        return self._columns
+
+    @property
+    def column_names(self) -> Dict[str, ibis_types.Value]:
         return self._column_names
 
     @property

@@ -399,6 +399,16 @@ def test_eq_same_type_series(scalars_dfs, col_name):
     assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
+def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["string_col"]
+    pd_series = scalars_pandas_df_index["string_col"]
+    bf_series.loc[2] = "This value isn't in the test data."
+    pd_series.loc[2] = "This value isn't in the test data."
+    bf_result = bf_series.compute()
+    pd_result = pd_series
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_ne_obj_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
