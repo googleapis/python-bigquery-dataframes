@@ -208,13 +208,35 @@ class Series:
         return self._apply_unary_op(round_op)
 
     def mean(self) -> bigframes.scalar.Scalar:
-        """Finds the mean of the numeric values in the series. Ignores null/nan."""
+        """Finds the mean of the numeric values in the series. Ignores null/nan.
+
+        Note: pandas and BigFrames may not perform floating point operations in
+        exactly the same order. Expect some floating point wobble. When
+        comparing computed results, use a method such as :func:`math.isclose`
+        or :func:`numpy.isclose` to account for this.
+
+        Returns:
+            A BigFrames Scalar so that this can be used in other expressions.
+            To get the numeric result call
+            :func:`~bigframes.scalar.Scalar.compute()`.
+        """
         return bigframes.scalar.Scalar(
             typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).mean()
         )
 
     def sum(self) -> bigframes.scalar.Scalar:
-        """Sums the numeric values in the series. Ignores null/nan."""
+        """Sums the numeric values in the series. Ignores null/nan.
+
+        Note: pandas and BigFrames may not perform floating point operations in
+        exactly the same order. Expect some floating point wobble. When
+        comparing computed results, use a method such as :func:`math.isclose`
+        or :func:`numpy.isclose` to account for this.
+
+        Returns:
+            A BigFrames Scalar so that this can be used in other expressions.
+            To get the numeric result call
+            :func:`~bigframes.scalar.Scalar.compute()`.
+        """
         return bigframes.scalar.Scalar(
             typing.cast(ibis_types.NumericColumn, self._to_ibis_expr()).sum()
         )
