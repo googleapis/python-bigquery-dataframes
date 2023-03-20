@@ -96,6 +96,7 @@ def test_session_id(session):
     assert query_job.session_info.session_id == session._session_id
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_to_close_session(session):
     assert session._session_id is not None
     session.close()

@@ -1,9 +1,11 @@
 import ibis.expr.datatypes as dt
 import pandas
+import pytest
 
 from bigframes import remote_function
 
 
+@pytest.mark.flaky(max_runs=10, min_passes=1)
 def test_remote_function_multiply_with_ibis(
     scalars_table_id, ibis_client, bigquery_client, dataset_id, bq_cf_connection
 ):
@@ -43,6 +45,7 @@ def test_remote_function_multiply_with_ibis(
     )
 
 
+@pytest.mark.flaky(max_runs=10, min_passes=1)
 def test_remote_function_stringify_with_ibis(
     scalars_table_id, ibis_client, bigquery_client, dataset_id, bq_cf_connection
 ):

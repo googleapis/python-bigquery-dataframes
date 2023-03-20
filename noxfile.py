@@ -22,6 +22,7 @@ import os
 import pathlib
 import re
 import shutil
+from typing import Dict, List
 import warnings
 
 import nox
@@ -40,14 +41,15 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
     "pytest-cov",
     "pytest-asyncio",
 ]
-UNIT_TEST_EXTERNAL_DEPENDENCIES = []
-UNIT_TEST_LOCAL_DEPENDENCIES = []
-UNIT_TEST_DEPENDENCIES = []
-UNIT_TEST_EXTRAS = []
-UNIT_TEST_EXTRAS_BY_PYTHON = {}
+UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
+UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
+UNIT_TEST_DEPENDENCIES: List[str] = []
+UNIT_TEST_EXTRAS: List[str] = []
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
+    "flaky",
     "mock",
     "pytest",
     "pytest-xdist",
@@ -56,10 +58,10 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",
 ]
-SYSTEM_TEST_LOCAL_DEPENDENCIES = []
-SYSTEM_TEST_DEPENDENCIES = []
-SYSTEM_TEST_EXTRAS = []
-SYSTEM_TEST_EXTRAS_BY_PYTHON = {}
+SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
+SYSTEM_TEST_DEPENDENCIES: List[str] = []
+SYSTEM_TEST_EXTRAS: List[str] = []
+SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
