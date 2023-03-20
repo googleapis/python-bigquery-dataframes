@@ -1,13 +1,11 @@
+import math
+
 import db_dtypes  # type: ignore
 import numpy
 import pandas as pd
 import pytest
 
 import bigframes.core.indexes
-
-
-def assert_float_close(left, right, allowed=1.0e-5):
-    assert abs(left - right) < allowed
 
 
 def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):
@@ -493,7 +491,7 @@ def test_mean(scalars_dfs):
     col_name = "int64_col"
     bf_result = scalars_df[col_name].mean().compute()
     pd_result = scalars_pandas_df[col_name].mean()
-    assert_float_close(pd_result, bf_result)
+    assert math.isclose(pd_result, bf_result)
 
 
 def test_repr(scalars_dfs):
