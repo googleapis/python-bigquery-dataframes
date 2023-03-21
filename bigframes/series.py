@@ -96,6 +96,50 @@ class Series:
         series.name = self._name
         return series
 
+    def cumsum(self) -> Series:
+        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+
+        def cumsum_op(x: ibis_types.Value):
+            # Emulate pandas by return NA for every value after first NA
+            # Might be worth diverging here to make cumsum more useful
+            x_numeric = typing.cast(ibis_types.NumericColumn, x)
+            have_seen_na = (
+                typing.cast(ibis_types.BooleanColumn, x_numeric.isnull())
+                .any()
+                .over(window)
+            )
+            cumsum = x_numeric.sum().over(window)
+            pandas_style_cumsum = (
+                ibis.case().when(have_seen_na, ibis.NA).else_(cumsum).end()
+            )
+            return pandas_style_cumsum
+
+        return self._apply_unary_op(cumsum_op)
+
+    def cummax(self) -> Series:
+        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+
+        def cummax_op(x: ibis_types.Value):
+            cummax = typing.cast(ibis_types.NumericColumn, x).max().over(window)
+            pandas_style_cummax = (
+                ibis.case().when(x.isnull(), ibis.NA).else_(cummax).end()
+            )
+            return pandas_style_cummax
+
+        return self._apply_unary_op(cummax_op)
+
+    def cummin(self) -> Series:
+        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+
+        def cummin_op(x: ibis_types.Value):
+            cummin = typing.cast(ibis_types.NumericColumn, x).min().over(window)
+            pandas_style_cummin = (
+                ibis.case().when(x.isnull(), ibis.NA).else_(cummin).end()
+            )
+            return pandas_style_cummin
+
+        return self._apply_unary_op(cummin_op)
+
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
         return ViewSeries(

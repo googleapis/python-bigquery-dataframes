@@ -689,3 +689,68 @@ def test_head_then_series_operation(scalars_dfs):
         bf_result,
         pd_result,
     )
+
+
+def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_result = scalars_df_index[col_name].cumsum().compute()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = scalars_pandas_df_index[col_name].cumsum().astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cumsum_int_filtered(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+
+    bf_col = scalars_df_index[col_name]
+    bf_result = bf_col[bf_col > -2].cumsum().compute()
+
+    pd_col = scalars_pandas_df_index[col_name]
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = pd_col[pd_col > -2].cumsum().astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cumsum_float(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    # TODO(chelsealin): Remove astype after b/273365359.
+    bf_result = scalars_df_index[col_name].cumsum().compute().astype(pd.Float64Dtype())
+    # cumsum does not behave well on nullable floats in pandas, produces object type and never ignores NA
+    pd_result = (
+        scalars_pandas_df_index[col_name].cumsum(skipna=False).astype(pd.Float64Dtype())
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cummin_int(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_result = scalars_df_index[col_name].cummin().compute()
+    pd_result = scalars_pandas_df_index[col_name].cummin()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_result = scalars_df_index[col_name].cummax().compute()
+    pd_result = scalars_pandas_df_index[col_name].cummax()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
