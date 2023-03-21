@@ -3,7 +3,7 @@ from typing import Iterable
 
 import ibis
 
-from bigframes.core import BigFramesExpr
+import bigframes.core
 from bigframes.core import blocks
 from bigframes.dataframe import DataFrame
 
@@ -17,7 +17,7 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
     objs = list(objs)
     block_0 = objs[0]._block
     tables = [obj._block.expr.to_ibis_expr() for obj in objs]
-    expr = BigFramesExpr(block_0.expr._session, ibis.union(*tables))
+    expr = bigframes.core.BigFramesExpr(block_0.expr._session, ibis.union(*tables))
 
     block = blocks.Block(expr, block_0.index_columns)
     return DataFrame(block)

@@ -6,8 +6,7 @@ import ibis.expr.datatypes as dt
 import pandas
 import pytest
 
-from bigframes import get_remote_function_locations
-from bigframes import remote_function
+from bigframes import get_remote_function_locations, remote_function
 
 
 @pytest.fixture(scope="module")

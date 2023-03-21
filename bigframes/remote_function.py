@@ -5,15 +5,14 @@ import json
 import logging
 import os
 import random
-from shutil import rmtree
-from shutil import which
+import shutil
 import string
 import tempfile
 import textwrap
 import time
 
-from google.cloud import bigquery
-from google.cloud import functions_v2
+import google.cloud.bigquery as bigquery
+import google.cloud.functions_v2 as functions_v2
 from ibis.backends.bigquery.compiler import compiles
 from ibis.backends.bigquery.datatypes import ibis_type_to_bigquery_type
 import ibis.expr.operations as ops
@@ -222,7 +221,7 @@ def create_cloud_function(def_, cf_name):
     # Build folder structure containing cloud functions to be deployed
     with tempfile.TemporaryDirectory() as dir:
         if os.path.exists(dir):
-            rmtree(dir)
+            shutil.rmtree(dir)
         os.mkdir(dir)
         main_py = os.path.join(dir, "main.py")
         with open(main_py, "w") as f:
@@ -329,7 +328,7 @@ def check_tools_and_permissions():
     """Check if the necessary tools and permissions are in place for creating remote function"""
     # gcloud CLI comes with bq CLI and they are required for creating google
     # cloud function and BigQuery remote function respectively
-    if not which("gcloud"):
+    if not shutil.which("gcloud"):
         raise ValueError(
             "gcloud tool not installed, install it from https://cloud.google.com/sdk/docs/install"
         )

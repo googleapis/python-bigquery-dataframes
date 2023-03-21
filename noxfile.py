@@ -123,8 +123,6 @@ def format(session):
     # See https://pycqa.github.io/isort/docs/configuration/options.html#force-sort-within-sections
     session.run(
         "isort",
-        "--fss",
-        "--profile google",
         *LINT_PATHS,
     )
     session.run(
