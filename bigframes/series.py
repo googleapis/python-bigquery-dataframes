@@ -152,26 +152,17 @@ class Series:
     def len(self) -> "Series":
         """Compute the length of each string."""
 
-        def len_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).length()
-
-        return self._apply_unary_op(len_op)
+        return self._apply_unary_op(ops.len_op)
 
     def isnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
 
-        def isnull_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).isnull()
-
-        return self._apply_unary_op(isnull_op)
+        return self._apply_unary_op(ops.isnull_op)
 
     def notnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
 
-        def notnull_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).notnull()
-
-        return self._apply_unary_op(notnull_op)
+        return self._apply_unary_op(ops.notnull_op)
 
     notna = notnull
 
@@ -241,19 +232,11 @@ class Series:
 
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
-
-        def abs_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.NumericValue, x).abs()
-
-        return self._apply_unary_op(abs_op)
+        return self._apply_unary_op(ops.abs_op)
 
     def reverse(self) -> "Series":
         """Reverse strings in the Series."""
-
-        def reverse_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).reverse()
-
-        return self._apply_unary_op(reverse_op)
+        return self._apply_unary_op(ops.reverse_op)
 
     def round(self, decimals=0) -> "Series":
         """Round each value in a Series to the given number of decimals."""
@@ -324,10 +307,7 @@ class Series:
     def __invert__(self) -> Series:
         """Element-wise logical negation. Does not handle null or nan values."""
 
-        def invert_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.NumericValue, x).negate()
-
-        return self._apply_unary_op(invert_op)
+        return self._apply_unary_op(ops.invert_op)
 
     def eq(self, other: object) -> Series:
         """

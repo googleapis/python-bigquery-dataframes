@@ -9,7 +9,34 @@ import ibis.expr.types as ibis_types
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 
+### Unary Ops
 
+
+def abs_op(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).abs()
+
+
+def invert_op(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).negate()
+
+
+def isnull_op(x: ibis_types.Value):
+    return x.isnull()
+
+
+def len_op(x: ibis_types.Value):
+    return typing.cast(ibis_types.StringValue, x).length()
+
+
+def notnull_op(x: ibis_types.Value):
+    return x.notnull()
+
+
+def reverse_op(x: ibis_types.Value):
+    return typing.cast(ibis_types.StringValue, x).reverse()
+
+
+### Binary Ops
 def add_op(
     x: ibis_types.Value,
     y: ibis_types.Value,

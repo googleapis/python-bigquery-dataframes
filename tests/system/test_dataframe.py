@@ -291,3 +291,63 @@ def test_set_index(scalars_dfs, index_column):
         check_dtype=False,
         check_index_type=False,
     )
+
+
+def test_df_abs(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # include float after b/273365359.
+    columns = ["int64_col", "int64_too"]
+
+    bf_result = scalars_df[columns].abs().compute()
+    pd_result = scalars_pandas_df[columns].abs()
+
+    # Sort by a column to get consistent results.
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("int64_col", ignore_index=True)
+        pd_result = pd_result.sort_values("int64_col", ignore_index=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_isnull(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    columns = ["int64_col", "int64_too", "string_col", "bool_col"]
+    bf_result = scalars_df[columns].isnull().compute()
+    pd_result = scalars_pandas_df[columns].isnull()
+
+    # Sort by a column to get consistent results.
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("int64_col", ignore_index=True)
+        pd_result = pd_result.sort_values("int64_col", ignore_index=True)
+
+    print(bf_result)
+    print(pd_result)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_dtype=False,
+    )
+
+
+def test_df_notnull(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    columns = ["int64_col", "int64_too", "string_col", "bool_col"]
+    bf_result = scalars_df[columns].notnull().compute()
+    pd_result = scalars_pandas_df[columns].notnull()
+
+    # Sort by a column to get consistent results.
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values("int64_col", ignore_index=True)
+        pd_result = pd_result.sort_values("int64_col", ignore_index=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_dtype=False,
+    )

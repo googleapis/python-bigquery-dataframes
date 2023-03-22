@@ -16,6 +16,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
 import bigframes.dtypes
+import bigframes.operations as ops
 import bigframes.series
 
 
@@ -286,3 +287,27 @@ class DataFrame:
             joined_frame = joined_frame.rename({left_on_name: on})
 
         return joined_frame
+
+    def abs(self) -> DataFrame:
+        return self._apply_to_rows(ops.abs_op)
+
+    def isnull(self) -> DataFrame:
+        return self._apply_to_rows(ops.isnull_op)
+
+    isna = isnull
+
+    def notnull(self) -> DataFrame:
+        return self._apply_to_rows(ops.notnull_op)
+
+    notna = notnull
+
+    def _apply_to_rows(self, operation):
+        block = self._block
+        columns = block._expr.columns
+        new_columns = [
+            operation(column).name(column.get_name())
+            for column in columns
+            if column.get_name() not in block.index_columns
+        ]
+        new_block = block.copy(new_columns)
+        return DataFrame(new_block)
