@@ -46,7 +46,11 @@ class DataFrame:
     @property
     def dtypes(self) -> pandas.Series:
         """Returns the dtypes as a Pandas Series object"""
-        schema_elements = self._block.expr.to_ibis_expr().schema().items()
+        schema_elements = [
+            el
+            for el in self._block.expr.to_ibis_expr().schema().items()
+            if el[0] not in self._block.index_columns
+        ]
         column_names, ibis_dtypes = zip(*schema_elements)
         bigframes_dtypes = [
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)

@@ -1,5 +1,5 @@
 import math
-from typing import Mapping, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 from unittest import mock
 
 import google.api_core.exceptions
@@ -17,98 +17,28 @@ import bigframes.core
 SCALARS_TABLE_ID = "project.dataset.scalars_table"
 
 
-@pytest.fixture(autouse=True)
-def mock_bigquery_client(
-    monkeypatch, scalars_pandas_df: pandas.DataFrame
-) -> bigquery.Client:
-    mock_client = mock.create_autospec(bigquery.Client)
-    # Constructor returns the mock itself, so this mock can be treated as the
-    # constructor or the instance.
-    mock_client.return_value = mock_client
-    mock_client.project = "default-project"
-    mock_client.get_table = mock_bigquery_client_get_table
-
-    def mock_bigquery_client_query(
-        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
-    ) -> bigquery.QueryJob:
-        def mock_result(max_results=None):
-            mock_job = mock.create_autospec(bigquery.QueryJob)
-            mock_job.total_rows = len(scalars_pandas_df.index)
-            mock_job.schema = [
-                bigquery.SchemaField(name=name, field_type="INT64")
-                for name in scalars_pandas_df.columns
-            ]
-            # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
-            mock_job.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
-            return mock_job
-
-        mock_job = mock.create_autospec(bigquery.QueryJob)
-        mock_job.result = mock_result
-        return mock_job
-
-    mock_client.query = mock_bigquery_client_query
-    monkeypatch.setattr(bigquery, "Client", mock_client)
-    mock_client.reset_mock()
-    return mock_client
-
-
-def mock_bigquery_client_get_table(
-    table_ref: Union[google.cloud.bigquery.table.TableReference, str]
-):
-    if isinstance(table_ref, google.cloud.bigquery.table.TableReference):
-        table_name = table_ref.__str__()
-    else:
-        table_name = table_ref
-
-    if table_name == "project.dataset.table":
-        return bigquery.Table(
-            table_name, [{"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"}]
-        )
-    elif table_name == "default-project.dataset.table":
-        return bigquery.Table(table_name)
-    elif table_name == SCALARS_TABLE_ID:
-        return bigquery.Table(
-            table_name,
-            [
-                {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
-                {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
-                {"mode": "NULLABLE", "name": "float64_col", "type": "FLOAT"},
-                {"mode": "NULLABLE", "name": "string_col", "type": "STRING"},
-            ],
-        )
-    else:
-        raise google.api_core.exceptions.NotFound("Not Found Table")
-
-
 @pytest.fixture
-def session() -> bigframes.Session:
-    return bigframes.Session(
-        context=bigframes.Context(
-            credentials=mock.create_autospec(google.oauth2.credentials.Credentials),
-            project="unit-test-project",
-        )
-    )
-
-
-@pytest.fixture
-def scalars_df(session) -> bigframes.DataFrame:
-    return session.read_gbq(SCALARS_TABLE_ID)
-
-
-@pytest.fixture
-def session_tables(scalars_pandas_df) -> Mapping[str, pandas.DataFrame]:
-    return {
-        SCALARS_TABLE_ID: scalars_pandas_df,
-    }
-
-
-@pytest.fixture
-def scalars_pandas_df() -> pandas.DataFrame:
+def scalars_pandas_df_default_index() -> pandas.DataFrame:
     # Note: as of 2023-02-07, using nullable dtypes with the ibis pandas
     # backend requires running ibis at HEAD. See:
     # https://github.com/ibis-project/ibis/pull/5345
     return pandas.DataFrame(
         {
+            "rowindex": pandas.Series(
+                [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                ],
+                dtype="Int64",
+            ),
             "bool_col": pandas.Series(
                 [
                     True,
@@ -170,6 +100,115 @@ def scalars_pandas_df() -> pandas.DataFrame:
             ),
         }
     )
+
+
+# We parameterize the fixtures at this point with the real pandas
+# dataframes and deferred bigframes dataframes as we have the following
+# chain of dependencies:
+# -> index/no_index parameterization
+# -> pandas dataframe
+# -> bqclient mock
+# -> session
+# -> bigframes dataframe
+@pytest.fixture(params=("index", "no_index"))
+def scalars_testdata_setup(
+    request, scalars_pandas_df_default_index
+) -> Tuple[pandas.DataFrame, Callable[[bigframes.Session], bigframes.DataFrame]]:
+    if request.param == "index":
+        return (
+            scalars_pandas_df_default_index.set_index("rowindex"),
+            lambda session: session.read_gbq(SCALARS_TABLE_ID, index_cols=["rowindex"]),
+        )
+    else:
+        return (
+            scalars_pandas_df_default_index,
+            lambda session: session.read_gbq(SCALARS_TABLE_ID),
+        )
+
+
+@pytest.fixture(autouse=True)
+def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client:
+    scalars_pandas_df, _ = scalars_testdata_setup
+    mock_client = mock.create_autospec(bigquery.Client)
+    # Constructor returns the mock itself, so this mock can be treated as the
+    # constructor or the instance.
+    mock_client.return_value = mock_client
+    mock_client.project = "default-project"
+    mock_client.get_table = mock_bigquery_client_get_table
+
+    def mock_bigquery_client_query(
+        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
+    ) -> bigquery.QueryJob:
+        def mock_result(max_results=None):
+            mock_job = mock.create_autospec(bigquery.QueryJob)
+            mock_job.total_rows = len(scalars_pandas_df.index)
+            mock_job.schema = [
+                bigquery.SchemaField(name=name, field_type="INT64")
+                for name in scalars_pandas_df.columns
+            ]
+            # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
+            mock_job.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
+            return mock_job
+
+        mock_job = mock.create_autospec(bigquery.QueryJob)
+        mock_job.result = mock_result
+        return mock_job
+
+    mock_client.query = mock_bigquery_client_query
+    monkeypatch.setattr(bigquery, "Client", mock_client)
+    mock_client.reset_mock()
+    return mock_client
+
+
+def mock_bigquery_client_get_table(
+    table_ref: Union[google.cloud.bigquery.table.TableReference, str]
+):
+    if isinstance(table_ref, google.cloud.bigquery.table.TableReference):
+        table_name = table_ref.__str__()
+    else:
+        table_name = table_ref
+
+    if table_name == "project.dataset.table":
+        return bigquery.Table(
+            table_name, [{"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"}]
+        )
+    elif table_name == "default-project.dataset.table":
+        return bigquery.Table(table_name)
+    elif table_name == SCALARS_TABLE_ID:
+        return bigquery.Table(
+            table_name,
+            [
+                {"mode": "NULLABLE", "name": "rowindex", "type": "INTEGER"},
+                {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
+                {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
+                {"mode": "NULLABLE", "name": "float64_col", "type": "FLOAT"},
+                {"mode": "NULLABLE", "name": "string_col", "type": "STRING"},
+            ],
+        )
+    else:
+        raise google.api_core.exceptions.NotFound("Not Found Table")
+
+
+@pytest.fixture
+def session() -> bigframes.Session:
+    return bigframes.Session(
+        context=bigframes.Context(
+            credentials=mock.create_autospec(google.oauth2.credentials.Credentials),
+            project="unit-test-project",
+        )
+    )
+
+
+@pytest.fixture
+def scalars_pandas_df(scalars_testdata_setup) -> pandas.DataFrame:
+    pandas_df, _ = scalars_testdata_setup
+    return pandas_df
+
+
+@pytest.fixture
+def scalars_df(session, scalars_testdata_setup) -> bigframes.DataFrame:
+    _, get_scalars_df = scalars_testdata_setup
+    return get_scalars_df(session)
 
 
 @pytest.fixture

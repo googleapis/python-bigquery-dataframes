@@ -39,7 +39,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
     (ibis_dtypes.float64, pd.Float64Dtype()),
     (ibis_dtypes.int64, pd.Int64Dtype()),
-    (ibis_dtypes.string, pd.StringDtype(storage=None)),
+    (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
     (ibis_dtypes.date, db_dtypes.DateDtype()),
     (ibis_dtypes.time, db_dtypes.TimeDtype()),
     (ibis_dtypes.timestamp, np.dtype("datetime64[us]")),

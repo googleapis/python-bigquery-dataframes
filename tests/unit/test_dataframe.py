@@ -8,20 +8,11 @@ def test_repr_w_all_rows(scalars_df, scalars_pandas_df):
     assert actual == expected
 
 
-def test_get_dtypes(scalars_df):
+def test_get_dtypes(scalars_df, scalars_pandas_df):
     dtypes = scalars_df.dtypes
-    # TODO: Once dtypes changes are done, just match this to
-    # scalars_pandas_df.dtypes
     pd.testing.assert_series_equal(
         dtypes,
-        pd.Series(
-            {
-                "bool_col": pd.BooleanDtype(),
-                "int64_col": pd.Int64Dtype(),
-                "float64_col": pd.Float64Dtype(),
-                "string_col": pd.StringDtype(),
-            }
-        ),
+        scalars_pandas_df.dtypes,
     )
 
 

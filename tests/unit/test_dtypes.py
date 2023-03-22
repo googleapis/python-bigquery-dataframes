@@ -41,7 +41,7 @@ import bigframes.dtypes
         # corresponding to BigQuery NUMERIC
         (ibis_dtypes.Decimal(precision=38, scale=9, nullable=True), np.dtype("O")),
         # corresponding to BigQuery STRING
-        (ibis_dtypes.string, pd.StringDtype(storage=None)),
+        (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
         # corresponding to BigQuery STRUCT
         # TODO(bmil)
         # corresponding to BigQuery TIME
@@ -82,7 +82,7 @@ def test_ibis_float32_raises_unexpected_datatype():
         (np.dtype("datetime64[us]"), ibis_dtypes.Timestamp()),
         (pd.Float64Dtype(), ibis_dtypes.float64),
         (pd.Int64Dtype(), ibis_dtypes.int64),
-        (pd.StringDtype(storage=None), ibis_dtypes.string),
+        (pd.StringDtype(storage="pyarrow"), ibis_dtypes.string),
         (db_dtypes.TimeDtype(), ibis_dtypes.time),
         (
             pd.DatetimeTZDtype(unit="us", tz="UTC"),  # type: ignore

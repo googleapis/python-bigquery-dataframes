@@ -242,7 +242,7 @@ def test_get_dtypes(scalars_df_no_index):
                 "float64_col": pd.Float64Dtype(),
                 "rowindex": pd.Int64Dtype(),
                 "rowindex_2": pd.Int64Dtype(),
-                "string_col": pd.StringDtype(),
+                "string_col": pd.StringDtype(storage="pyarrow"),
                 "time_col": db_dtypes.TimeDtype(),
                 # TODO(bmil): should be:
                 # "timestamp_col": pd.DatetimeTZDtype(unit="us", tz="UTC")}))

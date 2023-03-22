@@ -28,7 +28,7 @@ def test_read_gbq_good_tables(session, good_table_id, expected):
 def test_read_gbq_w_col_order(session):
     scalars_table_id = "project.dataset.scalars_table"
     df = session.read_gbq(scalars_table_id)
-    assert len(df._block.expr._columns) == 4
+    assert len(df._block.expr._columns) == 5
 
     df = session.read_gbq(scalars_table_id, col_order=["bool_col"])
     assert len(df._block.expr._columns) == 1
