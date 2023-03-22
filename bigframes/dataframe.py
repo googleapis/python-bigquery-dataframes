@@ -256,23 +256,57 @@ class DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
 
-        expr_builder = self._block.expr.builder()
+        cur = self
+        for k, v in kwargs.items():
+            cur = cur._assign_single_item(k, v)
+
+        return cur
+
+    def _assign_single_item(self, k, v) -> DataFrame:
+        if isinstance(v, bigframes.series.Series):
+            return self._assign_series_join_on_index(k, v)
+        else:
+            return self._assign_scalar(k, v)
+
+    def _assign_scalar(self, k, v) -> DataFrame:
+        v = bigframes.dtypes.literal_to_ibis_scalar(v)
+        block = self._block.copy()
+        expr_builder = block.expr.builder()
         existing_col_pos_map = {
             col.get_name(): i for i, col in enumerate(expr_builder.columns)
         }
-        for k, v in kwargs.items():
-            if type(v) == bigframes.series.Series:
-                v = v._value
+
+        v = v.name(k)
+
+        if k in existing_col_pos_map:
+            expr_builder.columns[existing_col_pos_map[k]] = v
+        else:
+            expr_builder.columns.append(v)
+
+        block.expr = expr_builder.build()
+        return DataFrame(block)
+
+    def _assign_series_join_on_index(self, k, v: bigframes.series.Series) -> DataFrame:
+        joined_index, (get_column_left, get_column_right) = self.index.join(
+            v.index, how="left"
+        )
+        expr_builder = joined_index._expr.builder()
+
+        # Restore original column names
+        columns = []
+        for column in self._block.expr.columns:
+            column_name = column.get_name()
+            # If it is a replacement, then replace with column from right
+            if column_name == k:
+                columns.append(get_column_right(v._value.get_name()).name(column_name))
             else:
-                v = bigframes.dtypes.literal_to_ibis_scalar(v)
+                columns.append(get_column_left(column_name).name(column_name))
 
-            v = v.name(k)
+        # Assign a new column
+        if k not in self._block.expr.column_names:
+            columns.append(get_column_right(v._value.get_name()).name(k))
 
-            if k in existing_col_pos_map:
-                expr_builder.columns[existing_col_pos_map[k]] = v
-            else:
-                expr_builder.columns.append(v)
-
+        expr_builder.columns = columns
         block = self._block.copy()
         block.expr = expr_builder.build()
         return DataFrame(block)

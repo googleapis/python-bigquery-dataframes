@@ -132,6 +132,21 @@ def test_assign_series(scalars_dfs):
     _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+# Different table expression must have Index
+def test_assign_different_df(
+    scalars_df_index, scalars_df_2_index, scalars_pandas_df_index
+):
+    column_name = "int64_col"
+    df = scalars_df_index.assign(new_col=scalars_df_2_index[column_name])
+    bf_result = df.compute()
+    # Doesn't matter to pandas if it comes from the same DF or a different DF.
+    pd_result = scalars_pandas_df_index.assign(
+        new_col=scalars_pandas_df_index[column_name]
+    )
+
+    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 def test_dropna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df.dropna()
