@@ -88,7 +88,7 @@ def ibis_dtype_to_bigframes_dtype(
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     else:
-        raise ValueError("Unexpected Ibis data type")
+        raise ValueError(f"Unexpected Ibis data type {type(ibis_dtype)}")
 
 
 def bigframes_dtype_to_ibis_dtype(bigframes_dtype: BigFramesDtype) -> IbisDtype:
@@ -105,7 +105,7 @@ def bigframes_dtype_to_ibis_dtype(bigframes_dtype: BigFramesDtype) -> IbisDtype:
     if bigframes_dtype in BIGFRAMES_TO_IBIS:
         return BIGFRAMES_TO_IBIS[bigframes_dtype]
     else:
-        raise ValueError("Unexpected data type")
+        raise ValueError(f"Unexpected data type {type(bigframes_dtype)}")
 
 
 def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:

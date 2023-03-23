@@ -11,7 +11,7 @@ import google.cloud.bigquery as bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
-import pandas
+import pandas as pd
 
 import bigframes.core
 import bigframes.core.blocks as blocks
@@ -48,7 +48,7 @@ class DataFrame:
         return self._block.index
 
     @property
-    def dtypes(self) -> pandas.Series:
+    def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
         schema_elements = [
             el
@@ -60,10 +60,10 @@ class DataFrame:
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
             for ibis_dtype in ibis_dtypes
         ]
-        return pandas.Series(data=bigframes_dtypes, index=column_names)
+        return pd.Series(data=bigframes_dtypes, index=column_names)
 
     @property
-    def columns(self):
+    def columns(self) -> pd.Index:
         """Returns the column labels of the dataframe"""
         return self.dtypes.index
 
@@ -215,7 +215,7 @@ class DataFrame:
 
     __rfloordiv__ = rfloordiv
 
-    def compute(self) -> pandas.DataFrame:
+    def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
         return self._block.compute()
 
@@ -375,7 +375,7 @@ class DataFrame:
         if not on:
             raise ValueError("Must specify a column to join on.")
 
-        # Drop index column in joins. Consistent with Pandas.
+        # Drop index column in joins. Consistent with pandas.
         left = self.reset_index(drop=True)
         right = right.reset_index(drop=True)
 

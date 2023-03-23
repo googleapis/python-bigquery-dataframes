@@ -132,6 +132,16 @@ def test_assign_series(scalars_dfs):
     _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_assign_sequential(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    kwargs = {"int64_col": 2, "new_col": 3, "new_col2": 4}
+    df = scalars_df.assign(**kwargs)
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df.assign(**kwargs)
+
+    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 # Different table expression must have Index
 def test_assign_different_df(
     scalars_df_index, scalars_df_2_index, scalars_pandas_df_index
