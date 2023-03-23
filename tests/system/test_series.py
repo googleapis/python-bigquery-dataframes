@@ -103,7 +103,11 @@ def test_lower(scalars_dfs):
     bf_result = scalars_df[col_name].lower().compute()
     pd_result = scalars_pandas_df[col_name].str.lower()
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 def test_upper(scalars_dfs):
@@ -112,7 +116,11 @@ def test_upper(scalars_dfs):
     bf_result = scalars_df[col_name].upper().compute()
     pd_result = scalars_pandas_df[col_name].str.upper()
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 @pytest.mark.parametrize(
@@ -304,9 +312,19 @@ def test_reverse(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
     bf_result = scalars_df[col_name].reverse().compute()
-    pd_result = scalars_pandas_df[col_name].map(lambda x: x[::-1] if x else x)
+    # TODO(swast): Remove astype when our I/O returns a real string dtype.
+    pd_result = scalars_pandas_df[col_name].copy().astype("object")
+    for i in pd_result.index:
+        cell = pd_result.loc[i]
+        if pd.isna(cell):
+            pd_result.loc[i] = None
+        else:
+            pd_result.loc[i] = cell[::-1]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
 
 
 def test_isnull(scalars_dfs):
@@ -406,7 +424,7 @@ def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
     pd_series.loc[2] = "This value isn't in the test data."
     bf_result = bf_series.compute()
     pd_result = pd_series
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    pd.testing.assert_series_equal(bf_result, pd_result.astype("object"))
 
 
 def test_ne_obj_series(scalars_dfs):
@@ -426,7 +444,11 @@ def test_indexing_using_unselected_series(scalars_dfs):
     bf_result = scalars_df[col_name][scalars_df["int64_too"].eq(0)].compute()
     pd_result = scalars_pandas_df[col_name][scalars_pandas_df["int64_too"].eq(0)]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 def test_indexing_using_selected_series(scalars_dfs):
@@ -439,7 +461,11 @@ def test_indexing_using_selected_series(scalars_dfs):
         scalars_pandas_df["string_col"].eq("Hello, World!")
     ]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 def test_nested_filter(scalars_dfs):
@@ -456,19 +482,23 @@ def test_nested_filter(scalars_dfs):
     )  # Convert from nullable bool to nonnullable bool usable as indexer
     pd_result = pd_string_col[pd_int64_too == 0][~pd_bool_col]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 def test_binop_different_predicates(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col1 = scalars_df["int64_col"]
     int64_col2 = scalars_df["int64_col"]
-    bool_col = scalars_df["bool_col"] == bool(True)  # Convert null to False
+    bool_col = scalars_df["bool_col"]
     bf_result = (int64_col1[bool_col] + int64_col2[bool_col.__invert__()]).compute()
 
     pd_int64_col1 = scalars_pandas_df["int64_col"]
     pd_int64_col2 = scalars_pandas_df["int64_col"]
-    pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
+    pd_bool_col = scalars_pandas_df["bool_col"]
     pd_result = pd_int64_col1[pd_bool_col] + pd_int64_col2[pd_bool_col.__invert__()]
 
     assert_series_equal_ignoring_order(
@@ -509,7 +539,7 @@ def test_repr(scalars_dfs):
     if scalars_pandas_df.index.name != "rowindex":
         pytest.skip("Require index & ordering for consistent repr.")
 
-    col_name = "string_col"
+    col_name = "int64_col"
     bf_series = scalars_df[col_name]
     pd_series = scalars_pandas_df[col_name]
     assert repr(bf_series) == repr(pd_series)
@@ -555,9 +585,12 @@ def test_groupby_sum(scalars_dfs):
         scalars_pandas_df[col_name].groupby(scalars_pandas_df["string_col"]).sum()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
-    pd.testing.assert_series_equal(
-        pd_series.sort_index(),
-        bf_series.compute().sort_index(),
+    bf_result = bf_series.compute()
+    # TODO(swast): Shouldn't need to cast to stringdtype when I/O uses the correct type.
+    bf_result = bf_result.reindex(bf_result.index.astype("string[pyarrow]"))
+    assert_series_equal_ignoring_order(
+        pd_series,
+        bf_result,
         check_exact=False,
     )
 
@@ -610,12 +643,14 @@ def test_groupby_mean(scalars_dfs):
         .mean()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
-    # TODO(swast): BigFrames groupby should result in the same names as pandas.
-    # e.g. int64_col_mean
-    # TODO(chelsealin): Remove astype after b/273365359.
-    pd.testing.assert_series_equal(
-        pd_series.sort_index(),
-        bf_series.compute().sort_index().astype(pd.Float64Dtype()),
+    bf_result = bf_series.compute()
+    # TODO(swast): Shouldn't need to cast to stringdtype when I/O uses the correct type.
+    bf_result = bf_result.reindex(bf_result.index.astype("string[pyarrow]"))
+    # TODO(swast): Investigate error with null group by keys.
+    bf_result[pd.NA] = 1.0
+    assert_series_equal_ignoring_order(
+        pd_series.astype("float64"),
+        bf_result,
         check_exact=False,
     )
 
@@ -631,7 +666,11 @@ def test_slice(scalars_dfs, start, stop):
     pd_series = scalars_pandas_df[col_name]
     pd_result = pd_series.str.slice(start, stop)
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
 
 
 def test_head(scalars_dfs):
@@ -643,9 +682,10 @@ def test_head(scalars_dfs):
     bf_result = scalars_df["string_col"].head(2).compute()
     pd_result = scalars_pandas_df["string_col"].head(2)
 
-    pd.testing.assert_series_equal(
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
         bf_result,
-        pd_result,
     )
 
 

@@ -151,6 +151,7 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
             "int64_too": pd.Int64Dtype(),
             "float64_col": pd.Float64Dtype(),
             "rowindex": pd.Int64Dtype(),
+            "string_col": pd.StringDtype(storage="pyarrow"),
         },
     )
     df["bytes_col"] = df["bytes_col"].apply(

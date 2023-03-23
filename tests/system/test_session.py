@@ -33,6 +33,7 @@ def test_read_gbq_sql(
     session, scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame]
 ):
     scalars_df, scalars_pandas_df = scalars_dfs
+    df_len = len(scalars_pandas_df.index)
 
     index_cols: Union[Tuple[str], Tuple] = ()
     if isinstance(scalars_df.index, bigframes.core.indexes.index.Index):
@@ -62,14 +63,18 @@ def test_read_gbq_sql(
 
     # TODO(chelsealin): Remove astype after b/273365359.
     result["my_floats"] = result["my_floats"].astype(pd.Float64Dtype())
+    result["my_strings"] = result["my_strings"].astype(
+        pd.StringDtype(storage="pyarrow")
+    )
 
-    expected: pd.DataFrame = pd.concat(
-        [
-            pd.Series(scalars_pandas_df["float64_col"] * 2, name="my_floats"),
-            pd.Series(scalars_pandas_df["string_col"] + "_2", name="my_strings"),
-            pd.Series(scalars_pandas_df["int64_col"] > 0, name="my_bools"),
-        ],
-        axis=1,
+    expected = pd.DataFrame(
+        {
+            "my_floats": pd.Series(scalars_pandas_df["float64_col"] * 2),
+            "my_strings": pd.Series(
+                scalars_pandas_df["string_col"].str.cat(["_2"] * df_len)
+            ),
+            "my_bools": pd.Series(scalars_pandas_df["int64_col"] > 0),
+        },
     )
     pd.testing.assert_frame_equal(result, expected)
 

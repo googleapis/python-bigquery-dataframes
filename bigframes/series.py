@@ -321,7 +321,7 @@ class Series:
         block.index = index
         block.replace_value_columns(
             [
-                (left == right).fillna(ibis.literal(False)).name(self._value_column),
+                (left == right).name(self._value_column),
             ]
         )
         name = self._name
@@ -345,7 +345,7 @@ class Series:
         block.index = index
         block.replace_value_columns(
             [
-                (left != right).fillna(ibis.literal(True)).name(self._value_column),
+                (left != right).name(self._value_column),
             ]
         )
         name = self._name
