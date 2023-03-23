@@ -85,14 +85,16 @@ class Session:
         query_job = self.bqclient.query("SELECT 1", job_config=job_config)
         self._session_id = query_job.session_info.session_id
 
-        # TODO(chelsealin): Don't call the private objects after sending a PR to BQ Python client
-        # library.
-        self.bqclient._default_query_job_config = bigquery.QueryJobConfig(
+        self.bqclient.default_query_job_config = bigquery.QueryJobConfig(
             connection_properties=[
                 bigquery.ConnectionProperty("session_id", self._session_id)
             ]
         )
-        # TODO(chelsealin): Bind the session id with load jobs after updating BQ Python client.
+        self.bqclient.default_load_job_config = bigquery.LoadJobConfig(
+            connection_properties=[
+                bigquery.ConnectionProperty("session_id", self._session_id)
+            ]
+        )
 
     def close(self):
         """Terminated the BQ session, otherwises the session will be terminated automatically after
@@ -153,5 +155,4 @@ class Session:
 
 
 def connect(context: Optional[Context] = None) -> Session:
-    # TODO(swast): Start a BigQuery Session too.
     return Session(context)

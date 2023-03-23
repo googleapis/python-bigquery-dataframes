@@ -100,6 +100,8 @@ def test_session_id(session):
     query_job = session.bqclient.query("SELECT 1")
     assert query_job.session_info.session_id == session._session_id
 
+    # TODO(chelsealin): Verify the session id can be binded with a load job.
+
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_to_close_session(session):

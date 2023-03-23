@@ -14,6 +14,7 @@
 
 import io
 import os
+from typing import Dict
 
 import setuptools
 
@@ -30,7 +31,7 @@ release_status = "Development Status :: 3 - Alpha"
 dependencies = [
     "db-dtypes >=1.0.5",
     "google-auth >2.14.1,<3.0dev",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.0.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.7.0",
     "google-cloud-functions >=1.10.1",
     "ibis-framework[bigquery] >=4.0.0",
     "sqlalchemy >=1.4,<2.0",
@@ -45,10 +46,10 @@ readme_filename = os.path.join(package_root, "README.rst")
 with io.open(readme_filename, encoding="utf-8") as readme_file:
     readme = readme_file.read()
 
-version = {}
+version: Dict[str, str] = {}
 with open(os.path.join(package_root, "bigframes/version.py")) as fp:
     exec(fp.read(), version)
-version = version["__version__"]
+version_id = version["__version__"]
 
 # Only include packages under the 'bigframes' namespace. Do not include tests,
 # benchmarks, etc.
@@ -60,7 +61,7 @@ packages = [
 
 setuptools.setup(
     name=name,
-    version=version,
+    version=version_id,
     description=description,
     long_description=readme,
     author="Google LLC",
