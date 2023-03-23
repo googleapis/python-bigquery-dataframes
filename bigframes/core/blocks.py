@@ -56,6 +56,15 @@ class Block:
         self._reset_index()
 
     @property
+    def value_columns(self) -> Sequence[str]:
+        """All value columns, mutually exclusive with index columns."""
+        return [
+            column
+            for column in self._expr.column_names
+            if column not in self.index_columns
+        ]
+
+    @property
     def expr(self) -> bigframes.core.BigFramesExpr:
         """Expression representing all columns, including index columns."""
         return self._expr

@@ -243,13 +243,14 @@ class DataFrame:
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
-        # Can't dropna on original table expr, it will raise "not same table expression" on selection.
-        table = self._block.expr.to_ibis_expr()
-        table = table.dropna()
-
-        expr = bigframes.core.BigFramesExpr(self._block.expr._session, table)
+        predicates = [
+            column.notnull()
+            for column in self._block.expr.columns
+            if column.get_name() in self._block.value_columns
+        ]
         block = self._block.copy()
-        block.expr = expr
+        for predicate in predicates:
+            block.expr = block.expr.filter(predicate)
         return DataFrame(block)
 
     def merge(
