@@ -5,8 +5,9 @@ import pathlib
 import typing
 from typing import Collection
 
-from google.cloud import bigquery
-from ibis.backends.base import BaseBackend
+import google.cloud.bigquery as bigquery
+import google.cloud.storage as storage  # type: ignore
+import ibis.backends.base
 import pandas as pd
 import pytest
 import test_utils.prefixer
@@ -19,12 +20,32 @@ prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
 
 
 @pytest.fixture(scope="session")
+def gcs_client() -> storage.Client:
+    # TODO(swast): Ensure same credentials and project are used as in the
+    # BigFrames Session.
+    return storage.Client()
+
+
+@pytest.fixture(scope="session")
+def gcs_folder(gcs_client: storage.Client):
+    # TODO(swast): Allow bucket name from environment variable for testing by
+    # non-BigFrames team.
+    bucket = "bigframes-dev-testing"
+    prefix = prefixer.create_prefix()
+    path = f"gs://{bucket}/{prefix}/"
+    yield path
+    for blob in gcs_client.list_blobs(bucket, prefix=prefix):
+        blob = typing.cast(storage.Blob, blob)
+        blob.delete()
+
+
+@pytest.fixture(scope="session")
 def bigquery_client(session: bigframes.Session) -> bigquery.Client:
     return session.bqclient
 
 
 @pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> BaseBackend:
+def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
     return session.ibis_client
 
 

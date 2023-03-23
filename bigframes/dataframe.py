@@ -6,6 +6,7 @@ import re
 import typing
 from typing import Iterable, Mapping, Optional, Union
 
+import google.cloud.bigquery as bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -305,6 +306,28 @@ class DataFrame:
         return self._apply_to_rows(ops.notnull_op)
 
     notna = notnull
+
+    def to_parquet(self, path):
+        """Write DataFrame to parquet file(s) on GCS."""
+        # TODO(swast): Support index=True argument.
+        # TODO(swast): Can we support partition columns argument?
+        if not path.startswith("gs://"):
+            raise NotImplementedError(
+                "Only Google Cloud Storage (gs://...) paths are supported."
+            )
+        expr = self._block.expr
+        bqclient = expr._session.bqclient
+        value_columns = (expr.get_column(column_name) for column_name in self.columns)
+        expr = expr.projection(value_columns)
+        query_job: bigquery.QueryJob = expr.start_query()
+        query_job.result()  # Wait for query to finish.
+        query_job.reload()  # Download latest job metadata.
+        # TODO(swast): Some warning that wildcard is recommended for large
+        # query results? See:
+        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
+        destination_table = query_job.destination
+        extract_job = bqclient.extract_table(destination_table, destination_uris=[path])
+        extract_job.result()
 
     def _apply_to_rows(self, operation):
         block = self._block
