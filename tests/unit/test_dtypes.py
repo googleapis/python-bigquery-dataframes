@@ -1,4 +1,5 @@
 import db_dtypes  # type: ignore
+import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import numpy as np
 import pandas as pd
@@ -100,3 +101,23 @@ def test_numpy_float32_raises_unexpected_datatype():
     """Incompatible dtypes should fail when passed into BigFrames"""
     with pytest.raises(ValueError, match="Unexpected data type"):
         bigframes.dtypes.bigframes_dtype_to_ibis_dtype(np.float32)
+
+
+@pytest.mark.parametrize(
+    ["literal", "ibis_scalar"],
+    [
+        (True, ibis.literal(True, ibis_dtypes.boolean)),
+        (5, ibis.literal(5, ibis_dtypes.int64)),
+        (-33.2, ibis.literal(-33.2, ibis_dtypes.float64)),
+    ],
+)
+def test_literal_to_ibis_scalar_converts(literal, ibis_scalar):
+    assert bigframes.dtypes.literal_to_ibis_scalar(literal).equals(ibis_scalar)
+
+
+def test_literal_to_ibis_scalar_throws_on_incompatible_literal():
+    with pytest.raises(
+        ValueError,
+        match="Literal did not coerce to a supported data type: {'mykey': 'myval'}",
+    ):
+        bigframes.dtypes.literal_to_ibis_scalar({"mykey": "myval"})

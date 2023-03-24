@@ -3,7 +3,9 @@
 from typing import Any, Dict, Iterable, Tuple, Union
 
 import db_dtypes  # type: ignore
+import ibis
 import ibis.expr.datatypes as ibis_dtypes
+import ibis.expr.types
 import numpy as np
 import pandas as pd
 
@@ -104,3 +106,30 @@ def bigframes_dtype_to_ibis_dtype(bigframes_dtype: BigFramesDtype) -> IbisDtype:
         return BIGFRAMES_TO_IBIS[bigframes_dtype]
     else:
         raise ValueError("Unexpected data type")
+
+
+def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:
+    """Accept any literal and, if possible, return an Ibis Scalar
+    expression with a BigFrames compatible data type
+
+    Args:
+        literal: any value accepted by Ibis
+
+    Returns:
+        An ibis Scalar supported by BigFrames
+
+    Raises:
+        ValueError: if passed literal cannot be coerced to a
+        BigFrames compatible scalar
+    """
+    scalar_expr = ibis.literal(literal)
+    if scalar_expr.type().is_floating():
+        scalar_expr = ibis.literal(literal, ibis_dtypes.float64)
+    elif scalar_expr.type().is_integer():
+        scalar_expr = ibis.literal(literal, ibis_dtypes.int64)
+
+    # TODO(bmil): support other literals that can be coerced to compatible types
+    if scalar_expr.type() not in BIGFRAMES_TO_IBIS.values():
+        raise ValueError(f"Literal did not coerce to a supported data type: {literal}")
+
+    return scalar_expr

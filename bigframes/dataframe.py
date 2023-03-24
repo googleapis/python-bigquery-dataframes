@@ -202,6 +202,8 @@ class DataFrame:
         for k, v in kwargs.items():
             if type(v) == bigframes.series.Series:
                 v = v._value
+            else:
+                v = bigframes.dtypes.literal_to_ibis_scalar(v)
             expr_builder.table = expr_builder.table.mutate(**{k: v})
             if k in existing_col_pos_map:
                 expr_builder.columns[existing_col_pos_map[k]] = expr_builder.table[k]

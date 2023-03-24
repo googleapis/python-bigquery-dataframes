@@ -18,6 +18,7 @@ import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
+import bigframes.dtypes
 import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.scalar
@@ -47,6 +48,13 @@ class Series:
     def _value(self) -> ibis_types.Value:
         """Private property to get Ibis expression for the value column."""
         return self._viewed_block.expr.get_column(self._value_column)
+
+    @property
+    def dtype(self) -> bigframes.dtypes.BigFramesDtype:
+        """Returns the dtype of the Series"""
+        return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+            typing.cast(bigframes.dtypes.IbisDtype, self._value.type())
+        )
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
