@@ -23,6 +23,12 @@ if [[ -z "${PROJECT_ROOT:-}" ]]; then
 fi
 
 cd "${PROJECT_ROOT}"
+rm -rf build dist
+
+# Workaround the fact that the repository that has been fetched before the
+# build script. See: go/kokoro-native-docker-migration#known-issues and
+# internal issue b/261050975.
+git config --global --add safe.directory "${PROJECT_ROOT}"
 
 python3 -m pip install --require-hashes -r .kokoro/requirements.txt
 
@@ -33,13 +39,13 @@ export PYTHONUNBUFFERED=1
 CURRENT_DATE=$(date '+%Y%m%d')
 GIT_HASH=$(git rev-parse --short HEAD)
 sed -i -E \
-  "s/__version__ = \"([0-9]+\.[0-9]+\.[0-9]+)[^0-9]*\"/__version__ = \"\1dev${CURRENT_DATE}+${GIT_HASH}\"/" \
+  "s/__version__ = \"([0-9]+\.[0-9]+\.[0-9]+)[^\"]*\"/__version__ = \"\1dev${CURRENT_DATE}+${GIT_HASH}\"/" \
   bigframes/version.py
 
-cp dist/bigframes-*.whl dist/bigframes-latest.whl
+python3 setup.py sdist bdist_wheel
+cp dist/bigframes-*.whl dist/bigframes-latest-py2.py3-none-any.whl
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
 # Move into the package, build the distribution and upload to shared bucket.
 # See internal bug 274624240 for details.
-python3 setup.py sdist bdist_wheel
 gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
