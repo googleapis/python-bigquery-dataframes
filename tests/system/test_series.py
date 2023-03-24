@@ -505,7 +505,7 @@ def test_nested_filter(scalars_dfs):
     )
 
 
-def test_binop_different_predicates(scalars_dfs):
+def test_binop_opposite_filters(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col1 = scalars_df["int64_col"]
     int64_col2 = scalars_df["int64_col"]
@@ -523,17 +523,35 @@ def test_binop_different_predicates(scalars_dfs):
     )
 
 
-def test_binop_different_predicates2(scalars_dfs):
+def test_binop_left_filtered(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col = scalars_df["int64_col"]
     float64_col = scalars_df["float64_col"]
-    bool_col = scalars_df["bool_col"] == bool(True)  # Convert null to False
-    bf_result = (int64_col[bool_col.__eq__(True)] + float64_col).compute()
+    bool_col = scalars_df["bool_col"]
+    bf_result = (int64_col[bool_col] + float64_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_float64_col = scalars_pandas_df["float64_col"]
-    pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
+    pd_bool_col = scalars_pandas_df["bool_col"]
     pd_result = pd_int64_col[pd_bool_col] + pd_float64_col
+
+    assert_series_equal_ignoring_order(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_binop_right_filtered(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_col = scalars_df["int64_col"]
+    float64_col = scalars_df["float64_col"]
+    bool_col = scalars_df["bool_col"]
+    bf_result = (float64_col + int64_col[bool_col]).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_float64_col = scalars_pandas_df["float64_col"]
+    pd_bool_col = scalars_pandas_df["bool_col"]
+    pd_result = pd_float64_col + pd_int64_col[pd_bool_col]
 
     assert_series_equal_ignoring_order(
         bf_result,
@@ -785,6 +803,23 @@ def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
     bf_result = scalars_df_index[col_name].cummax().compute()
     pd_result = scalars_pandas_df_index[col_name].cummax()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_value_counts(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+
+    bf_result = scalars_df[col_name].value_counts().compute()
+    pd_result = scalars_pandas_df[col_name].value_counts()
+
+    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
+    pd_result.name = "count"
+    pd_result.index.name = col_name
 
     pd.testing.assert_series_equal(
         bf_result,

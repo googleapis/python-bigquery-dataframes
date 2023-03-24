@@ -41,8 +41,13 @@ class Index(ImplicitJoiner):
             # TOOD(swast): We need to check that the indexes are the same
             # (including ordering) before falling back to row identity
             # matching. Though maybe the index itself will validate that?
-            joined, column_getters = super().join(other, how=how)
-            return Index(joined._expr, self._index_column), column_getters
+            joined, (left_getter, right_getter) = super().join(other, how=how)
+            # TODO: Need to take either side
+            index_column = left_getter(self._index_column).get_name()
+            return Index(joined._expr, index_column, name=self.name), (
+                left_getter,
+                right_getter,
+            )
         except (ValueError, NotImplementedError):
             # TODO(swast): Catch a narrower exception than ValueError.
             # If the more efficient implicit join can't be performed, try an explicit join.
@@ -65,21 +70,12 @@ class Index(ImplicitJoiner):
         join_condition = left_index == right_index
 
         index_name_orig = self._index_column
-        index_name = index_name_orig
-        if index_name in right_table.columns:
-            index_name = f"{index_name}_x"
 
         # TODO(swast): Handle duplicate column names with suffixs, see "merge"
         # in DaPandas.
         combined_table = ibis.join(
             left_table, right_table, predicates=join_condition, how=how
         )
-        combined_expr = BigFramesExpr(self._expr._session, combined_table)
-
-        # Always sort by the join key. Note: This differs from pandas, in which
-        # the sort order can differ unless explicitly sorted with sort=True.
-        index_value = combined_table[index_name].name(index_name_orig)
-        combined_expr = combined_expr.order_by([index_value])
 
         def get_column_left(key: str) -> ibis_types.Value:
             if key in right_table.columns:
@@ -93,7 +89,22 @@ class Index(ImplicitJoiner):
 
             return combined_table[key]
 
+        joined_index = ibis.coalesce(
+            get_column_left(self._index_column), get_column_right(other._index_column)
+        ).name(index_name_orig + "_z")
+
+        # TODO: Can actually ignore original index values post-join
+        columns = tuple(combined_table[key] for key in combined_table.columns) + (
+            joined_index,
+        )
+        combined_expr = BigFramesExpr(self._expr._session, combined_table, columns)
+
+        # Always sort by the join key. Note: This differs from pandas, in which
+        # the sort order can differ unless explicitly sorted with sort=True.
+        combined_expr = combined_expr.order_by([joined_index])
+
+        combined_index_name = self.name if self.name == other.name else None
         return (
-            Index(combined_expr, index_name, name=self._name),
+            Index(combined_expr, joined_index.get_name(), name=combined_index_name),
             (get_column_left, get_column_right),
         )

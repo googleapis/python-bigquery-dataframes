@@ -74,6 +74,17 @@ class ImplicitJoiner:
         right_expr = other._expr
         combined_expr_builder = left_expr.builder()
 
+        left_columns = [
+            left_expr.get_column(key).name(f"{key}_x")
+            for key in left_expr.column_names.keys()
+        ]
+        right_columns = [
+            right_expr.get_column(key).name(f"{key}_y")
+            for key in right_expr.column_names.keys()
+        ]
+
+        combined_expr_builder.columns = left_columns + right_columns
+
         left_predicates = left_expr._predicates
         right_predicates = right_expr._predicates
         # TODO(tbergeron): Skip generating these for inner part of join
@@ -89,6 +100,7 @@ class ImplicitJoiner:
             combined_expr_builder.predicates = list(
                 joined_predicates
             )  # builder expects mutable list
+
         combined_expr = combined_expr_builder.build()
 
         def get_column_left(key: str) -> ibis_types.Value:
@@ -96,12 +108,13 @@ class ImplicitJoiner:
                 left_reduce_rel_pred = _reduce_predicate_list(left_relative_predicates)
                 return (
                     ibis.case()
-                    .when(left_reduce_rel_pred, left_expr.get_column(key))
+                    .when(left_reduce_rel_pred, combined_expr.get_column(f"{key}_x"))
                     .else_(ibis.null())
                     .end()
+                    .name(f"{key}_x")
                 )
             else:
-                return left_expr.get_column(key)
+                return combined_expr.get_column(f"{key}_x")
 
         def get_column_right(key: str) -> ibis_types.Value:
             if right_relative_predicates and how in ["left", "outer"]:
@@ -110,14 +123,15 @@ class ImplicitJoiner:
                 )
                 return (
                     ibis.case()
-                    .when(right_reduce_rel_pred, right_expr.get_column(key))
+                    .when(right_reduce_rel_pred, combined_expr.get_column(f"{key}_y"))
                     .else_(ibis.null())
                     .end()
+                    .name(f"{key}_y")
                 )
             else:
-                return right_expr.get_column(key)
+                return combined_expr.get_column(f"{key}_y")
 
-        return ImplicitJoiner(combined_expr), (
+        return ImplicitJoiner(combined_expr, name=self.name), (
             get_column_left,
             get_column_right,
         )

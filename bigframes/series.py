@@ -408,7 +408,7 @@ class Series:
         block.index = index
         block.replace_value_columns(
             [
-                left,
+                left.name(self._value_column),
             ]
         )
         filtered_expr = block.expr.filter((right == ibis.literal(True)))
@@ -424,7 +424,7 @@ class Series:
                 get_column_right,
             ) = self.index.join(other.index, how=how)
             left_value = get_column_left(self._value_column)
-            right_value = get_column_right(other._value.get_name())
+            right_value = get_column_right(other._value_column)
             return (left_value, right_value, combined_index)
         elif isinstance(other, bigframes.scalar.Scalar):
             # TODO(tbereron): support deferred scalars.
@@ -465,7 +465,8 @@ class Series:
     ) -> Series:
         """Applies a binary operator to the series and other."""
         (left, right, index) = self._align(other)
-        block = self._viewed_block
+
+        block = blocks.Block(index._expr)
         block.index = index
         if not isinstance(right, ibis_types.NullScalar):
             result_expr = op(left, right).name(self._value_column)
@@ -494,6 +495,12 @@ class Series:
             return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
 
         return self._apply_unary_op(find_op)
+
+    def value_counts(self):
+        counts = self.groupby(self).count()
+        block = counts._block
+        block.expr = block.expr.order_by([counts._value], ascending=False)
+        return Series(block, counts._value_column, name="count")
 
     def groupby(
         self,
@@ -548,23 +555,27 @@ class Series:
         if dropna:
             filtered_expr = block.expr.filter((key.notnull()))
             block.expr = filtered_expr
-        return SeriesGroupyBy(block, value.get_name(), key.get_name())
+        return SeriesGroupyBy(
+            block, value.get_name(), key.get_name(), value_name=self.name
+        )
 
     def _groupby_series(
         self,
         by: Series,
         dropna: bool = True,
     ):
-        block = self._viewed_block
         if dropna:
             by = by[by.notna()]
-        (value, key, index) = self[self.notna()]._align(
-            by, "inner" if dropna else "left"
-        )
-        block = self._viewed_block
+        (value, key, index) = self._align(by, "inner" if dropna else "left")
+        block = blocks.Block(index._expr)
         block.index = index
-        block.replace_value_columns([key, value])
-        return SeriesGroupyBy(block, value.get_name(), key.get_name())
+        return SeriesGroupyBy(
+            block,
+            value.get_name(),
+            key.get_name(),
+            value_name=self.name,
+            key_name=by.name,
+        )
 
     def apply(self, func) -> Series:
         """Returns a series with a user defined function applied."""
@@ -575,12 +586,21 @@ class Series:
 class SeriesGroupyBy:
     """Represents a deferred series with a grouping expression."""
 
-    def __init__(self, block: blocks.Block, value_column: str, by: str):
+    def __init__(
+        self,
+        block: blocks.Block,
+        value_column: str,
+        by: str,
+        value_name: typing.Optional[str] = None,
+        key_name: typing.Optional[str] = None,
+    ):
         # TODO(tbergeron): Support more group-by expression types
         # TODO(tbergeron): Implement as a view
         self._block = block
         self._value_column = value_column
         self._by = by
+        self._value_name = value_name
+        self._key_name = key_name
 
     @property
     def value(self):
@@ -588,28 +608,31 @@ class SeriesGroupyBy:
 
     def all(self) -> Series:
         """Returns true if and only if all elements are True. Nulls are ignored"""
-        return self._aggregate(agg_ops.all_op(self.value).name(self._value_column))
+        return self._aggregate(agg_ops.all_op)
 
     def any(self) -> Series:
         """Returns true if and only if at least one element is True. Nulls are ignored"""
-        return self._aggregate(agg_ops.any_op(self.value).name(self._value_column))
+        return self._aggregate(agg_ops.any_op)
 
     def count(self) -> Series:
         """Counts the number of elements in each group. Ignores null/nan."""
-        return self._aggregate(agg_ops.count_op(self.value).name(self._value_column))
+        return self._aggregate(agg_ops.count_op)
 
     def sum(self) -> Series:
         """Sums the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(agg_ops.sum_op(self.value).name(self._value_column))
+        return self._aggregate(agg_ops.sum_op)
 
     def mean(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(agg_ops.mean_op(self.value).name(self._value_column))
+        return self._aggregate(agg_ops.mean_op)
 
-    def _aggregate(self, metric: ibis_types.Scalar) -> Series:
+    def _aggregate(self, aggregate_op: typing.Any) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
-        block = blocks.Block(group_expr.aggregate((metric,)), (self._by,))
-        return Series(block, metric.get_name(), name=metric.get_name())
+        result_expr = group_expr.aggregate(self._value_column, aggregate_op)
+        block = blocks.Block(result_expr, index_columns=[self._by])
+        if self._key_name:
+            block.index.name = self._key_name
+        return Series(block, self._value_column, name=self._value_name)
 
 
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:

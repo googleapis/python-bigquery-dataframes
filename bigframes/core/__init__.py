@@ -7,11 +7,9 @@ from typing import Collection, Dict, Iterable, Optional, Sequence
 from google.cloud import bigquery
 import ibis
 import ibis.expr.types as ibis_types
-from ibis.expr.types.groupby import GroupedTable
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
-
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
@@ -24,6 +22,7 @@ class ExpressionOrdering:
         ordering_value_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering_id_column: Optional[ibis_types.Value] = None,
         is_sequential: bool = False,
+        ascending: bool = True,
     ):
         # TODO(tbergeron): Allow flag to reverse ordering
         self._ordering_value_columns = (
@@ -31,6 +30,7 @@ class ExpressionOrdering:
         )
         self._ordering_id_column = ordering_id_column
         self._is_sequential = is_sequential
+        self._ascending = ascending
 
     def with_is_sequential(self, is_sequential: bool):
         """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
@@ -59,6 +59,10 @@ class ExpressionOrdering:
     @property
     def is_sequential(self) -> bool:
         return self._is_sequential
+
+    @property
+    def is_ascending(self) -> bool:
+        return self._ascending
 
     @property
     def ordering_id(self) -> Optional[ibis_types.Value]:
@@ -172,6 +176,12 @@ class BigFramesExpr:
 
     def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
+        if key not in self._column_names.keys():
+            raise ValueError(
+                "Column name {} not in set of values: {}".format(
+                    key, self._column_names.keys()
+                )
+            )
         return self._column_names[key]
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
@@ -189,10 +199,12 @@ class BigFramesExpr:
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
-    def order_by(self, by: Sequence[ibis_types.Value]) -> BigFramesExpr:
+    def order_by(self, by: Sequence[ibis_types.Value], ascending=True) -> BigFramesExpr:
         # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
         expr = self.builder()
-        expr.ordering = self._ordering.with_ordering_columns(by)
+        expr.ordering = ExpressionOrdering(
+            ordering_value_columns=by, ascending=ascending
+        )
         return expr.build()
 
     @property
@@ -271,14 +283,21 @@ class BigFramesExpr:
             table = table.drop(PREDICATE_COLUMN)
 
         if order_results:
+            is_ascending = self._ordering.is_ascending
             if with_offsets:
-                table = table.order_by(table[ORDER_ID_COLUMN])
+                table = table.order_by(
+                    table[ORDER_ID_COLUMN]
+                    if is_ascending
+                    else ibis.desc(table[ORDER_ID_COLUMN])
+                )
             else:
                 # Some ordering columns are value columns, while other are used purely for ordering.
                 # We drop the non-value columns after the ordering
                 table = table.order_by(
                     [
                         table[row.get_name()]
+                        if is_ascending
+                        else ibis.desc(table[row.get_name()])
                         for row in self._ordering.all_ordering_columns
                     ]
                 )
@@ -340,16 +359,18 @@ class BigFramesGroupByExpr:
         self._expr = expr
         self._by = by
 
-    def _to_ibis_expr(self) -> GroupedTable:
+    def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the DataFrame."""
-        return self._expr.to_ibis_expr(order_results=False).group_by(self._by)
+        return self._expr.to_ibis_expr(order_results=False)
 
-    def aggregate(self, metrics: Collection[ibis_types.Scalar]) -> BigFramesExpr:
-        table = self._to_ibis_expr().aggregate(metrics)
-        # Since we make a new table expression, the old column references now
-        # point to the wrong table. Use the BigFramesExpr constructor to make
-        # sure we have the correct references.
-        return BigFramesExpr(self._session, table)
+    def aggregate(self, column_name: str, aggregate_op) -> BigFramesExpr:
+        """Generate aggregate metrics, result preserve names of aggregated columns"""
+        # TODO(tbergeron): generalize to multiple aggregations
+        table = self._to_ibis_expr()
+        result = table.group_by(self._by).aggregate(
+            aggregate_op(table[column_name]).name(column_name)
+        )
+        return BigFramesExpr(self._session, result)
 
 
 def _reduce_predicate_list(

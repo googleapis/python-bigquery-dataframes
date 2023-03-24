@@ -15,8 +15,8 @@ import pandas as pd
 
 import bigframes.core
 import bigframes.core.blocks as blocks
-import bigframes.core.indexes.implicitjoiner
-import bigframes.core.indexes.index
+from bigframes.core.indexes.implicitjoiner import ImplicitJoiner
+from bigframes.core.indexes.index import Index
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
@@ -96,15 +96,28 @@ class DataFrame:
             if key._to_ibis_expr().type() == ibis_dtypes.bool:
                 # TODO: enforce stricter alignment
                 combined_index, (
-                    _,
+                    get_column_left,
                     get_column_right,
                 ) = self._block.index.join(key.index, how="left")
                 right = get_column_right(key._value_column)
 
-                block = self._block.copy()
-                block.index = combined_index
-                filtered_expr = block.expr.filter((right == ibis.literal(True)))
-                block.expr = filtered_expr
+                aligned_expr = combined_index._expr
+                filtered_expr = aligned_expr.filter((right == ibis.literal(True)))
+
+                # TODO: Change dataframe to store explicit list of value columns and their dataframe label (not internal sql) names
+                column_names = self._block.expr.column_names.keys()
+                expression = filtered_expr.projection(
+                    [
+                        get_column_left(left_col).name(left_col)
+                        for left_col in column_names
+                    ]
+                )
+                block = blocks.Block(expression)
+                block.index = (
+                    Index(expression, self.index._index_column, self.index.name)
+                    if isinstance(self.index, Index)
+                    else ImplicitJoiner(expression, self.index.name)
+                )
                 return DataFrame(block)
             else:
                 raise ValueError(
