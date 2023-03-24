@@ -237,7 +237,7 @@ class DataFrame:
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
         if not expr.ordering:
-            expr = expr.order_by([ibis.asc(index_expr)])
+            expr = expr.order_by([index_expr])
 
         block = self._block.copy()
         block.index = bigframes.core.indexes.index.Index(expr, key)

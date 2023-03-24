@@ -58,9 +58,9 @@ class Index(ImplicitJoiner):
 
         # TODO(swast): Consider refactoring to allow re-use in cases where an
         # explicit join key is used.
-        left_table = self._expr.to_ibis_expr()
+        left_table = self._expr.to_ibis_expr(order_results=False)
         left_index = left_table[self._index_column]
-        right_table = other._expr.to_ibis_expr()
+        right_table = other._expr.to_ibis_expr(order_results=False)
         right_index = right_table[other._index_column]
         join_condition = left_index == right_index
 
@@ -79,7 +79,7 @@ class Index(ImplicitJoiner):
         # Always sort by the join key. Note: This differs from pandas, in which
         # the sort order can differ unless explicitly sorted with sort=True.
         index_value = combined_table[index_name].name(index_name_orig)
-        combined_expr = combined_expr.order_by([ibis.asc(index_value)])
+        combined_expr = combined_expr.order_by([index_value])
 
         def get_column_left(key: str) -> ibis_types.Value:
             if key in right_table.columns:

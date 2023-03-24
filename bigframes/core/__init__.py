@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import typing
 from typing import Collection, Dict, Iterable, Optional, Sequence
 
@@ -10,7 +11,9 @@ from ibis.expr.types.groupby import GroupedTable
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
+
 ORDER_ID_COLUMN = "bigframes_ordering_id"
+PREDICATE_COLUMN = "bigframes_predicate"
 
 
 class ExpressionOrdering:
@@ -33,6 +36,16 @@ class ExpressionOrdering:
         """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
         return ExpressionOrdering(
             self._ordering_value_columns, self._ordering_id_column, is_sequential
+        )
+
+    def with_ordering_columns(
+        self, ordering_value_columns: Optional[Sequence[ibis_types.Value]] = None
+    ):
+        """Creates a new ordering that preserves ordering id, but replaces ordering value column list."""
+        return ExpressionOrdering(
+            ordering_value_columns,
+            self._ordering_id_column,
+            is_sequential=False,
         )
 
     @property
@@ -80,7 +93,8 @@ class BigFramesExpr:
         self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
-        self._ordering = ordering
+        # TODO: All expressions should have a total ordering.
+        self._ordering = ordering or ExpressionOrdering()
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
             self._columns = tuple(table[key] for key in table.columns)
@@ -99,6 +113,15 @@ class BigFramesExpr:
     @property
     def predicates(self) -> typing.Tuple[ibis_types.BooleanValue, ...]:
         return self._predicates
+
+    @property
+    def reduced_predicate(self) -> typing.Optional[ibis_types.BooleanValue]:
+        """Returns the frame's predicates as an equivalent boolean value, useful where a single predicate value is preferred."""
+        return (
+            _reduce_predicate_list(self._predicates).name(PREDICATE_COLUMN)
+            if self._predicates
+            else None
+        )
 
     @property
     def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
@@ -126,19 +149,28 @@ class BigFramesExpr:
         )
 
     def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
-        expr = self.builder()
+        expr = self
+        ordering_column_names = [column.get_name() for column in self.ordering]
+
+        # Must generate offsets if we are dropping a column that ordering depends on
+        if set(columns).intersection(ordering_column_names):
+            expr = self.project_offsets()
+        else:
+            expr = self
+
+        expr_builder = expr.builder()
         remain_cols = [
             column for column in expr.columns if column.get_name() not in columns
         ]
-        expr.columns = remain_cols
-        return expr.build()
+        expr_builder.columns = remain_cols
+        return expr_builder.build()
 
     def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         return self._column_names[key]
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
-        table = self.to_ibis_expr().limit(max_results)
+        table = self.to_ibis_expr(order_results=True).limit(max_results)
         # Since we make a new table expression, the old column references now
         # point to the wrong table. Use the BigFramesExpr constructor to make
         # sure we have the correct references.
@@ -155,9 +187,7 @@ class BigFramesExpr:
     def order_by(self, by: Sequence[ibis_types.Value]) -> BigFramesExpr:
         # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
         expr = self.builder()
-        expr.ordering = ExpressionOrdering(
-            ordering_value_columns=by,
-        )
+        expr.ordering = self._ordering.with_ordering_columns(by)
         return expr.build()
 
     @property
@@ -170,32 +200,16 @@ class BigFramesExpr:
 
     def project_offsets(self) -> BigFramesExpr:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
-        table = self._table
-        # TODO(tbergeron): Enforce total ordering
-        # TODO(tbergeron): Preserve original ordering id or row id in order to facilitate mutation.
-        if not self._ordering:
-            raise ValueError(
-                "Offsets cannot be generated. Ordering not defined for this table."
-            )
         if self._ordering.is_sequential:
-            return self  # No-op as ordering column already has offsets
-        table = table.order_by(list(self._ordering.all_ordering_columns))
-        if len(self._predicates) > 0:
-            table = table.filter(list(self._predicates))
-        table = table.select(
-            [
-                *self._columns,
-                ibis.row_number().name(ORDER_ID_COLUMN),
-            ]
-        )
-        expr = self.builder()
-        expr.table = table
-        # Exclude ordering id in list of columns as it is not a value column.
-        expr.columns = [table[column_name] for column_name in self._column_names]
-        expr.ordering = ExpressionOrdering(
+            return self
+
+        # TODO(tbergeron): Enforce total ordering
+        table = self.to_ibis_expr(with_offsets=True, order_results=False)
+        columns = [table[column_name] for column_name in self._column_names]
+        ordering = ExpressionOrdering(
             ordering_id_column=table[ORDER_ID_COLUMN], is_sequential=True
         )
-        return expr.build()
+        return BigFramesExpr(self._session, table, columns=columns, ordering=ordering)
 
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
@@ -206,15 +220,65 @@ class BigFramesExpr:
         expr.columns = list(columns)
         return expr.build()
 
-    def to_ibis_expr(self):
-        """Creates an Ibis table expression representing the DataFrame."""
+    def to_ibis_expr(self, with_offsets=False, order_results=True):
+        """Creates an Ibis table expression representing the DataFrame.
+
+        BigFrames expression are sorted, so two options are avaiable to reflect this in the ibis expression.
+        Zero-based offsets can be generated with with_offsets, this will not sort the rows however.
+        Alternatively, the rows can be returned sorted, but without an explicit offset column.
+
+        Args:
+            with_offsets: Output will include 0-based offsets as a column if set to True
+            order_results: Output rows will be ordered (with ORDER BY) if set to True
+
+        Returns:
+            An ibis expression representing the data help by the BigFramesExpression.
+
+        """
         table = self._table
-        if self._ordering:
-            table = table.order_by(list(self._ordering.all_ordering_columns))
-        if len(self._predicates) > 0:
-            table = table.filter(list(self._predicates))
-        if self._columns is not None:
-            table = table.select(list(self._columns))
+
+        # "Hidden" columns used only for ordering
+        ordering_only_values = [
+            value
+            for value in self._ordering.all_ordering_columns
+            if value.get_name() not in self._column_names.keys()
+        ]
+
+        columns = list(self._columns)
+
+        if self.reduced_predicate is not None:
+            columns.append(self.reduced_predicate)
+
+        if with_offsets:
+            window = ibis.window(order_by=self._ordering.all_ordering_columns)
+            if self._predicates:
+                window = window.group_by(self.reduced_predicate)
+            columns.append(ibis.row_number().name(ORDER_ID_COLUMN).over(window))
+
+        if order_results:
+            columns.extend(ordering_only_values)
+
+        table = table.select(columns)
+
+        if self.reduced_predicate is not None:
+            table = table.filter(table[PREDICATE_COLUMN])
+            # Drop predicate as it is will be all TRUE after filtering
+            table = table.drop(PREDICATE_COLUMN)
+
+        if order_results:
+            if with_offsets:
+                table = table.order_by(table[ORDER_ID_COLUMN])
+            else:
+                # Some ordering columns are value columns, while other are used purely for ordering.
+                # We drop the non-value columns after the ordering
+                table = table.order_by(
+                    [
+                        table[row.get_name()]
+                        for row in self._ordering.all_ordering_columns
+                    ]
+                )
+                table = table.drop(*[row.get_name() for row in ordering_only_values])
+
         return table
 
     def start_query(self) -> bigquery.QueryJob:
@@ -229,7 +293,7 @@ class BigFramesExpr:
         # a LocalSession for unit testing.
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        table = self.to_ibis_expr()
+        table = self.to_ibis_expr(order_results=True)
         sql = table.compile()
         return self._session.bqclient.query(sql)
 
@@ -273,7 +337,7 @@ class BigFramesGroupByExpr:
 
     def _to_ibis_expr(self) -> GroupedTable:
         """Creates an Ibis table expression representing the DataFrame."""
-        return self._expr.to_ibis_expr().group_by(self._by)
+        return self._expr.to_ibis_expr(order_results=False).group_by(self._by)
 
     def aggregate(self, metrics: Collection[ibis_types.Scalar]) -> BigFramesExpr:
         table = self._to_ibis_expr().aggregate(metrics)
@@ -281,3 +345,15 @@ class BigFramesGroupByExpr:
         # point to the wrong table. Use the BigFramesExpr constructor to make
         # sure we have the correct references.
         return BigFramesExpr(self._session, table)
+
+
+def _reduce_predicate_list(
+    predicate_list: typing.Collection[ibis_types.BooleanValue],
+) -> ibis_types.BooleanValue:
+    """Converts a list of predicates BooleanValues into a single BooleanValue."""
+    if len(predicate_list) == 0:
+        raise ValueError("Cannot reduce empty list of predicates")
+    if len(predicate_list) == 1:
+        (item,) = predicate_list
+        return item
+    return functools.reduce(lambda acc, pred: acc.__and__(pred), predicate_list)

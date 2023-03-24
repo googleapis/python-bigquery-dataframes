@@ -105,7 +105,10 @@ class Series:
         return series
 
     def cumsum(self) -> Series:
-        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+        window = ibis.cumulative_window(
+            order_by=self._block.expr.ordering,
+            group_by=self._block.expr.reduced_predicate,
+        )
 
         def cumsum_op(x: ibis_types.Value):
             # Emulate pandas by return NA for every value after first NA
@@ -125,7 +128,10 @@ class Series:
         return self._apply_unary_op(cumsum_op)
 
     def cummax(self) -> Series:
-        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+        window = ibis.cumulative_window(
+            order_by=self._block.expr.ordering,
+            group_by=self._block.expr.reduced_predicate,
+        )
 
         def cummax_op(x: ibis_types.Value):
             cummax = typing.cast(ibis_types.NumericColumn, x).max().over(window)
@@ -137,7 +143,10 @@ class Series:
         return self._apply_unary_op(cummax_op)
 
     def cummin(self) -> Series:
-        window = ibis.cumulative_window(order_by=self._block.expr.ordering)
+        window = ibis.cumulative_window(
+            order_by=self._block.expr.ordering,
+            group_by=self._block.expr.reduced_predicate,
+        )
 
         def cummin_op(x: ibis_types.Value):
             cummin = typing.cast(ibis_types.NumericColumn, x).min().over(window)
