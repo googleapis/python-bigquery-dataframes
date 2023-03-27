@@ -2,7 +2,7 @@ def test_to_pandas_has_correct_dtypes(scalars_df_no_index):
     """This test ensures conversion from BigFrames to Pandas DataFrame results in the correct dtypes"""
     result = scalars_df_no_index.compute()
 
-    # TODO(chelsealin): Use this check instead after b/273365359.
+    # TODO(chelsealin): Use this check instead after b/275417413.
     # pd.testing.assert_series_equal(result.dtypes, scalars_df_no_index.dtypes)
 
     # For now, manually check passing and failing cases:
@@ -18,15 +18,11 @@ def test_to_pandas_has_correct_dtypes(scalars_df_no_index):
     assert actual["numeric_col"] == expected["numeric_col"]
     assert actual["rowindex"] == expected["rowindex"]
     assert actual["time_col"] == expected["time_col"]
+    assert actual["float64_col"] == expected["float64_col"]
+    assert actual["string_col"] == expected["string_col"]
 
     # TODO: should be microsecond units (not nanosecond)
     # assert actual["datetime_col"] == expected["datetime_col"]
-
-    # TODO: should be pd.Float64Dtype not np.float64
-    # assert actual["float64_col"] == expected["float64_col"]
-
-    # TODO: should be pd.StringDtype not object
-    # assert actual["string_col"] == expected["string_col"]
 
     # TODO: should be pd.DatetimeTZDtype(unit="us", tz="UTC")
     # not np.dtype("datetime64[ns]"). Note that both sides are

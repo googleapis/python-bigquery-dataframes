@@ -88,6 +88,7 @@ def test_filter_df(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -108,8 +109,7 @@ def test_assign_new_column(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
-    # dtype discrepencies of Int64(ibis) vs int64(pandas)
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -130,8 +130,7 @@ def test_assign_existing_column(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
-    # dtype discrepencies of Int64(ibis) vs int64(pandas)
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -152,8 +151,7 @@ def test_assign_series(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
-    # dtype discrepencies of Int64(ibis) vs int64(pandas)
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -173,6 +171,7 @@ def test_dropna(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -215,13 +214,10 @@ def test_merge(scalars_dfs, merge_how):
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(on, ignore_index=True)
         pd_result = pd_result.sort_values(on, ignore_index=True)
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
+
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
-        check_column_type=False,
-        check_dtype=False,
-        check_index_type=False,
     )
 
 
@@ -235,7 +231,7 @@ def test_get_dtypes(scalars_df_no_index):
                 "bytes_col": np.dtype("O"),
                 "date_col": db_dtypes.DateDtype(),
                 "datetime_col": np.dtype("datetime64[us]"),
-                "geography_col": np.dtype("O"),
+                "geography_col": pd.StringDtype(storage="pyarrow"),
                 "int64_col": pd.Int64Dtype(),
                 "int64_too": pd.Int64Dtype(),
                 "numeric_col": np.dtype("O"),
@@ -261,6 +257,7 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
     bf_result = df.compute()
     pd_result = scalars_pandas_df_index.reset_index(drop=drop)
 
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -284,6 +281,7 @@ def test_set_index(scalars_dfs, index_column):
     bf_result = bf_result.sort_values("rowindex_2")
     pd_result = pd_result.sort_values("rowindex_2")
 
+    # TODO(b/275417413): enable check_type once BF type issue is solved.
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -295,8 +293,7 @@ def test_set_index(scalars_dfs, index_column):
 
 def test_df_abs(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    # include float after b/273365359.
-    columns = ["int64_col", "int64_too"]
+    columns = ["int64_col", "int64_too", "float64_col"]
 
     bf_result = scalars_df[columns].abs().compute()
     pd_result = scalars_pandas_df[columns].abs()
@@ -324,13 +321,11 @@ def test_df_isnull(scalars_dfs):
         bf_result = bf_result.sort_values("int64_col", ignore_index=True)
         pd_result = pd_result.sort_values("int64_col", ignore_index=True)
 
-    print(bf_result)
-    print(pd_result)
-
+    # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `BooleanDtype` but
+    # the `pd_result.dtype` is `bool`.
     pd.testing.assert_frame_equal(
         bf_result,
-        pd_result,
-        check_dtype=False,
+        pd_result.astype(pd.BooleanDtype()),
     )
 
 
@@ -346,8 +341,9 @@ def test_df_notnull(scalars_dfs):
         bf_result = bf_result.sort_values("int64_col", ignore_index=True)
         pd_result = pd_result.sort_values("int64_col", ignore_index=True)
 
+    # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `BooleanDtype` but
+    # the `pd_result.dtype` is `bool`.
     pd.testing.assert_frame_equal(
         bf_result,
-        pd_result,
-        check_dtype=False,
+        pd_result.astype(pd.BooleanDtype()),
     )

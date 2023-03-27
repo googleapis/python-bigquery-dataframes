@@ -61,9 +61,9 @@ IBIS_TO_BIGFRAMES.update(
         ibis_dtypes.json: np.dtype("O"),
         ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): np.dtype("O"),
         ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): np.dtype("O"),
-        ibis_dtypes.GeoSpatial(geotype="geography", srid=None, nullable=True): np.dtype(
-            "O"
-        )
+        ibis_dtypes.GeoSpatial(
+            geotype="geography", srid=None, nullable=True
+        ): pd.StringDtype(storage="pyarrow")
         # TODO: Interval, Array, Struct
     }
 )

@@ -114,7 +114,16 @@ class Block:
             value_columns = (expr.get_column(column_name) for column_name in value_keys)
             expr = expr.projection(itertools.chain(index_columns, value_columns))
 
-        df = expr.start_query().result().to_dataframe()
+        df = (
+            expr.start_query()
+            .result()
+            .to_dataframe(
+                bool_dtype=pandas.BooleanDtype(),
+                int_dtype=pandas.Int64Dtype(),
+                float_dtype=pandas.Float64Dtype(),
+                string_dtype=pandas.StringDtype(storage="pyarrow"),
+            )
+        )
 
         if self.index_columns:
             df = df.set_index(list(self.index_columns))

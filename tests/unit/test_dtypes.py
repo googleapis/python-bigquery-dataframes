@@ -31,7 +31,7 @@ import bigframes.dtypes
         # corresponding to BigQuery GEOGRAPHY
         (
             ibis_dtypes.GeoSpatial(geotype="geography", srid=None, nullable=True),
-            np.dtype("O"),
+            pd.StringDtype(storage="pyarrow"),
         ),
         # corresponding to BigQuery INT64
         (ibis_dtypes.int64, pd.Int64Dtype()),

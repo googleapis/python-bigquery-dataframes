@@ -27,18 +27,16 @@ def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwar
         ("bytes_col", numpy.dtype("object")),
         ("date_col", db_dtypes.DateDtype()),
         ("datetime_col", numpy.dtype("datetime64[ns]")),
-        # TODO(chelsealin): Should be Float64 rather than "float64" after b/273365359.
-        ("float64_col", numpy.dtype("float64")),
+        ("float64_col", pd.Float64Dtype()),
         # TODO(swast): Use a more efficient type.
-        ("geography_col", numpy.dtype("object")),
+        ("geography_col", pd.StringDtype(storage="pyarrow")),
         ("int64_col", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
         ("numeric_col", numpy.dtype("object")),
         ("int64_too", pd.Int64Dtype()),
-        # TODO(swast): Use a more efficient type.
-        ("string_col", numpy.dtype("object")),
+        ("string_col", pd.StringDtype(storage="pyarrow")),
         ("time_col", db_dtypes.TimeDtype()),
-        # TODO(chelsealin): Should be "us" rather than "ns" after b/273365359.
+        # TODO(chelsealin): Should be "us" rather than "ns" after b/275417413.
         ("timestamp_col", pd.DatetimeTZDtype(unit="ns", tz="UTC")),
     ],
 )
@@ -61,10 +59,6 @@ def test_abs(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].abs().compute()
     pd_result = scalars_pandas_df[col_name].abs()
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
@@ -89,7 +83,7 @@ def test_fillna(scalars_dfs):
     bf_result = scalars_df[col_name].fillna("Missing").compute()
     pd_result = scalars_pandas_df[col_name].fillna("Missing")
     assert_series_equal_ignoring_order(
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -115,8 +109,7 @@ def test_lower(scalars_dfs):
     pd_result = scalars_pandas_df[col_name].str.lower()
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -156,8 +149,7 @@ def test_upper(scalars_dfs):
     pd_result = scalars_pandas_df[col_name].str.upper()
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -201,10 +193,6 @@ def test_series_int_int_operators_scalar(
     bf_result = maybe_reversed_op(scalars_df["int64_col"], other_scalar).compute()
     pd_result = maybe_reversed_op(scalars_pandas_df["int64_col"], other_scalar)
 
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
-
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
@@ -241,10 +229,6 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
 
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
-
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
@@ -259,10 +243,6 @@ def test_series_add_scalar(scalars_dfs, other):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (scalars_df["float64_col"] + other).compute()
     pd_result = scalars_pandas_df["float64_col"] + other
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
@@ -280,10 +260,6 @@ def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (scalars_df[left_col] + scalars_df[right_col]).compute()
     pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
@@ -307,10 +283,6 @@ def test_series_add_bigframes_series_nested(
         scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
     ) + scalars_pandas_df[righter_col]
 
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
-
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
@@ -330,10 +302,7 @@ def test_series_add_different_table_with_index(
     # When index values are unique, we can emulate with values from the same
     # DataFrame.
     pd_result = scalars_pandas_df["float64_col"] + scalars_pandas_df["int64_col"]
-    # TODO(chelsealin): Remove astype after b/273365359.
-    pd.testing.assert_series_equal(
-        bf_result.compute().astype(pd.Float64Dtype()), pd_result
-    )
+    pd.testing.assert_series_equal(bf_result.compute(), pd_result)
 
 
 def test_series_add_pandas_series_not_implemented(scalars_dfs):
@@ -351,8 +320,7 @@ def test_reverse(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
     bf_result = scalars_df[col_name].reverse().compute()
-    # TODO(swast): Remove astype when our I/O returns a real string dtype.
-    pd_result = scalars_pandas_df[col_name].copy().astype("object")
+    pd_result = scalars_pandas_df[col_name].copy()
     for i in pd_result.index:
         cell = pd_result.loc[i]
         if pd.isna(cell):
@@ -393,10 +361,6 @@ def test_round(scalars_dfs):
     col_name = "float64_col"
     bf_result = scalars_df[col_name].round().compute()
     pd_result = scalars_pandas_df[col_name].round()
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
@@ -463,7 +427,7 @@ def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
     pd_series.loc[2] = "This value isn't in the test data."
     bf_result = bf_series.compute()
     pd_result = pd_series
-    pd.testing.assert_series_equal(bf_result, pd_result.astype("object"))
+    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 def test_ne_obj_series(scalars_dfs):
@@ -484,8 +448,7 @@ def test_indexing_using_unselected_series(scalars_dfs):
     pd_result = scalars_pandas_df[col_name][scalars_pandas_df["int64_too"].eq(0)]
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -501,8 +464,7 @@ def test_indexing_using_selected_series(scalars_dfs):
     ]
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -522,8 +484,7 @@ def test_nested_filter(scalars_dfs):
     pd_result = pd_string_col[pd_int64_too == 0][~pd_bool_col]
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -558,9 +519,8 @@ def test_binop_different_predicates2(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"].fillna(False)
     pd_result = pd_int64_col[pd_bool_col] + pd_float64_col
 
-    # TODO(chelsealin): Remove astype after b/273365359.
     assert_series_equal_ignoring_order(
-        bf_result.astype(pd.Float64Dtype()),
+        bf_result,
         pd_result,
     )
 
@@ -625,8 +585,6 @@ def test_groupby_sum(scalars_dfs):
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.compute()
-    # TODO(swast): Shouldn't need to cast to stringdtype when I/O uses the correct type.
-    bf_result = bf_result.reindex(bf_result.index.astype("string[pyarrow]"))
     assert_series_equal_ignoring_order(
         pd_series,
         bf_result,
@@ -647,8 +605,6 @@ def test_groupby_level_sum(scalars_dfs):
     pd.testing.assert_series_equal(
         pd_series.sort_index(),
         bf_series.compute().sort_index(),
-        check_exact=False,
-        check_names=False,
     )
 
 
@@ -665,8 +621,6 @@ def test_groupby_level_list_sum(scalars_dfs):
     pd.testing.assert_series_equal(
         pd_series.sort_index(),
         bf_series.compute().sort_index(),
-        check_exact=False,
-        check_names=False,
     )
 
 
@@ -683,14 +637,9 @@ def test_groupby_mean(scalars_dfs):
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.compute()
-    # TODO(swast): Shouldn't need to cast to stringdtype when I/O uses the correct type.
-    bf_result = bf_result.reindex(bf_result.index.astype("string[pyarrow]"))
-    # TODO(swast): Investigate error with null group by keys.
-    bf_result[pd.NA] = 1.0
     assert_series_equal_ignoring_order(
-        pd_series.astype("float64"),
+        pd_series,
         bf_result,
-        check_exact=False,
     )
 
 
@@ -706,8 +655,7 @@ def test_slice(scalars_dfs, start, stop):
     pd_result = pd_series.str.slice(start, stop)
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -722,8 +670,7 @@ def test_head(scalars_dfs):
     pd_result = scalars_pandas_df["string_col"].head(2)
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
@@ -736,10 +683,6 @@ def test_head_then_scalar_operation(scalars_dfs):
 
     bf_result = (scalars_df["float64_col"].head(1) + 4).compute()
     pd_result = scalars_pandas_df["float64_col"].head(1) + 4
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -759,10 +702,6 @@ def test_head_then_series_operation(scalars_dfs):
     pd_result = scalars_pandas_df["float64_col"].head(4) + scalars_pandas_df[
         "float64_col"
     ].head(2)
-
-    # TODO(chelsealin): Remove astype after b/273365359.
-    if bf_result.dtype == numpy.dtype("float64"):
-        bf_result = bf_result.astype(pd.Float64Dtype())
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -800,8 +739,7 @@ def test_cumsum_int_filtered(scalars_df_index, scalars_pandas_df_index):
 
 def test_cumsum_float(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
-    # TODO(chelsealin): Remove astype after b/273365359.
-    bf_result = scalars_df_index[col_name].cumsum().compute().astype(pd.Float64Dtype())
+    bf_result = scalars_df_index[col_name].cumsum().compute()
     # cumsum does not behave well on nullable floats in pandas, produces object type and never ignores NA
     pd_result = (
         scalars_pandas_df_index[col_name].cumsum(skipna=False).astype(pd.Float64Dtype())
