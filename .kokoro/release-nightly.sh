@@ -49,3 +49,4 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 # Move into the package, build the distribution and upload to shared bucket.
 # See internal bug 274624240 for details.
 gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
+gsutil cp dist/* gs://dl-platform-colab/bigframes/
