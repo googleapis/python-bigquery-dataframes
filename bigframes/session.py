@@ -3,11 +3,13 @@
 import re
 import typing
 from typing import Iterable, List, Optional, Tuple, Union
+import uuid
 
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import ibis
 from ibis.backends.bigquery import Backend
+import pandas
 
 from bigframes.core import BigFramesExpr
 import bigframes.core.blocks as blocks
@@ -114,20 +116,15 @@ class Session:
     ) -> "DataFrame":
         """Loads DataFrame from Google BigQuery.
 
-        Parameters
-        ----------
-        query_or_table : str
-            BigQuery table name to be read, in the form `project.dataset.tablename` or
-            `dataset.tablename`,  or a SQL string to be executed
-        col_order : list(str), optional
-            List of BigQuery column names in the desired order for results DataFrame.
-        index_cols: list(str), optional
-            List of column names to use as the index or multi-index
+        Args:
+            query_or_table : a SQL string to be executed or a BigQuery table to be read. The
+              table must be specified in the format of `project.dataset.tablename` or
+              `dataset.tablename`.
+            col_order : List of BigQuery column names in the desired order for results DataFrame.
+            index_cols: List of column names to use as the index or multi-index
 
-        Returns
-        -------
-        df: DataFrame
-            DataFrame representing results of the query or table.
+        Returns:
+            A DataFrame representing results of the query or table.
         """
         if _is_query(query_or_table):
             table_expression = self.ibis_client.sql(query_or_table)
@@ -152,6 +149,28 @@ class Session:
                 raise ValueError("Column order does not match this table.")
         block = blocks.Block(BigFramesExpr(self, table_expression, columns), index_cols)
         return DataFrame(block)
+
+    def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> "DataFrame":
+        """Loads DataFrame from a Pandas DataFrame.
+
+        The Pandas DataFrame will be persisted as a temporary BigQuery table, which can be
+        automatically recycled after the Session is closed.
+
+        Args:
+            pandas_dataframe: a Pandas DataFrame object to be loaded.
+
+        Returns:
+            A BigFrame DataFrame.
+        """
+
+        table_name = f"{uuid.uuid4().hex}"
+        load_table_name = f"{self.bqclient.project}._SESSION.{table_name}"
+        load_job = self.bqclient.load_table_from_dataframe(
+            pandas_dataframe, load_table_name, job_config=bigquery.LoadJobConfig()
+        )
+        load_job.result()  # Wait for the job to complete
+
+        return self.read_gbq(f"SELECT * FROM `{table_name}`")
 
 
 def connect(context: Optional[Context] = None) -> Session:

@@ -93,6 +93,26 @@ def test_read_gbq_sql_w_col_order(session):
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
+def test_read_pandas(session, scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # TODO(chelsealin): read_pandas is not supported index dataframes yet.
+    if scalars_pandas_df.index.name is not None:
+        return
+
+    df = session.read_pandas(scalars_pandas_df)
+    result = df.compute()
+    expected = scalars_df.compute()
+
+    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
+    pd.testing.assert_frame_equal(
+        result,
+        expected,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_session_id(session):
     assert session._session_id is not None
 
