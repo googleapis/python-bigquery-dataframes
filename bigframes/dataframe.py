@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import operator
 import re
 import typing
 from typing import Iterable, Mapping, Optional, Union
@@ -153,6 +154,59 @@ class DataFrame:
         lines.append("")
         lines.append(f"[{rows} rows x {columns} columns]")
         return "\n".join(lines)
+
+    def _apply_scalar_bi_op(
+        self, other: float | int, op, reverse: bool = False
+    ) -> DataFrame:
+        scalar = bigframes.dtypes.literal_to_ibis_scalar(other)
+        block = self._block.copy()
+        expr_builder = block.expr.builder()
+        for i, column in enumerate(expr_builder.columns):
+            if not column.get_name() in block.index_columns:
+                value = op(scalar, column) if reverse else op(column, scalar)
+                expr_builder.columns[i] = value.name(column.get_name())
+        block.expr = expr_builder.build()
+        return DataFrame(block)
+
+    def add(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.add)
+
+    __radd__ = __add__ = radd = add
+
+    def sub(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.sub)
+
+    __sub__ = sub
+
+    def rsub(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.sub, reverse=True)
+
+    __rsub__ = rsub
+
+    def mul(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.mul)
+
+    __rmul__ = __mul__ = rmul = mul
+
+    def truediv(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.truediv)
+
+    div = __truediv__ = truediv
+
+    def rtruediv(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.truediv, reverse=True)
+
+    __rtruediv__ = rtruediv
+
+    def floordiv(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.floordiv)
+
+    __floordiv__ = floordiv
+
+    def rfloordiv(self, other: float | int) -> DataFrame:
+        return self._apply_scalar_bi_op(other, operator.floordiv, reverse=True)
+
+    __rfloordiv__ = rfloordiv
 
     def compute(self) -> pandas.DataFrame:
         """Executes deferred operations and downloads the results."""
