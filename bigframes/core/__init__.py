@@ -148,6 +148,11 @@ class BigFramesExpr:
             predicates=self._predicates,
         )
 
+    def insert_column(self, index: int, column: ibis_types.Value) -> BigFramesExpr:
+        expr = self.builder()
+        expr.columns.insert(index, column)
+        return expr.build()
+
     def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
         expr = self
         ordering_column_names = [column.get_name() for column in self.ordering]

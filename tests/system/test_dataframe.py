@@ -212,14 +212,21 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
 
 
 @pytest.mark.parametrize(
+    ("drop",),
+    (
+        (True,),
+        (False,),
+    ),
+)
+@pytest.mark.parametrize(
     ("index_column",),
     (("int64_too",), ("string_col",), ("timestamp_col",)),
 )
-def test_set_index(scalars_dfs, index_column):
+def test_set_index(scalars_dfs, index_column, drop):
     scalars_df, scalars_pandas_df = scalars_dfs
-    df = scalars_df.set_index(index_column)
+    df = scalars_df.set_index(index_column, drop=drop)
     bf_result = df.compute()
-    pd_result = scalars_pandas_df.set_index(index_column)
+    pd_result = scalars_pandas_df.set_index(index_column, drop=drop)
 
     _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 

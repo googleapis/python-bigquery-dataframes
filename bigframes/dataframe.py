@@ -21,6 +21,8 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
 
+_INDEX_COLUMN_NAME = "bigframes_index_{}"
+
 
 class DataFrame:
     """A 2D data structure, representing data and deferred computation.
@@ -284,7 +286,7 @@ class DataFrame:
 
         return DataFrame(block)
 
-    def set_index(self, key: str) -> DataFrame:
+    def set_index(self, key: str, *, drop=True) -> DataFrame:
         """Set the DataFrame index using existing columns."""
         expr = self._block.expr
         prev_index_columns = self._block.index_columns
@@ -293,9 +295,19 @@ class DataFrame:
         if not expr.ordering:
             expr = expr.order_by([index_expr])
 
+        expr = expr.drop_columns(prev_index_columns)
+
+        index_column_name = key
+        if not drop:
+            index_column_name = _INDEX_COLUMN_NAME.format(0)
+            index_expr = index_expr.name(index_column_name)
+            expr = expr.insert_column(0, index_expr)
+
         block = self._block.copy()
-        block.index = bigframes.core.indexes.index.Index(expr, key)
-        block.expr = block.expr.drop_columns(prev_index_columns)
+        block.expr = expr
+        block.index = bigframes.core.indexes.index.Index(
+            expr, index_column=index_column_name, name=key
+        )
         return DataFrame(block)
 
     def dropna(self) -> DataFrame:
