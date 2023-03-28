@@ -83,9 +83,14 @@ class DataFrame:
             # Check that the column exists.
             # TODO(swast): Make sure we can't select Index columns this way.
             _ = self._block.expr.get_column(key)
-            # Return a view so that mutations on the Series can affect this DataFrame.
-            # TODO(swast): Copy if "copy-on-write" semantics are enabled.
-            return bigframes.series.Series(self._block, key, name=key)
+            # Copy to emulate "Copy-on-Write" semantics.
+            block = self._block.copy()
+            # Since we're working with a "copy", we can drop the other value
+            # columns. They aren't needed on the Series.
+            block.expr = block.expr.drop_columns(
+                [column for column in self.columns if column != key]
+            )
+            return bigframes.series.Series(block, key, name=key)
 
         if isinstance(key, bigframes.series.Series):
             if key._to_ibis_expr().type() == ibis_dtypes.bool:
@@ -260,11 +265,13 @@ class DataFrame:
                 v = v._value
             else:
                 v = bigframes.dtypes.literal_to_ibis_scalar(v)
-            expr_builder.table = expr_builder.table.mutate(**{k: v})
+
+            v = v.name(k)
+
             if k in existing_col_pos_map:
-                expr_builder.columns[existing_col_pos_map[k]] = expr_builder.table[k]
+                expr_builder.columns[existing_col_pos_map[k]] = v
             else:
-                expr_builder.columns.append(expr_builder.table[k])
+                expr_builder.columns.append(v)
 
         block = self._block.copy()
         block.expr = expr_builder.build()

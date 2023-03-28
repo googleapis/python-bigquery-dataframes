@@ -433,13 +433,18 @@ def test_eq_same_type_series(scalars_dfs, col_name):
 
 
 def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
+    bf_original = scalars_df_index["string_col"]
     bf_series = scalars_df_index["string_col"]
-    pd_series = scalars_pandas_df_index["string_col"]
+    pd_original = scalars_pandas_df_index["string_col"]
+    pd_series = scalars_pandas_df_index["string_col"].copy()
     bf_series.loc[2] = "This value isn't in the test data."
     pd_series.loc[2] = "This value isn't in the test data."
     bf_result = bf_series.compute()
     pd_result = pd_series
     pd.testing.assert_series_equal(bf_result, pd_result)
+    # Per Copy-on-Write semantics, other references to the original DataFrame
+    # should remain unchanged.
+    pd.testing.assert_series_equal(bf_original.compute(), pd_original)
 
 
 def test_ne_obj_series(scalars_dfs):

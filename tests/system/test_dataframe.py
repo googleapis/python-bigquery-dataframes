@@ -1,6 +1,7 @@
 import db_dtypes  # type: ignore
 import numpy as np
 import pandas as pd
+import pandas.testing
 import pytest
 
 
@@ -228,7 +229,15 @@ def test_set_index(scalars_dfs, index_column, drop):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.set_index(index_column, drop=drop)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    # Sort to disambiguate when there are duplicate index labels.
+    # Note: Doesn't use _assert_pandas_df_equal_ignore_ordering because we get
+    # "ValueError: 'timestamp_col' is both an index level and a column label,
+    # which is ambiguous" when trying to sort by a column with the same name as
+    # the index.
+    bf_result = bf_result.sort_values("rowindex_2")
+    pd_result = pd_result.sort_values("rowindex_2")
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_df_abs(scalars_dfs):
