@@ -161,8 +161,7 @@ def test_strip(scalars_dfs):
     pd_result = scalars_pandas_df[col_name].str.strip()
 
     assert_series_equal_ignoring_order(
-        # TODO(swast): Remove astype when our I/O returns a real string dtype.
-        pd_result.astype("object"),
+        pd_result,
         bf_result,
     )
 
