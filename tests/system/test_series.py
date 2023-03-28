@@ -154,6 +154,19 @@ def test_upper(scalars_dfs):
     )
 
 
+def test_strip(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = scalars_df[col_name].strip().compute()
+    pd_result = scalars_pandas_df[col_name].str.strip()
+
+    assert_series_equal_ignoring_order(
+        # TODO(swast): Remove astype when our I/O returns a real string dtype.
+        pd_result.astype("object"),
+        bf_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("operator"),
     [

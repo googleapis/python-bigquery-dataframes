@@ -207,6 +207,14 @@ class Series:
 
         return self._apply_unary_op(upper_op)
 
+    def strip(self) -> "Series":
+        """Removes whitespace characters from the beginning and end of each string in the Series."""
+
+        def strip_op(x: ibis_types.Value):
+            return typing.cast(ibis_types.StringValue, x).strip()
+
+        return self._apply_unary_op(strip_op)
+
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.add_op)
 
