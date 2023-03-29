@@ -416,6 +416,38 @@ class DataFrame:
 
         return joined_frame
 
+    # TODO(garrettwu): finish implementation of join(...)
+    def join(self, other: DataFrame, how: str) -> DataFrame:
+        """Join columns of another dataframe
+
+        This implementation is a placeholder that only works when the two dataframes
+        are identical except for their columns. Also it assumes the index is unique."""
+        if how != "outer":
+            raise NotImplementedError("Joins other than outer are not implemented")
+
+        if not self.columns.intersection(other.columns).empty:
+            raise NotImplementedError("Deduping column names is not implemented")
+
+        left_expr_bldr = self._block.expr.builder()
+        right_expr_bldr = other._block.expr.builder()
+
+        for col in right_expr_bldr.columns:
+            if col.compile() not in [col.compile() for col in left_expr_bldr.columns]:
+                left_expr_bldr.columns.append(col)
+
+        right_expr_bldr.columns = left_expr_bldr.columns
+
+        if (
+            left_expr_bldr.build()
+            .to_ibis_expr()
+            .equals(right_expr_bldr.build().to_ibis_expr())
+        ):
+            block = self._block.copy()
+            block.expr = left_expr_bldr.build()
+            return DataFrame(block)
+        else:
+            raise NotImplementedError("True joins are not implemented in .join yet")
+
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)
 

@@ -23,12 +23,13 @@ def build_paramlist(indent: int, **kwargs) -> str:
     return indent_str + f",\n{indent_str}".join(param_strs)
 
 
-def create_replace_model(
+def create_model(
     model_name: str,
     source_sql: str,
     options: Dict[str, Union[str, int, float, List[str]]],
 ) -> str:
-    return f"""CREATE OR REPLACE MODEL `{model_name}`
+    # TODO(bmil): This should be CREATE TEMP MODEL after b/145824779 is fixed
+    return f"""CREATE MODEL `{model_name}`
 OPTIONS (
 {build_paramlist(indent=1, **options)}
 ) AS {source_sql}"""
@@ -36,12 +37,12 @@ OPTIONS (
 
 def ml_evaluate(model_name: str, source_sql: Union[str, None] = None) -> str:
     if source_sql is None:
-        return f"""ML.EVALUATE(model_name="{model_name}")"""
+        return f"""SELECT * FROM ML.EVALUATE(MODEL `{model_name}`)"""
     else:
-        return f"""ML.EVALUATE(model_name="{model_name}",
+        return f"""SELECT * FROM ML.EVALUATE(MODEL `{model_name}`,
   ({source_sql}))"""
 
 
 def ml_predict(model_name: str, source_sql: str) -> str:
-    return f"""ML.PREDICT(model_name="{model_name}",
+    return f"""SELECT * FROM ML.PREDICT(MODEL `{model_name}`,
   ({source_sql}))"""

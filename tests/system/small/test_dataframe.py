@@ -4,19 +4,7 @@ import pandas as pd
 import pandas.testing
 import pytest
 
-
-def _assert_pandas_df_equal_ignore_ordering(df0, df1):
-    # Sort by a column to get consistent results.
-    if df0.index.name != "rowindex":
-        df0 = df0.sort_values(list(df0.columns)).reset_index(drop=True)
-        df1 = df1.sort_values(list(df1.columns)).reset_index(drop=True)
-
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
-    pd.testing.assert_frame_equal(
-        df0,
-        df1,
-        check_dtype=False,
-    )
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
 def test_get_column(scalars_dfs):
@@ -99,7 +87,7 @@ def test_filter_df(scalars_dfs):
     pd_bool_series = scalars_pandas_df["bool_col"]
     pd_result = scalars_pandas_df[pd_bool_series]
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_assign_new_column(scalars_dfs):
@@ -109,7 +97,7 @@ def test_assign_new_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_assign_existing_column(scalars_dfs):
@@ -119,7 +107,7 @@ def test_assign_existing_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_assign_series(scalars_dfs):
@@ -129,7 +117,7 @@ def test_assign_series(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(new_col=scalars_pandas_df[column_name])
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_assign_sequential(scalars_dfs):
@@ -139,7 +127,7 @@ def test_assign_sequential(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 # Different table expression must have Index
@@ -154,7 +142,7 @@ def test_assign_different_df(
         new_col=scalars_pandas_df_index[column_name]
     )
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_dropna(scalars_dfs):
@@ -163,7 +151,7 @@ def test_dropna(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.dropna()
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -195,7 +183,7 @@ def test_merge(scalars_dfs, merge_how):
         scalars_pandas_df[right_columns], merge_how, on
     )
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_get_dtypes(scalars_df_no_index):
@@ -234,7 +222,7 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
     bf_result = df.compute()
     pd_result = scalars_pandas_df_index.reset_index(drop=drop)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -255,7 +243,7 @@ def test_set_index(scalars_dfs, index_column, drop):
     pd_result = scalars_pandas_df.set_index(index_column, drop=drop)
 
     # Sort to disambiguate when there are duplicate index labels.
-    # Note: Doesn't use _assert_pandas_df_equal_ignore_ordering because we get
+    # Note: Doesn't use assert_pandas_df_equal_ignore_ordering because we get
     # "ValueError: 'timestamp_col' is both an index level and a column label,
     # which is ambiguous" when trying to sort by a column with the same name as
     # the index.
@@ -272,7 +260,7 @@ def test_df_abs(scalars_dfs):
     bf_result = scalars_df[columns].abs().compute()
     pd_result = scalars_pandas_df[columns].abs()
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_df_isnull(scalars_dfs):
@@ -284,7 +272,7 @@ def test_df_isnull(scalars_dfs):
 
     # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `BooleanDtype` but
     # the `pd_result.dtype` is `bool`.
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_df_notnull(scalars_dfs):
@@ -296,7 +284,7 @@ def test_df_notnull(scalars_dfs):
 
     # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `BooleanDtype` but
     # the `pd_result.dtype` is `bool`.
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -328,7 +316,7 @@ def test_scalar_bi_op(scalars_dfs, operator, other_scalar, reverse_operands):
     bf_result = maybe_reversed_op(scalars_df[columns], other_scalar).compute()
     pd_result = maybe_reversed_op(scalars_pandas_df[columns], other_scalar)
 
-    _assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_scalar_bi_op_str_exception(scalars_dfs):
@@ -336,3 +324,41 @@ def test_scalar_bi_op_str_exception(scalars_dfs):
     columns = ["string_col"]
     with pytest.raises(TypeError):
         (scalars_df[columns] + 1).compute()
+
+
+def test_join_outer_reproject(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_a = scalars_df[["string_col", "int64_col"]]
+    df_b = scalars_df[["float64_col"]]
+    result = df_a.join(df_b, how="outer").compute()
+
+    pdf_a = scalars_pandas_df[["string_col", "int64_col"]]
+    pdf_b = scalars_pandas_df[["float64_col"]]
+    expected = pdf_a.join(pdf_b, how="outer")
+
+    assert_pandas_df_equal_ignore_ordering(result, expected)
+
+
+def test_join_outer_truejoin_raises_not_implemented(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    df_a = scalars_df[["string_col", "int64_col"]]
+    df_b = scalars_df.dropna()[["float64_col"]]
+    with pytest.raises(NotImplementedError):
+        df_a.join(df_b, how="outer")
+
+
+def test_join_not_outer_raises_not_implemented(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    df_a = scalars_df[["string_col", "int64_col"]]
+    df_b = scalars_df[["float64_col"]]
+    with pytest.raises(NotImplementedError):
+        df_a.join(df_b, how="right").compute()
+
+
+def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    df_a = scalars_df[["string_col", "float64_col"]]
+    df_b = scalars_df[["float64_col"]]
+    with pytest.raises(NotImplementedError):
+        df_a.join(df_b, how="outer").compute()

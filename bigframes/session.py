@@ -80,6 +80,13 @@ class Session:
         self.bqclient = self.ibis_client.client
         self._create_and_bind_bq_session()
 
+    @property
+    def _session_dataset_id(self):
+        """A dataset for storing temporary objects local to the session
+        This is a workaround for BQML models (and remote functions?) that do not yet support
+        session-temporary instances."""
+        return self._session_dataset.dataset_id
+
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:
         go/bigframes-transient-data"""
@@ -97,6 +104,18 @@ class Session:
                 bigquery.ConnectionProperty("session_id", self._session_id)
             ]
         )
+
+        # Dataset for storing BQML models and remote functions, which don't yet support proper
+        # session temporary storage yet
+        # TODO(b/276793359): set location dynamically per go/bigframes-transient-data
+        self._session_dataset = bigquery.Dataset(
+            f"{self.bqclient.project}.bigframes_temp_us"
+        )
+        self._session_dataset.default_table_expiration_ms = 24 * 60 * 60 * 1000
+
+        # TODO: handle case when the dataset does not exist and the user does not have permission
+        # to create one (bigquery.datasets.create IAM)
+        self.bqclient.create_dataset(self._session_dataset, exists_ok=True)
 
     def close(self):
         """Terminated the BQ session, otherwises the session will be terminated automatically after
