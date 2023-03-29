@@ -10,8 +10,8 @@ import bigframes.core.indexes
 
 def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):
     if isinstance(left.index, pd.RangeIndex) or isinstance(right.index, pd.RangeIndex):
-        left = left.sort_values(ignore_index=True)
-        right = right.sort_values(ignore_index=True)
+        left = left.sort_values().reset_index(drop=True)
+        right = right.sort_values().reset_index(drop=True)
     else:
         left = left.sort_index()
         right = right.sort_index()
@@ -727,6 +727,9 @@ def test_head_then_series_operation(scalars_dfs):
 
 
 def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
+    if pd.__version__.startswith("2."):
+        pytest.skip("Series.cumsum NA mask are different in pandas 2.x.")
+
     col_name = "int64_col"
     bf_result = scalars_df_index[col_name].cumsum().compute()
     # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA

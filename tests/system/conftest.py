@@ -1,10 +1,10 @@
 import base64
-import datetime
 import decimal
 import pathlib
 import typing
 from typing import Collection
 
+import db_dtypes  # type: ignore
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
@@ -168,25 +168,23 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
         # Convert default pandas dtypes to match BigFrames dtypes.
         dtype={
             "bool_col": pd.BooleanDtype(),
+            # TODO(swast): Needs microsecond precision support:
+            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
+            "date_col": db_dtypes.DateDtype(),
             "int64_col": pd.Int64Dtype(),
             "int64_too": pd.Int64Dtype(),
             "float64_col": pd.Float64Dtype(),
             "rowindex": pd.Int64Dtype(),
             "string_col": pd.StringDtype(storage="pyarrow"),
+            # TODO(swast): Needs microsecond precision support:
+            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
+            "time_col": db_dtypes.TimeDtype(),
         },
     )
     df["bytes_col"] = df["bytes_col"].apply(
         lambda value: base64.b64decode(value) if value else value
     )
-    # TODO(swast): Use db_dtypes.DateDtype() for BigQuery DATE columns. Needs
-    # microsecond precision support:
-    # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-    df["date_col"] = pd.to_datetime(df["date_col"])
     df["datetime_col"] = pd.to_datetime(df["datetime_col"])
-    # TODO(swast): Use db_dtypes.TimeDtype() for BigQuery TIME columns.
-    df["time_col"] = df["time_col"].apply(
-        lambda value: datetime.time.fromisoformat(value) if value else value
-    )
     # TODO(swast): Ensure BigQuery TIMESTAMP columns have UTC timezone.
     df["timestamp_col"] = pd.to_datetime(df["timestamp_col"])
     df["numeric_col"] = df["numeric_col"].apply(
