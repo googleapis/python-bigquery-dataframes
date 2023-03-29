@@ -95,13 +95,14 @@ def test_read_gbq_sql_w_col_order(session):
 
 def test_read_pandas(session, scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    # TODO(chelsealin): read_pandas is not supported index dataframes yet.
-    if scalars_pandas_df.index.name is not None:
-        return
 
     df = session.read_pandas(scalars_pandas_df)
     result = df.compute()
     expected = scalars_df.compute()
+
+    # TODO(osmanamjad): remove when ordering is supported.
+    result = result.sort_values(list(result.columns))
+    expected = expected.sort_values(list(expected.columns))
 
     # TODO(chelsealin): Check the dtypes after supporting all dtypes.
     pd.testing.assert_frame_equal(

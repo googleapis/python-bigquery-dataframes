@@ -33,7 +33,7 @@ dependencies = [
     "fsspec >=2023.3.0",
     "gcsfs >=2023.3.0",
     "google-auth >2.14.1,<3.0dev",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.8.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.9.0",
     "google-cloud-functions >=1.10.1",
     "google-cloud-storage >=2.0.0",
     "ibis-framework[bigquery] >=4.0.0",

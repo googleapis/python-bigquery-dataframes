@@ -28,7 +28,7 @@ gcsfs==2023.3.0
 google-api-core==2.11.0
 google-auth==2.17.0
 google-auth-oauthlib==1.0.0
-google-cloud-bigquery==3.8.0
+google-cloud-bigquery==3.9.0
 google-cloud-bigquery-storage==2.19.1
 google-cloud-core==2.3.2
 google-cloud-functions==1.10.1

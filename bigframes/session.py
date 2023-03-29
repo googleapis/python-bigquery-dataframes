@@ -170,7 +170,14 @@ class Session:
         )
         load_job.result()  # Wait for the job to complete
 
-        return self.read_gbq(f"SELECT * FROM `{table_name}`")
+        # Both default indexes and unnamed non-default indexes are treated the same
+        # and are not copied to BigQuery when load_table_from_dataframe executes
+        if pandas_dataframe.index.name and pandas_dataframe.index.names:
+            return self.read_gbq(
+                f"SELECT * FROM `{table_name}`", index_cols=pandas_dataframe.index.names
+            )
+        else:
+            return self.read_gbq(f"SELECT * FROM `{table_name}`")
 
 
 def connect(context: Optional[Context] = None) -> Session:
