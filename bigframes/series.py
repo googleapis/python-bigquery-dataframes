@@ -22,7 +22,6 @@ import bigframes.dtypes
 import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.scalar
-import bigframes.view_windows
 
 
 class Series:
@@ -67,6 +66,14 @@ class Series:
         No get or slice support currently supported.
         """
         return bigframes.indexers.LocSeriesIndexer(self)
+
+    @property
+    def iloc(self) -> bigframes.indexers.IlocSeriesIndexer:
+        """Get items by slice.
+
+        No set operations currently supported.
+        """
+        return bigframes.indexers.IlocSeriesIndexer(self)
 
     @property
     def name(self) -> Optional[str]:
@@ -167,12 +174,7 @@ class Series:
 
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
-        return ViewSeries(
-            self._block,
-            self._value_column,
-            bigframes.view_windows.SliceViewWindow(0, n),
-            name=self._name,
-        )
+        return typing.cast(Series, self.iloc[0:n])
 
     def len(self) -> "Series":
         """Compute the length of each string."""
@@ -568,33 +570,6 @@ class Series:
         """Returns a series with a user defined function applied."""
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         return self._apply_unary_op(func)
-
-
-class ViewSeries(Series):
-    """
-    A series representing a view of underlying data. May filter and/or reorder underlying data.
-
-    Mutations on cells in the view series propogate back to the parent series.
-    """
-
-    def __init__(
-        self,
-        block: blocks.Block,
-        value_column: str,
-        view_window: bigframes.view_windows.SliceViewWindow,
-        **kwargs,
-    ):
-        super().__init__(block, value_column, **kwargs)
-        self._view_window = view_window
-
-    @property
-    def _viewed_block(self) -> blocks.Block:
-        """Gets a copy of block after any views have been applied. Mutations to this copy do not affect any existing series/dataframes."""
-        return self._view_window.apply_window(self._block)
-
-    def head(self, n: int = 5) -> Series:
-        # TODO(tbergeron): Implement stacked view windows.
-        raise NotImplementedError("Recursively applying windows not yet supported.")
 
 
 class SeriesGroupyBy:

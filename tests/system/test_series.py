@@ -236,7 +236,6 @@ def test_series_int_int_operators_scalar(
     ],
 )
 def test_series_int_int_operators_series(scalars_dfs, operator):
-    # Enable floordivide and modulo once tests migrated fully to nullable types.
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
@@ -786,6 +785,45 @@ def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
     bf_result = scalars_df_index[col_name].cummax().compute()
     pd_result = scalars_pandas_df_index[col_name].cummax()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_iloc_nested(scalars_df_index, scalars_pandas_df_index):
+
+    bf_result = scalars_df_index["string_col"].iloc[1:].iloc[1:].compute()
+    pd_result = scalars_pandas_df_index["string_col"].iloc[1:].iloc[1:]
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("start", "stop", "step"),
+    [
+        (1, None, None),
+        (None, 4, None),
+        (None, None, 2),
+        (None, 50000000000, 1),
+        (5, 4, None),
+        (3, None, 2),
+        (1, 7, 2),
+        (1, 7, 50000000000),
+    ],
+)
+def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
+    bf_result = scalars_df_index["string_col"].iloc[start:stop:step].compute()
+    pd_result = scalars_pandas_df_index["string_col"].iloc[start:stop:step]
+
+    # Pandas may assign non-object dtype to empty series and series index
+    if pd_result.empty:
+        pd_result = pd_result.astype("object")
+        pd_result.index = pd_result.index.astype("object")
 
     pd.testing.assert_series_equal(
         bf_result,

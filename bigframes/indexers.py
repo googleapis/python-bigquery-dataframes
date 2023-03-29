@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import functools
+import typing
+
 import ibis
 
+import bigframes.core.blocks as blocks
 import bigframes.core.indexes.index
 import bigframes.series
 
@@ -44,3 +48,47 @@ class LocSeriesIndexer:
             else:
                 all_columns.append(new_value)
         block.expr = block.expr.projection(all_columns)
+
+
+class IlocSeriesIndexer:
+    def __init__(self, series: bigframes.series.Series):
+        self._series = series
+
+    def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.series.Series:
+        if isinstance(key, slice):
+            return self._slice(key.start, key.stop, key.step)
+        if isinstance(key, list):
+            # TODO(tbergeron): Implement list, may require fixing ibis table literal support
+            raise NotImplementedError("iloc does not yet support single offsets")
+        elif isinstance(key, int):
+            # TODO(tbergeron): Implement iloc for single offset returning deferred scalar
+            raise NotImplementedError("iloc does not yet support single offsets")
+        else:
+            raise TypeError("Invalid argument type.")
+
+    def _slice(
+        self,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ):
+        expr_with_offsets = self._series._block.expr.project_offsets()
+        cond_list = []
+        # TODO(tbergeron): Handle negative indexing
+        if start:
+            cond_list.append(expr_with_offsets.offsets >= start)
+        if stop:
+            cond_list.append(expr_with_offsets.offsets < stop)
+        if step:
+            # TODO(tbergeron): Reverse the ordering if negative step
+            start = start if start else 0
+            cond_list.append((expr_with_offsets.offsets - start) % step == 0)
+        if not cond_list:
+            return self._series
+        block = blocks.Block(
+            expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
+            index_columns=self._series._block.index_columns,
+        )
+        return bigframes.Series(
+            block, self._series._value_column, name=self._series.name
+        )
