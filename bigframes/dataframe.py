@@ -435,7 +435,11 @@ class DataFrame:
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         destination_table = query_job.destination
-        extract_job = bqclient.extract_table(destination_table, destination_uris=[path])
+        extract_config = bigquery.ExtractJobConfig()
+        extract_config.destination_format = bigquery.DestinationFormat.PARQUET
+        extract_job = bqclient.extract_table(
+            destination_table, destination_uris=[path], job_config=extract_config
+        )
         extract_job.result()
 
     def _apply_to_rows(self, operation):
