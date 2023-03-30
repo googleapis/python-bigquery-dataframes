@@ -18,28 +18,32 @@ def numeric_op(operation):
 
 
 @numeric_op
-def sum_op(column: ibis_types.NumericColumn) -> ibis_types.NumericScalar:
+def sum_op(column: ibis_types.NumericColumn) -> ibis_types.NumericValue:
     return column.sum()
 
 
 @numeric_op
-def mean_op(column: ibis_types.NumericColumn) -> ibis_types.NumericScalar:
+def mean_op(column: ibis_types.NumericColumn) -> ibis_types.NumericValue:
     return column.mean()
 
 
-def max_op(column: ibis_types.Column) -> ibis_types.Scalar:
+def max_op(column: ibis_types.Column) -> ibis_types.Value:
     return column.max()
 
 
-def min_op(column: ibis_types.Column) -> ibis_types.Scalar:
+def min_op(column: ibis_types.Column) -> ibis_types.Value:
     return column.min()
 
 
-def count_op(column: ibis_types.Column) -> ibis_types.IntegerScalar:
+def count_op(column: ibis_types.Column) -> ibis_types.IntegerValue:
     return column.count()
 
 
-def all_op(column: ibis_types.Column) -> ibis_types.BooleanScalar:
+def rank(column: ibis_types.Column) -> ibis_types.IntegerValue:
+    return column.rank()
+
+
+def all_op(column: ibis_types.Column) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be true in pandas.
     return typing.cast(
         ibis_types.BooleanScalar,
@@ -49,7 +53,7 @@ def all_op(column: ibis_types.Column) -> ibis_types.BooleanScalar:
     )
 
 
-def any_op(column: ibis_types.Column) -> ibis_types.BooleanScalar:
+def any_op(column: ibis_types.Column) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be false in pandas.
     return typing.cast(
         ibis_types.BooleanScalar,

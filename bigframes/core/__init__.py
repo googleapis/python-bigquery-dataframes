@@ -137,7 +137,19 @@ class BigFramesExpr:
 
     @property
     def ordering(self) -> Sequence[ibis_types.Value]:
-        return self._ordering.all_ordering_columns if self._ordering else ()
+        """Returns a sequence of ibis values which can be directly used to order a tabel expression. Has direction modifiers applied."""
+        if not self._ordering:
+            return []
+        if self._ordering.is_ascending:
+            return [
+                ibis.asc(ordering_value)
+                for ordering_value in self._ordering.all_ordering_columns
+            ]
+        else:
+            return [
+                ibis.desc(ordering_value)
+                for ordering_value in self._ordering.all_ordering_columns
+            ]
 
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
@@ -159,7 +171,12 @@ class BigFramesExpr:
 
     def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
         expr = self
-        ordering_column_names = [column.get_name() for column in self.ordering]
+
+        ordering_column_names = []
+        if self._ordering:
+            ordering_column_names = [
+                column.get_name() for column in self._ordering.all_ordering_columns
+            ]
 
         # Must generate offsets if we are dropping a column that ordering depends on
         if set(columns).intersection(ordering_column_names):
@@ -174,7 +191,7 @@ class BigFramesExpr:
         expr_builder.columns = remain_cols
         return expr_builder.build()
 
-    def get_column(self, key: str) -> ibis_types.Value:
+    def get_column(self, key: str) -> ibis_types.Column:
         """Gets the Ibis expression for a given column."""
         if key not in self._column_names.keys():
             raise ValueError(
@@ -182,7 +199,7 @@ class BigFramesExpr:
                     key, self._column_names.keys()
                 )
             )
-        return self._column_names[key]
+        return typing.cast(ibis_types.Column, self._column_names[key])
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
         table = self.to_ibis_expr(order_results=True).limit(max_results)

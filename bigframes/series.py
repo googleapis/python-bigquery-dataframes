@@ -112,57 +112,13 @@ class Series:
         return series
 
     def cumsum(self) -> Series:
-        window = ibis.cumulative_window(
-            order_by=self._block.expr.ordering,
-            group_by=self._block.expr.reduced_predicate,
-        )
-
-        def cumsum_op(x: ibis_types.Value):
-            # Emulate pandas by return NA for every value after first NA
-            # Might be worth diverging here to make cumsum more useful
-            x_numeric = typing.cast(ibis_types.NumericColumn, x)
-            have_seen_na = (
-                typing.cast(ibis_types.BooleanColumn, x_numeric.isnull())
-                .any()
-                .over(window)
-            )
-            cumsum = x_numeric.sum().over(window)
-            pandas_style_cumsum = (
-                ibis.case().when(have_seen_na, ibis.NA).else_(cumsum).end()
-            )
-            return pandas_style_cumsum
-
-        return self._apply_unary_op(cumsum_op)
+        return self._apply_cumulative_aggregate(agg_ops.sum_op)
 
     def cummax(self) -> Series:
-        window = ibis.cumulative_window(
-            order_by=self._block.expr.ordering,
-            group_by=self._block.expr.reduced_predicate,
-        )
-
-        def cummax_op(x: ibis_types.Value):
-            cummax = typing.cast(ibis_types.NumericColumn, x).max().over(window)
-            pandas_style_cummax = (
-                ibis.case().when(x.isnull(), ibis.NA).else_(cummax).end()
-            )
-            return pandas_style_cummax
-
-        return self._apply_unary_op(cummax_op)
+        return self._apply_cumulative_aggregate(agg_ops.max_op)
 
     def cummin(self) -> Series:
-        window = ibis.cumulative_window(
-            order_by=self._block.expr.ordering,
-            group_by=self._block.expr.reduced_predicate,
-        )
-
-        def cummin_op(x: ibis_types.Value):
-            cummin = typing.cast(ibis_types.NumericColumn, x).min().over(window)
-            pandas_style_cummin = (
-                ibis.case().when(x.isnull(), ibis.NA).else_(cummin).end()
-            )
-            return pandas_style_cummin
-
-        return self._apply_unary_op(cummin_op)
+        return self._apply_cumulative_aggregate(agg_ops.min_op)
 
     def fillna(self, value) -> "Series":
         """Fills NULL values."""
@@ -440,9 +396,45 @@ class Series:
 
     def _apply_aggregation(
         self,
-        op: typing.Callable[[ibis_types.Column], ibis_types.Scalar],
+        op: typing.Callable[[ibis_types.Column], ibis_types.Value],
     ) -> bigframes.scalar.Scalar:
-        return bigframes.scalar.Scalar(op(self[self.notnull()]._to_ibis_expr()))
+        aggregation_result = typing.cast(
+            ibis_types.Scalar, op(self[self.notnull()]._to_ibis_expr())
+        )
+        return bigframes.scalar.Scalar(aggregation_result)
+
+    def _apply_cumulative_aggregate(
+        self, op: typing.Callable[[ibis_types.Column], ibis_types.Value]
+    ):
+        expr = self._block.expr
+        # TODO: Push this down into expression objects
+        window = ibis.cumulative_window(
+            order_by=expr.ordering,
+            group_by=expr.reduced_predicate,
+        )
+
+        def cumulative_op(x: ibis_types.Column):
+            cumop = op(x).over(window)
+            # Pandas cumulative ops will result in NA if input row was NA, instead of current cumulative value
+            pandas_style_cumop = (
+                ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
+            )
+            return pandas_style_cumop
+
+        block = blocks.Block(expr, self._block.index_columns)
+        block.index.name = self.index.name
+        block.replace_value_columns(
+            [
+                cumulative_op(expr.get_column(self._value_column)).name(
+                    self._value_column
+                )
+            ]
+        )
+        return Series(
+            block,
+            self._value_column,
+            name=self._value_column,
+        )
 
     def _apply_unary_op(
         self,
@@ -552,11 +544,13 @@ class Series:
         group_key = self._block.index_columns[0]
         key = block._expr.get_column(group_key)
         value = self._value
-        if dropna:
-            filtered_expr = block.expr.filter((key.notnull()))
-            block.expr = filtered_expr
         return SeriesGroupyBy(
-            block, value.get_name(), key.get_name(), value_name=self.name
+            block,
+            value.get_name(),
+            key.get_name(),
+            value_name=self.name,
+            key_name=self.index.name,
+            dropna=dropna,
         )
 
     def _groupby_series(
@@ -564,10 +558,9 @@ class Series:
         by: Series,
         dropna: bool = True,
     ):
-        if dropna:
-            by = by[by.notna()]
+        block = self._viewed_block
         (value, key, index) = self._align(by, "inner" if dropna else "left")
-        block = blocks.Block(index._expr)
+        block = self._viewed_block
         block.index = index
         return SeriesGroupyBy(
             block,
@@ -575,6 +568,7 @@ class Series:
             key.get_name(),
             value_name=self.name,
             key_name=by.name,
+            dropna=dropna,
         )
 
     def apply(self, func) -> Series:
@@ -593,14 +587,15 @@ class SeriesGroupyBy:
         by: str,
         value_name: typing.Optional[str] = None,
         key_name: typing.Optional[str] = None,
+        dropna=True,
     ):
         # TODO(tbergeron): Support more group-by expression types
-        # TODO(tbergeron): Implement as a view
         self._block = block
         self._value_column = value_column
         self._by = by
         self._value_name = value_name
         self._key_name = key_name
+        self._dropna = dropna  # Applies to aggregations but not windowing
 
     @property
     def value(self):
@@ -626,13 +621,65 @@ class SeriesGroupyBy:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
         return self._aggregate(agg_ops.mean_op)
 
+    def cumsum(self) -> Series:
+        return self._cumulative_aggregate(agg_ops.sum_op)
+
+    def cummax(self) -> Series:
+        return self._cumulative_aggregate(agg_ops.max_op)
+
+    def cummin(self) -> Series:
+        return self._cumulative_aggregate(agg_ops.min_op)
+
+    def cumcount(self) -> Series:
+        return self._cumulative_aggregate(
+            agg_ops.rank, ignore_na=False, discard_name=True
+        )
+
     def _aggregate(self, aggregate_op: typing.Any) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
         result_expr = group_expr.aggregate(self._value_column, aggregate_op)
+        if self._dropna:
+            result_expr = result_expr.filter(
+                ops.notnull_op(result_expr.get_column(self._by))
+            )
         block = blocks.Block(result_expr, index_columns=[self._by])
         if self._key_name:
             block.index.name = self._key_name
         return Series(block, self._value_column, name=self._value_name)
+
+    def _cumulative_aggregate(
+        self,
+        op: typing.Callable[[ibis_types.Column], ibis_types.Value],
+        ignore_na=True,
+        discard_name=False,
+    ):
+        expr = self._block.expr
+        if expr.reduced_predicate:
+            expr = expr.filter(expr.reduced_predicate)
+        window = ibis.cumulative_window(
+            order_by=expr.ordering, group_by=expr.get_column(self._by)
+        )
+
+        def cumulative_op(x: ibis_types.Column):
+            cumop = op(x).over(window)
+            if ignore_na:
+                cumop = ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
+            return cumop
+
+        block = blocks.Block(expr, self._block.index_columns)
+        block.index.name = self._block.index.name
+        block.replace_value_columns(
+            [
+                cumulative_op(expr.get_column(self._value_column)).name(
+                    self._value_column
+                )
+            ]
+        )
+        return Series(
+            block,
+            self._value_column,
+            name=self._value_name if not discard_name else None,
+        )
 
 
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:

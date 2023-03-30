@@ -678,6 +678,38 @@ def test_groupby_mean(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x: x.cumsum()),
+        (lambda x: x.cumcount()),
+        (lambda x: x.cummin()),
+        (lambda x: x.cummax()),
+    ],
+    ids=[
+        "cumsum",
+        "cumcount",
+        "cummin",
+        "cummax",
+    ],
+)
+def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, operator):
+    col_name = "int64_col"
+    group_key = "int64_too"  # has some duplicates values, good for grouping
+    bf_series = (
+        operator(scalars_df_index[col_name].groupby(scalars_df_index[group_key]))
+    ).compute()
+    pd_series = operator(
+        scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
+    ).astype(pd.Int64Dtype())
+    print(pd_series)
+    print(bf_series)
+    pd.testing.assert_series_equal(
+        pd_series,
+        bf_series,
+    )
+
+
+@pytest.mark.parametrize(
     ["start", "stop"], [(0, 1), (3, 5), (100, 101), (None, 1), (0, 12), (0, None)]
 )
 def test_slice(scalars_dfs, start, stop):
@@ -744,8 +776,8 @@ def test_head_then_series_operation(scalars_dfs):
 
 
 def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
-    if pd.__version__.startswith("2."):
-        pytest.skip("Series.cumsum NA mask are different in pandas 2.x.")
+    if pd.__version__.startswith("1."):
+        pytest.skip("Series.cumsum NA mask are different in pandas 1.x.")
 
     col_name = "int64_col"
     bf_result = scalars_df_index[col_name].cumsum().compute()
@@ -778,9 +810,7 @@ def test_cumsum_float(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     bf_result = scalars_df_index[col_name].cumsum().compute()
     # cumsum does not behave well on nullable floats in pandas, produces object type and never ignores NA
-    pd_result = (
-        scalars_pandas_df_index[col_name].cumsum(skipna=False).astype(pd.Float64Dtype())
-    )
+    pd_result = scalars_pandas_df_index[col_name].cumsum().astype(pd.Float64Dtype())
 
     pd.testing.assert_series_equal(
         bf_result,
