@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, ResourceExhausted
 from google.cloud import functions_v2
 import ibis.expr.datatypes as dt
 import pandas
@@ -47,6 +47,16 @@ def cleanup_cloud_functions(bigquery_client, functions_client):
             # successfully, while the other instance will run into this
             # exception. Ignore this exception.
             pass
+        except ResourceExhausted:
+            # This can happen if we are hitting GCP limits, e.g.
+            # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
+            # for quota metric 'Per project mutation requests' and limit
+            # 'Per project mutation requests per minute per region' of service
+            # 'cloudfunctions.googleapis.com' for consumer
+            # 'project_number:1084210331973'.
+            # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
+            # Let's stop further clean up and leave it to later.
+            break
 
 
 def test_remote_function_multiply_with_ibis(
