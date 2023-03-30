@@ -429,31 +429,77 @@ class DataFrame:
 
     notna = notnull
 
-    def to_parquet(self, path):
-        """Write DataFrame to parquet file(s) on GCS."""
+    def to_pandas(self) -> pd.DataFrame:
+        """Writes DataFrame to Pandas DataFrame."""
+        # TODO(chelsealin): Support block parameters.
+        # TODO(chelsealin): Add to_pandas_batches() API.
+        return self.compute()
+
+    def to_csv(self, paths: str) -> None:
+        """Writes DataFrame to comma-separated values (csv) file(s) on GCS.
+
+        Args:
+            paths: a destination URIs of GCS files(s) to store the extracted dataframe in format of
+                ``gs://<bucket_name>/<object_name_or_glob>``.
+                If the data size is more than 1GB, you must use a wildcard to export the data into
+                multiple files and the size of the files varies.
+            columns: a list of columns to write.
+
+        Returns:
+            None.
+        """
+        job_config = bigquery.ExtractJobConfig(
+            destination_format=bigquery.DestinationFormat.CSV
+        )
+        return self._io_extract(paths, job_config)
+
+    def to_parquet(self, paths: str) -> None:
+        """Writes DataFrame to parquet file(s) on GCS.
+
+        Args:
+            paths: a destination URIs of GCS files(s) to store the extracted dataframe in format of
+                ``gs://<bucket_name>/<object_name_or_glob>``.
+                If the data size is more than 1GB, you must use a wildcard to export the data into
+                multiple files and the size of the files varies.
+            columns: a list of columns to write.
+
+        Returns:
+            None.
+        """
+        job_config = bigquery.ExtractJobConfig(
+            destination_format=bigquery.DestinationFormat.PARQUET
+        )
+        return self._io_extract(paths, job_config)
+
+    def _io_extract(
+        self,
+        paths: str,
+        job_config: bigquery.ExtractJobConfig,
+    ):
         # TODO(swast): Support index=True argument.
         # TODO(swast): Can we support partition columns argument?
-        if not path.startswith("gs://"):
+        # TODO(chelsealin): Support local file paths.
+        if not paths.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
+
         expr = self._block.expr
-        bqclient = expr._session.bqclient
         value_columns = (expr.get_column(column_name) for column_name in self.columns)
         expr = expr.projection(value_columns)
         query_job: bigquery.QueryJob = expr.start_query()
         query_job.result()  # Wait for query to finish.
         query_job.reload()  # Download latest job metadata.
+
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        destination_table = query_job.destination
-        extract_config = bigquery.ExtractJobConfig()
-        extract_config.destination_format = bigquery.DestinationFormat.PARQUET
-        extract_job = bqclient.extract_table(
-            destination_table, destination_uris=[path], job_config=extract_config
+        source_table = query_job.destination
+        extract_job = expr._session.bqclient.extract_table(
+            source_table, destination_uris=[paths], job_config=job_config
         )
-        extract_job.result()
+        extract_job.result()  # Wait for extract job to finish
+        return None
 
     def _apply_to_rows(self, operation):
         block = self._block
