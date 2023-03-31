@@ -117,10 +117,10 @@ class Session:
         """Loads DataFrame from Google BigQuery.
 
         Args:
-            query_or_table : a SQL string to be executed or a BigQuery table to be read. The
+            query_or_table: a SQL string to be executed or a BigQuery table to be read. The
               table must be specified in the format of `project.dataset.tablename` or
               `dataset.tablename`.
-            col_order : List of BigQuery column names in the desired order for results DataFrame.
+            col_order: List of BigQuery column names in the desired order for results DataFrame.
             index_cols: List of column names to use as the index or multi-index
 
         Returns:
@@ -178,6 +178,63 @@ class Session:
             )
         else:
             return self.read_gbq(f"SELECT * FROM `{table_name}`")
+
+    def read_csv(
+        self,
+        filepath: str,
+        header: Optional[int] = None,
+    ) -> "DataFrame":
+        """Loads DataFrame from a comma-separated values (csv) file on GCS.
+
+        The CSV file data will be persisted as a temporary BigQuery table, which can be
+        automatically recycled after the Session is closed.
+
+        Args:
+            filepath: a string path including GS and local file.
+
+            header:
+                The number of rows at the top of a CSV file that BigQuery will skip when
+                loading the data.
+                - ``None``: Autodetect tries to detect headers in the first row. If they are
+                not detected, the row is read as data. Otherwise data is read starting from
+                the second row.
+                - ``0``: Instructs autodetect that there are no headers and data should be
+                read starting from the first row.
+                - ``N > 0``: Autodetect skips N-1 rows and tries to detect headers in row N.
+                If headers are not detected, row N is just skipped. Otherwise row N is used
+                to extract column names for the detected schema.
+
+        Returns:
+            A BigFrame DataFrame.
+        """
+        # TODO(chelsealin): Supports more parameters defined at go/bigframes-io-api.
+        # TODO(chelsealin): Supports to read local CSV file.
+        if not filepath.startswith("gs://"):
+            raise NotImplementedError(
+                "Only Google Cloud Storage (gs://...) paths are supported."
+            )
+
+        table_name = f"{uuid.uuid4().hex}"
+        dataset = bigquery.Dataset(
+            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
+        )
+        table = bigquery.Table(dataset.table(table_name))
+
+        job_config = bigquery.LoadJobConfig()
+        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+        job_config.source_format = bigquery.SourceFormat.CSV
+        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+        job_config.autodetect = True
+
+        if header is not None:
+            job_config.skip_leading_rows = header
+
+        load_job = self.bqclient.load_table_from_uri(
+            filepath, table, job_config=job_config
+        )
+        load_job.result()  # Wait for the job to complete
+
+        return self.read_gbq(f"SELECT * FROM `{table_name}`")
 
 
 def connect(context: Optional[Context] = None) -> Session:

@@ -61,12 +61,6 @@ def test_read_gbq_sql(
     df = session.read_gbq(sql, index_cols=index_cols)
     result = df.compute()
 
-    # TODO(chelsealin): Remove astype after b/273365359.
-    result["my_floats"] = result["my_floats"].astype(pd.Float64Dtype())
-    result["my_strings"] = result["my_strings"].astype(
-        pd.StringDtype(storage="pyarrow")
-    )
-
     expected = pd.DataFrame(
         {
             "my_floats": pd.Series(scalars_pandas_df["float64_col"] * 2),
@@ -112,6 +106,41 @@ def test_read_pandas(session, scalars_dfs):
         check_dtype=False,
         check_index_type=False,
     )
+
+
+def test_read_csv(session, scalars_dfs, gcs_folder):
+    scalars_df, _ = scalars_dfs
+    if scalars_df.index.name is not None:
+        path = gcs_folder + "test_to_csv_w_index.csv"
+    else:
+        path = gcs_folder + "test_to_csv_wo_index.csv"
+    scalars_df.to_csv(path)
+    gcs_df = session.read_csv(path)
+
+    # TODO(chelsealin): If we serialize the index, can more easily compare values.
+    pd.testing.assert_index_equal(gcs_df.columns, scalars_df.columns)
+
+    # In the read_csv() API, the BQ load job auto detects the "byte_col" as the STRING type,
+    # and the `numeric_col` as the FLOAT type in BigQuery table.
+    # TODO(chelsealin): check the number of rows is expected with the Daframes.count() API.
+    gcs_df = gcs_df.drop(["bytes_col", "numeric_col"])
+    scalars_df = scalars_df.drop(["bytes_col", "numeric_col"])
+    pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
+
+
+def test_read_csv_w_header(session, scalars_dfs, gcs_folder):
+    scalars_df, _ = scalars_dfs
+    if scalars_df.index.name is not None:
+        path = gcs_folder + "test_to_csv_w_header_w_index.csv"
+    else:
+        path = gcs_folder + "test_to_csv_w_header_wo_index.csv"
+    scalars_df.to_csv(path)
+
+    # Skip the header and the 1st data rows. Without provided schema, the column names
+    # would be like `bool_field_0`, `string_field_1` and etc.
+    # TODO(chelsealin): check the number of rows is expected with the Daframes.count() API.
+    gcs_df = session.read_csv(path, header=2)
+    assert len(gcs_df.columns) == len(scalars_df.columns)
 
 
 def test_session_id(session):
