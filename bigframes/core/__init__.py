@@ -8,8 +8,11 @@ from google.cloud import bigquery
 import ibis
 import ibis.expr.types as ibis_types
 
+import bigframes.guid
+
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
+
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
@@ -19,8 +22,8 @@ class ExpressionOrdering:
 
     def __init__(
         self,
-        ordering_value_columns: Optional[Sequence[ibis_types.Value]] = None,
-        ordering_id_column: Optional[ibis_types.Value] = None,
+        ordering_value_columns: Optional[Sequence[str]] = None,
+        ordering_id_column: Optional[str] = None,
         is_sequential: bool = False,
         ascending: bool = True,
     ):
@@ -39,21 +42,23 @@ class ExpressionOrdering:
         )
 
     def with_ordering_columns(
-        self, ordering_value_columns: Optional[Sequence[ibis_types.Value]] = None
+        self, ordering_value_columns: Optional[Sequence[str]] = None, ascending=True
     ):
         """Creates a new ordering that preserves ordering id, but replaces ordering value column list."""
         return ExpressionOrdering(
             ordering_value_columns,
             self._ordering_id_column,
             is_sequential=False,
+            ascending=ascending,
         )
 
-    @property
-    def all_ordering_columns(self):
-        return (
-            list(self._ordering_value_columns)
-            if self._ordering_id_column is None
-            else [*self._ordering_value_columns, self._ordering_id_column]
+    def with_reverse(self):
+        """Reverses the ordering."""
+        return ExpressionOrdering(
+            self._ordering_value_columns,
+            self._ordering_id_column,
+            is_sequential=False,
+            ascending=(not self._ascending),
         )
 
     @property
@@ -65,8 +70,20 @@ class ExpressionOrdering:
         return self._ascending
 
     @property
-    def ordering_id(self) -> Optional[ibis_types.Value]:
+    def ordering_value_columns(self) -> Sequence[str]:
+        return self._ordering_value_columns
+
+    @property
+    def ordering_id(self) -> Optional[str]:
         return self._ordering_id_column
+
+    @property
+    def all_ordering_columns(self) -> Sequence[str]:
+        return (
+            list(self._ordering_value_columns)
+            if self._ordering_id_column is None
+            else [*self._ordering_value_columns, self._ordering_id_column]
+        )
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
@@ -91,13 +108,14 @@ class BigFramesExpr:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Sequence[ibis_types.Value]] = None,
+        meta_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
-        # TODO: All expressions should have a total ordering.
+        # TODO: Validate ordering
         self._ordering = ordering or ExpressionOrdering()
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
@@ -106,9 +124,16 @@ class BigFramesExpr:
             # TODO(swast): Validate that each column references the same table (or
             # no table for literal values).
             self._columns = tuple(columns)
+
+        # Meta columns store ordering, or other data that doesn't correspond to dataframe columns
+        self._meta_columns = meta_columns or ()
+
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
         self._column_names = {column.get_name(): column for column in self._columns}
+        self._meta_column_names = {
+            column.get_name(): column for column in self._meta_columns
+        }
 
     @property
     def table(self) -> ibis_types.Table:
@@ -140,16 +165,15 @@ class BigFramesExpr:
         """Returns a sequence of ibis values which can be directly used to order a tabel expression. Has direction modifiers applied."""
         if not self._ordering:
             return []
-        if self._ordering.is_ascending:
-            return [
-                ibis.asc(ordering_value)
-                for ordering_value in self._ordering.all_ordering_columns
-            ]
         else:
-            return [
-                ibis.desc(ordering_value)
+            values = [
+                self._get_any_column(ordering_value)
                 for ordering_value in self._ordering.all_ordering_columns
             ]
+            if self._ordering.is_ascending:
+                return [ibis.asc(value) for value in values]
+            else:
+                return [ibis.desc(value) for value in values]
 
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
@@ -160,6 +184,7 @@ class BigFramesExpr:
             self._session,
             self._table,
             self._columns,
+            self._meta_columns,
             ordering=self._ordering,
             predicates=self._predicates,
         )
@@ -170,19 +195,12 @@ class BigFramesExpr:
         return expr.build()
 
     def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
-        expr = self
-
-        ordering_column_names = []
-        if self._ordering:
-            ordering_column_names = [
-                column.get_name() for column in self._ordering.all_ordering_columns
-            ]
-
         # Must generate offsets if we are dropping a column that ordering depends on
-        if set(columns).intersection(ordering_column_names):
-            expr = self.project_offsets()
-        else:
-            expr = self
+        expr = self
+        for ordering_column in set(columns).intersection(
+            self._ordering.ordering_value_columns
+        ):
+            expr = self._hide_column(ordering_column)
 
         expr_builder = expr.builder()
         remain_cols = [
@@ -201,6 +219,27 @@ class BigFramesExpr:
             )
         return typing.cast(ibis_types.Column, self._column_names[key])
 
+    def _get_any_column(self, key: str) -> ibis_types.Column:
+        """Gets the Ibis expression for a given column. Will also get hidden meta columns."""
+        all_columns = {**self._column_names, **self._meta_column_names}
+        if key not in all_columns.keys():
+            raise ValueError(
+                "Column name {} not in set of values: {}".format(
+                    key, all_columns.keys()
+                )
+            )
+        return typing.cast(ibis_types.Column, all_columns[key])
+
+    def _get_meta_column(self, key: str) -> ibis_types.Value:
+        """Gets the Ibis expression for a given metadata column."""
+        if key not in self._meta_column_names.keys():
+            raise ValueError(
+                "Column name {} not in set of values: {}".format(
+                    key, self._meta_column_names.keys()
+                )
+            )
+        return self._meta_column_names[key]
+
     def apply_limit(self, max_results: int) -> BigFramesExpr:
         table = self.to_ibis_expr(order_results=True).limit(max_results)
         # Since we make a new table expression, the old column references now
@@ -216,13 +255,11 @@ class BigFramesExpr:
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
-    def order_by(self, by: Sequence[ibis_types.Value], ascending=True) -> BigFramesExpr:
+    def order_by(self, by: Sequence[str], ascending=True) -> BigFramesExpr:
         # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
-        expr = self.builder()
-        expr.ordering = ExpressionOrdering(
-            ordering_value_columns=by, ascending=ascending
-        )
-        return expr.build()
+        expr_builder = self.builder()
+        expr_builder.ordering = self._ordering.with_ordering_columns(by, ascending)
+        return expr_builder.build()
 
     @property
     def offsets(self):
@@ -230,7 +267,7 @@ class BigFramesExpr:
             raise ValueError(
                 "Expression does not have offsets. Generate them first using project_offsets."
             )
-        return self._ordering.ordering_id
+        return self._get_meta_column(self._ordering.ordering_id)
 
     def project_offsets(self) -> BigFramesExpr:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
@@ -241,18 +278,53 @@ class BigFramesExpr:
         table = self.to_ibis_expr(with_offsets=True, order_results=False)
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
-            ordering_id_column=table[ORDER_ID_COLUMN], is_sequential=True
+            ordering_id_column=ORDER_ID_COLUMN, is_sequential=True
         )
-        return BigFramesExpr(self._session, table, columns=columns, ordering=ordering)
+        return BigFramesExpr(
+            self._session,
+            table,
+            columns=columns,
+            meta_columns=[table[ORDER_ID_COLUMN]],
+            ordering=ordering,
+        )
+
+    def _hide_column(self, column_id) -> BigFramesExpr:
+        """Pushes columns to metadata columns list. Used to hide ordering columns that have been dropped or destructively mutated."""
+        expr_builder = self.builder()
+        # Need to rename column as caller might be creating a new row with the same name but different values.
+        # Can avoid this if don't allow callers to determine ids and instead generate unique ones in this class.
+
+        new_name = bigframes.guid.generate_guid(prefix="bigframes_meta_")
+        expr_builder.meta_columns = [
+            *self._meta_columns,
+            self.get_column(column_id).name(new_name),
+        ]
+
+        ordering_columns = [
+            col if col != column_id else new_name
+            for col in self._ordering.ordering_value_columns
+        ]
+
+        expr_builder.ordering = self._ordering.with_ordering_columns(
+            ordering_columns, self._ordering.is_ascending
+        )
+        return expr_builder.build()
 
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
         # from the same table expression instead of (in addition to?) at
         # construction time.
-        expr = self.builder()
-        expr.columns = list(columns)
-        return expr.build()
+        expr = self
+        for ordering_column in set(self.column_names.keys()).intersection(
+            self._ordering.ordering_value_columns
+        ):
+            # Need to hide ordering columns that are being dropped. Alternatively, could project offsets
+            expr = expr._hide_column(ordering_column)
+        builder = expr.builder()
+        builder.columns = list(columns)
+        new_expr = builder.build()
+        return new_expr
 
     def to_ibis_expr(self, with_offsets=False, order_results=True):
         """Creates an Ibis table expression representing the DataFrame.
@@ -271,26 +343,27 @@ class BigFramesExpr:
         """
         table = self._table
 
-        # "Hidden" columns used only for ordering
-        ordering_only_values = [
-            value
-            for value in self._ordering.all_ordering_columns
-            if value.get_name() not in self._column_names.keys()
-        ]
-
         columns = list(self._columns)
+
+        hidden_ordering_columns = [
+            col
+            for col in self._ordering.all_ordering_columns
+            if col not in self._column_names.keys()
+        ]
 
         if self.reduced_predicate is not None:
             columns.append(self.reduced_predicate)
 
         if with_offsets:
-            window = ibis.window(order_by=self._ordering.all_ordering_columns)
+            window = ibis.window(order_by=self.ordering)
             if self._predicates:
                 window = window.group_by(self.reduced_predicate)
             columns.append(ibis.row_number().name(ORDER_ID_COLUMN).over(window))
 
         if order_results:
-            columns.extend(ordering_only_values)
+            columns.extend(
+                [self._get_meta_column(name) for name in hidden_ordering_columns]
+            )
 
         table = table.select(columns)
 
@@ -312,13 +385,11 @@ class BigFramesExpr:
                 # We drop the non-value columns after the ordering
                 table = table.order_by(
                     [
-                        table[row.get_name()]
-                        if is_ascending
-                        else ibis.desc(table[row.get_name()])
-                        for row in self._ordering.all_ordering_columns
+                        table[col_id] if is_ascending else ibis.desc(table[col_id])
+                        for col_id in [*self._ordering.all_ordering_columns]
                     ]
                 )
-                table = table.drop(*[row.get_name() for row in ordering_only_values])
+            table = table.drop(*hidden_ordering_columns)
 
         return table
 
@@ -354,12 +425,14 @@ class BigFramesExprBuilder:
         session: Session,
         table: ibis_types.Table,
         columns: Collection[ibis_types.Value] = (),
+        meta_columns: Collection[ibis_types.Value] = (),
         ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns)
+        self.meta_columns = list(meta_columns)
         self.ordering = ordering
         self.predicates = list(predicates) if predicates is not None else None
 
@@ -368,6 +441,7 @@ class BigFramesExprBuilder:
             session=self.session,
             table=self.table,
             columns=self.columns,
+            meta_columns=self.meta_columns,
             ordering=self.ordering,
             predicates=self.predicates,
         )

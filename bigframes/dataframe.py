@@ -310,31 +310,30 @@ class DataFrame:
             expr_builder.columns.append(v)
 
         block.expr = expr_builder.build()
+        block.index_columns = self._block.index_columns
         return DataFrame(block)
 
     def _assign_series_join_on_index(self, k, v: bigframes.series.Series) -> DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
             v.index, how="left"
         )
-        expr_builder = joined_index._expr.builder()
 
         # Restore original column names
         columns = []
-        for column in self._block.expr.columns:
-            column_name = column.get_name()
+        for column_name in self._block.value_columns:
             # If it is a replacement, then replace with column from right
             if column_name == k:
                 columns.append(get_column_right(v._value.get_name()).name(column_name))
-            else:
+            elif column_name:
                 columns.append(get_column_left(column_name).name(column_name))
 
         # Assign a new column
-        if k not in self._block.expr.column_names:
+        if k not in self._block.value_columns:
             columns.append(get_column_right(v._value.get_name()).name(k))
 
-        expr_builder.columns = columns
-        block = self._block.copy()
-        block.expr = expr_builder.build()
+        block = blocks.Block(joined_index._expr)
+        block.index = joined_index
+        block.replace_value_columns(columns)
         return DataFrame(block)
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
@@ -360,7 +359,7 @@ class DataFrame:
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
         if not expr.ordering:
-            expr = expr.order_by([index_expr])
+            expr = expr.order_by([key])
 
         expr = expr.drop_columns(prev_index_columns)
 

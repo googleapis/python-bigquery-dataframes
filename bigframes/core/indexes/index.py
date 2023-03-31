@@ -89,22 +89,22 @@ class Index(ImplicitJoiner):
 
             return combined_table[key]
 
-        joined_index = ibis.coalesce(
+        joined_index_col = ibis.coalesce(
             get_column_left(self._index_column), get_column_right(other._index_column)
         ).name(index_name_orig + "_z")
 
         # TODO: Can actually ignore original index values post-join
         columns = tuple(combined_table[key] for key in combined_table.columns) + (
-            joined_index,
+            joined_index_col,
         )
         combined_expr = BigFramesExpr(self._expr._session, combined_table, columns)
 
         # Always sort by the join key. Note: This differs from pandas, in which
         # the sort order can differ unless explicitly sorted with sort=True.
-        combined_expr = combined_expr.order_by([joined_index])
+        combined_expr = combined_expr.order_by([joined_index_col.get_name()])
 
         combined_index_name = self.name if self.name == other.name else None
         return (
-            Index(combined_expr, joined_index.get_name(), name=combined_index_name),
+            Index(combined_expr, joined_index_col.get_name(), name=combined_index_name),
             (get_column_left, get_column_right),
         )

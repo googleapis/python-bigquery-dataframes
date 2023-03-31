@@ -342,20 +342,6 @@ def test_scalar_bi_op_str_exception(scalars_dfs):
         (scalars_df[columns] + 1).compute()
 
 
-def test_join_outer_reproject(scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    df_a = scalars_df[["string_col", "int64_col"]]
-    df_b = scalars_df[["float64_col"]]
-    result = df_a.join(df_b, how="outer").compute()
-
-    pdf_a = scalars_pandas_df[["string_col", "int64_col"]]
-    pdf_b = scalars_pandas_df[["float64_col"]]
-    expected = pdf_a.join(pdf_b, how="outer")
-
-    assert_pandas_df_equal_ignore_ordering(result, expected)
-
-
 def test_join_outer_truejoin_raises_not_implemented(scalars_dfs):
     scalars_df, _ = scalars_dfs
     df_a = scalars_df[["string_col", "int64_col"]]

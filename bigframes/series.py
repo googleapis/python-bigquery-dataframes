@@ -506,7 +506,7 @@ class Series:
     def value_counts(self):
         counts = self.groupby(self).count()
         block = counts._block
-        block.expr = block.expr.order_by([counts._value], ascending=False)
+        block.expr = block.expr.order_by([counts._value_column], ascending=False)
         return Series(block, counts._value_column, name="count")
 
     def groupby(

@@ -9,8 +9,7 @@ from typing import Callable, Tuple
 import ibis
 import ibis.expr.types as ibis_types
 
-if typing.TYPE_CHECKING:
-    from bigframes.core import BigFramesExpr
+from bigframes.core import BigFramesExpr, ExpressionOrdering
 
 
 class ImplicitJoiner:
@@ -69,21 +68,8 @@ class ImplicitJoiner:
                 f"Left based on: {self._expr.table.compile()}, but "
                 f"right based on: {other._expr.table.compile()}"
             )
-
         left_expr = self._expr
         right_expr = other._expr
-        combined_expr_builder = left_expr.builder()
-
-        left_columns = [
-            left_expr.get_column(key).name(f"{key}_x")
-            for key in left_expr.column_names.keys()
-        ]
-        right_columns = [
-            right_expr.get_column(key).name(f"{key}_y")
-            for key in right_expr.column_names.keys()
-        ]
-
-        combined_expr_builder.columns = left_columns + right_columns
 
         left_predicates = left_expr._predicates
         right_predicates = right_expr._predicates
@@ -93,48 +79,88 @@ class ImplicitJoiner:
             right_relative_predicates,
         ) = _get_relative_predicates(left_predicates, right_predicates)
 
+        combined_predicates = []
         if left_predicates or right_predicates:
             joined_predicates = _join_predicates(
                 left_predicates, right_predicates, join_type=how
             )
-            combined_expr_builder.predicates = list(
+            combined_predicates = list(
                 joined_predicates
             )  # builder expects mutable list
 
-        combined_expr = combined_expr_builder.build()
+        left_mask = left_relative_predicates if how in ["right", "outer"] else None
+        right_mask = right_relative_predicates if how in ["left", "outer"] else None
+        joined_columns = [
+            _mask_value(left_expr.get_column(key), left_mask).name(map_left_id(key))
+            for key in left_expr.column_names.keys()
+        ] + [
+            _mask_value(right_expr.get_column(key), right_mask).name(map_right_id(key))
+            for key in right_expr.column_names.keys()
+        ]
 
-        def get_column_left(key: str) -> ibis_types.Value:
-            if left_relative_predicates and how in ["right", "outer"]:
-                left_reduce_rel_pred = _reduce_predicate_list(left_relative_predicates)
-                return (
-                    ibis.case()
-                    .when(left_reduce_rel_pred, combined_expr.get_column(f"{key}_x"))
-                    .else_(ibis.null())
-                    .end()
-                    .name(f"{key}_x")
-                )
-            else:
-                return combined_expr.get_column(f"{key}_x")
+        new_ordering = ExpressionOrdering()
+        if left_expr._ordering and right_expr._ordering:
+            meta_columns = [
+                left_expr.get_column(key).name(map_left_id(key))
+                for key in left_expr._meta_column_names.keys()
+            ] + [
+                right_expr.get_column(key).name(map_right_id(key))
+                for key in right_expr._meta_column_names.keys()
+            ]
+            new_ordering_id = (
+                map_left_id(left_expr._ordering.ordering_id)
+                if (left_expr._ordering.ordering_id)
+                else None
+            )
+            new_ordering = ExpressionOrdering(
+                ordering_value_columns=(
+                    [
+                        map_left_id(key)
+                        for key in left_expr._ordering.ordering_value_columns
+                    ]
+                    + [
+                        map_right_id(key)
+                        for key in right_expr._ordering.ordering_value_columns
+                    ]
+                ),
+                ordering_id_column=new_ordering_id,
+                ascending=left_expr._ordering.is_ascending,
+            )
 
-        def get_column_right(key: str) -> ibis_types.Value:
-            if right_relative_predicates and how in ["left", "outer"]:
-                right_reduce_rel_pred = _reduce_predicate_list(
-                    right_relative_predicates
-                )
-                return (
-                    ibis.case()
-                    .when(right_reduce_rel_pred, combined_expr.get_column(f"{key}_y"))
-                    .else_(ibis.null())
-                    .end()
-                    .name(f"{key}_y")
-                )
-            else:
-                return combined_expr.get_column(f"{key}_y")
-
-        return ImplicitJoiner(combined_expr, name=self.name), (
-            get_column_left,
-            get_column_right,
+        joined_expr = BigFramesExpr(
+            left_expr._session,
+            left_expr.table,
+            columns=joined_columns,
+            meta_columns=meta_columns,
+            ordering=new_ordering,
+            predicates=combined_predicates,
         )
+        return ImplicitJoiner(joined_expr, name=self.name), (
+            lambda key: joined_expr.get_column(map_left_id(key)),
+            lambda key: joined_expr.get_column(map_right_id(key)),
+        )
+
+
+def map_left_id(left_side_id):
+    return f"{left_side_id}_x"
+
+
+def map_right_id(right_side_id):
+    return f"{right_side_id}_y"
+
+
+def _mask_value(
+    value: ibis_types.Value,
+    predicates: typing.Optional[typing.Sequence[ibis_types.BooleanValue]] = None,
+):
+    if predicates:
+        return (
+            ibis.case()
+            .when(_reduce_predicate_list(predicates), value)
+            .else_(ibis.null())
+            .end()
+        )
+    return value
 
 
 def _join_predicates(
