@@ -65,6 +65,16 @@ def cleanup_datasets(bigquery_client: bigquery.Client) -> None:
 
 
 @pytest.fixture(scope="session")
+def dataset_id_permanent(bigquery_client: bigquery.Client):
+    """Create a dataset if it doesn't exist."""
+    project_id = bigquery_client.project
+    dataset_id = f"{project_id}.bigframes_testing"
+    dataset = bigquery.Dataset(dataset_id)
+    bigquery_client.create_dataset(dataset, exists_ok=True)
+    return dataset_id
+
+
+@pytest.fixture(scope="session")
 def dataset_id(bigquery_client: bigquery.Client):
     """Create (and cleanup) a temporary dataset."""
     project_id = bigquery_client.project
