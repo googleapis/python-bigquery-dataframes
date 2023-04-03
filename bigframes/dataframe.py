@@ -19,7 +19,17 @@ from __future__ import annotations
 import operator
 import re
 import typing
-from typing import Iterable, Literal, Mapping, Optional, Tuple, Union
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import google.cloud.bigquery as bigquery
 import ibis
@@ -43,11 +53,59 @@ class DataFrame:
         ``Session.read_gbq`` to construct a DataFrame.
     """
 
-    def __init__(
-        self,
-        block: blocks.Block,
-    ):
+    def __init__(self, block: blocks.Block, columns: Optional[Sequence[str]] = None):
         self._block = block
+        # One on one match between BF column names and real value column names in BQ SQL.
+        self._col_names = list(columns) if columns else list(self._block.value_columns)
+
+    def _copy(
+        self, columns: Optional[Tuple[Sequence[ibis_types.Value], Sequence[str]]] = None
+    ) -> DataFrame:
+        if not columns:
+            return DataFrame(self._block.copy())
+
+        value_cols, col_names = columns
+        if len(value_cols) != len(col_names):
+            raise ValueError(
+                f"Column sizes not equal. Value columns size: {len(value_cols)}, column names size: {len(col_names)}"
+            )
+
+        block = self._block.copy(value_cols)
+        return DataFrame(block, col_names)
+
+    def _find_indices(
+        self, columns: Union[str, Sequence[str]], tolerance: bool = False
+    ) -> Sequence[int]:
+        """Find corresponding indices in df._column_names for column name(s). Order is kept the same as input names order.
+
+        Args:
+            columns: column name(s)
+            tolerance: True to pass through columns not found. False to raise ValueError.
+        """
+        columns = [columns] if isinstance(columns, str) else columns
+
+        # Dict of {col_name -> [indices]}
+        col_indices_dict: Dict[str, List[int]] = {}
+        for i, col_name in enumerate(self._col_names):
+            col_indices_dict[col_name] = col_indices_dict.get(col_name, [])
+            col_indices_dict[col_name].append(i)
+
+        indices = []
+        for n in columns:
+            if n not in col_indices_dict:
+                if not tolerance:
+                    raise ValueError(f"Column name {n} doesn't exist")
+            else:
+                indices += col_indices_dict[n]
+        return indices
+
+    def _sql_names(
+        self, columns: Union[str, Sequence[str]], tolerance: bool = False
+    ) -> Sequence[str]:
+        """Retrieve sql name (column name in BQ schema) of column(s)."""
+        indices = self._find_indices(columns, tolerance)
+
+        return [self._block.value_columns[i] for i in indices]
 
     @property
     def index(
@@ -58,21 +116,18 @@ class DataFrame:
     @property
     def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
-        schema_elements = [
-            el
-            for el in self._block.expr.to_ibis_expr(ordering_mode="unordered")
+        ibis_dtypes = [
+            dtype
+            for col, dtype in self._block.expr.to_ibis_expr(ordering_mode="unordered")
             .schema()
             .items()
-            if el[0] not in self._block.index_columns
+            if col not in self._block.index_columns
         ]
-        if not schema_elements:
-            return pd.Series(data=[], index=[], dtype="object")
-        column_names, ibis_dtypes = zip(*schema_elements)
         bigframes_dtypes = [
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
             for ibis_dtype in ibis_dtypes
         ]
-        return pd.Series(data=bigframes_dtypes, index=column_names)
+        return pd.Series(data=bigframes_dtypes, index=self._col_names)
 
     @property
     def columns(self) -> pd.Index:
@@ -100,61 +155,35 @@ class DataFrame:
         return self._block.expr.to_ibis_expr(ordering_mode="unordered").compile()
 
     def __getitem__(
-        self, key: Union[str, Iterable[str], bigframes.series.Series]
+        self, key: Union[str, Sequence[str], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
         """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in
         # https://pandas.pydata.org/docs/getting_started/intro_tutorials/03_subset_data.html
 
-        if isinstance(key, str):
+        if isinstance(key, bigframes.series.Series):
+            return self._getitem_bool_series(key)
+
+        sql_names = self._sql_names(key)
+        # Only input is a str and only find one column, returns a Series
+        if isinstance(key, str) and len(sql_names) == 1:
+            sql_name = sql_names[0]
             # Check that the column exists.
             # TODO(swast): Make sure we can't select Index columns this way.
             index_exprs = [
                 self._block.expr.get_column(index_key)
                 for index_key in self._block.index_columns
             ]
-            series_expr = self._block.expr.get_column(key)
+            series_expr = self._block.expr.get_column(sql_name)
             # Copy to emulate "Copy-on-Write" semantics.
             block = self._block.copy()
             # Since we're working with a "copy", we can drop the other value
             # columns. They aren't needed on the Series.
             block.expr = block.expr.projection(index_exprs + [series_expr])
             block.index.name = self._block.index.name
-            return bigframes.series.Series(block, key, name=key)
-
-        if isinstance(key, bigframes.series.Series):
-            if key._to_ibis_expr().type() == ibis_dtypes.bool:
-                # TODO: enforce stricter alignment
-                combined_index, (
-                    get_column_left,
-                    get_column_right,
-                ) = self._block.index.join(key.index, how="left")
-                right = get_column_right(key._value_column)
-
-                aligned_expr = combined_index._expr
-                filtered_expr = aligned_expr.filter((right == ibis.literal(True)))
-
-                # TODO: Change dataframe to store explicit list of value columns and their dataframe label (not internal sql) names
-                column_names = self._block.expr.column_names.keys()
-                expression = filtered_expr.projection(
-                    [
-                        get_column_left(left_col).name(left_col)
-                        for left_col in column_names
-                    ]
-                )
-                block = blocks.Block(expression)
-                block.index = (
-                    indexes.Index(
-                        expression, self.index._index_column, name=self.index.name
-                    )
-                    if isinstance(self.index, indexes.Index)
-                    else indexes.ImplicitJoiner(expression, self.index.name)
-                )
-                return DataFrame(block)
-            else:
-                raise ValueError(
-                    "Only boolean series currently supported for indexing."
-                )
+            # key can only be str or [str] with 1 item when sql_names only has 1 item
+            series_name = key if isinstance(key, str) else key[0]
+            return bigframes.series.Series(block, sql_name, name=series_name)
 
         # Select a subset of columns or re-order columns.
         # In Ibis after you apply a projection, any column objects from the
@@ -169,16 +198,45 @@ class DataFrame:
         # TODO(swast): Do we need to apply an implicit join when doing a
         # projection?
 
-        # TODO(swast): Should we disallow selecting the index column like
-        # any other column?
-        block = self._block.copy()
-        block.replace_value_columns(
-            [self._block.expr.get_column(column_name) for column_name in key]
+        # Select a number of columns as DF.
+        value_cols = self._block.get_value_col_exprs(sql_names)
+        col_names = []
+        for item_name in key:
+            for col_name in self._col_names:
+                if item_name == col_name:
+                    col_names.append(col_name)
+
+        return self._copy((value_cols, col_names))
+
+    # Bool Series selects rows
+    def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
+        if not key._to_ibis_expr().type() == ibis_dtypes.bool:
+            raise ValueError("Only boolean series currently supported for indexing.")
+            # TODO: enforce stricter alignment
+        combined_index, (
+            get_column_left,
+            get_column_right,
+        ) = self._block.index.join(key.index, how="left")
+        right = get_column_right(key._value_column)
+
+        aligned_expr = combined_index._expr
+        filtered_expr = aligned_expr.filter((right == ibis.literal(True)))
+
+        column_names = self._block.expr.column_names.keys()
+        expression = filtered_expr.projection(
+            [get_column_left(left_col).name(left_col) for left_col in column_names]
         )
-        return DataFrame(block)
+
+        block = blocks.Block(expression)
+        block.index = (
+            indexes.Index(expression, self.index._index_column, self.index.name)
+            if isinstance(self.index, indexes.Index)
+            else indexes.ImplicitJoiner(expression, self.index.name)
+        )
+        return DataFrame(block, self._col_names)
 
     def __getattr__(self, key: str):
-        if key not in self._block.expr.column_names:
+        if key not in self._col_names:
             raise AttributeError(key)
         return self.__getitem__(key)
 
@@ -191,6 +249,7 @@ class DataFrame:
         columns = len(job.schema)
         # TODO(swast): Need to set index if we have an index column(s)
         preview = job.to_dataframe()
+        preview = preview.set_axis(self._col_names, axis=1)
 
         # TODO(swast): Print the SQL too?
         # Grab all but the final 2 lines if those are the shape of the DF. So we can replace the row count with
@@ -211,14 +270,14 @@ class DataFrame:
         self, other: float | int, op, reverse: bool = False
     ) -> DataFrame:
         scalar = bigframes.dtypes.literal_to_ibis_scalar(other)
-        block = self._block.copy()
-        expr_builder = block.expr.builder()
-        for i, column in enumerate(expr_builder.columns):
-            if not column.get_name() in block.index_columns:
-                value = op(scalar, column) if reverse else op(column, scalar)
-                expr_builder.columns[i] = value.name(column.get_name())
-        block.expr = expr_builder.build()
-        return DataFrame(block)
+        value_cols = []
+        for value_col in self._block.get_value_col_exprs():
+            value_cols.append(
+                (op(scalar, value_col) if reverse else op(value_col, scalar)).name(
+                    value_col.get_name()
+                )
+            )
+        return self._copy((value_cols, self._col_names))
 
     def add(self, other: float | int) -> DataFrame:
         return self._apply_scalar_bi_op(other, operator.add)
@@ -262,36 +321,33 @@ class DataFrame:
 
     def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
-        return self._block.compute()
+        df = self._block.compute()
+        return df.set_axis(self._col_names, axis=1)
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
-        block = self._block.copy()
-        block.expr = self._block.expr.apply_limit(n)
-        return DataFrame(block)
+        df = self._copy()
+        df._block.expr = self._block.expr.apply_limit(n)
+        return df
 
     def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
         """Drop specified column(s)."""
         if isinstance(columns, str):
             columns = [columns]
+        columns = list(columns)
 
-        # TODO(swast): Validate that we aren't trying to drop the index column.
-        block = self._block.copy()
-        block.expr = self._block.expr.drop_columns(columns)
-        return DataFrame(block)
+        df = self._copy()
+        df._block.expr = self._block.expr.drop_columns(self._sql_names(columns))
+        df._col_names = [
+            col_name for col_name in self._col_names if col_name not in columns
+        ]
+        return df
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
-        expr_builder = self._block.expr.builder()
-
-        for i, col in enumerate(expr_builder.columns):
-            if col.get_name() in columns:
-                expr_builder.columns[i] = col.name(columns[col.get_name()])
-
-        block = self._block.copy()
-        block.expr = expr_builder.build()
-        return DataFrame(block)
+        col_names = [(columns.get(col_name, col_name)) for col_name in self._col_names]
+        return self._copy((self._block.get_value_col_exprs(), col_names))
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
@@ -307,53 +363,62 @@ class DataFrame:
 
         return cur
 
-    def _assign_single_item(self, k, v) -> DataFrame:
+    def _assign_single_item(
+        self, k: str, v: Union[bigframes.series.Series, int, float]
+    ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)
         else:
             return self._assign_scalar(k, v)
 
-    def _assign_scalar(self, k, v) -> DataFrame:
-        v = bigframes.dtypes.literal_to_ibis_scalar(v)
-        block = self._block.copy()
-        expr_builder = block.expr.builder()
-        existing_col_pos_map = {
-            col.get_name(): i for i, col in enumerate(expr_builder.columns)
-        }
+    def _assign_scalar(self, k: str, v: Union[int, float]) -> DataFrame:
+        scalar = bigframes.dtypes.literal_to_ibis_scalar(v)
+        scalar = scalar.name(k)
 
-        v = v.name(k)
+        value_cols = self._block.get_value_col_exprs()
+        col_names = list(self._col_names)
 
-        if k in existing_col_pos_map:
-            expr_builder.columns[existing_col_pos_map[k]] = v
+        sql_names = self._sql_names(k, tolerance=True)
+        if sql_names:
+            for i, value_col in enumerate(value_cols):
+                if value_col.get_name() in sql_names:
+                    value_cols[i] = scalar
         else:
-            expr_builder.columns.append(v)
+            # TODO(garrettwu): Make sure sql name won't conflict.
+            value_cols.append(scalar)
+            col_names.append(k)
 
-        block.expr = expr_builder.build()
-        block.index_columns = self._block.index_columns
-        return DataFrame(block)
+        return self._copy((value_cols, col_names))
 
     def _assign_series_join_on_index(self, k, v: bigframes.series.Series) -> DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
             v.index, how="left"
         )
 
+        sql_names = self._sql_names(k, tolerance=True)
+        col_names = list(self._col_names)
+
         # Restore original column names
-        columns = []
+        value_cols = []
         for column_name in self._block.value_columns:
             # If it is a replacement, then replace with column from right
-            if column_name == k:
-                columns.append(get_column_right(v._value.get_name()).name(column_name))
+            if column_name in sql_names:
+                value_cols.append(
+                    get_column_right(v._value.get_name()).name(column_name)
+                )
             elif column_name:
-                columns.append(get_column_left(column_name).name(column_name))
+                value_cols.append(get_column_left(column_name).name(column_name))
 
         # Assign a new column
-        if k not in self._block.value_columns:
-            columns.append(get_column_right(v._value.get_name()).name(k))
+        if not sql_names:
+            # TODO(garrettwu): make sure sql name doesn't already exist.
+            value_cols.append(get_column_right(v._value.get_name()).name(k))
+            col_names.append(k)
 
         block = blocks.Block(joined_index._expr)
         block.index = joined_index
-        block.replace_value_columns(columns)
-        return DataFrame(block)
+        block.replace_value_columns(value_cols)
+        return DataFrame(block, col_names)
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
@@ -363,16 +428,19 @@ class DataFrame:
         # MultiIndex.
         # TODO(swast): Create new sequential index and materialize.
         block.index_columns = ()
+        col_names = list(self._col_names)
 
         if drop:
             # Even though the index might be part of the ordering, keep that
             # ordering expression as reset_index shouldn't change the row
             # order.
             block.expr = block.expr.drop_columns(original_index_columns)
+        else:
+            col_names = list(original_index_columns) + col_names
 
-        return DataFrame(block)
+        return DataFrame(block, col_names)
 
-    def set_index(self, key: str, *, drop=True) -> DataFrame:
+    def set_index(self, key: str, *, drop: bool = True) -> DataFrame:
         """Set the DataFrame index using existing columns."""
         expr = self._block.expr
         prev_index_columns = self._block.index_columns
@@ -388,16 +456,22 @@ class DataFrame:
 
         expr = expr.drop_columns(prev_index_columns)
 
+        col_names = list(self._col_names)
         index_column_name = key
         if not drop:
             index_column_name = indexes.INDEX_COLUMN_NAME.format(0)
             index_expr = index_expr.name(index_column_name)
             expr = expr.insert_column(0, index_expr)
+        else:
+            col_names.remove(key)
 
         block = self._block.copy()
         block.expr = expr
-        block.index = indexes.Index(expr, index_column=index_column_name, name=key)
-        return DataFrame(block)
+        block.index_columns = self._sql_names(key)
+        block.index = bigframes.core.indexes.index.Index(
+            expr, index_column=index_column_name, name=key
+        )
+        return DataFrame(block, col_names)
 
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
@@ -414,10 +488,10 @@ class DataFrame:
             for column in self._block.expr.columns
             if column.get_name() in self._block.value_columns
         ]
-        block = self._block.copy()
+        df = self._copy()
         for predicate in predicates:
-            block.expr = block.expr.filter(predicate)
-        return DataFrame(block)
+            df._block.expr = df._block.expr.filter(predicate)
+        return df
 
     def merge(
         self,
@@ -431,6 +505,17 @@ class DataFrame:
         if not on:
             raise ValueError("Must specify a column to join on.")
 
+        left_on_sql = self._sql_names(on)
+        # 0 elements alreasy throws an exception
+        if len(left_on_sql) > 1:
+            raise ValueError(f"The column label {on} is not unique.")
+        left_on_sql = left_on_sql[0]
+
+        right_on_sql = right._sql_names(on)
+        if len(right_on_sql) > 1:
+            raise ValueError(f"The column label {on} is not unique.")
+        right_on_sql = right_on_sql[0]
+
         # Drop index column in joins. Consistent with pandas.
         left = self.reset_index(drop=True)
         right = right.reset_index(drop=True)
@@ -440,7 +525,10 @@ class DataFrame:
         right_table = right._block.expr.to_ibis_expr(ordering_mode="unordered")
 
         joined_table = left_table.join(
-            right_table, left_table[on] == right_table[on], how, suffixes=suffixes
+            right_table,
+            left_table[left_on_sql] == right_table[right_on_sql],
+            how,
+            suffixes=suffixes,
         )
         block = blocks.Block(
             bigframes.core.BigFramesExpr(left._block.expr._session, joined_table)
@@ -449,8 +537,8 @@ class DataFrame:
 
         # Ibis emits redundant columns for outer joins. See:
         # https://ibis-project.org/ibis-for-pandas-users/#merging-tables
-        left_on_name = on + suffixes[0]
-        right_on_name = on + suffixes[1]
+        left_on_name = left_on_sql + suffixes[0]
+        right_on_name = right_on_sql + suffixes[1]
         if (
             left_on_name in joined_frame._block.expr.column_names
             and right_on_name in joined_frame._block.expr.column_names
@@ -458,9 +546,33 @@ class DataFrame:
             joined_frame = joined_frame.drop(right_on_name)
             joined_frame = joined_frame.rename({left_on_name: on})
 
+        joined_frame._col_names = self._get_merged_col_names(right, on, suffixes)
+
         return joined_frame
 
-    def join(self, other: DataFrame, *, how: str = "left") -> DataFrame:
+    def _get_merged_col_names(
+        self, right: DataFrame, on: str, suffixes: tuple[str, str] = ("_x", "_y")
+    ) -> List[str]:
+        left_col_names = [
+            (
+                col_name + suffixes[0]
+                if col_name in right._col_names and col_name != on
+                else col_name
+            )
+            for col_name in self._col_names
+        ]
+        right_col_names = [
+            (
+                col_name + suffixes[1]
+                if col_name in self._col_names and col_name != on
+                else col_name
+            )
+            for col_name in right._col_names
+        ]
+        right_col_names.remove(on)
+        return left_col_names + right_col_names
+
+    def join(self, other: DataFrame, how: str) -> DataFrame:
         """Join columns of another dataframe"""
 
         if not self.columns.intersection(other.columns).empty:
@@ -498,7 +610,7 @@ class DataFrame:
         )
         # TODO(swast): Maintain some ordering post-join.
         block.expr = expr_bldr.build()
-        return DataFrame(block)
+        return DataFrame(block, self._col_names + other._col_names)
 
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)
@@ -630,16 +742,12 @@ class DataFrame:
         )
         extract_job.result()  # Wait for extract job to finish
 
-    def _apply_to_rows(self, operation):
-        block = self._block
-        columns = block._expr.columns
-        new_columns = [
-            operation(column).name(column.get_name())
-            for column in columns
-            if column.get_name() not in block.index_columns
+    def _apply_to_rows(self, operation) -> DataFrame:
+        value_cols = [
+            operation(value_col).name(value_col.get_name())
+            for value_col in self._block.get_value_col_exprs()
         ]
-        new_block = block.copy(new_columns)
-        return DataFrame(new_block)
+        return self._copy((value_cols, self._col_names))
 
     def _get_destination_table(
         self, job_config: Optional[bigquery.job.QueryJobConfig] = None

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import itertools
 import typing
-from typing import Iterable, Optional, Sequence, Union
+from typing import Iterable, List, Optional, Sequence, Union
 
 import ibis.expr.types as ibis_types
 import pandas
@@ -165,3 +165,10 @@ class Block:
         for column in itertools.chain(index_columns, value_columns):
             columns.append(column)
         self.expr = self._expr.projection(columns)
+
+    def get_value_col_exprs(
+        self, column_names: Optional[Sequence[str]] = None
+    ) -> List[ibis_types.Value]:
+        """Retrive value column expressions."""
+        column_names = column_names or self.value_columns
+        return [self._expr.get_column(column_name) for column_name in column_names]

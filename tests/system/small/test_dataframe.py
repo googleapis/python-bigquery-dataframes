@@ -85,6 +85,24 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_df_column_name_with_space(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name_dict = {"bool_col": "bool  col"}
+    df_pandas = scalars_df.rename(col_name_dict).compute()
+    pd.testing.assert_index_equal(
+        df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
+    )
+
+
+def test_df_column_name_duplicate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name_dict = {"int64_too": "int64_col"}
+    df_pandas = scalars_df.rename(col_name_dict).compute()
+    pd.testing.assert_index_equal(
+        df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
+    )
+
+
 def test_filter_df(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -189,6 +207,41 @@ def test_merge(scalars_dfs, merge_how):
     pd_result = scalars_pandas_df[left_columns].merge(
         scalars_pandas_df[right_columns], merge_how, on
     )
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("merge_how",),
+    [
+        ("inner",),
+        ("outer",),
+        ("left",),
+        ("right",),
+    ],
+)
+def test_merge_custom_col_name(scalars_dfs, merge_how):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # Pandas join allows on NaN, well BQ excludes those rows.
+    # TODO(garrettwu): Figure out how we want to deal with null values in joins.
+    scalars_df = scalars_df.dropna()
+    scalars_pandas_df = scalars_pandas_df.dropna()
+
+    left_columns = ["int64_col", "float64_col"]
+    right_columns = ["int64_col", "bool_col", "string_col"]
+    on = "int64_col"
+    rename_columns = {"float64_col": "f64_col"}
+
+    left = scalars_df[left_columns]
+    left = left.rename(columns=rename_columns)
+    right = scalars_df[right_columns]
+    df = left.merge(right, merge_how, on)
+    bf_result = df.compute()
+
+    pandas_left_df = scalars_pandas_df[left_columns]
+    pandas_left_df = pandas_left_df.rename(columns=rename_columns)
+    pandas_right_df = scalars_pandas_df[right_columns]
+    pd_result = pandas_left_df.merge(pandas_right_df, merge_how, on)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 

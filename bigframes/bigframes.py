@@ -25,7 +25,7 @@ from bigframes.dataframe import DataFrame
 def concat(objs: Iterable[DataFrame]) -> DataFrame:
     """Concatenate BigFrames objects along rows.
 
-    Note: currently only supports DataFrames with identical schemas (including index columns).
+    Note: currently only supports DataFrames with identical schemas (including index columns) and column names.
     """
     # TODO(garrettwu): Figure out how to support DataFrames with different schema, or emit appropriate error message.
     objs = list(objs)
@@ -34,4 +34,4 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
     expr = bigframes.core.BigFramesExpr(block_0.expr._session, ibis.union(*tables))
 
     block = blocks.Block(expr, block_0.index_columns)
-    return DataFrame(block)
+    return DataFrame(block, objs[0]._col_names)
