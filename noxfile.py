@@ -272,8 +272,7 @@ def system(session):
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
-    system_test_path = os.path.join("tests", "system.py")
-    system_test_folder_path = os.path.join("tests", "system")
+    system_test_folder_path = os.path.join("tests", "system", "small")
 
     # Check the value of `RUN_SYSTEM_TESTS` env var. It defaults to true.
     if os.environ.get("RUN_SYSTEM_TESTS", "true") == "false":
@@ -282,33 +281,45 @@ def system(session):
     if os.environ.get("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false") == "true":
         session.install("pyopenssl")
 
-    system_test_exists = os.path.exists(system_test_path)
-    system_test_folder_exists = os.path.exists(system_test_folder_path)
-    # Sanity check: only run tests if found.
-    if not system_test_exists and not system_test_folder_exists:
-        session.skip("System tests were not found")
+    install_systemtest_dependencies(session, "-c", constraints_path)
+
+    # Run py.test against the system tests.
+    session.run(
+        "py.test",
+        "--quiet",
+        "-n 20",
+        f"--junitxml=system_{session.python}_sponge_log.xml",
+        system_test_folder_path,
+        *session.posargs,
+    )
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def e2e(session):
+    """Run the large tests in system test suite."""
+    constraints_path = str(
+        CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
+    )
+    system_test_folder_path = os.path.join("tests", "system", "large")
+
+    # Check the value of `RUN_SYSTEM_TESTS` env var. It defaults to true.
+    if os.environ.get("RUN_SYSTEM_TESTS", "true") == "false":
+        session.skip("RUN_SYSTEM_TESTS is set to false, skipping")
+    # Install pyopenssl for mTLS testing.
+    if os.environ.get("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false") == "true":
+        session.install("pyopenssl")
 
     install_systemtest_dependencies(session, "-c", constraints_path)
 
     # Run py.test against the system tests.
-    if system_test_exists:
-        session.run(
-            "py.test",
-            "--quiet",
-            "-n 20",
-            f"--junitxml=system_{session.python}_sponge_log.xml",
-            system_test_path,
-            *session.posargs,
-        )
-    if system_test_folder_exists:
-        session.run(
-            "py.test",
-            "--quiet",
-            "-n 20",
-            f"--junitxml=system_{session.python}_sponge_log.xml",
-            system_test_folder_path,
-            *session.posargs,
-        )
+    session.run(
+        "py.test",
+        "--quiet",
+        "-n 20",
+        f"--junitxml=e2e_{session.python}_sponge_log.xml",
+        system_test_folder_path,
+        *session.posargs,
+    )
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -482,4 +493,4 @@ def unit_prerelease(session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def system_prerelease(session):
     """Run the system test suite with prerelease dependencies."""
-    prerelease(session, os.path.join("tests", "system"))
+    prerelease(session, os.path.join("tests", "system", "small"))
