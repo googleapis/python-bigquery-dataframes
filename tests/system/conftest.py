@@ -211,6 +211,16 @@ def scalars_pandas_df_index(
     return scalars_pandas_df_default_index.set_index("rowindex").sort_index()
 
 
+@pytest.fixture(scope="session")
+def scalars_pandas_df_multi_index(
+    scalars_pandas_df_default_index: pd.DataFrame,
+) -> pd.DataFrame:
+    """pandas.DataFrame pointing at test data."""
+    return scalars_pandas_df_default_index.set_index(
+        ["rowindex", "datetime_col"]
+    ).sort_index()
+
+
 @pytest.fixture(scope="session", params=("index", "no_index"))
 def scalars_dfs(
     request,

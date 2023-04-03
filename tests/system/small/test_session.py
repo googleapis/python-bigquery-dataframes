@@ -108,6 +108,11 @@ def test_read_pandas(session, scalars_dfs):
     )
 
 
+def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_index):
+    with pytest.raises(NotImplementedError, match="MultiIndex not supported."):
+        session.read_pandas(scalars_pandas_df_multi_index)
+
+
 def test_read_csv(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
