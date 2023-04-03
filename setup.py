@@ -39,6 +39,7 @@ dependencies = [
     "ibis-framework[bigquery] >=4.0.0",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
+    "pandas-gbq >=0.19.0",
 ]
 
 # Setup boilerplate below this line.

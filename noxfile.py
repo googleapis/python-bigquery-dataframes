@@ -429,6 +429,13 @@ def prerelease(session, tests_path):
         "--no-deps",
         "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
     )
+    # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
+    session.install("--no-deps", "db-dtypes")
+
+    # TODO(b/276800568): Workaround to install pandas-gbq >=0.15.0. The package is
+    # required by test only.
+    session.install("--no-deps", "pandas-gbq")
+
     session.install(
         *set(UNIT_TEST_STANDARD_DEPENDENCIES + SYSTEM_TEST_STANDARD_DEPENDENCIES),
         "-c",
@@ -446,11 +453,10 @@ def prerelease(session, tests_path):
     ) as constraints_file:
         constraints_text = constraints_file.read()
 
-    # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
-    session.install("--no-deps", "db-dtypes")
-
     # Ignore leading whitespace and comment lines.
-    already_installed = frozenset(("db-dtypes", "pandas", "pyarrow", "ibis-framework"))
+    already_installed = frozenset(
+        ("db-dtypes", "pandas", "pyarrow", "ibis-framework", "pandas-gbq")
+    )
     deps = [
         match.group(1)
         for match in re.finditer(

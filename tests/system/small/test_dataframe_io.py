@@ -1,4 +1,6 @@
+import google.api_core.exceptions
 import pandas
+import pytest
 
 
 def test_to_pandas_w_correct_dtypes(scalars_df_no_index):
@@ -48,6 +50,51 @@ def test_to_csv(scalars_dfs, gcs_folder: str):
     # TODO(swast): If we serialize the index, can more easily compare values.
     assert len(gcs_df.index) == len(scalars_pandas_df.index)
     pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
+
+
+def test_to_gbq(scalars_dfs, dataset_id):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if scalars_df.index.name is not None:
+        table_id = "test_to_gbq_w_index"
+    else:
+        table_id = "test_to_gbq_wo_index"
+
+    destination_table = f"{dataset_id}.{table_id}"
+    scalars_df.to_gbq(destination_table)
+
+    # TODO(chelsealin): If we serialize the index, can more easily compare values.
+    gcs_df = pandas.read_gbq(destination_table)
+    assert len(gcs_df.index) == len(scalars_pandas_df.index)
+    pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
+
+
+def test_to_gbq_if_exists(scalars_df_index, scalars_pandas_df_index, dataset_id):
+    destination_table = f"{dataset_id}.test_to_gbq_if_exists"
+    scalars_df_index.to_gbq(destination_table)
+
+    with pytest.raises(google.api_core.exceptions.Conflict):
+        scalars_df_index.to_gbq(destination_table, if_exists="fail")
+
+    scalars_df_index.to_gbq(destination_table, if_exists="append")
+    gcs_df = pandas.read_gbq(destination_table)
+    assert len(gcs_df.index) == 2 * len(scalars_pandas_df_index.index)
+    pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df_index.columns)
+
+    scalars_df_index.to_gbq(destination_table, if_exists="replace")
+    gcs_df = pandas.read_gbq(destination_table)
+    assert len(gcs_df.index) == len(scalars_pandas_df_index.index)
+    pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df_index.columns)
+
+
+def test_to_gbq_w_invalid_destination_table(scalars_df_index):
+    with pytest.raises(ValueError):
+        scalars_df_index.to_gbq("table_id")
+
+
+def test_to_gbq_w_invalid_if_exists(scalars_df_index, dataset_id):
+    destination_table = f"{dataset_id}.test_to_gbq_w_invalid_if_exists"
+    with pytest.raises(ValueError):
+        scalars_df_index.to_gbq(destination_table, if_exists="unknown")
 
 
 def test_to_parquet(scalars_dfs, gcs_folder: str):

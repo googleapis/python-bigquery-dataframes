@@ -322,7 +322,9 @@ class BigFramesExpr:
 
         return table
 
-    def start_query(self) -> bigquery.QueryJob:
+    def start_query(
+        self, job_config: Optional[bigquery.job.QueryJobConfig] = None
+    ) -> bigquery.QueryJob:
         """Execute a query and return metadata about the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
         # for the results? We'd need a way to invalidate the cache if DataFrame
@@ -336,7 +338,10 @@ class BigFramesExpr:
         # maybe we just print the job metadata that we have so far?
         table = self.to_ibis_expr(order_results=True)
         sql = table.compile()
-        return self._session.bqclient.query(sql)
+        if job_config is not None:
+            return self._session.bqclient.query(sql, job_config=job_config)
+        else:
+            return self._session.bqclient.query(sql)
 
 
 class BigFramesExprBuilder:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import operator
 import re
 import typing
-from typing import Iterable, Mapping, Optional, Tuple, Union
+from typing import Iterable, Literal, Mapping, Optional, Tuple, Union
 
 import google.cloud.bigquery as bigquery
 import ibis
@@ -488,15 +488,76 @@ class DataFrame:
                 ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export the data into
                 multiple files and the size of the files varies.
-            columns: a list of columns to write.
 
         Returns:
             None.
         """
+        # TODO(swast): Support index=True argument.
+        # TODO(swast): Can we support partition columns argument?
+        # TODO(chelsealin): Support local file paths.
+        # TODO(swast): Some warning that wildcard is recommended for large
+        # query results? See:
+        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
+        if not paths.startswith("gs://"):
+            raise NotImplementedError(
+                "Only Google Cloud Storage (gs://...) paths are supported."
+            )
+
+        source_table = self._get_destination_table()
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.CSV
         )
-        return self._io_extract(paths, job_config)
+        extract_job = self._block.expr._session.bqclient.extract_table(
+            source_table, destination_uris=[paths], job_config=job_config
+        )
+        extract_job.result()  # Wait for extract job to finish
+
+    def to_gbq(
+        self,
+        destination_table: str,
+        *,
+        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+    ) -> None:
+        """Writes the BigFrames DataFrame as a BigQuery table.
+
+        Args:
+            destination_table:
+                Name of table to be written, in the form `dataset.tablename` or
+                `project.dataset.tablename`.
+
+            if_exists:
+                Behavior when the destination table exists. Value can be one of:
+                - `fail`: raise google.api_core.exceptions.Conflict.
+                - `replace`: If table exists, drop it, recreate it, and insert data.
+                - `append`: If table exists, insert data. Create if it does not exist.
+
+        Returns:
+            None.
+        """
+
+        if "." not in destination_table:
+            raise ValueError(
+                "Invalid Table Name. Should be of the form 'datasetId.tableId' or "
+                "'projectId.datasetId.tableId'"
+            )
+
+        dispositions = {
+            "fail": bigquery.WriteDisposition.WRITE_EMPTY,
+            "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
+            "append": bigquery.WriteDisposition.WRITE_APPEND,
+        }
+        if if_exists not in dispositions:
+            raise ValueError("'{0}' is not valid for if_exists".format(if_exists))
+
+        job_config = bigquery.QueryJobConfig(
+            write_disposition=dispositions[if_exists],
+            destination=bigquery.table.TableReference.from_string(
+                destination_table,
+                default_project=self._block.expr._session.bqclient.project,
+            ),
+        )
+
+        self._get_destination_table(job_config=job_config)
 
     def to_parquet(self, paths: str) -> None:
         """Writes DataFrame to parquet file(s) on GCS.
@@ -506,45 +567,29 @@ class DataFrame:
                 ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export the data into
                 multiple files and the size of the files varies.
-            columns: a list of columns to write.
 
         Returns:
             None.
         """
-        job_config = bigquery.ExtractJobConfig(
-            destination_format=bigquery.DestinationFormat.PARQUET
-        )
-        return self._io_extract(paths, job_config)
-
-    def _io_extract(
-        self,
-        paths: str,
-        job_config: bigquery.ExtractJobConfig,
-    ):
         # TODO(swast): Support index=True argument.
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
+        # TODO(swast): Some warning that wildcard is recommended for large
+        # query results? See:
+        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not paths.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
 
-        expr = self._block.expr
-        value_columns = (expr.get_column(column_name) for column_name in self.columns)
-        expr = expr.projection(value_columns)
-        query_job: bigquery.QueryJob = expr.start_query()
-        query_job.result()  # Wait for query to finish.
-        query_job.reload()  # Download latest job metadata.
-
-        # TODO(swast): Some warning that wildcard is recommended for large
-        # query results? See:
-        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        source_table = query_job.destination
-        extract_job = expr._session.bqclient.extract_table(
+        source_table = self._get_destination_table()
+        job_config = bigquery.ExtractJobConfig(
+            destination_format=bigquery.DestinationFormat.PARQUET
+        )
+        extract_job = self._block.expr._session.bqclient.extract_table(
             source_table, destination_uris=[paths], job_config=job_config
         )
         extract_job.result()  # Wait for extract job to finish
-        return None
 
     def _apply_to_rows(self, operation):
         block = self._block
@@ -556,3 +601,15 @@ class DataFrame:
         ]
         new_block = block.copy(new_columns)
         return DataFrame(new_block)
+
+    def _get_destination_table(
+        self, job_config: Optional[bigquery.job.QueryJobConfig] = None
+    ):
+        """Execute a query job presenting the DataFrames and returns the destination table."""
+        expr = self._block.expr
+        value_columns = (expr.get_column(column_name) for column_name in self.columns)
+        expr = expr.projection(value_columns)
+        query_job: bigquery.QueryJob = expr.start_query(job_config)
+        query_job.result()  # Wait for query to finish.
+        query_job.reload()  # Download latest job metadata.
+        return query_job.destination
