@@ -3,12 +3,19 @@ import pandas
 import bigframes.ml.core
 
 
-# TODO(bmil): add better test data for ML for realistic accuracy and prediction values
-def test_bqml_e2e(session, dataset_id, scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    scalars_df = scalars_df.dropna()
-    train_X = scalars_df[["int64_col", "string_col"]]
-    train_y = scalars_df[["float64_col"]]
+def test_bqml_e2e(session, dataset_id, penguins_df_no_index):
+    df = penguins_df_no_index.dropna()
+    train_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "sex",
+        ]
+    ]
+    train_y = df[["body_mass_g"]]
     model = bigframes.ml.core.create_bqml_model(
         train_X, train_y, {"model_type": "linear_reg"}
     )
@@ -17,49 +24,51 @@ def test_bqml_e2e(session, dataset_id, scalars_dfs):
     evaluate_result = model.evaluate().compute()
     evaluate_expected = pandas.DataFrame(
         {
-            "mean_absolute_error": [0.010732],
-            "mean_squared_error": [0.0001455],
-            "mean_squared_log_error": [0.000004862],
-            "median_absolute_error": [0.012391],
-            "r2_score": [1.0],
-            "explained_variance": [1.0],
-        }
+            "mean_absolute_error": [225.817334],
+            "mean_squared_error": [80540.705944],
+            "mean_squared_log_error": [0.004972],
+            "median_absolute_error": [173.080816],
+            "r2_score": [0.87529],
+            "explained_variance": [0.87529],
+        },
+        dtype="Float64",
     )
-
-    # Just check that the columns are there, as with the very small number
-    # of input rows the automatic training data split will cause a lot of
-    # randomness in the values
-    # TODO(bmil): use better test data, test this with tolerance instead
-    pandas.testing.assert_index_equal(
-        evaluate_result.columns,
-        evaluate_expected.columns,
+    pandas.testing.assert_frame_equal(
+        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
     )
 
     # evaluate on all training data
-    # TODO(bmil): use better test data, test this with tolerance instead
-    evaluate_result = model.evaluate(scalars_df).compute()
-    pandas.testing.assert_index_equal(
-        evaluate_result.columns,
-        evaluate_expected.columns,
+    evaluate_result = model.evaluate(df).compute()
+    pandas.testing.assert_frame_equal(
+        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
     )
 
-    predict_result = model.predict(train_X).compute()
-    predict_expected = pandas.DataFrame(
-        {"predicted_float64_col": [2.52239, 1.25331, 24999999999.0]}, dtype="Float64"
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pandas.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+                "sex": ["MALE", "FEMALE", "FEMALE"],
+            }
+        ).set_index("tag_number")
     )
-    if predict_result.index.name == "rowindex":
-        predict_expected["rowindex"] = [1, 0, 2]
-        predict_expected["rowindex"] = predict_expected["rowindex"].astype("Int64")
-        predict_expected = predict_expected.set_index("rowindex")
-
-    # Just check that the columns are there, as with the very small number
-    # of input rows the automatic training data split will cause a lot of
-    # randomness in the values
-    # TODO(bmil): use better test data, test this with tolerance instead
-    # assert_pandas_df_equal_ignore_ordering(predict_result, predict_expected, rtol=1e-3)
-    pandas.testing.assert_index_equal(
-        evaluate_result.columns,
-        evaluate_expected.columns,
+    predictions = model.predict(new_penguins).compute()
+    expected = pandas.DataFrame(
+        {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
+        dtype="Float64",
+        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pandas.testing.assert_frame_equal(
+        predictions, expected, check_exact=False, rtol=1e-2
     )
 
     new_name = f"{dataset_id}.my_model"
