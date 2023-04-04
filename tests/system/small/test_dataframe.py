@@ -4,7 +4,10 @@ import pandas as pd
 import pandas.testing
 import pytest
 
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
+from tests.system.utils import (
+    assert_pandas_df_equal_ignore_ordering,
+    assert_series_equal_ignoring_order,
+)
 
 
 def test_get_column(scalars_dfs):
@@ -13,12 +16,7 @@ def test_get_column(scalars_dfs):
     series = scalars_df[col_name]
     bf_result = series.compute()
     pd_result = scalars_pandas_df[col_name]
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    assert_series_equal_ignoring_order(bf_result, pd_result)
 
 
 def test_hasattr(scalars_dfs):
@@ -33,12 +31,7 @@ def test_get_column_by_attr(scalars_dfs):
     series = scalars_df.int64_col
     bf_result = series.compute()
     pd_result = scalars_pandas_df.int64_col
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    assert_series_equal_ignoring_order(bf_result, pd_result)
 
 
 def test_get_columns(scalars_dfs):
@@ -186,8 +179,8 @@ def test_merge(scalars_dfs, merge_how):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
-def test_get_dtypes(scalars_df_no_index):
-    dtypes = scalars_df_no_index.dtypes
+def test_get_dtypes(scalars_df_default_index):
+    dtypes = scalars_df_default_index.dtypes
     pd.testing.assert_series_equal(
         dtypes,
         pd.Series(

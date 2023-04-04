@@ -407,6 +407,11 @@ class BigFramesExpr:
                 [self._get_meta_column(name) for name in hidden_ordering_columns]
             )
 
+        # Special case for empty tables, since we can't create an empty
+        # projection.
+        if not columns:
+            return ibis.memtable([])
+
         table = table.select(columns)
 
         if self.reduced_predicate is not None:

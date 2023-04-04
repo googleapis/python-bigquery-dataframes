@@ -20,18 +20,24 @@ def test_read_gdb_not_found_tables(session, not_found_table_id):
 @pytest.mark.parametrize(
     "good_table_id,expected", [("project.dataset.table", 1), ("dataset.table", 0)]
 )
-def test_read_gbq_good_tables(session, good_table_id, expected):
-    df = session.read_gbq(good_table_id)
-    assert len(df._block.expr._columns) == expected
+def test_read_gbq_good_tables(session, scalars_pandas_df, good_table_id, expected):
+    index_cols = ("rowindex",) if scalars_pandas_df.index.name == "rowindex" else ()
+    df = session.read_gbq(good_table_id, index_cols=index_cols)
+    assert len(df.columns) == expected
 
 
-def test_read_gbq_w_col_order(session):
+def test_read_gbq_w_col_order(session, scalars_pandas_df):
     scalars_table_id = "project.dataset.scalars_table"
-    df = session.read_gbq(scalars_table_id)
-    assert len(df._block.expr._columns) == 5
+    index_cols = ("rowindex",) if scalars_pandas_df.index.name == "rowindex" else ()
+    df = session.read_gbq(scalars_table_id, index_cols=index_cols)
+    assert len(df.columns) == 4
 
-    df = session.read_gbq(scalars_table_id, col_order=["bool_col"])
-    assert len(df._block.expr._columns) == 1
+    df = session.read_gbq(
+        scalars_table_id, col_order=["bool_col"], index_cols=index_cols
+    )
+    assert len(df.columns) == 1
 
     with pytest.raises(ValueError):
-        df = session.read_gbq(scalars_table_id, col_order=["unknown"])
+        df = session.read_gbq(
+            scalars_table_id, col_order=["unknown"], index_cols=index_cols
+        )

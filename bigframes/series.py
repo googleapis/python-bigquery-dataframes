@@ -478,8 +478,7 @@ class Series:
         )
 
     def _apply_unary_op(
-        self,
-        op: typing.Callable[[ibis_types.Value], ibis_types.Value],
+        self, op: typing.Callable[[ibis_types.Value], ibis_types.Value]
     ) -> Series:
         """Applies a binary operator to the series and other."""
         block = self._viewed_block

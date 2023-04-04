@@ -82,9 +82,9 @@ class Block:
             self._index = indexes.ImplicitJoiner(expr, self._index.name)
         elif len(columns) == 1:
             index_column = columns[0]
-            self._index = indexes.Index(expr, index_column, self._index.name)
+            self._index = indexes.Index(expr, index_column, name=self._index.name)
             # Rearrange so that index columns are first.
-            if expr._columns[0].get_name() != index_column:
+            if expr._columns and expr._columns[0].get_name() != index_column:
                 expr_builder = expr.builder()
                 index_columns = [
                     column

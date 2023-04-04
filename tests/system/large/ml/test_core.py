@@ -3,8 +3,8 @@ import pandas
 import bigframes.ml.core
 
 
-def test_bqml_e2e(session, dataset_id, penguins_df_no_index):
-    df = penguins_df_no_index.dropna()
+def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
+    df = penguins_df_default_index.dropna()
     train_X = df[
         [
             "species",
@@ -16,6 +16,13 @@ def test_bqml_e2e(session, dataset_id, penguins_df_no_index):
         ]
     ]
     train_y = df[["body_mass_g"]]
+
+    # TODO(swast): How should we handle the default index? Currently, we get:
+    # "Column bigframes_index_0 is not found in the input data to the PREDICT
+    # function"
+    train_X = train_X.reset_index(drop=True)
+    train_y = train_y.reset_index(drop=True)
+
     model = bigframes.ml.core.create_bqml_model(
         train_X, train_y, {"model_type": "linear_reg"}
     )
@@ -32,6 +39,9 @@ def test_bqml_e2e(session, dataset_id, penguins_df_no_index):
             "explained_variance": [0.87529],
         },
         dtype="Float64",
+    )
+    evaluate_expected = evaluate_expected.reindex(
+        index=evaluate_expected.index.astype("Int64")
     )
     pandas.testing.assert_frame_equal(
         evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2

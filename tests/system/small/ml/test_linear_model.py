@@ -20,11 +20,18 @@ def test_model_eval(
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
 
 
-def test_model_score_with_data(penguins_linear_model, penguins_df_no_index):
-    df = penguins_df_no_index.dropna()
+def test_model_score_with_data(penguins_linear_model, penguins_df_default_index):
+    df = penguins_df_default_index.dropna()
     test_X = df[
         [
             "species",
@@ -48,7 +55,14 @@ def test_model_score_with_data(penguins_linear_model, penguins_df_no_index):
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
 
 
 def test_model_predict(session, penguins_linear_model):
@@ -77,7 +91,10 @@ def test_model_predict(session, penguins_linear_model):
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions, expected, check_exact=False, rtol=1e-2
+        predictions.sort_index(),
+        expected,
+        check_exact=False,
+        rtol=1e-2,
     )
 
 
@@ -97,7 +114,14 @@ def test_to_gbq_saved_model_scores(penguins_linear_model, dataset_id):
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
 
 
 def test_to_gbq_replace(penguins_linear_model, dataset_id):

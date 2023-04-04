@@ -1,20 +1,25 @@
 """Session manages the connection to BigQuery."""
 
+from __future__ import annotations
+
 import re
 import typing
 from typing import Iterable, List, Optional, Tuple, Union
 import uuid
 
+import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import ibis
-from ibis.backends.bigquery import Backend
+import ibis.backends.bigquery as ibis_bigquery
+import ibis.expr.types as ibis_types
 import numpy as np
 import pandas
 
-from bigframes.core import BigFramesExpr, ExpressionOrdering
+import bigframes.core as core
 import bigframes.core.blocks as blocks
-from bigframes.dataframe import DataFrame
+import bigframes.core.indexes as indexes
+import bigframes.dataframe as dataframe
 import bigframes.ml.loader
 import bigframes.version
 
@@ -69,7 +74,7 @@ class Session:
         if context is not None:
             # TODO(chelsealin): Add the `location` parameter to ibis client.
             self.ibis_client = typing.cast(
-                Backend,
+                ibis_bigquery.Backend,
                 ibis.bigquery.connect(
                     project_id=context.project,
                     credentials=context.credentials,
@@ -77,7 +82,9 @@ class Session:
                 ),
             )
         else:
-            self.ibis_client = typing.cast(Backend, ibis.bigquery.connect())
+            self.ibis_client = typing.cast(
+                ibis_bigquery.Backend, ibis.bigquery.connect()
+            )
 
         self.bqclient = self.ibis_client.client
         self._create_and_bind_bq_session()
@@ -132,9 +139,9 @@ class Session:
         self,
         query_or_table: str,
         *,
-        col_order: Optional[List[str]] = None,
-        index_cols: Union[Iterable[str], Tuple] = (),
-    ) -> "DataFrame":
+        col_order: Optional[Iterable[str]] = None,
+        index_cols: Iterable[str] = (),
+    ) -> dataframe.DataFrame:
         """Loads DataFrame from Google BigQuery.
 
         Args:
@@ -155,10 +162,10 @@ class Session:
         self,
         query_or_table: str,
         *,
-        col_order: Optional[List[str]] = None,
+        col_order: Optional[Iterable[str]] = None,
         index_cols: Union[Iterable[str], Tuple] = (),
-        ordering: Optional[ExpressionOrdering] = None,
-    ) -> "DataFrame":
+        ordering: Optional[core.ExpressionOrdering] = None,
+    ) -> dataframe.DataFrame:
         """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
 
         Args:
@@ -172,12 +179,15 @@ class Session:
         Returns:
             A DataFrame representing results of the query or table.
         """
+        index_keys = list(index_cols)
+        if len(index_keys) > 1:
+            raise NotImplementedError("MultiIndex not supported.")
+
         if _is_query(query_or_table):
             table_expression = self.ibis_client.sql(query_or_table)
         else:
-            # TODO(swast): If a table ID, make sure we read from a snapshot to
-            # better emulate pandas.read_gbq's point-in-time download. See:
-            # https://cloud.google.com/bigquery/docs/time-travel#query_data_at_a_point_in_time
+            # TODO(swast): Can we re-use the temp table from other reads in the
+            # session, if the original table wasn't modified?
             table_ref = bigquery.table.TableReference.from_string(
                 query_or_table, default_project=self.bqclient.project
             )
@@ -186,27 +196,73 @@ class Session:
                 database=f"{table_ref.project}.{table_ref.dataset_id}",
             )
 
+        if index_keys:
+            # TODO(swast): Support MultiIndex.
+            index_col_name = index_keys[0]
+            index_col = table_expression[index_col_name]
+            index_name = index_keys[0]
+        else:
+            index_col_name = indexes.INDEX_COLUMN_NAME.format(0)
+            index_name = None
+
+            if ordering is not None and ordering.ordering_id:
+                # Use the sequential ordering as the index instead of creating
+                # a new one, if available.
+                index_col = table_expression[ordering.ordering_id].name(index_col_name)
+            else:
+                # Add an arbitrary sequential index and materialize the table
+                # because row_number() could refer to different rows depending
+                # on how the rows in the DataFrame are filtered / dropped.
+                index_col = ibis.row_number().name(index_col_name)
+                table_expression = table_expression.mutate(
+                    **{index_col_name: index_col}
+                )
+                table_expression = self._query_to_session_table(
+                    table_expression.compile()
+                )
+                index_col = table_expression[index_col_name]
+
+        if col_order is None:
+            if ordering is not None and ordering.ordering_id:
+                non_value_cols = {index_col_name, ordering.ordering_id}
+            else:
+                non_value_cols = {index_col_name}
+            column_keys = [
+                key for key in table_expression.columns if key not in non_value_cols
+            ]
+        else:
+            column_keys = list(col_order)
+        return self._read_ibis(
+            table_expression, index_col, index_name, column_keys, ordering=ordering
+        )
+
+    def _read_ibis(
+        self,
+        table_expression: ibis_types.Table,
+        index_col: ibis_types.Value,
+        index_name: Optional[str],
+        column_keys: List[str],
+        ordering: Optional[core.ExpressionOrdering] = None,
+    ):
+        """Turns a table expression (plus index column) into a DataFrame."""
         meta_columns = None
         if ordering is not None:
             meta_columns = (table_expression[ordering.ordering_id],)
 
-        columns = None
-        if col_order is not None:
-            columns = tuple(
-                table_expression[key] for key in col_order if key in table_expression
-            )
-            if len(columns) != len(col_order):
-                raise ValueError("Column order does not match this table.")
+        columns = [index_col]
+        for key in column_keys:
+            if key not in table_expression.columns:
+                raise ValueError(f"Column '{key}' not found in this table.")
+            columns.append(table_expression[key])
 
         block = blocks.Block(
-            BigFramesExpr(self, table_expression, columns, meta_columns, ordering),
-            index_cols,
+            core.BigFramesExpr(self, table_expression, columns, meta_columns, ordering),
+            [index_col.get_name()],
         )
 
-        # TOOD(swast): Support MultiIndex.
-        if block.index_columns:
-            block.index.name = block.index_columns[0]
-        return DataFrame(block)
+        df = dataframe.DataFrame(block)
+        df.index.name = index_name
+        return df
 
     def read_gbq_model(self, model_name: str):
         """Loads a BQML model from Google BigQuery.
@@ -225,7 +281,7 @@ class Session:
         model = self.bqclient.get_model(model_ref)
         return bigframes.ml.loader.from_bq(self, model)
 
-    def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> "DataFrame":
+    def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> dataframe.DataFrame:
         """Loads DataFrame from a Pandas DataFrame.
 
         The Pandas DataFrame will be persisted as a temporary BigQuery table, which can be
@@ -248,10 +304,11 @@ class Session:
         pandas_dataframe_copy = pandas_dataframe.copy()
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
-        table_name = f"{uuid.uuid4().hex}"
-        load_table_name = f"{self.bqclient.project}._SESSION.{table_name}"
+        load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
-            pandas_dataframe_copy, load_table_name, job_config=bigquery.LoadJobConfig()
+            pandas_dataframe_copy,
+            load_table_destination,
+            job_config=bigquery.LoadJobConfig(),
         )
         load_job.result()  # Wait for the job to complete
 
@@ -260,11 +317,11 @@ class Session:
         index_cols = filter(
             lambda name: name is not None, pandas_dataframe_copy.index.names
         )
-        ordering = ExpressionOrdering(
+        ordering = core.ExpressionOrdering(
             ordering_id_column=ordering_col, is_sequential=True, ascending=True
         )
         return self._read_gbq_with_ordering(
-            f"SELECT * FROM `{table_name}`",
+            f"SELECT * FROM `{load_table_destination.table_id}`",
             index_cols=index_cols,
             ordering=ordering,
         )
@@ -273,7 +330,7 @@ class Session:
         self,
         filepath: str,
         header: Optional[int] = None,
-    ) -> "DataFrame":
+    ) -> dataframe.DataFrame:
         """Loads DataFrame from a comma-separated values (csv) file on GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
@@ -304,11 +361,7 @@ class Session:
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
 
-        table_name = f"{uuid.uuid4().hex}"
-        dataset = bigquery.Dataset(
-            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
-        )
-        table = bigquery.Table(dataset.table(table_name))
+        table = bigquery.Table(self._create_session_table())
 
         job_config = bigquery.LoadJobConfig()
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
@@ -324,7 +377,28 @@ class Session:
         )
         load_job.result()  # Wait for the job to complete
 
-        return self.read_gbq(f"SELECT * FROM `{table_name}`")
+        return self.read_gbq(f"SELECT * FROM `{table.table_id}`")
+
+    def _create_session_table(self) -> bigquery.TableReference:
+        table_name = f"{uuid.uuid4().hex}"
+        dataset = bigquery.Dataset(
+            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
+        )
+        return dataset.table(table_name)
+
+    def _query_to_session_table(self, query_text: str) -> ibis_types.Table:
+        table = self._create_session_table()
+        # TODO(swast): Can't set a table in _SESSION as destination, so we run
+        # DDL, instead.
+        # TODO(swast): This might not support multi-statement SQL queries.
+        ddl_text = f"CREATE TEMPORARY TABLE `{table.table_id}` AS {query_text}"
+        query_job = self.bqclient.query(ddl_text)
+        try:
+            query_job.result()  # Wait for the job to complete
+        except google.api_core.exceptions.Conflict:
+            # Allow query retry to succeed.
+            pass
+        return self.ibis_client.sql(f"SELECT * FROM `{table.table_id}`")
 
 
 def connect(context: Optional[Context] = None) -> Session:

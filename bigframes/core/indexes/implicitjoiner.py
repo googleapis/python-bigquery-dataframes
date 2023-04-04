@@ -25,7 +25,7 @@ class ImplicitJoiner:
 
     @property
     def name(self) -> typing.Optional[str]:
-        """Name of the Series."""
+        """Name of the Index."""
         # This introduces a level of indirection over Ibis to allow for more
         # accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL generation.

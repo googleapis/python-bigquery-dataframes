@@ -16,16 +16,16 @@ def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
     df = session.read_gbq(scalars_table_id)
     # TODO(swast): Test against public properties like columns or dtypes. Also,
     # check the names and data types match up.
-    assert len(df._block.expr._columns) == len(scalars_schema)
+    assert len(df.columns) == len(scalars_schema)
 
 
 def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
     columns = list(column.name for column in scalars_schema)
     df = session.read_gbq(scalars_table_id, col_order=columns)
-    assert len(df._block.expr._columns) == len(scalars_schema)
+    assert len(df.columns) == len(scalars_schema)
 
     df = session.read_gbq(scalars_table_id, col_order=[columns[0]])
-    assert len(df._block.expr._columns) == 1
+    assert len(df.columns) == 1
 
     with pytest.raises(ValueError):
         df = session.read_gbq(scalars_table_id, col_order=["unknown"])
@@ -38,7 +38,7 @@ def test_read_gbq_sql(
     df_len = len(scalars_pandas_df.index)
 
     index_cols: Union[Tuple[str], Tuple] = ()
-    if isinstance(scalars_df.index, bigframes.core.indexes.index.Index):
+    if scalars_df.index.name == "rowindex":
         sql = """SELECT
                 t.rowindex AS rowindex,
                 t.float64_col * 2 AS my_floats,
@@ -63,15 +63,25 @@ def test_read_gbq_sql(
     df = session.read_gbq(sql, index_cols=index_cols)
     result = df.compute()
 
-    expected = pd.DataFrame(
-        {
-            "my_floats": pd.Series(scalars_pandas_df["float64_col"] * 2),
-            "my_strings": pd.Series(
-                scalars_pandas_df["string_col"].str.cat(["_2"] * df_len)
+    expected = pd.concat(
+        [
+            pd.Series(scalars_pandas_df["float64_col"] * 2, name="my_floats"),
+            pd.Series(
+                scalars_pandas_df["string_col"].str.cat(["_2"] * df_len),
+                name="my_strings",
             ),
-            "my_bools": pd.Series(scalars_pandas_df["int64_col"] > 0),
-        },
+            pd.Series(scalars_pandas_df["int64_col"] > 0, name="my_bools"),
+        ],
+        axis=1,
     )
+
+    # TODO(swast): Restore ordering for SQL inputs.
+    if result.index.name is None:
+        result = result.sort_values(["my_floats", "my_strings"]).reset_index(drop=True)
+        expected = expected.sort_values(["my_floats", "my_strings"]).reset_index(
+            drop=True
+        )
+
     pd.testing.assert_frame_equal(result, expected)
 
 
@@ -79,14 +89,14 @@ def test_read_gbq_sql_w_col_order(session):
     sql = """SELECT 1 AS my_int_col, "hi" AS my_string_col, 0.2 AS my_float_col"""
     df = session.read_gbq(sql, col_order=["my_float_col", "my_string_col"])
     result = df.compute()
-    expected: pd.DataFrame = pd.concat(
-        [
-            pd.Series([0.2], name="my_float_col", dtype=pd.Float64Dtype()),
-            pd.Series(["hi"], name="my_string_col", dtype=pd.StringDtype()),
-        ],
-        axis=1,
+    expected: pd.DataFrame = pd.DataFrame(
+        {
+            "my_float_col": pd.Series([0.2], dtype=pd.Float64Dtype()),
+            "my_string_col": pd.Series(["hi"], dtype=pd.StringDtype(storage="pyarrow")),
+        },
+        index=pd.Index([0], dtype=pd.Int64Dtype()),
     )
-    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):

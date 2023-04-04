@@ -4,10 +4,10 @@ import bigframes.ml.cluster
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
-def test_cluster_configure_fit_predict(session, penguins_df_no_index, dataset_id):
+def test_cluster_configure_fit_predict(session, penguins_df_default_index, dataset_id):
     model = bigframes.ml.cluster.KMeans(n_clusters=3)
 
-    df = penguins_df_no_index.dropna()[
+    df = penguins_df_default_index.dropna()[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
@@ -15,6 +15,12 @@ def test_cluster_configure_fit_predict(session, penguins_df_no_index, dataset_id
             "sex",
         ]
     ]
+
+    # TODO(swast): How should we handle the default index? Currently, we get:
+    # "Column bigframes_index_0_z is not found in the input data to the
+    # EVALUATE function."
+    df = df.reset_index(drop=True)
+
     model.fit(df)
 
     pd_new_penguins = pandas.DataFrame.from_dict(

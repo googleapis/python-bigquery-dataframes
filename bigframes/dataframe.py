@@ -20,8 +20,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
 
-_INDEX_COLUMN_NAME = "bigframes_index_{}"
-
 
 class DataFrame:
     """A 2D data structure, representing data and deferred computation.
@@ -53,6 +51,8 @@ class DataFrame:
             .items()
             if el[0] not in self._block.index_columns
         ]
+        if not schema_elements:
+            return pd.Series(data=[], index=[], dtype="object")
         column_names, ibis_dtypes = zip(*schema_elements)
         bigframes_dtypes = [
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
@@ -81,7 +81,8 @@ class DataFrame:
     @property
     def sql(self) -> str:
         """Compiles this dataframe's expression tree to SQL"""
-        # Has to be unordered as it is impossible to order the sql without including metadata columns in selection with ibis.
+        # Has to be unordered as it is impossible to order the sql without
+        # including metadata columns in selection with ibis.
         return self._block.expr.to_ibis_expr(ordering_mode="unordered").compile()
 
     def __getitem__(
@@ -94,14 +95,17 @@ class DataFrame:
         if isinstance(key, str):
             # Check that the column exists.
             # TODO(swast): Make sure we can't select Index columns this way.
-            _ = self._block.expr.get_column(key)
+            index_exprs = [
+                self._block.expr.get_column(index_key)
+                for index_key in self._block.index_columns
+            ]
+            series_expr = self._block.expr.get_column(key)
             # Copy to emulate "Copy-on-Write" semantics.
             block = self._block.copy()
             # Since we're working with a "copy", we can drop the other value
             # columns. They aren't needed on the Series.
-            block.expr = block.expr.drop_columns(
-                [column for column in self.columns if column != key]
-            )
+            block.expr = block.expr.projection(index_exprs + [series_expr])
+            block.index.name = self._block.index.name
             return bigframes.series.Series(block, key, name=key)
 
         if isinstance(key, bigframes.series.Series):
@@ -126,7 +130,9 @@ class DataFrame:
                 )
                 block = blocks.Block(expression)
                 block.index = (
-                    indexes.Index(expression, self.index._index_column, self.index.name)
+                    indexes.Index(
+                        expression, self.index._index_column, name=self.index.name
+                    )
                     if isinstance(self.index, indexes.Index)
                     else indexes.ImplicitJoiner(expression, self.index.name)
                 )
@@ -341,6 +347,7 @@ class DataFrame:
         block = self._block.copy()
         # TODO(swast): Only remove a specified number of levels from a
         # MultiIndex.
+        # TODO(swast): Create new sequential index and materialize.
         block.index_columns = ()
 
         if drop:
@@ -357,20 +364,33 @@ class DataFrame:
         prev_index_columns = self._block.index_columns
         index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
 
-        if not expr.ordering:
+        # TODO(swast): Don't override ordering once all DataFrames/Series have
+        # an ordering.
+        if not expr.ordering or (
+            len(expr.ordering)
+            and expr.ordering[0].get_name() == bigframes.core.ORDER_ID_COLUMN
+        ):
             expr = expr.order_by([key])
 
         expr = expr.drop_columns(prev_index_columns)
 
         index_column_name = key
         if not drop:
-            index_column_name = _INDEX_COLUMN_NAME.format(0)
+            index_column_name = indexes.INDEX_COLUMN_NAME.format(0)
             index_expr = index_expr.name(index_column_name)
             expr = expr.insert_column(0, index_expr)
 
         block = self._block.copy()
         block.expr = expr
         block.index = indexes.Index(expr, index_column=index_column_name, name=key)
+        return DataFrame(block)
+
+    def sort_index(self) -> DataFrame:
+        """Sort the DataFrame by index labels."""
+        index_columns = self._block.index_columns
+        expr = self._block.expr.order_by(index_columns)
+        block = self._block.copy()
+        block.expr = expr
         return DataFrame(block)
 
     def dropna(self) -> DataFrame:

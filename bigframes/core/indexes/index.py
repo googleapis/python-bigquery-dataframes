@@ -33,7 +33,7 @@ class Index(ImplicitJoiner):
     def join(
         self, other: ImplicitJoiner, *, how="left", sort=False
     ) -> Tuple[
-        ImplicitJoiner,
+        Index,
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
     ]:
         if not isinstance(other, Index):

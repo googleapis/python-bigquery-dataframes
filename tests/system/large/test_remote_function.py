@@ -117,7 +117,7 @@ def test_remote_function_multiply_with_ibis(
 
     col_name = "int64_col"
     table = ibis_client.tables[table_name]
-    table = table.filter(table[col_name].notnull()).head(10)
+    table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
     pandas_df_orig = table.execute()
 
     col = table[col_name]
@@ -157,7 +157,7 @@ def test_remote_function_stringify_with_ibis(
 
     col_name = "int64_col"
     table = ibis_client.tables[table_name]
-    table = table.filter(table[col_name].notnull()).head(10)
+    table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
     pandas_df_orig = table.execute()
 
     col = table[col_name]

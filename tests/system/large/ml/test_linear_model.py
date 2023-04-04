@@ -3,10 +3,10 @@ import pandas
 import bigframes.ml.linear_model
 
 
-def test_linear_regression_configure_fit(penguins_df_no_index):
+def test_linear_regression_configure_fit(penguins_df_default_index):
     model = bigframes.ml.linear_model.LinearRegression(fit_intercept=False)
 
-    df = penguins_df_no_index.dropna()
+    df = penguins_df_default_index.dropna()
     train_X = df[
         [
             "species",
@@ -33,6 +33,7 @@ def test_linear_regression_configure_fit(penguins_df_no_index):
         },
         dtype="Float64",
     )
+    expected = expected.reindex(index=expected.index.astype("Int64"))
     pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
     # save, load, check fit_intercept to ensure configuration was kept

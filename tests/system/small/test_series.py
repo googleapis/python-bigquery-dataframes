@@ -5,18 +5,7 @@ import numpy
 import pandas as pd
 import pytest
 
-import bigframes.core.indexes
-
-
-def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):
-    if isinstance(left.index, pd.RangeIndex) or isinstance(right.index, pd.RangeIndex):
-        left = left.sort_values().reset_index(drop=True)
-        right = right.sort_values().reset_index(drop=True)
-    else:
-        left = left.sort_index()
-        right = right.sort_index()
-
-    pd.testing.assert_series_equal(left, right, **kwargs)
+from tests.system.utils import assert_series_equal_ignoring_order
 
 
 @pytest.mark.parametrize(
@@ -327,12 +316,22 @@ def test_series_add_bigframes_series_nested(
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
-def test_series_add_different_table_no_index_value_error(
-    scalars_df_no_index, scalars_df_2_no_index
+def test_series_add_different_table_default_index(
+    scalars_df_default_index,
+    scalars_df_2_default_index,
 ):
-    with pytest.raises(ValueError, match="scalars_too"):
-        # Error should happen right away, not just at compute() time.
-        scalars_df_no_index["float64_col"] + scalars_df_2_no_index["float64_col"]
+    bf_result = (
+        scalars_df_default_index["float64_col"]
+        + scalars_df_2_default_index["float64_col"]
+    ).compute()
+    pd_result = (
+        # Default index may not have a well defined order, but it should at
+        # least be consistent across compute() calls.
+        scalars_df_default_index["float64_col"].compute()
+        + scalars_df_2_default_index["float64_col"].compute()
+    )
+    # TODO(swast): Can remove sort_index() when there's default ordering.
+    pd.testing.assert_series_equal(bf_result.sort_index(), pd_result.sort_index())
 
 
 def test_series_add_different_table_with_index(
@@ -785,7 +784,7 @@ def test_slice(scalars_dfs, start, stop):
 def test_head(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+    if scalars_df.index.name is None:
         pytest.skip("Require explicit index for offset ops.")
 
     bf_result = scalars_df["string_col"].head(2).compute()
@@ -800,7 +799,7 @@ def test_head(scalars_dfs):
 def test_head_then_scalar_operation(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+    if scalars_df.index.name is None:
         pytest.skip("Require explicit index for offset ops.")
 
     bf_result = (scalars_df["float64_col"].head(1) + 4).compute()
@@ -815,7 +814,7 @@ def test_head_then_scalar_operation(scalars_dfs):
 def test_head_then_series_operation(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    if not isinstance(scalars_df.index, bigframes.core.indexes.Index):
+    if scalars_df.index.name is None:
         pytest.skip("Require explicit index for offset ops.")
 
     bf_result = (

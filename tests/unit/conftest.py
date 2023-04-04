@@ -105,12 +105,12 @@ def scalars_pandas_df_default_index() -> pandas.DataFrame:
 # We parameterize the fixtures at this point with the real pandas
 # dataframes and deferred bigframes dataframes as we have the following
 # chain of dependencies:
-# -> index/no_index parameterization
+# -> index/default_index parameterization
 # -> pandas dataframe
 # -> bqclient mock
 # -> session
 # -> bigframes dataframe
-@pytest.fixture(params=("index", "no_index"))
+@pytest.fixture(params=("index", "default_index"))
 def scalars_testdata_setup(
     request, scalars_pandas_df_default_index
 ) -> Tuple[pandas.DataFrame, Callable[[bigframes.Session], bigframes.DataFrame]]:
@@ -121,7 +121,7 @@ def scalars_testdata_setup(
         )
     else:
         return (
-            scalars_pandas_df_default_index,
+            scalars_pandas_df_default_index.drop(["rowindex"], axis="columns"),
             lambda session: session.read_gbq(SCALARS_TABLE_ID),
         )
 
@@ -134,59 +134,77 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
     # constructor or the instance.
     mock_client.return_value = mock_client
     mock_client.project = "default-project"
-    mock_client.get_table = mock_bigquery_client_get_table
+    most_recent_table = None
 
-    def mock_bigquery_client_query(
-        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
-    ) -> bigquery.QueryJob:
-        def mock_result(max_results=None):
-            mock_job = mock.create_autospec(bigquery.QueryJob)
-            mock_job.total_rows = len(scalars_pandas_df.index)
-            mock_job.schema = [
-                bigquery.SchemaField(name=name, field_type="INT64")
-                for name in scalars_pandas_df.columns
-            ]
-            # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
-            mock_job.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
-            return mock_job
+    def mock_bigquery_client_get_table(
+        table_ref: Union[google.cloud.bigquery.table.TableReference, str]
+    ):
+        global most_recent_table
 
-        mock_job = mock.create_autospec(bigquery.QueryJob)
-        mock_job.result = mock_result
-        return mock_job
+        if isinstance(table_ref, google.cloud.bigquery.table.TableReference):
+            table_name = table_ref.__str__()
+        else:
+            table_name = table_ref
 
-    mock_client.query = mock_bigquery_client_query
-    monkeypatch.setattr(bigquery, "Client", mock_client)
-    mock_client.reset_mock()
-    return mock_client
-
-
-def mock_bigquery_client_get_table(
-    table_ref: Union[google.cloud.bigquery.table.TableReference, str]
-):
-    if isinstance(table_ref, google.cloud.bigquery.table.TableReference):
-        table_name = table_ref.__str__()
-    else:
-        table_name = table_ref
-
-    if table_name == "project.dataset.table":
-        return bigquery.Table(
-            table_name, [{"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"}]
-        )
-    elif table_name == "default-project.dataset.table":
-        return bigquery.Table(table_name)
-    elif table_name == SCALARS_TABLE_ID:
-        return bigquery.Table(
-            table_name,
-            [
+        if scalars_pandas_df.index.name == "rowindex":
+            schema = [
                 {"mode": "NULLABLE", "name": "rowindex", "type": "INTEGER"},
+            ]
+        else:
+            schema = [
+                {"mode": "NULLABLE", "name": "bigframes_index_0", "type": "INTEGER"},
+            ]
+
+        if table_name == "project.dataset.table":
+            schema += [
+                {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
+            ]
+        elif table_name == "default-project.dataset.table":
+            pass
+        elif table_name == SCALARS_TABLE_ID:
+            schema += [
                 {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
                 {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
                 {"mode": "NULLABLE", "name": "float64_col", "type": "FLOAT"},
                 {"mode": "NULLABLE", "name": "string_col", "type": "STRING"},
-            ],
-        )
-    else:
-        raise google.api_core.exceptions.NotFound("Not Found Table")
+            ]
+        else:
+            raise google.api_core.exceptions.NotFound("Not Found Table")
+
+        most_recent_table = bigquery.Table(table_name, schema)  # type: ignore
+        return most_recent_table  # type: ignore
+
+    def mock_bigquery_client_query(
+        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
+    ) -> bigquery.QueryJob:
+        global most_recent_table
+
+        def mock_result(max_results=None):
+            mock_rows = mock.create_autospec(google.cloud.bigquery.table.RowIterator)
+            mock_rows.total_rows = len(scalars_pandas_df.index)
+            mock_rows.schema = [
+                bigquery.SchemaField(name=name, field_type="INT64")
+                for name in scalars_pandas_df.columns
+            ]
+            # Use scalars_pandas_df instead of ibis_expr.execute() to preserve dtypes.
+            mock_rows.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
+            return mock_rows
+
+        def mock_schema():
+            global most_recent_table
+            return most_recent_table.schema
+
+        mock_job = mock.create_autospec(bigquery.QueryJob)
+        mock_pages = mock.PropertyMock(side_effect=mock_schema)
+        type(mock_job).schema = mock_pages
+        mock_job.result = mock_result
+        return mock_job
+
+    mock_client.get_table = mock_bigquery_client_get_table
+    mock_client.query = mock_bigquery_client_query
+    monkeypatch.setattr(bigquery, "Client", mock_client)
+    mock_client.reset_mock()
+    return mock_client
 
 
 @pytest.fixture

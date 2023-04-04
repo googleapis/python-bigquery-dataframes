@@ -19,12 +19,19 @@ def test_model_eval(
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
 
 
-def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_no_index):
+def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_index):
     result = penguins_bqml_linear_model.evaluate(
-        penguins_df_no_index.dropna()
+        penguins_df_default_index.dropna()
     ).compute()
     expected = pandas.DataFrame(
         {
@@ -37,7 +44,14 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_no_index):
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
 
 
 def test_model_predict(
@@ -68,5 +82,8 @@ def test_model_predict(
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
+        predictions[["predicted_body_mass_g"]].sort_index(),
+        expected,
+        check_exact=False,
+        rtol=1e-2,
     )

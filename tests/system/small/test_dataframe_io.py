@@ -3,15 +3,15 @@ import pandas
 import pytest
 
 
-def test_to_pandas_w_correct_dtypes(scalars_df_no_index):
+def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     """Verify to_pandas() APIs returns the expected dtypes."""
     # TODO(chelsealin): Check scalars_df_index.
     # TODO(chelsealin): Use this check instead after b/275417413.
-    # pd.testing.assert_series_equal(result.dtypes, scalars_df_no_index.dtypes)
+    # pd.testing.assert_series_equal(result.dtypes, scalars_df_default_index.dtypes)
 
     # For now, manually check passing and failing cases:
-    actual = scalars_df_no_index.to_pandas().dtypes
-    expected = scalars_df_no_index.dtypes
+    actual = scalars_df_default_index.to_pandas().dtypes
+    expected = scalars_df_default_index.dtypes
 
     assert actual["bool_col"] == expected["bool_col"]
     assert actual["bytes_col"] == expected["bytes_col"]
@@ -60,7 +60,7 @@ def test_to_gbq(scalars_dfs, dataset_id):
         table_id = "test_to_gbq_wo_index"
 
     destination_table = f"{dataset_id}.{table_id}"
-    scalars_df.to_gbq(destination_table)
+    scalars_df.to_gbq(destination_table, if_exists="replace")
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
     gcs_df = pandas.read_gbq(destination_table)

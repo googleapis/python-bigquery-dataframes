@@ -173,7 +173,7 @@ def penguins_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
-def scalars_df_no_index(
+def scalars_df_default_index(
     scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
@@ -181,13 +181,15 @@ def scalars_df_no_index(
 
 
 @pytest.fixture(scope="session")
-def scalars_df_index(scalars_df_no_index: bigframes.DataFrame) -> bigframes.DataFrame:
+def scalars_df_index(
+    scalars_df_default_index: bigframes.DataFrame,
+) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
-    return scalars_df_no_index.set_index("rowindex")
+    return scalars_df_default_index.set_index("rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")
-def scalars_df_2_no_index(
+def scalars_df_2_default_index(
     scalars_table_id_2: str, session: bigframes.Session
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
@@ -196,10 +198,10 @@ def scalars_df_2_no_index(
 
 @pytest.fixture(scope="session")
 def scalars_df_2_index(
-    scalars_df_2_no_index: bigframes.DataFrame,
+    scalars_df_2_default_index: bigframes.DataFrame,
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
-    return scalars_df_2_no_index.set_index("rowindex")
+    return scalars_df_2_default_index.set_index("rowindex")
 
 
 @pytest.fixture(scope="session")
@@ -234,6 +236,8 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
     df["numeric_col"] = df["numeric_col"].apply(
         lambda value: decimal.Decimal(str(value)) if value else None  # type: ignore
     )
+    df = df.set_index("rowindex", drop=False)
+    df.index.name = None
     return df
 
 
@@ -255,10 +259,10 @@ def scalars_pandas_df_multi_index(
     ).sort_index()
 
 
-@pytest.fixture(scope="session", params=("index", "no_index"))
+@pytest.fixture(scope="session", params=("index", "default_index"))
 def scalars_dfs(
     request,
-    scalars_df_no_index,
+    scalars_df_default_index,
     scalars_df_index,
     scalars_pandas_df_default_index,
     scalars_pandas_df_index,
@@ -266,11 +270,11 @@ def scalars_dfs(
     if request.param == "index":
         return scalars_df_index, scalars_pandas_df_index
     else:
-        return scalars_df_no_index, scalars_pandas_df_default_index
+        return scalars_df_default_index, scalars_pandas_df_default_index
 
 
 @pytest.fixture(scope="session")
-def penguins_df_no_index(
+def penguins_df_default_index(
     penguins_table_id: str, session: bigframes.Session
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
