@@ -109,6 +109,8 @@ class BigFramesExpr:
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.
+        meta_columns: Ibis value expressions to store ordering.
+        ordering: An ordering property of the data frame.
         predicates: A list of filters on the data frame.
     """
 
@@ -128,7 +130,11 @@ class BigFramesExpr:
         self._ordering = ordering or ExpressionOrdering()
         # Allow creating a DataFrame directly from an Ibis table expression.
         if columns is None:
-            self._columns = tuple(table[key] for key in table.columns)
+            self._columns = tuple(
+                table[key]
+                for key in table.columns
+                if ordering is None or key != ordering.ordering_id
+            )
         else:
             # TODO(swast): Validate that each column references the same table (or
             # no table for literal values).
@@ -175,7 +181,7 @@ class BigFramesExpr:
 
     @property
     def ordering(self) -> Sequence[ibis_types.Value]:
-        """Returns a sequence of ibis values which can be directly used to order a tabel expression. Has direction modifiers applied."""
+        """Returns a sequence of ibis values which can be directly used to order a table expression. Has direction modifiers applied."""
         if not self._ordering:
             return []
         else:

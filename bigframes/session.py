@@ -9,9 +9,10 @@ import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import ibis
 from ibis.backends.bigquery import Backend
+import numpy as np
 import pandas
 
-from bigframes.core import BigFramesExpr
+from bigframes.core import BigFramesExpr, ExpressionOrdering
 import bigframes.core.blocks as blocks
 from bigframes.dataframe import DataFrame
 import bigframes.ml.loader
@@ -141,7 +142,32 @@ class Session:
               table must be specified in the format of `project.dataset.tablename` or
               `dataset.tablename`.
             col_order: List of BigQuery column names in the desired order for results DataFrame.
-            index_cols: List of column names to use as the index or multi-index
+            index_cols: List of column names to use as the index or multi-index.
+
+        Returns:
+            A DataFrame representing results of the query or table.
+        """
+        return self._read_gbq_with_ordering(
+            query_or_table=query_or_table, col_order=col_order, index_cols=index_cols
+        )
+
+    def _read_gbq_with_ordering(
+        self,
+        query_or_table: str,
+        *,
+        col_order: Optional[List[str]] = None,
+        index_cols: Union[Iterable[str], Tuple] = (),
+        ordering: Optional[ExpressionOrdering] = None,
+    ) -> "DataFrame":
+        """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
+
+        Args:
+            query_or_table: a SQL string to be executed or a BigQuery table to be read. The
+              table must be specified in the format of `project.dataset.tablename` or
+              `dataset.tablename`.
+            col_order: List of BigQuery column names in the desired order for results DataFrame.
+            index_cols: List of column names to use as the index or multi-index.
+            ordering_col: Column name to be used for ordering.
 
         Returns:
             A DataFrame representing results of the query or table.
@@ -160,6 +186,10 @@ class Session:
                 database=f"{table_ref.project}.{table_ref.dataset_id}",
             )
 
+        meta_columns = None
+        if ordering is not None:
+            meta_columns = (table_expression[ordering.ordering_id],)
+
         columns = None
         if col_order is not None:
             columns = tuple(
@@ -167,7 +197,11 @@ class Session:
             )
             if len(columns) != len(col_order):
                 raise ValueError("Column order does not match this table.")
-        block = blocks.Block(BigFramesExpr(self, table_expression, columns), index_cols)
+
+        block = blocks.Block(
+            BigFramesExpr(self, table_expression, columns, meta_columns, ordering),
+            index_cols,
+        )
 
         # TOOD(swast): Support MultiIndex.
         if block.index_columns:
@@ -203,18 +237,34 @@ class Session:
         Returns:
             A BigFrame DataFrame.
         """
+        # Add order column to pandas DataFrame to preserve order in BigQuery
+        ordering_col = "rowid"
+        if ordering_col in pandas_dataframe.columns:
+            raise ValueError("Column with name 'rowid' already exists.")
+
+        pandas_dataframe_copy = pandas_dataframe.copy()
+        pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
         table_name = f"{uuid.uuid4().hex}"
         load_table_name = f"{self.bqclient.project}._SESSION.{table_name}"
         load_job = self.bqclient.load_table_from_dataframe(
-            pandas_dataframe, load_table_name, job_config=bigquery.LoadJobConfig()
+            pandas_dataframe_copy, load_table_name, job_config=bigquery.LoadJobConfig()
         )
         load_job.result()  # Wait for the job to complete
 
         # Both default indexes and unnamed non-default indexes are treated the same
         # and are not copied to BigQuery when load_table_from_dataframe executes
-        index_cols = filter(lambda name: name is not None, pandas_dataframe.index.names)
-        return self.read_gbq(f"SELECT * FROM `{table_name}`", index_cols=index_cols)
+        index_cols = filter(
+            lambda name: name is not None, pandas_dataframe_copy.index.names
+        )
+        ordering = ExpressionOrdering(
+            ordering_id_column=ordering_col, is_sequential=True, ascending=True
+        )
+        return self._read_gbq_with_ordering(
+            f"SELECT * FROM `{table_name}`",
+            index_cols=index_cols,
+            ordering=ordering,
+        )
 
     def read_csv(
         self,

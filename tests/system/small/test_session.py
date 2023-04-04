@@ -1,6 +1,7 @@
 from typing import Tuple, Union
 
 import google.api_core.exceptions
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -94,15 +95,13 @@ def test_read_gbq_model(session, penguins_linear_model_name):
 
 
 def test_read_pandas(session, scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
+    _, scalars_pandas_df = scalars_dfs
 
     df = session.read_pandas(scalars_pandas_df)
-    result = df.compute()
-    expected = scalars_df.compute()
+    assert df._block._expr._ordering is not None
 
-    # TODO(osmanamjad): remove when ordering is supported.
-    result = result.sort_values(list(result.columns))
-    expected = expected.sort_values(list(expected.columns))
+    result = df.compute()
+    expected = scalars_pandas_df
 
     # TODO(chelsealin): Check the dtypes after supporting all dtypes.
     pd.testing.assert_frame_equal(
@@ -117,6 +116,16 @@ def test_read_pandas(session, scalars_dfs):
 def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_index):
     with pytest.raises(NotImplementedError, match="MultiIndex not supported."):
         session.read_pandas(scalars_pandas_df_multi_index)
+
+
+def test_read_pandas_rowid_exists_throws_error(
+    session, scalars_pandas_df_default_index
+):
+    scalars_pandas_df_default_index["rowid"] = np.arange(
+        scalars_pandas_df_default_index.shape[0]
+    )
+    with pytest.raises(ValueError, match="Column with name 'rowid' already exists."):
+        session.read_pandas(scalars_pandas_df_default_index)
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
