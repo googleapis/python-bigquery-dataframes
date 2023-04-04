@@ -216,7 +216,7 @@ def create_cloud_function(def_, cf_name):
 
     # display existing cloud functions before creation
     logger.info("Existing cloud functions")
-    os.system("gcloud functions list")
+    os.system(f"gcloud functions list --project={gcp_project_id}")
 
     # Build folder structure containing cloud functions to be deployed
     with tempfile.TemporaryDirectory() as dir:
@@ -236,6 +236,7 @@ def create_cloud_function(def_, cf_name):
             "gcloud functions deploy"
             + f" {cf_name} --gen2"
             + " --runtime=python310"
+            + f" --project={gcp_project_id}"
             + f" --region={cloud_function_region}"
             + f" --source={dir}"
             + f" --entry-point={entry_point}"
@@ -274,7 +275,7 @@ def create_cloud_function(def_, cf_name):
 
     # display existing cloud functions after creation
     logger.info("Existing cloud functions")
-    os.system("gcloud functions list")
+    os.system(f"gcloud functions list --project={gcp_project_id}")
 
     # Fetch the endpoint of the just created function
     endpoint = get_cloud_function_endpoint(cf_name)

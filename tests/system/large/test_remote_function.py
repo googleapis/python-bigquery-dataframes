@@ -134,7 +134,7 @@ def test_remote_function_stringify_with_ibis(
     )
 
 
-def test_remote_function_with_bigframes_series(
+def test_remote_function_decorator_with_bigframes_series(
     scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
 ):
     @remote_function(
@@ -159,6 +159,44 @@ def test_remote_function_with_bigframes_series(
     pd_int64_col_filter = pd_int64_col.notnull()
     pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
     pd_result = pd_int64_col_filtered.apply(lambda x: x * x)
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # d_int64_col_filtered.dtype is Int64Dtype()
+    # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
+    # skip type check for now
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_remote_function_explicit_with_bigframes_series(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = remote_function(
+        [dt.int64()],
+        dt.int64(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result = bf_int64_col_filtered.apply(remote_add_one).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result = pd_int64_col_filtered.apply(lambda x: add_one(x))
 
     if pd_result.index.name != "rowindex":
         bf_result = bf_result.sort_values(ignore_index=True)
