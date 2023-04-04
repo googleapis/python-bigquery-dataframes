@@ -2,7 +2,6 @@ import base64
 import decimal
 import pathlib
 import typing
-from typing import Collection
 
 import db_dtypes  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -93,18 +92,21 @@ def scalars_schema(bigquery_client: bigquery.Client):
     return tuple(schema)
 
 
-def load_scalars(
+def load_test_data(
     dataset_id: str,
     table_id: str,
     bigquery_client: bigquery.Client,
-    scalars_schema: Collection[bigquery.SchemaField],
+    schema_filename: str,
+    data_filename: str,
 ) -> bigquery.LoadJob:
-    """Create a temporary table with test data."""
+    """Create a temporary table with test data"""
     job_config = bigquery.LoadJobConfig()
     job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-    job_config.schema = scalars_schema
+    job_config.schema = tuple(
+        bigquery_client.schema_from_json(DATA_DIR / schema_filename)
+    )
     table_id = f"{dataset_id}.{table_id}"
-    with open(DATA_DIR / "scalars.jsonl", "rb") as input_file:
+    with open(DATA_DIR / data_filename, "rb") as input_file:
         job = bigquery_client.load_table_from_file(
             input_file, table_id, job_config=job_config
         )
@@ -115,11 +117,12 @@ def load_scalars(
 @pytest.fixture(scope="session")
 def scalars_table_id(
     dataset_id: str,
-    bigquery_client: bigquery.Client,
-    scalars_schema: Collection[bigquery.SchemaField],
+    session: bigframes.Session,
 ) -> str:
-    scalars_load_job = load_scalars(
-        dataset_id, "scalars", bigquery_client, scalars_schema
+    # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
+    # See also: https://github.com/ibis-project/ibis-bigquery/pull/67
+    scalars_load_job = load_test_data(
+        dataset_id, "scalars", session.bqclient, "scalars_schema.json", "scalars.jsonl"
     )
     table_ref = scalars_load_job.destination
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
@@ -128,11 +131,30 @@ def scalars_table_id(
 @pytest.fixture(scope="session")
 def scalars_table_id_2(
     dataset_id: str,
-    bigquery_client: bigquery.Client,
-    scalars_schema: Collection[bigquery.SchemaField],
+    session: bigframes.Session,
 ) -> str:
-    scalars_load_job = load_scalars(
-        dataset_id, "scalars_too", bigquery_client, scalars_schema
+    scalars_load_job = load_test_data(
+        dataset_id,
+        "scalars_too",
+        session.bqclient,
+        "scalars_schema.json",
+        "scalars.jsonl",
+    )
+    table_ref = scalars_load_job.destination
+    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+
+
+@pytest.fixture(scope="session")
+def penguins_table_id(
+    dataset_id: str,
+    session: bigframes.Session,
+) -> str:
+    scalars_load_job = load_test_data(
+        dataset_id,
+        "penguins",
+        session.bqclient,
+        "penguins_schema.json",
+        "penguins.jsonl",
     )
     table_ref = scalars_load_job.destination
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
@@ -233,3 +255,11 @@ def scalars_dfs(
         return scalars_df_index, scalars_pandas_df_index
     else:
         return scalars_df_no_index, scalars_pandas_df_default_index
+
+
+@pytest.fixture(scope="session")
+def penguins_df_no_index(
+    penguins_table_id: str, session: bigframes.Session
+) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(penguins_table_id)
