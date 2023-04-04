@@ -213,6 +213,22 @@ def test_get_dtypes(scalars_df_no_index):
     )
 
 
+def test_shape(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.shape
+    pd_result = scalars_pandas_df.shape
+
+    assert bf_result == pd_result
+
+
+def test_size(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.size
+    pd_result = scalars_pandas_df.size
+
+    assert bf_result == pd_result
+
+
 @pytest.mark.parametrize(
     ("drop",),
     ((True,), (False,)),

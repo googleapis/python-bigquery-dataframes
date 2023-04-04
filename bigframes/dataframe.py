@@ -5,7 +5,7 @@ from __future__ import annotations
 import operator
 import re
 import typing
-from typing import Iterable, Mapping, Optional, Union
+from typing import Iterable, Mapping, Optional, Tuple, Union
 
 import google.cloud.bigquery as bigquery
 import ibis
@@ -66,6 +66,19 @@ class DataFrame:
     def columns(self) -> pd.Index:
         """Returns the column labels of the dataframe"""
         return self.dtypes.index
+
+    @property
+    def shape(self) -> Tuple[int, int]:
+        """Return a tuple representing the dimensionality of the DataFrame."""
+        job = self._block.expr.start_query().result()
+        rows = job.total_rows
+        cols = len(self.columns)
+        return (rows, cols)
+
+    @property
+    def size(self) -> int:
+        rows, cols = self.shape
+        return rows * cols
 
     @property
     def sql(self) -> str:
