@@ -164,7 +164,8 @@ def test_session_dataset_exists_and_configured(session: bigframes.Session):
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
-def test_to_close_session(session):
+def test_to_close_session():
+    session = bigframes.Session()
     assert session._session_id is not None
     session.close()
     assert session._session_id is None
