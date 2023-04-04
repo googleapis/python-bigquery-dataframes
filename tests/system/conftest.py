@@ -1,7 +1,9 @@
 import base64
 import decimal
+import hashlib
+import logging
 import pathlib
-import typing
+from typing import cast, Dict
 
 import db_dtypes  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -15,7 +17,14 @@ import bigframes
 
 CURRENT_DIR = pathlib.Path(__file__).parent
 DATA_DIR = CURRENT_DIR.parent / "data"
+PERMANENT_DATASET = "bigframes_testing"
 prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
+
+
+def _hash_digest_file(hasher, filepath):
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +43,7 @@ def gcs_folder(gcs_client: storage.Client):
     path = f"gs://{bucket}/{prefix}/"
     yield path
     for blob in gcs_client.list_blobs(bucket, prefix=prefix):
-        blob = typing.cast(storage.Blob, blob)
+        blob = cast(storage.Blob, blob)
         blob.delete()
 
 
@@ -67,7 +76,7 @@ def cleanup_datasets(bigquery_client: bigquery.Client) -> None:
 def dataset_id_permanent(bigquery_client: bigquery.Client):
     """Create a dataset if it doesn't exist."""
     project_id = bigquery_client.project
-    dataset_id = f"{project_id}.bigframes_testing"
+    dataset_id = f"{project_id}.{PERMANENT_DATASET}"
     dataset = bigquery.Dataset(dataset_id)
     bigquery_client.create_dataset(dataset, exists_ok=True)
     return dataset_id
@@ -93,7 +102,6 @@ def scalars_schema(bigquery_client: bigquery.Client):
 
 
 def load_test_data(
-    dataset_id: str,
     table_id: str,
     bigquery_client: bigquery.Client,
     schema_filename: str,
@@ -105,59 +113,64 @@ def load_test_data(
     job_config.schema = tuple(
         bigquery_client.schema_from_json(DATA_DIR / schema_filename)
     )
-    table_id = f"{dataset_id}.{table_id}"
     with open(DATA_DIR / data_filename, "rb") as input_file:
         job = bigquery_client.load_table_from_file(
             input_file, table_id, job_config=job_config
         )
     # No cleanup necessary, as the surrounding dataset will delete contents.
-    return typing.cast(bigquery.LoadJob, job.result())
+    return cast(bigquery.LoadJob, job.result())
 
 
 @pytest.fixture(scope="session")
-def scalars_table_id(
-    dataset_id: str,
-    session: bigframes.Session,
-) -> str:
-    # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
-    # See also: https://github.com/ibis-project/ibis-bigquery/pull/67
-    scalars_load_job = load_test_data(
-        dataset_id, "scalars", session.bqclient, "scalars_schema.json", "scalars.jsonl"
-    )
-    table_ref = scalars_load_job.destination
-    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+def test_data_tables(
+    session: bigframes.Session, dataset_id_permanent
+) -> Dict[str, str]:
+    """Returns cached references to the test data tables in BigQuery. If no matching table is found
+    for the hash of the data and schema, the table will be uploaded."""
+    existing_table_ids = [
+        table.table_id for table in session.bqclient.list_tables(dataset_id_permanent)
+    ]
+    table_mapping: Dict[str, str] = {}
+    for table_name, schema_filename, data_filename in [
+        ("scalars", "scalars_schema.json", "scalars.jsonl"),
+        ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
+        ("penguins", "penguins_schema.json", "penguins.jsonl"),
+    ]:
+        test_data_hash = hashlib.md5()
+        _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
+        _hash_digest_file(test_data_hash, DATA_DIR / data_filename)
+        test_data_hash.update(table_name.encode())
+        target_table_id = f"{table_name}_{test_data_hash.hexdigest()}"
+        target_table_id_full = (
+            f"{session.bqclient.project}.{PERMANENT_DATASET}.{target_table_id}"
+        )
+        if target_table_id not in existing_table_ids:
+            # matching table wasn't found in the permanent dataset - we need to upload it
+            logging.info(
+                f"Test data table {table_name} was not found in the permanent dataset, regenerating it..."
+            )
+            load_test_data(
+                target_table_id_full, session.bqclient, schema_filename, data_filename
+            )
+
+        table_mapping[table_name] = target_table_id_full
+
+    return table_mapping
 
 
 @pytest.fixture(scope="session")
-def scalars_table_id_2(
-    dataset_id: str,
-    session: bigframes.Session,
-) -> str:
-    scalars_load_job = load_test_data(
-        dataset_id,
-        "scalars_too",
-        session.bqclient,
-        "scalars_schema.json",
-        "scalars.jsonl",
-    )
-    table_ref = scalars_load_job.destination
-    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+def scalars_table_id(test_data_tables) -> str:
+    return test_data_tables["scalars"]
 
 
 @pytest.fixture(scope="session")
-def penguins_table_id(
-    dataset_id: str,
-    session: bigframes.Session,
-) -> str:
-    scalars_load_job = load_test_data(
-        dataset_id,
-        "penguins",
-        session.bqclient,
-        "penguins_schema.json",
-        "penguins.jsonl",
-    )
-    table_ref = scalars_load_job.destination
-    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+def scalars_table_id_2(test_data_tables) -> str:
+    return test_data_tables["scalars_too"]
+
+
+@pytest.fixture(scope="session")
+def penguins_table_id(test_data_tables) -> str:
+    return test_data_tables["penguins"]
 
 
 @pytest.fixture(scope="session")
