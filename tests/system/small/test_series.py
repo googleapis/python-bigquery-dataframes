@@ -586,6 +586,14 @@ def test_sum(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_product(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "float64_col"
+    bf_result = scalars_df[col_name].product().compute()
+    pd_result = scalars_pandas_df[col_name].product()
+    assert math.isclose(pd_result, bf_result)
+
+
 def test_count(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -677,6 +685,21 @@ def test_groupby_mean(scalars_dfs):
     )
 
 
+def test_groupby_prod(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    bf_series = scalars_df[col_name].groupby(scalars_df["int64_col"]).prod()
+    pd_series = (
+        scalars_pandas_df[col_name].groupby(scalars_pandas_df["int64_col"]).prod()
+    )
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    bf_result = bf_series.compute()
+    assert_series_equal_ignoring_order(
+        pd_series,
+        bf_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("operator"),
     [
@@ -684,12 +707,14 @@ def test_groupby_mean(scalars_dfs):
         (lambda x: x.cumcount()),
         (lambda x: x.cummin()),
         (lambda x: x.cummax()),
+        (lambda x: x.cumprod()),
     ],
     ids=[
         "cumsum",
         "cumcount",
         "cummin",
         "cummax",
+        "cumprod",
     ],
 )
 def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, operator):

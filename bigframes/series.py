@@ -287,6 +287,23 @@ class Series:
         """
         return self._apply_aggregation(agg_ops.sum_op)
 
+    def prod(self) -> bigframes.scalar.Scalar:
+        """Finds the product of the numeric values for each group in the series. Ignores null/nan.
+
+        Note: pandas and BigFrames may not perform floating point operations in
+        exactly the same order. Expect some floating point wobble. When
+        comparing computed results, use a method such as :func:`math.isclose`
+        or :func:`numpy.isclose` to account for this.
+
+        Returns:
+            A BigFrames Scalar so that this can be used in other expressions.
+            To get the numeric result call
+            :func:`~bigframes.scalar.Scalar.compute()`.
+        """
+        return self._apply_aggregation(agg_ops.product_op)
+
+    product = prod
+
     def slice(self, start=None, stop=None) -> "Series":
         """Slice substrings from each element in the Series."""
 
@@ -403,9 +420,7 @@ class Series:
         )
         return bigframes.scalar.Scalar(aggregation_result)
 
-    def _apply_cumulative_aggregate(
-        self, op: typing.Callable[[ibis_types.Column], ibis_types.Value]
-    ):
+    def _apply_cumulative_aggregate(self, op: agg_ops.AggregateOp):
         expr = self._block.expr
         # TODO: Push this down into expression objects
         window = ibis.cumulative_window(
@@ -414,7 +429,7 @@ class Series:
         )
 
         def cumulative_op(x: ibis_types.Column):
-            cumop = op(x).over(window)
+            cumop = op.with_window(window)(x)
             # Pandas cumulative ops will result in NA if input row was NA, instead of current cumulative value
             pandas_style_cumop = (
                 ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
@@ -621,8 +636,15 @@ class SeriesGroupyBy:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
         return self._aggregate(agg_ops.mean_op)
 
+    def prod(self) -> Series:
+        """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
+        return self._aggregate(agg_ops.product_op)
+
     def cumsum(self) -> Series:
         return self._cumulative_aggregate(agg_ops.sum_op)
+
+    def cumprod(self) -> Series:
+        return self._cumulative_aggregate(agg_ops.product_op)
 
     def cummax(self) -> Series:
         return self._cumulative_aggregate(agg_ops.max_op)
@@ -632,7 +654,7 @@ class SeriesGroupyBy:
 
     def cumcount(self) -> Series:
         return self._cumulative_aggregate(
-            agg_ops.rank, ignore_na=False, discard_name=True
+            agg_ops.rank_op, ignore_na=False, discard_name=True
         )
 
     def _aggregate(self, aggregate_op: typing.Any) -> Series:
@@ -649,7 +671,7 @@ class SeriesGroupyBy:
 
     def _cumulative_aggregate(
         self,
-        op: typing.Callable[[ibis_types.Column], ibis_types.Value],
+        op: agg_ops.AggregateOp,
         ignore_na=True,
         discard_name=False,
     ):
@@ -661,7 +683,7 @@ class SeriesGroupyBy:
         )
 
         def cumulative_op(x: ibis_types.Column):
-            cumop = op(x).over(window)
+            cumop = op.with_window(window)(x)
             if ignore_na:
                 cumop = ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
             return cumop
