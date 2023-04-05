@@ -8,6 +8,7 @@ import bigframes
 import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.ml.linear_model
 
 
 def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
@@ -85,6 +86,11 @@ def test_read_gbq_sql_w_col_order(session):
         axis=1,
     )
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+
+
+def test_read_gbq_model(session, penguins_model_name):
+    model = session.read_gbq_model(penguins_model_name)
+    assert isinstance(model, bigframes.ml.linear_model.LinearRegression)
 
 
 def test_read_pandas(session, scalars_dfs):

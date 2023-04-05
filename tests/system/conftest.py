@@ -7,6 +7,7 @@ from typing import cast, Dict
 
 import db_dtypes  # type: ignore
 import google.cloud.bigquery as bigquery
+import google.cloud.exceptions
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
 import pandas as pd
@@ -141,9 +142,7 @@ def test_data_tables(
         _hash_digest_file(test_data_hash, DATA_DIR / data_filename)
         test_data_hash.update(table_name.encode())
         target_table_id = f"{table_name}_{test_data_hash.hexdigest()}"
-        target_table_id_full = (
-            f"{session.bqclient.project}.{PERMANENT_DATASET}.{target_table_id}"
-        )
+        target_table_id_full = f"{dataset_id_permanent}.{target_table_id}"
         if target_table_id not in existing_table_ids:
             # matching table wasn't found in the permanent dataset - we need to upload it
             logging.info(
@@ -276,3 +275,38 @@ def penguins_df_no_index(
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(penguins_table_id)
+
+
+@pytest.fixture(scope="session")
+def penguins_model_name(
+    session: bigframes.Session, dataset_id_permanent, penguins_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...)"""
+    sql = """
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS
+  (model_type='linear_reg',
+  input_label_cols=['body_mass_g']) AS
+SELECT
+  *
+FROM
+  `$table_id`
+WHERE
+  body_mass_g IS NOT NULL"""
+    # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
+    model_name = f"{dataset_id_permanent}.{hashlib.md5(sql.encode()).hexdigest()}"
+    sql = sql.replace("$model_name", model_name)
+
+    # TODO(bmil): move this to the original SQL construction once penguins_table has been
+    # migrated to the permanent dataset too
+    sql = sql.replace("$table_id", penguins_table_id)
+
+    try:
+        return model_name
+    except google.cloud.exceptions.NotFound:
+        logging.info(
+            "penguins_model fixture was not found in the permanent dataset, regenerating it..."
+        )
+        session.bqclient.query(sql).result()
+        return model_name

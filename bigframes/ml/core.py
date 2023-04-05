@@ -23,6 +23,11 @@ class BqmlModel:
         self._model = model
 
     @property
+    def session(self) -> bigframes.Session:
+        """Get the BigFrames session that this BQML model wrapper is tied to"""
+        return self._session
+
+    @property
     def model_name(self):
         """Get the fully qualified name of the model, i.e. project_id.dataset_id.model_id"""
         return f"{self._model.project}.{self._model.dataset_id}.{self._model.model_id}"

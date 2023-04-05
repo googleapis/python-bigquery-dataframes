@@ -14,6 +14,7 @@ import pandas
 from bigframes.core import BigFramesExpr
 import bigframes.core.blocks as blocks
 from bigframes.dataframe import DataFrame
+import bigframes.ml.loader
 import bigframes.version
 
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
@@ -168,6 +169,23 @@ class Session:
                 raise ValueError("Column order does not match this table.")
         block = blocks.Block(BigFramesExpr(self, table_expression, columns), index_cols)
         return DataFrame(block)
+
+    def read_gbq_model(self, model_name: str):
+        """Loads a BQML model from Google BigQuery.
+
+        Args:
+            model_name : the model's name in BigQuery in the format
+            `project_id.dataset_id.model_id`, or just `dataset_id.model_id`
+            to load from the default project.
+
+        Returns:
+            A bigframes.ml Model wrapping the model
+        """
+        model_ref = bigquery.ModelReference.from_string(
+            model_name, default_project=self.bqclient.project
+        )
+        model = self.bqclient.get_model(model_ref)
+        return bigframes.ml.loader.from_bq(self, model)
 
     def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> "DataFrame":
         """Loads DataFrame from a Pandas DataFrame.
