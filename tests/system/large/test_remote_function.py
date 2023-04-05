@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
+import math
 
 from google.api_core.exceptions import NotFound, ResourceExhausted
 from google.cloud import functions_v2
@@ -28,6 +29,10 @@ from bigframes import get_remote_function_locations, remote_function
 # We are running pytest with "-n 20". Let's say each session lasts about a
 # minute, so we are setting a limit of 60/20 = 3 deletions per session.
 _MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 3
+
+# Only for testing with global var
+_team_pi = "Team Pi"
+_team_euler = "Team Euler"
 
 
 def get_remote_function_end_points(bigquery_client, dataset_id):
@@ -217,8 +222,8 @@ def test_remote_function_decorator_with_bigframes_series(
         pd_result = pd_result.sort_values(ignore_index=True)
 
     # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-    # d_int64_col_filtered.dtype is Int64Dtype()
-    # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64
     # skip type check for now
     pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
@@ -254,8 +259,135 @@ def test_remote_function_explicit_with_bigframes_series(
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-    # d_int64_col_filtered.dtype is Int64Dtype()
-    # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64
     # skip type check for now
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_remote_udf_referring_outside_var(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    POSITIVE_SIGN = 1
+    NEGATIVE_SIGN = -1
+    NO_SIGN = 0
+
+    def sign(num):
+        if num > 0:
+            return POSITIVE_SIGN
+        elif num < 0:
+            return NEGATIVE_SIGN
+        return NO_SIGN
+
+    remote_sign = remote_function(
+        [dt.int64()],
+        dt.int64(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(sign)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result = bf_int64_col_filtered.apply(remote_sign).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result = pd_int64_col_filtered.apply(lambda x: sign(x))
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64
+    # skip type check for now
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_remote_udf_referring_outside_import(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    import math as mymath
+
+    def circumference(radius):
+        return 2 * mymath.pi * radius
+
+    remote_circumference = remote_function(
+        [dt.float64()],
+        dt.float64(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(circumference)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_float64_col = scalars_df["float64_col"]
+    bf_float64_col_filter = bf_float64_col.notnull()
+    bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
+    bf_result = bf_float64_col_filtered.apply(remote_circumference).compute()
+
+    pd_float64_col = scalars_pandas_df["float64_col"]
+    pd_float64_col_filter = pd_float64_col.notnull()
+    pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
+    pd_result = pd_float64_col_filtered.apply(lambda x: circumference(x))
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
+    # pd_float64_col_filtered.dtype is Float64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is float64
+    # skip type check for now
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_remote_udf_referring_global_var_and_import(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    def find_team(num):
+        boundary = (math.pi + math.e) / 2
+        if num >= boundary:
+            return _team_euler
+        return _team_pi
+
+    remote_func = remote_function(
+        [dt.float64()],
+        dt.string(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(find_team)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_float64_col = scalars_df["float64_col"]
+    bf_float64_col_filter = bf_float64_col.notnull()
+    bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
+    bf_result = bf_float64_col_filtered.apply(remote_func).compute()
+
+    pd_float64_col = scalars_pandas_df["float64_col"]
+    pd_float64_col_filter = pd_float64_col.notnull()
+    pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
+    pd_result = pd_float64_col_filtered.apply(lambda x: find_team(x))
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    # TODO(shobs): Figure if the dtype mismatch is by design:
+    # bf_result.dtype: string[pyarrow]
+    # pd_result.dtype: dtype('O')
+    # Skip type check for now
     pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)

@@ -21,10 +21,12 @@ import os
 import random
 import shutil
 import string
+import sys
 import tempfile
 import textwrap
 import time
 
+import cloudpickle
 import google.cloud.bigquery as bigquery
 import google.cloud.functions_v2 as functions_v2
 from ibis.backends.bigquery.compiler import compiles
@@ -41,8 +43,14 @@ bq_client = bigquery.Client(project=gcp_project_id)
 bq_connection_id = "bigframes-rf-conn"
 wait_seconds = 90
 
+# Protocol version 4 is available in python version 3.4 and above
+# https://docs.python.org/3/library/pickle.html#data-stream-format
+pickle_protocol_version = 4
+
+# TODO(shobs): Change the min log level to INFO after the development stabilizes
+# before June 2023
 logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s][%(asctime)s][%(name)s] %(message)s"
+    level=logging.DEBUG, format="[%(levelname)s][%(asctime)s][%(name)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -166,9 +174,12 @@ def get_cloud_function_endpoint(name):
     return ""
 
 
-def get_cloud_function_main_code(def_):
-    """Get main.py code for the cloud function for the given user defined function."""
+def generate_udf_code(def_, dir):
+    """Generate serialized bytecode using cloudpickle given a udf."""
+    udf_code_file_name = "udf.py"
+    udf_bytecode_file_name = "udf.cloudpickle"
 
+    # original code
     # TODO(shobs): Let's assume it's a simple user defined function with a
     # single decorator that happens to be the remote function decorator itself.
     # In case of multiple decorators the cloud function source code should
@@ -179,9 +190,25 @@ def get_cloud_function_main_code(def_):
             inspect.getsourcelines(def_)[0],
         )
     )
-
     udf_code = textwrap.dedent("".join(udf_lines))
-    handler_func_name = f"{def_.__name__}_http"
+    udf_code_file_path = os.path.join(dir, udf_code_file_name)
+    with open(udf_code_file_path, "w") as f:
+        f.write(udf_code)
+
+    # serialized bytecode
+    udf_bytecode_file_path = os.path.join(dir, udf_bytecode_file_name)
+    with open(udf_bytecode_file_path, "wb") as f:
+        cloudpickle.dump(def_, f, protocol=pickle_protocol_version)
+
+    return udf_code_file_name, udf_bytecode_file_name
+
+
+def generate_cloud_function_main_code(def_, dir):
+    """Get main.py code for the cloud function for the given user defined function."""
+
+    # Pickle the udf with all its dependencies
+    udf_code_file, udf_bytecode_file = generate_udf_code(def_, dir)
+    handler_func_name = "udf_http"
 
     # We want to build a cloud function that works for BQ remote functions,
     # where we receive `calls` in json which is a batch of rows from BQ SQL.
@@ -201,9 +228,13 @@ def get_cloud_function_main_code(def_):
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
     code_template = textwrap.dedent(
         """\
+    import cloudpickle
     import json
 
-    {udf_code}
+    # original udf code is in {udf_code_file}
+    # serialized udf code is in {udf_bytecode_file}
+    with open("{udf_bytecode_file}", "rb") as f:
+      udf = cloudpickle.load(f)
 
     def {handler_func_name}(request):
       request_json = request.get_json(silent=True)
@@ -211,7 +242,7 @@ def get_cloud_function_main_code(def_):
       calls = request_json["calls"]
       replies = []
       for call in calls:
-        reply = {udf_name}(*call)
+        reply = udf(*call)
         replies.append(reply)
       return_json = json.dumps({{"replies" : replies}})
       return return_json
@@ -219,37 +250,66 @@ def get_cloud_function_main_code(def_):
     )
 
     code = code_template.format(
-        udf_code=udf_code, handler_func_name=handler_func_name, udf_name=def_.__name__
+        udf_code_file=udf_code_file,
+        udf_bytecode_file=udf_bytecode_file,
+        handler_func_name=handler_func_name,
     )
-    return code, handler_func_name
+
+    main_py = os.path.join(dir, "main.py")
+    with open(main_py, "w") as f:
+        f.write(code)
+    logger.debug(f"Wrote {os.path.abspath(main_py)}:\n{open(main_py).read()}")
+
+    return handler_func_name
+
+
+def generate_cloud_function_code(def_, dir):
+    """Generate the cloud function code for a given user defined function."""
+
+    # requirements.txt
+    requirements = ["cloudpickle >= 2.1.0"]
+    requirements_txt = os.path.join(dir, "requirements.txt")
+    with open(requirements_txt, "w") as f:
+        f.write("\n".join(requirements))
+
+    # main.py
+    entry_point = generate_cloud_function_main_code(def_, dir)
+    return entry_point
 
 
 def create_cloud_function(def_, cf_name):
     """Create a cloud function from the given user defined function."""
-    main_code, entry_point = get_cloud_function_main_code(def_)
 
-    # display existing cloud functions before creation
+    # Display existing cloud functions before creation
     logger.info("Existing cloud functions")
     os.system(f"gcloud functions list --project={gcp_project_id}")
 
-    # Build folder structure containing cloud functions to be deployed
+    # Build and deploy folder structure containing cloud function
     with tempfile.TemporaryDirectory() as dir:
         if os.path.exists(dir):
             shutil.rmtree(dir)
         os.mkdir(dir)
-        main_py = os.path.join(dir, "main.py")
-        with open(main_py, "w") as f:
-            f.write(main_code)
-        logger.info(f"Wrote {os.path.abspath(main_py)}")
-        logger.info(open(main_py).read())
 
-        # deploy a new cloud function
+        entry_point = generate_cloud_function_code(def_, dir)
+
+        # We are creating cloud function source code from the currently running
+        # python version. Use the same version to deploy. This is necessary
+        # because cloudpickle serialization done in one python version and
+        # deserialization done in another python version doesn't work.
+        # TODO(shobs): Figure out how to achieve version compatibility, specially
+        # when pickle (internally used by cloudpickle) guarantees that:
+        # https://docs.python.org/3/library/pickle.html#:~:text=The%20pickle%20serialization%20format%20is,unique%20breaking%20change%20language%20boundary.
+        python_version = "python{}{}".format(
+            sys.version_info.major, sys.version_info.minor
+        )
+
+        # deploy/redeploy the cloud function
         # TODO(shobs): Figure out a way to skip this step if a cloud function
         # already exists with the same name and source code
         command = (
             "gcloud functions deploy"
             + f" {cf_name} --gen2"
-            + " --runtime=python310"
+            + f" --runtime={python_version}"
             + f" --project={gcp_project_id}"
             + f" --region={cloud_function_region}"
             + f" --source={dir}"
@@ -287,7 +347,7 @@ def create_cloud_function(def_, cf_name):
         if os.system(command):
             raise ValueError("Failed at gcloud functions deploy")
 
-    # display existing cloud functions after creation
+    # Display existing cloud functions after creation
     logger.info("Existing cloud functions")
     os.system(f"gcloud functions list --project={gcp_project_id}")
 
