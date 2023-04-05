@@ -28,31 +28,93 @@ TernaryOp = typing.Callable[
     [ibis_types.Value, ibis_types.Value, ibis_types.Value], ibis_types.Value
 ]
 
+
 ### Unary Ops
+class UnaryOp:
+    def _as_ibis(self, x):
+        raise NotImplementedError("Base class AggregateOp has no implementaiton.")
+
+    @property
+    def is_windowed(self):
+        return False
 
 
-def abs_op(x: ibis_types.Value):
-    return typing.cast(ibis_types.NumericValue, x).abs()
+class AbsOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.NumericValue, x).abs()
 
 
-def invert_op(x: ibis_types.Value):
-    return typing.cast(ibis_types.NumericValue, x).negate()
+class InvertOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.NumericValue, x).negate()
 
 
-def isnull_op(x: ibis_types.Value):
-    return x.isnull()
+class IsNullOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return x.isnull()
 
 
-def len_op(x: ibis_types.Value):
-    return typing.cast(ibis_types.StringValue, x).length()
+class LenOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).length()
 
 
-def notnull_op(x: ibis_types.Value):
-    return x.notnull()
+class NotNullOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return x.notnull()
 
 
-def reverse_op(x: ibis_types.Value):
-    return typing.cast(ibis_types.StringValue, x).reverse()
+class ReverseOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).reverse()
+
+
+class LowerOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).lower()
+
+
+class UpperOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).upper()
+
+
+class StripOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).strip()
+
+
+# Parameterized ops
+class FindOp(UnaryOp):
+    def __init__(self, sub, start, end):
+        self._sub = sub
+        self._start = start
+        self._end = end
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).find(
+            self._sub, self._start, self._end
+        )
+
+
+class SliceOp(UnaryOp):
+    def __init__(self, start, stop):
+        self._start = start
+        self._stop = stop
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x)[self._start : self._stop]
+
+
+abs_op = AbsOp()
+invert_op = InvertOp()
+isnull_op = IsNullOp()
+len_op = LenOp()
+notnull_op = NotNullOp()
+reverse_op = ReverseOp()
+lower_op = LowerOp()
+upper_op = UpperOp()
+strip_op = StripOp()
 
 
 ### Binary Ops
@@ -182,6 +244,13 @@ def mod_op(
         .else_(bq_mod)
         .end()
     )
+
+
+def fillna_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return x.fillna(typing.cast(ibis_types.Scalar, y))
 
 
 def reverse(op):

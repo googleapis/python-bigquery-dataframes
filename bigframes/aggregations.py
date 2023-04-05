@@ -19,47 +19,55 @@ import typing
 import ibis
 import ibis.expr.types as ibis_types
 
-T = typing.TypeVar("T", bound=ibis_types.Value)
+
+class WindowOp:
+    def _as_ibis(self, value: ibis_types.Column, window=None):
+        raise NotImplementedError("Base class WindowOp has no implementaiton.")
+
+    @property
+    def skips_nulls(self):
+        """Whether the window op skips null rows."""
+        return True
 
 
-class AggregateOp:
-    _window = None
-
-    def with_window(self, ibis_window):
-        self._window = ibis_window
-        return self
-
-    def _windowize(self, value: T) -> T:
-        return value.over(self._window) if self._window else value
+class AggregateOp(WindowOp):
+    def _as_ibis(self, value: ibis_types.Column, window=None):
+        raise NotImplementedError("Base class AggregateOp has no implementaiton.")
 
 
 def numeric_op(operation):
-    def constrined_op(op, column: ibis_types.Column):
+    def constrained_op(op, column: ibis_types.Column, window=None):
         if column.type().is_numeric():
-            return operation(op, column)
+            return operation(op, column, window)
         else:
             raise ValueError(
                 f"Numeric operation cannot be applied to type {column.type()}"
             )
 
-    return constrined_op
+    return constrained_op
 
 
 class SumOp(AggregateOp):
     @numeric_op
-    def __call__(self, column: ibis_types.NumericColumn) -> ibis_types.NumericValue:
-        return self._windowize(column.sum())
+    def _as_ibis(
+        self, column: ibis_types.NumericColumn, window=None
+    ) -> ibis_types.NumericValue:
+        return _apply_window_if_present(column.sum(), window)
 
 
 class MeanOp(AggregateOp):
     @numeric_op
-    def __call__(self, column: ibis_types.NumericColumn) -> ibis_types.NumericValue:
-        return self._windowize(column.mean())
+    def _as_ibis(
+        self, column: ibis_types.NumericColumn, window=None
+    ) -> ibis_types.NumericValue:
+        return _apply_window_if_present(column.mean(), window)
 
 
 class ProductOp(AggregateOp):
     @numeric_op
-    def __call__(self, column: ibis_types.NumericColumn) -> ibis_types.NumericValue:
+    def _as_ibis(
+        self, column: ibis_types.NumericColumn, window=None
+    ) -> ibis_types.NumericValue:
         # Need to short-circuit as log with zeroes is illegal sql
         is_zero = typing.cast(ibis_types.BooleanColumn, (column == 0))
 
@@ -69,7 +77,7 @@ class ProductOp(AggregateOp):
             ibis_types.NumericColumn,
             ibis.case().when(is_zero, 0).else_(column.abs().log2()).end(),
         )
-        logs_sum = self._windowize(logs.sum())
+        logs_sum = _apply_window_if_present(logs.sum(), window)
         magnitude = typing.cast(ibis_types.NumericValue, ibis_types.literal(2)).pow(
             logs_sum
         )
@@ -79,12 +87,12 @@ class ProductOp(AggregateOp):
             ibis_types.NumericColumn,
             ibis.case().when(column.sign() == -1, 1).else_(0).end(),
         )
-        negative_count = self._windowize(is_negative.sum())
+        negative_count = _apply_window_if_present(is_negative.sum(), window)
         negative_count_parity = negative_count % typing.cast(
             ibis_types.NumericValue, ibis.literal(2)
         )  # 1 if result should be negative, otherwise 0
 
-        any_zeroes = self._windowize(is_zero.any())
+        any_zeroes = _apply_window_if_present(is_zero.any(), window)
         float_result = (
             ibis.case()
             .when(any_zeroes, ibis_types.literal(0))
@@ -95,43 +103,63 @@ class ProductOp(AggregateOp):
 
 
 class MaxOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.Value:
-        return self._windowize(column.max())
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(column.max(), window)
 
 
 class MinOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.Value:
-        return self._windowize(column.min())
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(column.min(), window)
 
 
 class CountOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.IntegerValue:
-        return self._windowize(column.count())
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        return _apply_window_if_present(column.count(), window)
+
+    @property
+    def skips_nulls(self):
+        return False
 
 
-class RankOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.IntegerValue:
-        return self._windowize(column.rank())
+class RankOp(WindowOp):
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        return _apply_window_if_present(column.rank(), window)
+
+    @property
+    def skips_nulls(self):
+        return False
 
 
 class AllOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.BooleanValue:
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.BooleanValue:
         # BQ will return null for empty column, result would be true in pandas.
         result = typing.cast(ibis_types.BooleanColumn, column != 0).all()
         return typing.cast(
             ibis_types.BooleanScalar,
-            self._windowize(result).fillna(ibis_types.literal(True)),
+            _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
         )
 
 
 class AnyOp(AggregateOp):
-    def __call__(self, column: ibis_types.Column) -> ibis_types.BooleanValue:
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.BooleanValue:
         # BQ will return null for empty column, result would be false in pandas.
         result = typing.cast(ibis_types.BooleanColumn, column != 0).any()
         return typing.cast(
             ibis_types.BooleanScalar,
-            self._windowize(result).fillna(ibis_types.literal(True)),
+            _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
         )
+
+
+def _apply_window_if_present(value: ibis_types.Value, window):
+    return value.over(window) if (window is not None) else value
 
 
 sum_op = SumOp()

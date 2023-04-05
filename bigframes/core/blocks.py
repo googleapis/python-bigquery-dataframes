@@ -30,8 +30,10 @@ import ibis.expr.types as ibis_types
 import numpy
 import pandas
 
+import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.indexes as indexes
+import bigframes.operations as ops
 
 
 class Block:
@@ -125,6 +127,7 @@ class Block:
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
 
+        value_column_names = value_keys or self.value_columns
         if value_keys is not None:
             index_columns = (
                 expr.get_column(column_name) for column_name in self._index_columns
@@ -152,7 +155,7 @@ class Block:
                     crs="EPSG:4326",
                 )
 
-        df = df.loc[:, [*self.index_columns, *self.value_columns]]
+        df = df.loc[:, [*self.index_columns, *value_column_names]]
         if self.index_columns:
             df = df.set_index(list(self.index_columns))
             # TODO(swast): Set names for all levels with MultiIndex.
@@ -190,3 +193,11 @@ class Block:
         """Returns dimensions as (length, width) tuple."""
         impl_length, impl_width = self._expr.shape()
         return (impl_length, impl_width - len(self.index_columns))
+
+    def apply_unary_op(self, column: str, op: ops.UnaryOp):
+        self.expr = self._expr.project_unary_op(column, op)
+
+    def apply_window_op(
+        self, column: str, op: agg_ops.WindowOp, window_spec: bigframes.core.WindowSpec
+    ):
+        self.expr = self._expr.project_window_op(column, op, window_spec)

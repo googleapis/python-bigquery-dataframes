@@ -692,7 +692,6 @@ def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, opera
     pd_series = operator(
         scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
     ).astype(pd.Int64Dtype())
-
     pd.testing.assert_series_equal(
         pd_series,
         bf_series,
@@ -765,6 +764,24 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index[col_name].cumsum().compute()
     # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
     pd_result = scalars_pandas_df_index[col_name].cumsum().astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    bf_result = scalars_df_index[col_name].cumsum().cumsum().cumsum().compute()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (
+        scalars_pandas_df_index[col_name]
+        .cumsum()
+        .cumsum()
+        .cumsum()
+        .astype(pd.Float64Dtype())
+    )
 
     pd.testing.assert_series_equal(
         bf_result,

@@ -14,12 +14,12 @@
 
 from __future__ import annotations
 
-import typing
 from typing import Optional
 
 import ibis.expr.types as ibis_types
 
 import bigframes.core.blocks as blocks
+import bigframes.operations
 import bigframes.series as series
 
 
@@ -47,11 +47,11 @@ class SeriesMethods:
 
     def _apply_unary_op(
         self,
-        op: typing.Callable[[ibis_types.Value], ibis_types.Value],
+        op: bigframes.operations.UnaryOp,
     ) -> series.Series:
         """Applies a binary operator to the series and other."""
         block = self._viewed_block
-        block.replace_value_columns([op(self._value).name(self._value_column)])
+        block.apply_unary_op(self._value_column, op)
         return series.Series(
             block,
             self._value_column,

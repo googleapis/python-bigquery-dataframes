@@ -14,10 +14,6 @@
 
 from __future__ import annotations
 
-import typing
-
-import ibis.expr.types as ibis_types
-
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
@@ -28,24 +24,15 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
 
     def find(self, sub, start=None, end=None) -> series.Series:
         """Return the position of the first occurence of substring."""
-
-        def find_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
-
-        return self._apply_unary_op(find_op)
+        return self._apply_unary_op(ops.FindOp(sub, start, end))
 
     def len(self) -> series.Series:
         """Compute the length of each string."""
-
         return self._apply_unary_op(ops.len_op)
 
     def lower(self) -> series.Series:
         """Convert strings in the Series to lowercase."""
-
-        def lower_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).lower()
-
-        return self._apply_unary_op(lower_op)
+        return self._apply_unary_op(ops.lower_op)
 
     def reverse(self) -> series.Series:
         """Reverse strings in the Series."""
@@ -53,24 +40,12 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
 
     def slice(self, start=None, stop=None) -> series.Series:
         """Slice substrings from each element in the Series."""
-
-        def slice_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x)[start:stop]
-
-        return self._apply_unary_op(slice_op)
+        return self._apply_unary_op(ops.SliceOp(start, stop))
 
     def strip(self) -> series.Series:
         """Removes whitespace characters from the beginning and end of each string in the Series."""
-
-        def strip_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).strip()
-
-        return self._apply_unary_op(strip_op)
+        return self._apply_unary_op(ops.strip_op)
 
     def upper(self) -> series.Series:
         """Convert strings in the Series to uppercase."""
-
-        def upper_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).upper()
-
-        return self._apply_unary_op(upper_op)
+        return self._apply_unary_op(ops.upper_op)

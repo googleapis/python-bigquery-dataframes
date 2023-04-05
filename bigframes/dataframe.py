@@ -762,12 +762,12 @@ class DataFrame:
         )
         extract_job.result()  # Wait for extract job to finish
 
-    def _apply_to_rows(self, operation) -> DataFrame:
-        value_cols = [
-            operation(value_col).name(value_col.get_name())
-            for value_col in self._block.get_value_col_exprs()
+    def _apply_to_rows(self, operation: ops.UnaryOp):
+        columns = self._block.get_value_col_exprs()
+        new_columns = [
+            operation._as_ibis(column).name(column.get_name()) for column in columns
         ]
-        return self._copy((value_cols, self._col_names))
+        return self._copy((new_columns, self._col_names))
 
     def _get_destination_table(
         self, job_config: Optional[bigquery.job.QueryJobConfig] = None

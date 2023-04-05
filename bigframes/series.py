@@ -133,11 +133,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def fillna(self, value) -> "Series":
         """Fills NULL values."""
-
-        def fillna_op(x: ibis_types.Value):
-            return x.fillna(value)
-
-        return self._apply_unary_op(fillna_op)
+        return self._apply_binary_op(value, ops.fillna_op)
 
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
@@ -145,12 +141,10 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def isnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
-
         return self._apply_unary_op(ops.isnull_op)
 
     def notnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
-
         return self._apply_unary_op(ops.notnull_op)
 
     notna = notnull
@@ -225,10 +219,12 @@ class Series(bigframes.operations.base.SeriesMethods):
     def round(self, decimals=0) -> "Series":
         """Round each value in a Series to the given number of decimals."""
 
-        def round_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.NumericValue, x).round(digits=decimals)
+        def round_op(x: ibis_types.Value, y: ibis_types.Value):
+            return typing.cast(ibis_types.NumericValue, x).round(
+                digits=typing.cast(ibis_types.IntegerValue, y)
+            )
 
-        return self._apply_unary_op(round_op)
+        return self._apply_binary_op(decimals, round_op)
 
     def all(self) -> bigframes.scalar.Scalar:
         """Returns true if and only if all elements are True. Nulls are ignored"""
@@ -318,7 +314,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """
         # TODO: enforce stricter alignment
         (left, right, index) = self._align(other)
-        block = self._viewed_block
+        block = blocks.Block(index._expr)
         block.index = index
         block.replace_value_columns(
             [
@@ -342,7 +338,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """
         # TODO: enforce stricter alignment
         (left, right, index) = self._align(other)
-        block = self._viewed_block
+        block = blocks.Block(index._expr)
         block.index = index
         block.replace_value_columns(
             [
@@ -425,43 +421,17 @@ class Series(bigframes.operations.base.SeriesMethods):
                 raise NotImplementedError(f"Unsupported operand of type {type(other)}")
         return (values, index)
 
-    def _apply_aggregation(
-        self,
-        op: typing.Callable[[ibis_types.Column], ibis_types.Value],
-    ) -> bigframes.scalar.Scalar:
+    def _apply_aggregation(self, op: agg_ops.AggregateOp) -> bigframes.scalar.Scalar:
         aggregation_result = typing.cast(
-            ibis_types.Scalar, op(self[self.notnull()]._to_ibis_expr())
+            ibis_types.Scalar, op._as_ibis(self[self.notnull()]._to_ibis_expr())
         )
         return bigframes.scalar.Scalar(aggregation_result)
 
-    def _apply_cumulative_aggregate(self, op: agg_ops.AggregateOp):
-        expr = self._block.expr
+    def _apply_cumulative_aggregate(self, op: agg_ops.WindowOp):
         # TODO: Push this down into expression objects
-        window = ibis.cumulative_window(
-            order_by=expr.ordering,
-            group_by=expr.reduced_predicate,
-        )
-
-        def cumulative_op(x: ibis_types.Column):
-            cumop = op.with_window(window)(x)
-            # Pandas cumulative ops will result in NA if input row was NA, instead of current cumulative value
-            pandas_style_cumop = (
-                ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
-            )
-            return pandas_style_cumop
-
-        block = blocks.Block(expr, self._block.index_columns)
-        block.index.name = self.index.name
-        block.replace_value_columns(
-            [
-                cumulative_op(
-                    # TODO(swast): When we assign literals / scalars, we might not
-                    # have a true Column. Do we need to check this before trying to
-                    # aggregate such a column?
-                    typing.cast(ibis_types.Column, expr.get_column(self._value_column))
-                ).name(self._value_column)
-            ]
-        )
+        window = bigframes.core.WindowSpec(following=0)
+        block = self._block.copy()
+        block.apply_window_op(self._value_column, op, window_spec=window)
         return Series(
             block,
             self._value_column,
@@ -519,6 +489,15 @@ class Series(bigframes.operations.base.SeriesMethods):
             self._value_column,
             name=self.name,
         )
+
+    def find(self, sub, start=None, end=None) -> "Series":
+        """Return the position of the first occurence of substring."""
+        # is actually a ternary op
+        class FindOp(ops.UnaryOp):
+            def _as_ibis(self, x: ibis_types.Value):
+                return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
+
+        return self._apply_unary_op(FindOp())
 
     def value_counts(self):
         counts = self.groupby(self).count()
@@ -619,12 +598,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         by: Series,
         dropna: bool = True,
     ):
-        block = self._viewed_block
         (value, key, index) = self._align(by, "inner" if dropna else "left")
-        block = self._viewed_block
-        block.index = index
         return SeriesGroupyBy(
-            block,
+            index._block,
             value.get_name(),
             key.get_name(),
             value_name=self.name,
@@ -635,7 +611,12 @@ class Series(bigframes.operations.base.SeriesMethods):
     def apply(self, func) -> Series:
         """Returns a series with a user defined function applied."""
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
-        return self._apply_unary_op(func)
+        # is actually a ternary op
+        class RemoteOp(ops.UnaryOp):
+            def _as_ibis(self, x: ibis_types.Value):
+                return func(x)
+
+        return self._apply_unary_op(RemoteOp())
 
     def mask(self, cond, other=None) -> Series:
         """Replace values in a series where the condition is true."""
@@ -724,16 +705,14 @@ class SeriesGroupyBy:
         return self._cumulative_aggregate(agg_ops.min_op)
 
     def cumcount(self) -> Series:
-        return self._cumulative_aggregate(
-            agg_ops.rank_op, ignore_na=False, discard_name=True
-        )
+        return self._cumulative_aggregate(agg_ops.rank_op, discard_name=True)
 
-    def _aggregate(self, aggregate_op: typing.Any) -> Series:
+    def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
         result_expr = group_expr.aggregate(self._value_column, aggregate_op)
         if self._dropna:
             result_expr = result_expr.filter(
-                ops.notnull_op(result_expr.get_column(self._by))
+                ops.notnull_op._as_ibis(result_expr.get_column(self._by))
             )
         block = blocks.Block(result_expr, index_columns=[self._by])
         if self._key_name:
@@ -742,35 +721,12 @@ class SeriesGroupyBy:
 
     def _cumulative_aggregate(
         self,
-        op: agg_ops.AggregateOp,
-        ignore_na=True,
+        op: agg_ops.WindowOp,
         discard_name=False,
     ):
-        expr = self._block.expr
-        if expr.reduced_predicate is not None:
-            expr = expr.filter(expr.reduced_predicate)
-        window = ibis.cumulative_window(
-            order_by=expr.ordering, group_by=expr.get_column(self._by)
-        )
-
-        def cumulative_op(x: ibis_types.Column):
-            cumop = op.with_window(window)(x)
-            if ignore_na:
-                cumop = ibis.case().when(x.isnull(), ibis.NA).else_(cumop).end()
-            return cumop
-
-        block = blocks.Block(expr, self._block.index_columns)
-        block.index.name = self._block.index.name
-        block.replace_value_columns(
-            [
-                cumulative_op(
-                    # TODO(swast): When we assign literals / scalars, we might not
-                    # have a true Column. Do we need to check this before trying to
-                    # aggregate such a column?
-                    typing.cast(ibis_types.Column, expr.get_column(self._value_column))
-                ).name(self._value_column)
-            ]
-        )
+        window = bigframes.core.WindowSpec(grouping_keys=[self._by], following=0)
+        block = self._block.copy()
+        block.apply_window_op(self._value_column, op, window_spec=window)
         return Series(
             block,
             self._value_column,

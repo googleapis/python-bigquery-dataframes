@@ -23,14 +23,30 @@ from google.cloud import bigquery
 import ibis
 import ibis.expr.types as ibis_types
 
+import bigframes.aggregations as agg_ops
 from bigframes.core.ordering import ExpressionOrdering, stringify_order_id
 import bigframes.guid
+import bigframes.operations as ops
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
 
+
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
+
+
+class WindowSpec:
+    # TODO: Support overriding ordering
+    def __init__(
+        self,
+        grouping_keys: typing.Optional[typing.Sequence[str]] = None,
+        preceding: typing.Optional[int] = None,
+        following: typing.Optional[int] = None,
+    ):
+        self._grouping_keys = grouping_keys
+        self._preceding = preceding
+        self._following = following
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
@@ -302,6 +318,7 @@ class BigFramesExpr:
         # TODO(swast): We might want to do validation here that columns derive
         # from the same table expression instead of (in addition to?) at
         # construction time.
+
         expr = self
         for ordering_column in set(self.column_names.keys()).intersection(
             self._ordering.ordering_value_columns
@@ -371,16 +388,63 @@ class BigFramesExpr:
             ordering=ordering,
         )
 
+    def project_unary_op(self, column_name: str, op: ops.UnaryOp) -> BigFramesExpr:
+        """Creates a new expression based on this expression with unary operation applied to one column."""
+        expr = self.builder()
+        expr.columns = list(
+            [
+                op._as_ibis(self.get_column(name)).name(name)
+                if column_name == name
+                else self.get_column(name)
+                for name in self.column_names
+            ]
+        )
+        result = expr.build()
+        return result
+
+    def project_window_op(
+        self, column_name: str, op: agg_ops.WindowOp, window_spec: WindowSpec
+    ) -> BigFramesExpr:
+        """Creates a new expression based on this expression with unary operation applied to one column."""
+        expr = self.builder()
+
+        column = typing.cast(ibis_types.Column, self.get_column(column_name))
+        window = self._ibis_window_from_spec(window_spec)
+
+        cumulative_value = op._as_ibis(column, window)
+        if op.skips_nulls:
+            cumulative_value = (
+                ibis.case().when(column.isnull(), ibis.NA).else_(cumulative_value).end()
+            )
+        expr.columns = list(
+            [
+                cumulative_value.name(name)
+                if column_name == name
+                else self.get_column(name)
+                for name in self.column_names
+            ]
+        )
+        result = expr.build()
+        # TODO(tbergeron): Should defer this until second window is applied to avoid unnecessarily creating new table expressions every analytic op.
+        return result._reproject_to_table()
+
     def to_ibis_expr(
-        self, ordering_mode: str = "order_by", order_col_name=ORDER_ID_COLUMN
+        self,
+        ordering_mode: str = "order_by",
+        order_col_name=ORDER_ID_COLUMN,
     ):
         """Creates an Ibis table expression representing the DataFrame.
 
         BigFrames expression are sorted, so three options are avaiable to reflect this in the ibis expression.
         The default is that the expression will be ordered by an order_by clause.
-        Zero-based offsets can be generated with "offset_col", this will not sort the rows however.
-        Alternatively, an ordered col can be provided, without guaranteeing the values are sequential with "ordered_col".
-        For option 2, or 3, order_col_name can be used to assign the output label for the ordering column.
+        "order_by": The output table will not have an ordering column, however there will be an order_by clause applied to the ouput.
+        "offset_col": Zero-based offsets are generated as a column, this will not sort the rows however.
+        "ordered_col": An ordered column is provided in output table, without guarantee that the values are sequential
+        "expose_metadata": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
+        "unordered": No ordering information will be provided in output. Only value columns are projected.
+
+        For offset or ordered column, order_col_name can be used to assign the output label for the ordering column.
+        If none is specified, the default column name will be 'bigrames_ordering_id'
 
         Args:
             with_offsets: Output will include 0-based offsets as a column if set to True
@@ -391,7 +455,13 @@ class BigFramesExpr:
 
         """
 
-        assert ordering_mode in ("order_by", "ordered_col", "offset_col", "unordered")
+        assert ordering_mode in (
+            "order_by",
+            "ordered_col",
+            "offset_col",
+            "expose_metadata",
+            "unordered",
+        )
 
         table = self._table
 
@@ -426,7 +496,7 @@ class BigFramesExpr:
                 raise ValueError(
                     "Expression does not have ordering id and none was generated."
                 )
-        elif ordering_mode == "order_by":
+        elif ordering_mode in ["order_by", "expose_metadata"]:
             columns.extend(
                 [self._get_meta_column(name) for name in hidden_ordering_columns]
             )
@@ -453,7 +523,8 @@ class BigFramesExpr:
                     for col_id in [*self._ordering.all_ordering_columns]
                 ]
             )
-            table = table.drop(*hidden_ordering_columns)
+            if not (ordering_mode == "expose_metadata"):
+                table = table.drop(*hidden_ordering_columns)
 
         return table
 
@@ -477,6 +548,42 @@ class BigFramesExpr:
             return self._session.bqclient.query(sql, job_config=job_config)
         else:
             return self._session.bqclient.query(sql)
+
+    def _reproject_to_table(self):
+        """
+        Internal operators that projects the internal representation into a
+        new ibis table expression where each value column is a direct
+        reference to a column in that table expression. Needed after
+        some operations such as window operations that cannot be used
+        recursively in projections.
+        """
+        table = self.to_ibis_expr(
+            ordering_mode="expose_metadata", order_col_name=self._ordering.ordering_id
+        )
+        columns = [table[column_name] for column_name in self._column_names]
+        meta_columns = [table[column_name] for column_name in self._meta_column_names]
+        return BigFramesExpr(
+            self._session,
+            table,
+            columns=columns,
+            meta_columns=meta_columns,
+            ordering=self._ordering,
+        )
+
+    def _ibis_window_from_spec(self, window_spec: WindowSpec):
+        group_by: typing.List[ibis_types.Value] = (
+            [self.get_column(column) for column in window_spec._grouping_keys]
+            if window_spec._grouping_keys
+            else []
+        )
+        if self.reduced_predicate is not None:
+            group_by.append(self.reduced_predicate)
+        return ibis.window(
+            preceding=window_spec._preceding,
+            following=window_spec._following,
+            order_by=self.ordering,
+            group_by=group_by,
+        )
 
 
 class BigFramesExprBuilder:
@@ -523,12 +630,14 @@ class BigFramesGroupByExpr:
         """Creates an Ibis table expression representing the DataFrame."""
         return self._expr.to_ibis_expr(ordering_mode="unordered")
 
-    def aggregate(self, column_name: str, aggregate_op) -> BigFramesExpr:
+    def aggregate(
+        self, column_name: str, aggregate_op: agg_ops.AggregateOp
+    ) -> BigFramesExpr:
         """Generate aggregate metrics, result preserve names of aggregated columns"""
         # TODO(tbergeron): generalize to multiple aggregations
         table = self._to_ibis_expr()
         result = table.group_by(self._by).aggregate(
-            aggregate_op(table[column_name]).name(column_name)
+            aggregate_op._as_ibis(table[column_name]).name(column_name)
         )
         return BigFramesExpr(self._session, result)
 
