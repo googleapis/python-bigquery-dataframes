@@ -19,7 +19,10 @@ import numpy
 import pandas as pd
 import pytest
 
-from tests.system.utils import assert_series_equal_ignoring_order
+from tests.system.utils import (
+    assert_pandas_df_equal_ignore_ordering,
+    assert_series_equal_ignoring_order,
+)
 
 
 @pytest.mark.parametrize(
@@ -1095,3 +1098,12 @@ def test_between(scalars_df_index, scalars_pandas_df_index, left, right, inclusi
         bf_result,
         pd_result.astype(pd.BooleanDtype()),
     )
+
+
+def test_to_frame(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["int64_col"].to_frame().compute()
+    pd_result = scalars_pandas_df["int64_col"].to_frame()
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

@@ -680,6 +680,14 @@ class Series:
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         return self._apply_unary_op(func)
 
+    def to_frame(self) -> bigframes.DataFrame:
+        """Convert Series to DataFrame."""
+        block = self._viewed_block
+
+        # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
+        col_names = [self.name] if self.name else ["0"]
+        return bigframes.DataFrame(block, col_names)
+
 
 class SeriesGroupyBy:
     """Represents a deferred series with a grouping expression."""
