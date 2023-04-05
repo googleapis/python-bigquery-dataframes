@@ -35,32 +35,18 @@ import bigframes.core.indexes.index
 import bigframes.dtypes
 import bigframes.indexers
 import bigframes.operations as ops
+import bigframes.operations.base
+import bigframes.operations.strings as strings
 import bigframes.scalar
 
 
-class Series:
+class Series(bigframes.operations.base.SeriesMethods):
     """A 1D data structure, representing data and deferred computation.
 
     .. warning::
         This constructor is **private**. Use a public method such as
         ``DataFrame[column_name]`` to construct a Series.
     """
-
-    def __init__(
-        self,
-        block: blocks.Block,
-        value_column: str,
-        *,
-        name: Optional[str] = None,
-    ):
-        self._block = block
-        self._value_column = value_column
-        self._name = name
-
-    @property
-    def _value(self) -> ibis_types.Value:
-        """Private property to get Ibis expression for the value column."""
-        return self._viewed_block.expr.get_column(self._value_column)
 
     @property
     def dtype(self) -> bigframes.dtypes.BigFramesDtype:
@@ -95,11 +81,6 @@ class Series:
         # more accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL.
         return self._name
-
-    @property
-    def _viewed_block(self) -> blocks.Block:
-        """Gets a copy of block after any views have been applied. Mutations to this copy do not affect any existing series/dataframes."""
-        return self._block.copy()
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -520,18 +501,6 @@ class Series:
             name=self._value_column,
         )
 
-    def _apply_unary_op(
-        self, op: typing.Callable[[ibis_types.Value], ibis_types.Value]
-    ) -> Series:
-        """Applies a binary operator to the series and other."""
-        block = self._viewed_block
-        block.replace_value_columns([op(self._value).name(self._value_column)])
-        return Series(
-            block,
-            self._value_column,
-            name=self._name,
-        )
-
     def _apply_binary_op(
         self,
         other: typing.Any,
@@ -583,14 +552,6 @@ class Series:
             self._value_column,
             name=self.name,
         )
-
-    def find(self, sub, start=None, end=None) -> "Series":
-        """Return the position of the first occurence of substring."""
-
-        def find_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
-
-        return self._apply_unary_op(find_op)
 
     def value_counts(self):
         counts = self.groupby(self).count()
@@ -687,6 +648,12 @@ class Series:
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         col_names = [self.name] if self.name else ["0"]
         return bigframes.DataFrame(block, col_names)
+
+    # Keep this at the bottom of the Series class to avoid
+    # confusing type checker by overriding str
+    @property
+    def str(self) -> strings.StringMethods:
+        return strings.StringMethods(self._block, self._value_column, name=self._name)
 
 
 class SeriesGroupyBy:

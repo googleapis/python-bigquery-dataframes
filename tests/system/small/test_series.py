@@ -69,20 +69,6 @@ def test_abs(scalars_dfs, col_name):
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
-def test_find(scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
-    col_name = "string_col"
-    bf_result = scalars_df[col_name].find("W").compute()
-    pd_result = scalars_pandas_df[col_name].str.find("W")
-
-    # One of type mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
-    # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
-    assert_series_equal_ignoring_order(
-        pd_result.astype(pd.Int64Dtype()),
-        bf_result,
-    )
-
-
 def test_fillna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
