@@ -52,7 +52,9 @@ class DataFrame:
         """Returns the dtypes as a Pandas Series object"""
         schema_elements = [
             el
-            for el in self._block.expr.to_ibis_expr().schema().items()
+            for el in self._block.expr.to_ibis_expr(ordering_mode="unordered")
+            .schema()
+            .items()
             if el[0] not in self._block.index_columns
         ]
         column_names, ibis_dtypes = zip(*schema_elements)
@@ -83,7 +85,8 @@ class DataFrame:
     @property
     def sql(self) -> str:
         """Compiles this dataframe's expression tree to SQL"""
-        return self._block.expr.to_ibis_expr().compile()
+        # Has to be unordered as it is impossible to order the sql without including metadata columns in selection with ibis.
+        return self._block.expr.to_ibis_expr(ordering_mode="unordered").compile()
 
     def __getitem__(
         self, key: Union[str, Iterable[str], bigframes.series.Series]
@@ -404,8 +407,9 @@ class DataFrame:
         left = self.reset_index(drop=True)
         right = right.reset_index(drop=True)
 
-        left_table = left._block.expr.to_ibis_expr()
-        right_table = right._block.expr.to_ibis_expr()
+        # TODO(tbergeron): Merge logic with index join and applying deterministic post-join order
+        left_table = left._block.expr.to_ibis_expr(ordering_mode="unordered")
+        right_table = right._block.expr.to_ibis_expr(ordering_mode="unordered")
 
         joined_table = left_table.join(
             right_table, left_table[on] == right_table[on], how, suffixes=suffixes

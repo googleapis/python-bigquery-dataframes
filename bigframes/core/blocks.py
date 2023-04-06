@@ -124,6 +124,7 @@ class Block:
                 string_dtype=pandas.StringDtype(storage="pyarrow"),
             )
         )
+        df = df.loc[:, [*self.index_columns, *self.value_columns]]
 
         if self.index_columns:
             df = df.set_index(list(self.index_columns))

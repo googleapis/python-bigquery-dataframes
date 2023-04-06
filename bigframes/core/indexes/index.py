@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import typing
 from typing import Callable, Optional, Tuple
 
 import ibis
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
-from bigframes.core import BigFramesExpr
+from bigframes.core import BigFramesExpr, ExpressionOrdering, ORDER_ID_COLUMN
 from bigframes.core.indexes.implicitjoiner import ImplicitJoiner
+import bigframes.guid
 
 
 class Index(ImplicitJoiner):
@@ -28,10 +31,7 @@ class Index(ImplicitJoiner):
         return Index(self._expr, self._index_column, name=self.name)
 
     def join(
-        self,
-        other: ImplicitJoiner,
-        *,
-        how="left",
+        self, other: ImplicitJoiner, *, how="left", sort=False
     ) -> Tuple[
         ImplicitJoiner,
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
@@ -62,9 +62,16 @@ class Index(ImplicitJoiner):
 
         # TODO(swast): Consider refactoring to allow re-use in cases where an
         # explicit join key is used.
-        left_table = self._expr.to_ibis_expr(order_results=False)
+
+        # Generate offsets if non-default ordering is applied
+        # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
+        left_table = self._expr.to_ibis_expr(
+            ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+        )
         left_index = left_table[self._index_column]
-        right_table = other._expr.to_ibis_expr(order_results=False)
+        right_table = other._expr.to_ibis_expr(
+            ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+        )
         right_index = right_table[other._index_column]
         join_condition = left_index == right_index
 
@@ -93,17 +100,68 @@ class Index(ImplicitJoiner):
         ).name(index_name_orig + "_z")
 
         # TODO: Can actually ignore original index values post-join
-        columns = tuple(combined_table[key] for key in combined_table.columns) + (
-            joined_index_col,
+        columns = tuple(
+            [get_column_left(key) for key in self._expr.column_names.keys()]
+            + [get_column_right(key) for key in other._expr.column_names.keys()]
+            + [
+                joined_index_col,
+            ]
         )
-        combined_expr = BigFramesExpr(self._expr._session, combined_table, columns)
 
-        # Always sort by the join key. Note: This differs from pandas, in which
-        # the sort order can differ unless explicitly sorted with sort=True.
-        combined_expr = combined_expr.order_by([joined_index_col.get_name()])
+        left_order_id = get_column_left(ORDER_ID_COLUMN)
+        right_order_id = get_column_right(ORDER_ID_COLUMN)
+        new_order_id = (
+            _merge_order_ids(left_order_id, right_order_id)
+            if how in ["left", "inner", "outer"]
+            else _merge_order_ids(right_order_id, left_order_id)
+        )
+        metadata_columns = [new_order_id]
 
+        if sort:
+            order_cols = [joined_index_col.get_name()]
+        else:
+            order_cols = None
+
+        ordering = ExpressionOrdering(
+            ordering_value_columns=order_cols,
+            ordering_id_column=new_order_id.get_name()
+            if (new_order_id is not None)
+            else None,
+        )
+        combined_expr = BigFramesExpr(
+            self._expr._session,
+            combined_table,
+            columns,
+            meta_columns=metadata_columns,
+            ordering=ordering,
+        )
         combined_index_name = self.name if self.name == other.name else None
         return (
             Index(combined_expr, joined_index_col.get_name(), name=combined_index_name),
             (get_column_left, get_column_right),
         )
+
+
+def _merge_order_ids(left_id: ibis_types.Value, right_id: ibis_types.Value):
+    return ((_stringify_order_id(left_id) + _stringify_order_id(right_id))).name(
+        bigframes.guid.generate_guid(prefix="bigframes_ordering_id_")
+    )
+
+
+def _stringify_order_id(order_id: ibis_types.Value) -> ibis_types.StringValue:
+    """Conversts an order id value to string if it is not already a string. MUST produced fixed-length strings."""
+    if order_id.type().is_int64():
+        # This is very inefficient encoding base-10 string uses only 10 characters per byte(out of 256 bit combinations)
+        # Furthermore, if know tighter bounds on order id are known, can produce smaller strings.
+        # 19 characters chosen as it can represent any positive Int64 in base-10
+        # For missing values, ":" * 19 is used as it is larger than any other value this function produces, so null values will be last.
+        string_order_id = (
+            typing.cast(
+                ibis_types.StringValue,
+                typing.cast(ibis_types.IntegerValue, order_id).cast(ibis_dtypes.string),
+            )
+            .lpad(19, "0")
+            .fillna(ibis_types.literal(":" * 19))
+        )
+        return typing.cast(ibis_types.StringValue, string_order_id)
+    return typing.cast(ibis_types.StringValue, order_id)

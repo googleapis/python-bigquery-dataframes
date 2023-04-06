@@ -78,6 +78,15 @@ class ExpressionOrdering:
         return self._ordering_id_column
 
     @property
+    def order_id_defined(self) -> bool:
+        """True if ordering is fully defined in ascending order by its ordering id."""
+        return bool(
+            self._ordering_id_column
+            and (not self._ordering_value_columns)
+            and self.is_ascending
+        )
+
+    @property
     def all_ordering_columns(self) -> Sequence[str]:
         return (
             list(self._ordering_value_columns)
@@ -241,7 +250,7 @@ class BigFramesExpr:
         return self._meta_column_names[key]
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
-        table = self.to_ibis_expr(order_results=True).limit(max_results)
+        table = self.to_ibis_expr().limit(max_results)
         # Since we make a new table expression, the old column references now
         # point to the wrong table. Use the BigFramesExpr constructor to make
         # sure we have the correct references.
@@ -275,7 +284,9 @@ class BigFramesExpr:
             return self
 
         # TODO(tbergeron): Enforce total ordering
-        table = self.to_ibis_expr(with_offsets=True, order_results=False)
+        table = self.to_ibis_expr(
+            ordering_mode="offset_col", order_col_name=ORDER_ID_COLUMN
+        )
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
             ordering_id_column=ORDER_ID_COLUMN, is_sequential=True
@@ -326,21 +337,28 @@ class BigFramesExpr:
         new_expr = builder.build()
         return new_expr
 
-    def to_ibis_expr(self, with_offsets=False, order_results=True):
+    def to_ibis_expr(
+        self, ordering_mode: str = "order_by", order_col_name=ORDER_ID_COLUMN
+    ):
         """Creates an Ibis table expression representing the DataFrame.
 
-        BigFrames expression are sorted, so two options are avaiable to reflect this in the ibis expression.
-        Zero-based offsets can be generated with with_offsets, this will not sort the rows however.
-        Alternatively, the rows can be returned sorted, but without an explicit offset column.
+        BigFrames expression are sorted, so three options are avaiable to reflect this in the ibis expression.
+        The default is that the expression will be ordered by an order_by clause.
+        Zero-based offsets can be generated with "offset_col", this will not sort the rows however.
+        Alternatively, an ordered col can be provided, without guaranteeing the values are sequential with "ordered_col".
+        For option 2, or 3, order_col_name can be used to assign the output label for the ordering column.
 
         Args:
             with_offsets: Output will include 0-based offsets as a column if set to True
-            order_results: Output rows will be ordered (with ORDER BY) if set to True
+            ordering_mode: One of "order_by", "ordered_col", or "offset_col"
 
         Returns:
             An ibis expression representing the data help by the BigFramesExpression.
 
         """
+
+        assert ordering_mode in ("order_by", "ordered_col", "offset_col", "unordered")
+
         table = self._table
 
         columns = list(self._columns)
@@ -354,13 +372,27 @@ class BigFramesExpr:
         if self.reduced_predicate is not None:
             columns.append(self.reduced_predicate)
 
-        if with_offsets:
-            window = ibis.window(order_by=self.ordering)
-            if self._predicates:
-                window = window.group_by(self.reduced_predicate)
-            columns.append(ibis.row_number().name(ORDER_ID_COLUMN).over(window))
-
-        if order_results:
+        if ordering_mode in ("offset_col", "ordered_col"):
+            # Generate offsets if current ordering id semantics are not sufficiently strict
+            if (ordering_mode == "offset_col" and not self._ordering.is_sequential) or (
+                ordering_mode == "ordered_col" and not self._ordering.order_id_defined
+            ):
+                window = ibis.window(order_by=self.ordering)
+                if self._predicates:
+                    window = window.group_by(self.reduced_predicate)
+                columns.append(ibis.row_number().name(order_col_name).over(window))
+            elif self._ordering.ordering_id:
+                columns.append(
+                    self._get_meta_column(self._ordering.ordering_id).name(
+                        order_col_name
+                    )
+                )
+            else:
+                # Should not be possible.
+                raise ValueError(
+                    "Expression does not have ordering id and none was generated."
+                )
+        elif ordering_mode == "order_by":
             columns.extend(
                 [self._get_meta_column(name) for name in hidden_ordering_columns]
             )
@@ -372,23 +404,16 @@ class BigFramesExpr:
             # Drop predicate as it is will be all TRUE after filtering
             table = table.drop(PREDICATE_COLUMN)
 
-        if order_results:
+        if ordering_mode == "order_by":
             is_ascending = self._ordering.is_ascending
-            if with_offsets:
-                table = table.order_by(
-                    table[ORDER_ID_COLUMN]
-                    if is_ascending
-                    else ibis.desc(table[ORDER_ID_COLUMN])
-                )
-            else:
-                # Some ordering columns are value columns, while other are used purely for ordering.
-                # We drop the non-value columns after the ordering
-                table = table.order_by(
-                    [
-                        table[col_id] if is_ascending else ibis.desc(table[col_id])
-                        for col_id in [*self._ordering.all_ordering_columns]
-                    ]
-                )
+            # Some ordering columns are value columns, while other are used purely for ordering.
+            # We drop the non-value columns after the ordering
+            table = table.order_by(
+                [
+                    table[col_id] if is_ascending else ibis.desc(table[col_id])
+                    for col_id in [*self._ordering.all_ordering_columns]
+                ]
+            )
             table = table.drop(*hidden_ordering_columns)
 
         return table
@@ -407,7 +432,7 @@ class BigFramesExpr:
         # a LocalSession for unit testing.
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        table = self.to_ibis_expr(order_results=True)
+        table = self.to_ibis_expr()
         sql = table.compile()
         if job_config is not None:
             return self._session.bqclient.query(sql, job_config=job_config)
@@ -457,7 +482,7 @@ class BigFramesGroupByExpr:
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the DataFrame."""
-        return self._expr.to_ibis_expr(order_results=False)
+        return self._expr.to_ibis_expr(ordering_mode="unordered")
 
     def aggregate(self, column_name: str, aggregate_op) -> BigFramesExpr:
         """Generate aggregate metrics, result preserve names of aggregated columns"""
