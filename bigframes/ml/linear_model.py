@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import cast, Optional, TYPE_CHECKING
 
 from google.cloud import bigquery
 
@@ -41,7 +41,16 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        return self._bqml_model.predict(X)
+        df = self._bqml_model.predict(X)
+        return cast(
+            bigframes.dataframe.DataFrame,
+            df[
+                [
+                    cast(str, field.name)
+                    for field in self._bqml_model.model.label_columns
+                ]
+            ],
+        )
 
     def score(
         self,

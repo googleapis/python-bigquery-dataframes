@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Union
+from typing import Dict, List, Union
 import uuid
 
-import google.cloud.bigquery.query
+from google.cloud import bigquery
 
 import bigframes.dataframe
 import bigframes.ml.sql
@@ -16,9 +16,7 @@ class BqmlModel:
     """Represents an existing BQML model in BigQuery
     Wraps the BQML API and SQL interface to expose the functionality needed for BigFrames ML"""
 
-    def __init__(
-        self, session: bigframes.session.Session, model: google.cloud.bigquery.Model
-    ):
+    def __init__(self, session: bigframes.session.Session, model: bigquery.Model):
         self._session = session
         self._model = model
 
@@ -32,6 +30,11 @@ class BqmlModel:
         """Get the fully qualified name of the model, i.e. project_id.dataset_id.model_id"""
         return f"{self._model.project}.{self._model.dataset_id}.{self._model.model_id}"
 
+    @property
+    def model(self) -> bigquery.Model:
+        """Get the BQML model associated with this wrapper"""
+        return self._model
+
     def predict(
         self, input_data: bigframes.dataframe.DataFrame
     ) -> bigframes.dataframe.DataFrame:
@@ -44,11 +47,7 @@ class BqmlModel:
         index_columns = input_data._block.index_columns
         df = self._session.read_gbq(sql, index_cols=index_columns)
 
-        # TODO: find out the actual BQML behavior for naming label column outputs and implement this accordingly
-        return cast(
-            bigframes.dataframe.DataFrame,
-            df[[cast(str, field.name) for field in self._model.label_columns]],
-        )
+        return df
 
     def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
         # TODO: validate input data schema
@@ -58,7 +57,7 @@ class BqmlModel:
         return self._session.read_gbq(sql)
 
     def copy(self, new_model_name, replace=False) -> BqmlModel:
-        job_config = google.cloud.bigquery.job.CopyJobConfig()
+        job_config = bigquery.job.CopyJobConfig()
         if replace:
             job_config.write_disposition = "WRITE_TRUNCATE"
 
@@ -72,8 +71,8 @@ class BqmlModel:
 
 def create_bqml_model(
     train_X: bigframes.dataframe.DataFrame,
-    train_y: Union[bigframes.dataframe.DataFrame, None],
-    options: Dict[str, Union[str, int, float, List[str]]],
+    train_y: Union[bigframes.dataframe.DataFrame, None] = None,
+    options: Dict[str, Union[str, int, float, List[str]]] = {},
 ) -> BqmlModel:
     if train_y is None:
         input_data = train_X

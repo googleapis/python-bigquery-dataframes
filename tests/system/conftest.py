@@ -278,12 +278,12 @@ def penguins_df_no_index(
 
 
 @pytest.fixture(scope="session")
-def penguins_model_name(
+def penguins_linear_model_name(
     session: bigframes.Session, dataset_id_permanent, penguins_table_id
 ) -> str:
     """Provides a pretrained model as a test fixture that is cached across test runs.
     This lets us run system tests without having to wait for a model.fit(...)"""
-    sql = """
+    sql = f"""
 CREATE OR REPLACE MODEL `$model_name`
 OPTIONS
   (model_type='linear_reg',
@@ -291,22 +291,19 @@ OPTIONS
 SELECT
   *
 FROM
-  `$table_id`
+  `{penguins_table_id}`
 WHERE
   body_mass_g IS NOT NULL"""
     # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
-    model_name = f"{dataset_id_permanent}.{hashlib.md5(sql.encode()).hexdigest()}"
+    model_name = f"{dataset_id_permanent}.penguins_linear_reg_{hashlib.md5(sql.encode()).hexdigest()}"
     sql = sql.replace("$model_name", model_name)
 
-    # TODO(bmil): move this to the original SQL construction once penguins_table has been
-    # migrated to the permanent dataset too
-    sql = sql.replace("$table_id", penguins_table_id)
-
     try:
-        return model_name
+        session.bqclient.get_model(model_name)
     except google.cloud.exceptions.NotFound:
         logging.info(
-            "penguins_model fixture was not found in the permanent dataset, regenerating it..."
+            "penguins_linear_model fixture was not found in the permanent dataset, regenerating it..."
         )
         session.bqclient.query(sql).result()
+    finally:
         return model_name

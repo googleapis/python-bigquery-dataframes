@@ -2,9 +2,9 @@ import pandas
 
 
 def test_model_eval(
-    penguins_bqml_model,
+    penguins_bqml_linear_model,
 ):
-    result = penguins_bqml_model.evaluate().compute()
+    result = penguins_bqml_linear_model.evaluate().compute()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [227.01223],
@@ -19,8 +19,10 @@ def test_model_eval(
     pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
 
-def test_model_eval_with_data(penguins_bqml_model, penguins_df_no_index):
-    result = penguins_bqml_model.evaluate(penguins_df_no_index.dropna()).compute()
+def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_no_index):
+    result = penguins_bqml_linear_model.evaluate(
+        penguins_df_no_index.dropna()
+    ).compute()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [225.817334],
@@ -35,7 +37,7 @@ def test_model_eval_with_data(penguins_bqml_model, penguins_df_no_index):
     pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
 
-def test_model_predict(session, penguins_bqml_model):
+def test_model_predict(session, penguins_bqml_linear_model):
     new_penguins = session.read_pandas(
         pandas.DataFrame(
             {
@@ -54,12 +56,12 @@ def test_model_predict(session, penguins_bqml_model):
         ).set_index("tag_number")
     )
 
-    predictions = penguins_bqml_model.predict(new_penguins).compute()
+    predictions = penguins_bqml_linear_model.predict(new_penguins).compute()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
         dtype="Float64",
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions, expected, check_exact=False, rtol=1e-2
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
     )

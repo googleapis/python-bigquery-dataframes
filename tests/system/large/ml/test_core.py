@@ -68,7 +68,7 @@ def test_bqml_e2e(session, dataset_id, penguins_df_no_index):
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions, expected, check_exact=False, rtol=1e-2
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
     )
 
     new_name = f"{dataset_id}.my_model"

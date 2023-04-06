@@ -88,8 +88,8 @@ def test_read_gbq_sql_w_col_order(session):
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
-def test_read_gbq_model(session, penguins_model_name):
-    model = session.read_gbq_model(penguins_model_name)
+def test_read_gbq_model(session, penguins_linear_model_name):
+    model = session.read_gbq_model(penguins_linear_model_name)
     assert isinstance(model, bigframes.ml.linear_model.LinearRegression)
 
 
