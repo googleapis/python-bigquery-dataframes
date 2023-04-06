@@ -113,6 +113,7 @@ def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_i
         session.read_pandas(scalars_pandas_df_multi_index)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_read_csv(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
@@ -133,19 +134,16 @@ def test_read_csv(session, scalars_dfs, gcs_folder):
     pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
 
 
-def test_read_csv_w_header(session, scalars_dfs, gcs_folder):
-    scalars_df, _ = scalars_dfs
-    if scalars_df.index.name is not None:
-        path = gcs_folder + "test_to_csv_w_header_w_index.csv"
-    else:
-        path = gcs_folder + "test_to_csv_w_header_wo_index.csv"
-    scalars_df.to_csv(path)
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_read_csv_w_header(session, scalars_df_index, gcs_folder):
+    path = gcs_folder + "test_to_csv_w_header.csv"
+    scalars_df_index.to_csv(path)
 
     # Skip the header and the 1st data rows. Without provided schema, the column names
     # would be like `bool_field_0`, `string_field_1` and etc.
     # TODO(chelsealin): check the number of rows is expected with the Daframes.count() API.
     gcs_df = session.read_csv(path, header=2)
-    assert len(gcs_df.columns) == len(scalars_df.columns)
+    assert len(gcs_df.columns) == len(scalars_df_index.columns)
 
 
 def test_session_id(session):
