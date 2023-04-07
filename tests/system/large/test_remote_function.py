@@ -8,6 +8,27 @@ import pytest
 
 from bigframes import get_remote_function_locations, remote_function
 
+# Use this to control the number of cloud functions being deleted in a single
+# test session. This should help soften the spike of the number of mutations per
+# minute tracked against a quota limit (default 60) by the Cloud Functions API
+# We are running pytest with "-n 20". Let's say each session lasts about a
+# minute, so we are setting a limit of 60/20 = 3 deletions per session.
+_MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 3
+
+
+def get_remote_function_end_points(bigquery_client, dataset_id):
+    """Get endpoints used by the remote functions in a datset"""
+    endpoints = set()
+    routines = bigquery_client.list_routines(dataset=dataset_id)
+    for routine in routines:
+        rf_options = routine._properties.get("remoteFunctionOptions")
+        if not rf_options:
+            continue
+        rf_endpoint = rf_options.get("endpoint")
+        if rf_endpoint:
+            endpoints.add(rf_endpoint)
+    return endpoints
+
 
 @pytest.fixture(scope="module")
 def bq_cf_connection() -> str:
@@ -24,22 +45,39 @@ def functions_client() -> functions_v2.FunctionServiceClient:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def cleanup_cloud_functions(bigquery_client, functions_client):
+def cleanup_cloud_functions(bigquery_client, functions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
     _, location = get_remote_function_locations(bigquery_client.location)
     parent = f"projects/{bigquery_client.project}/locations/{location}"
     request = functions_v2.ListFunctionsRequest(parent=parent)
     page_result = functions_client.list_functions(request=request)
     bigframes_cf_prefix = parent + "/functions/bigframes-"
+    permanent_endpoints = get_remote_function_end_points(
+        bigquery_client, dataset_id_permanent
+    )
+    delete_count = 0
     for response in page_result:
+        # Ignore non bigframes cloud functions
         if not response.name.startswith(bigframes_cf_prefix):
             continue
+
+        # Ignore bigframes cloud functions referred by the remote functions in
+        # the permanent dataset
+        if response.service_config.uri in permanent_endpoints:
+            continue
+
+        # Ignore the functions less than one day old
         age = datetime.now() - datetime.fromtimestamp(response.update_time.timestamp())
         if age.days <= 0:
             continue
+
+        # Go ahead and delete
         request = functions_v2.DeleteFunctionRequest(name=response.name)
         try:
             functions_client.delete_function(request=request)
+            delete_count += 1
+            if delete_count >= _MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
+                break
         except NotFound:
             # This can happen when multiple pytest sessions are running in
             # parallel. Two or more sessions may discover the same cloud
