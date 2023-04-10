@@ -89,6 +89,8 @@ class IlocSeriesIndexer:
             expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
             index_columns=self._series._block.index_columns,
         )
+        # TODO(swast): Support MultiIndex.
+        block.index.name = self._series._block.index.name
         return bigframes.Series(
             block, self._series._value_column, name=self._series.name
         )

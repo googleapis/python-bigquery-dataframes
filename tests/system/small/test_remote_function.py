@@ -13,6 +13,10 @@ def bq_cf_connection() -> str:
     return "bigframes-rf-conn"
 
 
+@pytest.mark.skip(
+    # Cloud Function cleaned up?
+    reason="Received response code 404 from endpoint https://bigframes-square-7krlje3eoq-uc.a.run.app with response."
+)
 def test_remote_function_with_bigframes_series(
     scalars_dfs, bigquery_client, dataset_id_permanent, bq_cf_connection
 ):

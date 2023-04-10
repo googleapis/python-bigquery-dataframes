@@ -138,6 +138,7 @@ class Block:
         if value_columns is not None:
             block.replace_value_columns(value_columns)
 
+        # TODO(swast): Support MultiIndex.
         block.index.name = self.index.name
         return block
 

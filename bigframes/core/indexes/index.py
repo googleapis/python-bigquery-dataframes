@@ -20,8 +20,7 @@ class Index(ImplicitJoiner):
     def __init__(
         self, expr: BigFramesExpr, index_column: str, name: Optional[str] = None
     ):
-        index_name = name if name is not None else index_column
-        super().__init__(expr, index_name)
+        super().__init__(expr, name=name)
         self._index_column = index_column
 
     def copy(self) -> Index:

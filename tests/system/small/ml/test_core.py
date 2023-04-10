@@ -1,5 +1,8 @@
 import pandas
 
+import bigframes
+import bigframes.ml.core
+
 
 def test_model_eval(
     penguins_bqml_linear_model,
@@ -37,7 +40,9 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_no_index):
     pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
 
-def test_model_predict(session, penguins_bqml_linear_model):
+def test_model_predict(
+    session: bigframes.Session, penguins_bqml_linear_model: bigframes.ml.core.BqmlModel
+):
     new_penguins = session.read_pandas(
         pandas.DataFrame(
             {

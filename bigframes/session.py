@@ -168,6 +168,10 @@ class Session:
             if len(columns) != len(col_order):
                 raise ValueError("Column order does not match this table.")
         block = blocks.Block(BigFramesExpr(self, table_expression, columns), index_cols)
+
+        # TOOD(swast): Support MultiIndex.
+        if block.index_columns:
+            block.index.name = block.index_columns[0]
         return DataFrame(block)
 
     def read_gbq_model(self, model_name: str):
