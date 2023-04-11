@@ -15,6 +15,7 @@
 import math
 
 import db_dtypes  # type: ignore
+import geopandas as gpd  # type: ignore
 import numpy
 import pandas as pd
 import pytest
@@ -34,8 +35,7 @@ from tests.system.utils import (
         ("date_col", db_dtypes.DateDtype()),
         ("datetime_col", numpy.dtype("datetime64[ns]")),
         ("float64_col", pd.Float64Dtype()),
-        # TODO(swast): Use a more efficient type.
-        ("geography_col", pd.StringDtype(storage="pyarrow")),
+        ("geography_col", gpd.array.GeometryDtype()),
         ("int64_col", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
         ("numeric_col", numpy.dtype("object")),

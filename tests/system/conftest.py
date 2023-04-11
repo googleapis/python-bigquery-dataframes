@@ -20,10 +20,12 @@ import pathlib
 from typing import cast, Dict, Optional
 
 import db_dtypes  # type: ignore
+import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import google.cloud.exceptions
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
+import numpy
 import pandas as pd
 import pytest
 import test_utils.prefixer
@@ -303,7 +305,11 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
             # TODO(swast): Needs microsecond precision support:
             # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
             "time_col": db_dtypes.TimeDtype(),
+            "geography_col": pd.StringDtype(storage="pyarrow"),
         },
+    )
+    df["geography_col"] = gpd.GeoSeries.from_wkt(
+        df["geography_col"].replace({numpy.nan: None})
     )
     df["bytes_col"] = df["bytes_col"].apply(
         lambda value: base64.b64decode(value) if value else value

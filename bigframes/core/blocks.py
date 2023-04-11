@@ -25,7 +25,9 @@ import itertools
 import typing
 from typing import Iterable, List, Optional, Sequence, Union
 
+import geopandas  # type: ignore
 import ibis.expr.types as ibis_types
+import numpy
 import pandas
 
 import bigframes.core
@@ -138,8 +140,17 @@ class Block:
                 string_dtype=pandas.StringDtype(storage="pyarrow"),
             )
         )
-        df = df.loc[:, [*self.index_columns, *self.value_columns]]
+        # Convert Geography column from StringDType to GeometryDtype.
+        # https://github.com/geopandas/geopandas/issues/1879
+        for column_name, ibis_dtype in expr.to_ibis_expr().schema().items():
+            if ibis_dtype.is_geospatial():
+                df[column_name] = geopandas.GeoSeries.from_wkt(
+                    df[column_name].replace({numpy.nan: None}),
+                    # BigQuery geography type is based on the WGS84 reference ellipsoid.
+                    crs="EPSG:4326",
+                )
 
+        df = df.loc[:, [*self.index_columns, *self.value_columns]]
         if self.index_columns:
             df = df.set_index(list(self.index_columns))
             # TODO(swast): Set names for all levels with MultiIndex.

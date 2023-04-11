@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import db_dtypes  # type: ignore
+import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
 import pandas.testing
@@ -265,7 +266,7 @@ def test_get_dtypes(scalars_df_default_index):
                 "bytes_col": np.dtype("O"),
                 "date_col": db_dtypes.DateDtype(),
                 "datetime_col": np.dtype("datetime64[us]"),
-                "geography_col": pd.StringDtype(storage="pyarrow"),
+                "geography_col": gpd.array.GeometryDtype(),
                 "int64_col": pd.Int64Dtype(),
                 "int64_too": pd.Int64Dtype(),
                 "numeric_col": np.dtype("O"),

@@ -17,6 +17,7 @@
 from typing import Any, Dict, Iterable, Tuple, Union
 
 import db_dtypes  # type: ignore
+import geopandas as gpd  # type: ignore
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types
@@ -75,9 +76,10 @@ IBIS_TO_BIGFRAMES.update(
         ibis_dtypes.json: np.dtype("O"),
         ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): np.dtype("O"),
         ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): np.dtype("O"),
+        # TODO(chelsealin): switch to "srid=4326" after fixing the ibis BQ backend.
         ibis_dtypes.GeoSpatial(
             geotype="geography", srid=None, nullable=True
-        ): pd.StringDtype(storage="pyarrow")
+        ): gpd.array.GeometryDtype()
         # TODO: Interval, Array, Struct
     }
 )

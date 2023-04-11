@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import db_dtypes  # type: ignore
+import geopandas as gpd  # type: ignore
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import numpy as np
@@ -45,7 +46,7 @@ import bigframes.dtypes
         # corresponding to BigQuery GEOGRAPHY
         (
             ibis_dtypes.GeoSpatial(geotype="geography", srid=None, nullable=True),
-            pd.StringDtype(storage="pyarrow"),
+            gpd.array.GeometryDtype(),
         ),
         # corresponding to BigQuery INT64
         (ibis_dtypes.int64, pd.Int64Dtype()),

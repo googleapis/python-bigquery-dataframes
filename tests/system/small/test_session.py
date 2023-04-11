@@ -209,11 +209,11 @@ def test_read_csv(session, scalars_dfs, gcs_folder):
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
     pd.testing.assert_index_equal(gcs_df.columns, scalars_df.columns)
 
-    # In the read_csv() API, the BQ load job auto detects the "byte_col" as the STRING type,
-    # and the `numeric_col` as the FLOAT type in BigQuery table.
+    # The auto detects of BigQuery load job have restrictions to detect the bytes,
+    # numeric and geometry types, so they're skipped here.
     # TODO(chelsealin): check the number of rows is expected with the Daframes.count() API.
-    gcs_df = gcs_df.drop(["bytes_col", "numeric_col"])
-    scalars_df = scalars_df.drop(["bytes_col", "numeric_col"])
+    gcs_df = gcs_df.drop(["bytes_col", "numeric_col", "geography_col"])
+    scalars_df = scalars_df.drop(["bytes_col", "numeric_col", "geography_col"])
     pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
 
 
