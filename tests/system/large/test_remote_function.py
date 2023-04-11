@@ -13,15 +13,26 @@
 # limitations under the License.
 
 from datetime import datetime
-import math
+import importlib.util
+import inspect
+import math  # must keep this at top level to test udf referring global import
+import os.path
+import shutil
+import tempfile
+import textwrap
 
 from google.api_core.exceptions import NotFound, ResourceExhausted
 from google.cloud import functions_v2
 import ibis.expr.datatypes as dt
 import pandas
 import pytest
+import test_utils.prefixer
 
-from bigframes import get_remote_function_locations, remote_function
+from bigframes import (
+    get_cloud_function_name,
+    get_remote_function_locations,
+    remote_function,
+)
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
@@ -30,12 +41,13 @@ from bigframes import get_remote_function_locations, remote_function
 # minute, so we are setting a limit of 60/20 = 3 deletions per session.
 _MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 3
 
-# Only for testing with global var
+# NOTE: Keep this import at the top level to test global var behavior with
+# remote functions
 _team_pi = "Team Pi"
 _team_euler = "Team Euler"
 
 
-def get_remote_function_end_points(bigquery_client, dataset_id):
+def get_remote_function_endpoints(bigquery_client, dataset_id):
     """Get endpoints used by the remote functions in a datset"""
     endpoints = set()
     routines = bigquery_client.list_routines(dataset=dataset_id)
@@ -47,6 +59,46 @@ def get_remote_function_end_points(bigquery_client, dataset_id):
         if rf_endpoint:
             endpoints.add(rf_endpoint)
     return endpoints
+
+
+def get_cloud_functions(functions_client, project, location, name_prefix="bigframes-"):
+    """Get the cloud functions in the given project and location."""
+    _, location = get_remote_function_locations(location)
+    parent = f"projects/{project}/locations/{location}"
+    request = functions_v2.ListFunctionsRequest(parent=parent)
+    page_result = functions_client.list_functions(request=request)
+    full_name_prefix = parent + f"/functions/{name_prefix}"
+    for response in page_result:
+        if not name_prefix or response.name.startswith(full_name_prefix):
+            yield response
+
+
+def delete_cloud_function(functions_client, full_name):
+    """Delete a cloud function with the given fully qualified name."""
+    request = functions_v2.DeleteFunctionRequest(name=full_name)
+    operation = functions_client.delete_function(request=request)
+    return operation
+
+
+def make_uniq_udf(udf):
+    """Transform a udf to another with same behavior but a unique name."""
+    prefixer = test_utils.prefixer.Prefixer(udf.__name__, "")
+    udf_uniq_name = prefixer.create_prefix()
+    udf_file_name = f"{udf_uniq_name}.py"
+
+    # We are not using `tempfile.TemporaryDirectory()` because we want to keep
+    # the temp code around, otherwise `inspect.getsource()` complains.
+    tmpdir = tempfile.mkdtemp()
+    udf_file_path = os.path.join(tmpdir, udf_file_name)
+    with open(udf_file_path, "w") as f:
+        # TODO(shobs): Find a better way of modifying the udf, maybe regex?
+        source_key = f"def {udf.__name__}"
+        target_key = f"def {udf_uniq_name}"
+        source_code = textwrap.dedent(inspect.getsource(udf))
+        target_code = source_code.replace(source_key, target_key, 1)
+        f.write(target_code)
+    spec = importlib.util.spec_from_file_location(udf_file_name, udf_file_path)
+    return getattr(spec.loader.load_module(), udf_uniq_name), tmpdir
 
 
 @pytest.fixture(scope="module")
@@ -66,34 +118,28 @@ def functions_client() -> functions_v2.FunctionServiceClient:
 @pytest.fixture(scope="module", autouse=True)
 def cleanup_cloud_functions(bigquery_client, functions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
-    _, location = get_remote_function_locations(bigquery_client.location)
-    parent = f"projects/{bigquery_client.project}/locations/{location}"
-    request = functions_v2.ListFunctionsRequest(parent=parent)
-    page_result = functions_client.list_functions(request=request)
-    bigframes_cf_prefix = parent + "/functions/bigframes-"
-    permanent_endpoints = get_remote_function_end_points(
+    permanent_endpoints = get_remote_function_endpoints(
         bigquery_client, dataset_id_permanent
     )
     delete_count = 0
-    for response in page_result:
-        # Ignore non bigframes cloud functions
-        if not response.name.startswith(bigframes_cf_prefix):
-            continue
-
+    for cloud_function in get_cloud_functions(
+        functions_client, bigquery_client.project, bigquery_client.location
+    ):
         # Ignore bigframes cloud functions referred by the remote functions in
         # the permanent dataset
-        if response.service_config.uri in permanent_endpoints:
+        if cloud_function.service_config.uri in permanent_endpoints:
             continue
 
         # Ignore the functions less than one day old
-        age = datetime.now() - datetime.fromtimestamp(response.update_time.timestamp())
+        age = datetime.now() - datetime.fromtimestamp(
+            cloud_function.update_time.timestamp()
+        )
         if age.days <= 0:
             continue
 
         # Go ahead and delete
-        request = functions_v2.DeleteFunctionRequest(name=response.name)
         try:
-            functions_client.delete_function(request=request)
+            delete_cloud_function(functions_client, cloud_function.name)
             delete_count += 1
             if delete_count >= _MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
                 break
@@ -391,3 +437,131 @@ def test_remote_udf_referring_global_var_and_import(
     # pd_result.dtype: dtype('O')
     # Skip type check for now
     pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_remote_function_restore_with_bigframes_series(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection, functions_client
+):
+    def add_one(x):
+        return x + 1
+
+    # Make a unique udf
+    add_one_uniq, add_one_uniq_dir = make_uniq_udf(add_one)
+
+    # This is a bit of a hack but we need to remove the reference to a foreign
+    # module, otherwise the serialization would keep the foreign module
+    # reference and deserialization would fail with error like following:
+    #     ModuleNotFoundError: No module named 'add_one_2nxcmd9j'
+    # TODO(shobs): Figure out if there is a better way of generating the unique
+    # function object, but for now let's just set it to same module as the
+    # original udf.
+    add_one_uniq.__module__ = add_one.__module__
+
+    # Expected cloud function name for the unique udf
+    add_one_uniq_cf_name = get_cloud_function_name(add_one_uniq)
+
+    # There should be no cloud function yet for the unique udf
+    cloud_functions = list(
+        get_cloud_functions(
+            functions_client,
+            bigquery_client.project,
+            bigquery_client.location,
+            name_prefix=add_one_uniq_cf_name,
+        )
+    )
+    assert len(cloud_functions) == 0
+
+    # The first time both the cloud function and the bq remote function don't
+    # exist and would be created
+    remote_add_one = remote_function(
+        [dt.int64()],
+        dt.int64(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=True,
+    )(add_one_uniq)
+
+    # There should have been excactly one cloud function created at this point
+    cloud_functions = list(
+        get_cloud_functions(
+            functions_client,
+            bigquery_client.project,
+            bigquery_client.location,
+            name_prefix=add_one_uniq_cf_name,
+        )
+    )
+    assert len(cloud_functions) == 1
+
+    # We will test this twice
+    def test_inner():
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_col"]
+        bf_int64_col_filter = bf_int64_col.notnull()
+        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+        bf_result = bf_int64_col_filtered.apply(remote_add_one).compute()
+
+        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_int64_col_filter = pd_int64_col.notnull()
+        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+        pd_result = pd_int64_col_filtered.apply(lambda x: add_one_uniq(x))
+
+        if pd_result.index.name != "rowindex":
+            bf_result = bf_result.sort_values(ignore_index=True)
+            pd_result = pd_result.sort_values(ignore_index=True)
+
+        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+        # d_int64_col_filtered.dtype is Int64Dtype()
+        # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
+        # skip type check for now
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    # Test that the remote function works as expected
+    test_inner()
+
+    # Let's delete the cloud function while not touching the bq remote function
+    delete_operation = delete_cloud_function(functions_client, cloud_functions[0].name)
+    delete_operation.result()
+    assert delete_operation.done()
+
+    # There should be no cloud functions at this point for the uniq udf
+    cloud_functions = list(
+        get_cloud_functions(
+            functions_client,
+            bigquery_client.project,
+            bigquery_client.location,
+            name_prefix=add_one_uniq_cf_name,
+        )
+    )
+    assert len(cloud_functions) == 0
+
+    # The second time bigframes detects that the required cloud function doesn't
+    # exist even though the remote function exists, and goes ahead and recreates
+    # the cloud function
+    remote_add_one = remote_function(
+        [dt.int64()],
+        dt.int64(),
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=True,
+    )(add_one_uniq)
+
+    # There should be excactly one cloud function again
+    cloud_functions = list(
+        get_cloud_functions(
+            functions_client,
+            bigquery_client.project,
+            bigquery_client.location,
+            name_prefix=add_one_uniq_cf_name,
+        )
+    )
+    assert len(cloud_functions) == 1
+
+    # Test again after the cloud function is restored that the remote function
+    # works as expected
+    test_inner()
+
+    # clean up the temp code
+    shutil.rmtree(add_one_uniq_dir)

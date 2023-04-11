@@ -171,7 +171,7 @@ def get_cloud_function_endpoint(name):
     for response in page_result:
         if response.name == expected_cf_name:
             return response.service_config.uri
-    return ""
+    return None
 
 
 def generate_udf_code(def_, dir):
@@ -357,7 +357,7 @@ def create_cloud_function(def_, cf_name):
         raise ValueError("Couldn't fetch the http endpoint")
 
     logger.info(f"Successfully created cloud function {cf_name} with uri ({endpoint})")
-    return (cf_name, endpoint)
+    return endpoint
 
 
 def get_cloud_function_name(def_, uniq_suffix=None):
@@ -376,30 +376,54 @@ def get_remote_function_name(def_, uniq_suffix=None):
     return bq_rf_name
 
 
-def provision_bq_remote_function(
-    def_, input_types, output_type, cloud_function_name, remote_function_name
-):
+def provision_bq_remote_function(def_, input_types, output_type, uniq_suffix=None):
     """Provision a BigQuery remote function."""
-    _, endpoint = create_cloud_function(def_, cloud_function_name)
-    input_args = inspect.getargs(def_.__code__).args
-    if len(input_args) != len(input_types):
-        raise ValueError("Exactly one type should be provided for every input arg.")
-    create_bq_remote_function(
-        input_args, input_types, output_type, endpoint, remote_function_name
-    )
+    # Derive the name of the underlying cloud function and first create
+    # it if it does not exist
+    cloud_function_name = get_cloud_function_name(def_, uniq_suffix)
+    cf_endpoint = get_cloud_function_endpoint(cloud_function_name)
+    if not cf_endpoint:
+        check_cloud_function_tools_and_permissions()
+        cf_endpoint = create_cloud_function(def_, cloud_function_name)
+    else:
+        logger.info(f"Cloud function {cloud_function_name} already exists.")
+
+    # Derive the name of the remote function and create/replace it if needed
+    remote_function_name = get_remote_function_name(def_, uniq_suffix)
+    rf_endpoint, rf_conn = get_remote_function_specs(remote_function_name)
+    if rf_endpoint != cf_endpoint or rf_conn != bq_connection_id:
+        input_args = inspect.getargs(def_.__code__).args
+        if len(input_args) != len(input_types):
+            raise ValueError("Exactly one type should be provided for every input arg.")
+        create_bq_remote_function(
+            input_args, input_types, output_type, cf_endpoint, remote_function_name
+        )
+    else:
+        logger.info(f"Remote function {remote_function_name} already exists.")
+
     return remote_function_name
 
 
-def bq_remote_function_exists(remote_function_name):
+def get_remote_function_specs(remote_function_name):
     """Check whether a remote function already exists for the udf."""
+    http_endpoint = None
+    bq_connection = None
     routines = bq_client.list_routines(f"{gcp_project_id}.{bq_dataset}")
     for routine in routines:
         if routine.reference.routine_id == remote_function_name:
-            return True
-    return False
+            # TODO(shobs): Use first class properties when they are available
+            # https://github.com/googleapis/python-bigquery/issues/1552
+            rf_options = routine._properties.get("remoteFunctionOptions")
+            if rf_options:
+                http_endpoint = rf_options.get("endpoint")
+                bq_connection = rf_options.get("connection")
+                if bq_connection:
+                    bq_connection = os.path.basename(bq_connection)
+            break
+    return (http_endpoint, bq_connection)
 
 
-def check_tools_and_permissions():
+def check_cloud_function_tools_and_permissions():
     """Check if the necessary tools and permissions are in place for creating remote function"""
     # gcloud CLI comes with bq CLI and they are required for creating google
     # cloud function and BigQuery remote function respectively
@@ -418,23 +442,6 @@ def check_tools_and_permissions():
     # https://cloud.google.com/functions/docs/reference/iam/roles#cloudfunctions.developer
     # but that itself required the runner to have the permission to enable
     # `cloudasset.googleapis.com`
-
-
-def provision_bq_remote_function_if_needed(
-    def_, input_types, output_type, uniq_suffix=None
-):
-    """Provision a BigQuery remote function if it does not already exist."""
-    remote_function_name = get_remote_function_name(def_, uniq_suffix)
-    if not bq_remote_function_exists(remote_function_name):
-        logger.info(f"Provisioning new remote function {def_.__name__} ...")
-        check_tools_and_permissions()
-        cloud_function_name = get_cloud_function_name(def_, uniq_suffix)
-        return provision_bq_remote_function(
-            def_, input_types, output_type, cloud_function_name, remote_function_name
-        )
-    else:
-        logger.info(f"Remote function {def_.__name__} already exists, reusing ...")
-    return remote_function_name
 
 
 def get_remote_function_locations(bq_location):
@@ -564,9 +571,7 @@ def remote_function(
             rf_node_fields["output_dtype"] = property(lambda _: output_type)
             rf_node_fields["output_shape"] = rlz.shape_like("args")
 
-        rf_name = provision_bq_remote_function_if_needed(
-            f, input_types, output_type, uniq_suffix
-        )
+        rf_name = provision_bq_remote_function(f, input_types, output_type, uniq_suffix)
         rf_fully_qualified_name = f"`{gcp_project_id}.{bq_dataset}`.{rf_name}"
         rf_node = type(rf_fully_qualified_name, (ops.ValueOp,), rf_node_fields)
 
