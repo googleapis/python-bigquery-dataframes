@@ -221,6 +221,11 @@ class Series:
     def __rmod__(self, other) -> Series:  # type: ignore
         return self._apply_binary_op(other, ops.reverse(ops.mod_op), ibis_dtypes.int64)
 
+    def __matmul__(self, other: Series):
+        return (self * other).sum()
+
+    dot = __matmul__
+
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
         return self._apply_unary_op(ops.abs_op)

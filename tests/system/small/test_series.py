@@ -921,3 +921,12 @@ def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
         bf_result,
         pd_result,
     )
+
+
+def test_dot(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (scalars_df["int64_too"] @ scalars_df["int64_too"]).compute()
+
+    pd_result = scalars_pandas_df["int64_too"] @ scalars_pandas_df["int64_too"]
+
+    assert bf_result == pd_result
