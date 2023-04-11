@@ -15,8 +15,7 @@ import pandas as pd
 
 import bigframes.core
 import bigframes.core.blocks as blocks
-from bigframes.core.indexes.implicitjoiner import ImplicitJoiner
-from bigframes.core.indexes.index import Index
+import bigframes.core.indexes as indexes
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
@@ -41,10 +40,7 @@ class DataFrame:
     @property
     def index(
         self,
-    ) -> Union[
-        bigframes.core.indexes.implicitjoiner.ImplicitJoiner,
-        bigframes.core.indexes.index.Index,
-    ]:
+    ) -> Union[indexes.ImplicitJoiner, indexes.Index,]:
         return self._block.index
 
     @property
@@ -130,9 +126,9 @@ class DataFrame:
                 )
                 block = blocks.Block(expression)
                 block.index = (
-                    Index(expression, self.index._index_column, self.index.name)
-                    if isinstance(self.index, Index)
-                    else ImplicitJoiner(expression, self.index.name)
+                    indexes.Index(expression, self.index._index_column, self.index.name)
+                    if isinstance(self.index, indexes.Index)
+                    else indexes.ImplicitJoiner(expression, self.index.name)
                 )
                 return DataFrame(block)
             else:
@@ -374,9 +370,7 @@ class DataFrame:
 
         block = self._block.copy()
         block.expr = expr
-        block.index = bigframes.core.indexes.index.Index(
-            expr, index_column=index_column_name, name=key
-        )
+        block.index = indexes.Index(expr, index_column=index_column_name, name=key)
         return DataFrame(block)
 
     def dropna(self) -> DataFrame:
@@ -432,37 +426,45 @@ class DataFrame:
 
         return joined_frame
 
-    # TODO(garrettwu): finish implementation of join(...)
-    def join(self, other: DataFrame, how: str) -> DataFrame:
-        """Join columns of another dataframe
-
-        This implementation is a placeholder that only works when the two dataframes
-        are identical except for their columns. Also it assumes the index is unique."""
-        if how != "outer":
-            raise NotImplementedError("Joins other than outer are not implemented")
+    def join(self, other: DataFrame, *, how: str = "left") -> DataFrame:
+        """Join columns of another dataframe"""
 
         if not self.columns.intersection(other.columns).empty:
             raise NotImplementedError("Deduping column names is not implemented")
 
-        left_expr_bldr = self._block.expr.builder()
-        right_expr_bldr = other._block.expr.builder()
+        left = self
+        right = other
+        combined_index, (get_column_left, get_column_right) = left.index.join(
+            right.index, how=how
+        )
 
-        for col in right_expr_bldr.columns:
-            if col.compile() not in [col.compile() for col in left_expr_bldr.columns]:
-                left_expr_bldr.columns.append(col)
+        block = blocks.Block(combined_index._expr)
+        block.index = combined_index
 
-        right_expr_bldr.columns = left_expr_bldr.columns
+        index_columns = []
+        if isinstance(combined_index, indexes.Index):
+            index_columns = [
+                # TODO(swast): Support MultiIndex.
+                combined_index._expr.get_any_column(combined_index._index_column)
+            ]
 
-        if (
-            left_expr_bldr.build()
-            .to_ibis_expr()
-            .equals(right_expr_bldr.build().to_ibis_expr())
-        ):
-            block = self._block.copy()
-            block.expr = left_expr_bldr.build()
-            return DataFrame(block)
-        else:
-            raise NotImplementedError("True joins are not implemented in .join yet")
+        expr_bldr = block.expr.builder()
+        expr_bldr.columns = (
+            index_columns
+            + [
+                # TODO(swast): Support suffix if there are duplicates.
+                get_column_left(col_name).name(col_name)
+                for col_name in left.columns
+            ]
+            + [
+                # TODO(swast): Support suffix if there are duplicates.
+                get_column_right(col_name).name(col_name)
+                for col_name in right.columns
+            ]
+        )
+        # TODO(swast): Maintain some ordering post-join.
+        block.expr = expr_bldr.build()
+        return DataFrame(block)
 
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)

@@ -135,7 +135,7 @@ class BigFramesExpr:
             self._columns = tuple(columns)
 
         # Meta columns store ordering, or other data that doesn't correspond to dataframe columns
-        self._meta_columns = meta_columns or ()
+        self._meta_columns = tuple(meta_columns) if meta_columns is not None else ()
 
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
@@ -170,13 +170,17 @@ class BigFramesExpr:
         return self._column_names
 
     @property
+    def meta_columns(self) -> typing.Tuple[ibis_types.Value, ...]:
+        return self._meta_columns
+
+    @property
     def ordering(self) -> Sequence[ibis_types.Value]:
         """Returns a sequence of ibis values which can be directly used to order a tabel expression. Has direction modifiers applied."""
         if not self._ordering:
             return []
         else:
             values = [
-                self._get_any_column(ordering_value)
+                self.get_any_column(ordering_value)
                 for ordering_value in self._ordering.all_ordering_columns
             ]
             if self._ordering.is_ascending:
@@ -228,7 +232,7 @@ class BigFramesExpr:
             )
         return typing.cast(ibis_types.Column, self._column_names[key])
 
-    def _get_any_column(self, key: str) -> ibis_types.Column:
+    def get_any_column(self, key: str) -> ibis_types.Column:
         """Gets the Ibis expression for a given column. Will also get hidden meta columns."""
         all_columns = {**self._column_names, **self._meta_column_names}
         if key not in all_columns.keys():

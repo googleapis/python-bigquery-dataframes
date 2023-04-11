@@ -36,22 +36,6 @@ class Index(ImplicitJoiner):
         ImplicitJoiner,
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
     ]:
-        try:
-            # TOOD(swast): We need to check that the indexes are the same
-            # (including ordering) before falling back to row identity
-            # matching. Though maybe the index itself will validate that?
-            joined, (left_getter, right_getter) = super().join(other, how=how)
-            # TODO: Need to take either side
-            index_column = left_getter(self._index_column).get_name()
-            return Index(joined._expr, index_column, name=self.name), (
-                left_getter,
-                right_getter,
-            )
-        except (ValueError, NotImplementedError):
-            # TODO(swast): Catch a narrower exception than ValueError.
-            # If the more efficient implicit join can't be performed, try an explicit join.
-            pass
-
         if not isinstance(other, Index):
             # TODO(swast): We need to improve this error message to be more
             # actionable for the user. For example, it's possible they
@@ -60,44 +44,101 @@ class Index(ImplicitJoiner):
                 "Can't mixed objects with explicit Index and ImpliedJoiner"
             )
 
-        # TODO(swast): Consider refactoring to allow re-use in cases where an
-        # explicit join key is used.
+        # TODO(swast): Support cross-joins (requires reindexing).
+        if how not in {"outer", "left", "right", "inner"}:
+            raise NotImplementedError(
+                "Only how='outer','left','right','inner' currently supported"
+            )
 
-        # Generate offsets if non-default ordering is applied
-        # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
-        left_table = self._expr.to_ibis_expr(
-            ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
-        )
-        left_index = left_table[self._index_column]
-        right_table = other._expr.to_ibis_expr(
-            ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
-        )
-        right_index = right_table[other._index_column]
-        join_condition = left_index == right_index
+        try:
+            # TOOD(swast): We need to check that the indexes are the same
+            # before falling back to row identity matching.
+            combined_joiner, (get_column_left, get_column_right) = super().join(
+                other, how=how
+            )
+            combined_expr = combined_joiner._expr
+            combined_table = combined_expr.table
+            metadata_columns = []
+            original_ordering = combined_joiner._expr.builder().ordering
+            new_order_id = original_ordering.ordering_id if original_ordering else None
+        except (ValueError, NotImplementedError):
+
+            # TODO(swast): Catch a narrower exception than ValueError.
+            # If the more efficient implicit join can't be performed, try an explicit join.
+
+            # TODO(swast): Consider refactoring to allow re-use in cases where an
+            # explicit join key is used.
+
+            # Generate offsets if non-default ordering is applied
+            # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
+            left_table = self._expr.to_ibis_expr(
+                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+            )
+            left_index = left_table[self._index_column]
+            right_table = other._expr.to_ibis_expr(
+                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+            )
+            right_index = right_table[other._index_column]
+            join_condition = left_index == right_index
+
+            # TODO(swast): Handle duplicate column names with suffixs, see "merge"
+            # in DaPandas.
+            join_condition = left_index == right_index
+            combined_table = ibis.join(
+                left_table, right_table, predicates=join_condition, how=how
+            )
+
+            def get_column_left(key: str) -> ibis_types.Value:
+                if how == "inner" and key == self._index_column:
+                    # Don't rename the column if it's the index on an inner
+                    # join.
+                    pass
+                elif key in right_table.columns:
+                    key = f"{key}_x"
+
+                return combined_table[key]
+
+            def get_column_right(key: str) -> ibis_types.Value:
+                if how == "inner" and key == typing.cast(Index, other)._index_column:
+                    # Don't rename the column if it's the index on an inner
+                    # join.
+                    pass
+                elif key in left_table.columns:
+                    key = f"{key}_y"
+
+                return combined_table[key]
+
+            # Preserve original ordering accross joins.
+            left_order_id = get_column_left(ORDER_ID_COLUMN)
+            right_order_id = get_column_right(ORDER_ID_COLUMN)
+            new_order_id_col = (
+                _merge_order_ids(left_order_id, right_order_id)
+                if how in ["left", "inner", "outer"]
+                else _merge_order_ids(right_order_id, left_order_id)
+            )
+            new_order_id = new_order_id_col.get_name()
+            metadata_columns = [new_order_id_col]
+            original_ordering = ExpressionOrdering(
+                ordering_id_column=new_order_id
+                if (new_order_id_col is not None)
+                else None,
+            )
 
         index_name_orig = self._index_column
 
-        # TODO(swast): Handle duplicate column names with suffixs, see "merge"
-        # in DaPandas.
-        combined_table = ibis.join(
-            left_table, right_table, predicates=join_condition, how=how
+        joined_index_col = (
+            # The left index and the right index might contain null values, for
+            # example due to an outer join with different numbers of rows. Coalesce
+            # these to take the index value from either column.
+            ibis.coalesce(
+                get_column_left(self._index_column),
+                get_column_right(other._index_column),
+            )
+            # Add a suffix in case the left index and the right index have the
+            # same name. In such a case, _x and _y suffixes will already be
+            # used.
+            .name(index_name_orig + "_z")
         )
-
-        def get_column_left(key: str) -> ibis_types.Value:
-            if key in right_table.columns:
-                key = f"{key}_x"
-
-            return combined_table[key]
-
-        def get_column_right(key: str) -> ibis_types.Value:
-            if key in left_table.columns:
-                key = f"{key}_y"
-
-            return combined_table[key]
-
-        joined_index_col = ibis.coalesce(
-            get_column_left(self._index_column), get_column_right(other._index_column)
-        ).name(index_name_orig + "_z")
 
         # TODO: Can actually ignore original index values post-join
         columns = tuple(
@@ -108,26 +149,15 @@ class Index(ImplicitJoiner):
             ]
         )
 
-        left_order_id = get_column_left(ORDER_ID_COLUMN)
-        right_order_id = get_column_right(ORDER_ID_COLUMN)
-        new_order_id = (
-            _merge_order_ids(left_order_id, right_order_id)
-            if how in ["left", "inner", "outer"]
-            else _merge_order_ids(right_order_id, left_order_id)
-        )
-        metadata_columns = [new_order_id]
-
         if sort:
             order_cols = [joined_index_col.get_name()]
+            ordering: Optional[ExpressionOrdering] = ExpressionOrdering(
+                ordering_value_columns=order_cols,
+                ordering_id_column=new_order_id if (new_order_id is not None) else None,
+            )
         else:
-            order_cols = None
+            ordering = original_ordering
 
-        ordering = ExpressionOrdering(
-            ordering_value_columns=order_cols,
-            ordering_id_column=new_order_id.get_name()
-            if (new_order_id is not None)
-            else None,
-        )
         combined_expr = BigFramesExpr(
             self._expr._session,
             combined_table,

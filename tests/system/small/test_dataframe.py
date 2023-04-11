@@ -342,20 +342,43 @@ def test_scalar_bi_op_str_exception(scalars_dfs):
         (scalars_df[columns] + 1).compute()
 
 
-def test_join_outer_truejoin_raises_not_implemented(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    df_a = scalars_df[["string_col", "int64_col"]]
-    df_b = scalars_df.dropna()[["float64_col"]]
-    with pytest.raises(NotImplementedError):
-        df_a.join(df_b, how="outer")
+all_joins = pytest.mark.parametrize(
+    ("how",),
+    (
+        ("outer",),
+        ("left",),
+        ("right",),
+        ("inner",),
+    ),
+)
 
 
-def test_join_not_outer_raises_not_implemented(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    df_a = scalars_df[["string_col", "int64_col"]]
-    df_b = scalars_df[["float64_col"]]
-    with pytest.raises(NotImplementedError):
-        df_a.join(df_b, how="right").compute()
+@all_joins
+def test_join_same_table(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+    if how == "right" and pd_df.index.name != "rowindex":
+        pytest.skip("right join not supported without an index")
+
+    bf_df_a = bf_df[["string_col", "int64_col"]]
+    bf_df_b = bf_df[["float64_col"]]
+    bf_result = bf_df_a.join(bf_df_b, how=how).compute()
+    pd_df_a = pd_df[["string_col", "int64_col"]]
+    pd_df_b = pd_df[["float64_col"]]
+    pd_result = pd_df_a.join(pd_df_b, how=how)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@all_joins
+def test_join_different_table(
+    scalars_df_index, scalars_df_2_index, scalars_pandas_df_index, how
+):
+    bf_df_a = scalars_df_index[["string_col", "int64_col"]]
+    bf_df_b = scalars_df_2_index.dropna()[["float64_col"]]
+    bf_result = bf_df_a.join(bf_df_b, how=how).compute()
+    pd_df_a = scalars_pandas_df_index[["string_col", "int64_col"]]
+    pd_df_b = scalars_pandas_df_index.dropna()[["float64_col"]]
+    pd_result = pd_df_a.join(pd_df_b, how=how)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):

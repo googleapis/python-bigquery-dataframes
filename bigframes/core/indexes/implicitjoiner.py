@@ -50,7 +50,7 @@ class ImplicitJoiner:
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
     ]:
         """Compute join_index and indexers to conform data structures to the new index."""
-        if how not in ["outer", "left", "inner"]:
+        if how not in {"outer", "left", "inner"}:
             raise NotImplementedError(
                 "Only how='outer','left','inner' currently supported"
             )
@@ -136,8 +136,8 @@ class ImplicitJoiner:
             predicates=combined_predicates,
         )
         return ImplicitJoiner(joined_expr, name=self.name), (
-            lambda key: joined_expr.get_column(map_left_id(key)),
-            lambda key: joined_expr.get_column(map_right_id(key)),
+            lambda key: joined_expr.get_any_column(map_left_id(key)),
+            lambda key: joined_expr.get_any_column(map_right_id(key)),
         )
 
 
