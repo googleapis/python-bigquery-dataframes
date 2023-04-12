@@ -121,10 +121,10 @@ class ImplicitJoiner:
         new_ordering = core.ExpressionOrdering()
         if left_expr._ordering and right_expr._ordering:
             meta_columns = [
-                left_expr.get_any_column(key).name(map_left_id(key))
+                left_expr._get_meta_column(key).name(map_left_id(key))
                 for key in left_expr._meta_column_names.keys()
             ] + [
-                right_expr.get_any_column(key).name(map_right_id(key))
+                right_expr._get_meta_column(key).name(map_right_id(key))
                 for key in right_expr._meta_column_names.keys()
             ]
             new_ordering_id = (
@@ -132,20 +132,13 @@ class ImplicitJoiner:
                 if (left_expr._ordering.ordering_id)
                 else None
             )
-            new_ordering = core.ExpressionOrdering(
-                ordering_value_columns=(
-                    [
-                        map_left_id(key)
-                        for key in left_expr._ordering.ordering_value_columns
-                    ]
-                    + [
-                        map_right_id(key)
-                        for key in right_expr._ordering.ordering_value_columns
-                    ]
-                ),
-                ordering_id_column=new_ordering_id,
-                ascending=left_expr._ordering.is_ascending,
-            )
+            new_ordering = left_expr._ordering.with_ordering_columns(
+                [map_left_id(key) for key in left_expr._ordering.ordering_value_columns]
+                + [
+                    map_right_id(key)
+                    for key in right_expr._ordering.ordering_value_columns
+                ]
+            ).with_ordering_id(new_ordering_id)
 
         joined_expr = core.BigFramesExpr(
             left_expr._session,

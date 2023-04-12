@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import functools
+import math
 import typing
 from typing import Collection, Dict, Iterable, Optional, Sequence
 
@@ -22,6 +23,7 @@ from google.cloud import bigquery
 import ibis
 import ibis.expr.types as ibis_types
 
+from bigframes.core.ordering import ExpressionOrdering, stringify_order_id
 import bigframes.guid
 
 if typing.TYPE_CHECKING:
@@ -29,84 +31,6 @@ if typing.TYPE_CHECKING:
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
-
-
-class ExpressionOrdering:
-    """Immutable object that holds information about the ordering of rows in a BigFrames expression."""
-
-    def __init__(
-        self,
-        ordering_value_columns: Optional[Sequence[str]] = None,
-        ordering_id_column: Optional[str] = None,
-        is_sequential: bool = False,
-        ascending: bool = True,
-    ):
-        # TODO(tbergeron): Allow flag to reverse ordering
-        self._ordering_value_columns = (
-            tuple(ordering_value_columns) if ordering_value_columns else ()
-        )
-        self._ordering_id_column = ordering_id_column
-        self._is_sequential = is_sequential
-        self._ascending = ascending
-
-    def with_is_sequential(self, is_sequential: bool):
-        """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
-        return ExpressionOrdering(
-            self._ordering_value_columns, self._ordering_id_column, is_sequential
-        )
-
-    def with_ordering_columns(
-        self, ordering_value_columns: Optional[Sequence[str]] = None, ascending=True
-    ):
-        """Creates a new ordering that preserves ordering id, but replaces ordering value column list."""
-        return ExpressionOrdering(
-            ordering_value_columns,
-            self._ordering_id_column,
-            is_sequential=False,
-            ascending=ascending,
-        )
-
-    def with_reverse(self):
-        """Reverses the ordering."""
-        return ExpressionOrdering(
-            self._ordering_value_columns,
-            self._ordering_id_column,
-            is_sequential=False,
-            ascending=(not self._ascending),
-        )
-
-    @property
-    def is_sequential(self) -> bool:
-        return self._is_sequential
-
-    @property
-    def is_ascending(self) -> bool:
-        return self._ascending
-
-    @property
-    def ordering_value_columns(self) -> Sequence[str]:
-        return self._ordering_value_columns
-
-    @property
-    def ordering_id(self) -> Optional[str]:
-        return self._ordering_id_column
-
-    @property
-    def order_id_defined(self) -> bool:
-        """True if ordering is fully defined in ascending order by its ordering id."""
-        return bool(
-            self._ordering_id_column
-            and (not self._ordering_value_columns)
-            and self.is_ascending
-        )
-
-    @property
-    def all_ordering_columns(self) -> Sequence[str]:
-        return (
-            list(self._ordering_value_columns)
-            if self._ordering_id_column is None
-            else [*self._ordering_value_columns, self._ordering_id_column]
-        )
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
@@ -398,6 +322,54 @@ class BigFramesExpr:
         length = next(length_query.result())[0]
 
         return (length, width)
+
+    def concat(self, other: typing.Sequence[BigFramesExpr]) -> BigFramesExpr:
+        """Append together multiple BigFramesExpressions."""
+        if len(other) == 0:
+            return self
+        tables = []
+        prefix_base = 10
+        prefix_size = math.ceil(math.log(len(other) + 1, prefix_base))
+
+        # Must normalize all ids to the same encoding size
+        max_encoding_size = max(
+            [objects._ordering._ordering_encoding_size for objects in [self, *other]]
+        )
+        for i, expr in enumerate([self, *other]):
+            ordering_prefix = str(i).zfill(prefix_size)
+            table = expr.to_ibis_expr(
+                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+            )
+            # Rename the value columns based on horizontal offset before applying union.
+            table = table.select(
+                [
+                    col
+                    if col != ORDER_ID_COLUMN
+                    else (
+                        ordering_prefix
+                        + stringify_order_id(table[ORDER_ID_COLUMN], max_encoding_size)
+                    ).name(ORDER_ID_COLUMN)
+                    for col in table.columns
+                ]
+            )
+            tables.append(table)
+
+        combined_table = ibis.union(*tables)
+        ordering = ExpressionOrdering(
+            ordering_id_column=ORDER_ID_COLUMN,
+            ordering_encoding_size=prefix_size + max_encoding_size,
+        )
+        return BigFramesExpr(
+            self._session,
+            combined_table,
+            columns=[
+                combined_table[col]
+                for col in combined_table.columns
+                if col != ORDER_ID_COLUMN
+            ],
+            meta_columns=[combined_table[ORDER_ID_COLUMN]],
+            ordering=ordering,
+        )
 
     def to_ibis_expr(
         self, ordering_mode: str = "order_by", order_col_name=ORDER_ID_COLUMN

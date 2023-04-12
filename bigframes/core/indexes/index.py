@@ -20,13 +20,13 @@ import typing
 from typing import Callable, Optional, Tuple
 
 import ibis
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner as implicitjoiner
+import bigframes.core.ordering
 import bigframes.guid
 
 
@@ -102,7 +102,7 @@ class Index(implicitjoiner.ImplicitJoiner):
                 other, how=how
             )
             combined_expr = combined_joiner._expr
-            original_ordering = combined_joiner._expr.builder().ordering
+            original_ordering = combined_joiner._expr._ordering
             new_order_id = original_ordering.ordering_id if original_ordering else None
         except (ValueError, NotImplementedError):
             # TODO(swast): Catch a narrower exception than ValueError.
@@ -149,13 +149,24 @@ class Index(implicitjoiner.ImplicitJoiner):
 
                 return combined_table[key]
 
+            left_ordering_encoding_size = (
+                self._expr._ordering._ordering_encoding_size
+                or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
+            )
+            right_ordering_encoding_size = (
+                other._expr._ordering._ordering_encoding_size
+                or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
+            )
+
             # Preserve original ordering accross joins.
             left_order_id = get_column_left(core.ORDER_ID_COLUMN)
             right_order_id = get_column_right(core.ORDER_ID_COLUMN)
-            new_order_id_col = (
-                _merge_order_ids(left_order_id, right_order_id)
-                if how in ["left", "inner", "outer"]
-                else _merge_order_ids(right_order_id, left_order_id)
+            new_order_id_col = _merge_order_ids(
+                left_order_id,
+                left_ordering_encoding_size,
+                right_order_id,
+                right_ordering_encoding_size,
+                how,
             )
             new_order_id = new_order_id_col.get_name()
             metadata_columns = (new_order_id_col,)
@@ -163,6 +174,8 @@ class Index(implicitjoiner.ImplicitJoiner):
                 ordering_id_column=new_order_id
                 if (new_order_id_col is not None)
                 else None,
+                ordering_encoding_size=left_ordering_encoding_size
+                + right_ordering_encoding_size,
             )
             combined_expr = core.BigFramesExpr(
                 self._expr._session,
@@ -186,7 +199,7 @@ class Index(implicitjoiner.ImplicitJoiner):
             .name(index_name_orig + "_z")
         )
 
-        # TODO: Can actually ignore original index values post-join
+        # TODO(tbergeron): We should filter out the original index columns, but predicates/ordering might still reference them in implicit joins.
         columns = (
             [joined_index_col]
             + [get_column_left(key) for key in self._expr.column_names.keys()]
@@ -194,10 +207,8 @@ class Index(implicitjoiner.ImplicitJoiner):
         )
 
         if sort:
-            order_cols = [joined_index_col.get_name()]
-            ordering: Optional[core.ExpressionOrdering] = core.ExpressionOrdering(
-                ordering_value_columns=order_cols,
-                ordering_id_column=new_order_id if (new_order_id is not None) else None,
+            ordering = original_ordering.with_ordering_columns(
+                [joined_index_col.get_name()]
             )
         else:
             ordering = original_ordering
@@ -216,26 +227,20 @@ class Index(implicitjoiner.ImplicitJoiner):
         )
 
 
-def _merge_order_ids(left_id: ibis_types.Value, right_id: ibis_types.Value):
-    return ((_stringify_order_id(left_id) + _stringify_order_id(right_id))).name(
-        bigframes.guid.generate_guid(prefix="bigframes_ordering_id_")
-    )
-
-
-def _stringify_order_id(order_id: ibis_types.Value) -> ibis_types.StringValue:
-    """Conversts an order id value to string if it is not already a string. MUST produced fixed-length strings."""
-    if order_id.type().is_int64():
-        # This is very inefficient encoding base-10 string uses only 10 characters per byte(out of 256 bit combinations)
-        # Furthermore, if know tighter bounds on order id are known, can produce smaller strings.
-        # 19 characters chosen as it can represent any positive Int64 in base-10
-        # For missing values, ":" * 19 is used as it is larger than any other value this function produces, so null values will be last.
-        string_order_id = (
-            typing.cast(
-                ibis_types.StringValue,
-                typing.cast(ibis_types.IntegerValue, order_id).cast(ibis_dtypes.string),
-            )
-            .lpad(19, "0")
-            .fillna(ibis_types.literal(":" * 19))
+def _merge_order_ids(
+    left_id: ibis_types.Value,
+    left_encoding_size: int,
+    right_id: ibis_types.Value,
+    right_encoding_size: int,
+    how: str,
+) -> ibis_types.StringValue:
+    if how == "right":
+        return _merge_order_ids(
+            right_id, right_encoding_size, left_id, left_encoding_size, "left"
         )
-        return typing.cast(ibis_types.StringValue, string_order_id)
-    return typing.cast(ibis_types.StringValue, order_id)
+    return (
+        (
+            bigframes.core.ordering.stringify_order_id(left_id, left_encoding_size)
+            + bigframes.core.ordering.stringify_order_id(right_id, right_encoding_size)
+        )
+    ).name(bigframes.guid.generate_guid(prefix="bigframes_ordering_id_"))
