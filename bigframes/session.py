@@ -239,8 +239,11 @@ class Session:
         """
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
-        if ordering_col in pandas_dataframe.columns:
-            raise ValueError("Column with name 'rowid' already exists.")
+        columns = frozenset(pandas_dataframe.columns)
+        suffix = 2
+        while ordering_col in columns:
+            ordering_col = f"rowid_{suffix}"
+            suffix += 1
 
         pandas_dataframe_copy = pandas_dataframe.copy()
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])

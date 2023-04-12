@@ -118,14 +118,13 @@ def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_i
         session.read_pandas(scalars_pandas_df_multi_index)
 
 
-def test_read_pandas_rowid_exists_throws_error(
-    session, scalars_pandas_df_default_index
-):
+def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default_index):
     scalars_pandas_df_default_index["rowid"] = np.arange(
         scalars_pandas_df_default_index.shape[0]
     )
-    with pytest.raises(ValueError, match="Column with name 'rowid' already exists."):
-        session.read_pandas(scalars_pandas_df_default_index)
+
+    df = session.read_pandas(scalars_pandas_df_default_index)
+    assert df._block._expr._ordering.ordering_id == "rowid_2"
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
