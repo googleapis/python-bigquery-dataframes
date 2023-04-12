@@ -43,3 +43,14 @@ def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwar
         right = right.sort_index()
 
     pd.testing.assert_series_equal(left, right, **kwargs)
+
+
+def _standardize_index(idx):
+    return pd.Index(list(idx), name=idx.name)
+
+
+def assert_pandas_index_equal_ignore_index_type(idx0, idx1):
+    idx0 = _standardize_index(idx0)
+    idx1 = _standardize_index(idx1)
+
+    pd.testing.assert_index_equal(idx0, idx1)

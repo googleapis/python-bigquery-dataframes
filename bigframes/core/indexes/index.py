@@ -22,6 +22,7 @@ from typing import Callable, Optional, Tuple
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
+import pandas as pd
 
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -40,6 +41,34 @@ class Index(implicitjoiner.ImplicitJoiner):
     ):
         super().__init__(block, name=name)
         self._index_column = index_column
+
+    def __repr__(self) -> str:
+        """Converts an Index to a string."""
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole index by using job
+        # metadata, like we do with DataFrame.
+        preview = self.compute()
+        return repr(preview)
+
+    def compute(self) -> pd.Index:
+        """Executes deferred operations and downloads the results."""
+        # Project down to only the index column. So the query can be cached to visualize other data.
+        expr = self._expr.projection([self._expr.get_any_column(self._index_column)])
+        df = (
+            expr.start_query()
+            .result()
+            .to_dataframe(
+                bool_dtype=pd.BooleanDtype(),
+                int_dtype=pd.Int64Dtype(),
+                float_dtype=pd.Float64Dtype(),
+                string_dtype=pd.StringDtype(storage="pyarrow"),
+            )
+        )
+        df.set_index(self._index_column)
+        index = df.index
+        index.name = self._name
+        return index
 
     def copy(self) -> Index:
         """Make a copy of this object."""
