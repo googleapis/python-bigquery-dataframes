@@ -489,7 +489,9 @@ def test_nested_filter(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     string_col = scalars_df["string_col"]
     int64_too = scalars_df["int64_too"]
-    bool_col = scalars_df["bool_col"]
+    bool_col = scalars_df["bool_col"] == bool(
+        True
+    )  # Convert from nullable bool to nonnullable bool usable as indexer
     bf_result = string_col[int64_too == 0][~bool_col].compute()
 
     pd_string_col = scalars_pandas_df["string_col"]

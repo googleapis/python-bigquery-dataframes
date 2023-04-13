@@ -50,6 +50,7 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "flaky",
     "mock",
     "pytest",
+    "pytest-cov",
     "pytest-xdist",
     "google-cloud-testutils",
 ]
@@ -65,13 +66,12 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    # TODO(swast): Re-enable unit tests on a released version of Ibis. As of
-    # 2023-02-07, using nullable dtypes with the ibis pandas backend requires
-    # running ibis at HEAD. See: https://github.com/ibis-project/ibis/pull/5345
-    # "unit",
+    "unit",
     "unit_prerelease",
     "system",
-    "system_prerelease",
+    # TODO(swast): Compatibility with latest ibis. "suffixes" argument renamed:
+    # https://github.com/ibis-project/ibis/commit/3caf3a12469d017428d5e2bb94143185e8770038
+    # "system_prerelease",
     "cover",
     "lint",
     "lint_setup_py",
@@ -289,6 +289,12 @@ def system(session):
         "--quiet",
         "-n 20",
         f"--junitxml=system_{session.python}_sponge_log.xml",
+        "--cov=bigframes",
+        f"--cov={system_test_folder_path}",
+        "--cov-append",
+        "--cov-config=.coveragerc",
+        "--cov-report=term-missing",
+        "--cov-fail-under=0",
         system_test_folder_path,
         *session.posargs,
     )

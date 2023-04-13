@@ -36,7 +36,9 @@ dependencies = [
     "google-cloud-bigquery[bqstorage,pandas] >=3.9.0",
     "google-cloud-functions >=1.10.1",
     "google-cloud-storage >=2.0.0",
-    "ibis-framework[bigquery] >=4.0.0",
+    # TODO(swast): Compatibility with latest ibis. "suffixes" argument renamed:
+    # https://github.com/ibis-project/ibis/commit/3caf3a12469d017428d5e2bb94143185e8770038
+    "ibis-framework[bigquery] >=5.0.0, <6.0.0dev",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
     "pandas-gbq >=0.19.0",

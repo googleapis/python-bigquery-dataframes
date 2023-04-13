@@ -676,7 +676,7 @@ class SeriesGroupyBy:
         discard_name=False,
     ):
         expr = self._block.expr
-        if expr.reduced_predicate:
+        if expr.reduced_predicate is not None:
             expr = expr.filter(expr.reduced_predicate)
         window = ibis.cumulative_window(
             order_by=expr.ordering, group_by=expr.get_column(self._by)

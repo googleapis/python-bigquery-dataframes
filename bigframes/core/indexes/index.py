@@ -57,12 +57,9 @@ class Index(ImplicitJoiner):
                 other, how=how
             )
             combined_expr = combined_joiner._expr
-            combined_table = combined_expr.table
-            metadata_columns = []
             original_ordering = combined_joiner._expr.builder().ordering
             new_order_id = original_ordering.ordering_id if original_ordering else None
         except (ValueError, NotImplementedError):
-
             # TODO(swast): Catch a narrower exception than ValueError.
             # If the more efficient implicit join can't be performed, try an explicit join.
 
@@ -83,7 +80,6 @@ class Index(ImplicitJoiner):
 
             # TODO(swast): Handle duplicate column names with suffixs, see "merge"
             # in DaPandas.
-            join_condition = left_index == right_index
             combined_table = ibis.join(
                 left_table, right_table, predicates=join_condition, how=how
             )
@@ -117,11 +113,16 @@ class Index(ImplicitJoiner):
                 else _merge_order_ids(right_order_id, left_order_id)
             )
             new_order_id = new_order_id_col.get_name()
-            metadata_columns = [new_order_id_col]
+            metadata_columns = (new_order_id_col,)
             original_ordering = ExpressionOrdering(
                 ordering_id_column=new_order_id
                 if (new_order_id_col is not None)
                 else None,
+            )
+            combined_expr = BigFramesExpr(
+                self._expr._session,
+                combined_table,
+                meta_columns=metadata_columns,
             )
 
         index_name_orig = self._index_column
@@ -141,12 +142,10 @@ class Index(ImplicitJoiner):
         )
 
         # TODO: Can actually ignore original index values post-join
-        columns = tuple(
-            [get_column_left(key) for key in self._expr.column_names.keys()]
+        columns = (
+            [joined_index_col]
+            + [get_column_left(key) for key in self._expr.column_names.keys()]
             + [get_column_right(key) for key in other._expr.column_names.keys()]
-            + [
-                joined_index_col,
-            ]
         )
 
         if sort:
@@ -158,13 +157,10 @@ class Index(ImplicitJoiner):
         else:
             ordering = original_ordering
 
-        combined_expr = BigFramesExpr(
-            self._expr._session,
-            combined_table,
-            columns,
-            meta_columns=metadata_columns,
-            ordering=ordering,
-        )
+        combined_expr_builder = combined_expr.builder()
+        combined_expr_builder.columns = columns
+        combined_expr_builder.ordering = ordering
+        combined_expr = combined_expr_builder.build()
         combined_index_name = self.name if self.name == other.name else None
         return (
             Index(combined_expr, joined_index_col.get_name(), name=combined_index_name),

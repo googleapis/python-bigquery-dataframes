@@ -101,10 +101,10 @@ class ImplicitJoiner:
         new_ordering = ExpressionOrdering()
         if left_expr._ordering and right_expr._ordering:
             meta_columns = [
-                left_expr.get_column(key).name(map_left_id(key))
+                left_expr.get_any_column(key).name(map_left_id(key))
                 for key in left_expr._meta_column_names.keys()
             ] + [
-                right_expr.get_column(key).name(map_right_id(key))
+                right_expr.get_any_column(key).name(map_right_id(key))
                 for key in right_expr._meta_column_names.keys()
             ]
             new_ordering_id = (
