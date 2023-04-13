@@ -211,6 +211,32 @@ def test_series_int_int_operators_scalar(
 @pytest.mark.parametrize(
     ("operator"),
     [
+        (lambda x, y: x & y),
+        (lambda x, y: x | y),
+    ],
+    ids=[
+        "and",
+        "or",
+    ],
+)
+@pytest.mark.parametrize(("other_scalar"), [True, False, pd.NA])
+@pytest.mark.parametrize(("reverse_operands"), [True, False])
+def test_series_bool_bool_operators_scalar(
+    scalars_dfs, operator, other_scalar, reverse_operands
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    maybe_reversed_op = (lambda x, y: operator(y, x)) if reverse_operands else operator
+
+    bf_result = maybe_reversed_op(scalars_df["bool_col"], other_scalar).compute()
+    pd_result = maybe_reversed_op(scalars_pandas_df["bool_col"], other_scalar)
+
+    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
+
+
+@pytest.mark.parametrize(
+    ("operator"),
+    [
         (lambda x, y: x + y),
         (lambda x, y: x - y),
         (lambda x, y: x * y),
@@ -221,6 +247,8 @@ def test_series_int_int_operators_scalar(
         (lambda x, y: x >= y),
         (lambda x, y: x % y),
         (lambda x, y: x // y),
+        (lambda x, y: x & y),
+        (lambda x, y: x | y),
     ],
     ids=[
         "add",
@@ -233,6 +261,8 @@ def test_series_int_int_operators_scalar(
         "greater_than_equal",
         "modulo",
         "floordivide",
+        "bitwise_and",
+        "bitwise_or",
     ],
 )
 def test_series_int_int_operators_series(scalars_dfs, operator):
@@ -728,8 +758,7 @@ def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, opera
     pd_series = operator(
         scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
     ).astype(pd.Int64Dtype())
-    print(pd_series)
-    print(bf_series)
+
     pd.testing.assert_series_equal(
         pd_series,
         bf_series,
@@ -930,3 +959,22 @@ def test_dot(scalars_dfs):
     pd_result = scalars_pandas_df["int64_too"] @ scalars_pandas_df["int64_too"]
 
     assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "inclusive"),
+    [
+        (-234892, 55555, "left"),
+        (-234892, 55555, "both"),
+        (-234892, 55555, "neither"),
+        (-234892, 55555, "right"),
+    ],
+)
+def test_between(scalars_df_index, scalars_pandas_df_index, left, right, inclusive):
+    bf_result = scalars_df_index["int64_col"].between(left, right, inclusive).compute()
+    pd_result = scalars_pandas_df_index["int64_col"].between(left, right, inclusive)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result.astype(pd.BooleanDtype()),
+    )

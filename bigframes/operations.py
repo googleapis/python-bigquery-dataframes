@@ -37,6 +37,24 @@ def reverse_op(x: ibis_types.Value):
 
 
 ### Binary Ops
+def and_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return typing.cast(ibis_types.BooleanValue, x) & typing.cast(
+        ibis_types.BooleanValue, y
+    )
+
+
+def or_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
+        ibis_types.BooleanValue, y
+    )
+
+
 def add_op(
     x: ibis_types.Value,
     y: ibis_types.Value,

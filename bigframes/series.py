@@ -111,6 +111,17 @@ class Series:
         series.name = self._name
         return series
 
+    def between(self, left, right, inclusive="both"):
+        if inclusive not in ["both", "neither", "left", "right"]:
+            raise ValueError(
+                "Must set 'inclusive' to one of 'both', 'neither', 'left', or 'right'"
+            )
+        left_op = ops.ge_op if (inclusive in ["left", "both"]) else ops.gt_op
+        right_op = ops.le_op if (inclusive in ["right", "both"]) else ops.lt_op
+        return self._apply_binary_op(left, left_op).__and__(
+            self._apply_binary_op(right, right_op)
+        )
+
     def cumsum(self) -> Series:
         return self._apply_cumulative_aggregate(agg_ops.sum_op)
 
@@ -172,6 +183,16 @@ class Series:
             return typing.cast(ibis_types.StringValue, x).strip()
 
         return self._apply_unary_op(strip_op)
+
+    def __and__(self, other: bool | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.and_op, short_nulls=False)
+
+    __rand__ = __and__
+
+    def __or__(self, other: bool | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.or_op, short_nulls=False)
+
+    __ror__ = __or__
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.add_op)
@@ -474,20 +495,21 @@ class Series:
         other: typing.Any,
         op: typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value],
         expected_dtype: typing.Optional[ibis_dtypes.DataType] = None,
+        short_nulls=True,
     ) -> Series:
         """Applies a binary operator to the series and other."""
         (left, right, index) = self._align(other)
 
         block = blocks.Block(index._expr)
         block.index = index
-        if not isinstance(right, ibis_types.NullScalar):
-            result_expr = op(left, right).name(self._value_column)
-        else:
+        if isinstance(right, ibis_types.NullScalar) and short_nulls:
             # Cannot do sql op with null literal, so just replace expression directly with default
             # value
             output_dtype = expected_dtype if expected_dtype else left.type()
             default_value = ibis_types.null().cast(output_dtype)
             result_expr = default_value.name(self._value_column)
+        else:
+            result_expr = op(left, right).name(self._value_column)
         block.replace_value_columns([result_expr])
 
         name = self._name
