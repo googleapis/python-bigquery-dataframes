@@ -199,12 +199,16 @@ class DataFrame:
         # projection?
 
         # Select a number of columns as DF.
+        key = [key] if isinstance(key, str) else key
+
         value_cols = self._block.get_value_col_exprs(sql_names)
+        col_name_count: Dict[str, int] = {}
+        for col_name in self._col_names:
+            col_name_count[col_name] = col_name_count.get(col_name, 0) + 1
         col_names = []
         for item_name in key:
-            for col_name in self._col_names:
-                if item_name == col_name:
-                    col_names.append(col_name)
+            # Every item is guaranteed to exist, otherwise it already raised exception in sql_names.
+            col_names += [item_name] * col_name_count[item_name]
 
         return self._copy((value_cols, col_names))
 

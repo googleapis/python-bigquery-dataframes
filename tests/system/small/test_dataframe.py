@@ -103,6 +103,15 @@ def test_df_column_name_duplicate(scalars_dfs):
     )
 
 
+def test_get_df_column_name_duplicate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name_dict = {"int64_too": "int64_col"}
+
+    bf_result = scalars_df.rename(col_name_dict)["int64_col"].compute()
+    pd_result = scalars_pandas_df.rename(columns=col_name_dict)["int64_col"]
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+
+
 def test_filter_df(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
