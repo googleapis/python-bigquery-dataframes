@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 import typing
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Literal, Optional, Tuple, Union
 import uuid
 
 import google.api_core.exceptions
@@ -348,56 +348,97 @@ class Session:
 
     def read_csv(
         self,
-        filepath: str,
-        header: Optional[int] = None,
+        filepath_or_buffer: str,
+        *,
+        header: Optional[int] = 0,
+        engine: Optional[
+            Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
+        ] = None,
+        **kwargs,
     ) -> dataframe.DataFrame:
-        """Loads DataFrame from a comma-separated values (csv) file on GCS.
+        """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
 
         Args:
-            filepath: a string path including GS and local file.
+            filepath_or_buffer: a string path including GS and local file.
 
-            header:
-                The number of rows at the top of a CSV file that BigQuery will skip when
-                loading the data.
-                - ``None``: Autodetect tries to detect headers in the first row. If they are
-                not detected, the row is read as data. Otherwise data is read starting from
-                the second row.
-                - ``0``: Instructs autodetect that there are no headers and data should be
+            header: row number to use as the column names.
+                - ``None``: Instructs autodetect that there are no headers and data should be
                 read starting from the first row.
-                - ``N > 0``: Autodetect skips N-1 rows and tries to detect headers in row N.
-                If headers are not detected, row N is just skipped. Otherwise row N is used
-                to extract column names for the detected schema.
+                - ``0``: If using engine="bigquery", Autodetect tries to detect headers in the
+                first row. If they are not detected, the row is read as data. Otherwise data
+                is read starting from the second row. When using default engine, pandas assumes
+                the first row contains column names unless the `names` argument is specified.
+                If `names` is provided, then the first row is ignored, second row is read as
+                data, and column names are inferred from `names`.
+                - ``N > 0``: If using engine="bigquery", Autodetect skips N rows and tries
+                to detect headers in row N+1. If headers are not detected, row N+1 is just
+                skipped. Otherwise row N+1 is used to extract column names for the detected
+                schema. When using default engine, pandas will skip N rows and assumes row N+1
+                contains column names unless the `names` argument is specified. If `names` is
+                provided, row N+1 will be ignored, row N+2 will be read as data, and column
+                names are inferred from `names`.
+
+            engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
+                API will be used. Otherwise, the engine will be passed to pandas.read_csv.
+
+            **kwargs: keyword arguments. Possible keyword arguments:
+                - names: a list of column names to use. If the file contains a header row, then
+                `header=0` should be passed so the first (header) row is ignored. Only works
+                with default engine.
+                - dtype: data type for data or columns. Only works with default engine.
 
         Returns:
             A BigFrame DataFrame.
         """
         # TODO(chelsealin): Supports more parameters defined at go/bigframes-io-api.
-        # TODO(chelsealin): Supports to read local CSV file.
-        if not filepath.startswith("gs://"):
-            raise NotImplementedError(
-                "Only Google Cloud Storage (gs://...) paths are supported."
-            )
-
         table = bigquery.Table(self._create_session_table())
 
-        job_config = bigquery.LoadJobConfig()
-        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-        job_config.source_format = bigquery.SourceFormat.CSV
-        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-        job_config.autodetect = True
+        if engine is not None and engine == "bigquery":
+            if kwargs != {}:
+                raise NotImplementedError(
+                    "BigQuery engine does not support these arguments: " + str(kwargs)
+                )
 
-        if header is not None:
-            job_config.skip_leading_rows = header
+            if not isinstance(filepath_or_buffer, str):
+                raise NotImplementedError("BigQuery engine does not support buffers.")
 
-        load_job = self.bqclient.load_table_from_uri(
-            filepath, table, job_config=job_config
-        )
-        load_job.result()  # Wait for the job to complete
+            job_config = bigquery.LoadJobConfig()
+            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+            job_config.source_format = bigquery.SourceFormat.CSV
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+            job_config.autodetect = True
 
-        return self.read_gbq(f"SELECT * FROM `{table.table_id}`")
+            # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
+            # do not need to set `skip_leading_rows`. If header is None, then there is no header.
+            # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
+            # `skip_leading_rows` skips N-1 rows, so we set it to header+1.
+            if header is not None and header > 0:
+                job_config.skip_leading_rows = header + 1
+            elif header is None:
+                job_config.skip_leading_rows = 0
+
+            if filepath_or_buffer.startswith("gs://"):
+                load_job = self.bqclient.load_table_from_uri(
+                    filepath_or_buffer, table, job_config=job_config
+                )
+            else:
+                with open(filepath_or_buffer, "rb") as source_file:
+                    load_job = self.bqclient.load_table_from_file(
+                        source_file, table, job_config=job_config
+                    )
+            load_job.result()  # Wait for the job to complete
+            return self.read_gbq(f"SELECT * FROM `{table.table_id}`")
+        else:
+            pandas_df = pandas.read_csv(
+                filepath_or_buffer,
+                header=header,
+                engine=engine,
+                **kwargs,
+            )
+            return self.read_pandas(pandas_df)
 
     def _create_session_table(self) -> bigquery.TableReference:
         table_name = f"{uuid.uuid4().hex}"
