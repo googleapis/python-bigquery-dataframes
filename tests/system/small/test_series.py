@@ -347,7 +347,7 @@ def test_series_add_different_table_with_index(
 
 def test_series_add_pandas_series_not_implemented(scalars_dfs):
     scalars_df, _ = scalars_dfs
-    with pytest.raises(TypeError):
+    with pytest.raises(NotImplementedError):
         (
             scalars_df["float64_col"]
             + pd.Series(
@@ -944,6 +944,110 @@ def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     if pd_result.empty:
         pd_result = pd_result.astype("object")
         pd_result.index = pd_result.index.astype("object")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_where_with_series(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .where(scalars_df_index["bool_col"], scalars_df_index["int64_too"])
+        .compute()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].where(
+        scalars_pandas_df_index["bool_col"], scalars_pandas_df_index["int64_too"]
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_where_with_different_indices(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .iloc[::2]
+        .where(
+            scalars_df_index["bool_col"].iloc[2:],
+            scalars_df_index["int64_too"].iloc[:5],
+        )
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index["int64_col"]
+        .iloc[::2]
+        .where(
+            scalars_pandas_df_index["bool_col"].iloc[2:],
+            scalars_pandas_df_index["int64_too"].iloc[:5],
+        )
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_where_with_default(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["int64_col"].where(scalars_df_index["bool_col"]).compute()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].where(
+        scalars_pandas_df_index["bool_col"]
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_clip(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_col"]
+    lower_bf = scalars_df_index["int64_too"] - 1
+    upper_bf = scalars_df_index["int64_too"] + 1
+    bf_result = col_bf.clip(lower_bf, upper_bf).compute()
+
+    col_pd = scalars_pandas_df_index["int64_col"]
+    lower_pd = scalars_pandas_df_index["int64_too"] - 1
+    upper_pd = scalars_pandas_df_index["int64_too"] + 1
+    pd_result = col_pd.clip(lower_pd, upper_pd)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_col"].iloc[::2]
+    lower_bf = scalars_df_index["int64_too"].iloc[2:] - 1
+    upper_bf = scalars_df_index["int64_too"].iloc[:5] + 1
+    bf_result = col_bf.clip(lower_bf, upper_bf).compute()
+
+    col_pd = scalars_pandas_df_index["int64_col"].iloc[::2]
+    lower_pd = scalars_pandas_df_index["int64_too"].iloc[2:] - 1
+    upper_pd = scalars_pandas_df_index["int64_too"].iloc[:5] + 1
+    pd_result = col_pd.clip(lower_pd, upper_pd)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_clip_filtered_one_sided(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_col"].iloc[::2]
+    lower_bf = scalars_df_index["int64_too"].iloc[2:] - 1
+    bf_result = col_bf.clip(lower_bf, None).compute()
+
+    col_pd = scalars_pandas_df_index["int64_col"].iloc[::2]
+    lower_pd = scalars_pandas_df_index["int64_too"].iloc[2:] - 1
+    pd_result = col_pd.clip(lower_pd, None)
 
     pd.testing.assert_series_equal(
         bf_result,

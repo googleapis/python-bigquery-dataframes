@@ -399,6 +399,12 @@ class Series:
             name=name,
         )
 
+    def where(self, cond, other=None):
+        return self._apply_ternary_op(cond, other or pandas.NA, ops.where_op)
+
+    def clip(self, lower, upper):
+        return self._apply_ternary_op(lower, upper, ops.clip_op)
+
     def __getitem__(self, indexer: Series):
         """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
@@ -416,26 +422,49 @@ class Series:
 
     def _align(self, other: typing.Any, how="outer") -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
-        # TODO: Support deferred scalar
-        if isinstance(other, Series):
-            combined_index, (
-                get_column_left,
-                get_column_right,
-            ) = self.index.join(other.index, how=how)
-            left_value = get_column_left(self._value_column)
-            right_value = get_column_right(other._value_column)
-            return (left_value, right_value, combined_index)
-        elif isinstance(other, bigframes.scalar.Scalar):
-            # TODO(tbereron): support deferred scalars.
-            raise ValueError("Deferred scalar not yet supported for binary operations.")
-        as_literal_value = _interpret_as_ibis_literal(other)
-        if as_literal_value is not None:
-            combined_index = self.index
-            left_value = self._value
-            right_value = as_literal_value
-            return (left_value, right_value, combined_index)
-        else:
-            return NotImplemented
+        values, index = self._align_n(
+            [
+                other,
+            ],
+            how,
+        )
+        return (values[0], values[1], index)
+
+    def _align3(self, other1: typing.Any, other2: typing.Any, how="left") -> tuple[ibis_types.Value, ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
+        """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
+        values, index = self._align_n([other1, other2], how)
+        return (values[0], values[1], values[2], index)
+
+    def _align_n(
+        self, others: typing.Sequence[typing.Any], how="outer"
+    ) -> tuple[
+        typing.Sequence[ibis_types.Value],
+        bigframes.core.indexes.implicitjoiner.ImplicitJoiner,
+    ]:
+        values = [self._value]
+        index = self.index
+        for other in others:
+            as_literal = _interpret_as_ibis_literal(other)
+            if isinstance(other, Series):
+                combined_index, (
+                    get_column_left,
+                    get_column_right,
+                ) = index.join(other.index, how=how)
+                values = [
+                    *[get_column_left(value.get_name()) for value in values],
+                    get_column_right(other._value_column),
+                ]
+                index = combined_index
+            elif isinstance(other, bigframes.scalar.Scalar):
+                # TODO(tbereron): support deferred scalars.
+                raise ValueError(
+                    "Deferred scalar not yet supported for binary operations."
+                )
+            elif as_literal is not None:
+                values = [*values, as_literal]
+            else:
+                raise NotImplementedError(f"Unsupported operand of type {type(other)}")
+        return (values, index)
 
     def _apply_aggregation(
         self,
@@ -492,7 +521,7 @@ class Series:
     def _apply_binary_op(
         self,
         other: typing.Any,
-        op: typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value],
+        op: ops.BinaryOp,
         expected_dtype: typing.Optional[ibis_dtypes.DataType] = None,
         short_nulls=True,
     ) -> Series:
@@ -519,6 +548,26 @@ class Series:
             block,
             self._value_column,
             name=name,
+        )
+
+    def _apply_ternary_op(
+        self,
+        other: typing.Any,
+        other2: typing.Any,
+        op: ops.TernaryOp,
+    ) -> Series:
+        """Applies a binary operator to the series and other."""
+        (x, y, z, index) = self._align3(other, other2)
+
+        block = blocks.Block(index._expr)
+        block.index = index
+
+        result_expr = op(x, y, z).name(self._value_column)
+        block.replace_value_columns([result_expr])
+        return Series(
+            block,
+            self._value_column,
+            name=self.name,
         )
 
     def find(self, sub, start=None, end=None) -> "Series":
@@ -731,7 +780,11 @@ class SeriesGroupyBy:
 
 
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
-    if isinstance(value, Series) or isinstance(value, pandas.Series):
+    if (
+        isinstance(value, Series)
+        or isinstance(value, bigframes.scalar.Scalar)
+        or isinstance(value, pandas.Series)
+    ):
         return None
     if pandas.isna(value):
         # TODO(tbergeron): Ensure correct handling of NaN - maybe not map to Null

@@ -9,6 +9,11 @@ import ibis.expr.types as ibis_types
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 
+BinaryOp = typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value]
+TernaryOp = typing.Callable[
+    [ibis_types.Value, ibis_types.Value, ibis_types.Value], ibis_types.Value
+]
+
 ### Unary Ops
 
 
@@ -167,3 +172,54 @@ def mod_op(
 
 def reverse(op):
     return lambda x, y: op(y, x)
+
+
+# Ternary ops
+
+
+def where_op(
+    original: ibis_types.Value,
+    condition: ibis_types.Value,
+    replacement: ibis_types.Value,
+) -> ibis_types.Value:
+    """Returns x if y is true, otherwise returns z."""
+    return ibis.case().when(condition, original).else_(replacement).end()
+
+
+def clip_op(
+    original: ibis_types.Value,
+    lower: ibis_types.Value,
+    upper: ibis_types.Value,
+) -> ibis_types.Value:
+    """Clips value to lower and upper bounds."""
+    if isinstance(lower, ibis_types.NullScalar) and (
+        not isinstance(upper, ibis_types.NullScalar)
+    ):
+        return (
+            ibis.case()
+            .when(upper.isnull() | (original > upper), upper)
+            .else_(original)
+            .end()
+        )
+    elif (not isinstance(lower, ibis_types.NullScalar)) and isinstance(
+        upper, ibis_types.NullScalar
+    ):
+        return (
+            ibis.case()
+            .when(lower.isnull() | (original < lower), lower)
+            .else_(original)
+            .end()
+        )
+    elif isinstance(lower, ibis_types.NullScalar) and (
+        isinstance(upper, ibis_types.NullScalar)
+    ):
+        return original
+    else:
+        # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
+        return (
+            ibis.case()
+            .when(lower.isnull() | (original < lower), lower)
+            .when(upper.isnull() | (original > upper), upper)
+            .else_(original)
+            .end()
+        )
