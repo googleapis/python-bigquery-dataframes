@@ -1093,3 +1093,48 @@ def test_to_frame(scalars_dfs):
     pd_result = scalars_pandas_df["int64_col"].to_frame()
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("ascending", "na_position"),
+    [
+        (True, "first"),
+        (True, "last"),
+        (False, "first"),
+        (False, "last"),
+    ],
+)
+def test_sort_values(scalars_df_index, scalars_pandas_df_index, ascending, na_position):
+    # Test needs values to be unique
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .sort_values(ascending=ascending, na_position=na_position)
+        .compute()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].sort_values(
+        ascending=ascending, na_position=na_position
+    )
+
+    print(bf_result)
+    print(pd_result)
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("ascending"),
+    [
+        (True,),
+        (False,),
+    ],
+)
+def test_sort_index(scalars_df_index, scalars_pandas_df_index, ascending):
+    bf_result = scalars_df_index["int64_too"].sort_index(ascending=ascending).compute()
+    pd_result = scalars_pandas_df_index["int64_too"].sort_index(ascending=ascending)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )

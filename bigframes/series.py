@@ -562,6 +562,35 @@ class Series(bigframes.operations.base.SeriesMethods):
         block.expr = block.expr.order_by([counts._value_column], ascending=False)
         return Series(block, counts._value_column, name="count")
 
+    def sort_values(self, axis=0, ascending=True, na_position="last") -> Series:
+        """Sort series by values in ascending or descending order."""
+        if na_position not in ["first", "last"]:
+            raise ValueError("Param na_position must be one of 'first' or 'last'")
+        block = self._viewed_block
+        block.expr = block.expr.order_by(
+            [self._value_column], ascending=ascending, na_last=(na_position == "last")
+        )
+        return Series(
+            block,
+            self._value_column,
+            name=self.name,
+        )
+
+    def sort_index(self, axis=0, *, ascending=True, na_position="last") -> Series:
+        """Sort series by index labels in ascending or descending order."""
+        # TODO(tbergeron): Support level parameter once multi-index introduced.
+        if na_position not in ["first", "last"]:
+            raise ValueError("Param na_position must be one of 'first' or 'last'")
+        block = self._viewed_block
+        block.expr = block.expr.order_by(
+            block.index_columns, ascending=ascending, na_last=(na_position == "last")
+        )
+        return Series(
+            block,
+            self._value_column,
+            name=self.name,
+        )
+
     def groupby(
         self,
         by: typing.Optional[Series] = None,
