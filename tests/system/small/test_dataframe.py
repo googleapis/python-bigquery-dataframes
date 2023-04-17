@@ -298,6 +298,32 @@ def test_size(scalars_dfs):
     assert bf_result == pd_result
 
 
+def test_ndim(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.ndim
+    pd_result = scalars_pandas_df.ndim
+
+    assert bf_result == pd_result
+
+
+def test_empty_false(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.empty
+    pd_result = scalars_pandas_df.empty
+
+    assert bf_result == pd_result
+
+
+def test_empty_true(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df[[]].empty
+    pd_result = scalars_pandas_df[[]].empty
+
+    assert bf_result == pd_result
+
+
 @pytest.mark.parametrize(
     ("drop",),
     ((True,), (False,)),

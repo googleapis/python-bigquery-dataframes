@@ -148,6 +148,14 @@ class DataFrame:
         return rows * cols
 
     @property
+    def ndim(self) -> int:
+        return 2
+
+    @property
+    def empty(self) -> bool:
+        return not bool(self._block.value_columns)
+
+    @property
     def sql(self) -> str:
         """Compiles this dataframe's expression tree to SQL"""
         # Has to be unordered as it is impossible to order the sql without
