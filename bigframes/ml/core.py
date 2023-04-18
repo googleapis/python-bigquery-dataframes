@@ -102,9 +102,7 @@ def create_bqml_model(
     # for now, drop index to avoid including the index in feature columns
     input_data = input_data.reset_index(drop=True)
 
-    model_name = (
-        f"{session._session_dataset_id}.{session._session_id}_{uuid.uuid4().hex}"
-    )
+    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     sql = bigframes.ml.sql.create_model(
         model_name=model_name, source_sql=input_data.sql, options=options
     )
