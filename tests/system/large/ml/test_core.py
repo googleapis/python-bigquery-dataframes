@@ -17,12 +17,6 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
     ]
     train_y = df[["body_mass_g"]]
 
-    # TODO(swast): How should we handle the default index? Currently, we get:
-    # "Column bigframes_index_0 is not found in the input data to the PREDICT
-    # function"
-    train_X = train_X.reset_index(drop=True)
-    train_y = train_y.reset_index(drop=True)
-
     model = bigframes.ml.core.create_bqml_model(
         train_X, train_y, {"model_type": "linear_reg"}
     )

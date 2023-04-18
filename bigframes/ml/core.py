@@ -84,6 +84,10 @@ def create_bqml_model(
     # pickpocket session object from the dataframe
     session = train_X._block.expr._session
 
+    # TODO(bmil): add wrapper to select the feature columns
+    # for now, drop index to avoid including the index in feature columns
+    input_data = input_data.reset_index(drop=True)
+
     model_name = (
         f"{session._session_dataset_id}.{session._session_id}_{uuid.uuid4().hex}"
     )
