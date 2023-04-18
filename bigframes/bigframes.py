@@ -34,4 +34,4 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
     expr = bigframes.core.BigFramesExpr(block_0.expr._session, ibis.union(*tables))
 
     block = blocks.Block(expr, block_0.index_columns)
-    return DataFrame(block, objs[0]._col_names)
+    return DataFrame(block.index, objs[0]._col_names)

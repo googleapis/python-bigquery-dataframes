@@ -490,9 +490,12 @@ class Series(bigframes.operations.base.SeriesMethods):
         block.index.name = self.index.name
         block.replace_value_columns(
             [
-                cumulative_op(expr.get_column(self._value_column)).name(
-                    self._value_column
-                )
+                cumulative_op(
+                    # TODO(swast): When we assign literals / scalars, we might not
+                    # have a true Column. Do we need to check this before trying to
+                    # aggregate such a column?
+                    typing.cast(ibis_types.Column, expr.get_column(self._value_column))
+                ).name(self._value_column)
             ]
         )
         return Series(
@@ -647,7 +650,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         col_names = [self.name] if self.name else ["0"]
-        return bigframes.DataFrame(block, col_names)
+        return bigframes.DataFrame(block.index, col_names)
 
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str
@@ -756,9 +759,12 @@ class SeriesGroupyBy:
         block.index.name = self._block.index.name
         block.replace_value_columns(
             [
-                cumulative_op(expr.get_column(self._value_column)).name(
-                    self._value_column
-                )
+                cumulative_op(
+                    # TODO(swast): When we assign literals / scalars, we might not
+                    # have a true Column. Do we need to check this before trying to
+                    # aggregate such a column?
+                    typing.cast(ibis_types.Column, expr.get_column(self._value_column))
+                ).name(self._value_column)
             ]
         )
         return Series(

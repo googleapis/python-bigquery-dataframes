@@ -53,8 +53,13 @@ class DataFrame:
         ``Session.read_gbq`` to construct a DataFrame.
     """
 
-    def __init__(self, block: blocks.Block, columns: Optional[Sequence[str]] = None):
-        self._block = block
+    def __init__(
+        self,
+        index: indexes.ImplicitJoiner,
+        columns: Optional[Sequence[str]] = None,
+    ):
+        self._index = index
+        self._block = index._block
         # One on one match between BF column names and real value column names in BQ SQL.
         self._col_names = list(columns) if columns else list(self._block.value_columns)
 
@@ -62,7 +67,7 @@ class DataFrame:
         self, columns: Optional[Tuple[Sequence[ibis_types.Value], Sequence[str]]] = None
     ) -> DataFrame:
         if not columns:
-            return DataFrame(self._block.copy())
+            return DataFrame(self._block.copy().index)
 
         value_cols, col_names = columns
         if len(value_cols) != len(col_names):
@@ -71,7 +76,8 @@ class DataFrame:
             )
 
         block = self._block.copy(value_cols)
-        return DataFrame(block, col_names)
+        index = self._recreate_index(block)
+        return DataFrame(index, col_names)
 
     def _find_indices(
         self, columns: Union[str, Sequence[str]], tolerance: bool = False
@@ -111,7 +117,7 @@ class DataFrame:
     def index(
         self,
     ) -> Union[indexes.ImplicitJoiner, indexes.Index,]:
-        return self._block.index
+        return self._index
 
     @property
     def dtypes(self) -> pd.Series:
@@ -162,6 +168,13 @@ class DataFrame:
         # including metadata columns in selection with ibis.
         return self._block.expr.to_ibis_expr(ordering_mode="unordered").compile()
 
+    def _recreate_index(self, block) -> indexes.ImplicitJoiner:
+        return (
+            indexes.Index(block, self.index._index_column, name=self.index.name)
+            if isinstance(self.index, indexes.Index)
+            else indexes.ImplicitJoiner(block, self.index.name)
+        )
+
     def __getitem__(
         self, key: Union[str, Sequence[str], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
@@ -203,7 +216,7 @@ class DataFrame:
         # Series objects to still work with the new / mutated DataFrame. We
         # avoid applying a projection in Ibis until it's absolutely necessary
         # to provide pandas-like semantics.
-        # TODO(swast): Do we need to apply an implicit join when doing a
+        # TODO(swast): Do we need to apply implicit join when doing a
         # projection?
 
         # Select a number of columns as DF.
@@ -229,23 +242,17 @@ class DataFrame:
             get_column_left,
             get_column_right,
         ) = self._block.index.join(key.index, how="left")
+        block = combined_index._block
+        block.replace_value_columns(
+            [
+                get_column_left(left_col).name(left_col)
+                for left_col in self._block.value_columns
+            ]
+        )
         right = get_column_right(key._value_column)
 
-        aligned_expr = combined_index._expr
-        filtered_expr = aligned_expr.filter((right == ibis.literal(True)))
-
-        column_names = self._block.expr.column_names.keys()
-        expression = filtered_expr.projection(
-            [get_column_left(left_col).name(left_col) for left_col in column_names]
-        )
-
-        block = blocks.Block(expression)
-        block.index = (
-            indexes.Index(expression, self.index._index_column, self.index.name)
-            if isinstance(self.index, indexes.Index)
-            else indexes.ImplicitJoiner(expression, self.index.name)
-        )
-        return DataFrame(block, self._col_names)
+        block.expr = block.expr.filter((right == ibis.literal(True)))
+        return DataFrame(combined_index, self._col_names)
 
     def __getattr__(self, key: str):
         if key not in self._col_names:
@@ -427,10 +434,9 @@ class DataFrame:
             value_cols.append(get_column_right(v._value.get_name()).name(k))
             col_names.append(k)
 
-        block = blocks.Block(joined_index._expr)
-        block.index = joined_index
+        block = joined_index._block
         block.replace_value_columns(value_cols)
-        return DataFrame(block, col_names)
+        return DataFrame(joined_index, col_names)
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
@@ -450,7 +456,7 @@ class DataFrame:
         else:
             col_names = list(original_index_columns) + col_names
 
-        return DataFrame(block, col_names)
+        return DataFrame(block.index, col_names)
 
     def set_index(self, key: str, *, drop: bool = True) -> DataFrame:
         """Set the DataFrame index using existing columns."""
@@ -469,21 +475,19 @@ class DataFrame:
         expr = expr.drop_columns(prev_index_columns)
 
         col_names = list(self._col_names)
-        index_column_name = key
+        index_columns = self._sql_names(key)
         if not drop:
             index_column_name = indexes.INDEX_COLUMN_NAME.format(0)
             index_expr = index_expr.name(index_column_name)
             expr = expr.insert_column(0, index_expr)
+            index_columns = [index_column_name]
         else:
             col_names.remove(key)
 
-        block = self._block.copy()
-        block.expr = expr
-        block.index_columns = self._sql_names(key)
-        block.index = bigframes.core.indexes.index.Index(
-            expr, index_column=index_column_name, name=key
-        )
-        return DataFrame(block, col_names)
+        block = blocks.Block(expr, index_columns)
+        index = block.index
+        index.name = key
+        return DataFrame(index, col_names)
 
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
@@ -491,7 +495,8 @@ class DataFrame:
         expr = self._block.expr.order_by(index_columns)
         block = self._block.copy()
         block.expr = expr
-        return DataFrame(block)
+        index = self._recreate_index(block)
+        return DataFrame(index)
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
@@ -545,7 +550,8 @@ class DataFrame:
         block = blocks.Block(
             bigframes.core.BigFramesExpr(left._block.expr._session, joined_table)
         )
-        joined_frame = DataFrame(block)
+        index = self._recreate_index(block)
+        joined_frame = DataFrame(index)
 
         # Ibis emits redundant columns for outer joins. See:
         # https://ibis-project.org/ibis-for-pandas-users/#merging-tables
@@ -596,8 +602,7 @@ class DataFrame:
             right.index, how=how
         )
 
-        block = blocks.Block(combined_index._expr)
-        block.index = combined_index
+        block = combined_index._block
 
         index_columns = []
         if isinstance(combined_index, indexes.Index):
@@ -607,22 +612,23 @@ class DataFrame:
             ]
 
         expr_bldr = block.expr.builder()
+        # TODO(swast): Move this logic to BigFramesExpr once there's a list of
+        # which columns are value columns and which are index columns there.
         expr_bldr.columns = (
             index_columns
             + [
                 # TODO(swast): Support suffix if there are duplicates.
                 get_column_left(col_name).name(col_name)
-                for col_name in left.columns
+                for col_name in left._sql_names(left.columns.to_list())
             ]
             + [
                 # TODO(swast): Support suffix if there are duplicates.
                 get_column_right(col_name).name(col_name)
-                for col_name in right.columns
+                for col_name in right._sql_names(right.columns.to_list())
             ]
         )
-        # TODO(swast): Maintain some ordering post-join.
         block.expr = expr_bldr.build()
-        return DataFrame(block, self._col_names + other._col_names)
+        return DataFrame(combined_index, self._col_names + other._col_names)
 
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)

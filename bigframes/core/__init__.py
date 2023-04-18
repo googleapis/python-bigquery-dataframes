@@ -204,9 +204,19 @@ class BigFramesExpr:
                 for ordering_value in self._ordering.all_ordering_columns
             ]
             if self._ordering.is_ascending:
-                return [ibis.asc(value) for value in values]
+                # TODO(swast): When we assign literals / scalars, we might not
+                # have a true Column. Do we need to check this before trying to
+                # sort by such a column?
+                return [
+                    ibis.asc(typing.cast(ibis_types.Column, value)) for value in values
+                ]
             else:
-                return [ibis.desc(value) for value in values]
+                # TODO(swast): When we assign literals / scalars, we might not
+                # have a true Column. Do we need to check this before trying to
+                # sort by such a column?
+                return [
+                    ibis.desc(typing.cast(ibis_types.Column, value)) for value in values
+                ]
 
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
@@ -242,7 +252,7 @@ class BigFramesExpr:
         expr_builder.columns = remain_cols
         return expr_builder.build()
 
-    def get_column(self, key: str) -> ibis_types.Column:
+    def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         if key not in self._column_names.keys():
             raise ValueError(
@@ -250,9 +260,9 @@ class BigFramesExpr:
                     key, self._column_names.keys()
                 )
             )
-        return typing.cast(ibis_types.Column, self._column_names[key])
+        return typing.cast(ibis_types.Value, self._column_names[key])
 
-    def get_any_column(self, key: str) -> ibis_types.Column:
+    def get_any_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column. Will also get hidden meta columns."""
         all_columns = {**self._column_names, **self._meta_column_names}
         if key not in all_columns.keys():
@@ -261,7 +271,7 @@ class BigFramesExpr:
                     key, all_columns.keys()
                 )
             )
-        return typing.cast(ibis_types.Column, all_columns[key])
+        return typing.cast(ibis_types.Value, all_columns[key])
 
     def _get_meta_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given metadata column."""

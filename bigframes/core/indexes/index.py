@@ -23,29 +23,31 @@ import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
-from bigframes.core import BigFramesExpr, ExpressionOrdering, ORDER_ID_COLUMN
-from bigframes.core.indexes.implicitjoiner import ImplicitJoiner
+import bigframes.core as core
+import bigframes.core.blocks as blocks
+import bigframes.core.indexes.implicitjoiner as implicitjoiner
 import bigframes.guid
 
 
-class Index(ImplicitJoiner):
+class Index(implicitjoiner.ImplicitJoiner):
     """An index based on a single column."""
 
     # TODO(swast): Handle more than 1 index column, possibly in a separate
     # MultiIndex class.
     # TODO(swast): Include ordering here?
     def __init__(
-        self, expr: BigFramesExpr, index_column: str, name: Optional[str] = None
+        self, block: blocks.Block, index_column: str, name: Optional[str] = None
     ):
-        super().__init__(expr, name=name)
+        super().__init__(block, name=name)
         self._index_column = index_column
 
     def copy(self) -> Index:
         """Make a copy of this object."""
-        return Index(self._expr, self._index_column, name=self.name)
+        # TODO(swast): Should this make a copy of block?
+        return Index(self._block, self._index_column, name=self.name)
 
     def join(
-        self, other: ImplicitJoiner, *, how="left", sort=False
+        self, other: implicitjoiner.ImplicitJoiner, *, how="left", sort=False
     ) -> Tuple[
         Index,
         Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
@@ -83,11 +85,11 @@ class Index(ImplicitJoiner):
             # Generate offsets if non-default ordering is applied
             # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
             left_table = self._expr.to_ibis_expr(
-                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+                ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
             )
             left_index = left_table[self._index_column]
             right_table = other._expr.to_ibis_expr(
-                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+                ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
             )
             right_index = right_table[other._index_column]
             join_condition = left_index == right_index
@@ -119,8 +121,8 @@ class Index(ImplicitJoiner):
                 return combined_table[key]
 
             # Preserve original ordering accross joins.
-            left_order_id = get_column_left(ORDER_ID_COLUMN)
-            right_order_id = get_column_right(ORDER_ID_COLUMN)
+            left_order_id = get_column_left(core.ORDER_ID_COLUMN)
+            right_order_id = get_column_right(core.ORDER_ID_COLUMN)
             new_order_id_col = (
                 _merge_order_ids(left_order_id, right_order_id)
                 if how in ["left", "inner", "outer"]
@@ -128,12 +130,12 @@ class Index(ImplicitJoiner):
             )
             new_order_id = new_order_id_col.get_name()
             metadata_columns = (new_order_id_col,)
-            original_ordering = ExpressionOrdering(
+            original_ordering = core.ExpressionOrdering(
                 ordering_id_column=new_order_id
                 if (new_order_id_col is not None)
                 else None,
             )
-            combined_expr = BigFramesExpr(
+            combined_expr = core.BigFramesExpr(
                 self._expr._session,
                 combined_table,
                 meta_columns=metadata_columns,
@@ -164,7 +166,7 @@ class Index(ImplicitJoiner):
 
         if sort:
             order_cols = [joined_index_col.get_name()]
-            ordering: Optional[ExpressionOrdering] = ExpressionOrdering(
+            ordering: Optional[core.ExpressionOrdering] = core.ExpressionOrdering(
                 ordering_value_columns=order_cols,
                 ordering_id_column=new_order_id if (new_order_id is not None) else None,
             )
@@ -175,9 +177,12 @@ class Index(ImplicitJoiner):
         combined_expr_builder.columns = columns
         combined_expr_builder.ordering = ordering
         combined_expr = combined_expr_builder.build()
-        combined_index_name = self.name if self.name == other.name else None
+        block = blocks.Block(combined_expr)
+        block.index_columns = [joined_index_col.get_name()]
+        combined_index = typing.cast(Index, block.index)
+        combined_index.name = self.name if self.name == other.name else None
         return (
-            Index(combined_expr, joined_index_col.get_name(), name=combined_index_name),
+            combined_index,
             (get_column_left, get_column_right),
         )
 

@@ -303,7 +303,7 @@ class Session:
             [index_col.get_name()],
         )
 
-        df = dataframe.DataFrame(block)
+        df = dataframe.DataFrame(block.index)
         df.index.name = index_name
         return df
 

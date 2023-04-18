@@ -43,7 +43,7 @@ class Block:
         index_columns: Iterable[str] = (),
     ):
         self._expr = expr
-        self._index = indexes.ImplicitJoiner(expr)
+        self._index = indexes.ImplicitJoiner(self)
         self._index_columns = tuple(index_columns)
         self._reset_index()
 
@@ -95,10 +95,10 @@ class Block:
         expr = self._expr
         columns = self._index_columns
         if len(columns) == 0:
-            self._index = indexes.ImplicitJoiner(expr, self._index.name)
+            self._index = indexes.ImplicitJoiner(self, self._index.name)
         elif len(columns) == 1:
             index_column = columns[0]
-            self._index = indexes.Index(expr, index_column, name=self._index.name)
+            self._index = indexes.Index(self, index_column, name=self._index.name)
             # Rearrange so that index columns are first.
             if expr._columns and expr._columns[0].get_name() != index_column:
                 expr_builder = expr.builder()

@@ -23,19 +23,25 @@ from typing import Callable, Tuple
 import ibis
 import ibis.expr.types as ibis_types
 
-from bigframes.core import BigFramesExpr, ExpressionOrdering
+import bigframes.core as core
+import bigframes.core.blocks as blocks
 
 
 class ImplicitJoiner:
     """Allow implicit joins without row labels on related table expressions."""
 
-    def __init__(self, expr: BigFramesExpr, name: typing.Optional[str] = None):
-        self._expr = expr
+    def __init__(self, block: blocks.Block, name: typing.Optional[str] = None):
+        self._block = block
         self._name = name
 
     def copy(self) -> ImplicitJoiner:
         """Make a copy of this object."""
-        return ImplicitJoiner(self._expr, self._name)
+        # TODO(swast): Should this make a copy of block?
+        return ImplicitJoiner(self._block, self._name)
+
+    @property
+    def _expr(self) -> core.BigFramesExpr:
+        return self._block.expr
 
     @property
     def name(self) -> typing.Optional[str]:
@@ -112,7 +118,7 @@ class ImplicitJoiner:
             for key in right_expr.column_names.keys()
         ]
 
-        new_ordering = ExpressionOrdering()
+        new_ordering = core.ExpressionOrdering()
         if left_expr._ordering and right_expr._ordering:
             meta_columns = [
                 left_expr.get_any_column(key).name(map_left_id(key))
@@ -126,7 +132,7 @@ class ImplicitJoiner:
                 if (left_expr._ordering.ordering_id)
                 else None
             )
-            new_ordering = ExpressionOrdering(
+            new_ordering = core.ExpressionOrdering(
                 ordering_value_columns=(
                     [
                         map_left_id(key)
@@ -141,7 +147,7 @@ class ImplicitJoiner:
                 ascending=left_expr._ordering.is_ascending,
             )
 
-        joined_expr = BigFramesExpr(
+        joined_expr = core.BigFramesExpr(
             left_expr._session,
             left_expr.table,
             columns=joined_columns,
@@ -149,7 +155,8 @@ class ImplicitJoiner:
             ordering=new_ordering,
             predicates=combined_predicates,
         )
-        return ImplicitJoiner(joined_expr, name=self.name), (
+        block = blocks.Block(joined_expr)
+        return ImplicitJoiner(block, name=self.name), (
             lambda key: joined_expr.get_any_column(map_left_id(key)),
             lambda key: joined_expr.get_any_column(map_right_id(key)),
         )
