@@ -38,9 +38,9 @@ export PYTHONUNBUFFERED=1
 # Update version string to include git hash and date
 CURRENT_DATE=$(date '+%Y%m%d')
 GIT_HASH=$(git rev-parse --short HEAD)
-sed -i -E \
-  "s/__version__ = \"([0-9]+\.[0-9]+\.[0-9]+)[^\"]*\"/__version__ = \"\1dev${CURRENT_DATE}+${GIT_HASH}\"/" \
-  bigframes/version.py
+BIGFRAMES_VERSION=$(python3 -c "import bigframes; print(bigframes.__version__)")
+RELEASE_VERSION=${BIGFRAMES_VERSION}dev${CURRENT_DATE}+${GIT_HASH}
+sed -i -e "s/$BIGFRAMES_VERSION/$RELEASE_VERSION/g" bigframes/version.py
 
 python3 setup.py sdist bdist_wheel
 cp dist/bigframes-*.whl dist/bigframes-latest-py2.py3-none-any.whl
@@ -50,3 +50,14 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 # See internal bug 274624240 for details.
 gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
 gsutil cp dist/* gs://dl-platform-colab/bigframes/
+
+# publish API coverage information to BigQuery
+# Note: only the kokoro service account has permission to write to this
+# table, if you want to test this step, point it to a table you have
+# write access to
+COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_release_coverage
+python3 publish_api_coverage.py \
+  --bigframes_version=$BIGFRAMES_VERSION \
+  --release_version=$RELEASE_VERSION \
+  --date=$CURRENT_DATE \
+  --bigquery_table=$COVERAGE_TABLE
