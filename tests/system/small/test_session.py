@@ -33,6 +33,29 @@ def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
     assert len(df.columns) == len(scalars_schema)
 
 
+def test_read_gbq_tokyo(
+    session_tokyo: bigframes.Session,
+    scalars_table_tokyo: str,
+    scalars_pandas_df_index: pd.DataFrame,
+    tokyo_location: str,
+):
+    df = session_tokyo.read_gbq(scalars_table_tokyo, index_cols=["rowindex"])
+    result = df.sort_index().compute()
+    expected = scalars_pandas_df_index
+
+    query_job = df._block.expr.start_query()
+    assert query_job.location == tokyo_location
+
+    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
+    pd.testing.assert_frame_equal(
+        result,
+        expected,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
     columns = list(column.name for column in scalars_schema)
     df = session.read_gbq(scalars_table_id, col_order=columns)
@@ -149,6 +172,28 @@ def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default
 
     df = session.read_pandas(scalars_pandas_df_default_index)
     assert df._block._expr._ordering.ordering_id == "rowid_2"
+
+
+def test_read_pandas_tokyo(
+    session_tokyo: bigframes.Session,
+    scalars_pandas_df_index: pd.DataFrame,
+    tokyo_location: str,
+):
+    df = session_tokyo.read_pandas(scalars_pandas_df_index)
+    result = df.compute()
+    expected = scalars_pandas_df_index
+
+    query_job = df._block.expr.start_query()
+    assert query_job.location == tokyo_location
+
+    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
+    pd.testing.assert_frame_equal(
+        result,
+        expected,
+        check_column_type=False,
+        check_dtype=False,
+        check_index_type=False,
+    )
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)

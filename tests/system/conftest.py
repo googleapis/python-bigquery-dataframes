@@ -17,7 +17,7 @@ import decimal
 import hashlib
 import logging
 import pathlib
-from typing import cast, Dict
+from typing import cast, Dict, Optional
 
 import db_dtypes  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -33,6 +33,8 @@ import bigframes
 CURRENT_DIR = pathlib.Path(__file__).parent
 DATA_DIR = CURRENT_DIR.parent / "data"
 PERMANENT_DATASET = "bigframes_testing"
+PERMANENT_DATASET_TOKYO = "bigframes_testing_tokyo"
+TOKYO_LOCATION = "asia-northeast1"
 prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
 
 
@@ -40,6 +42,11 @@ def _hash_digest_file(hasher, filepath):
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hasher.update(chunk)
+
+
+@pytest.fixture(scope="session")
+def tokyo_location() -> str:
+    return TOKYO_LOCATION
 
 
 @pytest.fixture(scope="session")
@@ -68,6 +75,11 @@ def bigquery_client(session: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
+def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
+    return session_tokyo.bqclient
+
+
+@pytest.fixture(scope="session")
 def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
     return session.ibis_client
 
@@ -75,6 +87,14 @@ def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
 @pytest.fixture(scope="session")
 def session() -> bigframes.Session:
     return bigframes.Session()
+
+
+@pytest.fixture(scope="session")
+def session_tokyo(tokyo_location: str) -> bigframes.Session:
+    context = bigframes.Context(
+        location=tokyo_location,
+    )
+    return bigframes.Session(context=context)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -88,7 +108,18 @@ def cleanup_datasets(bigquery_client: bigquery.Client) -> None:
 
 
 @pytest.fixture(scope="session")
-def dataset_id_permanent(bigquery_client: bigquery.Client):
+def dataset_id(bigquery_client: bigquery.Client):
+    """Create (and cleanup) a temporary dataset."""
+    project_id = bigquery_client.project
+    dataset_id = f"{project_id}.{prefixer.create_prefix()}_dataset_id"
+    dataset = bigquery.Dataset(dataset_id)
+    bigquery_client.create_dataset(dataset)
+    yield dataset_id
+    bigquery_client.delete_dataset(dataset, delete_contents=True)
+
+
+@pytest.fixture(scope="session")
+def dataset_id_permanent(bigquery_client: bigquery.Client) -> str:
     """Create a dataset if it doesn't exist."""
     project_id = bigquery_client.project
     dataset_id = f"{project_id}.{PERMANENT_DATASET}"
@@ -98,14 +129,17 @@ def dataset_id_permanent(bigquery_client: bigquery.Client):
 
 
 @pytest.fixture(scope="session")
-def dataset_id(bigquery_client: bigquery.Client):
-    """Create (and cleanup) a temporary dataset."""
-    project_id = bigquery_client.project
-    dataset_id = f"{project_id}.{prefixer.create_prefix()}_dataset_id"
+def dataset_id_permanent_tokyo(
+    bigquery_client_tokyo: bigquery.Client, tokyo_location: str
+) -> str:
+    """Create a dataset in Tokyo if it doesn't exist."""
+    project_id = bigquery_client_tokyo.project
+    dataset_id = f"{project_id}.{PERMANENT_DATASET_TOKYO}"
     dataset = bigquery.Dataset(dataset_id)
-    bigquery_client.create_dataset(dataset)
-    yield dataset_id
-    bigquery_client.delete_dataset(dataset, delete_contents=True)
+    dataset.location = tokyo_location
+    dataset = bigquery_client_tokyo.create_dataset(dataset, exists_ok=True)
+    assert dataset.location == tokyo_location
+    return dataset_id
 
 
 @pytest.fixture(scope="session")
@@ -121,6 +155,7 @@ def load_test_data(
     bigquery_client: bigquery.Client,
     schema_filename: str,
     data_filename: str,
+    location: Optional[str],
 ) -> bigquery.LoadJob:
     """Create a temporary table with test data"""
     job_config = bigquery.LoadJobConfig()
@@ -129,16 +164,22 @@ def load_test_data(
         bigquery_client.schema_from_json(DATA_DIR / schema_filename)
     )
     with open(DATA_DIR / data_filename, "rb") as input_file:
+        # TODO(swast): Location is allowed to be None in BigQuery Client.
+        # Can remove after
+        # https://github.com/googleapis/python-bigquery/pull/1554 is released.
+        location = "US" if location is None else location
         job = bigquery_client.load_table_from_file(
-            input_file, table_id, job_config=job_config
+            input_file,
+            table_id,
+            job_config=job_config,
+            location=location,
         )
     # No cleanup necessary, as the surrounding dataset will delete contents.
     return cast(bigquery.LoadJob, job.result())
 
 
-@pytest.fixture(scope="session")
-def test_data_tables(
-    session: bigframes.Session, dataset_id_permanent
+def load_test_data_tables(
+    session: bigframes.Session, dataset_id_permanent: str
 ) -> Dict[str, str]:
     """Returns cached references to the test data tables in BigQuery. If no matching table is found
     for the hash of the data and schema, the table will be uploaded."""
@@ -163,12 +204,30 @@ def test_data_tables(
                 f"Test data table {table_name} was not found in the permanent dataset, regenerating it..."
             )
             load_test_data(
-                target_table_id_full, session.bqclient, schema_filename, data_filename
+                target_table_id_full,
+                session.bqclient,
+                schema_filename,
+                data_filename,
+                location=session._location,
             )
 
         table_mapping[table_name] = target_table_id_full
 
     return table_mapping
+
+
+@pytest.fixture(scope="session")
+def test_data_tables(
+    session: bigframes.Session, dataset_id_permanent: str
+) -> Dict[str, str]:
+    return load_test_data_tables(session, dataset_id_permanent)
+
+
+@pytest.fixture(scope="session")
+def test_data_tables_tokyo(
+    session_tokyo: bigframes.Session, dataset_id_permanent_tokyo: str
+) -> Dict[str, str]:
+    return load_test_data_tables(session_tokyo, dataset_id_permanent_tokyo)
 
 
 @pytest.fixture(scope="session")
@@ -179,6 +238,11 @@ def scalars_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def scalars_table_id_2(test_data_tables) -> str:
     return test_data_tables["scalars_too"]
+
+
+@pytest.fixture(scope="session")
+def scalars_table_tokyo(test_data_tables_tokyo) -> str:
+    return test_data_tables_tokyo["scalars"]
 
 
 @pytest.fixture(scope="session")

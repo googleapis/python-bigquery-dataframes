@@ -101,6 +101,10 @@ class Session:
             )
 
         self.bqclient = self.ibis_client.client
+        # TODO(swast): Get location from the environment.
+        self._location = (
+            "US" if context is None or context.location is None else context.location
+        )
         self._create_and_bind_bq_session()
 
     @property
@@ -114,7 +118,9 @@ class Session:
         """Create a BQ session and bind the session id with clients to capture BQ activities:
         go/bigframes-transient-data"""
         job_config = bigquery.QueryJobConfig(create_session=True)
-        query_job = self.bqclient.query("SELECT 1", job_config=job_config)
+        query_job = self.bqclient.query(
+            "SELECT 1", job_config=job_config, location=self._location
+        )
         self._session_id = query_job.session_info.session_id
 
         self.bqclient.default_query_job_config = bigquery.QueryJobConfig(
@@ -130,10 +136,10 @@ class Session:
 
         # Dataset for storing BQML models and remote functions, which don't yet support proper
         # session temporary storage yet
-        # TODO(b/276793359): set location dynamically per go/bigframes-transient-data
         self._session_dataset = bigquery.Dataset(
-            f"{self.bqclient.project}.bigframes_temp_us"
+            f"{self.bqclient.project}.bigframes_temp_{self._location.lower().replace('-', '_')}"
         )
+        self._session_dataset.location = self._location
         self._session_dataset.default_table_expiration_ms = 24 * 60 * 60 * 1000
 
         # TODO: handle case when the dataset does not exist and the user does not have permission

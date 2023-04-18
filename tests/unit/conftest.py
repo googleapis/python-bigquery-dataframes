@@ -189,7 +189,9 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
         return most_recent_table  # type: ignore
 
     def mock_bigquery_client_query(
-        sql: str, job_config: Optional[bigquery.QueryJobConfig] = None
+        sql: str,
+        job_config: Optional[bigquery.QueryJobConfig] = None,
+        location: str = "US",
     ) -> bigquery.QueryJob:
         global most_recent_table
 
