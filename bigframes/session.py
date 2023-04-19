@@ -29,6 +29,7 @@ import ibis.backends.bigquery as ibis_bigquery
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas
+import pydata_google_auth
 
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -38,6 +39,7 @@ import bigframes.ml.loader
 import bigframes.version
 
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
+_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 
 def _is_query(query_or_table: str) -> bool:
@@ -71,13 +73,25 @@ class Context:
     def credentials(self) -> Optional[google.auth.credentials.Credentials]:
         return self._credentials
 
+    @credentials.setter
+    def credentials(self, value: Optional[google.auth.credentials.Credentials]):
+        self._credentials = value
+
     @property
     def project(self) -> Optional[str]:
         return self._project
 
+    @project.setter
+    def project(self, value: Optional[str]):
+        self._project = value
+
     @property
     def location(self) -> Optional[str]:
         return self._location
+
+    @location.setter
+    def location(self, value: Optional[str]):
+        self._location = value
 
 
 class Session:
@@ -85,20 +99,29 @@ class Session:
     DataFrames."""
 
     def __init__(self, context: Optional[Context] = None):
-        if context is not None:
-            # TODO(chelsealin): Add the `location` parameter to ibis client.
-            self.ibis_client = typing.cast(
-                ibis_bigquery.Backend,
-                ibis.bigquery.connect(
-                    project_id=context.project,
-                    credentials=context.credentials,
-                    application_name=_APPLICATION_NAME,
-                ),
+        if context is None:
+            context = Context()
+
+        # We want to initiate auth via a non-local web server which particularly
+        # helps in a cloud notebook environment where the machine running the
+        # notebook UI and the VM running the notebook runtime are not the same.
+        if context.credentials is None:
+            # TODO(shobs, b/278903498): Use BigFrames own client id and secret
+            context.credentials, pydata_default_project = pydata_google_auth.default(
+                _SCOPES, use_local_webserver=False
             )
-        else:
-            self.ibis_client = typing.cast(
-                ibis_bigquery.Backend, ibis.bigquery.connect()
-            )
+            if not context.project:
+                context.project = pydata_default_project
+
+        # TODO(chelsealin): Add the `location` parameter to ibis client.
+        self.ibis_client = typing.cast(
+            ibis_bigquery.Backend,
+            ibis.bigquery.connect(
+                project_id=context.project,
+                credentials=context.credentials,
+                application_name=_APPLICATION_NAME,
+            ),
+        )
 
         self.bqclient = self.ibis_client.client
         # TODO(swast): Get location from the environment.
