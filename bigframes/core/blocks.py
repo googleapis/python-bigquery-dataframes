@@ -170,5 +170,5 @@ class Block:
         self, column_names: Optional[Sequence[str]] = None
     ) -> List[ibis_types.Value]:
         """Retrive value column expressions."""
-        column_names = column_names or self.value_columns
+        column_names = self.value_columns if column_names is None else column_names
         return [self._expr.get_column(column_name) for column_name in column_names]
