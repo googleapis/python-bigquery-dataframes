@@ -43,13 +43,18 @@ RELEASE_VERSION=${BIGFRAMES_VERSION}dev${CURRENT_DATE}+${GIT_HASH}
 sed -i -e "s/$BIGFRAMES_VERSION/$RELEASE_VERSION/g" bigframes/version.py
 
 python3 setup.py sdist bdist_wheel
-cp dist/bigframes-*.whl dist/bigframes-latest-py2.py3-none-any.whl
+LATEST_WHEEL=dist/bigframes-latest-py2.py3-none-any.whl
+cp dist/bigframes-*.whl $LATEST_WHEEL
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
 # Move into the package, build the distribution and upload to shared bucket.
 # See internal bug 274624240 for details.
 gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
 gsutil cp dist/* gs://dl-platform-colab/bigframes/
+
+# Install sklearn and bigframes, as the publish step depends on it
+pip install sklearn
+pip install $LATEST_WHEEL
 
 # publish API coverage information to BigQuery
 # Note: only the kokoro service account has permission to write to this
