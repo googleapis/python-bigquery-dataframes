@@ -55,9 +55,8 @@ gsutil cp dist/* gs://dl-platform-colab/bigframes/
 # Note: only the kokoro service account has permission to write to this
 # table, if you want to test this step, point it to a table you have
 # write access to
-COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_release_coverage
+COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
 python3 publish_api_coverage.py \
   --bigframes_version=$BIGFRAMES_VERSION \
   --release_version=$RELEASE_VERSION \
-  --date=$CURRENT_DATE \
   --bigquery_table=$COVERAGE_TABLE

@@ -27,7 +27,8 @@ def generate_pandas_api_coverage():
     """Inspect all our pandas objects, and compare with the real pandas objects, to see
     which methods we implement. For each, generate a regex that can be used to check if
     its present in a notebook"""
-    token_map = {}
+    header = ["api", "pattern", "kind", "is_in_bigframes"]
+    api_patterns = []
     targets = [
         ("pandas", pd, bf),
         ("dataframe", pd.DataFrame, bf.DataFrame),
@@ -61,39 +62,17 @@ def generate_pandas_api_coverage():
             is_in_bigframes = hasattr(bigframes_obj, member)
 
             # Special case: bigframes also implements some top level APIs on 'session'
-            if name == "pandas":
-                is_in_bigframes = is_in_bigframes or hasattr(bf.Session, member)
+            if name == "pandas" and not is_in_bigframes:
+                try:
+                    is_in_bigframes = hasattr(bf.Session, member)
+                except NameError:
+                    pass
 
-            if token not in token_map:
-                token_map[token] = (member, [], token_type, is_in_bigframes)
+            api_patterns.append(
+                [f"{name}.{member}", token, token_type, is_in_bigframes]
+            )
 
-            token_map[token][1].append(name)
-
-    header = [
-        "api",
-        "pattern",
-        "kind",
-        "is_in_bigframes",
-        "is_pandas",
-        "is_dataframe",
-        "is_series",
-        "is_index",
-    ]
-    rows = [
-        [
-            v[0],
-            k,
-            v[2],
-            v[3],
-            "pandas" in v[1],
-            "dataframe" in v[1],
-            "series" in v[1],
-            "index" in v[1],
-        ]
-        for k, v in token_map.items()
-    ]
-
-    return pd.DataFrame(rows, columns=header)
+    return pd.DataFrame(api_patterns, columns=header)
 
 
 def generate_sklearn_api_coverage():
@@ -187,7 +166,7 @@ def build_api_coverage_table(date: str, bigframes_version: str, release_version:
     sklearn_cov_df = generate_sklearn_api_coverage()
     sklearn_cov_df["module"] = "bigframes.ml"
     combined_df = pd.concat([pandas_cov_df, sklearn_cov_df])
-    combined_df["date"] = pd.to_datetime(date, format="%Y%m%d")
+    combined_df["timestamp"] = pd.Timestamp.now()
     combined_df["bigframes_version"] = bigframes_version
     combined_df["release_version"] = release_version
     return combined_df.infer_objects().convert_dtypes()
@@ -195,14 +174,11 @@ def build_api_coverage_table(date: str, bigframes_version: str, release_version:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--date", help="date in %Y%m%d format")
     parser.add_argument("--bigframes_version")
     parser.add_argument("--release_version")
     parser.add_argument("--bigquery_table_name")
     args = parser.parse_args()
-    df = build_api_coverage_table(
-        args.date, args.bigframes_version, args.release_version
-    )
+    df = build_api_coverage_table(args.bigframes_version, args.release_version)
     df.to_gbq(args.bigquery_table_name, if_exists="append")
 
 
