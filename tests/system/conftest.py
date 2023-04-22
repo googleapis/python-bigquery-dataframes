@@ -366,6 +366,26 @@ def penguins_df_default_index(
 
 
 @pytest.fixture(scope="session")
+def penguins_pandas_df_default_index() -> pd.DataFrame:
+    """Consistently ordered pandas dataframe for penguins test data"""
+    df = pd.read_json(
+        f"{DATA_DIR}/penguins.jsonl",
+        lines=True,
+        dtype={
+            "species": pd.StringDtype(storage="pyarrow"),
+            "island": pd.StringDtype(storage="pyarrow"),
+            "culmen_length_mm": pd.Float64Dtype(),
+            "culmen_depth_mm": pd.Float64Dtype(),
+            "flipper_length_mm": pd.Float64Dtype(),
+            "sex": pd.StringDtype(storage="pyarrow"),
+            "body_mass_g": pd.Float64Dtype(),
+        },
+    )
+    df.index = df.index.astype("Int64")
+    return df
+
+
+@pytest.fixture(scope="session")
 def penguins_linear_model_name(
     session: bigframes.Session, dataset_id_permanent, penguins_table_id
 ) -> str:
