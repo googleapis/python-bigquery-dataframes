@@ -39,7 +39,7 @@ gcp_project_id = "bigframes-dev"
 cloud_function_region = "us-central1"
 bq_location = "us-central1"
 bq_dataset = "test_us_central1"
-bq_client = bigquery.Client(project=gcp_project_id)
+bq_client = None  # to be set at the time of registering remote function
 bq_connection_id = "bigframes-rf-conn"
 wait_seconds = 90
 
@@ -449,7 +449,7 @@ def get_remote_function_locations(bq_location):
     # TODO(shobs, b/274647164): Find the best way to determine default location.
     # For now let's assume that if no BQ location is set in the client then it
     # defaults to US multi region
-    bq_location = bq_client.location.lower() if bq_client.location else "us"
+    bq_location = bq_location.lower() if bq_location else "us"
 
     # Cloud function should be in the same region as the bigquery remote function
     cloud_function_region = bq_location
