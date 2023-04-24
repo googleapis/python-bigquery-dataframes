@@ -28,10 +28,7 @@ def assert_pandas_df_equal_ignore_ordering(df0, df1, rtol=None):
         df0 = df0.sort_index()
         df1 = df1.sort_index()
 
-    # TODO(garrettwu): enable check_type once BF type issue is solved.
-    pd.testing.assert_frame_equal(
-        df0, df1, check_dtype=False, check_exact=(rtol is not None), rtol=rtol
-    )
+    pd.testing.assert_frame_equal(df0, df1)
 
 
 def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):

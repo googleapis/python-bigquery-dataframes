@@ -16,13 +16,13 @@
 
 from typing import Any, Dict, Iterable, Tuple, Union
 
-import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types
 import numpy as np
 import pandas as pd
+import pyarrow as pa  # type: ignore
 
 # Type hints for Pandas dtypes supported by BigFrames
 BigFramesDtype = Union[
@@ -30,10 +30,7 @@ BigFramesDtype = Union[
     pd.Float64Dtype,
     pd.Int64Dtype,
     pd.StringDtype,
-    db_dtypes.DateDtype,
-    db_dtypes.TimeDtype,
-    np.dtype[np.datetime64],
-    pd.DatetimeTZDtype,
+    pd.ArrowDtype,
 ]
 
 # Type hints for Ibis data types supported by BigFrames
@@ -57,10 +54,14 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
     (ibis_dtypes.float64, pd.Float64Dtype()),
     (ibis_dtypes.int64, pd.Int64Dtype()),
     (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
-    (ibis_dtypes.date, db_dtypes.DateDtype()),
-    (ibis_dtypes.time, db_dtypes.TimeDtype()),
-    (ibis_dtypes.timestamp, np.dtype("datetime64[us]")),
-    (ibis_dtypes.Timestamp(timezone="UTC"), pd.DatetimeTZDtype(unit="us", tz="UTC")),  # type: ignore
+    (ibis_dtypes.date, pd.ArrowDtype(pa.date32())),
+    (ibis_dtypes.time, pd.ArrowDtype(pa.time64("us"))),
+    (ibis_dtypes.timestamp, pd.ArrowDtype(pa.timestamp("us"))),
+    # TODO(chelsealin): obsolete until after fixing b/279503940.
+    (
+        ibis_dtypes.Timestamp(timezone="UTC"),
+        pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
+    ),
 )
 
 BIGFRAMES_TO_IBIS: Dict[BigFramesDtype, IbisDtype] = {

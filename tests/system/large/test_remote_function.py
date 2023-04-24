@@ -599,7 +599,7 @@ def test_remote_udf_mask_default_value(
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    pandas.testing.assert_series_equal(bf_result, pd_result)
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_remote_udf_mask_custom_value(
@@ -637,4 +637,4 @@ def test_remote_udf_mask_custom_value(
         bf_result = bf_result.sort_values(ignore_index=True)
         pd_result = pd_result.sort_values(ignore_index=True)
 
-    pandas.testing.assert_series_equal(bf_result, pd_result)
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)

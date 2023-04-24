@@ -53,7 +53,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Returns the dtype of the Series"""
         return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
             typing.cast(bigframes.dtypes.IbisDtype, self._value.type())
-        )
+        )  # type: ignore
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:

@@ -19,7 +19,6 @@ import logging
 import pathlib
 from typing import cast, Dict, Optional
 
-import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import google.cloud.exceptions
@@ -27,6 +26,7 @@ import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
 import numpy
 import pandas as pd
+import pyarrow as pa  # type: ignore
 import pytest
 import test_utils.prefixer
 
@@ -294,29 +294,52 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
         # Convert default pandas dtypes to match BigFrames dtypes.
         dtype={
             "bool_col": pd.BooleanDtype(),
-            # TODO(swast): Needs microsecond precision support:
-            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-            "date_col": db_dtypes.DateDtype(),
             "int64_col": pd.Int64Dtype(),
             "int64_too": pd.Int64Dtype(),
-            "float64_col": pd.Float64Dtype(),
             "rowindex": pd.Int64Dtype(),
+            "rowindex_2": pd.Int64Dtype(),
+            "float64_col": pd.Float64Dtype(),
             "string_col": pd.StringDtype(storage="pyarrow"),
-            # TODO(swast): Needs microsecond precision support:
-            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-            "time_col": db_dtypes.TimeDtype(),
             "geography_col": pd.StringDtype(storage="pyarrow"),
         },
     )
+
+    # Pandas ignores the dtype parameter and converts time columns to object dtype.
+    df["date_col"] = pd.to_datetime(df["date_col"], format="%Y-%m-%d")
+    df["datetime_col"] = pd.to_datetime(df["datetime_col"], format="%Y-%m-%d %H:%M:%S")
+    df["time_col"] = pd.to_datetime(df["time_col"], format="%H:%M:%S.%f")
+    df["timestamp_col"] = pd.to_datetime(
+        df["timestamp_col"], format="%Y-%m-%d %H:%M:%S.%f%Z"
+    )
+
+    # `astype` works for Pandas 2.0 but hits an assert error at Pandas 1.5. Hence, we
+    # have to convert to arrow table and convert back to pandas dataframe.
+    sub_df = pd.DataFrame(
+        df, columns=["date_col", "datetime_col", "time_col", "timestamp_col"]
+    )
+    arrow_table = pa.Table.from_pandas(
+        sub_df,
+        schema=pa.schema(
+            [
+                ("date_col", pa.date32()),
+                ("datetime_col", pa.timestamp("us")),
+                ("time_col", pa.time64("us")),
+                ("timestamp_col", pa.timestamp("us", tz="UTC")),
+            ]
+        ),
+    )
+    sub_df = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)
+    df["date_col"] = sub_df["date_col"]
+    df["datetime_col"] = sub_df["datetime_col"]
+    df["time_col"] = sub_df["time_col"]
+    df["timestamp_col"] = sub_df["timestamp_col"]
+
     df["geography_col"] = gpd.GeoSeries.from_wkt(
         df["geography_col"].replace({numpy.nan: None})
     )
     df["bytes_col"] = df["bytes_col"].apply(
         lambda value: base64.b64decode(value) if value else value
     )
-    df["datetime_col"] = pd.to_datetime(df["datetime_col"])
-    # TODO(swast): Ensure BigQuery TIMESTAMP columns have UTC timezone.
-    df["timestamp_col"] = pd.to_datetime(df["timestamp_col"])
     df["numeric_col"] = df["numeric_col"].apply(
         lambda value: decimal.Decimal(str(value)) if value else None  # type: ignore
     )

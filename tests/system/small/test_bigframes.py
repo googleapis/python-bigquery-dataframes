@@ -27,10 +27,4 @@ def test_concat_dataframe(scalars_dfs):
         bf_result = bf_result.sort_values("rowindex", ignore_index=True)
         pd_result = pd_result.sort_values("rowindex", ignore_index=True)
 
-    pd.testing.assert_frame_equal(
-        bf_result,
-        pd_result,
-        check_column_type=False,
-        check_dtype=False,
-        check_index_type=False,
-    )
+    pd.testing.assert_frame_equal(bf_result, pd_result)

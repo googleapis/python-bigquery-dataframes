@@ -19,6 +19,7 @@ import db_dtypes  # type: ignore
 import google.api_core.exceptions
 import numpy as np
 import pandas as pd
+import pyarrow as pa  # type: ignore
 import pytest
 
 import bigframes
@@ -48,14 +49,7 @@ def test_read_gbq_tokyo(
     query_job = df._block.expr.start_query()
     assert query_job.location == tokyo_location
 
-    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
-    pd.testing.assert_frame_equal(
-        result,
-        expected,
-        check_column_type=False,
-        check_dtype=False,
-        check_index_type=False,
-    )
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
@@ -152,14 +146,10 @@ def test_read_pandas(session, scalars_dfs):
     result = df.compute()
     expected = scalars_pandas_df
 
-    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
-    pd.testing.assert_frame_equal(
-        result,
-        expected,
-        check_column_type=False,
-        check_dtype=False,
-        check_index_type=False,
-    )
+    # TODO(chelsealin): Datetime types is detected as Timestamp type through BQ load job.
+    result["datetime_col"] = result["datetime_col"].astype("timestamp[us][pyarrow]")
+
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_index):
@@ -188,14 +178,12 @@ def test_read_pandas_tokyo(
     query_job = df._block.expr.start_query()
     assert query_job.location == tokyo_location
 
-    # TODO(chelsealin): Check the dtypes after supporting all dtypes.
-    pd.testing.assert_frame_equal(
-        result,
-        expected,
-        check_column_type=False,
-        check_dtype=False,
-        check_index_type=False,
+    # TODO(chelsealin): Datetime types is detected as Timestamp type through BQ load job.
+    result["datetime_col"] = result["datetime_col"].astype(
+        pd.ArrowDtype(pa.timestamp("us"))
     )
+
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
@@ -209,17 +197,13 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
         path,
         dtype={
             "bool_col": pd.BooleanDtype(),
-            # TODO(swast): Needs microsecond precision support:
-            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-            "date_col": db_dtypes.DateDtype(),
+            "date_col": pd.ArrowDtype(pa.date32()),
             "int64_col": pd.Int64Dtype(),
             "int64_too": pd.Int64Dtype(),
             "float64_col": pd.Float64Dtype(),
             "rowindex": pd.Int64Dtype(),
             "string_col": pd.StringDtype(storage="pyarrow"),
-            # TODO(swast): Needs microsecond precision support:
-            # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-            "time_col": db_dtypes.TimeDtype(),
+            "time_col": pd.ArrowDtype(pa.time64("us")),
         },
     )
 

@@ -30,12 +30,11 @@ description = "Scalable DataFrames with BigQuery"
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
     "cloudpickle >= 2.2.1",
-    "db-dtypes >=1.0.5",
     "fsspec >=2023.3.0",
     "gcsfs >=2023.3.0",
     "geopandas >=0.12.2",
     "google-auth >2.14.1,<3.0dev",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.9.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.10.0",
     "google-cloud-functions >=1.10.1",
     "google-cloud-storage >=2.0.0",
     # TODO(swast): Compatibility with latest ibis. "suffixes" argument renamed:

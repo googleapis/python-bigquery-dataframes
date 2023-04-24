@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import numpy as np
 import pandas as pd
+import pyarrow as pa  # type: ignore
 import pytest
 
 import bigframes.dtypes
@@ -26,47 +26,44 @@ import bigframes.dtypes
 @pytest.mark.parametrize(
     ["ibis_dtype", "bigframes_dtype"],
     [
-        # This test should cover all the standard BigQuery data types as they
-        # appear in Ibis
+        # TODO(bmil): Add ARRAY, INTERVAL, STRUCT to cover all the standard
+        # BigQuery data types as they appear in Ibis:
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
-        # corresponding to BigQuery ARRAY
-        # TODO(bmil)
-        # corresponding to BigQuery BIGNUMERIC
         (ibis_dtypes.Decimal(precision=76, scale=38, nullable=True), np.dtype("O")),
-        # corresponding to BigQuery BOOL
         (ibis_dtypes.boolean, pd.BooleanDtype()),
-        # corresponding to BigQuery BYTES
         (ibis_dtypes.binary, np.dtype("O")),
-        # corresponding to BigQuery DATE
-        (ibis_dtypes.date, db_dtypes.DateDtype()),
-        # corresponding to BigQuery DATETIME
-        (ibis_dtypes.Timestamp(), np.dtype("datetime64[us]")),
-        # corresponding to BigQuery FLOAT64
+        (ibis_dtypes.date, pd.ArrowDtype(pa.date32())),
+        (ibis_dtypes.Timestamp(), pd.ArrowDtype(pa.timestamp("us"))),
         (ibis_dtypes.float64, pd.Float64Dtype()),
-        # corresponding to BigQuery GEOGRAPHY
         (
             ibis_dtypes.GeoSpatial(geotype="geography", srid=None, nullable=True),
             gpd.array.GeometryDtype(),
         ),
-        # corresponding to BigQuery INT64
         (ibis_dtypes.int64, pd.Int64Dtype()),
-        # corresponding to BigQuery INTERVAL
-        # TODO(bmil)
-        # corresponding to BigQuery JSON
         (ibis_dtypes.json, np.dtype("O")),
-        # corresponding to BigQuery NUMERIC
         (ibis_dtypes.Decimal(precision=38, scale=9, nullable=True), np.dtype("O")),
-        # corresponding to BigQuery STRING
         (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
-        # corresponding to BigQuery STRUCT
-        # TODO(bmil)
-        # corresponding to BigQuery TIME
-        (ibis_dtypes.time, db_dtypes.TimeDtype()),
-        # corresponding to BigQuery TIMESTAMP
+        (ibis_dtypes.time, pd.ArrowDtype(pa.time64("us"))),
+        # TODO(chelsealin): obsolete until after fixing b/279503940.
         (
             ibis_dtypes.Timestamp(timezone="UTC"),
-            pd.DatetimeTZDtype(unit="us", tz="UTC"),  # type: ignore
+            pd.ArrowDtype(pa.timestamp("us", tz="UTC")),  # type: ignore
         ),
+    ],
+    ids=[
+        "bignumeric",
+        "bool",
+        "bytes",
+        "date",
+        "datetime",
+        "float",
+        "geography",
+        "int64",
+        "json",
+        "numeric",
+        "string",
+        "time",
+        "timestamp",
     ],
 )
 def test_ibis_dtype_converts(ibis_dtype, bigframes_dtype):
@@ -94,16 +91,26 @@ def test_ibis_float32_raises_unexpected_datatype():
     [
         # This test covers all dtypes that BigFrames can exactly map to Ibis
         (pd.BooleanDtype(), ibis_dtypes.boolean),
-        (db_dtypes.DateDtype(), ibis_dtypes.date),
-        (np.dtype("datetime64[us]"), ibis_dtypes.Timestamp()),
+        (pd.ArrowDtype(pa.date32()), ibis_dtypes.date),
+        (pd.ArrowDtype(pa.timestamp("us")), ibis_dtypes.Timestamp()),
         (pd.Float64Dtype(), ibis_dtypes.float64),
         (pd.Int64Dtype(), ibis_dtypes.int64),
         (pd.StringDtype(storage="pyarrow"), ibis_dtypes.string),
-        (db_dtypes.TimeDtype(), ibis_dtypes.time),
+        (pd.ArrowDtype(pa.time64("us")), ibis_dtypes.time),
         (
-            pd.DatetimeTZDtype(unit="us", tz="UTC"),  # type: ignore
+            pd.ArrowDtype(pa.timestamp("us", tz="UTC")),  # type: ignore
             ibis_dtypes.Timestamp(timezone="UTC"),
         ),
+    ],
+    ids=[
+        "boolean",
+        "date",
+        "datetime",
+        "float",
+        "int",
+        "string",
+        "time",
+        "timestamp",
     ],
 )
 def test_bigframes_dtype_converts(ibis_dtype, bigframes_dtype):

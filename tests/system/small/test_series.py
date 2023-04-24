@@ -14,10 +14,10 @@
 
 import math
 
-import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import numpy
 import pandas as pd
+import pyarrow as pa  # type: ignore
 import pytest
 
 from tests.system.utils import (
@@ -32,8 +32,8 @@ from tests.system.utils import (
         ("bool_col", pd.BooleanDtype()),
         # TODO(swast): Use a more efficient type.
         ("bytes_col", numpy.dtype("object")),
-        ("date_col", db_dtypes.DateDtype()),
-        ("datetime_col", numpy.dtype("datetime64[ns]")),
+        ("date_col", pd.ArrowDtype(pa.date32())),
+        ("datetime_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("float64_col", pd.Float64Dtype()),
         ("geography_col", gpd.array.GeometryDtype()),
         ("int64_col", pd.Int64Dtype()),
@@ -41,9 +41,8 @@ from tests.system.utils import (
         ("numeric_col", numpy.dtype("object")),
         ("int64_too", pd.Int64Dtype()),
         ("string_col", pd.StringDtype(storage="pyarrow")),
-        ("time_col", db_dtypes.TimeDtype()),
-        # TODO(chelsealin): Should be "us" rather than "ns" after b/275417413.
-        ("timestamp_col", pd.DatetimeTZDtype(unit="ns", tz="UTC")),
+        ("time_col", pd.ArrowDtype(pa.time64("us"))),
+        ("timestamp_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
     ],
 )
 def test_get_column(scalars_dfs, col_name, expected_dtype):

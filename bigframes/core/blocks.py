@@ -25,10 +25,12 @@ import itertools
 import typing
 from typing import Iterable, List, Optional, Sequence, Union
 
-import geopandas  # type: ignore
+import geopandas as gpd  # type: ignore
+import ibis.expr.schema as ibis_schema
 import ibis.expr.types as ibis_types
 import numpy
-import pandas
+import pandas as pd
+import pyarrow as pa  # type: ignore
 
 import bigframes.aggregations as agg_ops
 import bigframes.core
@@ -120,9 +122,33 @@ class Block:
         else:
             raise NotImplementedError("MultiIndex not supported.")
 
+    def _to_dataframe(self, result, schema: ibis_schema.Schema) -> pd.DataFrame:
+        """Convert BigQuery data to pandas DataFrame with specific dtypes."""
+        df = result.to_dataframe(
+            bool_dtype=pd.BooleanDtype(),
+            int_dtype=pd.Int64Dtype(),
+            float_dtype=pd.Float64Dtype(),
+            string_dtype=pd.StringDtype(storage="pyarrow"),
+            date_dtype=pd.ArrowDtype(pa.date32()),
+            datetime_dtype=pd.ArrowDtype(pa.timestamp("us")),
+            time_dtype=pd.ArrowDtype(pa.time64("us")),
+            timestamp_dtype=pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
+        )
+
+        # Convert Geography column from StringDType to GeometryDtype.
+        for column_name, ibis_dtype in schema.items():
+            if ibis_dtype.is_geospatial():
+                df[column_name] = gpd.GeoSeries.from_wkt(
+                    # https://github.com/geopandas/geopandas/issues/1879
+                    df[column_name].replace({numpy.nan: None}),
+                    # BigQuery geography type is based on the WGS84 reference ellipsoid.
+                    crs="EPSG:4326",
+                )
+        return df
+
     def compute(
         self, value_keys: Optional[Iterable[str]] = None, max_results=None
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """Run query and download results as a pandas DataFrame."""
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
@@ -135,25 +161,10 @@ class Block:
             value_columns = (expr.get_column(column_name) for column_name in value_keys)
             expr = expr.projection(itertools.chain(index_columns, value_columns))
 
-        df = (
-            expr.start_query()
-            .result(max_results=max_results)
-            .to_dataframe(
-                bool_dtype=pandas.BooleanDtype(),
-                int_dtype=pandas.Int64Dtype(),
-                float_dtype=pandas.Float64Dtype(),
-                string_dtype=pandas.StringDtype(storage="pyarrow"),
-            )
+        df = self._to_dataframe(
+            expr.start_query().result(max_results=max_results),
+            expr.to_ibis_expr().schema(),
         )
-        # Convert Geography column from StringDType to GeometryDtype.
-        # https://github.com/geopandas/geopandas/issues/1879
-        for column_name, ibis_dtype in expr.to_ibis_expr().schema().items():
-            if ibis_dtype.is_geospatial():
-                df[column_name] = geopandas.GeoSeries.from_wkt(
-                    df[column_name].replace({numpy.nan: None}),
-                    # BigQuery geography type is based on the WGS84 reference ellipsoid.
-                    crs="EPSG:4326",
-                )
 
         df = df.loc[:, [*self.index_columns, *value_column_names]]
         if self.index_columns:
