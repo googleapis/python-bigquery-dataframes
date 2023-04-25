@@ -1138,3 +1138,31 @@ def test_sort_index(scalars_df_index, scalars_pandas_df_index, ascending):
         bf_result,
         pd_result,
     )
+
+
+def test_mask_default_value(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"]
+    bf_col_masked = bf_col.mask(bf_col % 2 == 1)
+    bf_result = bf_col.to_frame().assign(int64_col_masked=bf_col_masked).compute()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_col_masked = pd_col.mask(pd_col % 2 == 1)
+    pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+def test_mask_custom_value(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"]
+    bf_col_masked = bf_col.mask(bf_col % 2 == 1, -1)
+    bf_result = bf_col.to_frame().assign(int64_col_masked=bf_col_masked).compute()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_col_masked = pd_col.mask(pd_col % 2 == 1, -1)
+    pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

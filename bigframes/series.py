@@ -673,6 +673,14 @@ class Series(bigframes.operations.base.SeriesMethods):
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         return self._apply_unary_op(func)
 
+    def mask(self, cond, other=None) -> Series:
+        """Replace values in a series where the condition is true."""
+        if not isinstance(cond, Series):
+            raise TypeError(
+                f"Only bigframes series condition is supported, received {type(cond).__name__}"
+            )
+        return self.where(~cond, other)
+
     def to_frame(self) -> bigframes.DataFrame:
         """Convert Series to DataFrame."""
         block = self._viewed_block
