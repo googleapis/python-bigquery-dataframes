@@ -46,6 +46,11 @@ RELEASE_VERSION=${BIGFRAMES_VERSION}dev${CURRENT_DATE}+${GIT_HASH}
 sed -i -e "s/$BIGFRAMES_VERSION/$RELEASE_VERSION/g" bigframes/version.py
 
 python3 setup.py sdist bdist_wheel
+
+# Undo the version string edit, in case this script is running on a
+# non-temporary instance of the bigframes repo
+sed -i -e "s/$RELEASE_VERSION/$BIGFRAMES_VERSION/g" bigframes/version.py
+
 LATEST_WHEEL=dist/bigframes-latest-py2.py3-none-any.whl
 cp dist/bigframes-*.whl $LATEST_WHEEL
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
