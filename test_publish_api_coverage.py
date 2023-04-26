@@ -18,9 +18,7 @@ import publish_api_coverage
 
 
 def test_api_coverage_produces_expected_schema():
-    df = publish_api_coverage.build_api_coverage_table(
-        "20230314", "my_bf_ver", "my_release_ver"
-    )
+    df = publish_api_coverage.build_api_coverage_table("my_bf_ver", "my_release_ver")
     pandas.testing.assert_series_equal(
         df.dtypes,
         pandas.Series(

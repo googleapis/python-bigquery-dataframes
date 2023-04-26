@@ -160,7 +160,7 @@ def generate_sklearn_api_coverage():
     return pd.DataFrame(api_patterns, columns=header)
 
 
-def build_api_coverage_table(date: str, bigframes_version: str, release_version: str):
+def build_api_coverage_table(bigframes_version: str, release_version: str):
     pandas_cov_df = generate_pandas_api_coverage()
     pandas_cov_df["module"] = "bigframes"
     sklearn_cov_df = generate_sklearn_api_coverage()
