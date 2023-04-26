@@ -565,3 +565,76 @@ def test_remote_function_restore_with_bigframes_series(
 
     # clean up the temp code
     shutil.rmtree(add_one_uniq_dir)
+
+
+def test_remote_udf_mask_default_value(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    def is_odd(num):
+        flag = False
+        try:
+            flag = num % 2 == 1
+        except TypeError:
+            pass
+        return flag
+
+    is_odd_remote = remote_function(
+        [dt.int64],
+        dt.bool,
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(is_odd)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_result = bf_int64_col.mask(is_odd_remote).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_int64_col.mask(is_odd)
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_remote_udf_mask_custom_value(
+    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+):
+    def is_odd(num):
+        flag = False
+        try:
+            flag = num % 2 == 1
+        except TypeError:
+            pass
+        return flag
+
+    is_odd_remote = remote_function(
+        [dt.int64],
+        dt.bool,
+        bigquery_client,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(is_odd)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    # TODO(shobs): Revisit this test when NA handling of pandas' Series.mask is
+    # fixed https://github.com/pandas-dev/pandas/issues/52955,
+    # for now filter out the nulls and test the rest
+    bf_int64_col = scalars_df["int64_col"]
+    bf_result = bf_int64_col[bf_int64_col.notnull()].mask(is_odd_remote, -1).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
+
+    if pd_result.index.name != "rowindex":
+        bf_result = bf_result.sort_values(ignore_index=True)
+        pd_result = pd_result.sort_values(ignore_index=True)
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)

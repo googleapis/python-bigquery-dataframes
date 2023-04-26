@@ -1080,4 +1080,8 @@ def test_mask_custom_value(scalars_dfs):
     pd_col_masked = pd_col.mask(pd_col % 2 == 1, -1)
     pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
 
+    # TODO(shobs): There is a pd.NA value in the original series, which is not
+    # odd so should be left as is, but it is being masked in pandas.
+    # Accidentally the bigframes bahavior matches, but it should be updated
+    # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

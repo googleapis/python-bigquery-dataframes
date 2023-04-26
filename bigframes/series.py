@@ -634,6 +634,9 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def mask(self, cond, other=None) -> Series:
         """Replace values in a series where the condition is true."""
+        if callable(cond):
+            cond = self.apply(cond)
+
         if not isinstance(cond, Series):
             raise TypeError(
                 f"Only bigframes series condition is supported, received {type(cond).__name__}"
