@@ -138,11 +138,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Limits Series to a specific number of rows."""
         return typing.cast(Series, self.iloc[0:n])
 
-    def len(self) -> "Series":
-        """Compute the length of each string."""
-
-        return self._apply_unary_op(ops.len_op)
-
     def isnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
 
@@ -154,30 +149,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._apply_unary_op(ops.notnull_op)
 
     notna = notnull
-
-    def lower(self) -> "Series":
-        """Convert strings in the Series to lowercase."""
-
-        def lower_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).lower()
-
-        return self._apply_unary_op(lower_op)
-
-    def upper(self) -> "Series":
-        """Convert strings in the Series to uppercase."""
-
-        def upper_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).upper()
-
-        return self._apply_unary_op(upper_op)
-
-    def strip(self) -> "Series":
-        """Removes whitespace characters from the beginning and end of each string in the Series."""
-
-        def strip_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x).strip()
-
-        return self._apply_unary_op(strip_op)
 
     def __and__(self, other: bool | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.and_op, short_nulls=False)
@@ -245,10 +216,6 @@ class Series(bigframes.operations.base.SeriesMethods):
     def abs(self) -> "Series":
         """Calculate absolute value of numbers in the Series."""
         return self._apply_unary_op(ops.abs_op)
-
-    def reverse(self) -> "Series":
-        """Reverse strings in the Series."""
-        return self._apply_unary_op(ops.reverse_op)
 
     def round(self, decimals=0) -> "Series":
         """Round each value in a Series to the given number of decimals."""
@@ -324,14 +291,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._apply_aggregation(agg_ops.product_op)
 
     product = prod
-
-    def slice(self, start=None, stop=None) -> "Series":
-        """Slice substrings from each element in the Series."""
-
-        def slice_op(x: ibis_types.Value):
-            return typing.cast(ibis_types.StringValue, x)[start:stop]
-
-        return self._apply_unary_op(slice_op)
 
     def __eq__(self, other: object) -> Series:  # type: ignore
         """Element-wise equals between the series and another series or literal."""

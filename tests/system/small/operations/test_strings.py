@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 import bigframes.series
 
@@ -30,5 +31,95 @@ def test_find(scalars_dfs):
     # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
     assert_series_equal_ignoring_order(
         pd_result.astype(pd.Int64Dtype()),
+        bf_result,
+    )
+
+
+def test_len(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.len().compute()
+    pd_result = scalars_pandas_df[col_name].str.len()
+
+    # One of dtype mismatches to be documented. Here, the `bf_result.dtype` is `Int64` but
+    # the `pd_result.dtype` is `float64`: https://github.com/pandas-dev/pandas/issues/51948
+    assert_series_equal_ignoring_order(
+        pd_result.astype(pd.Int64Dtype()),
+        bf_result,
+    )
+
+
+def test_lower(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.lower().compute()
+    pd_result = scalars_pandas_df[col_name].str.lower()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_reverse(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.reverse().compute()
+    pd_result = scalars_pandas_df[col_name].copy()
+    for i in pd_result.index:
+        cell = pd_result.loc[i]
+        if pd.isna(cell):
+            pd_result.loc[i] = None
+        else:
+            pd_result.loc[i] = cell[::-1]
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ["start", "stop"], [(0, 1), (3, 5), (100, 101), (None, 1), (0, 12), (0, None)]
+)
+def test_slice(scalars_dfs, start, stop):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.slice(start, stop).compute()
+    pd_series = scalars_pandas_df[col_name]
+    pd_result = pd_series.str.slice(start, stop)
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_strip(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.strip().compute()
+    pd_result = scalars_pandas_df[col_name].str.strip()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_upper(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.upper().compute()
+    pd_result = scalars_pandas_df[col_name].str.upper()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
         bf_result,
     )
