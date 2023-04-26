@@ -61,7 +61,7 @@ gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
 gsutil cp dist/* gs://dl-platform-colab/bigframes/
 
 # Install sklearn, as the API coverage step depends on it
-pip install sklearn
+pip install scikit-learn
 
 # publish API coverage information to BigQuery
 # Note: only the kokoro service account has permission to write to this
