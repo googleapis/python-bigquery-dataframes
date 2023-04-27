@@ -86,6 +86,22 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_repr_w_all_rows(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    if scalars_pandas_df.index.name is None:
+        # Note: Not quite the same as no index / default index, but hopefully
+        # simulates it well enough while being consistent enough for string
+        # comparison to work.
+        scalars_df = scalars_df.set_index("rowindex", drop=False).sort_index()
+        scalars_df.index.name = None
+
+    # When there are 10 or fewer rows, the outputs should be identical.
+    actual = repr(scalars_df.head(10))
+    expected = repr(scalars_pandas_df.head(10))
+    assert actual == expected
+
+
 def test_df_column_name_with_space(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"bool_col": "bool  col"}

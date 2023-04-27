@@ -118,7 +118,9 @@ class Block:
         else:
             raise NotImplementedError("MultiIndex not supported.")
 
-    def compute(self, value_keys: Optional[Iterable[str]] = None) -> pandas.DataFrame:
+    def compute(
+        self, value_keys: Optional[Iterable[str]] = None, max_results=None
+    ) -> pandas.DataFrame:
         """Run query and download results as a pandas DataFrame."""
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
@@ -132,7 +134,7 @@ class Block:
 
         df = (
             expr.start_query()
-            .result()
+            .result(max_results=max_results)
             .to_dataframe(
                 bool_dtype=pandas.BooleanDtype(),
                 int_dtype=pandas.Int64Dtype(),

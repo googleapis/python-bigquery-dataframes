@@ -172,7 +172,7 @@ class DataFrame:
         return (
             indexes.Index(block, self.index._index_column, name=self.index.name)
             if isinstance(self.index, indexes.Index)
-            else indexes.ImplicitJoiner(block, self.index.name)
+            else indexes.ImplicitJoiner(block, name=self.index.name)
         )
 
     def __getitem__(
@@ -263,12 +263,14 @@ class DataFrame:
         """Converts a DataFrame to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        job = self._block.expr.start_query().result(max_results=10)
-        rows = job.total_rows
-        columns = len(job.schema)
-        # TODO(swast): Need to set index if we have an index column(s)
-        preview = job.to_dataframe()
+        job = self._block.expr.start_query().result()
+        # TODO(swast): Refactor this so that we don't have to execute the query
+        # twice (though at least the second time the query should be cached).
+        preview = self._block.compute(max_results=10)
+        preview.index.name = self.index.name
         preview = preview.set_axis(self._col_names, axis=1)
+        rows = job.total_rows
+        columns = len(preview.columns)
 
         # TODO(swast): Print the SQL too?
         # Grab all but the final 2 lines if those are the shape of the DF. So we can replace the row count with
@@ -347,6 +349,8 @@ class DataFrame:
         """Limits DataFrame to a specific number of rows."""
         df = self._copy()
         df._block.expr = self._block.expr.apply_limit(n)
+        # TODO(swast): Why isn't the name sticking?
+        df.index.name = self.index.name
         return df
 
     def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
