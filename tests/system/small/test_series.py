@@ -311,12 +311,12 @@ def test_series_add_pandas_series_not_implemented(scalars_dfs):
 def test_copy(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     # Expect mutation on original not to effect_copy
-    bf_series = scalars_df_index[col_name]
+    bf_series = scalars_df_index[col_name].copy()
     bf_copy = bf_series.copy()
     bf_copy.loc[0] = 5.6
     bf_series.loc[0] = 3.4
 
-    pd_series = scalars_pandas_df_index[col_name]
+    pd_series = scalars_pandas_df_index[col_name].copy()
     pd_copy = pd_series.copy()
     pd_copy.loc[0] = 5.6
     pd_series.loc[0] = 3.4
@@ -690,6 +690,9 @@ def test_groupby_prod(scalars_dfs):
         (lambda x: x.cummin()),
         (lambda x: x.cummax()),
         (lambda x: x.cumprod()),
+        (lambda x: x.diff()),
+        (lambda x: x.shift(2)),
+        (lambda x: x.shift(-2)),
     ],
     ids=[
         "cumsum",
@@ -697,9 +700,12 @@ def test_groupby_prod(scalars_dfs):
         "cummin",
         "cummax",
         "cumprod",
+        "diff",
+        "shiftpostive",
+        "shiftnegative",
     ],
 )
-def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, operator):
+def test_groupby_window_ops(scalars_df_index, scalars_pandas_df_index, operator):
     col_name = "int64_col"
     group_key = "int64_too"  # has some duplicates values, good for grouping
     bf_series = (
@@ -834,6 +840,18 @@ def test_head_then_series_operation(scalars_dfs):
     pd_result = scalars_pandas_df["float64_col"].head(4) + scalars_pandas_df[
         "float64_col"
     ].head(2)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_shift(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_result = scalars_df_index[col_name].shift().compute()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = scalars_pandas_df_index[col_name].shift().astype(pd.Int64Dtype())
 
     pd.testing.assert_series_equal(
         bf_result,

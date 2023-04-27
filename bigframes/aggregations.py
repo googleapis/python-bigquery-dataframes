@@ -134,6 +134,22 @@ class RankOp(WindowOp):
         return False
 
 
+class ShiftOp(WindowOp):
+    def __init__(self, periods: int):
+        self._periods = periods
+
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        if self._periods == 0:  # No-op
+            return column
+        if self._periods > 0:
+            return _apply_window_if_present(column.lag(self._periods), window)
+        return _apply_window_if_present(column.lead(-self._periods), window)
+
+    @property
+    def skips_nulls(self):
+        return False
+
+
 class AllOp(AggregateOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None

@@ -157,13 +157,28 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def cumsum(self) -> Series:
-        return self._apply_cumulative_aggregate(agg_ops.sum_op)
+        return self._apply_window_op(
+            agg_ops.sum_op, bigframes.core.WindowSpec(following=0)
+        )
 
     def cummax(self) -> Series:
-        return self._apply_cumulative_aggregate(agg_ops.max_op)
+        return self._apply_window_op(
+            agg_ops.max_op, bigframes.core.WindowSpec(following=0)
+        )
 
     def cummin(self) -> Series:
-        return self._apply_cumulative_aggregate(agg_ops.min_op)
+        return self._apply_window_op(
+            agg_ops.min_op, bigframes.core.WindowSpec(following=0)
+        )
+
+    def shift(self, periods: int = 1) -> Series:
+        """Shift index by desired number of periods."""
+        window = bigframes.core.WindowSpec()
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+
+    def diff(self) -> Series:
+        """Difference between each element and previous element."""
+        return self - self.shift(1)
 
     def fillna(self, value) -> "Series":
         """Fills NULL values."""
@@ -521,15 +536,17 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
         return bigframes.scalar.Scalar(aggregation_result)
 
-    def _apply_cumulative_aggregate(self, op: agg_ops.WindowOp):
-        # TODO: Push this down into expression objects
-        window = bigframes.core.WindowSpec(following=0)
+    def _apply_window_op(
+        self,
+        op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
+    ):
         block = self._block.copy()
-        block.apply_window_op(self._value_column, op, window_spec=window)
+        block.apply_window_op(self._value_column, op, window_spec=window_spec)
         return Series(
             block,
             self._value_column,
-            name=self._value_column,
+            name=self.name,
         )
 
     def _apply_binary_op(
@@ -787,19 +804,48 @@ class SeriesGroupyBy:
         return self._aggregate(agg_ops.product_op)
 
     def cumsum(self) -> Series:
-        return self._cumulative_aggregate(agg_ops.sum_op)
+        return self._apply_window_op(
+            agg_ops.sum_op,
+            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+        )
 
     def cumprod(self) -> Series:
-        return self._cumulative_aggregate(agg_ops.product_op)
+        return self._apply_window_op(
+            agg_ops.product_op,
+            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+        )
 
     def cummax(self) -> Series:
-        return self._cumulative_aggregate(agg_ops.max_op)
+        return self._apply_window_op(
+            agg_ops.max_op,
+            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+        )
 
     def cummin(self) -> Series:
-        return self._cumulative_aggregate(agg_ops.min_op)
+        return self._apply_window_op(
+            agg_ops.min_op,
+            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+        )
 
     def cumcount(self) -> Series:
-        return self._cumulative_aggregate(agg_ops.rank_op, discard_name=True)
+        return self._apply_window_op(
+            agg_ops.rank_op,
+            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            discard_name=True,
+        )
+
+    def shift(self, periods=1) -> Series:
+        """Shift index by desired number of periods."""
+        window = bigframes.core.WindowSpec(grouping_keys=[self._by])
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+
+    def diff(self) -> Series:
+        """Difference between each element and previous element."""
+        return self._ungroup() - self.shift(1)
+
+    def _ungroup(self) -> Series:
+        """Convert back to regular series, without aggregating."""
+        return Series(self._block, self._value_column, name=self._value_name)
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
         group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
@@ -813,14 +859,14 @@ class SeriesGroupyBy:
             block.index.name = self._key_name
         return Series(block, self._value_column, name=self._value_name)
 
-    def _cumulative_aggregate(
+    def _apply_window_op(
         self,
         op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
         discard_name=False,
     ):
-        window = bigframes.core.WindowSpec(grouping_keys=[self._by], following=0)
         block = self._block.copy()
-        block.apply_window_op(self._value_column, op, window_spec=window)
+        block.apply_window_op(self._value_column, op, window_spec=window_spec)
         return Series(
             block,
             self._value_column,
