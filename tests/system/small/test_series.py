@@ -715,6 +715,26 @@ def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, opera
     )
 
 
+def test_drop_label(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_series = scalars_df_index[col_name].drop(1).compute()
+    pd_series = scalars_pandas_df_index[col_name].drop(1)
+    pd.testing.assert_series_equal(
+        pd_series,
+        bf_series,
+    )
+
+
+def test_drop_label_list(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
+    bf_series = scalars_df_index[col_name].drop([1, 3]).compute()
+    pd_series = scalars_pandas_df_index[col_name].drop([1, 3])
+    pd.testing.assert_series_equal(
+        pd_series,
+        bf_series,
+    )
+
+
 def test_shape(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

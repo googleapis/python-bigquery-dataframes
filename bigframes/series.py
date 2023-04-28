@@ -115,6 +115,23 @@ class Series(bigframes.operations.base.SeriesMethods):
         series.name = self._name
         return series
 
+    def drop(self, labels: str | typing.Sequence[str]):
+        """Drops rows with the given label(s). Note: will never raise KeyError even if labels are not present."""
+        block = self._block.copy()
+        if isinstance(block._index, bigframes.core.indexes.Index):
+            index_column = block.expr.get_column(block._index._index_column)
+        else:
+            raise ValueError("Cannot drop labels without explicit index.")
+        if _is_list_like(labels):
+            condition = ~index_column.isin(labels)
+        else:
+            label_value = _interpret_as_ibis_literal(labels)
+            if label_value is None:
+                raise ValueError(f"Could not interpret label value(s): {labels}")
+            condition = index_column.__ne__(label_value)
+        block.expr = self._block.expr.filter(condition)
+        return Series(block, self._value_column, name=self.name)
+
     def between(self, left, right, inclusive="both"):
         if inclusive not in ["both", "neither", "left", "right"]:
             raise ValueError(
