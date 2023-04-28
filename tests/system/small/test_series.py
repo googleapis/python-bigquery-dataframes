@@ -309,6 +309,23 @@ def test_series_add_pandas_series_not_implemented(scalars_dfs):
         ).compute()
 
 
+def test_copy(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    # Expect mutation on original not to effect_copy
+    bf_series = scalars_df_index[col_name]
+    bf_copy = bf_series.copy()
+    bf_copy.loc[0] = 5.6
+    bf_series.loc[0] = 3.4
+
+    pd_series = scalars_pandas_df_index[col_name]
+    pd_copy = pd_series.copy()
+    pd_copy.loc[0] = 5.6
+    pd_series.loc[0] = 3.4
+
+    assert bf_copy.compute().loc[0] != bf_series.compute().loc[0]
+    pd.testing.assert_series_equal(bf_copy.compute(), pd_copy)
+
+
 def test_isnull(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"
