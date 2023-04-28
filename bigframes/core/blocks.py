@@ -185,3 +185,8 @@ class Block:
         """Retrive value column expressions."""
         column_names = self.value_columns if column_names is None else column_names
         return [self._expr.get_column(column_name) for column_name in column_names]
+
+    def shape(self) -> typing.Tuple[int, int]:
+        """Returns dimensions as (length, width) tuple."""
+        impl_length, impl_width = self._expr.shape()
+        return (impl_length, impl_width - len(self.index_columns))

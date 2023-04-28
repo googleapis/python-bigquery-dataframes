@@ -389,6 +389,16 @@ class BigFramesExpr:
         new_expr = builder.build()
         return new_expr
 
+    def shape(self) -> typing.Tuple[int, int]:
+        """Returns dimensions as (length, width) tuple."""
+        width = len(self.columns)
+        length_query = self._session.bqclient.query(
+            self.to_ibis_expr(ordering_mode="unordered").count().compile()
+        )
+        length = next(length_query.result())[0]
+
+        return (length, width)
+
     def to_ibis_expr(
         self, ordering_mode: str = "order_by", order_col_name=ORDER_ID_COLUMN
     ):

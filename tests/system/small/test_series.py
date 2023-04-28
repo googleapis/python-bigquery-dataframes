@@ -699,6 +699,15 @@ def test_groupby_cumulative_ops(scalars_df_index, scalars_pandas_df_index, opera
     )
 
 
+def test_shape(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].shape
+    pd_result = scalars_pandas_df["string_col"].shape
+
+    assert pd_result == bf_result
+
+
 def test_head(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

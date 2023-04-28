@@ -143,10 +143,8 @@ class DataFrame:
     @property
     def shape(self) -> Tuple[int, int]:
         """Return a tuple representing the dimensionality of the DataFrame."""
-        job = self._block.expr.start_query().result()
-        rows = job.total_rows
-        cols = len(self.columns)
-        return (rows, cols)
+        block_length, _ = self._block.expr.shape()
+        return (block_length, len(self.columns))
 
     @property
     def size(self) -> int:

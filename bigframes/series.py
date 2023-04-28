@@ -82,6 +82,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         # non-uniquely named objects) without breaking SQL.
         return self._name
 
+    @property
+    def shape(self) -> typing.Tuple[int]:
+        """Returns the dimensions of the series as a tuple"""
+        return (self._block.shape()[0],)
+
     def __repr__(self) -> str:
         """Converts a Series to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
