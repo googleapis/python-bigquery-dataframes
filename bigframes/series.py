@@ -30,9 +30,11 @@ import typing_extensions
 
 import bigframes.aggregations as agg_ops
 import bigframes.core
+from bigframes.core import WindowSpec
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
+from bigframes.core.ordering import OrderingDirection
 import bigframes.dtypes
 import bigframes.indexers
 import bigframes.operations as ops
@@ -183,12 +185,89 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def shift(self, periods: int = 1) -> Series:
         """Shift index by desired number of periods."""
-        window = bigframes.core.WindowSpec()
+        window = bigframes.core.WindowSpec(
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self) -> Series:
         """Difference between each element and previous element."""
         return self - self.shift(1)
+
+    METHOD = typing.Literal["average", "min", "max", "first", "dense"]
+    NA_OPTION = typing.Literal["keep", "top", "bottom"]
+
+    def rank(
+        self, method: METHOD = "average", *, na_option: NA_OPTION = "keep"
+    ) -> Series:
+        if method not in ["average", "min", "max", "first", "dense"]:
+            raise ValueError(
+                "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
+            )
+        if na_option not in ["keep", "top", "bottom"]:
+            raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
+
+        if method == "rank":
+            # Dense rank has a somewhat different implementation than all other methods
+            return self._dense_rank(na_option)
+
+        # Step 1: Calculate row numbers for each row
+        block = self._block.copy()
+
+        # Identify null values to be treated according to na_option param
+        nullity_col_id = self._value_column + "_bf_internal_nullity"
+        block.apply_unary_op(
+            self._value_column,
+            ops.isnull_op,
+            output_name=nullity_col_id,
+        )
+
+        window = WindowSpec(
+            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
+            ordering=(
+                (
+                    nullity_col_id,
+                    OrderingDirection.ASC
+                    if na_option == "bottom"
+                    else OrderingDirection.DESC,
+                ),
+                (self._value_column, OrderingDirection.ASC),
+            ),
+        )
+        rownum_id = f"{self._value_column}_bf_internal_rownum"
+        # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
+        block.apply_window_op(
+            self._value_column if na_option == "keep" else nullity_col_id,
+            agg_ops.count_op,
+            window_spec=window,
+            output_name=rownum_id,
+        )
+
+        # Step 2: Apply aggregate to groups of like input values
+        rank_id = f"{self._value_column}_bigframes_rank"
+        agg_op = {
+            "average": agg_ops.mean_op,
+            "min": agg_ops.min_op,
+            "max": agg_ops.max_op,
+            "first": agg_ops.first_op,
+        }[method]
+        block.apply_window_op(
+            rownum_id,
+            agg_op,
+            window_spec=WindowSpec(grouping_keys=(self._value_column,)),
+            output_name=rank_id,
+        )
+
+        result = Series(block, rank_id, name=self.name)
+        if na_option == "keep":
+            # For na_option "keep", null inputs must produce null outputs
+            result = result.mask(self.isnull(), pandas.NA)
+        return result
+
+    def _dense_rank(self, na_option: str):
+        # TODO(tbergeron)
+        raise NotImplementedError("Dense rank not implemented")
 
     def fillna(self, value) -> "Series":
         """Fills NULL values."""
@@ -474,7 +553,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def where(self, cond, other=None):
-        return self._apply_ternary_op(cond, other or pandas.NA, ops.where_op)
+        return self._apply_ternary_op(
+            cond, other if (other is not None) else pandas.NA, ops.where_op
+        )
 
     def clip(self, lower, upper):
         return self._apply_ternary_op(lower, upper, ops.clip_op)
@@ -893,37 +974,41 @@ class SeriesGroupyBy:
     def cumsum(self) -> Series:
         return self._apply_window_op(
             agg_ops.sum_op,
-            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cumprod(self) -> Series:
         return self._apply_window_op(
             agg_ops.product_op,
-            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cummax(self) -> Series:
         return self._apply_window_op(
             agg_ops.max_op,
-            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cummin(self) -> Series:
         return self._apply_window_op(
             agg_ops.min_op,
-            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cumcount(self) -> Series:
         return self._apply_window_op(
             agg_ops.rank_op,
-            bigframes.core.WindowSpec(grouping_keys=[self._by], following=0),
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
             discard_name=True,
         )
 
     def shift(self, periods=1) -> Series:
         """Shift index by desired number of periods."""
-        window = bigframes.core.WindowSpec(grouping_keys=[self._by])
+        window = bigframes.core.WindowSpec(
+            grouping_keys=(self._by,),
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self) -> Series:

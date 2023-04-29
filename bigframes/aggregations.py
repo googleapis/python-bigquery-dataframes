@@ -134,6 +134,13 @@ class RankOp(WindowOp):
         return False
 
 
+class FirstOp(WindowOp):
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        return _apply_window_if_present(column.first(), window)
+
+
 class ShiftOp(WindowOp):
     def __init__(self, periods: int):
         self._periods = periods
@@ -187,3 +194,4 @@ count_op = CountOp()
 rank_op = RankOp()
 all_op = AllOp()
 any_op = AnyOp()
+first_op = FirstOp()

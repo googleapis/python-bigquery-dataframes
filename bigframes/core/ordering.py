@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import math
 import typing
 from typing import Optional, Sequence
@@ -11,6 +12,11 @@ import ibis.expr.types as ibis_types
 ORDERING_ID_STRING_BASE: int = 10
 # Sufficient to store any value up to 2^63
 DEFAULT_ORDERING_ID_LENGTH: int = math.ceil(63 * math.log(2, ORDERING_ID_STRING_BASE))
+
+
+class OrderingDirection(Enum):
+    ASC = 1
+    DESC = 2
 
 
 class ExpressionOrdering:

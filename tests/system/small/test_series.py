@@ -875,6 +875,49 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@pytest.mark.parametrize(
+    ("na_option",),
+    [
+        ("keep",),
+        ("top",),
+        ("bottom",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        ("average",),
+        ("mix",),
+        ("max",),
+        ("first",),
+    ],
+)
+def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, method):
+    col_name = "bool_col"
+    bf_result = scalars_df_index[col_name].rank(na_option=na_option).compute()
+    pd_result = (
+        scalars_pandas_df_index[col_name]
+        .rank(na_option=na_option)
+        .astype(pd.Float64Dtype())
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_rank_ints(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_too"
+    bf_result = scalars_df_index[col_name].rank().compute()
+    pd_result = scalars_pandas_df_index[col_name].rank().astype(pd.Float64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     bf_result = scalars_df_index[col_name].cumsum().cumsum().cumsum().compute()

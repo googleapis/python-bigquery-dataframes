@@ -223,10 +223,14 @@ class Block:
         impl_length, impl_width = self._expr.shape()
         return (impl_length, impl_width - len(self.index_columns))
 
-    def apply_unary_op(self, column: str, op: ops.UnaryOp):
-        self.expr = self._expr.project_unary_op(column, op)
+    def apply_unary_op(self, column: str, op: ops.UnaryOp, output_name=None):
+        self.expr = self._expr.project_unary_op(column, op, output_name)
 
     def apply_window_op(
-        self, column: str, op: agg_ops.WindowOp, window_spec: bigframes.core.WindowSpec
+        self,
+        column: str,
+        op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
+        output_name=None,
     ):
-        self.expr = self._expr.project_window_op(column, op, window_spec)
+        self.expr = self._expr.project_window_op(column, op, window_spec, output_name)

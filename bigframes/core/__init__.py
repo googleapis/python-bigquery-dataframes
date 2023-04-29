@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import functools
 import math
 import typing
@@ -24,7 +25,11 @@ import ibis
 import ibis.expr.types as ibis_types
 
 import bigframes.aggregations as agg_ops
-from bigframes.core.ordering import ExpressionOrdering, stringify_order_id
+from bigframes.core.ordering import (
+    ExpressionOrdering,
+    OrderingDirection,
+    stringify_order_id,
+)
 import bigframes.guid
 import bigframes.operations as ops
 
@@ -36,17 +41,20 @@ ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
 
+@dataclass(frozen=True)
 class WindowSpec:
-    # TODO: Support overriding ordering
-    def __init__(
-        self,
-        grouping_keys: typing.Optional[typing.Sequence[str]] = None,
-        preceding: typing.Optional[int] = None,
-        following: typing.Optional[int] = None,
-    ):
-        self._grouping_keys = grouping_keys
-        self._preceding = preceding
-        self._following = following
+    """
+    Specifies a window over which aggregate and analytic function may be applied.
+    grouping_keys: set of column ids to group on
+    preceding: Number of preceding rows in the window
+    following: Number of preceding rows in the window
+    ordering: List of columns ids and ordering direction to override base ordering
+    """
+
+    grouping_keys: typing.Sequence[str] = tuple()
+    ordering: typing.Sequence[typing.Tuple[str, OrderingDirection]] = tuple()
+    preceding: typing.Optional[int] = None
+    following: typing.Optional[int] = None
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
@@ -388,26 +396,29 @@ class BigFramesExpr:
             ordering=ordering,
         )
 
-    def project_unary_op(self, column_name: str, op: ops.UnaryOp) -> BigFramesExpr:
-        """Creates a new expression based on this expression with unary operation applied to one column."""
-        expr = self.builder()
-        expr.columns = list(
-            [
-                op._as_ibis(self.get_column(name)).name(name)
-                if column_name == name
-                else self.get_column(name)
-                for name in self.column_names
-            ]
-        )
-        result = expr.build()
-        return result
-
-    def project_window_op(
-        self, column_name: str, op: agg_ops.WindowOp, window_spec: WindowSpec
+    def project_unary_op(
+        self, column_name: str, op: ops.UnaryOp, output_name=None
     ) -> BigFramesExpr:
         """Creates a new expression based on this expression with unary operation applied to one column."""
-        expr = self.builder()
+        value = op._as_ibis(self.get_column(column_name)).name(
+            output_name or column_name
+        )
+        return self._set_or_replace_by_id(output_name or column_name, value)
 
+    def project_window_op(
+        self,
+        column_name: str,
+        op: agg_ops.WindowOp,
+        window_spec: WindowSpec,
+        output_name=None,
+    ) -> BigFramesExpr:
+        """
+        Creates a new expression based on this expression with unary operation applied to one column.
+        column_name: the id of the input column present in the expression
+        op: the windowable operator to apply to the input column
+        window_spec: a specification of the window over which to apply the operator
+        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
+        """
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
         window = self._ibis_window_from_spec(window_spec)
 
@@ -416,15 +427,9 @@ class BigFramesExpr:
             cumulative_value = (
                 ibis.case().when(column.isnull(), ibis.NA).else_(cumulative_value).end()
             )
-        expr.columns = list(
-            [
-                cumulative_value.name(name)
-                if column_name == name
-                else self.get_column(name)
-                for name in self.column_names
-            ]
+        result = self._set_or_replace_by_id(
+            output_name or column_name, cumulative_value
         )
-        result = expr.build()
         # TODO(tbergeron): Should defer this until second window is applied to avoid unnecessarily creating new table expressions every analytic op.
         return result._reproject_to_table()
 
@@ -572,18 +577,50 @@ class BigFramesExpr:
 
     def _ibis_window_from_spec(self, window_spec: WindowSpec):
         group_by: typing.List[ibis_types.Value] = (
-            [self.get_column(column) for column in window_spec._grouping_keys]
-            if window_spec._grouping_keys
+            [
+                typing.cast(ibis_types.Column, self.get_column(column))
+                for column in window_spec.grouping_keys
+            ]
+            if window_spec.grouping_keys
             else []
         )
         if self.reduced_predicate is not None:
             group_by.append(self.reduced_predicate)
+
+        if window_spec.ordering:
+            order_overrides = [
+                ibis.asc(typing.cast(ibis_types.Column, self.get_column(column)))
+                if direction == OrderingDirection.ASC
+                else ibis.desc(typing.cast(ibis_types.Column, self.get_column(column)))
+                for column, direction in window_spec.ordering
+            ]
+            order_by = tuple([*order_overrides, *self.ordering])
+        elif (window_spec.following is not None) or (window_spec.preceding is not None):
+            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
+            order_by = tuple(self.ordering)
+        else:
+            # Unbound grouping window. Suitable for aggregations but not for analytic function application.
+            order_by = None
+
         return ibis.window(
-            preceding=window_spec._preceding,
-            following=window_spec._following,
-            order_by=self.ordering,
+            preceding=window_spec.preceding,
+            following=window_spec.following,
+            order_by=order_by,
             group_by=group_by,
         )
+
+    def _set_or_replace_by_id(self, id: str, value: ibis_types.Value):
+        expr = self.builder()
+        if id in self.column_names:
+            expr.columns = list(
+                [
+                    value.name(id) if id == name else self.get_column(name)
+                    for name in self.column_names
+                ]
+            )
+        else:
+            expr.columns = [*self.columns, value.name(id)]
+        return expr.build()
 
 
 class BigFramesExprBuilder:
