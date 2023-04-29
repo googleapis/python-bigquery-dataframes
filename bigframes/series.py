@@ -49,11 +49,14 @@ class Series(bigframes.operations.base.SeriesMethods):
     """
 
     @property
-    def dtype(self) -> bigframes.dtypes.BigFramesDtype:
+    def dtype(self):
         """Returns the dtype of the Series"""
-        return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-            typing.cast(bigframes.dtypes.IbisDtype, self._value.type())
-        )  # type: ignore
+        return self._block.dtypes[0]
+
+    @property
+    def dtypes(self):
+        """Returns the dtype of the Series"""
+        return self._block.dtypes[0]
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
@@ -86,6 +89,16 @@ class Series(bigframes.operations.base.SeriesMethods):
     def shape(self) -> typing.Tuple[int]:
         """Returns the dimensions of the series as a tuple"""
         return (self._block.shape()[0],)
+
+    @property
+    def size(self) -> int:
+        """Returns the number of elements in the series"""
+        return self._block.shape()[0]
+
+    @property
+    def empty(self) -> bool:
+        """True if and only if the series has no items"""
+        return self._block.shape()[0] == 0
 
     def copy(self) -> Series:
         """Creates a deep copy of the series."""
@@ -164,6 +177,8 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
         return self._apply_unary_op(ops.isnull_op)
 
+    isna = isnull
+
     def notnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
         return self._apply_unary_op(ops.notnull_op)
@@ -181,51 +196,109 @@ class Series(bigframes.operations.base.SeriesMethods):
     __ror__ = __or__
 
     def __add__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.add(other)
+
+    def __radd__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.radd(other)
+
+    def add(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.add_op)
 
-    __radd__ = __add__
+    def radd(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.reverse(ops.add_op))
 
     def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.sub_op)
+        return self.sub(other)
 
     def __rsub__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.rsub(other)
+
+    def sub(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.sub_op)
+
+    def rsub(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
     def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.mul(other)
+
+    def __rmul__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.rmul(other)
+
+    def mul(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.mul_op)
 
-    __rmul__ = __mul__
+    def rmul(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.reverse(ops.mul_op))
+
+    multiply = mul
 
     def __truediv__(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.div_op, ibis_dtypes.float)
+        return self.truediv(other)
 
     def __rtruediv__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.rtruediv(other)
+
+    def truediv(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.div_op, ibis_dtypes.float)
+
+    def rtruediv(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.div_op), ibis_dtypes.float)
 
+    div = truediv
+
+    divide = truediv
+
+    rdiv = rtruediv
+
     def __floordiv__(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.floordiv_op, ibis_dtypes.int64)
+        return self.floordiv(other)
 
     def __rfloordiv__(self, other: float | int | Series | pandas.Series) -> Series:
+        return self.rfloordiv(other)
+
+    def floordiv(self, other: float | int | Series | pandas.Series) -> Series:
+        return self._apply_binary_op(other, ops.floordiv_op, ibis_dtypes.int64)
+
+    def rfloordiv(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(
             other, ops.reverse(ops.floordiv_op), ibis_dtypes.int64
         )
 
-    def __lt__(self, other) -> Series:  # type: ignore
+    def __lt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+        return self.lt(other)
+
+    def __le__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+        return self.le(other)
+
+    def lt(self, other) -> Series:
         return self._apply_binary_op(other, ops.lt_op, ibis_dtypes.bool)
 
-    def __le__(self, other) -> Series:  # type: ignore
+    def le(self, other) -> Series:
         return self._apply_binary_op(other, ops.le_op, ibis_dtypes.bool)
 
-    def __gt__(self, other) -> Series:  # type: ignore
+    def __gt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+        return self.gt(other)
+
+    def __ge__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+        return self.ge(other)
+
+    def gt(self, other) -> Series:
         return self._apply_binary_op(other, ops.gt_op, ibis_dtypes.bool)
 
-    def __ge__(self, other) -> Series:  # type: ignore
+    def ge(self, other) -> Series:
         return self._apply_binary_op(other, ops.ge_op, ibis_dtypes.bool)
 
     def __mod__(self, other) -> Series:  # type: ignore
-        return self._apply_binary_op(other, ops.mod_op, ibis_dtypes.int64)
+        return self.mod(other)
 
     def __rmod__(self, other) -> Series:  # type: ignore
+        return self.rmod(other)
+
+    def mod(self, other) -> Series:  # type: ignore
+        return self._apply_binary_op(other, ops.mod_op, ibis_dtypes.int64)
+
+    def rmod(self, other) -> Series:  # type: ignore
         return self._apply_binary_op(other, ops.reverse(ops.mod_op), ibis_dtypes.int64)
 
     def __matmul__(self, other: Series):

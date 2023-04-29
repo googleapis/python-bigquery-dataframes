@@ -35,6 +35,7 @@ import pyarrow as pa  # type: ignore
 import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.indexes as indexes
+import bigframes.dtypes
 import bigframes.operations as ops
 
 
@@ -93,6 +94,23 @@ class Block:
     def expr(self, expr: bigframes.core.BigFramesExpr):
         self._expr = expr
         self._reset_index()
+
+    @property
+    def dtypes(
+        self,
+    ) -> Sequence[Union[bigframes.dtypes.BigFramesDtype, numpy.dtype[typing.Any]]]:
+        """Returns the dtypes as a Pandas Series object"""
+        ibis_dtypes = [
+            dtype
+            for col, dtype in self.expr.to_ibis_expr(ordering_mode="unordered")
+            .schema()
+            .items()
+            if col not in self.index_columns
+        ]
+        return [
+            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
+            for ibis_dtype in ibis_dtypes
+        ]
 
     def _reset_index(self):
         """Update index to match latest expression and column(s)."""

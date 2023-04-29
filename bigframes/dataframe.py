@@ -122,18 +122,7 @@ class DataFrame:
     @property
     def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
-        ibis_dtypes = [
-            dtype
-            for col, dtype in self._block.expr.to_ibis_expr(ordering_mode="unordered")
-            .schema()
-            .items()
-            if col not in self._block.index_columns
-        ]
-        bigframes_dtypes = [
-            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
-            for ibis_dtype in ibis_dtypes
-        ]
-        return pd.Series(data=bigframes_dtypes, index=self._col_names)
+        return pd.Series(data=self._block.dtypes, index=self._col_names)
 
     @property
     def columns(self) -> pd.Index:

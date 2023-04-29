@@ -743,6 +743,55 @@ def test_shape(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_size(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].size
+    pd_result = scalars_pandas_df["string_col"].size
+
+    assert pd_result == bf_result
+
+
+def test_empty_false(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].empty
+    pd_result = scalars_pandas_df["string_col"].empty
+
+    assert pd_result == bf_result
+
+
+def test_empty_true(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"][
+        scalars_df["string_col"] == "won't find this"
+    ].empty
+    pd_result = scalars_pandas_df["string_col"][
+        scalars_pandas_df["string_col"] == "won't find this"
+    ].empty
+
+    assert pd_result == bf_result
+
+
+def test_dtype(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].dtype
+    pd_result = scalars_pandas_df["string_col"].dtype
+
+    assert pd_result == bf_result
+
+
+def test_dtypes(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["int64_col"].dtypes
+    pd_result = scalars_pandas_df["int64_col"].dtypes
+
+    assert pd_result == bf_result
+
+
 def test_head(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
