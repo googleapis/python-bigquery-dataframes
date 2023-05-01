@@ -1214,3 +1214,28 @@ def test_mask_custom_value(scalars_dfs):
     # Accidentally the bigframes bahavior matches, but it should be updated
     # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("column", "to_type"),
+    [
+        ("int64_col", "Float64"),
+        ("int64_col", pd.Float64Dtype()),
+        ("int64_col", "string[pyarrow]"),
+        ("int64_col", "boolean"),
+        ("bool_col", "Int64"),
+        ("bool_col", "string[pyarrow]"),
+        # TODO(bmil): fix Ibis bug: BigQuery backend rounds to nearest int
+        # ("float64_col", "Int64"),
+        # TODO(bmil): decide whether to fix Ibis bug: BigQuery backend
+        # formats floats with no decimal places if they have no fractional
+        # part, and does not switch to scientific notation for > 10^15
+        # ("float64_col", "string[pyarrow]")
+        # TODO(bmil): add any other compatible conversions per
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions
+    ],
+)
+def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
+    bf_result = scalars_df_index[column].astype(to_type).compute()
+    pd_result = scalars_pandas_df_index[column].astype(to_type)
+    pd.testing.assert_series_equal(bf_result, pd_result)

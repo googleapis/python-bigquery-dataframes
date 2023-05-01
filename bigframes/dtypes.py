@@ -14,7 +14,8 @@
 
 """Mappings for Pandas dtypes supported by BigFrames"""
 
-from typing import Any, Dict, Iterable, Tuple, Union
+import typing
+from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
 import geopandas as gpd  # type: ignore
 import ibis
@@ -31,6 +32,19 @@ BigFramesDtype = Union[
     pd.Int64Dtype,
     pd.StringDtype,
     pd.ArrowDtype,
+]
+
+# Type hints for dtype strings supported by BigFrames
+BigFramesDtypeString = Literal[
+    "boolean",
+    "Float64",
+    "Int64",
+    "string",
+    "string[pyarrow]",
+    "timestamp[us, tz=UTC][pyarrow]",
+    "timestamp[us][pyarrow]",
+    "date32[day][pyarrow]",
+    "time64[us][pyarrow]",
 ]
 
 # Type hints for Ibis data types supported by BigFrames
@@ -85,6 +99,15 @@ IBIS_TO_BIGFRAMES.update(
     }
 )
 
+BIGFRAMES_STRING_TO_BIGFRAMES: Dict[BigFramesDtypeString, BigFramesDtype] = {
+    typing.cast(BigFramesDtypeString, dtype.name): dtype
+    for dtype in BIGFRAMES_TO_IBIS.keys()
+}
+
+# special case - string[pyarrow] doesn't include the storage in its name, and both
+# "string" and "string[pyarrow] are accepted"
+BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarrow")
+
 
 def ibis_dtype_to_bigframes_dtype(
     ibis_dtype: Union[IbisDtype, ReadOnlyIbisDtype]
@@ -108,7 +131,9 @@ def ibis_dtype_to_bigframes_dtype(
         raise ValueError(f"Unexpected Ibis data type {type(ibis_dtype)}")
 
 
-def bigframes_dtype_to_ibis_dtype(bigframes_dtype: BigFramesDtype) -> IbisDtype:
+def bigframes_dtype_to_ibis_dtype(
+    bigframes_dtype: Union[BigFramesDtypeString, BigFramesDtype]
+) -> IbisDtype:
     """Converts a BigFrames supported dtype to an Ibis dtype
 
     Args:
@@ -119,10 +144,15 @@ def bigframes_dtype_to_ibis_dtype(bigframes_dtype: BigFramesDtype) -> IbisDtype:
 
     Raises:
         ValueError: if passed a dtype not supported by BigFrames"""
-    if bigframes_dtype in BIGFRAMES_TO_IBIS:
-        return BIGFRAMES_TO_IBIS[bigframes_dtype]
+    type_string = str(bigframes_dtype)
+    if type_string in BIGFRAMES_STRING_TO_BIGFRAMES:
+        bigframes_dtype = BIGFRAMES_STRING_TO_BIGFRAMES[
+            typing.cast(BigFramesDtypeString, type_string)
+        ]
     else:
-        raise ValueError(f"Unexpected data type {type(bigframes_dtype)}")
+        raise ValueError(f"Unexpected data type {bigframes_dtype}")
+
+    return BIGFRAMES_TO_IBIS[bigframes_dtype]
 
 
 def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:
@@ -150,3 +180,53 @@ def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:
         raise ValueError(f"Literal did not coerce to a supported data type: {literal}")
 
     return scalar_expr
+
+
+def cast_ibis_value(
+    value: ibis.expr.types.Value, to_type: IbisDtype
+) -> ibis.expr.types.Value:
+    """Perform compatible type casts of ibis values
+
+    Args:
+        value: Ibis value, which could be a literal, scalar, or column
+
+        to_type: The Ibis type to cast to
+
+    Returns:
+        A new Ibis value of type to_type
+
+    Raises:
+        TypeError: if the type cast cannot be executed"""
+    # casts that just work
+    # TODO(bmil): add to this as more casts are verified
+    good_casts = {
+        ibis_dtypes.bool: (ibis_dtypes.int64,),
+        ibis_dtypes.int64: (
+            ibis_dtypes.bool,
+            ibis_dtypes.float64,
+            ibis_dtypes.string,
+        ),
+        ibis_dtypes.float64: (),
+        ibis_dtypes.string: (),
+        ibis_dtypes.date: (),
+        ibis_dtypes.time: (),
+        ibis_dtypes.timestamp: (),
+        ibis_dtypes.Timestamp(timezone="UTC"): (),
+    }
+    if value.type() in good_casts:
+        if to_type in good_casts[value.type()]:
+            return value.cast(to_type)
+    else:
+        # this should never happen
+        raise TypeError(f"Unexpected value type {value.type()}")
+
+    # casts that need some encouragement
+
+    # BigQuery casts bools to lower case strings. Capitalize the result to match Pandas
+    # TODO(bmil): remove this workaround after fixing Ibis
+    if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.string:
+        return typing.cast(
+            ibis.expr.types.StringValue, value.cast(to_type)
+        ).capitalize()
+
+    raise TypeError(f"Unsupported cast {value.type()} to {to_type}")

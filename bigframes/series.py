@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Optional
+from typing import Optional, Union
 
 import ibis
 import ibis.common.exceptions
@@ -120,6 +120,15 @@ class Series(bigframes.operations.base.SeriesMethods):
         if self._name:
             return ibis_expr.name(self._name)
         return ibis_expr
+
+    def astype(
+        self,
+        dtype: Union[
+            bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
+        ],
+    ) -> Series:
+        ibis_dtype = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(dtype)
+        return self._apply_unary_op(bigframes.operations.AsTypeOp(ibis_dtype))
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""

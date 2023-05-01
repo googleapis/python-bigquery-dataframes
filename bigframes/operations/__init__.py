@@ -21,6 +21,8 @@ import ibis.common.exceptions
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
 
+import bigframes.dtypes
+
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 
 BinaryOp = typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value]
@@ -85,6 +87,14 @@ class StripOp(UnaryOp):
 
 
 # Parameterized ops
+class AsTypeOp(UnaryOp):
+    def __init__(self, to_type: bigframes.dtypes.IbisDtype):
+        self.to_type = to_type
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return bigframes.dtypes.cast_ibis_value(x, self.to_type)
+
+
 class FindOp(UnaryOp):
     def __init__(self, sub, start, end):
         self._sub = sub

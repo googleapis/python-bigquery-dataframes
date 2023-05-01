@@ -119,10 +119,41 @@ def test_bigframes_dtype_converts(ibis_dtype, bigframes_dtype):
     assert result == ibis_dtype
 
 
-def test_numpy_float32_raises_unexpected_datatype():
+@pytest.mark.parametrize(
+    ["bigframes_dtype_str", "ibis_dtype"],
+    [
+        # This test covers all dtypes that BigFrames can exactly map to Ibis
+        ("boolean", ibis_dtypes.boolean),
+        ("date32[day][pyarrow]", ibis_dtypes.date),
+        ("timestamp[us][pyarrow]", ibis_dtypes.Timestamp()),
+        ("Float64", ibis_dtypes.float64),
+        ("Int64", ibis_dtypes.int64),
+        ("string[pyarrow]", ibis_dtypes.string),
+        ("time64[us][pyarrow]", ibis_dtypes.time),
+        (
+            "timestamp[us, tz=UTC][pyarrow]",
+            ibis_dtypes.Timestamp(timezone="UTC"),
+        ),
+        # Special case - "string" is acceptable for "string[pyarrow]"
+        ("string", ibis_dtypes.string),
+    ],
+)
+def test_bigframes_string_dtype_converts(ibis_dtype, bigframes_dtype_str):
+    """Test all the Ibis data types needed to read BigQuery tables"""
+    result = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(bigframes_dtype_str)
+    assert result == ibis_dtype
+
+
+def test_unsupported_dtype_raises_unexpected_datatype():
     """Incompatible dtypes should fail when passed into BigFrames"""
     with pytest.raises(ValueError, match="Unexpected data type"):
         bigframes.dtypes.bigframes_dtype_to_ibis_dtype(np.float32)
+
+
+def test_unsupported_dtype_str_raises_unexpected_datatype():
+    """Incompatible dtypes should fail when passed into BigFrames"""
+    with pytest.raises(ValueError, match="Unexpected data type"):
+        bigframes.dtypes.bigframes_dtype_to_ibis_dtype("int64")
 
 
 @pytest.mark.parametrize(
