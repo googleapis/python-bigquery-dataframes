@@ -33,6 +33,7 @@ from bigframes import (
     get_remote_function_locations,
     remote_function,
 )
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
@@ -256,22 +257,21 @@ def test_remote_function_decorator_with_bigframes_series(
     bf_int64_col = scalars_df["int64_col"]
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-    bf_result = bf_int64_col_filtered.apply(square).compute()
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
     pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-    pd_result = pd_int64_col_filtered.apply(lambda x: x * x)
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
     # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
     # pd_int64_col_filtered.dtype is Int64Dtype()
-    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64
-    # skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_function_explicit_with_bigframes_series(
@@ -294,22 +294,21 @@ def test_remote_function_explicit_with_bigframes_series(
     bf_int64_col = scalars_df["int64_col"]
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-    bf_result = bf_int64_col_filtered.apply(remote_add_one).compute()
+    bf_result_col = bf_int64_col_filtered.apply(remote_add_one)
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
     pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-    pd_result = pd_int64_col_filtered.apply(lambda x: add_one(x))
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_int64_col_filtered.apply(add_one)
     # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
     # pd_int64_col_filtered.dtype is Int64Dtype()
-    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64
-    # skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_udf_referring_outside_var(
@@ -340,22 +339,21 @@ def test_remote_udf_referring_outside_var(
     bf_int64_col = scalars_df["int64_col"]
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-    bf_result = bf_int64_col_filtered.apply(remote_sign).compute()
+    bf_result_col = bf_int64_col_filtered.apply(remote_sign)
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
     pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-    pd_result = pd_int64_col_filtered.apply(lambda x: sign(x))
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_int64_col_filtered.apply(sign)
     # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
     # pd_int64_col_filtered.dtype is Int64Dtype()
-    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64
-    # skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_udf_referring_outside_import(
@@ -380,22 +378,23 @@ def test_remote_udf_referring_outside_import(
     bf_float64_col = scalars_df["float64_col"]
     bf_float64_col_filter = bf_float64_col.notnull()
     bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
-    bf_result = bf_float64_col_filtered.apply(remote_circumference).compute()
+    bf_result_col = bf_float64_col_filtered.apply(remote_circumference)
+    bf_result = (
+        bf_float64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    )
 
     pd_float64_col = scalars_pandas_df["float64_col"]
     pd_float64_col_filter = pd_float64_col.notnull()
     pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
-    pd_result = pd_float64_col_filtered.apply(lambda x: circumference(x))
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_float64_col_filtered.apply(circumference)
     # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
     # pd_float64_col_filtered.dtype is Float64Dtype()
-    # pd_int64_col_filtered.apply(lambda x: x).dtype is float64
-    # skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_float64_col_filtered.apply(lambda x: x).dtype is float64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.Float64Dtype())
+    pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_udf_referring_global_var_and_import(
@@ -407,7 +406,7 @@ def test_remote_udf_referring_global_var_and_import(
             return _team_euler
         return _team_pi
 
-    remote_func = remote_function(
+    remote_find_team = remote_function(
         [dt.float64()],
         dt.string(),
         bigquery_client,
@@ -421,22 +420,23 @@ def test_remote_udf_referring_global_var_and_import(
     bf_float64_col = scalars_df["float64_col"]
     bf_float64_col_filter = bf_float64_col.notnull()
     bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
-    bf_result = bf_float64_col_filtered.apply(remote_func).compute()
+    bf_result_col = bf_float64_col_filtered.apply(remote_find_team)
+    bf_result = (
+        bf_float64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    )
 
     pd_float64_col = scalars_pandas_df["float64_col"]
     pd_float64_col_filter = pd_float64_col.notnull()
     pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
-    pd_result = pd_float64_col_filtered.apply(lambda x: find_team(x))
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_float64_col_filtered.apply(find_team)
     # TODO(shobs): Figure if the dtype mismatch is by design:
     # bf_result.dtype: string[pyarrow]
-    # pd_result.dtype: dtype('O')
-    # Skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_result.dtype: dtype('O').
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.StringDtype(storage="pyarrow"))
+    pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_function_restore_with_bigframes_series(
@@ -500,22 +500,23 @@ def test_remote_function_restore_with_bigframes_series(
         bf_int64_col = scalars_df["int64_col"]
         bf_int64_col_filter = bf_int64_col.notnull()
         bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result = bf_int64_col_filtered.apply(remote_add_one).compute()
+        bf_result_col = bf_int64_col_filtered.apply(remote_add_one)
+        bf_result = (
+            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+        )
 
         pd_int64_col = scalars_pandas_df["int64_col"]
         pd_int64_col_filter = pd_int64_col.notnull()
         pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result = pd_int64_col_filtered.apply(lambda x: add_one_uniq(x))
-
-        if pd_result.index.name != "rowindex":
-            bf_result = bf_result.sort_values(ignore_index=True)
-            pd_result = pd_result.sort_values(ignore_index=True)
-
+        pd_result_col = pd_int64_col_filtered.apply(add_one_uniq)
         # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # d_int64_col_filtered.dtype is Int64Dtype()
-        # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
-        # skip type check for now
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+        # pd_int64_col_filtered.dtype is Int64Dtype()
+        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+        # For this test let's force the pandas dtype to be same as bigframes' dtype.
+        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
+        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
     # Test that the remote function works as expected
     test_inner()
@@ -590,16 +591,14 @@ def test_remote_udf_mask_default_value(
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_int64_col = scalars_df["int64_col"]
-    bf_result = bf_int64_col.mask(is_odd_remote).compute()
+    bf_result_col = bf_int64_col.mask(is_odd_remote)
+    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
-    pd_result = pd_int64_col.mask(is_odd)
+    pd_result_col = pd_int64_col.mask(is_odd)
+    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_remote_udf_mask_custom_value(
@@ -628,13 +627,11 @@ def test_remote_udf_mask_custom_value(
     # fixed https://github.com/pandas-dev/pandas/issues/52955,
     # for now filter out the nulls and test the rest
     bf_int64_col = scalars_df["int64_col"]
-    bf_result = bf_int64_col[bf_int64_col.notnull()].mask(is_odd_remote, -1).compute()
+    bf_result_col = bf_int64_col[bf_int64_col.notnull()].mask(is_odd_remote, -1)
+    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
-    pd_result = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
+    pd_result_col = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
+    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

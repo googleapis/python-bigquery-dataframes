@@ -15,7 +15,7 @@
 import pandas as pd
 
 
-def assert_pandas_df_equal_ignore_ordering(df0, df1, rtol=None):
+def assert_pandas_df_equal_ignore_ordering(df0, df1, **kwargs):
     # Sort by a column to get consistent results.
     if df0.index.name != "rowindex":
         df0 = df0.sort_values(
@@ -28,7 +28,7 @@ def assert_pandas_df_equal_ignore_ordering(df0, df1, rtol=None):
         df0 = df0.sort_index()
         df1 = df1.sort_index()
 
-    pd.testing.assert_frame_equal(df0, df1)
+    pd.testing.assert_frame_equal(df0, df1, **kwargs)
 
 
 def assert_series_equal_ignoring_order(left: pd.Series, right: pd.Series, **kwargs):

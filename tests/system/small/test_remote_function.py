@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import ibis.expr.datatypes as dt
-import pandas
+import pandas as pd
 import pytest
 
 from bigframes import remote_function
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
 @pytest.fixture(scope="module")
@@ -47,19 +48,18 @@ def test_remote_function_with_bigframes_series(
     bf_int64_col = scalars_df["int64_col"]
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-    bf_result = bf_int64_col_filtered.apply(square).compute()
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
     pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-    pd_result = pd_int64_col_filtered.apply(lambda x: x * x)
-
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values(ignore_index=True)
-        pd_result = pd_result.sort_values(ignore_index=True)
-
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
     # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-    # d_int64_col_filtered.dtype is Int64Dtype()
-    # d_int64_col_filtered.apply(lambda x: x * x).dtype is int64
-    # skip type check for now
-    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
