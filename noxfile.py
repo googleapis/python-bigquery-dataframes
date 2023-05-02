@@ -59,7 +59,7 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 ]
 SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
-SYSTEM_TEST_EXTRAS: List[str] = []
+SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
@@ -69,6 +69,7 @@ nox.options.sessions = [
     "unit",
     "unit_prerelease",
     "system",
+    "system_noextras",
     # TODO(swast): Compatibility with latest ibis. "suffixes" argument renamed:
     # https://github.com/ibis-project/ibis/commit/3caf3a12469d017428d5e2bb94143185e8770038
     # "system_prerelease",
@@ -164,9 +165,9 @@ def install_unittest_dependencies(session, *constraints):
         session.install("-e", ".", *constraints)
 
 
-def default(session):
-    # Install all test dependencies, then install this package in-place.
-
+@nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
+def unit(session):
+    """Run the unit test suite."""
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
@@ -187,12 +188,6 @@ def default(session):
         tests_path,
         *session.posargs,
     )
-
-
-@nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
-def unit(session):
-    """Run the unit test suite."""
-    default(session)
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -236,7 +231,7 @@ def mypy(session):
     )
 
 
-def install_systemtest_dependencies(session, *constraints):
+def install_systemtest_dependencies(session, install_test_extra, *constraints):
     # Use pre-release gRPC for system tests.
     # Exclude version 1.49.0rc1 which has a known issue.
     # See https://github.com/grpc/grpc/pull/30642
@@ -253,9 +248,9 @@ def install_systemtest_dependencies(session, *constraints):
     if SYSTEM_TEST_DEPENDENCIES:
         session.install("-e", *SYSTEM_TEST_DEPENDENCIES, *constraints)
 
-    if SYSTEM_TEST_EXTRAS_BY_PYTHON:
+    if install_test_extra and SYSTEM_TEST_EXTRAS_BY_PYTHON:
         extras = SYSTEM_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
-    elif SYSTEM_TEST_EXTRAS:
+    elif install_test_extra and SYSTEM_TEST_EXTRAS:
         extras = SYSTEM_TEST_EXTRAS
     else:
         extras = []
@@ -266,13 +261,11 @@ def install_systemtest_dependencies(session, *constraints):
         session.install("-e", ".", *constraints)
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
-def system(session):
+def run_system(session, prefix_name, test_folder, check_cov, install_test_extra):
     """Run the system test suite."""
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
-    system_test_folder_path = os.path.join("tests", "system", "small")
 
     # Check the value of `RUN_SYSTEM_TESTS` env var. It defaults to true.
     if os.environ.get("RUN_SYSTEM_TESTS", "true") == "false":
@@ -281,50 +274,66 @@ def system(session):
     if os.environ.get("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false") == "true":
         session.install("pyopenssl")
 
-    install_systemtest_dependencies(session, "-c", constraints_path)
+    install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
     # Run py.test against the system tests.
-    session.run(
+    pytest_cmd = [
         "py.test",
         "--quiet",
         "-n 20",
-        f"--junitxml=system_{session.python}_sponge_log.xml",
-        "--cov=bigframes",
-        f"--cov={system_test_folder_path}",
-        "--cov-append",
-        "--cov-config=.coveragerc",
-        "--cov-report=term-missing",
-        "--cov-fail-under=0",
-        system_test_folder_path,
+        f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
+    ]
+    if check_cov:
+        pytest_cmd.extend(
+            [
+                "--cov=bigframes",
+                f"--cov={test_folder}",
+                "--cov-append",
+                "--cov-config=.coveragerc",
+                "--cov-report=term-missing",
+                "--cov-fail-under=0",
+            ]
+        )
+    session.run(
+        *pytest_cmd,
+        test_folder,
         *session.posargs,
+    )
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
+def system(session):
+    """Run the system test suite."""
+    run_system(
+        session=session,
+        prefix_name="system",
+        test_folder=os.path.join("tests", "system", "small"),
+        check_cov=True,
+        install_test_extra=True,
+    )
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def system_noextras(session):
+    """Run the system test suite."""
+    run_system(
+        session=session,
+        prefix_name="system_noextras",
+        test_folder=os.path.join("tests", "system", "small"),
+        check_cov=False,
+        install_test_extra=False,
     )
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def e2e(session):
     """Run the large tests in system test suite."""
-    constraints_path = str(
-        CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
-    )
-    system_test_folder_path = os.path.join("tests", "system", "large")
-
-    # Check the value of `RUN_SYSTEM_TESTS` env var. It defaults to true.
-    if os.environ.get("RUN_SYSTEM_TESTS", "true") == "false":
-        session.skip("RUN_SYSTEM_TESTS is set to false, skipping")
-    # Install pyopenssl for mTLS testing.
-    if os.environ.get("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false") == "true":
-        session.install("pyopenssl")
-
-    install_systemtest_dependencies(session, "-c", constraints_path)
-
-    # Run py.test against the system tests.
-    session.run(
-        "py.test",
-        "--quiet",
-        "-n 20",
-        f"--junitxml=e2e_{session.python}_sponge_log.xml",
-        system_test_folder_path,
-        *session.posargs,
+    run_system(
+        session=session,
+        prefix_name="e2e",
+        test_folder=os.path.join("tests", "system", "large"),
+        check_cov=False,
+        install_test_extra=True,
     )
 
 

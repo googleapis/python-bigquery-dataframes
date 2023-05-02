@@ -16,6 +16,11 @@ import google.api_core.exceptions
 import pandas
 import pytest
 
+try:
+    import pandas_gbq  # type: ignore
+except ImportError:
+    pandas_gbq = None
+
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     """Verify to_pandas() APIs returns the expected dtypes."""
@@ -66,6 +71,7 @@ def test_to_csv(scalars_dfs, gcs_folder: str):
     pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
 
 
+@pytest.mark.skipif(pandas_gbq is None, reason="required by pandas.read_gbq")
 def test_to_gbq(scalars_dfs, dataset_id):
     scalars_df, scalars_pandas_df = scalars_dfs
     if scalars_df.index.name is not None:
@@ -82,6 +88,7 @@ def test_to_gbq(scalars_dfs, dataset_id):
     pandas.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
 
 
+@pytest.mark.skipif(pandas_gbq is None, reason="required by pandas.read_gbq")
 def test_to_gbq_if_exists(scalars_df_index, scalars_pandas_df_index, dataset_id):
     destination_table = f"{dataset_id}.test_to_gbq_if_exists"
     scalars_df_index.to_gbq(destination_table)

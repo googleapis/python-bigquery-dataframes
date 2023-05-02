@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import io
+import itertools
 import os
 from typing import Dict
 
@@ -42,8 +43,13 @@ dependencies = [
     "ibis-framework[bigquery] >=5.0.0, <6.0.0dev",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
-    "pandas-gbq >=0.19.0",
 ]
+extras = {
+    "tests": [
+        "pandas-gbq >=0.19.0",
+    ]
+}
+extras["all"] = set(itertools.chain.from_iterable(extras.values()))
 
 # Setup boilerplate below this line.
 
@@ -87,9 +93,10 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Topic :: Internet",
     ],
+    install_requires=dependencies,
+    extras_require=extras,
     platforms="Posix; MacOS X; Windows",
     packages=packages,
-    install_requires=dependencies,
     python_requires=">=3.9",
     include_package_data=True,
     zip_safe=False,
