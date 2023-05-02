@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy
 import pandas as pd
+import pytest
+
+try:
+    import sklearn.metrics as sklearn_metrics  # type: ignore
+except ImportError:
+    sklearn_metrics = None
 
 import bigframes.ml.metrics
 
@@ -75,6 +82,42 @@ def test_roc_curve_binary_classification_prediction_returns_expected(session):
     )
 
 
+@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
+def test_roc_curve_binary_classification_prediction_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [0, 0, 1, 1, 0, 1, 0, 1, 1, 1],
+            "y_score": [0.1, 0.4, 0.35, 0.8, 0.65, 0.9, 0.5, 0.3, 0.6, 0.45],
+        }
+    )
+
+    df = session.read_pandas(pd_df)
+    fpr, tpr, thresholds = bigframes.ml.metrics.roc_curve(
+        df[["y_true"]], df[["y_score"]], drop_intermediate=False
+    )
+    expected_fpr, expected_tpr, expected_thresholds = sklearn_metrics.roc_curve(
+        pd_df[["y_true"]], pd_df[["y_score"]], drop_intermediate=False
+    )
+
+    # sklearn returns float64 numpy arrays
+    np_fpr = fpr.compute().astype("float64").array
+    np_tpr = tpr.compute().astype("float64").array
+    np_thresholds = thresholds.compute().astype("float64").array
+
+    numpy.testing.assert_array_equal(
+        np_thresholds,
+        expected_thresholds,
+    )
+    numpy.testing.assert_array_equal(
+        np_fpr,
+        expected_fpr,
+    )
+    numpy.testing.assert_array_equal(
+        np_tpr,
+        expected_tpr,
+    )
+
+
 def test_roc_curve_binary_classification_decision_returns_expected(session):
     # Instead of operating on probabilities, assume a 70% decision threshold
     # has been applied, and operate on the final output
@@ -129,6 +172,46 @@ def test_roc_curve_binary_classification_decision_returns_expected(session):
     )
 
 
+@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
+def test_roc_curve_binary_classification_decision_matches_sklearn(session):
+    # Instead of operating on probabilities, assume a 70% decision threshold
+    # has been applied, and operate on the final output
+    y_score = [0.1, 0.4, 0.35, 0.8, 0.65, 0.9, 0.5, 0.3, 0.6, 0.45]
+    decisions_70pct = [1 if s > 0.7 else 0 for s in y_score]
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [0, 0, 1, 1, 0, 1, 0, 1, 1, 1],
+            "y_score": decisions_70pct,
+        }
+    )
+
+    df = session.read_pandas(pd_df)
+    fpr, tpr, thresholds = bigframes.ml.metrics.roc_curve(
+        df[["y_true"]], df[["y_score"]], drop_intermediate=False
+    )
+    expected_fpr, expected_tpr, expected_thresholds = sklearn_metrics.roc_curve(
+        pd_df[["y_true"]], pd_df[["y_score"]], drop_intermediate=False
+    )
+
+    # sklearn returns float64 numpy arrays
+    np_fpr = fpr.compute().astype("float64").array
+    np_tpr = tpr.compute().astype("float64").array
+    np_thresholds = thresholds.compute().astype("float64").array
+
+    numpy.testing.assert_array_equal(
+        np_thresholds,
+        expected_thresholds,
+    )
+    numpy.testing.assert_array_equal(
+        np_fpr,
+        expected_fpr,
+    )
+    numpy.testing.assert_array_equal(
+        np_tpr,
+        expected_tpr,
+    )
+
+
 def test_roc_auc_score_returns_expected(session):
     pd_df = pd.DataFrame(
         {
@@ -141,3 +224,21 @@ def test_roc_auc_score_returns_expected(session):
     score = bigframes.ml.metrics.roc_auc_score(df[["y_true"]], df[["y_score"]])
 
     assert score == 0.625
+
+
+@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
+def test_roc_auc_score_returns_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [0, 0, 1, 1, 0, 1, 0, 1, 1, 1],
+            "y_score": [0.1, 0.4, 0.35, 0.8, 0.65, 0.9, 0.5, 0.3, 0.6, 0.45],
+        }
+    )
+
+    df = session.read_pandas(pd_df)
+    score = bigframes.ml.metrics.roc_auc_score(df[["y_true"]], df[["y_score"]])
+    expected_score = sklearn_metrics.roc_auc_score(
+        pd_df[["y_true"]], pd_df[["y_score"]]
+    )
+
+    assert score == expected_score

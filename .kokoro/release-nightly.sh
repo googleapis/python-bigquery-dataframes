@@ -36,7 +36,7 @@ python3 -m pip install --require-hashes -r .kokoro/requirements.txt
 export PYTHONUNBUFFERED=1
 
 # Install dependencies, as the following steps depend on it
-pip install -e .
+pip install -e .[tests]
 
 # Update version string to include git hash and date
 CURRENT_DATE=$(date '+%Y%m%d')
@@ -59,9 +59,6 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 # See internal bug 274624240 for details.
 gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
 gsutil cp dist/* gs://dl-platform-colab/bigframes/
-
-# Install sklearn, as the API coverage step depends on it
-pip install scikit-learn
 
 # publish API coverage information to BigQuery
 # Note: only the kokoro service account has permission to write to this

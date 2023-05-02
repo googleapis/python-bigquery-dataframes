@@ -47,6 +47,7 @@ dependencies = [
 extras = {
     "tests": [
         "pandas-gbq >=0.19.0",
+        "scikit-learn >=1.2.2",
     ]
 }
 extras["all"] = set(itertools.chain.from_iterable(extras.values()))
