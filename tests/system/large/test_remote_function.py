@@ -28,11 +28,7 @@ import pandas
 import pytest
 import test_utils.prefixer
 
-from bigframes import (
-    get_cloud_function_name,
-    get_remote_function_locations,
-    remote_function,
-)
+from bigframes import get_cloud_function_name, get_remote_function_locations
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -117,14 +113,14 @@ def functions_client() -> functions_v2.FunctionServiceClient:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def cleanup_cloud_functions(bigquery_client, functions_client, dataset_id_permanent):
+def cleanup_cloud_functions(session, functions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
     permanent_endpoints = get_remote_function_endpoints(
-        bigquery_client, dataset_id_permanent
+        session.bqclient, dataset_id_permanent
     )
     delete_count = 0
     for cloud_function in get_cloud_functions(
-        functions_client, bigquery_client.project, bigquery_client.location
+        functions_client, session.bqclient.project, session.bqclient.location
     ):
         # Ignore bigframes cloud functions referred by the remote functions in
         # the permanent dataset
@@ -164,12 +160,15 @@ def cleanup_cloud_functions(bigquery_client, functions_client, dataset_id_perman
 
 
 def test_remote_function_multiply_with_ibis(
-    scalars_table_id, ibis_client, bigquery_client, dataset_id, bq_cf_connection
+    session,
+    scalars_table_id,
+    ibis_client,
+    dataset_id,
+    bq_cf_connection,
 ):
-    @remote_function(
+    @session.remote_function(
         [dt.int64(), dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -204,12 +203,15 @@ def test_remote_function_multiply_with_ibis(
 
 
 def test_remote_function_stringify_with_ibis(
-    scalars_table_id, ibis_client, bigquery_client, dataset_id, bq_cf_connection
+    session,
+    scalars_table_id,
+    ibis_client,
+    dataset_id,
+    bq_cf_connection,
 ):
-    @remote_function(
+    @session.remote_function(
         [dt.int64()],
         dt.str(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -239,12 +241,11 @@ def test_remote_function_stringify_with_ibis(
 
 
 def test_remote_function_decorator_with_bigframes_series(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
-    @remote_function(
+    @session.remote_function(
         [dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -275,15 +276,14 @@ def test_remote_function_decorator_with_bigframes_series(
 
 
 def test_remote_function_explicit_with_bigframes_series(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     def add_one(x):
         return x + 1
 
-    remote_add_one = remote_function(
+    remote_add_one = session.remote_function(
         [dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -312,7 +312,7 @@ def test_remote_function_explicit_with_bigframes_series(
 
 
 def test_remote_udf_referring_outside_var(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     POSITIVE_SIGN = 1
     NEGATIVE_SIGN = -1
@@ -325,10 +325,9 @@ def test_remote_udf_referring_outside_var(
             return NEGATIVE_SIGN
         return NO_SIGN
 
-    remote_sign = remote_function(
+    remote_sign = session.remote_function(
         [dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -357,17 +356,16 @@ def test_remote_udf_referring_outside_var(
 
 
 def test_remote_udf_referring_outside_import(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     import math as mymath
 
     def circumference(radius):
         return 2 * mymath.pi * radius
 
-    remote_circumference = remote_function(
+    remote_circumference = session.remote_function(
         [dt.float64()],
         dt.float64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -398,7 +396,7 @@ def test_remote_udf_referring_outside_import(
 
 
 def test_remote_udf_referring_global_var_and_import(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     def find_team(num):
         boundary = (math.pi + math.e) / 2
@@ -406,10 +404,9 @@ def test_remote_udf_referring_global_var_and_import(
             return _team_euler
         return _team_pi
 
-    remote_find_team = remote_function(
+    remote_find_team = session.remote_function(
         [dt.float64()],
         dt.string(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -440,7 +437,11 @@ def test_remote_udf_referring_global_var_and_import(
 
 
 def test_remote_function_restore_with_bigframes_series(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection, functions_client
+    session,
+    scalars_dfs,
+    dataset_id,
+    bq_cf_connection,
+    functions_client,
 ):
     def add_one(x):
         return x + 1
@@ -464,8 +465,8 @@ def test_remote_function_restore_with_bigframes_series(
     cloud_functions = list(
         get_cloud_functions(
             functions_client,
-            bigquery_client.project,
-            bigquery_client.location,
+            session.bqclient.project,
+            session.bqclient.location,
             name_prefix=add_one_uniq_cf_name,
         )
     )
@@ -473,10 +474,9 @@ def test_remote_function_restore_with_bigframes_series(
 
     # The first time both the cloud function and the bq remote function don't
     # exist and would be created
-    remote_add_one = remote_function(
+    remote_add_one = session.remote_function(
         [dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=True,
@@ -486,8 +486,8 @@ def test_remote_function_restore_with_bigframes_series(
     cloud_functions = list(
         get_cloud_functions(
             functions_client,
-            bigquery_client.project,
-            bigquery_client.location,
+            session.bqclient.project,
+            session.bqclient.location,
             name_prefix=add_one_uniq_cf_name,
         )
     )
@@ -530,8 +530,8 @@ def test_remote_function_restore_with_bigframes_series(
     cloud_functions = list(
         get_cloud_functions(
             functions_client,
-            bigquery_client.project,
-            bigquery_client.location,
+            session.bqclient.project,
+            session.bqclient.location,
             name_prefix=add_one_uniq_cf_name,
         )
     )
@@ -540,10 +540,9 @@ def test_remote_function_restore_with_bigframes_series(
     # The second time bigframes detects that the required cloud function doesn't
     # exist even though the remote function exists, and goes ahead and recreates
     # the cloud function
-    remote_add_one = remote_function(
+    remote_add_one = session.remote_function(
         [dt.int64()],
         dt.int64(),
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=True,
@@ -553,8 +552,8 @@ def test_remote_function_restore_with_bigframes_series(
     cloud_functions = list(
         get_cloud_functions(
             functions_client,
-            bigquery_client.project,
-            bigquery_client.location,
+            session.bqclient.project,
+            session.bqclient.location,
             name_prefix=add_one_uniq_cf_name,
         )
     )
@@ -569,7 +568,7 @@ def test_remote_function_restore_with_bigframes_series(
 
 
 def test_remote_udf_mask_default_value(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     def is_odd(num):
         flag = False
@@ -579,10 +578,9 @@ def test_remote_udf_mask_default_value(
             pass
         return flag
 
-    is_odd_remote = remote_function(
+    is_odd_remote = session.remote_function(
         [dt.int64],
         dt.bool,
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -602,7 +600,7 @@ def test_remote_udf_mask_default_value(
 
 
 def test_remote_udf_mask_custom_value(
-    scalars_dfs, bigquery_client, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     def is_odd(num):
         flag = False
@@ -612,10 +610,9 @@ def test_remote_udf_mask_custom_value(
             pass
         return flag
 
-    is_odd_remote = remote_function(
+    is_odd_remote = session.remote_function(
         [dt.int64],
         dt.bool,
-        bigquery_client,
         dataset_id,
         bq_cf_connection,
         reuse=False,

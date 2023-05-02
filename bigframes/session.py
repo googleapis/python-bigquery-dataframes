@@ -36,6 +36,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
 import bigframes.dataframe as dataframe
 import bigframes.ml.loader
+from bigframes.remote_function import remote_function as biframes_rf
 import bigframes.version
 
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
@@ -71,6 +72,9 @@ class Context:
         be passed when creating a dataset / job. If not passed, falls back to the
         default inferred from the environment.
       location: Default location for jobs / datasets / tables.
+      bigquery_connection: Name of the BigQuery connection for the purpose of
+        remote udfs. It should be either pre created in `location`, or the user
+        should have privilege to create one.
     """
 
     def __init__(
@@ -78,10 +82,12 @@ class Context:
         credentials: Optional[google.auth.credentials.Credentials] = None,
         project: Optional[str] = None,
         location: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
     ):
         self._credentials = credentials
         self._project = project
         self._location = location
+        self._bigquery_connection = bigquery_connection
 
     @property
     def credentials(self) -> Optional[google.auth.credentials.Credentials]:
@@ -106,6 +112,14 @@ class Context:
     @location.setter
     def location(self, value: Optional[str]):
         self._location = value
+
+    @property
+    def bigquery_connection(self) -> Optional[str]:
+        return self._bigquery_connection
+
+    @bigquery_connection.setter
+    def bigquery_connection(self, value: Optional[str]):
+        self._bigquery_connection = value
 
 
 class Session:
@@ -144,12 +158,13 @@ class Session:
             "US" if context is None or context.location is None else context.location
         )
         self._create_and_bind_bq_session()
+        self._bigquery_connection = context.bigquery_connection
 
     @property
     def _session_dataset_id(self):
         """A dataset for storing temporary objects local to the session
-        This is a workaround for BQML models (and remote functions?) that do not yet support
-        session-temporary instances."""
+        This is a workaround for BQML models and remote functions that do not
+        yet support session-temporary instances."""
         return self._session_dataset.dataset_id
 
     def _create_and_bind_bq_session(self):
@@ -172,16 +187,16 @@ class Session:
             ]
         )
 
-        # Dataset for storing BQML models and remote functions, which don't yet support proper
-        # session temporary storage yet
+        # Dataset for storing BQML models and remote functions, which don't yet
+        # support proper session temporary storage yet
         self._session_dataset = bigquery.Dataset(
             f"{self.bqclient.project}.bigframes_temp_{self._location.lower().replace('-', '_')}"
         )
         self._session_dataset.location = self._location
         self._session_dataset.default_table_expiration_ms = 24 * 60 * 60 * 1000
 
-        # TODO: handle case when the dataset does not exist and the user does not have permission
-        # to create one (bigquery.datasets.create IAM)
+        # TODO: handle case when the dataset does not exist and the user does
+        # not have permission to create one (bigquery.datasets.create IAM)
         self.bqclient.create_dataset(self._session_dataset, exists_ok=True)
 
     def close(self):
@@ -498,6 +513,25 @@ class Session:
             # Allow query retry to succeed.
             pass
         return self.ibis_client.sql(f"SELECT * FROM `{table.table_id}`")
+
+    def remote_function(
+        self,
+        input_types: List[ibis.expr.datatypes.core.DataType],
+        output_type: ibis.expr.datatypes.core.DataType,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        reuse: bool = True,
+    ):
+        """Create a remote function from a user defined function."""
+
+        return biframes_rf(
+            input_types,
+            output_type,
+            session=self,
+            dataset=dataset,
+            bigquery_connection=bigquery_connection,
+            reuse=reuse,
+        )
 
 
 def connect(context: Optional[Context] = None) -> Session:
