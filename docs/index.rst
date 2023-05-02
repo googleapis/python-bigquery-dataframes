@@ -7,4 +7,5 @@ API Reference
 
     bigframes/library
 
+    bigframes/strings
     bigframes.ml/library

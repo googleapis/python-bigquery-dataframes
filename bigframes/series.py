@@ -972,6 +972,11 @@ class Series(bigframes.operations.base.SeriesMethods):
     # confusing type checker by overriding str
     @property
     def str(self) -> strings.StringMethods:
+        """Methods that act on a string Series.
+
+        Returns:
+            bigframes.operations.strings.StringMethods: Methods that act on a string Series.
+        """
         return strings.StringMethods(self._block, self._value_column, name=self._name)
 
 
