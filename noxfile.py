@@ -48,11 +48,15 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "flaky",
+    "jinja2",
     "mock",
+    "openpyxl",
     "pytest",
     "pytest-cov",
     "pytest-xdist",
     "google-cloud-testutils",
+    "tabulate",
+    "xarray",
 ]
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",

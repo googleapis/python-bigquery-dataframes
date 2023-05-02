@@ -23,6 +23,7 @@ import ibis
 import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
+import numpy
 import pandas
 import pandas.core.dtypes.common
 import typing_extensions
@@ -756,6 +757,83 @@ class Series(bigframes.operations.base.SeriesMethods):
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         col_names = [self.name] if self.name else ["0"]
         return bigframes.DataFrame(block.index, col_names)
+
+    def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
+        """Convert series to a excel."""
+        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
+        return self.compute().to_csv(path_or_buf, **kwargs)
+
+    def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
+        """Convert series to a dictionary."""
+        return self.compute().to_dict(into)
+
+    def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
+        """Convert series to a excel."""
+        return self.compute().to_excel(excel_writer, sheet_name, **kwargs)
+
+    def to_json(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
+        """Convert series to json."""
+        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
+        return self.compute().to_json(path_or_buf, **kwargs)
+
+    def to_latex(
+        self, buf=None, columns=None, header=True, index=True, **kwargs
+    ) -> typing.Optional[str]:
+        """Convert series to a latex."""
+        return self.compute().to_latex(
+            buf, columns=columns, header=header, index=index, **kwargs
+        )
+
+    def to_list(self) -> list:
+        """Convert series to a list."""
+        return self.compute().to_list()
+
+    def to_markdown(
+        self, buf=None, mode="wt", index=True, **kwargs
+    ) -> typing.Optional[str]:
+        """Convert series to markdown."""
+        return self.compute().to_markdown(buf, mode, index, **kwargs)
+
+    def to_numpy(
+        self, dtype=None, copy=False, na_value=None, **kwargs
+    ) -> numpy.ndarray:
+        """Convert series to a numpy array."""
+        return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
+
+    def to_pickle(self, path, **kwargs) -> None:
+        """Convert series to a pickle."""
+        return self.compute().to_pickle(path, **kwargs)
+
+    def to_string(
+        self,
+        buf=None,
+        na_rep="NaN",
+        float_format=None,
+        header=True,
+        index=True,
+        length=False,
+        dtype=False,
+        name=False,
+        max_rows=None,
+        min_rows=None,
+    ) -> typing.Optional[str]:
+        """Convert series to string."""
+        return self.compute().to_string(
+            buf,
+            na_rep,
+            float_format,
+            header,
+            index,
+            length,
+            dtype,
+            name,
+            max_rows,
+            min_rows,
+        )
+
+    def to_xarray(self):
+        """Convert series to an xarray."""
+        return self.compute().to_xarray()
 
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str

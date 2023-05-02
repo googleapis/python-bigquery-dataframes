@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import tempfile
 
 import geopandas as gpd  # type: ignore
 import numpy
@@ -1139,6 +1140,97 @@ def test_to_frame(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_to_json(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].to_json()
+    pd_result = scalars_pandas_df_index["int64_col"].to_json()
+
+    assert bf_result == pd_result
+
+
+def test_to_csv(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].to_csv()
+    pd_result = scalars_pandas_df_index["int64_col"].to_csv()
+
+    assert bf_result == pd_result
+
+
+def test_to_latex(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].to_latex()
+    pd_result = scalars_pandas_df_index["int64_col"].to_latex()
+
+    assert bf_result == pd_result
+
+
+def test_to_dict(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_dict()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_dict()
+
+    assert bf_result == pd_result
+
+
+def test_to_excel(scalars_df_index, scalars_pandas_df_index):
+    bf_result_file = tempfile.TemporaryFile()
+    pd_result_file = tempfile.TemporaryFile()
+    scalars_df_index["int64_too"].to_excel(bf_result_file)
+    scalars_pandas_df_index["int64_too"].to_excel(pd_result_file)
+    bf_result = bf_result_file.read()
+    pd_result = bf_result_file.read()
+
+    assert bf_result == pd_result
+
+
+def test_to_pickle(scalars_df_index, scalars_pandas_df_index):
+    bf_result_file = tempfile.TemporaryFile()
+    pd_result_file = tempfile.TemporaryFile()
+    scalars_df_index["int64_too"].to_pickle(bf_result_file)
+    scalars_pandas_df_index["int64_too"].to_pickle(pd_result_file)
+    bf_result = bf_result_file.read()
+    pd_result = bf_result_file.read()
+
+    assert bf_result == pd_result
+
+
+def test_to_string(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_string()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_string()
+
+    assert bf_result == pd_result
+
+
+def test_to_list(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_list()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_list()
+
+    assert bf_result == pd_result
+
+
+def test_to_numpy(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_numpy()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_numpy()
+
+    assert (bf_result == pd_result).all()
+
+
+def test_to_xarray(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_xarray()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_xarray()
+
+    assert bf_result.equals(pd_result)
+
+
+def test_to_markdown(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].to_markdown()
+
+    pd_result = scalars_pandas_df_index["int64_too"].to_markdown()
+
+    assert bf_result == pd_result
+
+
 @pytest.mark.parametrize(
     ("ascending", "na_position"),
     [
@@ -1159,8 +1251,6 @@ def test_sort_values(scalars_df_index, scalars_pandas_df_index, ascending, na_po
         ascending=ascending, na_position=na_position
     )
 
-    print(bf_result)
-    print(pd_result)
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
