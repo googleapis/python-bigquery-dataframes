@@ -103,8 +103,9 @@ def create_bqml_model(
     input_data = input_data.reset_index(drop=True)
 
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
+    options_sql = bigframes.ml.sql.options(**options)
     sql = bigframes.ml.sql.create_model(
-        model_name=model_name, source_sql=input_data.sql, options=options
+        model_name=model_name, source_sql=input_data.sql, options_sql=options_sql
     )
 
     # fit the model, synchronously

@@ -15,20 +15,54 @@
 import bigframes.ml.sql as ml_sql
 
 
+def test_options_produces_correct_sql():
+    sql = ml_sql.options(model_type="lin_reg", input_label_cols=["col_a"], l1_reg=0.6)
+    assert (
+        sql
+        == """OPTIONS(
+  model_type="lin_reg",
+  input_label_cols=["col_a"],
+  l1_reg=0.6)"""
+    )
+
+
+def test_transform_produces_correct_sql():
+    sql = ml_sql.transform("ML.STANDARD_SCALER(col_a)", "ML.ONE_HOT_ENCODER(col_b)")
+    assert (
+        sql
+        == """TRANSFORM(
+  ML.STANDARD_SCALER(col_a),
+  ML.ONE_HOT_ENCODER(col_b))"""
+    )
+
+
 def test_create_model_produces_correct_sql():
     sql = ml_sql.create_model(
         model_name="my_dataset.my_model",
-        source_sql="SELECT * FROM my_table",
-        options={"model_type": "lin_reg", "input_label_cols": ["col_a"], "l1_reg": 0.6},
+        source_sql="my_source_sql",
+        options_sql="my_options_sql",
     )
     assert (
         sql
         == """CREATE MODEL `my_dataset.my_model`
-OPTIONS (
-  model_type="lin_reg",
-  input_label_cols=["col_a"],
-  l1_reg=0.6
-) AS SELECT * FROM my_table"""
+my_options_sql
+AS my_source_sql"""
+    )
+
+
+def test_create_model_transform_produces_correct_sql():
+    sql = ml_sql.create_model(
+        model_name="my_dataset.my_model",
+        source_sql="my_source_sql",
+        options_sql="my_options_sql",
+        transform_sql="my_transform_sql",
+    )
+    assert (
+        sql
+        == """CREATE MODEL `my_dataset.my_model`
+my_transform_sql
+my_options_sql
+AS my_source_sql"""
     )
 
 

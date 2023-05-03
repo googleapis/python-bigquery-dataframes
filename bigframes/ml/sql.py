@@ -16,10 +16,11 @@
 Generates SQL queries needed for BigFrames ML
 """
 
-from typing import Dict, List, Union
+from typing import List, Optional, Union
 
 
 def encode_value(v: Union[str, int, float, List[str]]) -> str:
+    """Encode a parameter value for SQL"""
     if isinstance(v, str):
         return f'"{v}"'
     elif isinstance(v, int) or isinstance(v, float):
@@ -31,25 +32,53 @@ def encode_value(v: Union[str, int, float, List[str]]) -> str:
         raise ValueError("Unexpected value type")
 
 
-def build_paramlist(indent: int, **kwargs) -> str:
-    indent_str = "  " * indent
+def build_param_list(**kwargs: Union[str, int, float, List[str]]) -> str:
+    """Encode a dict of values into a formatted list of KVPs for SQL"""
+    indent_str = "  "
     param_strs = [f"{k}={encode_value(v)}" for k, v in kwargs.items()]
-    return indent_str + f",\n{indent_str}".join(param_strs)
+    return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
+
+
+def options(**kwargs: Union[str, int, float, List[str]]) -> str:
+    """Encode the OPTIONS clause for BQML"""
+    return f"OPTIONS({build_param_list(**kwargs)})"
+
+
+def build_expr_list(*expr_sqls: str) -> str:
+    "Encode a list of SQL expressions into a formatted list for SQL"
+    indent_str = "  "
+    return "\n" + indent_str + f",\n{indent_str}".join(expr_sqls)
+
+
+def transform(*expr_sqls: str) -> str:
+    """Encode the TRANSFORM clause for BQML"""
+    return f"TRANSFORM({build_expr_list(*expr_sqls)})"
+
+
+def ml_standard_scaler(numeric_expr_sql: str) -> str:
+    """Encode ML.STANDARD_SCALER for BQML"""
+    return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER()"""
 
 
 def create_model(
     model_name: str,
     source_sql: str,
-    options: Dict[str, Union[str, int, float, List[str]]],
+    transform_sql: Optional[str] = None,
+    options_sql: Optional[str] = None,
 ) -> str:
+    """Encode the CREATE MODEL statement for BQML"""
     # TODO(bmil): This should be CREATE TEMP MODEL after b/145824779 is fixed
-    return f"""CREATE MODEL `{model_name}`
-OPTIONS (
-{build_paramlist(indent=1, **options)}
-) AS {source_sql}"""
+    parts = [f"CREATE MODEL `{model_name}`"]
+    if transform_sql:
+        parts.append(transform_sql)
+    if options_sql:
+        parts.append(options_sql)
+    parts.append(f"AS {source_sql}")
+    return "\n".join(parts)
 
 
 def ml_evaluate(model_name: str, source_sql: Union[str, None] = None) -> str:
+    """Encode ML.EVALUATE for BQML"""
     if source_sql is None:
         return f"""SELECT * FROM ML.EVALUATE(MODEL `{model_name}`)"""
     else:
@@ -58,5 +87,6 @@ def ml_evaluate(model_name: str, source_sql: Union[str, None] = None) -> str:
 
 
 def ml_predict(model_name: str, source_sql: str) -> str:
+    """Encode ML.PREDICT for BQML"""
     return f"""SELECT * FROM ML.PREDICT(MODEL `{model_name}`,
   ({source_sql}))"""
