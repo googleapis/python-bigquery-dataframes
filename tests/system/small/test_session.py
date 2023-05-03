@@ -15,7 +15,6 @@ from io import StringIO
 import tempfile
 from typing import Tuple, Union
 
-import db_dtypes  # type: ignore
 import google.api_core.exceptions
 import numpy as np
 import pandas as pd
@@ -193,26 +192,21 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     else:
         path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index.csv"
     scalars_df.to_csv(path)
+    dtype = scalars_df.dtypes.to_dict()
+    dtype.pop("geography_col")
     gcs_df = session.read_csv(
         path,
-        dtype={
-            "bool_col": pd.BooleanDtype(),
-            "date_col": pd.ArrowDtype(pa.date32()),
-            "int64_col": pd.Int64Dtype(),
-            "int64_too": pd.Int64Dtype(),
-            "float64_col": pd.Float64Dtype(),
-            "rowindex": pd.Int64Dtype(),
-            "string_col": pd.StringDtype(storage="pyarrow"),
-            "time_col": pd.ArrowDtype(pa.time64("us")),
-        },
+        # Convert default pandas dtypes to match BigFrames dtypes.
+        dtype=dtype,
     )
+    assert gcs_df._block._expr._ordering is not None
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
     pd.testing.assert_index_equal(gcs_df.columns, scalars_df.columns)
 
-    # In the read_csv() API, read_pandas auto detects the `byte_col` & `geography_col`
+    # Called from session.read_csv, read_pandas auto detects the `byte_col` & `geography_col`
     # as the string type, the `numeric_col` as the Float64 type, and does not detect
-    # the correct types for `datetime_col` & `timestamp_col`
+    # the correct types for `datetime_col` & `timestamp_col`.
     gcs_df = gcs_df.drop(
         columns=[
             "bytes_col",
@@ -261,30 +255,21 @@ def test_read_csv_local_default_engine(session, scalars_dfs):
         path = dir + "/test_read_csv_local_default_engine.csv"
         # Using the pandas to_csv method because the BQ one does not support local write.
         scalars_pandas_df.to_csv(path, index=False)
+        dtype = scalars_df.dtypes.to_dict()
+        dtype.pop("geography_col")
         local_df = session.read_csv(
             path,
-            dtype={
-                "bool_col": pd.BooleanDtype(),
-                # TODO(swast): Needs microsecond precision support:
-                # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-                "date_col": db_dtypes.DateDtype(),
-                "int64_col": pd.Int64Dtype(),
-                "int64_too": pd.Int64Dtype(),
-                "float64_col": pd.Float64Dtype(),
-                "rowindex": pd.Int64Dtype(),
-                "string_col": pd.StringDtype(storage="pyarrow"),
-                # TODO(swast): Needs microsecond precision support:
-                # https://github.com/googleapis/python-db-dtypes-pandas/issues/47
-                "time_col": db_dtypes.TimeDtype(),
-            },
+            # Convert default pandas dtypes to match BigFrames dtypes.
+            dtype=dtype,
         )
+        assert local_df._block._expr._ordering is not None
 
         # TODO(chelsealin): If we serialize the index, can more easily compare values.
         pd.testing.assert_index_equal(local_df.columns, scalars_df.columns)
 
-        # In the read_csv() API, read_pandas auto detects the `byte_col` & `geography_col`
+        # Called from session.read_csv, read_pandas auto detects the `byte_col` & `geography_col`
         # as the string type, the `numeric_col` as the Float64 type, and does not detect
-        # the correct types for `datetime_col` & `timestamp_col`
+        # the correct types for `datetime_col` & `timestamp_col`.
         local_df = local_df.drop(
             columns=[
                 "bytes_col",
@@ -328,11 +313,18 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
         pd.testing.assert_series_equal(local_df.dtypes, scalars_df.dtypes)
 
 
-def test_read_csv_bq_engine_w_arguments_throws_not_implemented_error(session):
+def test_read_csv_bq_engine_w_dtype_throws_not_implemented_error(session):
     with pytest.raises(
         NotImplementedError, match="BigQuery engine does not support these arguments"
     ):
-        session.read_csv("", engine="bigquery", names=["1", "2"], dtype={})
+        session.read_csv("", engine="bigquery", dtype={})
+
+
+def test_read_csv_bq_engine_w_names_throws_not_implemented_error(session):
+    with pytest.raises(
+        NotImplementedError, match="BigQuery engine does not support these arguments"
+    ):
+        session.read_csv("", engine="bigquery", names=[])
 
 
 def test_read_csv_bq_engine_w_buffer_throws_not_implemented_error(session):
@@ -341,6 +333,22 @@ def test_read_csv_bq_engine_w_buffer_throws_not_implemented_error(session):
         NotImplementedError, match="BigQuery engine does not support buffers."
     ):
         session.read_csv(buffer, engine="bigquery")
+
+
+def test_read_csv_default_engine_w_chunksize_throws_not_implemented_error(session):
+    with pytest.raises(
+        NotImplementedError,
+        match="'chunksize' and 'iterator' arguments are not supported.",
+    ):
+        session.read_csv("", chunksize=5)
+
+
+def test_read_csv_default_engine_w_iterator_throws_not_implemented_error(session):
+    with pytest.raises(
+        NotImplementedError,
+        match="'chunksize' and 'iterator' arguments are not supported.",
+    ):
+        session.read_csv("", iterator=True)
 
 
 def test_read_csv_gcs_w_header_default_engine(session, scalars_df_index, gcs_folder):
@@ -353,7 +361,7 @@ def test_read_csv_gcs_w_header_default_engine(session, scalars_df_index, gcs_fol
     gcs_df = session.read_csv(
         path,
         header=2,
-        names=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"],
+        names=scalars_df_index.columns.to_list(),
     )
     assert gcs_df.shape[0] == scalars_df_index.shape[0] - 2
     assert len(gcs_df.columns) == len(scalars_df_index.columns)
@@ -381,7 +389,7 @@ def test_read_csv_local_w_header_default_engine(session, scalars_pandas_df_index
         local_df = session.read_csv(
             path,
             header=2,
-            names=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"],
+            names=scalars_pandas_df_index.columns.to_list(),
         )
         assert local_df.shape[0] == scalars_pandas_df_index.shape[0] - 2
         assert len(local_df.columns) == len(scalars_pandas_df_index.columns)

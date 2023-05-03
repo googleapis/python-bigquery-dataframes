@@ -16,15 +16,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import typing
-from typing import Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    MutableSequence,
+    Optional,
+    Tuple,
+    Union,
+)
 import uuid
 
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
+import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
 import ibis.expr.types as ibis_types
@@ -44,6 +56,8 @@ import bigframes.version
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
+logger = logging.getLogger(__name__)
 
 
 def _is_query(query_or_table: str) -> bool:
@@ -384,6 +398,8 @@ class Session:
         pandas_dataframe_copy = pandas_dataframe.copy()
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
+        # Column values will be loaded as null if the column name has spaces.
+        # https://github.com/googleapis/python-bigquery/issues/1566
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
@@ -414,12 +430,19 @@ class Session:
         engine: Optional[
             Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
         ] = None,
+        dtype: Optional[Dict] = None,
+        names: Optional[
+            Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
+        ] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
         """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
+
+        Note: using the `bigquery` engine will not guarantee the same ordering as the
+        file in the resulting dataframe.
 
         Args:
             filepath_or_buffer: a string path including GS and local file.
@@ -444,11 +467,14 @@ class Session:
             engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
                 API will be used. Otherwise, the engine will be passed to pandas.read_csv.
 
-            **kwargs: keyword arguments. Possible keyword arguments:
-                - names: a list of column names to use. If the file contains a header row, then
-                `header=0` should be passed so the first (header) row is ignored. Only works
-                with default engine.
-                - dtype: data type for data or columns. Only works with default engine.
+            dtype: data type for data or columns. Only to be used with default engine.
+
+            names: a list of column names to use. If the file contains a header row and you
+                want to pass this parameter, then `header=0` should be passed as well so the
+                first (header) row is ignored. Only to be used with default engine.
+
+            **kwargs: keyword arguments.
+
 
         Returns:
             A BigFrame DataFrame.
@@ -457,9 +483,10 @@ class Session:
         table = bigquery.Table(self._create_session_table())
 
         if engine is not None and engine == "bigquery":
-            if kwargs != {}:
+            if any(param is not None for param in (dtype, names)):
+                not_supported = ("dtype", "names")
                 raise NotImplementedError(
-                    "BigQuery engine does not support these arguments: " + str(kwargs)
+                    f"BigQuery engine does not support these arguments: {not_supported}"
                 )
 
             if not isinstance(filepath_or_buffer, str):
@@ -492,13 +519,43 @@ class Session:
             load_job.result()  # Wait for the job to complete
             return self.read_gbq(f"SELECT * FROM `{table.table_id}`")
         else:
+            if any(arg in kwargs for arg in ["chunksize", "iterator"]):
+                raise NotImplementedError(
+                    "'chunksize' and 'iterator' arguments are not supported."
+                )
+
+            self._check_file_size(filepath_or_buffer)
             pandas_df = pandas.read_csv(
                 filepath_or_buffer,
                 header=header,
                 engine=engine,
+                dtype=dtype,
+                names=names,
                 **kwargs,
             )
             return self.read_pandas(pandas_df)
+
+    def _check_file_size(self, filepath: str):
+        max_size = 1024 * 1024 * 1024  # 1 GB in bytes
+        if filepath.startswith("gs://"):  # GCS file path
+            client = storage.Client()
+            bucket_name, blob_name = filepath.split("/", 3)[2:]
+            bucket = client.bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            blob.reload()
+            file_size = blob.size
+        else:  # local file path
+            file_size = os.path.getsize(filepath)
+
+        if file_size > max_size:
+            # Convert to GB
+            file_size = round(file_size / (1024**3), 1)
+            max_size = int(max_size / 1024**3)
+            logger.warning(
+                f"File size {file_size}GB exceeds {max_size}GB. "
+                "It is recommended to use engine='bigquery' "
+                "for large files to avoid loading the file into local memory."
+            )
 
     def _create_session_table(self) -> bigquery.TableReference:
         table_name = f"{uuid.uuid4().hex}"
