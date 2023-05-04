@@ -24,33 +24,13 @@ except ImportError:
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     """Verify to_pandas() APIs returns the expected dtypes."""
-    # TODO(chelsealin): Check scalars_df_index.
-    # TODO(chelsealin): Use this check instead after b/275417413.
-    # pd.testing.assert_series_equal(result.dtypes, scalars_df_default_index.dtypes)
-
-    # For now, manually check passing and failing cases:
     actual = scalars_df_default_index.to_pandas().dtypes
     expected = scalars_df_default_index.dtypes
 
-    assert actual["bool_col"] == expected["bool_col"]
-    assert actual["bytes_col"] == expected["bytes_col"]
-    assert actual["date_col"] == expected["date_col"]
-    assert actual["geography_col"] == expected["geography_col"]
-    assert actual["int64_col"] == expected["int64_col"]
-    assert actual["int64_too"] == expected["int64_too"]
-    assert actual["numeric_col"] == expected["numeric_col"]
-    assert actual["rowindex"] == expected["rowindex"]
-    assert actual["time_col"] == expected["time_col"]
-    assert actual["float64_col"] == expected["float64_col"]
-    assert actual["string_col"] == expected["string_col"]
+    # TODO(chelsealin): Remove it after importing latest ibis with b/279503940.
+    expected["timestamp_col"] = "timestamp[us, tz=UTC][pyarrow]"
 
-    # TODO: should be microsecond units (not nanosecond)
-    # assert actual["datetime_col"] == expected["datetime_col"]
-
-    # TODO: should be pd.DatetimeTZDtype(unit="us", tz="UTC")
-    # not np.dtype("datetime64[ns]"). Note that both sides are
-    # wrong here.
-    # assert actual["timestamp_col"] == expected["timestamp_col"]
+    pandas.testing.assert_series_equal(actual, expected)
 
 
 def test_to_csv(scalars_dfs, gcs_folder: str):
