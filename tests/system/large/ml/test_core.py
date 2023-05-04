@@ -33,7 +33,7 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
     train_y = df[["body_mass_g"]]
 
     model = bigframes.ml.core.create_bqml_model(
-        train_X, train_y, {"model_type": "linear_reg"}
+        train_X, train_y, options={"model_type": "linear_reg"}
     )
 
     # no data - report evaluation from the automatic data split

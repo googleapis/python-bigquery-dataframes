@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/clustering.html"""
 
 from __future__ import annotations
 
-from typing import cast, Optional, TYPE_CHECKING
+from typing import cast, Dict, List, Optional, TYPE_CHECKING
 
 from google.cloud import bigquery
 
@@ -46,10 +46,15 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         new_kmeans._bqml_model = bigframes.ml.core.BqmlModel(session, model)
         return new_kmeans
 
+    @property
+    def _bqml_options(self) -> Dict[str, str | int | float | List[str]]:
+        """The model options as they will be set for BQML"""
+        return {"model_type": "KMEANS", "num_clusters": self.n_clusters}
+
     def fit(self, X: bigframes.DataFrame):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
-            options={"model_type": "KMEANS", "num_clusters": self.n_clusters},
+            options=self._bqml_options,
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:

@@ -20,9 +20,20 @@ import pandas
 
 import bigframes
 import bigframes.ml
+import bigframes.ml.sql
 
 
+# TODO(bmil): implement a preprocessor class in core.py that standardizes
+# compilation to SQL
 class StandardScaler(bigframes.ml.api_primitives.BaseEstimator):
+    """Implementation of sklearn.preprocessing.StandardScaler.
+
+    When used in a Pipeline, this class will compile to a ML.STANDARDSCALER and be
+    wrapped in a BQML TRANSFORM clause.
+
+    When used outside of a Pipeline, the current implementation will not use BQML.
+    This might be changed later to produce a transform-only model instead."""
+
     def __init__(self):
         # TODO(bmil): remove pandas dependency once BigFrames supports these
         self._avg: Optional[pandas.Series] = None
