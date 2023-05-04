@@ -112,6 +112,20 @@ class MinOp(AggregateOp):
         return _apply_window_if_present(column.min(), window)
 
 
+class StdOp(AggregateOp):
+    def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(
+            typing.cast(ibis_types.NumericColumn, x).std(), window
+        )
+
+
+class VarOp(AggregateOp):
+    def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(
+            typing.cast(ibis_types.NumericColumn, x).var(), window
+        )
+
+
 class CountOp(AggregateOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None
@@ -190,6 +204,8 @@ mean_op = MeanOp()
 product_op = ProductOp()
 max_op = MaxOp()
 min_op = MinOp()
+std_op = StdOp()
+var_op = VarOp()
 count_op = CountOp()
 rank_op = RankOp()
 all_op = AllOp()

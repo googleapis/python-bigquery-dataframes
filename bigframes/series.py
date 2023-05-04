@@ -444,6 +444,14 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Return the maximum values over the requested axis."""
         return self._apply_aggregation(agg_ops.min_op)
 
+    def std(self) -> bigframes.scalar.Scalar:
+        """Return the standard deviation of the values in the series."""
+        return self._apply_aggregation(agg_ops.std_op)
+
+    def var(self) -> bigframes.scalar.Scalar:
+        """Return the variance of the values in the series."""
+        return self._apply_aggregation(agg_ops.var_op)
+
     def mean(self) -> bigframes.scalar.Scalar:
         """Finds the mean of the numeric values in the series. Ignores null/nan.
 
@@ -1010,6 +1018,14 @@ class SeriesGroupyBy:
     def mean(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
         return self._aggregate(agg_ops.mean_op)
+
+    def std(self) -> Series:
+        """Return the standard deviation of the values in each group in the series."""
+        return self._aggregate(agg_ops.std_op)
+
+    def var(self) -> Series:
+        """Return the variance of the values in each group in the series."""
+        return self._aggregate(agg_ops.var_op)
 
     def prod(self) -> Series:
         """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""

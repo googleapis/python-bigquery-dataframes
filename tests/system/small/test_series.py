@@ -109,6 +109,34 @@ def test_min(scalars_dfs, col_name):
 
 
 @pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("float64_col",),
+        ("int64_col",),
+    ),
+)
+def test_std(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].std().compute()
+    pd_result = scalars_pandas_df[col_name].std()
+    assert math.isclose(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("float64_col",),
+        ("int64_col",),
+    ),
+)
+def test_var(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].var().compute()
+    pd_result = scalars_pandas_df[col_name].var()
+    assert math.isclose(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
     ("operator"),
     [
         (lambda x, y: x + y),
@@ -609,6 +637,39 @@ def test_groupby_sum(scalars_dfs):
         scalars_pandas_df[col_name].groupby(scalars_pandas_df["string_col"]).sum()
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
+    bf_result = bf_series.compute()
+    assert_series_equal_ignoring_order(
+        pd_series,
+        bf_result,
+        check_exact=False,
+    )
+
+
+def test_groupby_std(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    bf_series = scalars_df[col_name].groupby(scalars_df["string_col"]).std()
+    pd_series = (
+        scalars_pandas_df[col_name]
+        .groupby(scalars_pandas_df["string_col"])
+        .std()
+        .astype(pd.Float64Dtype())
+    )
+    bf_result = bf_series.compute()
+    assert_series_equal_ignoring_order(
+        pd_series,
+        bf_result,
+        check_exact=False,
+    )
+
+
+def test_groupby_var(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    bf_series = scalars_df[col_name].groupby(scalars_df["string_col"]).var()
+    pd_series = (
+        scalars_pandas_df[col_name].groupby(scalars_pandas_df["string_col"]).var()
+    )
     bf_result = bf_series.compute()
     assert_series_equal_ignoring_order(
         pd_series,
