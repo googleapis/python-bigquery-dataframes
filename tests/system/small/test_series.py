@@ -137,6 +137,26 @@ def test_var(scalars_dfs, col_name):
 
 
 @pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("bool_col",),
+        ("int64_col",),
+    ),
+)
+def test_mode_stat(scalars_df_index, scalars_pandas_df_index, col_name):
+    bf_result = scalars_df_index[col_name].mode().compute()
+    pd_result = scalars_pandas_df_index[col_name].mode()
+
+    ## Mode implicitly resets index, and bigframes default indices use nullable Int64
+    pd_result.index = pd_result.index.astype("Int64")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
     ("operator"),
     [
         (lambda x, y: x + y),

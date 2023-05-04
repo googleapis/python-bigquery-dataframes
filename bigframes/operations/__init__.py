@@ -242,6 +242,13 @@ def div_op(
     )
 
 
+def eq_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return x.__eq__(y)
+
+
 @short_circuit_nulls(ibis_dtypes.bool)
 def lt_op(
     x: ibis_types.Value,

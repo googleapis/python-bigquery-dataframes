@@ -412,6 +412,35 @@ class BigFramesExpr:
         ).name(output_column_id)
         return self._set_or_replace_by_id(output_column_id, value)
 
+    def aggregate(
+        self,
+        by_column_id: str,
+        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        dropna: bool = True,
+    ) -> BigFramesExpr:
+        """
+        Apply aggregations to the expression.
+        Arguments:
+            by_column_id: column id of the aggregation key, this is preserved through the transform
+            aggregations: input_column_id, operation, output_column_id tuples
+            dropna: whether null keys should be dropped
+        """
+        table = self.to_ibis_expr()
+        stats = [
+            agg_op._as_ibis(table[col_in]).name(col_out)
+            for col_in, agg_op, col_out in aggregations
+        ]
+        result = table.group_by(by_column_id).aggregate(stats)
+        # Must have deterministic ordering, so order by the unique "by" column
+        ordering = ExpressionOrdering(
+            (OrderingColumnReference(column_id=by_column_id),)
+        )
+        expr = BigFramesExpr(self._session, result, ordering=ordering)
+        if dropna:
+            expr = expr.filter(ops.notnull_op._as_ibis(expr.get_column(by_column_id)))
+        # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
+        return expr.project_offsets()
+
     def project_window_op(
         self,
         column_name: str,
@@ -650,30 +679,6 @@ class BigFramesExprBuilder:
             ordering=self.ordering,
             predicates=self.predicates,
         )
-
-
-class BigFramesGroupByExpr:
-    """Represents a grouping on a table. Does not currently support projection, filtering or sorting."""
-
-    def __init__(self, expr: BigFramesExpr, by: typing.Any):
-        self._session = expr._session
-        self._expr = expr
-        self._by = by
-
-    def _to_ibis_expr(self):
-        """Creates an Ibis table expression representing the DataFrame."""
-        return self._expr.to_ibis_expr(ordering_mode="unordered")
-
-    def aggregate(
-        self, column_name: str, aggregate_op: agg_ops.AggregateOp
-    ) -> BigFramesExpr:
-        """Generate aggregate metrics, result preserve names of aggregated columns"""
-        # TODO(tbergeron): generalize to multiple aggregations
-        table = self._to_ibis_expr()
-        result = table.group_by(self._by).aggregate(
-            aggregate_op._as_ibis(table[column_name]).name(column_name)
-        )
-        return BigFramesExpr(self._session, result)
 
 
 def _reduce_predicate_list(

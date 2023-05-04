@@ -482,6 +482,40 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Return the variance of the values in the series."""
         return self._apply_aggregation(agg_ops.var_op)
 
+    def mode(self) -> Series:
+        """
+        Return the mode(s) of the values in the series, in sorted value order.
+
+        The mode(s) are the values(s) that occur the most times in the series.
+        """
+        block = self._block.copy()
+        # Approach: Count each value, return each value for which count(x) == max(counts))
+        value_count_col_id = self._value_column + "_bf_internal_value_count"
+        block = block.aggregate(
+            self._value_column,
+            ((self._value_column, agg_ops.count_op, value_count_col_id),),
+        )
+        max_value_count_col_id = self._value_column + "_bf_internal_max_value_count"
+        block.apply_window_op(
+            value_count_col_id,
+            agg_ops.max_op,
+            window_spec=WindowSpec(),
+            output_name=max_value_count_col_id,
+        )
+        is_mode_col_id = self._value_column + "_bf_internal_is_mode"
+        block.project_binary_op(
+            value_count_col_id,
+            max_value_count_col_id,
+            ops.eq_op,
+            output_id=is_mode_col_id,
+        )
+        block.filter(is_mode_col_id)
+        return (
+            Series(block, self._value_column, name=self.name)
+            .sort_values()
+            .reset_index(drop=True)
+        )
+
     def mean(self) -> bigframes.scalar.Scalar:
         """Finds the mean of the numeric values in the series. Ignores null/nan.
 
@@ -1105,16 +1139,15 @@ class SeriesGroupyBy:
         return Series(self._block, self._value_column, name=self._value_name)
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
-        group_expr = bigframes.core.BigFramesGroupByExpr(self._block.expr, self._by)
-        result_expr = group_expr.aggregate(self._value_column, aggregate_op)
-        if self._dropna:
-            result_expr = result_expr.filter(
-                ops.notnull_op._as_ibis(result_expr.get_column(self._by))
-            )
-        block = blocks.Block(result_expr, index_columns=[self._by])
+        aggregate_col_id = self._value_column + "_bf_aggregated"
+        result_block = self._block.aggregate(
+            self._by,
+            ((self._value_column, aggregate_op, aggregate_col_id),),
+            dropna=self._dropna,
+        )
         if self._key_name:
-            block.index.name = self._key_name
-        return Series(block, self._value_column, name=self._value_name)
+            result_block.index.name = self._key_name
+        return Series(result_block, aggregate_col_id, name=self._value_name)
 
     def _apply_window_op(
         self,
