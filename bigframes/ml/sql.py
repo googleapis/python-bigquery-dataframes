@@ -55,9 +55,9 @@ def transform(*expr_sqls: str) -> str:
     return f"TRANSFORM({build_expr_list(*expr_sqls)})"
 
 
-def ml_standard_scaler(numeric_expr_sql: str) -> str:
+def ml_standard_scaler(numeric_expr_sql: str, name: str) -> str:
     """Encode ML.STANDARD_SCALER for BQML"""
-    return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER()"""
+    return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
 
 def create_model(

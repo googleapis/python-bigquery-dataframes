@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import Dict, Iterable, List, Optional, Union
 import uuid
 
 from google.cloud import bigquery
@@ -85,9 +85,22 @@ class BqmlModel:
 
 def create_bqml_model(
     train_X: bigframes.dataframe.DataFrame,
-    train_y: Union[bigframes.dataframe.DataFrame, None] = None,
+    train_y: Optional[bigframes.dataframe.DataFrame] = None,
+    transforms: Optional[Iterable[str]] = None,
     options: Dict[str, Union[str, int, float, List[str]]] = {},
 ) -> BqmlModel:
+    """Create a session-temporary BQML model with the CREATE MODEL statement
+
+    Parameters:
+        train_X: features columns for training
+        train_y: labels columns for training, if applicable
+        transforms: an optional list of SQL expressions that implement preprocessing
+            on top of the input data. Generates a BQML TRANSFORM clause
+        options: a dict of options to configure the model. Generates a BQML OPTIONS
+            clause
+
+    Returns: a BqmlModel, wrapping a trained model in BigQuery
+    """
     if train_y is None:
         input_data = train_X
     else:
@@ -103,9 +116,16 @@ def create_bqml_model(
     input_data = input_data.reset_index(drop=True)
 
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
+    source_sql = input_data.sql
     options_sql = bigframes.ml.sql.options(**options)
+    transform_sql = (
+        bigframes.ml.sql.transform(*transforms) if transforms is not None else None
+    )
     sql = bigframes.ml.sql.create_model(
-        model_name=model_name, source_sql=input_data.sql, options_sql=options_sql
+        model_name=model_name,
+        source_sql=source_sql,
+        transform_sql=transform_sql,
+        options_sql=options_sql,
     )
 
     # fit the model, synchronously

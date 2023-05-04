@@ -27,12 +27,15 @@ def test_options_produces_correct_sql():
 
 
 def test_transform_produces_correct_sql():
-    sql = ml_sql.transform("ML.STANDARD_SCALER(col_a)", "ML.ONE_HOT_ENCODER(col_b)")
+    sql = ml_sql.transform(
+        "ML.STANDARD_SCALER(col_a) AS scaled_col_a",
+        "ML.ONE_HOT_ENCODER(col_b) AS encoded_col_b",
+    )
     assert (
         sql
         == """TRANSFORM(
-  ML.STANDARD_SCALER(col_a),
-  ML.ONE_HOT_ENCODER(col_b))"""
+  ML.STANDARD_SCALER(col_a) AS scaled_col_a,
+  ML.ONE_HOT_ENCODER(col_b) AS encoded_col_b)"""
     )
 
 
