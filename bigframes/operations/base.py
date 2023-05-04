@@ -49,7 +49,7 @@ class SeriesMethods:
         self,
         op: bigframes.operations.UnaryOp,
     ) -> series.Series:
-        """Applies a binary operator to the series and other."""
+        """Applies a unary operator to the series."""
         block = self._viewed_block
         block.apply_unary_op(self._value_column, op)
         return series.Series(

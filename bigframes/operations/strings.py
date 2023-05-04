@@ -49,3 +49,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
     def upper(self) -> series.Series:
         """Convert strings in the Series to uppercase."""
         return self._apply_unary_op(ops.upper_op)
+
+    def isnumeric(self) -> series.Series:
+        """Check whether all characters in each string are numeric."""
+        return self._apply_unary_op(ops.isnumeric_op)

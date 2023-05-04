@@ -686,7 +686,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         other2: typing.Any,
         op: ops.TernaryOp,
     ) -> Series:
-        """Applies a binary operator to the series and other."""
+        """Applies a ternary operator to the series, other, and other2."""
         (x, y, z, index) = self._align3(other, other2)
 
         block = blocks.Block(index._expr)

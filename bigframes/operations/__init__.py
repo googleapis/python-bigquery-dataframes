@@ -34,7 +34,7 @@ TernaryOp = typing.Callable[
 ### Unary Ops
 class UnaryOp:
     def _as_ibis(self, x):
-        raise NotImplementedError("Base class AggregateOp has no implementaiton.")
+        raise NotImplementedError("Base class UnaryOp has no implementation.")
 
     @property
     def is_windowed(self):
@@ -84,6 +84,13 @@ class UpperOp(UnaryOp):
 class StripOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.StringValue, x).strip()
+
+
+class IsNumericOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        # catches all members of the Unicode number class, which matches pandas isnumeric
+        # see https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#regexp_contains
+        return typing.cast(ibis_types.StringValue, x).re_search(r"^(\pN*)$")
 
 
 # Parameterized ops
@@ -143,6 +150,7 @@ reverse_op = ReverseOp()
 lower_op = LowerOp()
 upper_op = UpperOp()
 strip_op = StripOp()
+isnumeric_op = IsNumericOp()
 
 
 ### Binary Ops
@@ -294,8 +302,6 @@ def partial_right(op: BinaryOp, scalar: typing.Any) -> UnaryOp:
 
 
 # Ternary ops
-
-
 def where_op(
     original: ibis_types.Value,
     condition: ibis_types.Value,

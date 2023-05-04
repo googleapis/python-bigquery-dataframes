@@ -123,3 +123,37 @@ def test_upper(scalars_dfs):
         pd_result,
         bf_result,
     )
+
+
+def test_isnumeric(session):
+    pandas_df = pd.DataFrame(
+        {
+            "numeric_string_col": [
+                "٠١٢٣٤٥٦٧٨٩",
+                "",
+                "0",
+                "字",
+                "五",
+                "0123456789",
+                pd.NA,
+                "abc 123 mixed letters and numbers",
+                "no numbers here",
+                "123a",
+                "23!",
+                " 45",
+                "a45",
+            ]
+        }
+    )
+
+    df = session.read_pandas(pandas_df)
+
+    pd_result = pandas_df.numeric_string_col.str.isnumeric()
+    bf_result = df.numeric_string_col.str.isnumeric().compute()
+
+    assert_series_equal_ignoring_order(
+        bf_result,
+        pd_result.astype(pd.BooleanDtype())
+        # the dtype here is a case of intentional diversion from pandas
+        # see go/bigframes-dtypes
+    )
