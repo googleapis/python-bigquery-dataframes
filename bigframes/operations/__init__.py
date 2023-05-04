@@ -116,6 +116,24 @@ class SliceOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x)[self._start : self._stop]
 
 
+class BinopPartialRight(UnaryOp):
+    def __init__(self, binop: BinaryOp, right_scalar: typing.Any):
+        self._binop = binop
+        self._right = right_scalar
+
+    def _as_ibis(self, x):
+        return self._binop(x, self._right)
+
+
+class BinopPartialLeft(UnaryOp):
+    def __init__(self, binop: BinaryOp, left_scalar: typing.Any):
+        self._binop = binop
+        self._left = left_scalar
+
+    def _as_ibis(self, x):
+        return self._binop(self._left, x)
+
+
 abs_op = AbsOp()
 invert_op = InvertOp()
 isnull_op = IsNullOp()
@@ -263,8 +281,16 @@ def fillna_op(
     return x.fillna(typing.cast(ibis_types.Scalar, y))
 
 
-def reverse(op):
+def reverse(op: BinaryOp) -> BinaryOp:
     return lambda x, y: op(y, x)
+
+
+def partial_left(op: BinaryOp, scalar: typing.Any) -> UnaryOp:
+    return BinopPartialLeft(op, scalar)
+
+
+def partial_right(op: BinaryOp, scalar: typing.Any) -> UnaryOp:
+    return BinopPartialRight(op, scalar)
 
 
 # Ternary ops

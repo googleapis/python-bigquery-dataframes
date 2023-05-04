@@ -820,6 +820,50 @@ class Series(bigframes.operations.base.SeriesMethods):
 
         return self._apply_unary_op(RemoteOp())
 
+    def drop_duplicates(self, *, keep: str = "first") -> Series:
+        """
+        Creates copy of series with any duplicate values removed.
+
+        Args:
+            keep: 'first', 'last' or False. Determines which value is kept for values with duplicates. All instances discarded if set to False
+        """
+        if keep not in ["first", "last", False]:
+            raise ValueError("keep must be one of 'first', 'last', or False'")
+        block = self._block.copy()
+        val_count_col_id = self._value_column + "_bf_internal_counter_before"
+        if keep == "first":
+            # Count how many copies occur up to current copy of value
+            # Discard this value if there are copies BEFORE
+            window_spec = WindowSpec(
+                grouping_keys=(self._value_column,),
+                following=0,
+            )
+        elif keep == "last":
+            # Count how many copies occur up to current copy of values
+            # Discard this value if there are copies AFTER
+            window_spec = WindowSpec(
+                grouping_keys=(self._value_column,),
+                preceding=0,
+            )
+        else:  # keep == False
+            # Count how many copies of the value occur in entire series.
+            # Discard this value if there are copies ANYWHERE
+            window_spec = WindowSpec(grouping_keys=(self._value_column,))
+        block.apply_window_op(
+            self._value_column,
+            agg_ops.count_op,
+            window_spec=window_spec,
+            output_name=val_count_col_id,
+        )
+        keep_condition_col_id = self._value_column + "_bf_internal_keep_cond"
+        block.apply_unary_op(
+            val_count_col_id,
+            ops.partial_right(ops.le_op, 1),
+            output_name=keep_condition_col_id,
+        )
+        block.filter(keep_condition_col_id)
+        return Series(block, self._value_column, name=self._name)
+
     def mask(self, cond, other=None) -> Series:
         """Replace values in a series where the condition is true."""
         if callable(cond):

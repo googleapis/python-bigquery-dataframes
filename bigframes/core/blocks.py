@@ -234,3 +234,9 @@ class Block:
         output_name=None,
     ):
         self.expr = self._expr.project_window_op(column, op, window_spec, output_name)
+
+    def filter(self, column_name: str):
+        condition = typing.cast(
+            ibis_types.BooleanValue, self._expr.get_column(column_name)
+        )
+        self.expr = self.expr.filter(condition)
