@@ -49,10 +49,28 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         """The model options as they will be set for BQML"""
         return {"model_type": "LINEAR_REG", "fit_intercept": self.fit_intercept}
 
-    def fit(self, X: bigframes.DataFrame, y: bigframes.DataFrame):
+    def fit(
+        self,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
+        transforms: Optional[List[str]] = None,
+    ):
+        """Fit the model to training data
+
+        Parameters:
+            X: A dataframe with training data
+
+            y: Target values for training
+
+            transforms: an optional list of SQL expressions to apply over top of
+                the model inputs as preprocessing. This preprocessing will be
+                automatically reapplied to new input data (e.g. in .predict), and
+                may contain steps (like ML.STANDARD_SCALER) that fit to the
+                training data"""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 

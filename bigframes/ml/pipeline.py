@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import typing
 from typing import List, Optional, Tuple
 
 import bigframes
@@ -42,8 +41,32 @@ class Pipeline:
         steps: a list of tuples of (name, estimator). Every estimator but the final
             one must implement a .transform(...) method. The final estimator need
             only implement .fit(...)"""
+        if len(steps) != 2:
+            raise NotImplementedError(
+                "Currently only two step (transform, estimator) pipelines are supported"
+            )
+
+        transform, estimator = steps[0][1], steps[1][1]
+        if isinstance(transform, bigframes.ml.preprocessing.StandardScaler):
+            self._transform = transform
+        else:
+            raise NotImplementedError(
+                f"Transform {transform} is not yet supported by Pipeline"
+            )
+
+        if isinstance(
+            estimator,
+            (bigframes.ml.linear_model.LinearRegression, bigframes.ml.cluster.KMeans),
+        ):
+            self._estimator = estimator
+        else:
+            raise NotImplementedError(
+                f"Estimator {estimator} is not yet supported by Pipeline"
+            )
+
         self._steps = steps
-        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+        self._transform = transform
+        self._estimator = estimator
 
     def _compile_transforms(self, input_schema: List[str]) -> List[str]:
         """Combine transform steps with the schema of the input data to produce a list of SQL
@@ -51,23 +74,10 @@ class Pipeline:
         # TODO(bmil): input schema should have types also & be validated
         # TODO(bmil): handle multiple transform types
         # TODO(bmil): handle ColumnTransformer (& dedupe output names with input schema)
-
-        # For now only a single StandardScaler step supported
-        if len(self._steps) != 2:
-            raise NotImplementedError(
-                "Currently only two step (transform, estimator) pipelines are supported"
-            )
-
-        _, transform = self._steps[0]
-        if isinstance(transform, bigframes.ml.preprocessing.StandardScaler):
-            return [
-                bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
-                for column in input_schema
-            ]
-        else:
-            raise NotImplementedError(
-                f"Transform {transform} is not yet supported by Pipeline"
-            )
+        return [
+            bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
+            for column in input_schema
+        ]
 
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
         """Fit each estimator in the pipeline to the transformed output of the
@@ -78,75 +88,30 @@ class Pipeline:
             X: training data. Must match the input requirements of the first step of
                 the pipeline
             y: training targets, if applicable"""
-        # TODO(bmil): determine use cases for longer chains
-        # for now, lets just support two step pipelines
-        if len(self._steps) != 2:
-            raise NotImplementedError(
-                "Currently only two step (transform, estimator) pipelines are supported"
-            )
-
         # TODO(bmil): BigFrames dataframe<->SQL mapping is being reworked, this will need to be updated
         # TODO(bmil): It may be tidier to have standard ways for transforms to implement parts of their
         # compilation to SQL, but for now, lets do everything in Pipeline
-        transform_sql_exprs = self._compile_transforms(X.columns.tolist())
+        transforms = self._compile_transforms(X.columns.tolist())
 
-        # If labels columns are present, they should pass through un-transformed
-        if y is not None:
-            transform_sql_exprs.extend(y.columns.tolist())
-
-        _, estimator = self._steps[1]
-        # TODO(bmil): add a common mixin class for Predictors, check against that instead
-        if not isinstance(
-            estimator,
-            (bigframes.ml.linear_model.LinearRegression, bigframes.ml.cluster.KMeans),
-        ):
-            raise NotImplementedError(
-                f"Estimator {estimator} is currently not supported by Pipeline"
-            )
-
-        self._bqml_model = bigframes.ml.core.create_bqml_model(
-            train_X=X,
-            train_y=y,
-            transforms=transform_sql_exprs,
-            options=estimator._bqml_options,
-        )
+        # TODO(bmil): need a more elegant way to address this. Perhaps a mixin for supervised vs
+        # unsupervised models? Or just lists of classes?
+        if isinstance(self._estimator, bigframes.ml.cluster.KMeans):
+            self._estimator.fit(X=X, transforms=transforms)
+        else:
+            if y is not None:
+                # If labels columns are present, they should pass through un-transformed
+                transforms.extend(y.columns.tolist())
+                self._estimator.fit(X=X, y=y, transforms=transforms)
+            else:
+                raise TypeError("Fitting this pipeline requires training targets `y`")
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        if not self._bqml_model:
-            raise RuntimeError("A pipeline must be fitted before predict")
-
-        # TODO(bmil): This implementation only works for supervised models. Need to rework it.
-        # Potentially we should delegate more functionality to the estimator, and have pipeline
-        # pass in the transforms.
-        df = self._bqml_model.predict(X)
-        return typing.cast(
-            bigframes.dataframe.DataFrame,
-            df[
-                [
-                    typing.cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._estimator.predict(X)
 
     def score(
         self,
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
-        if not self._bqml_model:
-            raise RuntimeError("A pipeline must be fitted before score")
-
-        if (X is None) != (y is None):
-            raise ValueError(
-                "Either both or neither of test_X and test_y must be specified"
-            )
-        input_data = X.join(y, how="outer") if X and y else None
-        return self._bqml_model.evaluate(input_data)
-
-    def to_gbq(self, model_name: str, replace: bool = False) -> Pipeline:
-        if not self._bqml_model:
-            raise RuntimeError("A pipeline must be fitted before it can be saved")
-
-        new_model = self._bqml_model.copy(model_name, replace)
-        return new_model.session.read_gbq_model(self._bqml_model.model_name)
+        if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
+            return self._estimator.score(X=X, y=y)

@@ -14,12 +14,14 @@
 
 import pandas
 
+import bigframes.ml.cluster
 import bigframes.ml.linear_model
 import bigframes.ml.pipeline
 import bigframes.ml.preprocessing
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
-def test_pipeline_fit_score_predict(session, penguins_df_default_index):
+def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
             ("scale", bigframes.ml.preprocessing.StandardScaler()),
@@ -91,3 +93,98 @@ def test_pipeline_fit_score_predict(session, penguins_df_default_index):
     pandas.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
     )
+
+
+def test_pipeline_kmeans_fit_predict(session, penguins_pandas_df_default_index):
+    pipeline = bigframes.ml.pipeline.Pipeline(
+        [
+            ("scale", bigframes.ml.preprocessing.StandardScaler()),
+            ("kmeans", bigframes.ml.cluster.KMeans(n_clusters=2)),
+        ]
+    )
+
+    # kmeans is sensitive to the order with this configuration, so use ordered source data
+    df = session.read_pandas(penguins_pandas_df_default_index).dropna()
+    train_X = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    pipeline.fit(train_X)
+
+    # predict new labels
+    pd_new_penguins = pandas.DataFrame.from_dict(
+        {
+            "test1": {
+                "species": "Adelie Penguin (Pygoscelis adeliae)",
+                "island": "Dream",
+                "culmen_length_mm": 27.5,
+                "culmen_depth_mm": 8.5,
+                "flipper_length_mm": 99,
+                "body_mass_g": 4475,
+                "sex": "MALE",
+            },
+            "test2": {
+                "species": "Chinstrap penguin (Pygoscelis antarctica)",
+                "island": "Dream",
+                "culmen_length_mm": 55.8,
+                "culmen_depth_mm": 29.8,
+                "flipper_length_mm": 307,
+                "body_mass_g": 4000,
+                "sex": "MALE",
+            },
+            "test3": {
+                "species": "Adelie Penguin (Pygoscelis adeliae)",
+                "island": "Biscoe",
+                "culmen_length_mm": 19.7,
+                "culmen_depth_mm": 8.9,
+                "flipper_length_mm": 84,
+                "body_mass_g": 3550,
+                "sex": "MALE",
+            },
+            "test4": {
+                "species": "Gentoo penguin (Pygoscelis papua)",
+                "island": "Biscoe",
+                "culmen_length_mm": 63.8,
+                "culmen_depth_mm": 33.9,
+                "flipper_length_mm": 298,
+                "body_mass_g": 4300,
+                "sex": "FEMALE",
+            },
+            "test5": {
+                "species": "Adelie Penguin (Pygoscelis adeliae)",
+                "island": "Dream",
+                "culmen_length_mm": 27.5,
+                "culmen_depth_mm": 8.5,
+                "flipper_length_mm": 99,
+                "body_mass_g": 4475,
+                "sex": "MALE",
+            },
+            "test6": {
+                "species": "Chinstrap penguin (Pygoscelis antarctica)",
+                "island": "Dream",
+                "culmen_length_mm": 55.8,
+                "culmen_depth_mm": 29.8,
+                "flipper_length_mm": 307,
+                "body_mass_g": 4000,
+                "sex": "MALE",
+            },
+        },
+        orient="index",
+    )
+    pd_new_penguins.index.name = "observation"
+
+    new_penguins = session.read_pandas(pd_new_penguins)
+    result = pipeline.predict(new_penguins).to_pandas().sort_index()
+    expected = pandas.DataFrame(
+        {"CENTROID_ID": [1, 2, 1, 2, 1, 2]},
+        dtype="Int64",
+        index=pandas.Index(
+            ["test1", "test2", "test3", "test4", "test5", "test6"],
+            dtype="string[pyarrow]",
+        ),
+    )
+    expected.index.name = "observation"
+    assert_pandas_df_equal_ignore_ordering(result, expected)
