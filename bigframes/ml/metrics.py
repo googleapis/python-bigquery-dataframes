@@ -32,7 +32,7 @@ def roc_curve(
     The ROC Curve is the plot of true positive rate versus false positive
     rate, parameterized by the confidence threshold.
 
-    Parameters:
+    Args:
         y_true: Binary indicators.
 
         y_score: Prediction scores.
@@ -115,7 +115,7 @@ def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> 
     should yield an area under the curve of 0.5, and the area will approach
     1.0 for perfect discrimination.
 
-    Parameters:
+    Args:
         y_true: True binary indicators.
 
         y_score: Prediction scores.

@@ -28,7 +28,7 @@ def train_test_split(
 ) -> List[bigframes.DataFrame]:
     """Splits dataframes into random train and test subsets
 
-    Parameters:
+    Args:
         *dataframes: a sequence of BigFrames dataframes that can be joined on their indexes
 
         test_size: the proportion of the dataset to include in the test split. If None,

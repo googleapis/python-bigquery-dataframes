@@ -54,7 +54,7 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
     def fit(self, X: bigframes.DataFrame, transforms: Optional[List[str]] = None):
         """Fit the model to training data
 
-        Parameters:
+        Args:
             X: A dataframe with training data
 
             transforms: an optional list of SQL expressions to apply over top of

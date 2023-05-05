@@ -37,10 +37,6 @@ class Pipeline:
     def __init__(
         self, steps: List[Tuple[str, bigframes.ml.api_primitives.BaseEstimator]]
     ):
-        """Parameters:
-        steps: a list of tuples of (name, estimator). Every estimator but the final
-            one must implement a .transform(...) method. The final estimator need
-            only implement .fit(...)"""
         if len(steps) != 2:
             raise NotImplementedError(
                 "Currently only two step (transform, estimator) pipelines are supported"
@@ -84,7 +80,7 @@ class Pipeline:
         previous one. In bigframes.ml this will compile the pipeline to a single
         BQML model with a TRANSFORM clause
 
-        Parameters:
+        Args:
             X: training data. Must match the input requirements of the first step of
                 the pipeline
             y: training targets, if applicable"""

@@ -91,7 +91,7 @@ def create_bqml_model(
 ) -> BqmlModel:
     """Create a session-temporary BQML model with the CREATE MODEL statement
 
-    Parameters:
+    Args:
         train_X: features columns for training
         train_y: labels columns for training, if applicable
         transforms: an optional list of SQL expressions that implement preprocessing

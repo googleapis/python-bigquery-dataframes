@@ -30,7 +30,6 @@ __all__ = [
     "Context",
     "Session",
     "DataFrame",
-    "ml",
     "Series",
     "get_remote_function_locations",
     "get_cloud_function_name",

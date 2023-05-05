@@ -57,7 +57,7 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
     ):
         """Fit the model to training data
 
-        Parameters:
+        Args:
             X: A dataframe with training data
 
             y: Target values for training

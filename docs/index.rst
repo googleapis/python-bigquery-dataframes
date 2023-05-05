@@ -6,3 +6,5 @@ API Reference
     :maxdepth: 2
 
     bigframes/library
+
+    bigframes.ml/library
