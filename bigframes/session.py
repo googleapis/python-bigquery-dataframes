@@ -47,6 +47,20 @@ def _is_query(query_or_table: str) -> bool:
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
+# TODO(shobs): Remove it after the same is available via pydata-google-auth
+# after https://github.com/pydata/pydata-google-auth/pull/68 is merged
+def _ensure_application_default_credentials_in_colab_environment():
+    # This is a special handling for google colab environment where we want to
+    # use the colab specific authentication flow
+    # https://github.com/googlecolab/colabtools/blob/3c8772efd332289e1c6d1204826b0915d22b5b95/google/colab/auth.py#L209
+    try:
+        from google.colab import auth
+
+        auth.authenticate_user()
+    except (ModuleNotFoundError, ImportError):
+        pass
+
+
 class Context:
     """Encapsulates configuration for working with an Session.
 
@@ -106,6 +120,7 @@ class Session:
         # helps in a cloud notebook environment where the machine running the
         # notebook UI and the VM running the notebook runtime are not the same.
         if context.credentials is None:
+            _ensure_application_default_credentials_in_colab_environment
             # TODO(shobs, b/278903498): Use BigFrames own client id and secret
             context.credentials, pydata_default_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
