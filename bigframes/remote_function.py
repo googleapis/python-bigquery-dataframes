@@ -50,7 +50,7 @@ pickle_protocol_version = 4
 # TODO(shobs): Change the min log level to INFO after the development stabilizes
 # before June 2023
 logging.basicConfig(
-    level=logging.DEBUG, format="[%(levelname)s][%(asctime)s][%(name)s] %(message)s"
+    level=logging.INFO, format="[%(levelname)s][%(asctime)s][%(name)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
