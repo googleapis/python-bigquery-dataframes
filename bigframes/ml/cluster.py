@@ -38,6 +38,8 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         assert model.model_type == "KMEANS"
 
         kwargs = {}
+
+        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
         if "numClusters" in last_fitting:
             kwargs["n_clusters"] = int(last_fitting["numClusters"])

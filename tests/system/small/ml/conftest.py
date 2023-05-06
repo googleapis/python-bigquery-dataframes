@@ -67,7 +67,37 @@ FROM `{penguins_table_id}`"""
         return session.read_gbq_model(model_name)
     except google.cloud.exceptions.NotFound:
         logging.info(
-            "penguins_linear_model fixture was not found in the permanent dataset, regenerating it..."
+            "penguins_kmeans_model fixture was not found in the permanent dataset, regenerating it..."
+        )
+        session.bqclient.query(sql).result()
+        return session.read_gbq_model(model_name)
+
+
+@pytest.fixture(scope="session")
+def penguins_pca_model(
+    session: bigframes.Session, dataset_id_permanent, penguins_table_id
+) -> bigframes.ml.decomposition.PCA:
+
+    # TODO(yunmengxie): Create a shared method to get different types of pretrained models.
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='pca',
+    num_principal_components=3
+) AS SELECT
+    *
+FROM `{penguins_table_id}`"""
+    # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
+    model_name = (
+        f"{dataset_id_permanent}.penguins_pca_{hashlib.md5(sql.encode()).hexdigest()}"
+    )
+    sql = sql.replace("$model_name", model_name)
+
+    try:
+        return session.read_gbq_model(model_name)
+    except google.cloud.exceptions.NotFound:
+        logging.info(
+            "penguins_pca_model fixture was not found in the permanent dataset, regenerating it..."
         )
         session.bqclient.query(sql).result()
         return session.read_gbq_model(model_name)

@@ -36,7 +36,9 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
 
         # TODO(bmil): construct a standard way to extract these properties
         kwargs = {}
-        last_fitting = model.training_runs[-1]
+
+        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
+        last_fitting = model.training_runs[-1]["trainingOptions"]
         if "fitIntercept" in last_fitting:
             kwargs["last_fitting"] = last_fitting["fitIntercept"]
 
