@@ -1,5 +1,141 @@
 BigFrames
 =========
 
-BigFrames supports scalable DataFrame APIs on top of BigQuery. The DataFrame
-API in BigFrames is loosely based on Pandas DataFrame API.
+BigFrames implements the Pandas dataframe API over top of a BigQuery session.
+
+BigFrames also provides ``bigframes.ml``, which implements the Scikit-Learn API over top of BigQuery Machine Learning.
+
+Quick start
+-----------
+
+Start a session
+
+.. code-block:: python
+
+    import bigframes
+    session = bigframes.connect()
+
+Initialize a dataframe for a BigQuery table
+
+.. code-block:: python
+
+    df = session.read_gbq("bigquery-public-data.ml_datasets.penguins")
+
+    #Take a look
+    df
+
+Using the dataframe API
+-----------------------
+
+Start a session and initialize a dataframe for a BigQuery table
+
+.. code-block:: python
+
+    import bigframes
+    session = bigframes.connect()
+
+    df = session.read_gbq("bigquery-public-data.chicago_taxi_trips.taxi_trips")
+    df
+
+View the table schema
+
+.. code-block:: python
+
+    df.dtypes
+
+Select a subset of columns
+
+.. code-block:: python
+
+    df = df[[
+        "company",
+        "trip_miles",
+        "fare",
+        "tips",
+    ]]
+    df
+
+View the first ten values of a series
+
+.. code-block:: python
+
+    df['fare'].head(10)
+
+Compute the mean of a series
+
+.. code-block:: python
+
+    df['fare'].mean()
+
+Filter the dataframe
+
+.. code-block:: python
+
+    df[df['fare'] > 20.0]
+
+
+Using the ML API
+----------------
+
+Start a session and initialize a dataframe for a BigQuery table
+
+.. code-block:: python
+
+    import bigframes
+    session = bigframes.connect()
+
+    df = session.read_gbq("bigquery-public-data.ml_datasets.penguins")
+    df
+
+Clean and prepare the data
+
+.. code-block:: python
+
+    # filter down to the data we want to analyze
+    adelie_data = df[df.species == "Adelie Penguin (Pygoscelis adeliae)"]
+
+    # drop the columns we don't care about
+    adelie_data = adelie_data.drop(["species"])
+
+    # drop rows with nulls to get our training data
+    training_data = adelie_data.dropna()
+
+    # take a peek at the training data
+    training_data
+
+.. code-block:: python
+
+    # pick feature columns and label column
+    feature_columns = training_data[['island', 'culmen_length_mm', 'culmen_depth_mm', 'flipper_length_mm', 'sex']]
+    label_columns = training_data[['body_mass_g']]
+
+    # also get the rows that we want to make predictions for (i.e. where the feature column is null)
+    missing_body_mass = adelie_data[adelie_data.body_mass_g.isnull()]
+
+Train and evaluate a linear regression model using the ML API
+
+.. code-block:: python
+
+    from bigframes.ml.linear_model import LinearRegression
+
+    # as in scikit-learn, a newly created model is just a bundle of parameters
+    # default parameters are fine here
+    model = LinearRegression()
+
+    # this will train a temporary model in BigQuery Machine Learning
+    model.fit(feature_columns, label_columns)
+
+    # check how the model performed, using the automatic test/training data split chosen by BQML
+    model.score()
+
+Make predictions using the model
+
+.. code-block:: python
+
+    model.predict(missing_body_mass)
+
+Save the trained model to BigQuery, so we can load it later
+
+.. code-block:: python
+
+    model.to_gbq("bqml_tutorial.penguins_model", replace=True)
