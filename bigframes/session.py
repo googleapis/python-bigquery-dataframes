@@ -136,7 +136,7 @@ class Session:
         # helps in a cloud notebook environment where the machine running the
         # notebook UI and the VM running the notebook runtime are not the same.
         if context.credentials is None:
-            _ensure_application_default_credentials_in_colab_environment
+            _ensure_application_default_credentials_in_colab_environment()
             # TODO(shobs, b/278903498): Use BigFrames own client id and secret
             context.credentials, pydata_default_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
