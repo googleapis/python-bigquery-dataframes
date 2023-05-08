@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import typing
 from typing import Iterable, List, Literal, Optional, Tuple, Union
@@ -39,6 +40,7 @@ import bigframes.ml.loader
 from bigframes.remote_function import remote_function as biframes_rf
 import bigframes.version
 
+_ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
@@ -141,6 +143,10 @@ class Session:
             )
             if not context.project:
                 context.project = pydata_default_project
+
+        # If there is no project set yet, try to set it from the environment
+        if not context.project:
+            context.project = os.environ.get(_ENV_DEFAULT_PROJECT, context.project)
 
         # TODO(chelsealin): Add the `location` parameter to ibis client.
         self.ibis_client = typing.cast(
