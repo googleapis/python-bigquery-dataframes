@@ -19,6 +19,7 @@ from bigframes.dataframe import DataFrame
 from bigframes.remote_function import (
     get_cloud_function_name,
     get_remote_function_locations,
+    remote_function,
 )
 from bigframes.series import Series
 from bigframes.session import connect, Context, Session
@@ -33,5 +34,6 @@ __all__ = [
     "Series",
     "get_remote_function_locations",
     "get_cloud_function_name",
+    "remote_function",
     "__version__",
 ]

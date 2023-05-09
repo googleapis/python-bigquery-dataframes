@@ -497,57 +497,59 @@ def remote_function(
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
-    Parameters
-    ----------
-    input_types : list(ibis.expr.datatypes)
-        List of input data types in the user defined function.
-    output_type : ibis.expr.datatypes
-        Data type of the output in the user defined function.
-    session : bigframes.Session, Optional
-        BigFrames session to use for getting default project, dataset and
-        bigquery connection.
-    bigquery_client : google.cloud.bigquery.Client, Optional
-        Client to use for BigQuery operations. If this param is not provided
-        then bigquery client from the session would be used.
-    dataset : str, Optional
-        Dataset to use to create a BigQuery function. It should be in
-        `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
-        param is not provided then session dataset id would be used.
-    bigquery_connection : str, Optional
-        Name of the BigQuery connection. If it is pre created in the same
-        location as the `bigquery_client.location` then it would be used,
-        otherwise it would be created dynamically assuming the user has
-        necessary priviliges. If this param is not provided then the
-        bigquery connection from the session would be used.
-    reuse : bool, Optional
-        Reuse the remote function if already exists.
-        `True` by default, which will result in reusing an existing remote
-        function (if any) that was previously created for the same udf.
-        Setting it to false would force creating a unique remote function.
-        If the required remote function does not exist then it would be
-        created irrespective of this param.
+    Args:
+        input_types : list(ibis.expr.datatypes)
+            List of input data types in the user defined function.
+        output_type : ibis.expr.datatypes
+            Data type of the output in the user defined function.
+        session : bigframes.Session, Optional
+            BigFrames session to use for getting default project, dataset and
+            bigquery connection.
+        bigquery_client : google.cloud.bigquery.Client, Optional
+            Client to use for BigQuery operations. If this param is not provided
+            then bigquery client from the session would be used.
+        dataset : str, Optional
+            Dataset to use to create a BigQuery function. It should be in
+            `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
+            param is not provided then session dataset id would be used.
+        bigquery_connection : str, Optional
+            Name of the BigQuery connection. If it is pre created in the same
+            location as the `bigquery_client.location` then it would be used,
+            otherwise it would be created dynamically assuming the user has
+            necessary priviliges. If this param is not provided then the
+            bigquery connection from the session would be used.
+        reuse : bool, Optional
+            Reuse the remote function if already exists.
+            `True` by default, which will result in reusing an existing remote
+            function (if any) that was previously created for the same udf.
+            Setting it to false would force creating a unique remote function.
+            If the required remote function does not exist then it would be
+            created irrespective of this param.
 
-    Prerequisites
-    -------------
-    Please make sure following is setup before using this API:
+    **Prerequisites:**
+        Please make sure following is setup before using this API:
 
-    1. Have below APIs enabled for your project:
-        a. Cloud Build API
-        b. Artifact Registry API
-        c. Cloud Functions API
-        d. BigQuery Connection API
+        1. Have the below APIs enabled for your project:
+              a. Cloud Build API
+              b. Artifact Registry API
+              c. Cloud Functions API
+              d. BigQuery Connection API
 
-        This can be done from the cloud console (change PROJECT_ID to yours):
-            https://console.cloud.google.com/apis/enableflow?apiid=cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudfunctions.googleapis.com,bigqueryconnection.googleapis.com&project=PROJECT_ID
-        Or from the gcloud CLI:
-            gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com cloudfunctions.googleapis.com bigqueryconnection.googleapis.com
+           This can be done from the cloud console (change PROJECT_ID to yours):
+              https://console.cloud.google.com/apis/enableflow?apiid=cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudfunctions.googleapis.com,bigqueryconnection.googleapis.com&project=PROJECT_ID
+           Or from the gcloud CLI:
+              $ gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com cloudfunctions.googleapis.com bigqueryconnection.googleapis.com
 
-    2. Either the user has setIamPolicy privilege on the project, or a
-        BigQuery connection is pre-created with necessary IAM role set:
-        a. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
-        b. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-            Alternatively, the IAM could also be setup via the gcloud CLI:
-            gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"
+        2. Have following IAM roles enabled for you:
+              a. BigQuery Job User (roles/bigquery.jobUser)
+              b. BigQuery Connection User (roles/bigquery.connectionUser)
+              c. Cloud Functions Developer (roles/cloudfunctions.developer)
+
+        3. Either the user has setIamPolicy privilege on the project, or a BigQuery connection is pre-created with necessary IAM role set:
+              a. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
+              b. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
+           Alternatively, the IAM could also be setup via the gcloud CLI:
+              $ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"
 
     """
 
