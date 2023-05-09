@@ -16,6 +16,7 @@
 
 __all__ = [
     "cluster",
+    "compose",
     "decomposition",
     "linear_model",
     "metrics",

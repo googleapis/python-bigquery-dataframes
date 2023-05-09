@@ -15,6 +15,7 @@
 import pandas
 
 import bigframes.ml.cluster
+import bigframes.ml.compose
 import bigframes.ml.linear_model
 import bigframes.ml.pipeline
 import bigframes.ml.preprocessing
@@ -190,19 +191,32 @@ def test_pipeline_kmeans_fit_predict(session, penguins_pandas_df_default_index):
     assert_pandas_df_equal_ignore_ordering(result, expected)
 
 
-def test_pipeline_onehotencoder_fit_predict(session, penguins_df_default_index):
-    # TODO(bmil): right now this test covers basically the same behavior as the
-    # StandardScaler case but with a different function. It should be reworked
-    # into a test of ColumnComposer that uses both StandardScaler and OneHotEncoder
+def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
-            ("encode", bigframes.ml.preprocessing.OneHotEncoder()),
+            (
+                "preproc",
+                bigframes.ml.compose.ColumnTransformer(
+                    [
+                        (
+                            "onehot",
+                            bigframes.ml.preprocessing.OneHotEncoder(),
+                            "species",
+                        ),
+                        (
+                            "scale",
+                            bigframes.ml.preprocessing.StandardScaler(),
+                            ["culmen_length_mm", "flipper_length_mm"],
+                        ),
+                    ]
+                ),
+            ),
             ("linreg", bigframes.ml.linear_model.LinearRegression()),
         ]
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[["sex", "species", "island"]]
+    train_X = df[["species", "culmen_length_mm", "flipper_length_mm"]]
     train_y = df[["body_mass_g"]]
     pipeline.fit(train_X, train_y)
 
@@ -226,7 +240,7 @@ def test_pipeline_onehotencoder_fit_predict(session, penguins_df_default_index):
     )
     predictions = pipeline.predict(new_penguins).to_pandas()
     expected = pandas.DataFrame(
-        {"predicted_body_mass_g": [4049.5, 3381.8, 3399.2]},
+        {"predicted_body_mass_g": [3909.2, 3436.0, 2860.0]},
         dtype="Float64",
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )

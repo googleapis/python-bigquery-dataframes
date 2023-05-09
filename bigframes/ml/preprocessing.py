@@ -14,7 +14,7 @@
 
 """Implements Scikit-Learn's sklearn.preprocessing API"""
 
-from typing import Optional
+from typing import Optional, Union
 
 import pandas
 
@@ -73,3 +73,6 @@ class OneHotEncoder(bigframes.ml.api_primitives.BaseEstimator):
     def transform(self, X: bigframes.DataFrame):
         # TODO(bmil): provide a non-pipeline implementation of OneHotEncoder
         raise NotImplementedError("Not yet supported outside of Pipeline")
+
+
+PreprocessorType = Union[StandardScaler, OneHotEncoder]

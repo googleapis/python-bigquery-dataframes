@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 import bigframes
 import bigframes.ml.api_primitives
 import bigframes.ml.cluster
+import bigframes.ml.compose
 import bigframes.ml.core
 import bigframes.ml.linear_model
 import bigframes.ml.preprocessing
@@ -32,7 +33,10 @@ class Pipeline:
 
     This allows chaining preprocessing steps onto an estimator to produce
     a single component. This simplifies code, and allows deploying an estimator
-    and peprocessing together, e.g. with Pipeline.to_gbq(...)"""
+    and peprocessing together, e.g. with Pipeline.to_gbq(...)
+
+    Currently in bigframes.ml only two step pipelines are supported. The first
+    step should be preprocessing, and the second step should be the model."""
 
     def __init__(
         self, steps: List[Tuple[str, bigframes.ml.api_primitives.BaseEstimator]]
@@ -46,6 +50,7 @@ class Pipeline:
         if isinstance(
             transform,
             (
+                bigframes.ml.compose.ColumnTransformer,
                 bigframes.ml.preprocessing.StandardScaler,
                 bigframes.ml.preprocessing.OneHotEncoder,
             ),
@@ -74,17 +79,34 @@ class Pipeline:
         """Combine transform steps with the schema of the input data to produce a list of SQL
         expressions for the TRANSFORM clause."""
         # TODO(bmil): input schema should have types also & be validated
-        # TODO(bmil): handle multiple transform types
-        # TODO(bmil): handle ColumnTransformer (& dedupe output names with input schema)
-        def compile_transform(column: str) -> str:
-            if isinstance(self._transform, bigframes.ml.preprocessing.StandardScaler):
+        # TODO(bmil): add some more graceful abstraction for representing preprocessors
+        def apply_preprocessor(
+            column: str, preprocessor: bigframes.ml.preprocessing.PreprocessorType
+        ) -> str:
+            if isinstance(preprocessor, bigframes.ml.preprocessing.StandardScaler):
                 return bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
-            else:
+            elif isinstance(preprocessor, bigframes.ml.preprocessing.OneHotEncoder):
                 return bigframes.ml.sql.ml_one_hot_encoder(
                     column, f"one_hot_encoded_{column}"
                 )
 
-        return [compile_transform(column) for column in input_schema]
+        transform_exprs: List[str] = []
+        for column in input_schema:
+            if isinstance(
+                self._transform,
+                (
+                    bigframes.ml.preprocessing.StandardScaler,
+                    bigframes.ml.preprocessing.OneHotEncoder,
+                ),
+            ):
+                transform_exprs.append(apply_preprocessor(column, self._transform))
+            else:  # ColumnTransformer
+                for entry in self._transform.transformers_:
+                    _, preprocessor, target_column = entry
+                    if column == target_column:
+                        transform_exprs.append(apply_preprocessor(column, preprocessor))
+
+        return transform_exprs
 
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
         """Fit each estimator in the pipeline to the transformed output of the
