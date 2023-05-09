@@ -35,6 +35,7 @@ import pydata_google_auth
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
+from bigframes.core.ordering import OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.ml.loader
 from bigframes.remote_function import remote_function as biframes_rf
@@ -397,7 +398,7 @@ class Session:
             lambda name: name is not None, pandas_dataframe_copy.index.names
         )
         ordering = core.ExpressionOrdering(
-            ordering_id_column=ordering_col, is_sequential=True, ascending=True
+            ordering_id_column=OrderingColumnReference(ordering_col), is_sequential=True
         )
         return self._read_gbq_with_ordering(
             f"SELECT * FROM `{load_table_destination.table_id}`",

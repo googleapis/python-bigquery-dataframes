@@ -34,7 +34,7 @@ from bigframes.core import WindowSpec
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
-from bigframes.core.ordering import OrderingDirection
+from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.dtypes
 import bigframes.indexers
 import bigframes.operations as ops
@@ -207,14 +207,11 @@ class Series(bigframes.operations.base.SeriesMethods):
             )
         if na_option not in ["keep", "top", "bottom"]:
             raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
-
         if method == "rank":
             # Dense rank has a somewhat different implementation than all other methods
             return self._dense_rank(na_option)
-
         # Step 1: Calculate row numbers for each row
         block = self._block.copy()
-
         # Identify null values to be treated according to na_option param
         nullity_col_id = self._value_column + "_bf_internal_nullity"
         block.apply_unary_op(
@@ -222,17 +219,14 @@ class Series(bigframes.operations.base.SeriesMethods):
             ops.isnull_op,
             output_name=nullity_col_id,
         )
-
         window = WindowSpec(
             # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
             ordering=(
-                (
-                    nullity_col_id,
-                    OrderingDirection.ASC
-                    if na_option == "bottom"
-                    else OrderingDirection.DESC,
+                OrderingColumnReference(
+                    self._value_column,
+                    OrderingDirection.ASC,
+                    na_last=(na_option == "bottom"),
                 ),
-                (self._value_column, OrderingDirection.ASC),
             ),
         )
         rownum_id = f"{self._value_column}_bf_internal_rownum"
@@ -243,26 +237,30 @@ class Series(bigframes.operations.base.SeriesMethods):
             window_spec=window,
             output_name=rownum_id,
         )
-
-        # Step 2: Apply aggregate to groups of like input values
-        rank_id = f"{self._value_column}_bigframes_rank"
-        agg_op = {
-            "average": agg_ops.mean_op,
-            "min": agg_ops.min_op,
-            "max": agg_ops.max_op,
-            "first": agg_ops.first_op,
-        }[method]
-        block.apply_window_op(
-            rownum_id,
-            agg_op,
-            window_spec=WindowSpec(grouping_keys=(self._value_column,)),
-            output_name=rank_id,
-        )
-
-        result = Series(block, rank_id, name=self.name)
+        if method == "first":
+            result = Series(block, rownum_id, name=self.name)
+        else:
+            # Step 2: Apply aggregate to groups of like input values.
+            # This step is skipped for method=='first'
+            rank_id = f"{self._value_column}_bigframes_rank"
+            agg_op = {
+                "average": agg_ops.mean_op,
+                "min": agg_ops.min_op,
+                "max": agg_ops.max_op,
+            }[method]
+            block.apply_window_op(
+                rownum_id,
+                agg_op,
+                window_spec=WindowSpec(grouping_keys=(self._value_column,)),
+                output_name=rank_id,
+            )
+            result = Series(block, rank_id, name=self.name)
         if na_option == "keep":
             # For na_option "keep", null inputs must produce null outputs
             result = result.mask(self.isnull(), pandas.NA)
+        if method in ["min", "max", "first"]:
+            # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
+            result = result.astype(pandas.Float64Dtype())
         return result
 
     def _dense_rank(self, na_option: str):

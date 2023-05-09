@@ -150,11 +150,11 @@ class Index(implicitjoiner.ImplicitJoiner):
                 return combined_table[key]
 
             left_ordering_encoding_size = (
-                self._expr._ordering._ordering_encoding_size
+                self._expr._ordering.ordering_encoding_size
                 or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
             )
             right_ordering_encoding_size = (
-                other._expr._ordering._ordering_encoding_size
+                other._expr._ordering.ordering_encoding_size
                 or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
             )
 
@@ -169,9 +169,11 @@ class Index(implicitjoiner.ImplicitJoiner):
                 how,
             )
             new_order_id = new_order_id_col.get_name()
+            if new_order_id is None:
+                raise ValueError("new_order_id unexpectedly has no name")
             metadata_columns = (new_order_id_col,)
             original_ordering = core.ExpressionOrdering(
-                ordering_id_column=new_order_id
+                ordering_id_column=core.OrderingColumnReference(new_order_id)
                 if (new_order_id_col is not None)
                 else None,
                 ordering_encoding_size=left_ordering_encoding_size
@@ -208,7 +210,7 @@ class Index(implicitjoiner.ImplicitJoiner):
 
         if sort:
             ordering = original_ordering.with_ordering_columns(
-                [joined_index_col.get_name()]
+                [core.OrderingColumnReference(joined_index_col.get_name())]
             )
         else:
             ordering = original_ordering

@@ -966,17 +966,19 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
     ("method",),
     [
         ("average",),
-        ("mix",),
+        ("min",),
         ("max",),
         ("first",),
     ],
 )
 def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, method):
     col_name = "bool_col"
-    bf_result = scalars_df_index[col_name].rank(na_option=na_option).compute()
+    bf_result = (
+        scalars_df_index[col_name].rank(na_option=na_option, method=method).compute()
+    )
     pd_result = (
         scalars_pandas_df_index[col_name]
-        .rank(na_option=na_option)
+        .rank(na_option=na_option, method=method)
         .astype(pd.Float64Dtype())
     )
 

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,6 +26,7 @@ import ibis.expr.types as ibis_types
 import bigframes.aggregations as agg_ops
 from bigframes.core.ordering import (
     ExpressionOrdering,
+    OrderingColumnReference,
     OrderingDirection,
     stringify_order_id,
 )
@@ -35,7 +35,6 @@ import bigframes.operations as ops
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
-
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
@@ -52,7 +51,7 @@ class WindowSpec:
     """
 
     grouping_keys: typing.Sequence[str] = tuple()
-    ordering: typing.Sequence[typing.Tuple[str, OrderingDirection]] = tuple()
+    ordering: typing.Sequence[OrderingColumnReference] = tuple()
     preceding: typing.Optional[int] = None
     following: typing.Optional[int] = None
 
@@ -147,24 +146,13 @@ class BigFramesExpr:
         if not self._ordering:
             return []
         else:
-            values = [
-                self.get_any_column(ordering_value)
-                for ordering_value in self._ordering.all_ordering_columns
-            ]
-            if self._ordering.is_ascending:
-                # TODO(swast): When we assign literals / scalars, we might not
-                # have a true Column. Do we need to check this before trying to
-                # sort by such a column?
-                return [
-                    ibis.asc(typing.cast(ibis_types.Column, value)) for value in values
-                ]
-            else:
-                # TODO(swast): When we assign literals / scalars, we might not
-                # have a true Column. Do we need to check this before trying to
-                # sort by such a column?
-                return [
-                    ibis.desc(typing.cast(ibis_types.Column, value)) for value in values
-                ]
+            # TODO(swast): When we assign literals / scalars, we might not
+            # have a true Column. Do we need to check this before trying to
+            # sort by such a column?
+            return _convert_ordering_to_table_values(
+                {**self._column_names, **self._meta_column_names},
+                self._ordering.all_ordering_columns,
+            )
 
     def builder(self) -> BigFramesExprBuilder:
         """Creates a mutable builder for expressions."""
@@ -189,7 +177,7 @@ class BigFramesExpr:
         # Must generate offsets if we are dropping a column that ordering depends on
         expr = self
         for ordering_column in set(columns).intersection(
-            self._ordering.ordering_value_columns
+            [col.column_id for col in self._ordering.ordering_value_columns]
         ):
             expr = self._hide_column(ordering_column)
 
@@ -249,25 +237,16 @@ class BigFramesExpr:
     def order_by(
         self, by: Sequence[str], ascending=True, na_last=True
     ) -> BigFramesExpr:
-        # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
         sort_col_ids = by
-        nullity_meta_columns = []
-        if (ascending and na_last) or (not ascending and not na_last):
-            # In sql, nulls are the "lowest" value, so we need to adjust to make them act as "highest"
-            nullity_meta_columns = [
-                self.get_any_column(col).isnull().name(col + "_nullity") for col in by
-            ]
-            nullity_meta_column_names = [col.get_name() for col in nullity_meta_columns]
-            sort_col_ids = [
-                val
-                for pair in zip(nullity_meta_column_names, sort_col_ids)
-                for val in pair
-            ]
         expr_builder = self.builder()
+        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
         expr_builder.ordering = self._ordering.with_ordering_columns(
-            sort_col_ids, ascending
+            [
+                OrderingColumnReference(col_id, direction, na_last=na_last)
+                for col_id in sort_col_ids
+            ]
         )
-        expr_builder.meta_columns = [*self.meta_columns, *nullity_meta_columns]
+        expr_builder.meta_columns = list(self.meta_columns)
         return expr_builder.build()
 
     @property
@@ -282,14 +261,14 @@ class BigFramesExpr:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
         if self._ordering.is_sequential:
             return self
-
         # TODO(tbergeron): Enforce total ordering
         table = self.to_ibis_expr(
             ordering_mode="offset_col", order_col_name=ORDER_ID_COLUMN
         )
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
-            ordering_id_column=ORDER_ID_COLUMN, is_sequential=True
+            ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
+            is_sequential=True,
         )
         return BigFramesExpr(
             self._session,
@@ -304,7 +283,6 @@ class BigFramesExpr:
         expr_builder = self.builder()
         # Need to rename column as caller might be creating a new row with the same name but different values.
         # Can avoid this if don't allow callers to determine ids and instead generate unique ones in this class.
-
         new_name = bigframes.guid.generate_guid(prefix="bigframes_meta_")
         expr_builder.meta_columns = [
             *self._meta_columns,
@@ -312,13 +290,11 @@ class BigFramesExpr:
         ]
 
         ordering_columns = [
-            col if col != column_id else new_name
+            col if col.column_id != column_id else col.with_name(new_name)
             for col in self._ordering.ordering_value_columns
         ]
 
-        expr_builder.ordering = self._ordering.with_ordering_columns(
-            ordering_columns, self._ordering.is_ascending
-        )
+        expr_builder.ordering = self._ordering.with_ordering_columns(ordering_columns)
         return expr_builder.build()
 
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
@@ -329,7 +305,7 @@ class BigFramesExpr:
 
         expr = self
         for ordering_column in set(self.column_names.keys()).intersection(
-            self._ordering.ordering_value_columns
+            [col_ref.column_id for col_ref in self._ordering.ordering_value_columns]
         ):
             # Need to hide ordering columns that are being dropped. Alternatively, could project offsets
             expr = expr._hide_column(ordering_column)
@@ -345,7 +321,6 @@ class BigFramesExpr:
             self.to_ibis_expr(ordering_mode="unordered").count().compile()
         )
         length = next(length_query.result())[0]
-
         return (length, width)
 
     def concat(self, other: typing.Sequence[BigFramesExpr]) -> BigFramesExpr:
@@ -355,10 +330,10 @@ class BigFramesExpr:
         tables = []
         prefix_base = 10
         prefix_size = math.ceil(math.log(len(other) + 1, prefix_base))
-
         # Must normalize all ids to the same encoding size
         max_encoding_size = max(
-            [objects._ordering._ordering_encoding_size for objects in [self, *other]]
+            self._ordering.ordering_encoding_size,
+            *[expression._ordering.ordering_encoding_size for expression in other],
         )
         for i, expr in enumerate([self, *other]):
             ordering_prefix = str(i).zfill(prefix_size)
@@ -378,10 +353,9 @@ class BigFramesExpr:
                 ]
             )
             tables.append(table)
-
         combined_table = ibis.union(*tables)
         ordering = ExpressionOrdering(
-            ordering_id_column=ORDER_ID_COLUMN,
+            ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
             ordering_encoding_size=prefix_size + max_encoding_size,
         )
         return BigFramesExpr(
@@ -438,7 +412,8 @@ class BigFramesExpr:
         ordering_mode: str = "order_by",
         order_col_name=ORDER_ID_COLUMN,
     ):
-        """Creates an Ibis table expression representing the DataFrame.
+        """
+        Creates an Ibis table expression representing the DataFrame.
 
         BigFrames expression are sorted, so three options are avaiable to reflect this in the ibis expression.
         The default is that the expression will be ordered by an order_by clause.
@@ -447,19 +422,15 @@ class BigFramesExpr:
         "ordered_col": An ordered column is provided in output table, without guarantee that the values are sequential
         "expose_metadata": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
         "unordered": No ordering information will be provided in output. Only value columns are projected.
-
         For offset or ordered column, order_col_name can be used to assign the output label for the ordering column.
         If none is specified, the default column name will be 'bigrames_ordering_id'
 
         Args:
             with_offsets: Output will include 0-based offsets as a column if set to True
             ordering_mode: One of "order_by", "ordered_col", or "offset_col"
-
         Returns:
             An ibis expression representing the data help by the BigFramesExpression.
-
         """
-
         assert ordering_mode in (
             "order_by",
             "ordered_col",
@@ -469,18 +440,15 @@ class BigFramesExpr:
         )
 
         table = self._table
-
         columns = list(self._columns)
-
         hidden_ordering_columns = [
-            col
+            col.column_id
             for col in self._ordering.all_ordering_columns
-            if col not in self._column_names.keys()
+            if col.column_id not in self._column_names.keys()
         ]
 
         if self.reduced_predicate is not None:
             columns.append(self.reduced_predicate)
-
         if ordering_mode in ("offset_col", "ordered_col"):
             # Generate offsets if current ordering id semantics are not sufficiently strict
             if (ordering_mode == "offset_col" and not self._ordering.is_sequential) or (
@@ -505,32 +473,26 @@ class BigFramesExpr:
             columns.extend(
                 [self._get_meta_column(name) for name in hidden_ordering_columns]
             )
-
         # Special case for empty tables, since we can't create an empty
         # projection.
         if not columns:
             return ibis.memtable([])
-
         table = table.select(columns)
-
         if self.reduced_predicate is not None:
             table = table.filter(table[PREDICATE_COLUMN])
             # Drop predicate as it is will be all TRUE after filtering
             table = table.drop(PREDICATE_COLUMN)
-
         if ordering_mode == "order_by":
-            is_ascending = self._ordering.is_ascending
             # Some ordering columns are value columns, while other are used purely for ordering.
             # We drop the non-value columns after the ordering
             table = table.order_by(
-                [
-                    table[col_id] if is_ascending else ibis.desc(table[col_id])
-                    for col_id in [*self._ordering.all_ordering_columns]
-                ]
+                _convert_ordering_to_table_values(
+                    {col: table[col] for col in table.columns},
+                    self._ordering.all_ordering_columns,
+                )  # type: ignore
             )
             if not (ordering_mode == "expose_metadata"):
                 table = table.drop(*hidden_ordering_columns)
-
         return table
 
     def start_query(
@@ -586,14 +548,10 @@ class BigFramesExpr:
         )
         if self.reduced_predicate is not None:
             group_by.append(self.reduced_predicate)
-
         if window_spec.ordering:
-            order_overrides = [
-                ibis.asc(typing.cast(ibis_types.Column, self.get_column(column)))
-                if direction == OrderingDirection.ASC
-                else ibis.desc(typing.cast(ibis_types.Column, self.get_column(column)))
-                for column, direction in window_spec.ordering
-            ]
+            order_overrides = _convert_ordering_to_table_values(
+                {**self._column_names, **self._meta_column_names}, window_spec.ordering
+            )
             order_by = tuple([*order_overrides, *self.ordering])
         elif (window_spec.following is not None) or (window_spec.preceding is not None):
             # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
@@ -601,7 +559,6 @@ class BigFramesExpr:
         else:
             # Unbound grouping window. Suitable for aggregations but not for analytic function application.
             order_by = None
-
         return ibis.window(
             preceding=window_spec.preceding,
             following=window_spec.following,
@@ -689,3 +646,29 @@ def _reduce_predicate_list(
         (item,) = predicate_list
         return item
     return functools.reduce(lambda acc, pred: acc.__and__(pred), predicate_list)
+
+
+def _convert_ordering_to_table_values(
+    value_lookup: typing.Mapping[str, ibis_types.Value],
+    ordering_columns: typing.Sequence[OrderingColumnReference],
+) -> typing.Sequence[ibis_types.Value]:
+    column_refs = ordering_columns
+    ordering_values = []
+    for ordering_col in column_refs:
+        column = typing.cast(ibis_types.Column, value_lookup[ordering_col.column_id])
+        ordering_value = (
+            ibis.asc(column)
+            if ordering_col.direction.is_ascending
+            else ibis.desc(column)
+        )
+        # Bigquery SQL considers NULLS to be "smallest" values, but we need to override in these cases.
+        if (not ordering_col.na_last) and (not ordering_col.direction.is_ascending):
+            # Force nulls to be first
+            is_null_val = typing.cast(ibis_types.Column, column.isnull())
+            ordering_values.append(ibis.desc(is_null_val))
+        elif (ordering_col.na_last) and (ordering_col.direction.is_ascending):
+            # Force nulls to be last
+            is_null_val = typing.cast(ibis_types.Column, column.isnull())
+            ordering_values.append(ibis.asc(is_null_val))
+        ordering_values.append(ordering_value)
+    return ordering_values

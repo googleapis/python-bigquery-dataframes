@@ -133,12 +133,17 @@ class ImplicitJoiner:
                 else None
             )
             new_ordering = left_expr._ordering.with_ordering_columns(
-                [map_left_id(key) for key in left_expr._ordering.ordering_value_columns]
-                + [
-                    map_right_id(key)
-                    for key in right_expr._ordering.ordering_value_columns
+                [
+                    col_ref.with_name(map_left_id(col_ref.column_id))
+                    for col_ref in left_expr._ordering.ordering_value_columns
                 ]
-            ).with_ordering_id(new_ordering_id)
+                + [
+                    col_ref.with_name(map_right_id(col_ref.column_id))
+                    for col_ref in right_expr._ordering.ordering_value_columns
+                ]
+            )
+            if new_ordering_id:
+                new_ordering = new_ordering.with_ordering_id(new_ordering_id)
 
         joined_expr = core.BigFramesExpr(
             left_expr._session,

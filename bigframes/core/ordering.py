@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 import math
 import typing
@@ -18,106 +19,102 @@ class OrderingDirection(Enum):
     ASC = 1
     DESC = 2
 
+    def reverse(self):
+        if self == OrderingDirection.ASC:
+            return OrderingDirection.DESC
+        else:
+            return OrderingDirection.ASC
 
+    @property
+    def is_ascending(self) -> bool:
+        return self == OrderingDirection.ASC
+
+
+@dataclass(frozen=True)
+class OrderingColumnReference:
+    """References a column and how to order with respect to values in that column."""
+
+    column_id: str
+    direction: OrderingDirection = OrderingDirection.ASC
+    na_last: bool = True
+
+    def with_name(self, name: str):
+        return OrderingColumnReference(name, self.direction, self.na_last)
+
+    def with_reverse(self):
+        return OrderingColumnReference(
+            self.column_id, self.direction.reverse(), not self.na_last
+        )
+
+
+@dataclass(frozen=True)
 class ExpressionOrdering:
     """Immutable object that holds information about the ordering of rows in a BigFrames expression."""
 
-    def __init__(
-        self,
-        ordering_value_columns: Optional[Sequence[str]] = None,
-        ordering_id_column: Optional[str] = None,
-        is_sequential: bool = False,
-        ascending: bool = True,
-        ordering_encoding_size=DEFAULT_ORDERING_ID_LENGTH,
-    ):
-        # TODO(tbergeron): Allow flag to reverse ordering
-        self._ordering_value_columns = (
-            tuple(ordering_value_columns) if ordering_value_columns else ()
-        )
-        self._ordering_id_column = ordering_id_column
-        self._is_sequential = is_sequential
-        self._ascending = ascending
-        # Encoding size must be tracked in order to know what how to combine ordering ids across tables (eg how much to pad when combining different length).
-        # Also will be needed to determine when length is too large and need to compact ordering id with a ROW_NUMBER operation.
-        self._ordering_encoding_size = ordering_encoding_size
+    ordering_value_columns: Sequence[OrderingColumnReference] = ()
+    ordering_id_column: Optional[OrderingColumnReference] = None
+    is_sequential: bool = False
+    # Encoding size must be tracked in order to know what how to combine ordering ids across tables (eg how much to pad when combining different length).
+    # Also will be needed to determine when length is too large and need to compact ordering id with a ROW_NUMBER operation.
+    ordering_encoding_size: int = DEFAULT_ORDERING_ID_LENGTH
 
     def with_is_sequential(self, is_sequential: bool):
         """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
         return ExpressionOrdering(
-            self._ordering_value_columns,
-            self._ordering_id_column,
+            self.ordering_value_columns,
+            self.ordering_id_column,
             is_sequential,
-            ordering_encoding_size=self._ordering_encoding_size,
+            ordering_encoding_size=self.ordering_encoding_size,
         )
 
     def with_ordering_columns(
-        self, ordering_value_columns: Optional[Sequence[str]] = None, ascending=True
+        self, ordering_value_columns: Sequence[OrderingColumnReference] = ()
     ):
         """Creates a new ordering that preserves ordering id, but replaces ordering value column list."""
         return ExpressionOrdering(
-            ordering_value_columns,
-            self._ordering_id_column,
+            tuple(ordering_value_columns),
+            self.ordering_id_column,
             is_sequential=False,
-            ascending=ascending,
-            ordering_encoding_size=self._ordering_encoding_size,
+            ordering_encoding_size=self.ordering_encoding_size,
         )
 
     def with_ordering_id(self, ordering_id: str):
         """Creates a new ordering that preserves other properties, but with a different ordering id. Useful when reprojecting ordering for implicit joins."""
         return ExpressionOrdering(
-            self._ordering_value_columns,
-            ordering_id,
+            self.ordering_value_columns,
+            OrderingColumnReference(ordering_id),
             is_sequential=self.is_sequential,
-            ascending=self.is_ascending,
-            ordering_encoding_size=self._ordering_encoding_size,
+            ordering_encoding_size=self.ordering_encoding_size,
         )
 
     def with_reverse(self):
         """Reverses the ordering."""
         return ExpressionOrdering(
-            self._ordering_value_columns,
-            self._ordering_id_column,
+            tuple([col.with_reverse() for col in self.ordering_value_columns]),
+            self.ordering_id_column.with_reverse(),
             is_sequential=False,
-            ascending=(not self._ascending),
-            ordering_encoding_size=self._ordering_encoding_size,
+            ordering_encoding_size=self.ordering_encoding_size,
         )
 
     @property
-    def is_sequential(self) -> bool:
-        return self._is_sequential
-
-    @property
-    def is_ascending(self) -> bool:
-        return self._ascending
-
-    @property
-    def ordering_value_columns(self) -> Sequence[str]:
-        return self._ordering_value_columns
-
-    @property
     def ordering_id(self) -> Optional[str]:
-        return self._ordering_id_column
-
-    @property
-    def ordering_id_encoding_size(self) -> Optional[str]:
-        """Length of the ordering id when encoded in string form."""
-        return self._ordering_encoding_size
+        return self.ordering_id_column.column_id if self.ordering_id_column else None
 
     @property
     def order_id_defined(self) -> bool:
         """True if ordering is fully defined in ascending order by its ordering id."""
         return bool(
-            self._ordering_id_column
-            and (not self._ordering_value_columns)
-            and self.is_ascending
+            self.ordering_id_column
+            and (not self.ordering_value_columns)
+            and self.ordering_id_column.direction == OrderingDirection.ASC
         )
 
     @property
-    def all_ordering_columns(self) -> Sequence[str]:
+    def all_ordering_columns(self) -> Sequence[OrderingColumnReference]:
         return (
-            list(self._ordering_value_columns)
-            if self._ordering_id_column is None
-            else [*self._ordering_value_columns, self._ordering_id_column]
+            list(self.ordering_value_columns)
+            if self.ordering_id_column is None
+            else [*self.ordering_value_columns, self.ordering_id_column]
         )
 
 
