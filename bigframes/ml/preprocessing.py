@@ -28,7 +28,7 @@ import bigframes.ml.sql
 class StandardScaler(bigframes.ml.api_primitives.BaseEstimator):
     """Implementation of sklearn.preprocessing.StandardScaler.
 
-    When used in a Pipeline, this class will compile to a ML.STANDARDSCALER and be
+    When used in a Pipeline, this class will compile to a ML.STANDARD_SCALER and be
     wrapped in a BQML TRANSFORM clause.
 
     When used outside of a Pipeline, the current implementation will not use BQML.
@@ -56,3 +56,20 @@ class StandardScaler(bigframes.ml.api_primitives.BaseEstimator):
         pd_X = X.to_pandas()
         df = (pd_X - self._avg) / self._stdev
         return session.read_pandas(df)
+
+
+class OneHotEncoder(bigframes.ml.api_primitives.BaseEstimator):
+    """Encodes categorical data in a one-hot-encoding format. Note that this
+    method deviates from Scikit-Learn; instead of producing sparse binary columns,
+    a the encoding is a single column of STRUCT<index INT64, value DOUBLE>
+
+    When used in a Pipeline, this class will compile to a ML.ONE_HOT_ENCODER and
+    be wrapped in a BQML TRANSFORM clause."""
+
+    def fit(self, X: bigframes.DataFrame):
+        # TODO(bmil): provide a non-pipeline implementation of OneHotEncoder
+        raise NotImplementedError("Not yet supported outside of Pipeline")
+
+    def transform(self, X: bigframes.DataFrame):
+        # TODO(bmil): provide a non-pipeline implementation of OneHotEncoder
+        raise NotImplementedError("Not yet supported outside of Pipeline")

@@ -43,7 +43,13 @@ class Pipeline:
             )
 
         transform, estimator = steps[0][1], steps[1][1]
-        if isinstance(transform, bigframes.ml.preprocessing.StandardScaler):
+        if isinstance(
+            transform,
+            (
+                bigframes.ml.preprocessing.StandardScaler,
+                bigframes.ml.preprocessing.OneHotEncoder,
+            ),
+        ):
             self._transform = transform
         else:
             raise NotImplementedError(
@@ -70,10 +76,15 @@ class Pipeline:
         # TODO(bmil): input schema should have types also & be validated
         # TODO(bmil): handle multiple transform types
         # TODO(bmil): handle ColumnTransformer (& dedupe output names with input schema)
-        return [
-            bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
-            for column in input_schema
-        ]
+        def compile_transform(column: str) -> str:
+            if isinstance(self._transform, bigframes.ml.preprocessing.StandardScaler):
+                return bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
+            else:
+                return bigframes.ml.sql.ml_one_hot_encoder(
+                    column, f"one_hot_encoded_{column}"
+                )
+
+        return [compile_transform(column) for column in input_schema]
 
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
         """Fit each estimator in the pipeline to the transformed output of the

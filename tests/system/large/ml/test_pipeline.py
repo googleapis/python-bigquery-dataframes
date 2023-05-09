@@ -188,3 +188,48 @@ def test_pipeline_kmeans_fit_predict(session, penguins_pandas_df_default_index):
     )
     expected.index.name = "observation"
     assert_pandas_df_equal_ignore_ordering(result, expected)
+
+
+def test_pipeline_onehotencoder_fit_predict(session, penguins_df_default_index):
+    # TODO(bmil): right now this test covers basically the same behavior as the
+    # StandardScaler case but with a different function. It should be reworked
+    # into a test of ColumnComposer that uses both StandardScaler and OneHotEncoder
+    pipeline = bigframes.ml.pipeline.Pipeline(
+        [
+            ("encode", bigframes.ml.preprocessing.OneHotEncoder()),
+            ("linreg", bigframes.ml.linear_model.LinearRegression()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[["sex", "species", "island"]]
+    train_y = df[["body_mass_g"]]
+    pipeline.fit(train_X, train_y)
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pandas.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+                "sex": ["MALE", "FEMALE", "FEMALE"],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pipeline.predict(new_penguins).to_pandas()
+    expected = pandas.DataFrame(
+        {"predicted_body_mass_g": [4049.5, 3381.8, 3399.2]},
+        dtype="Float64",
+        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pandas.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
+    )

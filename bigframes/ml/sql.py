@@ -60,6 +60,11 @@ def ml_standard_scaler(numeric_expr_sql: str, name: str) -> str:
     return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
 
+def ml_one_hot_encoder(numeric_expr_sql: str, name: str) -> str:
+    """Encode ML.ONE_HOT_ENCODER for BQML"""
+    return f"""ML.ONE_HOT_ENCODER({numeric_expr_sql}) OVER() AS {name}"""
+
+
 def create_model(
     model_name: str,
     source_sql: str,
