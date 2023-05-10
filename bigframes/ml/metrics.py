@@ -21,6 +21,39 @@ import pandas as pd
 import bigframes
 
 
+def r2_score(
+    y_true: bigframes.Series, y_pred: bigframes.Series, force_finite=True
+) -> float:
+    """Compute the R^2 (coefficient of determination) regression score.
+
+    Perfect prediction will yield a score of 1.0, always predicting the average
+    will yield 0.0, and worse prediction will get a negative score.
+
+    If all of y_true has the same value, the score would be NaN or -Inf; to avoid
+    this 1.0 or 0.0 respectively will be returned instead. This behavior can be
+    disabled by setting force_finite=False"""
+    # TODO(bmil): support multioutput
+
+    # total sum of squares
+    # TODO(bmil): remove .compute() when bigframes supports
+    # (dataframe, scalar) binops
+    # TODO(bmil): remove multiply by self when bigframes supports pow()
+    delta_from_mean = y_true - y_true.mean().compute()
+    ss_total = (delta_from_mean * delta_from_mean).sum().compute()
+
+    # residual sum of squares
+    # TODO(bmil): remove .compute() when bigframes supports
+    # (scalar, scalar) binops
+    # TODO(bmil): remove multiply by self when bigframes supports pow()
+    delta_from_pred = y_true - y_pred
+    ss_res = (delta_from_pred * delta_from_pred).sum().compute()
+
+    if force_finite and ss_total == 0:
+        return 0.0 if ss_res > 0 else 1.0
+
+    return 1 - (ss_res / ss_total)
+
+
 def roc_curve(
     y_true: bigframes.DataFrame,
     y_score: bigframes.DataFrame,
