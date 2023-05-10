@@ -87,4 +87,15 @@ class BaseEstimator:
         return dict([(key, getattr(self, key)) for key in self.__get_param_names()])
 
     def __repr__(self):
-        return "I can't beleive it's not SKLearn!"
+        """Print the estimator's constructor with all non-default parameter values"""
+        classname = type(self).__name__
+
+        # convert dict to initializer list format
+        def build_arglist(kwargs: Dict):
+            return [f"{key}={value.__repr__()}" for key, value in kwargs.items()]
+
+        default_args = build_arglist(type(self)().get_params())
+        args = build_arglist(self.get_params())
+        argstring = ", ".join([arg for arg in args if arg not in default_args])
+
+        return f"{classname}({argstring})"
