@@ -33,10 +33,11 @@ from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
-# minute tracked against a quota limit (default 60) by the Cloud Functions API
+# minute tracked against a quota limit (default 60, increased to 120 for
+# bigframes-dev project) by the Cloud Functions API
 # We are running pytest with "-n 20". Let's say each session lasts about a
-# minute, so we are setting a limit of 60/20 = 3 deletions per session.
-_MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 3
+# minute, so we are setting a limit of 120/20 = 6 deletions per session.
+_MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 6
 
 # NOTE: Keep this import at the top level to test global var behavior with
 # remote functions
@@ -640,5 +641,39 @@ def test_remote_udf_mask_custom_value(
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_result_col = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
     pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
+    add_one_lambda = lambda x: x + 1  # noqa: E731
+
+    add_one_lambda_remote = session.remote_function(
+        [dt.int64],
+        dt.int64,
+        dataset_id,
+        bq_cf_connection,
+        reuse=False,
+    )(add_one_lambda)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(add_one_lambda_remote)
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(add_one_lambda)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

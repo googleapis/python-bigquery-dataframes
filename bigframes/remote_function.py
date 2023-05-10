@@ -15,8 +15,8 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import inspect
-import itertools
 import json
 import logging
 import os
@@ -47,6 +47,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Protocol version 4 is available in python version 3.4 and above
+# https://docs.python.org/3/library/pickle.html#data-stream-format
+_pickle_protocol_version = 4
+
 
 def get_remote_function_locations(bq_location):
     """Get BQ location and cloud functions region given a BQ client."""
@@ -69,9 +73,21 @@ def get_remote_function_locations(bq_location):
     return bq_location, cloud_function_region
 
 
+def _is_lambda(def_):
+    "Check if a udf is a lambda."
+    return callable(def_) and def_.__name__ == (lambda: None).__name__
+
+
+def _get_hash(def_):
+    "Get hash of a function."
+    def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
+    return hashlib.md5(def_repr).hexdigest()
+
+
 def get_cloud_function_name(def_, uniq_suffix=None):
     """Get the name of the cloud function."""
-    cf_name = f'bigframes-{def_.__name__.replace("_", "-")}'
+    cf_name = _get_hash(def_) if _is_lambda(def_) else def_.__name__.replace("_", "-")
+    cf_name = f"bigframes-{cf_name}"  # for identification
     if uniq_suffix:
         cf_name = f"{cf_name}-{uniq_suffix}"
     return cf_name
@@ -79,7 +95,8 @@ def get_cloud_function_name(def_, uniq_suffix=None):
 
 def get_remote_function_name(def_, uniq_suffix=None):
     """Get the name for the BQ remote function."""
-    bq_rf_name = f"bigframes_{def_.__name__}"
+    bq_rf_name = _get_hash(def_) if _is_lambda(def_) else def_.__name__
+    bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
     if uniq_suffix:
         bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
     return bq_rf_name
@@ -88,10 +105,6 @@ def get_remote_function_name(def_, uniq_suffix=None):
 class RemoteFunctionClient:
     # Wait time (in seconds) for an IAM binding to take effect after creation
     _iam_wait_seconds = 90
-
-    # Protocol version 4 is available in python version 3.4 and above
-    # https://docs.python.org/3/library/pickle.html#data-stream-format
-    _pickle_protocol_version = 4
 
     def __init__(
         self,
@@ -235,18 +248,8 @@ class RemoteFunctionClient:
         udf_code_file_name = "udf.py"
         udf_bytecode_file_name = "udf.cloudpickle"
 
-        # original code
-        # TODO(shobs): Let's assume it's a simple user defined function with a
-        # single decorator that happens to be the remote function decorator itself.
-        # In case of multiple decorators the cloud function source code should
-        # be generated with the decorators other than the remote function decorator.
-        udf_lines = list(
-            itertools.dropwhile(
-                lambda line: (not line.lstrip().startswith("def ")),
-                inspect.getsourcelines(def_)[0],
-            )
-        )
-        udf_code = textwrap.dedent("".join(udf_lines))
+        # original code, only for debugging purpose
+        udf_code = textwrap.dedent(inspect.getsource(def_))
         udf_code_file_path = os.path.join(dir, udf_code_file_name)
         with open(udf_code_file_path, "w") as f:
             f.write(udf_code)
@@ -254,7 +257,7 @@ class RemoteFunctionClient:
         # serialized bytecode
         udf_bytecode_file_path = os.path.join(dir, udf_bytecode_file_name)
         with open(udf_bytecode_file_path, "wb") as f:
-            cloudpickle.dump(def_, f, protocol=self._pickle_protocol_version)
+            cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
 
         return udf_code_file_name, udf_bytecode_file_name
 
