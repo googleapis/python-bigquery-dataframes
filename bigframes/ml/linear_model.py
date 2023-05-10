@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional, TYPE_CHECKING
+from typing import cast, Dict, List, Literal, Optional, TYPE_CHECKING
 
 from google.cloud import bigquery
 
@@ -26,7 +26,12 @@ import bigframes.ml.core
 
 
 class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
-    def __init__(self, fit_intercept=True):
+    def __init__(
+        self,
+        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
+        fit_intercept=True,
+    ):
+        self.data_split_method = data_split_method
         self.fit_intercept = fit_intercept
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
 
@@ -39,6 +44,8 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
+        if "dataSplitMethod" in last_fitting:
+            kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
         if "fitIntercept" in last_fitting:
             kwargs["last_fitting"] = last_fitting["fitIntercept"]
 
@@ -49,7 +56,11 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
     @property
     def _bqml_options(self) -> Dict[str, str | int | float | List[str]]:
         """The model options as they will be set for BQML"""
-        return {"model_type": "LINEAR_REG", "fit_intercept": self.fit_intercept}
+        return {
+            "model_type": "LINEAR_REG",
+            "data_split_method": self.data_split_method,
+            "fit_intercept": self.fit_intercept,
+        }
 
     def fit(
         self,
