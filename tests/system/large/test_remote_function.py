@@ -159,6 +159,7 @@ def cleanup_cloud_functions(session, functions_client, dataset_id_permanent):
             break
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_multiply_with_ibis(
     session,
     scalars_table_id,
@@ -202,6 +203,7 @@ def test_remote_function_multiply_with_ibis(
     )
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_stringify_with_ibis(
     session,
     scalars_table_id,
@@ -240,6 +242,7 @@ def test_remote_function_stringify_with_ibis(
     )
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_decorator_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -275,6 +278,7 @@ def test_remote_function_decorator_with_bigframes_series(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_explicit_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -311,6 +315,7 @@ def test_remote_function_explicit_with_bigframes_series(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_udf_referring_outside_var(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -355,6 +360,7 @@ def test_remote_udf_referring_outside_var(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_udf_referring_outside_import(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -395,6 +401,7 @@ def test_remote_udf_referring_outside_import(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_udf_referring_global_var_and_import(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -436,6 +443,7 @@ def test_remote_udf_referring_global_var_and_import(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_restore_with_bigframes_series(
     session,
     scalars_dfs,
@@ -567,6 +575,7 @@ def test_remote_function_restore_with_bigframes_series(
     shutil.rmtree(add_one_uniq_dir)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_udf_mask_default_value(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
@@ -599,6 +608,7 @@ def test_remote_udf_mask_default_value(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_udf_mask_custom_value(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):

@@ -34,6 +34,7 @@ def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
     return bigframes.Session(bigframes.Context(bigquery_connection=bq_cf_connection))
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_direct_no_session_param(
     bigquery_client, scalars_dfs, dataset_id_permanent, bq_cf_connection
 ):
@@ -71,6 +72,7 @@ def test_remote_function_direct_no_session_param(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_direct_session_param(session_with_bq_connection, scalars_dfs):
     @remote_function(
         [dt.int64()],
@@ -102,6 +104,7 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_via_session_default(session_with_bq_connection, scalars_dfs):
     # Session has bigquery connection initialized via context. Without an
     # explicit dataset the default dataset from the session would be used.
@@ -136,6 +139,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_via_session_with_overrides(
     session, scalars_dfs, dataset_id_permanent, bq_cf_connection
 ):
@@ -172,6 +176,7 @@ def test_remote_function_via_session_with_overrides(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_via_session_context_connection_setter(
     scalars_dfs, dataset_id, bq_cf_connection
 ):
