@@ -127,7 +127,7 @@ Clean and prepare the data
     adelie_data = df[df.species == "Adelie Penguin (Pygoscelis adeliae)"]
 
     # drop the columns we don't care about
-    adelie_data = adelie_data.drop(["species"])
+    adelie_data = adelie_data.drop(columns=["species"])
 
     # drop rows with nulls to get our training data
     training_data = adelie_data.dropna()

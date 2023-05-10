@@ -106,8 +106,8 @@ def test_to_parquet(scalars_dfs, gcs_folder: str):
         path = gcs_folder + "test_to_parquet_wo_index.csv"
 
     # TODO(b/268693993): Type GEOGRAPHY is not currently supported for parquet.
-    scalars_df = scalars_df.drop("geography_col")
-    scalars_pandas_df = scalars_pandas_df.drop("geography_col", axis=1)
+    scalars_df = scalars_df.drop(columns="geography_col")
+    scalars_pandas_df = scalars_pandas_df.drop(columns="geography_col")
 
     # TODO(swast): Do a bit more processing on the input DataFrame to ensure
     # the exported results are from the generated query, not just the source

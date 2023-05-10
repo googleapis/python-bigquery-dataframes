@@ -214,10 +214,22 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     # as the string type, the `numeric_col` as the Float64 type, and does not detect
     # the correct types for `datetime_col` & `timestamp_col`
     gcs_df = gcs_df.drop(
-        ["bytes_col", "numeric_col", "geography_col", "datetime_col", "timestamp_col"]
+        columns=[
+            "bytes_col",
+            "numeric_col",
+            "geography_col",
+            "datetime_col",
+            "timestamp_col",
+        ]
     )
     scalars_df = scalars_df.drop(
-        ["bytes_col", "numeric_col", "geography_col", "datetime_col", "timestamp_col"]
+        columns=[
+            "bytes_col",
+            "numeric_col",
+            "geography_col",
+            "datetime_col",
+            "timestamp_col",
+        ]
     )
     assert gcs_df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
@@ -237,8 +249,8 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # numeric and geometry types, so they're skipped here.
-    gcs_df = gcs_df.drop(["bytes_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(["bytes_col", "numeric_col", "geography_col"])
+    gcs_df = gcs_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
     assert gcs_df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
 
@@ -274,7 +286,7 @@ def test_read_csv_local_default_engine(session, scalars_dfs):
         # as the string type, the `numeric_col` as the Float64 type, and does not detect
         # the correct types for `datetime_col` & `timestamp_col`
         local_df = local_df.drop(
-            [
+            columns=[
                 "bytes_col",
                 "numeric_col",
                 "geography_col",
@@ -283,7 +295,7 @@ def test_read_csv_local_default_engine(session, scalars_dfs):
             ]
         )
         scalars_df = scalars_df.drop(
-            [
+            columns=[
                 "bytes_col",
                 "numeric_col",
                 "geography_col",
@@ -308,8 +320,10 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
         # numeric and geometry types, so they're skipped here.
-        local_df = local_df.drop(["bytes_col", "numeric_col", "geography_col"])
-        scalars_df = scalars_df.drop(["bytes_col", "numeric_col", "geography_col"])
+        local_df = local_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+        scalars_df = scalars_df.drop(
+            columns=["bytes_col", "numeric_col", "geography_col"]
+        )
         assert local_df.shape[0] == scalars_df.shape[0]
         pd.testing.assert_series_equal(local_df.dtypes, scalars_df.dtypes)
 

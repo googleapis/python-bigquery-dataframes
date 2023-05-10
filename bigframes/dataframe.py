@@ -340,7 +340,7 @@ class DataFrame:
         df.index.name = self.index.name
         return df
 
-    def drop(self, columns: Union[str, Iterable[str]]) -> DataFrame:
+    def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
         """Drop specified column(s)."""
         if isinstance(columns, str):
             columns = [columns]
@@ -353,7 +353,7 @@ class DataFrame:
         ]
         return df
 
-    def rename(self, columns: Mapping[str, str]) -> DataFrame:
+    def rename(self, *, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
         col_labels = [
@@ -554,8 +554,8 @@ class DataFrame:
             left_on_name in joined_frame._block.expr.column_names
             and right_on_name in joined_frame._block.expr.column_names
         ):
-            joined_frame = joined_frame.drop(right_on_name)
-            joined_frame = joined_frame.rename({left_on_name: on})
+            joined_frame = joined_frame.drop(columns=right_on_name)
+            joined_frame = joined_frame.rename(columns={left_on_name: on})
 
         joined_frame._col_labels = self._get_merged_col_labels(right, on, suffixes)
 

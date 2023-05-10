@@ -135,7 +135,7 @@ def scalars_testdata_setup(
         )
     else:
         return (
-            scalars_pandas_df_default_index.drop(["rowindex"], axis="columns"),
+            scalars_pandas_df_default_index.drop(columns=["rowindex"], axis="columns"),
             lambda session: session.read_gbq(SCALARS_TABLE_ID),
         )
 

@@ -41,6 +41,17 @@ def test_hasattr(scalars_dfs):
     assert not hasattr(scalars_df, "not_exist")
 
 
+def test_head_with_custom_column_labels(scalars_df_index, scalars_pandas_df_index):
+    rename_mapping = {
+        "int64_col": "Integer Column",
+        "string_col": "言語列",
+    }
+    bf_df = scalars_df_index.rename(columns=rename_mapping).head(3)
+    bf_result = bf_df.compute()
+    pd_result = scalars_pandas_df_index.rename(columns=rename_mapping).head(3)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_get_column_by_attr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     series = scalars_df.int64_col
@@ -62,7 +73,7 @@ def test_get_columns(scalars_dfs):
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    df_pandas = scalars_df.drop(col_name).compute()
+    df_pandas = scalars_df.drop(columns=col_name).compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.drop(columns=col_name).columns
     )
@@ -71,16 +82,34 @@ def test_drop_column(scalars_dfs):
 def test_drop_columns(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = ["int64_col", "geography_col", "time_col"]
-    df_pandas = scalars_df.drop(col_names).compute()
+    df_pandas = scalars_df.drop(columns=col_names).compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.drop(columns=col_names).columns
     )
 
 
+def test_drop_with_custom_column_labels(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    rename_mapping = {
+        "int64_col": "Integer Column",
+        "string_col": "言語列",
+    }
+    dropped_columns = [
+        "言語列",
+        "timestamp_col",
+    ]
+    bf_df = scalars_df.rename(columns=rename_mapping).drop(columns=dropped_columns)
+    bf_result = bf_df.compute()
+    pd_result = scalars_pandas_df.rename(columns=rename_mapping).drop(
+        columns=dropped_columns
+    )
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 def test_rename(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"bool_col": "boolean_col"}
-    df_pandas = scalars_df.rename(col_name_dict).compute()
+    df_pandas = scalars_df.rename(columns=col_name_dict).compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
     )
@@ -105,7 +134,7 @@ def test_repr_w_all_rows(scalars_dfs):
 def test_df_column_name_with_space(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"bool_col": "bool  col"}
-    df_pandas = scalars_df.rename(col_name_dict).compute()
+    df_pandas = scalars_df.rename(columns=col_name_dict).compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
     )
@@ -114,7 +143,7 @@ def test_df_column_name_with_space(scalars_dfs):
 def test_df_column_name_duplicate(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"int64_too": "int64_col"}
-    df_pandas = scalars_df.rename(col_name_dict).compute()
+    df_pandas = scalars_df.rename(columns=col_name_dict).compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df.rename(columns=col_name_dict).columns
     )
@@ -124,7 +153,7 @@ def test_get_df_column_name_duplicate(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"int64_too": "int64_col"}
 
-    bf_result = scalars_df.rename(col_name_dict)["int64_col"].compute()
+    bf_result = scalars_df.rename(columns=col_name_dict)["int64_col"].compute()
     pd_result = scalars_pandas_df.rename(columns=col_name_dict)["int64_col"]
     pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
 
