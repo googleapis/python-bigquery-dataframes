@@ -233,8 +233,9 @@ class Session:
         self,
         query_or_table: str,
         *,
-        col_order: Optional[Iterable[str]] = None,
         index_cols: Iterable[str] = (),
+        col_order: Iterable[str] = (),
+        max_results: Optional[int] = None,
     ) -> dataframe.DataFrame:
         """Loads DataFrame from Google BigQuery.
 
@@ -242,41 +243,14 @@ class Session:
             query_or_table: a SQL string to be executed or a BigQuery table to be read. The
               table must be specified in the format of `project.dataset.tablename` or
               `dataset.tablename`.
-            col_order: List of BigQuery column names in the desired order for results DataFrame.
             index_cols: List of column names to use as the index or multi-index.
+            col_order: List of BigQuery column names in the desired order for results DataFrame.
+            max_results: Limit the maximum number of rows to fetch from the query results.
 
         Returns:
             A DataFrame representing results of the query or table.
         """
-        return self._read_gbq_with_ordering(
-            query_or_table=query_or_table, col_order=col_order, index_cols=index_cols
-        )
-
-    def _read_gbq_with_ordering(
-        self,
-        query_or_table: str,
-        *,
-        col_order: Optional[Iterable[str]] = None,
-        index_cols: Union[Iterable[str], Tuple] = (),
-        ordering: Optional[core.ExpressionOrdering] = None,
-    ) -> dataframe.DataFrame:
-        """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
-
-        Args:
-            query_or_table: a SQL string to be executed or a BigQuery table to be read. The
-              table must be specified in the format of `project.dataset.tablename` or
-              `dataset.tablename`.
-            col_order: List of BigQuery column names in the desired order for results DataFrame.
-            index_cols: List of column names to use as the index or multi-index.
-            ordering_col: Column name to be used for ordering.
-
-        Returns:
-            A DataFrame representing results of the query or table.
-        """
-        index_keys = list(index_cols)
-        if len(index_keys) > 1:
-            raise NotImplementedError("MultiIndex not supported.")
-
+        # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if _is_query(query_or_table):
             table_expression = self.ibis_client.sql(query_or_table)
         else:
@@ -290,6 +264,51 @@ class Session:
                 database=f"{table_ref.project}.{table_ref.dataset_id}",
             )
 
+        for key in col_order:
+            if key not in table_expression.columns:
+                raise ValueError(
+                    f"Column '{key}' of `col_order` not found in this table."
+                )
+
+        for key in index_cols:
+            if key not in table_expression.columns:
+                raise ValueError(
+                    f"Column `{key}` of `index_cols` not found in this table."
+                )
+
+        if max_results is not None:
+            if max_results <= 0:
+                raise ValueError("`max_results` should be a positive number.")
+            table_expression = table_expression.limit(max_results)
+
+        return self._read_gbq_with_ordering(
+            table_expression=table_expression,
+            col_order=col_order,
+            index_cols=index_cols,
+        )
+
+    def _read_gbq_with_ordering(
+        self,
+        table_expression: ibis_types.Table,
+        *,
+        col_order: Iterable[str] = (),
+        index_cols: Union[Iterable[str], Tuple] = (),
+        ordering: Optional[core.ExpressionOrdering] = None,
+    ) -> dataframe.DataFrame:
+        """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
+
+        Args:
+            table_expression: an ibis table expression to be executed in BigQuery.
+            col_order: List of BigQuery column names in the desired order for results DataFrame.
+            index_cols: List of column names to use as the index or multi-index.
+            ordering: Column name to be used for ordering.
+
+        Returns:
+            A DataFrame representing results of the query or table.
+        """
+        index_keys = list(index_cols)
+        if len(index_keys) > 1:
+            raise NotImplementedError("MultiIndex not supported.")
         if index_keys:
             # TODO(swast): Support MultiIndex.
             index_col_name = index_keys[0]
@@ -316,7 +335,8 @@ class Session:
                 )
                 index_col = table_expression[index_col_name]
 
-        if col_order is None:
+        column_keys = list(col_order)
+        if len(column_keys) == 0:
             if ordering is not None and ordering.ordering_id:
                 non_value_cols = {index_col_name, ordering.ordering_id}
             else:
@@ -324,8 +344,6 @@ class Session:
             column_keys = [
                 key for key in table_expression.columns if key not in non_value_cols
             ]
-        else:
-            column_keys = list(col_order)
         return self._read_ibis(
             table_expression, index_col, index_name, column_keys, ordering=ordering
         )
@@ -416,8 +434,11 @@ class Session:
         ordering = core.ExpressionOrdering(
             ordering_id_column=OrderingColumnReference(ordering_col), is_sequential=True
         )
+        table_expression = self.ibis_client.sql(
+            f"SELECT * FROM `{load_table_destination.table_id}`"
+        )
         return self._read_gbq_with_ordering(
-            f"SELECT * FROM `{load_table_destination.table_id}`",
+            table_expression=table_expression,
             index_cols=index_cols,
             ordering=ordering,
         )

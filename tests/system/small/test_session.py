@@ -13,7 +13,7 @@
 # limitations under the License.
 from io import StringIO
 import tempfile
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 import google.api_core.exceptions
 import numpy as np
@@ -26,13 +26,25 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
+import google.cloud.bigquery as bigquery
+
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
-def test_read_gbq(session: bigframes.Session, scalars_table_id, scalars_schema):
+def test_read_gbq(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    scalars_schema: List[bigquery.SchemaField],
+    scalars_pandas_df_default_index: pd.DataFrame,
+):
     df = session.read_gbq(scalars_table_id)
-    # TODO(swast): Test against public properties like columns or dtypes. Also,
-    # check the names and data types match up.
     assert len(df.columns) == len(scalars_schema)
+
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df_default_index
+    assert bf_result.shape[0] == pd_result.shape[0]
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_read_gbq_tokyo(
@@ -51,16 +63,82 @@ def test_read_gbq_tokyo(
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_read_gbq_w_col_order(session, scalars_table_id, scalars_schema):
-    columns = list(column.name for column in scalars_schema)
-    df = session.read_gbq(scalars_table_id, col_order=columns)
-    assert len(df.columns) == len(scalars_schema)
+@pytest.mark.parametrize(
+    ("query_or_table", "col_order"),
+    [
+        pytest.param(
+            "{scalars_table_id}", ["bool_col", "int64_col"], id="two_cols_in_table"
+        ),
+        pytest.param(
+            """SELECT
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools,
+            FROM `{scalars_table_id}` AS t
+            """,
+            ["my_strings"],
+            id="one_cols_in_query",
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            ["unknown"],
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="Column `unknown` not found in this table.",
+            ),
+            id="unknown_col",
+        ),
+    ],
+)
+def test_read_gbq_w_col_order(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    col_order: List[str],
+):
+    df = session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id), col_order=col_order
+    )
+    assert df.columns.tolist() == col_order
 
-    df = session.read_gbq(scalars_table_id, col_order=[columns[0]])
-    assert len(df.columns) == 1
 
-    with pytest.raises(ValueError):
-        df = session.read_gbq(scalars_table_id, col_order=["unknown"])
+@pytest.mark.parametrize(
+    ("query_or_table", "max_results"),
+    [
+        pytest.param("{scalars_table_id}", 2, id="two_rows_in_table"),
+        pytest.param(
+            """SELECT
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools,
+            FROM `{scalars_table_id}` AS t
+            """,
+            2,
+            id="three_rows_in_query",
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            -1,
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="`max_results` should be a positive number.",
+            ),
+            id="neg_rows",
+        ),
+    ],
+)
+def test_read_gbq_w_max_results(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    max_results: int,
+):
+    df = session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id),
+        max_results=max_results,
+    )
+    bf_result = df.compute()
+    assert bf_result.shape[0] == max_results
 
 
 def test_read_gbq_sql(
@@ -114,20 +192,6 @@ def test_read_gbq_sql(
             drop=True
         )
 
-    pd.testing.assert_frame_equal(result, expected)
-
-
-def test_read_gbq_sql_w_col_order(session):
-    sql = """SELECT 1 AS my_int_col, "hi" AS my_string_col, 0.2 AS my_float_col"""
-    df = session.read_gbq(sql, col_order=["my_float_col", "my_string_col"])
-    result = df.compute()
-    expected: pd.DataFrame = pd.DataFrame(
-        {
-            "my_float_col": pd.Series([0.2], dtype=pd.Float64Dtype()),
-            "my_string_col": pd.Series(["hi"], dtype=pd.StringDtype(storage="pyarrow")),
-        },
-        index=pd.Index([0], dtype=pd.Int64Dtype()),
-    )
     pd.testing.assert_frame_equal(result, expected)
 
 
@@ -243,8 +307,12 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # numeric and geometry types, so they're skipped here.
-    gcs_df = gcs_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    gcs_df = gcs_df.drop(
+        columns=["bytes_col", "numeric_col", "geography_col", "datetime_col"]
+    )
+    scalars_df = scalars_df.drop(
+        columns=["bytes_col", "numeric_col", "geography_col", "datetime_col"]
+    )
     assert gcs_df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(gcs_df.dtypes, scalars_df.dtypes)
 
@@ -305,9 +373,11 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
         # numeric and geometry types, so they're skipped here.
-        local_df = local_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+        local_df = local_df.drop(
+            columns=["bytes_col", "numeric_col", "geography_col", "datetime_col"]
+        )
         scalars_df = scalars_df.drop(
-            columns=["bytes_col", "numeric_col", "geography_col"]
+            columns=["bytes_col", "numeric_col", "geography_col", "datetime_col"]
         )
         assert local_df.shape[0] == scalars_df.shape[0]
         pd.testing.assert_series_equal(local_df.dtypes, scalars_df.dtypes)

@@ -265,7 +265,15 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
         session.install("-e", ".", *constraints)
 
 
-def run_system(session, prefix_name, test_folder, check_cov, install_test_extra):
+def run_system(
+    session,
+    prefix_name,
+    test_folder,
+    *,
+    check_cov=False,
+    install_test_extra=True,
+    print_duration=False,
+):
     """Run the system test suite."""
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
@@ -287,6 +295,12 @@ def run_system(session, prefix_name, test_folder, check_cov, install_test_extra)
         "-n 20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
     ]
+    if print_duration:
+        pytest_cmd.extend(
+            [
+                "--durations=0",
+            ]
+        )
     if check_cov:
         pytest_cmd.extend(
             [
@@ -313,7 +327,6 @@ def system(session):
         prefix_name="system",
         test_folder=os.path.join("tests", "system", "small"),
         check_cov=True,
-        install_test_extra=True,
     )
 
 
@@ -324,7 +337,6 @@ def system_noextras(session):
         session=session,
         prefix_name="system_noextras",
         test_folder=os.path.join("tests", "system", "small"),
-        check_cov=False,
         install_test_extra=False,
     )
 
@@ -336,8 +348,7 @@ def e2e(session):
         session=session,
         prefix_name="e2e",
         test_folder=os.path.join("tests", "system", "large"),
-        check_cov=False,
-        install_test_extra=True,
+        print_duration=True,
     )
 
 
