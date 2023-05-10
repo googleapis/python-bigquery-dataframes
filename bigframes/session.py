@@ -281,7 +281,7 @@ class Session:
             index_col = table_expression[index_col_name]
             index_name = index_keys[0]
         else:
-            index_col_name = indexes.INDEX_COLUMN_NAME.format(0)
+            index_col_name = indexes.INDEX_COLUMN_ID.format(0)
             index_name = None
 
             if ordering is not None and ordering.ordering_id:

@@ -61,28 +61,28 @@ class DataFrame:
         self._index = index
         self._block = index._block
         # One on one match between BF column names and real value column names in BQ SQL.
-        self._col_names = list(columns) if columns else list(self._block.value_columns)
+        self._col_labels = list(columns) if columns else list(self._block.value_columns)
 
     def _copy(
         self, columns: Optional[Tuple[Sequence[ibis_types.Value], Sequence[str]]] = None
     ) -> DataFrame:
         if not columns:
-            return DataFrame(self._block.copy().index)
+            return DataFrame(self._block.copy().index, columns=self._col_labels)
 
-        value_cols, col_names = columns
-        if len(value_cols) != len(col_names):
+        value_cols, col_labels = columns
+        if len(value_cols) != len(col_labels):
             raise ValueError(
-                f"Column sizes not equal. Value columns size: {len(value_cols)}, column names size: {len(col_names)}"
+                f"Column sizes not equal. Value columns size: {len(value_cols)}, column names size: {len(col_labels)}"
             )
 
         block = self._block.copy(value_cols)
         index = self._recreate_index(block)
-        return DataFrame(index, col_names)
+        return DataFrame(index, col_labels)
 
     def _find_indices(
         self, columns: Union[str, Sequence[str]], tolerance: bool = False
     ) -> Sequence[int]:
-        """Find corresponding indices in df._column_names for column name(s). Order is kept the same as input names order.
+        """Find corresponding indices in df._col_labels for column name(s). Order is kept the same as input names order.
 
         Args:
             columns: column name(s)
@@ -90,11 +90,11 @@ class DataFrame:
         """
         columns = [columns] if isinstance(columns, str) else columns
 
-        # Dict of {col_name -> [indices]}
+        # Dict of {col_label -> [indices]}
         col_indices_dict: Dict[str, List[int]] = {}
-        for i, col_name in enumerate(self._col_names):
-            col_indices_dict[col_name] = col_indices_dict.get(col_name, [])
-            col_indices_dict[col_name].append(i)
+        for i, col_label in enumerate(self._col_labels):
+            col_indices_dict[col_label] = col_indices_dict.get(col_label, [])
+            col_indices_dict[col_label].append(i)
 
         indices = []
         for n in columns:
@@ -122,7 +122,7 @@ class DataFrame:
     @property
     def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
-        return pd.Series(data=self._block.dtypes, index=self._col_names)
+        return pd.Series(data=self._block.dtypes, index=self._col_labels)
 
     @property
     def columns(self) -> pd.Index:
@@ -210,15 +210,15 @@ class DataFrame:
         key = [key] if isinstance(key, str) else key
 
         value_cols = self._block.get_value_col_exprs(sql_names)
-        col_name_count: Dict[str, int] = {}
-        for col_name in self._col_names:
-            col_name_count[col_name] = col_name_count.get(col_name, 0) + 1
-        col_names = []
+        col_label_count: Dict[str, int] = {}
+        for col_label in self._col_labels:
+            col_label_count[col_label] = col_label_count.get(col_label, 0) + 1
+        col_labels = []
         for item_name in key:
             # Every item is guaranteed to exist, otherwise it already raised exception in sql_names.
-            col_names += [item_name] * col_name_count[item_name]
+            col_labels += [item_name] * col_label_count[item_name]
 
-        return self._copy((value_cols, col_names))
+        return self._copy((value_cols, col_labels))
 
     # Bool Series selects rows
     def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
@@ -239,10 +239,10 @@ class DataFrame:
         right = get_column_right(key._value_column)
 
         block.expr = block.expr.filter((right == ibis.literal(True)))
-        return DataFrame(combined_index, self._col_names)
+        return DataFrame(combined_index, self._col_labels)
 
     def __getattr__(self, key: str):
-        if key not in self._col_names:
+        if key not in self._col_labels:
             raise AttributeError(key)
         return self.__getitem__(key)
 
@@ -255,7 +255,7 @@ class DataFrame:
         # twice (though at least the second time the query should be cached).
         preview = self._block.compute(max_results=10)
         preview.index.name = self.index.name
-        preview = preview.set_axis(self._col_names, axis=1)
+        preview = preview.set_axis(self._col_labels, axis=1)
         rows = job.total_rows
         columns = len(preview.columns)
 
@@ -285,7 +285,7 @@ class DataFrame:
                     value_col.get_name()
                 )
             )
-        return self._copy((value_cols, self._col_names))
+        return self._copy((value_cols, self._col_labels))
 
     def add(self, other: float | int) -> DataFrame:
         return self._apply_scalar_bi_op(other, operator.add)
@@ -330,7 +330,7 @@ class DataFrame:
     def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
         df = self._block.compute()
-        return df.set_axis(self._col_names, axis=1)
+        return df.set_axis(self._col_labels, axis=1)
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
@@ -348,16 +348,18 @@ class DataFrame:
 
         df = self._copy()
         df._block.expr = self._block.expr.drop_columns(self._sql_names(columns))
-        df._col_names = [
-            col_name for col_name in self._col_names if col_name not in columns
+        df._col_labels = [
+            col_label for col_label in self._col_labels if col_label not in columns
         ]
         return df
 
     def rename(self, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
-        col_names = [(columns.get(col_name, col_name)) for col_name in self._col_names]
-        return self._copy((self._block.get_value_col_exprs(), col_names))
+        col_labels = [
+            (columns.get(col_label, col_label)) for col_label in self._col_labels
+        ]
+        return self._copy((self._block.get_value_col_exprs(), col_labels))
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
@@ -383,10 +385,12 @@ class DataFrame:
 
     def _assign_scalar(self, k: str, v: Union[int, float]) -> DataFrame:
         scalar = bigframes.dtypes.literal_to_ibis_scalar(v)
+        # TODO(swast): Make sure that k is the ID / SQL name, not a label,
+        # which could be invalid SQL.
         scalar = scalar.name(k)
 
         value_cols = self._block.get_value_col_exprs()
-        col_names = list(self._col_names)
+        col_labels = list(self._col_labels)
 
         sql_names = self._sql_names(k, tolerance=True)
         if sql_names:
@@ -396,9 +400,9 @@ class DataFrame:
         else:
             # TODO(garrettwu): Make sure sql name won't conflict.
             value_cols.append(scalar)
-            col_names.append(k)
+            col_labels.append(k)
 
-        return self._copy((value_cols, col_names))
+        return self._copy((value_cols, col_labels))
 
     def _assign_series_join_on_index(self, k, v: bigframes.series.Series) -> DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
@@ -406,28 +410,26 @@ class DataFrame:
         )
 
         sql_names = self._sql_names(k, tolerance=True)
-        col_names = list(self._col_names)
+        col_labels = list(self._col_labels)
 
         # Restore original column names
         value_cols = []
-        for column_name in self._block.value_columns:
+        for column_id in self._block.value_columns:
             # If it is a replacement, then replace with column from right
-            if column_name in sql_names:
-                value_cols.append(
-                    get_column_right(v._value.get_name()).name(column_name)
-                )
-            elif column_name:
-                value_cols.append(get_column_left(column_name).name(column_name))
+            if column_id in sql_names:
+                value_cols.append(get_column_right(v._value.get_name()).name(column_id))
+            elif column_id:
+                value_cols.append(get_column_left(column_id).name(column_id))
 
         # Assign a new column
         if not sql_names:
             # TODO(garrettwu): make sure sql name doesn't already exist.
             value_cols.append(get_column_right(v._value.get_name()).name(k))
-            col_names.append(k)
+            col_labels.append(k)
 
         block = joined_index._block
         block.replace_value_columns(value_cols)
-        return DataFrame(joined_index, col_names)
+        return DataFrame(joined_index, col_labels)
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
@@ -437,7 +439,7 @@ class DataFrame:
         # MultiIndex.
         # TODO(swast): Create new sequential index and materialize.
         block.index_columns = ()
-        col_names = list(self._col_names)
+        col_labels = list(self._col_labels)
 
         if drop:
             # Even though the index might be part of the ordering, keep that
@@ -445,9 +447,9 @@ class DataFrame:
             # order.
             block.expr = block.expr.drop_columns(original_index_columns)
         else:
-            col_names = list(original_index_columns) + col_names
+            col_labels = list(original_index_columns) + col_labels
 
-        return DataFrame(block.index, col_names)
+        return DataFrame(block.index, col_labels)
 
     def set_index(self, key: str, *, drop: bool = True) -> DataFrame:
         """Set the DataFrame index using existing columns."""
@@ -465,20 +467,20 @@ class DataFrame:
 
         expr = expr.drop_columns(prev_index_columns)
 
-        col_names = list(self._col_names)
+        col_labels = list(self._col_labels)
         index_columns = self._sql_names(key)
         if not drop:
-            index_column_name = indexes.INDEX_COLUMN_NAME.format(0)
-            index_expr = index_expr.name(index_column_name)
+            index_column_id = indexes.INDEX_COLUMN_ID.format(0)
+            index_expr = index_expr.name(index_column_id)
             expr = expr.insert_column(0, index_expr)
-            index_columns = [index_column_name]
+            index_columns = [index_column_id]
         else:
-            col_names.remove(key)
+            col_labels.remove(key)
 
         block = blocks.Block(expr, index_columns)
         index = block.index
         index.name = key
-        return DataFrame(index, col_names)
+        return DataFrame(index, col_labels)
 
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
@@ -555,31 +557,31 @@ class DataFrame:
             joined_frame = joined_frame.drop(right_on_name)
             joined_frame = joined_frame.rename({left_on_name: on})
 
-        joined_frame._col_names = self._get_merged_col_names(right, on, suffixes)
+        joined_frame._col_labels = self._get_merged_col_labels(right, on, suffixes)
 
         return joined_frame
 
-    def _get_merged_col_names(
+    def _get_merged_col_labels(
         self, right: DataFrame, on: str, suffixes: tuple[str, str] = ("_x", "_y")
     ) -> List[str]:
-        left_col_names = [
+        left_col_labels = [
             (
-                col_name + suffixes[0]
-                if col_name in right._col_names and col_name != on
-                else col_name
+                col_label + suffixes[0]
+                if col_label in right._col_labels and col_label != on
+                else col_label
             )
-            for col_name in self._col_names
+            for col_label in self._col_labels
         ]
-        right_col_names = [
+        right_col_labels = [
             (
-                col_name + suffixes[1]
-                if col_name in self._col_names and col_name != on
-                else col_name
+                col_label + suffixes[1]
+                if col_label in self._col_labels and col_label != on
+                else col_label
             )
-            for col_name in right._col_names
+            for col_label in right._col_labels
         ]
-        right_col_names.remove(on)
-        return left_col_names + right_col_names
+        right_col_labels.remove(on)
+        return left_col_labels + right_col_labels
 
     def join(self, other: DataFrame, how: str) -> DataFrame:
         """Join columns of another dataframe"""
@@ -609,17 +611,17 @@ class DataFrame:
             index_columns
             + [
                 # TODO(swast): Support suffix if there are duplicates.
-                get_column_left(col_name).name(col_name)
-                for col_name in left._sql_names(left.columns.to_list())
+                get_column_left(col_id).name(col_id)
+                for col_id in left._sql_names(left.columns.to_list())
             ]
             + [
                 # TODO(swast): Support suffix if there are duplicates.
-                get_column_right(col_name).name(col_name)
-                for col_name in right._sql_names(right.columns.to_list())
+                get_column_right(col_id).name(col_id)
+                for col_id in right._sql_names(right.columns.to_list())
             ]
         )
         block.expr = expr_bldr.build()
-        return DataFrame(combined_index, self._col_names + other._col_names)
+        return DataFrame(combined_index, self._col_labels + other._col_labels)
 
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)
@@ -756,7 +758,7 @@ class DataFrame:
         new_columns = [
             operation._as_ibis(column).name(column.get_name()) for column in columns
         ]
-        return self._copy((new_columns, self._col_names))
+        return self._copy((new_columns, self._col_labels))
 
     def _get_destination_table(
         self, job_config: Optional[bigquery.job.QueryJobConfig] = None

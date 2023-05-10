@@ -32,4 +32,4 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
     cat_expr = expressions[0].concat(expressions[1:])
     block = blocks.Block(cat_expr, block_0.index_columns)
     block.index.name = index_names[0] if len(index_names) == 1 else None
-    return DataFrame(block.index, objs[0]._col_names)
+    return DataFrame(block.index, objs[0]._col_labels)

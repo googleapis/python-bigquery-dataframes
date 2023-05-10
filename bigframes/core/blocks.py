@@ -33,7 +33,7 @@ import pandas as pd
 import pyarrow as pa  # type: ignore
 
 import bigframes.aggregations as agg_ops
-import bigframes.core
+import bigframes.core as core
 import bigframes.core.indexes as indexes
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -44,7 +44,7 @@ class Block:
 
     def __init__(
         self,
-        expr: bigframes.core.BigFramesExpr,
+        expr: core.BigFramesExpr,
         index_columns: Iterable[str] = (),
     ):
         self._expr = expr
@@ -86,12 +86,12 @@ class Block:
         ]
 
     @property
-    def expr(self) -> bigframes.core.BigFramesExpr:
+    def expr(self) -> core.BigFramesExpr:
         """Expression representing all columns, including index columns."""
         return self._expr
 
     @expr.setter
-    def expr(self, expr: bigframes.core.BigFramesExpr):
+    def expr(self, expr: core.BigFramesExpr):
         self._expr = expr
         self._reset_index()
 
@@ -194,22 +194,38 @@ class Block:
     def copy(self, value_columns: Optional[Iterable[ibis_types.Value]] = None) -> Block:
         """Create a copy of this Block, replacing value columns if desired."""
         # BigFramesExpr and Tuple are immutable, so just need a new wrapper.
-        block = Block(self._expr, self._index_columns)
         if value_columns is not None:
-            block.replace_value_columns(value_columns)
+            expr = self._project_value_columns(value_columns)
+        else:
+            expr = self._expr
+
+        block = Block(expr, self._index_columns)
 
         # TODO(swast): Support MultiIndex.
         block.index.name = self.index.name
         return block
 
-    def replace_value_columns(self, value_columns: Iterable[ibis_types.Value]):
+    def _project_value_columns(
+        self, value_columns: Iterable[ibis_types.Value]
+    ) -> core.BigFramesExpr:
+        """Return a related expression with new value columns."""
         columns = []
         index_columns = (
             self._expr.get_column(column_name) for column_name in self._index_columns
         )
         for column in itertools.chain(index_columns, value_columns):
             columns.append(column)
-        self.expr = self._expr.projection(columns)
+        return self._expr.projection(columns)
+
+    def replace_value_columns(self, value_columns: Iterable[ibis_types.Value]):
+        """Mutate all value columns in-place."""
+        # TODO(swast): Deprecate this method, as it allows for operations
+        # directly on Ibis values, which we want to discourage from higher
+        # levels.
+        # TODO(swast): Should we validate that we aren't dropping any columns
+        # so that predicates are valid and column labels stay in sync in
+        # DataFrame.
+        self.expr = self._project_value_columns(value_columns)
 
     def get_value_col_exprs(
         self, column_names: Optional[Sequence[str]] = None
@@ -230,7 +246,7 @@ class Block:
         self,
         column: str,
         op: agg_ops.WindowOp,
-        window_spec: bigframes.core.WindowSpec,
+        window_spec: core.WindowSpec,
         output_name=None,
     ):
         self.expr = self._expr.project_window_op(column, op, window_spec, output_name)

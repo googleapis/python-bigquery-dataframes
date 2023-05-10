@@ -250,7 +250,7 @@ class BigFramesExpr:
         self, by: Sequence[str], ascending=True, na_last=True
     ) -> BigFramesExpr:
         # TODO(tbergeron): Always append fully ordered OID to end to guarantee total ordering.
-        sort_col_names = by
+        sort_col_ids = by
         nullity_meta_columns = []
         if (ascending and na_last) or (not ascending and not na_last):
             # In sql, nulls are the "lowest" value, so we need to adjust to make them act as "highest"
@@ -258,14 +258,14 @@ class BigFramesExpr:
                 self.get_any_column(col).isnull().name(col + "_nullity") for col in by
             ]
             nullity_meta_column_names = [col.get_name() for col in nullity_meta_columns]
-            sort_col_names = [
+            sort_col_ids = [
                 val
-                for pair in zip(nullity_meta_column_names, sort_col_names)
+                for pair in zip(nullity_meta_column_names, sort_col_ids)
                 for val in pair
             ]
         expr_builder = self.builder()
         expr_builder.ordering = self._ordering.with_ordering_columns(
-            sort_col_names, ascending
+            sort_col_ids, ascending
         )
         expr_builder.meta_columns = [*self.meta_columns, *nullity_meta_columns]
         return expr_builder.build()
