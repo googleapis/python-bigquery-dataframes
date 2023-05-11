@@ -73,11 +73,6 @@ def get_remote_function_locations(bq_location):
     return bq_location, cloud_function_region
 
 
-def _is_lambda(def_):
-    "Check if a udf is a lambda."
-    return callable(def_) and def_.__name__ == (lambda: None).__name__
-
-
 def _get_hash(def_):
     "Get hash of a function."
     def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
@@ -86,7 +81,7 @@ def _get_hash(def_):
 
 def get_cloud_function_name(def_, uniq_suffix=None):
     """Get the name of the cloud function."""
-    cf_name = _get_hash(def_) if _is_lambda(def_) else def_.__name__.replace("_", "-")
+    cf_name = _get_hash(def_)
     cf_name = f"bigframes-{cf_name}"  # for identification
     if uniq_suffix:
         cf_name = f"{cf_name}-{uniq_suffix}"
@@ -95,7 +90,7 @@ def get_cloud_function_name(def_, uniq_suffix=None):
 
 def get_remote_function_name(def_, uniq_suffix=None):
     """Get the name for the BQ remote function."""
-    bq_rf_name = _get_hash(def_) if _is_lambda(def_) else def_.__name__
+    bq_rf_name = _get_hash(def_)
     bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
     if uniq_suffix:
         bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
