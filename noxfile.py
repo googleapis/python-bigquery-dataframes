@@ -519,3 +519,22 @@ def unit_prerelease(session):
 def system_prerelease(session):
     """Run the system test suite with prerelease dependencies."""
     prerelease(session, os.path.join("tests", "system", "small"))
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
+def notebook(session):
+    session.install("-e", ".")
+    session.install("pytest", "pytest-xdist", "nbmake")
+
+    # TODO(shobs, b/281857892): Have all the notebooks working
+    notebooks = [
+        "00 - Summary.ipynb",
+    ]
+    notebooks = [os.path.join("notebooks", nb) for nb in notebooks]
+
+    # For some reason nbmake exits silently with "no tests ran" message if
+    # one of the notebook paths supplied does not exist. Let's make sure that
+    # each path exists
+    for nb in notebooks:
+        assert os.path.exists(nb), nb
+    session.run("py.test", "-nauto", "--nbmake", "--nbmake-timeout=600", *notebooks)

@@ -65,8 +65,13 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
 # Move into the package, build the distribution and upload to shared bucket.
 # See internal bug 274624240 for details.
-gsutil cp dist/* gs://vertex_sdk_private_releases/bigframe/
-gsutil cp dist/* gs://dl-platform-colab/bigframes/
+
+for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
+                gs://dl-platform-colab/bigframes/;
+do
+  gsutil cp dist/* $gcs_path
+  gsutil cp "notebooks/00 - Summary.ipynb" $gcs_path/notebooks/
+done
 
 # publish API coverage information to BigQuery
 # Note: only the kokoro service account has permission to write to this
