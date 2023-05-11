@@ -36,6 +36,7 @@ import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.dtypes
+from bigframes.guid import generate_guid
 import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.operations.base
@@ -106,6 +107,41 @@ class Series(bigframes.operations.base.SeriesMethods):
     def copy(self) -> Series:
         """Creates a deep copy of the series."""
         return Series(self._block.copy(), self._value_column, name=self.name)
+
+    def reset_index(
+        self,
+        *,
+        name: typing.Optional[str] = None,
+        drop: bool = False,
+    ):
+        """
+        Create a new dataframe/series with the index reset.
+
+        Arguments:
+            name: column label for original series values if drop=False
+            drop: if true, original index is discarded, else it becomes a column
+
+        Returns:
+            Series if drop=True else Dataframe
+        """
+        block = self._block.copy()
+        block.reset_index()
+
+        if drop:
+            return Series(block, self._value_column, name=self.name)
+        else:
+            old_index_col_id = self._block.index_columns[0]
+            # Need to generate some non-null labels until dataframe decouples column labels from internal column id
+            # This may also cause collisions as we are overriding unique internal ids
+            former_index_label = self.index.name or generate_guid("index_")
+            series_value_label = name or self.name or generate_guid("value_")
+            # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
+            block.expr = block._expr.deprecated_rename_column(
+                self._value_column, series_value_label
+            ).deprecated_rename_column(old_index_col_id, former_index_label)
+            return bigframes.DataFrame(
+                block.index, [former_index_label, series_value_label]
+            )
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""

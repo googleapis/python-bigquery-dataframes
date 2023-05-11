@@ -297,6 +297,26 @@ class BigFramesExpr:
         expr_builder.ordering = self._ordering.with_ordering_columns(ordering_columns)
         return expr_builder.build()
 
+    def promote_offsets(self, value_col_id: str) -> BigFramesExpr:
+        """
+        Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
+
+        Args:
+            value_col_id: The id that will be used for the resulting column id. Should not match any existing column ids.
+            is_reverse: If true, will instead generate a value column using offsets in reverse order.
+        """
+        # Special case: offsets already exist
+        # TODO(tbergeron): Create version that generates reverse offsets (for negative indexing)
+        ordering = self._ordering
+        if (not ordering.is_sequential) or (not ordering.ordering_id):
+            return self.project_offsets().promote_offsets(value_col_id)
+        expr_builder = self.builder()
+        expr_builder.columns = [
+            self._get_meta_column(ordering.ordering_id).name(value_col_id),
+            *self.columns,
+        ]
+        return expr_builder.build()
+
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
@@ -566,18 +586,25 @@ class BigFramesExpr:
             group_by=group_by,
         )
 
+    # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
+    def deprecated_rename_column(self, old_id, new_id) -> BigFramesExpr:
+        """
+        Don't use this, temporary measure until dataframe supports sqlid!=dataframe col id.
+        In future, caller shouldn't need to control internal column id strings.
+        """
+        if new_id == old_id:
+            return self
+        return self._set_or_replace_by_id(new_id, self.get_column(old_id)).drop_columns(
+            [old_id]
+        )
+
     def _set_or_replace_by_id(self, id: str, value: ibis_types.Value):
-        expr = self.builder()
+        expr = self
         if id in self.column_names:
-            expr.columns = list(
-                [
-                    value.name(id) if id == name else self.get_column(name)
-                    for name in self.column_names
-                ]
-            )
-        else:
-            expr.columns = [*self.columns, value.name(id)]
-        return expr.build()
+            expr = expr.drop_columns([id])
+        builder = expr.builder()
+        builder.columns = [*expr.columns, value.name(id)]
+        return builder.build()
 
 
 class BigFramesExprBuilder:

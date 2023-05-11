@@ -36,6 +36,7 @@ import bigframes.aggregations as agg_ops
 import bigframes.core as core
 import bigframes.core.indexes as indexes
 import bigframes.dtypes
+import bigframes.guid as guid
 import bigframes.operations as ops
 
 
@@ -50,7 +51,7 @@ class Block:
         self._expr = expr
         self._index = indexes.ImplicitJoiner(self)
         self._index_columns = tuple(index_columns)
-        self._reset_index()
+        self._sync_index()
 
     @property
     def index(self) -> Union[indexes.ImplicitJoiner, indexes.Index]:
@@ -74,7 +75,7 @@ class Block:
     @index_columns.setter
     def index_columns(self, value: Iterable[str]):
         self._index_columns = tuple(value)
-        self._reset_index()
+        self._sync_index()
 
     @property
     def value_columns(self) -> Sequence[str]:
@@ -93,7 +94,7 @@ class Block:
     @expr.setter
     def expr(self, expr: core.BigFramesExpr):
         self._expr = expr
-        self._reset_index()
+        self._sync_index()
 
     @property
     def dtypes(
@@ -112,8 +113,23 @@ class Block:
             for ibis_dtype in ibis_dtypes
         ]
 
-    def _reset_index(self):
-        """Update index to match latest expression and column(s)."""
+    def reset_index(self):
+        """Reset the index of the block, promoting the old index to a value column.
+        Arguments:
+            name: this is the column id for the new value id derived from the old index
+
+        """
+        new_index_col_id = guid.generate_guid(prefix="index_")
+        self.expr = self._expr.promote_offsets(new_index_col_id)
+        self.index_columns = [new_index_col_id]
+        self._sync_index()
+        self.index.name = None
+
+    def _sync_index(self):
+        """Update index to match latest expression and column(s).
+
+        Index object contains a reference to the expression object so any changes to the block's expression requires building a new index object as well.
+        """
         expr = self._expr
         columns = self._index_columns
         if len(columns) == 0:
