@@ -129,6 +129,20 @@ def test_std(scalars_dfs, col_name):
         ("int64_col",),
     ),
 )
+def test_kurt(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].kurt()
+    pd_result = scalars_pandas_df[col_name].kurt()
+    assert math.isclose(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("float64_col",),
+        ("int64_col",),
+    ),
+)
 def test_var(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].var()

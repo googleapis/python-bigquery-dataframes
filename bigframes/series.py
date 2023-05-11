@@ -519,6 +519,35 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Return the variance of the values in the series."""
         return typing.cast(float, self._apply_aggregation(agg_ops.var_op))
 
+    def _central_moment(self, n: int) -> float:
+        """Useful helper for calculating central moment statistics"""
+        # Nth central moment is mean((x-mean(x))^n)
+        # See: https://en.wikipedia.org/wiki/Moment_(mathematics)
+        mean = self.mean()
+        mean_deltas = self - mean
+        delta_power = mean_deltas
+        # TODO(tbergeron): Replace with pow once implemented
+        for i in range(1, n):
+            delta_power = delta_power * mean_deltas
+        return delta_power.mean()
+
+    def kurt(self) -> float:
+        """Return the kurtosis of the values in the series."""
+        # TODO(tbergeron): Cache intermediate count/moment/etc. statistics at block level
+        count = self.count()
+        moment4 = self._central_moment(4)
+        moment2 = self._central_moment(2)  # AKA: Population Variance
+
+        # Kurtosis is often defined as the second standardize moment: moment(4)/moment(2)**2
+        # Pandas however uses Fisher’s estimator, implemented below
+        numerator = (count + 1) * (count - 1) * moment4
+        denominator = (count - 2) * (count - 3) * moment2**2
+        adjustment = 3 * (count - 1) ** 2 / ((count - 2) * (count - 3))
+
+        return (numerator / denominator) - adjustment
+
+    kurtosis = kurt
+
     def mode(self) -> Series:
         """
         Return the mode(s) of the values in the series, in sorted value order.
