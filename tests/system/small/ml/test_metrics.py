@@ -30,14 +30,14 @@ def test_r2_score_perfect_fit(session):
     pd_df = pd.DataFrame({"y_true": [1, 7, 3, 2, 5], "y_pred": [1, 7, 3, 2, 5]})
 
     df = session.read_pandas(pd_df)
-    assert bigframes.ml.metrics.r2_score(df.y_true, df.y_pred) == 1.0
+    assert bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred"]]) == 1.0
 
 
 def test_r2_score_bad_fit(session):
     pd_df = pd.DataFrame({"y_true": [1, 2, 3, 4, 5], "y_pred": [5, 4, 3, 2, 1]})
 
     df = session.read_pandas(pd_df)
-    assert bigframes.ml.metrics.r2_score(df.y_true, df.y_pred) == -3.0
+    assert bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred"]]) == -3.0
 
 
 def test_r2_score_force_finite(session):
@@ -51,13 +51,15 @@ def test_r2_score_force_finite(session):
 
     df = session.read_pandas(pd_df)
     assert bigframes.ml.metrics.r2_score(
-        df.y_true, df.y_pred_1, force_finite=False
+        df[["y_true"]], df[["y_pred_1"]], force_finite=False
     ) == float("-inf")
-    assert bigframes.ml.metrics.r2_score(df.y_true, df.y_pred_1) == 0.0
+    assert bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred_1"]]) == 0.0
     assert math.isnan(
-        bigframes.ml.metrics.r2_score(df.y_true, df.y_pred_2, force_finite=False)
+        bigframes.ml.metrics.r2_score(
+            df[["y_true"]], df[["y_pred_2"]], force_finite=False
+        )
     )
-    assert bigframes.ml.metrics.r2_score(df.y_true, df.y_pred_2) == 1.0
+    assert bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred_2"]]) == 1.0
 
 
 @pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
@@ -65,8 +67,8 @@ def test_r2_score_ok_fit_matches_sklearn(session):
     pd_df = pd.DataFrame({"y_true": [1, 2, 3, 4, 5], "y_pred": [2, 3, 4, 3, 6]})
 
     df = session.read_pandas(pd_df)
-    bf_result = bigframes.ml.metrics.r2_score(df.y_true, df.y_pred)
-    sklearn_result = sklearn_metrics.r2_score(pd_df.y_true, pd_df.y_pred)
+    bf_result = bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred"]])
+    sklearn_result = sklearn_metrics.r2_score(pd_df[["y_true"]], pd_df[["y_pred"]])
     assert math.isclose(bf_result, sklearn_result)
 
 

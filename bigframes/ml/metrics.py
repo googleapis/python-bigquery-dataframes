@@ -14,6 +14,7 @@
 
 """Implements Scikit-Learn's sklearn.metrics API"""
 
+import typing
 from typing import Tuple
 
 import pandas as pd
@@ -22,7 +23,7 @@ import bigframes
 
 
 def r2_score(
-    y_true: bigframes.Series, y_pred: bigframes.Series, force_finite=True
+    y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, force_finite=True
 ) -> float:
     """Compute the R^2 (coefficient of determination) regression score.
 
@@ -33,19 +34,30 @@ def r2_score(
     this 1.0 or 0.0 respectively will be returned instead. This behavior can be
     disabled by setting force_finite=False"""
     # TODO(bmil): support multioutput
+    if len(y_true.columns) > 1 or len(y_pred.columns) > 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    y_true_series = typing.cast(
+        bigframes.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
+    )
+    y_pred_series = typing.cast(
+        bigframes.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
+    )
 
     # total sum of squares
     # TODO(bmil): remove .compute() when bigframes supports
     # (dataframe, scalar) binops
     # TODO(bmil): remove multiply by self when bigframes supports pow()
-    delta_from_mean = y_true - y_true.mean().compute()
+    delta_from_mean = y_true_series - y_true_series.mean().compute()
     ss_total = (delta_from_mean * delta_from_mean).sum().compute()
 
     # residual sum of squares
     # TODO(bmil): remove .compute() when bigframes supports
     # (scalar, scalar) binops
     # TODO(bmil): remove multiply by self when bigframes supports pow()
-    delta_from_pred = y_true - y_pred
+    delta_from_pred = y_true_series - y_pred_series
     ss_res = (delta_from_pred * delta_from_pred).sum().compute()
 
     if force_finite and ss_total == 0:
