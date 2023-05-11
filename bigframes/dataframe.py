@@ -274,7 +274,19 @@ class DataFrame:
         lines.append(f"[{rows} rows x {columns} columns]")
         return "\n".join(lines)
 
-    def _apply_scalar_bi_op(
+    def _apply_binop(
+        self,
+        other: float | int | bigframes.Series,
+        op,
+        reverse: bool = False,
+        axis: str | int = "columns",
+    ):
+        if isinstance(other, (float, int)):
+            return self._apply_scalar_binop(other, op, reverse=reverse)
+        elif isinstance(other, bigframes.Series):
+            return self._apply_series_binop(other, op, reverse=reverse, axis=axis)
+
+    def _apply_scalar_binop(
         self, other: float | int, op, reverse: bool = False
     ) -> DataFrame:
         scalar = bigframes.dtypes.literal_to_ibis_scalar(other)
@@ -287,43 +299,88 @@ class DataFrame:
             )
         return self._copy((value_cols, self._col_labels))
 
-    def add(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.add)
+    def _apply_series_binop(
+        self,
+        other: bigframes.Series,
+        op,
+        reverse: bool = False,
+        axis: str | int = "columns",
+    ) -> DataFrame:
+        if axis not in ("columns", "index", 0, 1):
+            raise ValueError(f"Invalid input: axis {axis}.")
+
+        if axis in ("columns", 1):
+            raise NotImplementedError("Row Series operations haven't been supported.")
+
+        joined_index, (get_column_left, get_column_right) = self.index.join(
+            other.index, how="outer"
+        )
+        joined_index.name = self._index.name
+
+        series_column_id = other._value.get_name()
+        series_col = get_column_right(series_column_id)
+        value_cols = []
+        for column_id in self._block.value_columns:
+            value_col = get_column_left(column_id)
+            value_cols.append(
+                (
+                    op(series_col, value_col) if reverse else op(value_col, series_col)
+                ).name(value_col.get_name())
+            )
+
+        block = joined_index._block
+        block.replace_value_columns(value_cols)
+        return DataFrame(joined_index, self._col_names)
+
+    def add(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.add, axis=axis)
 
     __radd__ = __add__ = radd = add
 
-    def sub(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.sub)
+    def sub(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.sub, axis=axis)
 
     __sub__ = sub
 
-    def rsub(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.sub, reverse=True)
+    def rsub(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.sub, reverse=True, axis=axis)
 
     __rsub__ = rsub
 
-    def mul(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.mul)
+    def mul(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.mul, axis=axis)
 
     __rmul__ = __mul__ = rmul = mul
 
-    def truediv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.truediv)
+    def truediv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.truediv, axis=axis)
 
     div = __truediv__ = truediv
 
-    def rtruediv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.truediv, reverse=True)
+    def rtruediv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, operator.truediv, reverse=True, axis=axis)
 
-    __rtruediv__ = rtruediv
+    __rtruediv__ = rdiv = rtruediv
 
     def floordiv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.floordiv)
+        return self._apply_scalar_binop(other, operator.floordiv)
 
     __floordiv__ = floordiv
 
     def rfloordiv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_bi_op(other, operator.floordiv, reverse=True)
+        return self._apply_scalar_binop(other, operator.floordiv, reverse=True)
 
     __rfloordiv__ = rfloordiv
 

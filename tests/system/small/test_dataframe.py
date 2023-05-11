@@ -486,7 +486,7 @@ def test_df_notnull(scalars_dfs):
 # TODO(garrettwu): deal with NA values and 0 divisions
 @pytest.mark.parametrize(("other_scalar"), [1, 2.5])
 @pytest.mark.parametrize(("reverse_operands"), [True, False])
-def test_scalar_bi_op(scalars_dfs, operator, other_scalar, reverse_operands):
+def test_scalar_binop(scalars_dfs, operator, other_scalar, reverse_operands):
     scalars_df, scalars_pandas_df = scalars_dfs
     columns = ["int64_col", "float64_col"]
 
@@ -498,12 +498,61 @@ def test_scalar_bi_op(scalars_dfs, operator, other_scalar, reverse_operands):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
-def test_scalar_bi_op_str_exception(scalars_dfs):
+def test_scalar_binop_str_exception(scalars_dfs):
     scalars_df, _ = scalars_dfs
     columns = ["string_col"]
     with pytest.raises(TypeError):
         (scalars_df[columns] + 1).compute()
 
+
+@pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x, y: x.add(y, axis="index")),
+        (lambda x, y: x.radd(y, axis="index")),
+        (lambda x, y: x.sub(y, axis="index")),
+        (lambda x, y: x.rsub(y, axis="index")),
+        (lambda x, y: x.mul(y, axis="index")),
+        (lambda x, y: x.rmul(y, axis="index")),
+        (lambda x, y: x.truediv(y, axis="index")),
+        (lambda x, y: x.rtruediv(y, axis="index")),
+    ],
+    ids=["add", "radd", "sub", "rsub", "mul", "rmul", "truediv", "rtruediv"],
+)
+def test_series_binop_axis_index(
+    scalars_dfs,
+    op,
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    df_columns = ["int64_col", "float64_col"]
+    series_column = "int64_too"
+
+    bf_result = op(scalars_df[df_columns], scalars_df[series_column]).compute()
+    pd_result = op(scalars_pandas_df[df_columns], scalars_pandas_df[series_column])
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+# Differnt table will only work for explicit index, since default index orders are arbitrary.
+def test_series_binop_add_different_table(
+    scalars_df_index, scalars_pandas_df_index, scalars_df_2_index
+):
+    df_columns = ["int64_col", "float64_col"]
+    series_column = "int64_too"
+
+    bf_result = (
+        scalars_df_index[df_columns]
+        .add(scalars_df_2_index[series_column], axis="index")
+        .compute()
+    )
+    pd_result = scalars_pandas_df_index[df_columns].add(
+        scalars_pandas_df_index[series_column], axis="index"
+    )
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+# TODO(garrettwu): Test series binop with different index
 
 all_joins = pytest.mark.parametrize(
     ("how",),
