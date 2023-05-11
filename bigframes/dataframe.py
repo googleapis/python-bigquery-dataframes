@@ -392,6 +392,10 @@ class DataFrame:
         df = self._block.compute()
         return df.set_axis(self._col_labels, axis=1)
 
+    def copy(self) -> DataFrame:
+        """Creates a deep copy of the DataFrame."""
+        return self._copy()
+
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
         df = self._copy()
@@ -493,8 +497,10 @@ class DataFrame:
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
-        original_index_columns = self._block.index_columns
         block = self._block.copy()
+        original_index_columns = block.index_columns
+        original_index_label = block.index.name
+
         # TODO(swast): Only remove a specified number of levels from a
         # MultiIndex.
         # TODO(swast): Create new sequential index and materialize.
@@ -507,9 +513,22 @@ class DataFrame:
             # order.
             block.expr = block.expr.drop_columns(original_index_columns)
         else:
-            col_labels = list(original_index_columns) + col_labels
+            # TODO(swast): Support MultiIndex
+            index_label = original_index_label
+            if index_label is None:
+                if "index" not in col_labels:
+                    index_label = "index"
+                else:
+                    index_label = "level_0"
 
-        return DataFrame(block.index, col_labels)
+            if index_label in col_labels:
+                raise ValueError(f"cannot insert {index_label}, already exists")
+
+            col_labels = [index_label] + col_labels
+
+        index = block.index
+        index.name = None
+        return DataFrame(index, col_labels)
 
     def set_index(self, key: str, *, drop: bool = True) -> DataFrame:
         """Set the DataFrame index using existing columns."""

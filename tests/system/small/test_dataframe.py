@@ -389,10 +389,61 @@ def test_empty_true(scalars_dfs):
 )
 def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
     df = scalars_df_index.reset_index(drop=drop)
+    assert df.index.name is None
+
     bf_result = df.compute()
     pd_result = scalars_pandas_df_index.reset_index(drop=drop)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_with_unnamed_index(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_pandas_df_index = scalars_pandas_df_index.copy()
+
+    scalars_df_index.index.name = None
+    scalars_pandas_df_index.index.name = None
+    df = scalars_df_index.reset_index(drop=False)
+    assert df.index.name is None
+
+    # reset_index(drop=False) creates a new column "index".
+    assert df.columns[0] == "index"
+
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df_index.reset_index(drop=False)
+
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_with_unnamed_index_and_index_column(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_pandas_df_index = scalars_pandas_df_index.copy()
+
+    scalars_df_index.index.name = None
+    scalars_pandas_df_index.index.name = None
+    df = scalars_df_index.assign(index=scalars_df_index["int64_col"]).reset_index(
+        drop=False
+    )
+    assert df.index.name is None
+
+    # reset_index(drop=False) creates a new column "level_0" if the "index" column already exists.
+    assert df.columns[0] == "level_0"
+
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df_index.assign(
+        index=scalars_pandas_df_index["int64_col"]
+    ).reset_index(drop=False)
+
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
