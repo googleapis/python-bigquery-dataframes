@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import typing
 
 import ibis.expr.types as ibis_types
 
+ImmediateScalar = typing.Union[
+    bool, int, float, str, datetime.date, datetime.date, datetime.datetime
+]
 
-class Scalar:
-    """A possibly deferred scalar object."""
+
+class DeferredScalar:
+    """A deferred scalar object."""
 
     def __init__(self, value: ibis_types.Scalar):
         self._value = value
@@ -29,6 +34,11 @@ class Scalar:
         # maybe we just print the job metadata that we have so far?
         return repr(self.compute())
 
-    def compute(self) -> typing.Any:
+    def compute(self) -> ImmediateScalar:
         """Executes deferred operations and downloads the resulting scalar."""
         return self._value.execute()
+
+
+# All public APIs return ImmediateScalar at present
+# Later implementation may sometimes return a lazy scalar
+Scalar = ImmediateScalar

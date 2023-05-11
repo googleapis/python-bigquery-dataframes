@@ -89,7 +89,7 @@ def test_fillna(scalars_dfs):
 )
 def test_max(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df[col_name].max().compute()
+    bf_result = scalars_df[col_name].max()
     pd_result = scalars_pandas_df[col_name].max()
     assert pd_result == bf_result
 
@@ -103,7 +103,7 @@ def test_max(scalars_dfs, col_name):
 )
 def test_min(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df[col_name].min().compute()
+    bf_result = scalars_df[col_name].min()
     pd_result = scalars_pandas_df[col_name].min()
     assert pd_result == bf_result
 
@@ -117,7 +117,7 @@ def test_min(scalars_dfs, col_name):
 )
 def test_std(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df[col_name].std().compute()
+    bf_result = scalars_df[col_name].std()
     pd_result = scalars_pandas_df[col_name].std()
     assert math.isclose(pd_result, bf_result)
 
@@ -131,7 +131,7 @@ def test_std(scalars_dfs, col_name):
 )
 def test_var(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df[col_name].var().compute()
+    bf_result = scalars_df[col_name].var()
     pd_result = scalars_pandas_df[col_name].var()
     assert math.isclose(pd_result, bf_result)
 
@@ -639,7 +639,7 @@ def test_binop_right_filtered(scalars_dfs):
 def test_mean(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    bf_result = scalars_df[col_name].mean().compute()
+    bf_result = scalars_df[col_name].mean()
     pd_result = scalars_pandas_df[col_name].mean()
     assert math.isclose(pd_result, bf_result)
 
@@ -658,7 +658,7 @@ def test_repr(scalars_dfs):
 def test_sum(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    bf_result = scalars_df[col_name].sum().compute()
+    bf_result = scalars_df[col_name].sum()
     pd_result = scalars_pandas_df[col_name].sum()
     assert pd_result == bf_result
 
@@ -666,7 +666,7 @@ def test_sum(scalars_dfs):
 def test_product(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"
-    bf_result = scalars_df[col_name].product().compute()
+    bf_result = scalars_df[col_name].product()
     pd_result = scalars_pandas_df[col_name].product()
     assert math.isclose(pd_result, bf_result)
 
@@ -674,7 +674,7 @@ def test_product(scalars_dfs):
 def test_count(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    bf_result = scalars_df[col_name].count().compute()
+    bf_result = scalars_df[col_name].count()
     pd_result = scalars_pandas_df[col_name].count()
     assert pd_result == bf_result
 
@@ -682,7 +682,7 @@ def test_count(scalars_dfs):
 def test_all(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    bf_result = scalars_df[col_name].all().compute()
+    bf_result = scalars_df[col_name].all()
     pd_result = scalars_pandas_df[col_name].all()
     assert pd_result == bf_result
 
@@ -690,7 +690,7 @@ def test_all(scalars_dfs):
 def test_any(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
-    bf_result = scalars_df[col_name].any().compute()
+    bf_result = scalars_df[col_name].any()
     pd_result = scalars_pandas_df[col_name].any()
     assert pd_result == bf_result
 
@@ -1295,7 +1295,7 @@ def test_clip_filtered_one_sided(scalars_df_index, scalars_pandas_df_index):
 
 def test_dot(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = (scalars_df["int64_too"] @ scalars_df["int64_too"]).compute()
+    bf_result = scalars_df["int64_too"] @ scalars_df["int64_too"]
 
     pd_result = scalars_pandas_df["int64_too"] @ scalars_pandas_df["int64_too"]
 

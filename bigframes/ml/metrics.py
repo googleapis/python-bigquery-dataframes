@@ -47,18 +47,17 @@ def r2_score(
     )
 
     # total sum of squares
-    # TODO(bmil): remove .compute() when bigframes supports
     # (dataframe, scalar) binops
     # TODO(bmil): remove multiply by self when bigframes supports pow()
-    delta_from_mean = y_true_series - y_true_series.mean().compute()
-    ss_total = (delta_from_mean * delta_from_mean).sum().compute()
+    # TODO(tbergeron): These stats are eagerly evaluated. Move to lazy representation once scalar subqueries supported.
+    delta_from_mean = y_true_series - y_true_series.mean()
+    ss_total = (delta_from_mean * delta_from_mean).sum()
 
     # residual sum of squares
-    # TODO(bmil): remove .compute() when bigframes supports
     # (scalar, scalar) binops
     # TODO(bmil): remove multiply by self when bigframes supports pow()
     delta_from_pred = y_true_series - y_pred_series
-    ss_res = (delta_from_pred * delta_from_pred).sum().compute()
+    ss_res = (delta_from_pred * delta_from_pred).sum()
 
     if force_finite and ss_total == 0:
         return 0.0 if ss_res > 0 else 1.0

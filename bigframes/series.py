@@ -455,17 +455,17 @@ class Series(bigframes.operations.base.SeriesMethods):
 
         return self._apply_binary_op(decimals, round_op)
 
-    def all(self) -> bigframes.scalar.Scalar:
+    def all(self) -> bool:
         """Returns true if and only if all elements are True. Nulls are ignored"""
-        return self._apply_aggregation(agg_ops.all_op)
+        return typing.cast(bool, self._apply_aggregation(agg_ops.all_op))
 
-    def any(self) -> bigframes.scalar.Scalar:
+    def any(self) -> bool:
         """Returns true if and only if at least one element is True. Nulls are ignored"""
-        return self._apply_aggregation(agg_ops.any_op)
+        return typing.cast(bool, self._apply_aggregation(agg_ops.any_op))
 
-    def count(self) -> bigframes.scalar.Scalar:
+    def count(self) -> int:
         """Counts the number of values in the series. Ignores null/nan."""
-        return self._apply_aggregation(agg_ops.count_op)
+        return typing.cast(int, self._apply_aggregation(agg_ops.count_op))
 
     def max(self) -> bigframes.scalar.Scalar:
         """Return the maximum values over the requested axis."""
@@ -475,13 +475,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Return the maximum values over the requested axis."""
         return self._apply_aggregation(agg_ops.min_op)
 
-    def std(self) -> bigframes.scalar.Scalar:
+    def std(self) -> float:
         """Return the standard deviation of the values in the series."""
-        return self._apply_aggregation(agg_ops.std_op)
+        return typing.cast(float, self._apply_aggregation(agg_ops.std_op))
 
-    def var(self) -> bigframes.scalar.Scalar:
+    def var(self) -> float:
         """Return the variance of the values in the series."""
-        return self._apply_aggregation(agg_ops.var_op)
+        return typing.cast(float, self._apply_aggregation(agg_ops.var_op))
 
     def mode(self) -> Series:
         """
@@ -517,7 +517,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             .reset_index(drop=True)
         )
 
-    def mean(self) -> bigframes.scalar.Scalar:
+    def mean(self) -> float:
         """Finds the mean of the numeric values in the series. Ignores null/nan.
 
         Note: pandas and BigFrames may not perform floating point operations in
@@ -530,9 +530,9 @@ class Series(bigframes.operations.base.SeriesMethods):
             To get the numeric result call
             :func:`~bigframes.scalar.Scalar.compute()`.
         """
-        return self._apply_aggregation(agg_ops.mean_op)
+        return typing.cast(float, self._apply_aggregation(agg_ops.mean_op))
 
-    def sum(self) -> bigframes.scalar.Scalar:
+    def sum(self) -> float:
         """Sums the numeric values in the series. Ignores null/nan.
 
         Note: pandas and BigFrames may not perform floating point operations in
@@ -545,9 +545,9 @@ class Series(bigframes.operations.base.SeriesMethods):
             To get the numeric result call
             :func:`~bigframes.scalar.Scalar.compute()`.
         """
-        return self._apply_aggregation(agg_ops.sum_op)
+        return typing.cast(float, self._apply_aggregation(agg_ops.sum_op))
 
-    def prod(self) -> bigframes.scalar.Scalar:
+    def prod(self) -> float:
         """Finds the product of the numeric values for each group in the series. Ignores null/nan.
 
         Note: pandas and BigFrames may not perform floating point operations in
@@ -560,7 +560,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             To get the numeric result call
             :func:`~bigframes.scalar.Scalar.compute()`.
         """
-        return self._apply_aggregation(agg_ops.product_op)
+        return typing.cast(float, self._apply_aggregation(agg_ops.product_op))
 
     product = prod
 
@@ -683,7 +683,7 @@ class Series(bigframes.operations.base.SeriesMethods):
                     get_column_right(other._value_column),
                 ]
                 index = combined_index
-            elif isinstance(other, bigframes.scalar.Scalar):
+            elif isinstance(other, bigframes.scalar.DeferredScalar):
                 # TODO(tbereron): support deferred scalars.
                 raise ValueError(
                     "Deferred scalar not yet supported for binary operations."
@@ -694,11 +694,13 @@ class Series(bigframes.operations.base.SeriesMethods):
                 raise NotImplementedError(f"Unsupported operand of type {type(other)}")
         return (values, index)
 
-    def _apply_aggregation(self, op: agg_ops.AggregateOp) -> bigframes.scalar.Scalar:
+    def _apply_aggregation(
+        self, op: agg_ops.AggregateOp
+    ) -> bigframes.scalar.ImmediateScalar:
         aggregation_result = typing.cast(
             ibis_types.Scalar, op._as_ibis(self[self.notnull()]._to_ibis_expr())
         )
-        return bigframes.scalar.Scalar(aggregation_result)
+        return bigframes.scalar.DeferredScalar(aggregation_result).compute()
 
     def _apply_window_op(
         self,
@@ -1183,7 +1185,7 @@ class SeriesGroupyBy:
 def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
     if (
         isinstance(value, Series)
-        or isinstance(value, bigframes.scalar.Scalar)
+        or isinstance(value, bigframes.scalar.DeferredScalar)
         or isinstance(value, pandas.Series)
     ):
         return None

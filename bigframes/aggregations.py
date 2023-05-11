@@ -149,9 +149,7 @@ class RankOp(WindowOp):
 
 
 class FirstOp(WindowOp):
-    def _as_ibis(
-        self, column: ibis_types.Column, window=None
-    ) -> ibis_types.IntegerValue:
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(column.first(), window)
 
 
