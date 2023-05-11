@@ -117,17 +117,26 @@ class Block:
             for ibis_dtype in ibis_dtypes
         ]
 
-    def reset_index(self):
+    def reset_index(self) -> Block:
         """Reset the index of the block, promoting the old index to a value column.
+
         Arguments:
             name: this is the column id for the new value id derived from the old index
 
+        Returns:
+            A new Block because dropping index columns can break references
+            from Index classes that point to this block.
         """
+        block = self.copy()
         new_index_col_id = guid.generate_guid(prefix="index_")
-        self.expr = self._expr.promote_offsets(new_index_col_id)
-        self.index_columns = [new_index_col_id]
-        self._sync_index()
-        self.index.name = None
+        block.expr = self._expr.promote_offsets(new_index_col_id)
+
+        # TODO(swast): Only remove a specified number of levels from a
+        # MultiIndex.
+        block.index_columns = [new_index_col_id]
+        block._sync_index()
+        block.index.name = None
+        return block
 
     def _sync_index(self):
         """Update index to match latest expression and column(s).

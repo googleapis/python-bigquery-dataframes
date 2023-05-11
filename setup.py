@@ -53,7 +53,7 @@ extras = {
     # Packages required for basic development flow.
     "dev": ["pytest", "pre-commit", "nox", "google-cloud-testutils"],
 }
-extras["all"] = list(set(itertools.chain.from_iterable(extras.values())))
+extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
 
 # Setup boilerplate below this line.
 

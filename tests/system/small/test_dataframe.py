@@ -409,7 +409,28 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
     bf_result = df.compute()
     pd_result = scalars_pandas_df_index.reset_index(drop=drop)
 
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
     # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_then_filter(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    bf_filter = scalars_df_index["bool_col"].fillna(True)
+    bf_df = scalars_df_index.reset_index()[bf_filter]
+    bf_result = bf_df.compute()
+    pd_filter = scalars_pandas_df_index["bool_col"].fillna(True)
+    pd_result = scalars_pandas_df_index.reset_index()[pd_filter]
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    # reset_index should maintain the original ordering and index keys
+    # post-filter will have gaps.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -430,6 +451,9 @@ def test_reset_index_with_unnamed_index(
 
     bf_result = df.compute()
     pd_result = scalars_pandas_df_index.reset_index(drop=False)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
@@ -456,6 +480,9 @@ def test_reset_index_with_unnamed_index_and_index_column(
     pd_result = scalars_pandas_df_index.assign(
         index=scalars_pandas_df_index["int64_col"]
     ).reset_index(drop=False)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)

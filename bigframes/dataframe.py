@@ -43,6 +43,7 @@ import bigframes.core.joins as joins
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
+import third_party.bigframes_vendored.pandas.pandas.io.common as vendored_pandas_io_common
 
 
 class DataFrame:
@@ -153,7 +154,31 @@ class DataFrame:
         """Compiles this dataframe's expression tree to SQL"""
         # Has to be unordered as it is impossible to order the sql without
         # including metadata columns in selection with ibis.
-        return self._block.expr.to_ibis_expr(ordering_mode="unordered").compile()
+        ibis_expr = self._block.expr.to_ibis_expr(ordering_mode="unordered")
+        column_labels = self._col_labels
+
+        # TODO(swast): Need to have a better way of controlling when to include
+        # the index or not.
+        if self.index.name is not None:
+            column_labels = column_labels + [self.index.name]
+
+        column_labels_deduped = vendored_pandas_io_common.dedup_names(
+            column_labels, is_potential_multiindex=False
+        )
+        column_ids = self._block.value_columns
+        substitutions = {}
+        for column_id, column_label in zip(column_ids, column_labels_deduped):
+            # TODO(swast): Do we need to further escape this, or can we rely on
+            # the BigQuery unicode column name feature?
+            substitutions[column_id] = column_label
+
+        if self.index.name is not None:
+            substitutions[self._block.index_columns[0]] = column_labels_deduped[-1]
+        else:
+            ibis_expr = ibis_expr.drop(self._block.index_columns[0])
+
+        ibis_expr = ibis_expr.relabel(substitutions)
+        return ibis_expr.compile()
 
     def _recreate_index(self, block) -> indexes.ImplicitJoiner:
         return (
@@ -499,21 +524,20 @@ class DataFrame:
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
-        block = self._block.copy()
-        original_index_columns = block.index_columns
-        original_index_label = block.index.name
+        original_index_ids = self._block.index_columns
+        original_index_label = self.index.name
 
-        # TODO(swast): Only remove a specified number of levels from a
-        # MultiIndex.
-        # TODO(swast): Create new sequential index and materialize.
-        block.index_columns = ()
+        if len(original_index_ids) != 1:
+            raise NotImplementedError("reset_index() doesn't yet support MultiIndex.")
+
         col_labels = list(self._col_labels)
+        block = self._block.reset_index()
 
         if drop:
             # Even though the index might be part of the ordering, keep that
             # ordering expression as reset_index shouldn't change the row
             # order.
-            block.expr = block.expr.drop_columns(original_index_columns)
+            block.expr = block.expr.drop_columns(original_index_ids)
         else:
             # TODO(swast): Support MultiIndex
             index_label = original_index_label

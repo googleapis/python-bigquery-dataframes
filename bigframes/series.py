@@ -123,8 +123,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             Series if drop=True else Dataframe
         """
-        block = self._block.copy()
-        block.reset_index()
+        block = self._block.reset_index()
 
         if drop:
             return Series(block, self._value_column, name=self.name)
