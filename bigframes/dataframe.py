@@ -39,6 +39,7 @@ import pandas as pd
 import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
+import bigframes.core.joins as joins
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
@@ -472,6 +473,7 @@ class DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
             v.index, how="left"
         )
+        joined_index.name = self._index.name
 
         sql_names = self._sql_names(k, tolerance=True)
         col_labels = list(self._col_labels)
@@ -585,7 +587,12 @@ class DataFrame:
     def merge(
         self,
         right: DataFrame,
-        how: str = "inner",  # TODO(garrettwu): Currently can take inner, outer, left and right. To support cross joins
+        how: Literal[
+            "inner",
+            "left",
+            "outer",
+            "right",
+        ] = "inner",  # TODO(garrettwu): Currently can take inner, outer, left and right. To support cross joins
         # TODO(garrettwu): Support "on" list of columns and None. Currently a single column must be provided
         on: Optional[str] = None,
         suffixes: tuple[str, str] = ("_x", "_y"),
@@ -594,6 +601,7 @@ class DataFrame:
         if not on:
             raise ValueError("Must specify a column to join on.")
 
+        left = self
         left_on_sql = self._sql_names(on)
         # 0 elements alreasy throws an exception
         if len(left_on_sql) > 1:
@@ -605,40 +613,42 @@ class DataFrame:
             raise ValueError(f"The column label {on} is not unique.")
         right_on_sql = right_on_sql[0]
 
-        # Drop index column in joins. Consistent with pandas.
-        left = self.reset_index(drop=True)
-        right = right.reset_index(drop=True)
-
-        # TODO(tbergeron): Merge logic with index join and applying deterministic post-join order
-        left_table = left._block.expr.to_ibis_expr(ordering_mode="unordered")
-        right_table = right._block.expr.to_ibis_expr(ordering_mode="unordered")
-
-        joined_table = left_table.join(
-            right_table,
-            left_table[left_on_sql] == right_table[right_on_sql],
-            how,
-            suffixes=suffixes,
+        (
+            joined_expr,
+            join_key_id,
+            (get_column_left, get_column_right),
+        ) = joins.join_by_column(
+            left._block.expr,
+            left_on_sql,
+            right._block.expr,
+            right_on_sql,
+            how=how,
         )
-        block = blocks.Block(
-            bigframes.core.BigFramesExpr(left._block.expr._session, joined_table)
+        # TODO(swast): Add suffixes to the column labels instead of reusing the
+        # column IDs as the new labels.
+        # Drop the index column(s) to be consistent with pandas.
+        joined_expr = joined_expr.projection(
+            [
+                (
+                    joined_expr.get_column(join_key_id)
+                    if col_id == left_on_sql
+                    else get_column_left(col_id)
+                )
+                for col_id in left._block.value_columns
+            ]
+            + [
+                get_column_right(col_id)
+                for col_id in right._block.value_columns
+                if col_id != right_on_sql
+            ]
         )
-        index = self._recreate_index(block)
-        joined_frame = DataFrame(index)
 
-        # Ibis emits redundant columns for outer joins. See:
-        # https://ibis-project.org/ibis-for-pandas-users/#merging-tables
-        left_on_name = left_on_sql + suffixes[0]
-        right_on_name = right_on_sql + suffixes[1]
-        if (
-            left_on_name in joined_frame._block.expr.column_names
-            and right_on_name in joined_frame._block.expr.column_names
-        ):
-            joined_frame = joined_frame.drop(columns=right_on_name)
-            joined_frame = joined_frame.rename(columns={left_on_name: on})
-
-        joined_frame._col_labels = self._get_merged_col_labels(right, on, suffixes)
-
-        return joined_frame
+        block = blocks.Block(joined_expr)
+        # TODO(swast): Need to reset to a sequential index and materialize to
+        # be fully consistent with pandas.
+        index = indexes.ImplicitJoiner(block)
+        col_labels = self._get_merged_col_labels(right, on=on, suffixes=suffixes)
+        return DataFrame(index, columns=col_labels)
 
     def _get_merged_col_labels(
         self, right: DataFrame, on: str, suffixes: tuple[str, str] = ("_x", "_y")
@@ -658,8 +668,8 @@ class DataFrame:
                 else col_label
             )
             for col_label in right._col_labels
+            if col_label != on
         ]
-        right_col_labels.remove(on)
         return left_col_labels + right_col_labels
 
     def join(self, other: DataFrame, how: str) -> DataFrame:

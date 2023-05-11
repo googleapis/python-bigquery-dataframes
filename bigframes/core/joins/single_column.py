@@ -12,114 +12,85 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""An index based on a single column."""
+"""Helpers to join BigFramesExpr objects."""
 
 from __future__ import annotations
 
-import typing
-from typing import Callable, Optional, Tuple
+from typing import Callable, Literal, Tuple
 
 import ibis
 import ibis.expr.types as ibis_types
-import pandas as pd
 
 import bigframes.core as core
-import bigframes.core.blocks as blocks
-import bigframes.core.indexes.implicitjoiner as implicitjoiner
+import bigframes.core.joins.row_identity
 import bigframes.core.ordering
 import bigframes.guid
 
 
-class Index(implicitjoiner.ImplicitJoiner):
-    """An index based on a single column."""
-
-    # TODO(swast): Handle more than 1 index column, possibly in a separate
-    # MultiIndex class.
-    # TODO(swast): Include ordering here?
-    def __init__(
-        self, block: blocks.Block, index_column: str, name: Optional[str] = None
-    ):
-        super().__init__(block, name=name)
-        self._index_column = index_column
-
-    def __repr__(self) -> str:
-        """Converts an Index to a string."""
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        # TODO(swast): Avoid downloading the whole index by using job
-        # metadata, like we do with DataFrame.
-        preview = self.compute()
-        return repr(preview)
-
-    def compute(self) -> pd.Index:
-        """Executes deferred operations and downloads the results."""
-        # Project down to only the index column. So the query can be cached to visualize other data.
-        expr = self._expr.projection([self._expr.get_any_column(self._index_column)])
-        df = (
-            expr.start_query()
-            .result()
-            .to_dataframe(
-                bool_dtype=pd.BooleanDtype(),
-                int_dtype=pd.Int64Dtype(),
-                float_dtype=pd.Float64Dtype(),
-                string_dtype=pd.StringDtype(storage="pyarrow"),
-            )
-        )
-        df.set_index(self._index_column)
-        index = df.index
-        index.name = self._name
-        return index
-
-    def copy(self) -> Index:
-        """Make a copy of this object."""
-        # TODO(swast): Should this make a copy of block?
-        return Index(self._block, self._index_column, name=self.name)
-
-
-def join(
-    self, other: implicitjoiner.ImplicitJoiner, *, how="left", sort=False
+def join_by_column(
+    left: core.BigFramesExpr,
+    left_column_id: str,
+    right: core.BigFramesExpr,
+    right_column_id: str,
+    *,
+    how: Literal[
+        "inner",
+        "left",
+        "outer",
+        "right",
+    ],
+    sort: bool = False,
 ) -> Tuple[
-    Index,
+    core.BigFramesExpr,
+    str,
     Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
 ]:
-    if not isinstance(other, Index):
-        # TODO(swast): We need to improve this error message to be more
-        # actionable for the user. For example, it's possible they
-        # could call set_index and try again to resolve this error.
-        raise ValueError("Can't mixed objects with explicit Index and ImpliedJoiner")
+    """Join two expressions by column equality.
 
-    # TODO(swast): Support cross-joins (requires reindexing).
-    if how not in {"outer", "left", "right", "inner"}:
-        raise NotImplementedError(
-            "Only how='outer','left','right','inner' currently supported"
-        )
+    Arguments:
+        left: Expression for left table to join.
+        left_column_id: Column ID (not label) to join by.
+        right: Expression for right table to join.
+        right_column_id: Column ID (not label) to join by.
+        how: The type of join to perform.
 
-    try:
-        # TOOD(swast): We need to check that the indexes are the same
-        # before falling back to row identity matching.
-        combined_joiner, (get_column_left, get_column_right) = super(Index, self).join(
-            other, how=how
+    Returns:
+        The joined expression and the objects needed to interpret it.
+
+        * BigFramesExpr: Joined table with all columns from left and right.
+        * str: Column ID of the coalesced join column. Sometimes either the
+          left/right table will have missing rows. This column pulls the
+          non-NULL value from either left/right.
+        * Tuple[Callable, Callable]: For a given column ID from left or right,
+          respectively, return the new column from the combined expression.
+    """
+
+    if (
+        how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
+        and left.table.equals(right.table)
+        # Compare ibis expressions for left/right column because its possible that
+        # they both have the same name but were modified in different ways.
+        and left.get_any_column(left_column_id).equals(
+            right.get_any_column(right_column_id)
         )
-        combined_expr = combined_joiner._expr
-        original_ordering = combined_joiner._expr._ordering
+    ):
+        combined_expr, (
+            get_column_left,
+            get_column_right,
+        ) = bigframes.core.joins.row_identity.join_by_row_identity(left, right, how=how)
+        original_ordering = combined_expr._ordering
         new_order_id = original_ordering.ordering_id if original_ordering else None
-    except (ValueError, NotImplementedError):
-        # TODO(swast): Catch a narrower exception than ValueError.
-        # If the more efficient implicit join can't be performed, try an explicit join.
-
-        # TODO(swast): Consider refactoring to allow re-use in cases where an
-        # explicit join key is used.
-
+    else:
         # Generate offsets if non-default ordering is applied
         # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
-        left_table = self._expr.to_ibis_expr(
+        left_table = left.to_ibis_expr(
             ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
         )
-        left_index = left_table[self._index_column]
-        right_table = other._expr.to_ibis_expr(
+        left_index = left_table[left_column_id]
+        right_table = right.to_ibis_expr(
             ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
         )
-        right_index = right_table[other._index_column]
+        right_index = right_table[right_column_id]
         join_condition = left_index == right_index
 
         # TODO(swast): Handle duplicate column names with suffixs, see "merge"
@@ -129,7 +100,7 @@ def join(
         )
 
         def get_column_left(key: str) -> ibis_types.Value:
-            if how == "inner" and key == self._index_column:
+            if how == "inner" and key == left_column_id:
                 # Don't rename the column if it's the index on an inner
                 # join.
                 pass
@@ -139,7 +110,7 @@ def join(
             return combined_table[key]
 
         def get_column_right(key: str) -> ibis_types.Value:
-            if how == "inner" and key == typing.cast(Index, other)._index_column:
+            if how == "inner" and key == right_column_id:
                 # Don't rename the column if it's the index on an inner
                 # join.
                 pass
@@ -149,11 +120,11 @@ def join(
             return combined_table[key]
 
         left_ordering_encoding_size = (
-            self._expr._ordering.ordering_encoding_size
+            left._ordering.ordering_encoding_size
             or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
         )
         right_ordering_encoding_size = (
-            other._expr._ordering.ordering_encoding_size
+            right._ordering.ordering_encoding_size
             or bigframes.core.ordering.DEFAULT_ORDERING_ID_LENGTH
         )
 
@@ -179,37 +150,35 @@ def join(
             + right_ordering_encoding_size,
         )
         combined_expr = core.BigFramesExpr(
-            self._expr._session,
+            left._session,
             combined_table,
             meta_columns=metadata_columns,
         )
 
-    index_name_orig = self._index_column
-
-    joined_index_col = (
+    join_key_col = (
         # The left index and the right index might contain null values, for
         # example due to an outer join with different numbers of rows. Coalesce
         # these to take the index value from either column.
         ibis.coalesce(
-            get_column_left(self._index_column),
-            get_column_right(other._index_column),
+            get_column_left(left_column_id),
+            get_column_right(right_column_id),
         )
-        # Add a suffix in case the left index and the right index have the
-        # same name. In such a case, _x and _y suffixes will already be
-        # used.
-        .name(index_name_orig + "_z")
+        # Use a random name in case the left index and the right index have the
+        # same name. In such a case, _x and _y suffixes will already be used.
+        .name(bigframes.guid.generate_guid(prefix="index_"))
     )
 
-    # TODO(tbergeron): We should filter out the original index columns, but predicates/ordering might still reference them in implicit joins.
+    # We could filter out the original join columns, but predicates/ordering
+    # might still reference them in implicit joins.
     columns = (
-        [joined_index_col]
-        + [get_column_left(key) for key in self._expr.column_names.keys()]
-        + [get_column_right(key) for key in other._expr.column_names.keys()]
+        [join_key_col]
+        + [get_column_left(key) for key in left.column_names.keys()]
+        + [get_column_right(key) for key in right.column_names.keys()]
     )
 
     if sort:
         ordering = original_ordering.with_ordering_columns(
-            [core.OrderingColumnReference(joined_index_col.get_name())]
+            [core.OrderingColumnReference(join_key_col.get_name())]
         )
     else:
         ordering = original_ordering
@@ -218,12 +187,9 @@ def join(
     combined_expr_builder.columns = columns
     combined_expr_builder.ordering = ordering
     combined_expr = combined_expr_builder.build()
-    block = blocks.Block(combined_expr)
-    block.index_columns = [joined_index_col.get_name()]
-    combined_index = typing.cast(Index, block.index)
-    combined_index.name = self.name if self.name == other.name else None
     return (
-        combined_index,
+        combined_expr,
+        join_key_col.get_name(),
         (get_column_left, get_column_right),
     )
 

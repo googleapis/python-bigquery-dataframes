@@ -119,6 +119,7 @@ def test_rename(scalars_dfs):
 
 def test_repr_w_all_rows(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
+    scalars_df = scalars_df.copy()
 
     if scalars_pandas_df.index.name is None:
         # Note: Not quite the same as no index / default index, but hopefully
@@ -223,6 +224,25 @@ def test_assign_sequential(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+# Require an index so that the self-join is consistent each time.
+def test_assign_same_table_different_index_performs_self_join(
+    scalars_df_index, scalars_pandas_df_index
+):
+    column_name = "int64_col"
+    bf_df = scalars_df_index.assign(
+        alternative_index=scalars_df_index["rowindex_2"] + 2
+    )
+    pd_df = scalars_pandas_df_index.assign(
+        alternative_index=scalars_pandas_df_index["rowindex_2"] + 2
+    )
+    bf_df_2 = bf_df.set_index("alternative_index")
+    pd_df_2 = pd_df.set_index("alternative_index")
+    bf_result = bf_df.assign(new_col=bf_df_2[column_name] * 10).compute()
+    pd_result = pd_df.assign(new_col=pd_df_2[column_name] * 10)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 # Different table expression must have Index
 def test_assign_different_df(
     scalars_df_index, scalars_df_2_index, scalars_pandas_df_index
@@ -258,22 +278,22 @@ def test_dropna(scalars_dfs):
 )
 def test_merge(scalars_dfs, merge_how):
     scalars_df, scalars_pandas_df = scalars_dfs
-    # Pandas join allows on NaN, well BQ excludes those rows.
-    # TODO(garrettwu): Figure out how we want to deal with null values in joins.
-    scalars_df = scalars_df.dropna()
-    scalars_pandas_df = scalars_pandas_df.dropna()
-
-    left_columns = ["int64_col", "float64_col"]
-    right_columns = ["int64_col", "bool_col", "string_col"]
-    on = "int64_col"
+    on = "rowindex_2"
+    left_columns = ["int64_col", "float64_col", "rowindex_2"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
 
     left = scalars_df[left_columns]
-    right = scalars_df[right_columns]
+    # Offset the rows somewhat so that outer join can have an effect.
+    right = scalars_df[right_columns].assign(rowindex_2=scalars_df["rowindex_2"] + 2)
     df = left.merge(right, merge_how, on)
     bf_result = df.compute()
 
     pd_result = scalars_pandas_df[left_columns].merge(
-        scalars_pandas_df[right_columns], merge_how, on
+        scalars_pandas_df[right_columns].assign(
+            rowindex_2=scalars_pandas_df["rowindex_2"] + 2
+        ),
+        merge_how,
+        on,
     )
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -290,11 +310,6 @@ def test_merge(scalars_dfs, merge_how):
 )
 def test_merge_custom_col_name(scalars_dfs, merge_how):
     scalars_df, scalars_pandas_df = scalars_dfs
-    # Pandas join allows on NaN, well BQ excludes those rows.
-    # TODO(garrettwu): Figure out how we want to deal with null values in joins.
-    scalars_df = scalars_df.dropna()
-    scalars_pandas_df = scalars_pandas_df.dropna()
-
     left_columns = ["int64_col", "float64_col"]
     right_columns = ["int64_col", "bool_col", "string_col"]
     on = "int64_col"

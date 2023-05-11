@@ -687,8 +687,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Applies a binary operator to the series and other."""
         (left, right, index) = self._align(other)
 
-        block = blocks.Block(index._expr)
-        block.index = index
+        block = index._block
         result_expr = op(left, right).name(self._value_column)
         block.replace_value_columns([result_expr])
 

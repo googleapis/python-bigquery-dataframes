@@ -60,6 +60,8 @@ class Block:
 
     @index.setter
     def index(self, value: indexes.ImplicitJoiner):
+        # TODO(swast): We shouldn't allow changing the index, as that'll break
+        # references to this block from existing Index objects.
         self._expr = value._expr
         if isinstance(value, indexes.Index):
             self._index_columns = (value._index_column,)
@@ -74,6 +76,8 @@ class Block:
 
     @index_columns.setter
     def index_columns(self, value: Iterable[str]):
+        # TODO(swast): We shouldn't allow changing the index, as that'll break
+        # references to this block from existing Index objects.
         self._index_columns = tuple(value)
         self._sync_index()
 
