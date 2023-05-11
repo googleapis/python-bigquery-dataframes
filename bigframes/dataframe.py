@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import operator
 import re
 import typing
 from typing import (
@@ -330,57 +329,57 @@ class DataFrame:
 
         block = joined_index._block
         block.replace_value_columns(value_cols)
-        return DataFrame(joined_index, self._col_names)
+        return DataFrame(joined_index, self._col_labels)
 
     def add(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.add, axis=axis)
+        return self._apply_binop(other, ops.add_op, axis=axis)
 
     __radd__ = __add__ = radd = add
 
     def sub(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.sub, axis=axis)
+        return self._apply_binop(other, ops.sub_op, axis=axis)
 
     __sub__ = sub
 
     def rsub(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.sub, reverse=True, axis=axis)
+        return self._apply_binop(other, ops.sub_op, reverse=True, axis=axis)
 
     __rsub__ = rsub
 
     def mul(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.mul, axis=axis)
+        return self._apply_binop(other, ops.mul_op, axis=axis)
 
     __rmul__ = __mul__ = rmul = mul
 
     def truediv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.truediv, axis=axis)
+        return self._apply_binop(other, ops.div_op, axis=axis)
 
     div = __truediv__ = truediv
 
     def rtruediv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
-        return self._apply_binop(other, operator.truediv, reverse=True, axis=axis)
+        return self._apply_binop(other, ops.div_op, reverse=True, axis=axis)
 
     __rtruediv__ = rdiv = rtruediv
 
     def floordiv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_binop(other, operator.floordiv)
+        return self._apply_binop(other, ops.floordiv_op)
 
     __floordiv__ = floordiv
 
     def rfloordiv(self, other: float | int) -> DataFrame:
-        return self._apply_scalar_binop(other, operator.floordiv, reverse=True)
+        return self._apply_binop(other, ops.floordiv_op, reverse=True)
 
     __rfloordiv__ = rfloordiv
 
