@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import bigframes.ml.compose
 import bigframes.ml.preprocessing
+
+try:
+    import sklearn.compose as sklearn_compose  # type: ignore
+    import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
+except ImportError:
+    sklearn_compose = None
+    sklearn_preprocessing = None
 
 
 def test_columntransformer_init_expectedtransforms():
@@ -31,3 +40,61 @@ def test_columntransformer_init_expectedtransforms():
         ("scale", scaler_transformer, "culmen_length_mm"),
         ("scale", scaler_transformer, "flipper_length_mm"),
     ]
+
+
+def test_columntransformer_repr():
+    column_transformer = bigframes.ml.compose.ColumnTransformer(
+        [
+            (
+                "onehot",
+                bigframes.ml.preprocessing.OneHotEncoder(),
+                "species",
+            ),
+            (
+                "scale",
+                bigframes.ml.preprocessing.StandardScaler(),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+        ]
+    )
+
+    assert (
+        column_transformer.__repr__()
+        == """ColumnTransformer(transformers=[('onehot', OneHotEncoder(), 'species'),
+                                ('scale', StandardScaler(),
+                                 ['culmen_length_mm', 'flipper_length_mm'])])"""
+    )
+
+
+@pytest.mark.skipif(sklearn_compose is None, reason="requires sklearn")
+def test_columntransformer_repr_matches_sklearn():
+    bf_column_transformer = bigframes.ml.compose.ColumnTransformer(
+        [
+            (
+                "onehot",
+                bigframes.ml.preprocessing.OneHotEncoder(),
+                "species",
+            ),
+            (
+                "scale",
+                bigframes.ml.preprocessing.StandardScaler(),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+        ]
+    )
+    sk_column_transformer = sklearn_compose.ColumnTransformer(
+        [
+            (
+                "onehot",
+                sklearn_preprocessing.OneHotEncoder(),
+                "species",
+            ),
+            (
+                "scale",
+                sklearn_preprocessing.StandardScaler(),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+        ]
+    )
+
+    assert bf_column_transformer.__repr__() == sk_column_transformer.__repr__()

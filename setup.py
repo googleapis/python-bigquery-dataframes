@@ -53,7 +53,7 @@ extras = {
     # Packages required for basic development flow.
     "dev": ["pytest", "pre-commit", "nox", "google-cloud-testutils"],
 }
-extras["all"] = set(itertools.chain.from_iterable(extras.values()))
+extras["all"] = list(set(itertools.chain.from_iterable(extras.values())))
 
 # Setup boilerplate below this line.
 
@@ -73,7 +73,7 @@ version_id = version["__version__"]
 packages = [
     package
     for package in setuptools.PEP420PackageFinder.find()
-    if package.startswith("bigframes")
+    if package.startswith("bigframes") or package.startswith("third_party")
 ]
 
 setuptools.setup(

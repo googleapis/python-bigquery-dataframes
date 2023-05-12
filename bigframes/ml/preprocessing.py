@@ -66,6 +66,11 @@ class OneHotEncoder(bigframes.ml.api_primitives.BaseEstimator):
     When used in a Pipeline, this class will compile to a ML.ONE_HOT_ENCODER and
     be wrapped in a BQML TRANSFORM clause."""
 
+    # All estimators must implement __init__ to document their parameters, even
+    # if they don't have any
+    def __init__(self):
+        pass
+
     def fit(self, X: bigframes.DataFrame):
         # TODO(bmil): provide a non-pipeline implementation of OneHotEncoder
         raise NotImplementedError("Not yet supported outside of Pipeline")

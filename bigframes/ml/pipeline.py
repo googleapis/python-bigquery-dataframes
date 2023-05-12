@@ -28,7 +28,7 @@ import bigframes.ml.preprocessing
 import bigframes.ml.sql
 
 
-class Pipeline:
+class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
     """A pipeline of transforms with a final estimator
 
     This allows chaining preprocessing steps onto an estimator to produce
@@ -41,6 +41,8 @@ class Pipeline:
     def __init__(
         self, steps: List[Tuple[str, bigframes.ml.api_primitives.BaseEstimator]]
     ):
+        self.steps = steps
+
         if len(steps) != 2:
             raise NotImplementedError(
                 "Currently only two step (transform, estimator) pipelines are supported"
@@ -71,7 +73,6 @@ class Pipeline:
                 f"Estimator {estimator} is not yet supported by Pipeline"
             )
 
-        self._steps = steps
         self._transform = transform
         self._estimator = estimator
 

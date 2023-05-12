@@ -232,6 +232,8 @@ def mypy(session):
         "bigframes",
         os.path.join("tests", "system"),
         os.path.join("tests", "unit"),
+        "--explicit-package-bases",
+        '--exclude="^third_party"',
     )
 
 

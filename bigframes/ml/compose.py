@@ -36,24 +36,23 @@ class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
             ]
         ],
     ):
-        # flatten to per-column
-        self._transformers: List[
-            Tuple[str, bigframes.ml.preprocessing.PreprocessorType, str]
-        ] = []
-        for entry in transformers:
-            name, transformer, column_or_columns = entry
-            if isinstance(column_or_columns, str):
-                self._transformers.append((name, transformer, column_or_columns))
-            else:
-                for column in column_or_columns:
-                    self._transformers.append((name, transformer, column))
+        self.transformers = transformers
 
     @property
     def transformers_(
         self,
     ) -> List[Tuple[str, bigframes.ml.preprocessing.PreprocessorType, str]]:
         """The collection of transformers as tuples of (name, transformer, column)"""
-        return self._transformers
+        result: List[Tuple[str, bigframes.ml.preprocessing.PreprocessorType, str]] = []
+        for entry in self.transformers:
+            name, transformer, column_or_columns = entry
+            if isinstance(column_or_columns, str):
+                result.append((name, transformer, column_or_columns))
+            else:
+                for column in column_or_columns:
+                    result.append((name, transformer, column))
+
+        return result
 
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
         raise NotImplementedError("Not supported outside of Pipeline")

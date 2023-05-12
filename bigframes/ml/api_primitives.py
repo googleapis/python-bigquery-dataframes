@@ -82,20 +82,23 @@ class BaseEstimator:
         parameters = inspect.signature(cls.__init__).parameters.values()
         return sorted([p.name for p in parameters if p.name != "self"])
 
-    def get_params(self) -> Dict:
-        """Print the parameters for this estimator"""
+    def get_params(self, deep=True) -> Dict:
+        """Get the parameters for this estimator"""
+
+        if deep:
+            raise NotImplementedError("Deep get_params is not yet implemented")
+
         return dict([(key, getattr(self, key)) for key in self.__get_param_names()])
 
     def __repr__(self):
         """Print the estimator's constructor with all non-default parameter values"""
-        classname = type(self).__name__
 
-        # convert dict to initializer list format
-        def build_arglist(kwargs: Dict):
-            return [f"{key}={value.__repr__()}" for key, value in kwargs.items()]
+        # Estimator pretty printer adapted from Sklearn's, which is in turn an adaption of
+        # the inbuilt pretty-printer in CPython
+        import third_party.bigframes_vendored.cpython._pprint as adapted_pprint
 
-        default_args = build_arglist(type(self)().get_params())
-        args = build_arglist(self.get_params())
-        argstring = ", ".join([arg for arg in args if arg not in default_args])
+        prettyprinter = adapted_pprint._EstimatorPrettyPrinter(
+            compact=True, indent=1, indent_at_name=True, n_max_elements_to_show=30
+        )
 
-        return f"{classname}({argstring})"
+        return prettyprinter.pformat(self)
