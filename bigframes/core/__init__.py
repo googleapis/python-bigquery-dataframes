@@ -535,10 +535,13 @@ class BigFramesExpr:
                 raise ValueError(
                     "Expression does not have ordering id and none was generated."
                 )
-        elif ordering_mode in ["order_by", "expose_metadata"]:
+        elif ordering_mode == "order_by":
             columns.extend(
                 [self._get_meta_column(name) for name in hidden_ordering_columns]
             )
+        elif ordering_mode == "expose_metadata":
+            columns.extend(self._meta_columns)
+
         # Special case for empty tables, since we can't create an empty
         # projection.
         if not columns:

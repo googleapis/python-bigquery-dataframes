@@ -163,10 +163,20 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
         if scalars_pandas_df.index.name == "rowindex":
             schema = [
                 {"mode": "NULLABLE", "name": "rowindex", "type": "INTEGER"},
+                {
+                    "mode": "NULLABLE",
+                    "name": "bigframes_ordering_id",
+                    "type": "INTEGER",
+                },
             ]
         else:
             schema = [
                 {"mode": "NULLABLE", "name": "bigframes_index_0", "type": "INTEGER"},
+                {
+                    "mode": "NULLABLE",
+                    "name": "bigframes_ordering_id",
+                    "type": "INTEGER",
+                },
             ]
 
         if table_name == "project.dataset.table":

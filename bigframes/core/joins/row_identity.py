@@ -39,9 +39,6 @@ def join_by_row_identity(
         raise NotImplementedError("Only how='outer','left','inner' currently supported")
 
     if not left.table.equals(right.table):
-        # TODO(swast): Raise a more specific exception (subclass of
-        # ValueError, though) to make it easier to catch only the intended
-        # failures.
         raise ValueError(
             "Cannot combine objects without an explicit join/merge key. "
             f"Left based on: {left.table.compile()}, but "
@@ -73,15 +70,9 @@ def join_by_row_identity(
         for key in right.column_names.keys()
     ]
 
+    meta_columns = []
     new_ordering = core.ExpressionOrdering()
     if left._ordering and right._ordering:
-        meta_columns = [
-            left._get_meta_column(key).name(map_left_id(key))
-            for key in left._meta_column_names.keys()
-        ] + [
-            right._get_meta_column(key).name(map_right_id(key))
-            for key in right._meta_column_names.keys()
-        ]
         new_ordering_id = (
             map_left_id(left._ordering.ordering_id)
             if (left._ordering.ordering_id)
@@ -103,6 +94,17 @@ def join_by_row_identity(
         )
         if new_ordering_id:
             new_ordering = new_ordering.with_ordering_id(new_ordering_id)
+
+        # TODO(swast): In `to_ibis_expr()`, we assume all "meta" columns are
+        # actually hidden ordering columns. Do we have other uses for these? If
+        # not, perhaps we rename this to better reflect its purpose?
+        meta_columns = [
+            left._get_meta_column(key).name(map_left_id(key))
+            for key in left._meta_column_names.keys()
+        ] + [
+            right._get_meta_column(key).name(map_right_id(key))
+            for key in right._meta_column_names.keys()
+        ]
 
     joined_expr = core.BigFramesExpr(
         left._session,

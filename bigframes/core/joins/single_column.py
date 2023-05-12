@@ -79,7 +79,6 @@ def join_by_column(
             get_column_right,
         ) = bigframes.core.joins.row_identity.join_by_row_identity(left, right, how=how)
         original_ordering = combined_expr._ordering
-        new_order_id = original_ordering.ordering_id if original_ordering else None
     else:
         # Generate offsets if non-default ordering is applied
         # Assumption, both sides are totally ordered, otherwise offsets will be nondeterministic
@@ -93,8 +92,6 @@ def join_by_column(
         right_index = right_table[right_column_id]
         join_condition = left_index == right_index
 
-        # TODO(swast): Handle duplicate column names with suffixs, see "merge"
-        # in DaPandas.
         combined_table = ibis.join(
             left_table,
             right_table,

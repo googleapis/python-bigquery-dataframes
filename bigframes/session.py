@@ -313,7 +313,7 @@ class Session:
             table_expression: an ibis table expression to be executed in BigQuery.
             col_order: List of BigQuery column names in the desired order for results DataFrame.
             index_cols: List of column names to use as the index or multi-index.
-            ordering: Column name to be used for ordering.
+            ordering: Column name to be used for ordering. If not supplied, a default ordering is generated.
 
         Returns:
             A DataFrame representing results of the query or table.
@@ -321,43 +321,57 @@ class Session:
         index_keys = list(index_cols)
         if len(index_keys) > 1:
             raise NotImplementedError("MultiIndex not supported.")
+
+        # Logic:
+        # no ordering, no index -> create sequential order, use for both ordering and index
+        # no ordering, index -> create sequential order, ordered by index, use for both ordering and index
+        # sequential ordering, no index -> use ordering as default index
+        # non-sequential ordering, no index -> NotImplementedException
+        # sequential ordering, index -> use ordering as ordering, index as index
+
+        # This code block ensures the existence of a sequential ordering column
+        if ordering is None:
+            # Rows are not ordered, we need to generate a default ordering and materialize it
+            default_ordering_name = core.ORDER_ID_COLUMN
+            default_ordering_col = ibis.row_number().name(default_ordering_name)
+            table_expression = table_expression.mutate(
+                **{default_ordering_name: default_ordering_col}
+            )
+            table_expression = self._query_to_session_table(table_expression.compile())
+            ordering_reference = core.OrderingColumnReference(default_ordering_name)
+            ordering = core.ExpressionOrdering(
+                ordering_id_column=ordering_reference, is_sequential=True
+            )
+        elif not ordering.order_id_defined or not ordering.is_sequential:
+            raise NotImplementedError(
+                "Only sequential order by id column is supported for read_gbq"
+            )
+        else:
+            default_ordering_name = typing.cast(str, ordering.ordering_id)
+
         if index_keys:
             # TODO(swast): Support MultiIndex.
-            index_col_name = index_keys[0]
-            index_col = table_expression[index_col_name]
-            index_name = index_keys[0]
+            index_col_name = index_id = index_keys[0]
+            index_col = table_expression[index_id]
         else:
-            index_col_name = indexes.INDEX_COLUMN_ID.format(0)
-            index_name = None
-
-            if ordering is not None and ordering.ordering_id:
-                # Use the sequential ordering as the index instead of creating
-                # a new one, if available.
-                index_col = table_expression[ordering.ordering_id].name(index_col_name)
-            else:
-                # Add an arbitrary sequential index and materialize the table
-                # because row_number() could refer to different rows depending
-                # on how the rows in the DataFrame are filtered / dropped.
-                index_col = ibis.row_number().name(index_col_name)
-                table_expression = table_expression.mutate(
-                    **{index_col_name: index_col}
-                )
-                table_expression = self._query_to_session_table(
-                    table_expression.compile()
-                )
-                index_col = table_expression[index_col_name]
+            index_col_name = None
+            # Make sure we have a separate "copy" of the ordering ID to use as
+            # the index, because we assume the ordering ID is a hidden "meta"
+            # column in BigFramesExpr, but the index column appears as a
+            # "column".
+            index_id = indexes.INDEX_COLUMN_ID.format(0)
+            index_col = table_expression[default_ordering_name].name(index_id)
+            table_expression = table_expression.mutate(**{index_id: index_col})
 
         column_keys = list(col_order)
         if len(column_keys) == 0:
-            if ordering is not None and ordering.ordering_id:
-                non_value_cols = {index_col_name, ordering.ordering_id}
-            else:
-                non_value_cols = {index_col_name}
             column_keys = [
-                key for key in table_expression.columns if key not in non_value_cols
+                key
+                for key in table_expression.columns
+                if key not in {index_id, ordering.ordering_id}
             ]
         return self._read_ibis(
-            table_expression, index_col, index_name, column_keys, ordering=ordering
+            table_expression, index_col, index_col_name, column_keys, ordering=ordering
         )
 
     def _read_ibis(
