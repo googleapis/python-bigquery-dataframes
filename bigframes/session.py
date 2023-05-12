@@ -22,12 +22,14 @@ import re
 import typing
 from typing import (
     Any,
+    Callable,
     Dict,
     Iterable,
     List,
     Literal,
     MutableSequence,
     Optional,
+    Sequence,
     Tuple,
     Union,
 )
@@ -447,16 +449,33 @@ class Session:
         self,
         filepath_or_buffer: str,
         *,
+        sep: Optional[str] = None,
         header: Optional[int] = 0,
-        engine: Optional[
-            Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
-        ] = None,
-        dtype: Optional[Dict] = None,
         names: Optional[
             Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
         ] = None,
+        index_col: Optional[
+            Union[int, str, Sequence[Union[str, int]], Literal[False]]
+        ] = None,
+        usecols: Optional[
+            Union[
+                MutableSequence[str],
+                Tuple[str, ...],
+                Sequence[int],
+                pandas.Series[Any],
+                pandas.Index,
+                np.ndarray[Any, Any],
+                Callable[[Any], bool],
+            ]
+        ] = None,
+        dtype: Optional[Dict] = None,
+        engine: Optional[
+            Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
+        ] = None,
+        encoding: Optional[str] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
+        # TODO(osmanamjad): update description when multi-index is supported.
         """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
@@ -467,6 +486,8 @@ class Session:
 
         Args:
             filepath_or_buffer: a string path including GS and local file.
+
+            sep: delimiter to use. Only to be used with default engine.
 
             header: row number to use as the column names.
                 - ``None``: Instructs autodetect that there are no headers and data should be
@@ -485,14 +506,21 @@ class Session:
                 provided, row N+1 will be ignored, row N+2 will be read as data, and column
                 names are inferred from `names`.
 
-            engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
-                API will be used. Otherwise, the engine will be passed to pandas.read_csv.
-
-            dtype: data type for data or columns. Only to be used with default engine.
-
             names: a list of column names to use. If the file contains a header row and you
                 want to pass this parameter, then `header=0` should be passed as well so the
                 first (header) row is ignored. Only to be used with default engine.
+
+            index_col: column(s) to use as the row labels of the DataFrame, either given as
+                string name or column index. `index_col=False` can be used with the pandas
+                engine only to enforce that the first column is not used as the index. Using
+                column index instead of column name is only supported with the pandas engine.
+                The BigQuery engine only supports having a single column name as the `index_col`.
+                Neither engine supports having a multi-column index.
+
+            dtype: data type for data or columns. Only to be used with default engine.
+
+            engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
+                API will be used. Otherwise, the engine will be passed to pandas.read_csv.
 
             **kwargs: keyword arguments.
 
@@ -500,15 +528,25 @@ class Session:
         Returns:
             A BigFrame DataFrame.
         """
-        # TODO(chelsealin): Supports more parameters defined at go/bigframes-io-api.
         table = bigquery.Table(self._create_session_table())
 
         if engine is not None and engine == "bigquery":
-            if any(param is not None for param in (dtype, names)):
-                not_supported = ("dtype", "names")
+            if any(param is not None for param in (sep, dtype, names)):
+                not_supported = ("sep", "dtype", "names")
                 raise NotImplementedError(
                     f"BigQuery engine does not support these arguments: {not_supported}"
                 )
+
+            if index_col is not None and (
+                not index_col or not isinstance(index_col, str)
+            ):
+                raise NotImplementedError(
+                    "BigQuery engine only supports a single column name for `index_col`."
+                )
+
+            # None value for index_col cannot be passed to read_gbq
+            if index_col is None:
+                index_col = ()
 
             if not isinstance(filepath_or_buffer, str):
                 raise NotImplementedError("BigQuery engine does not support buffers.")
@@ -538,9 +576,11 @@ class Session:
                         source_file, table, job_config=job_config
                     )
             load_job.result()  # Wait for the job to complete
-            return self.read_gbq(f"SELECT * FROM `{table.table_id}`")
+            return self.read_gbq(
+                f"SELECT * FROM `{table.table_id}`", index_cols=index_col
+            )
         else:
-            if any(arg in kwargs for arg in ["chunksize", "iterator"]):
+            if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
                     "'chunksize' and 'iterator' arguments are not supported."
                 )
@@ -548,10 +588,14 @@ class Session:
             self._check_file_size(filepath_or_buffer)
             pandas_df = pandas.read_csv(
                 filepath_or_buffer,
+                sep=sep,
                 header=header,
-                engine=engine,
-                dtype=dtype,
                 names=names,
+                index_col=index_col,
+                usecols=usecols,
+                dtype=dtype,
+                engine=engine,
+                encoding=encoding,
                 **kwargs,
             )
             return self.read_pandas(pandas_df)
