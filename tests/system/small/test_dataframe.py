@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import operator
+
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
@@ -466,34 +468,41 @@ def test_df_notnull(scalars_dfs):
 
 
 @pytest.mark.parametrize(
-    ("operator"),
+    ("op"),
     [
-        (lambda x, y: x + y),
-        (lambda x, y: x - y),
-        (lambda x, y: x * y),
-        # TODO(garrettwu): check why dtypes of floor divide are different as pandas.
-        # (lambda x, y: x / y),
-        # (lambda x, y: x // y),
+        operator.add,
+        operator.sub,
+        operator.mul,
+        operator.truediv,
+        operator.floordiv,
     ],
     ids=[
         "add",
         "subtract",
         "multiply",
-        # "true_divide",
-        # "floor_divide",
+        "true_divide",
+        "floor_divide",
     ],
 )
 # TODO(garrettwu): deal with NA values and 0 divisions
 @pytest.mark.parametrize(("other_scalar"), [1, 2.5])
 @pytest.mark.parametrize(("reverse_operands"), [True, False])
-def test_scalar_binop(scalars_dfs, operator, other_scalar, reverse_operands):
+def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
     scalars_df, scalars_pandas_df = scalars_dfs
     columns = ["int64_col", "float64_col"]
 
-    maybe_reversed_op = (lambda x, y: operator(y, x)) if reverse_operands else operator
+    maybe_reversed_op = (lambda x, y: op(y, x)) if reverse_operands else op
 
     bf_result = maybe_reversed_op(scalars_df[columns], other_scalar).compute()
     pd_result = maybe_reversed_op(scalars_pandas_df[columns], other_scalar)
+
+    # BQ div operation returns NUMERIC values that be an integer for int floordiv float, but pandas returns float version of integer for that operation. https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#div
+    # As floor div value is always integer, type doesn't matter here.
+    if op == operator.floordiv:
+        if not reverse_operands and isinstance(other_scalar, float):
+            pd_result["int64_col"] = pd_result["int64_col"].astype(pd.Int64Dtype())
+        if reverse_operands and isinstance(other_scalar, int):
+            pd_result["float64_col"] = pd_result["float64_col"].astype(pd.Int64Dtype())
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
