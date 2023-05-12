@@ -57,6 +57,9 @@ def test_linear_regression_auto_split_configure_fit_score(
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
+    assert (
+        f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
+    )
     assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
     # TODO(yunmengxie): enable this once b/277242951 (fit_intercept missing from API) is fixed
@@ -102,5 +105,8 @@ def test_linear_regression_manual_split_configure_fit_score(
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
+    assert (
+        f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
+    )
     assert reloaded_model.fit_intercept is True
     assert reloaded_model.data_split_method == "NO_SPLIT"

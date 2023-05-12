@@ -84,4 +84,4 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
             raise RuntimeError("A model must be fitted before it can be saved")
 
         new_model = self._bqml_model.copy(model_name, replace)
-        return new_model.session.read_gbq_model(self._bqml_model.model_name)
+        return new_model.session.read_gbq_model(model_name)

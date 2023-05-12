@@ -63,4 +63,8 @@ def test_decomposition_configure_fit_predict(
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_pca_model", replace=True
     )
+    assert (
+        f"{dataset_id}.temp_configured_pca_model"
+        in reloaded_model._bqml_model.model_name
+    )
     assert reloaded_model.n_components == 3

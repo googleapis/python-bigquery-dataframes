@@ -96,4 +96,8 @@ def test_cluster_configure_fit_predict(session, penguins_df_default_index, datas
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_cluster_model", replace=True
     )
+    assert (
+        f"{dataset_id}.temp_configured_cluster_model"
+        in reloaded_model._bqml_model.model_name
+    )
     assert reloaded_model.n_clusters == 3
