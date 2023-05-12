@@ -399,6 +399,19 @@ class BigFramesExpr:
         )
         return self._set_or_replace_by_id(output_name or column_name, value)
 
+    def project_binary_op(
+        self,
+        left_column_id: str,
+        right_column_id: str,
+        op: ops.BinaryOp,
+        output_column_id: str,
+    ) -> BigFramesExpr:
+        """Creates a new expression based on this expression with binary operation applied to two columns."""
+        value = op(
+            self.get_column(left_column_id), self.get_column(right_column_id)
+        ).name(output_column_id)
+        return self._set_or_replace_by_id(output_column_id, value)
+
     def project_window_op(
         self,
         column_name: str,

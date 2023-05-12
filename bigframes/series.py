@@ -21,7 +21,6 @@ from typing import Optional, Union
 
 import ibis
 import ibis.common.exceptions
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import numpy
 import pandas
@@ -324,12 +323,12 @@ class Series(bigframes.operations.base.SeriesMethods):
     notna = notnull
 
     def __and__(self, other: bool | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.and_op, short_nulls=False)
+        return self._apply_binary_op(other, ops.and_op)
 
     __rand__ = __and__
 
     def __or__(self, other: bool | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.or_op, short_nulls=False)
+        return self._apply_binary_op(other, ops.or_op)
 
     __ror__ = __or__
 
@@ -378,10 +377,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rtruediv(other)
 
     def truediv(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.div_op, ibis_dtypes.float)
+        return self._apply_binary_op(other, ops.div_op)
 
     def rtruediv(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.div_op), ibis_dtypes.float)
+        return self._apply_binary_op(other, ops.reverse(ops.div_op))
 
     div = truediv
 
@@ -396,12 +395,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rfloordiv(other)
 
     def floordiv(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(other, ops.floordiv_op, ibis_dtypes.int64)
+        return self._apply_binary_op(other, ops.floordiv_op)
 
     def rfloordiv(self, other: float | int | Series | pandas.Series) -> Series:
-        return self._apply_binary_op(
-            other, ops.reverse(ops.floordiv_op), ibis_dtypes.int64
-        )
+        return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
 
     def __lt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
         return self.lt(other)
@@ -410,10 +407,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.le(other)
 
     def lt(self, other) -> Series:
-        return self._apply_binary_op(other, ops.lt_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.lt_op)
 
     def le(self, other) -> Series:
-        return self._apply_binary_op(other, ops.le_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.le_op)
 
     def __gt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
         return self.gt(other)
@@ -422,10 +419,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.ge(other)
 
     def gt(self, other) -> Series:
-        return self._apply_binary_op(other, ops.gt_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.gt_op)
 
     def ge(self, other) -> Series:
-        return self._apply_binary_op(other, ops.ge_op, ibis_dtypes.bool)
+        return self._apply_binary_op(other, ops.ge_op)
 
     def __mod__(self, other) -> Series:  # type: ignore
         return self.mod(other)
@@ -434,10 +431,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rmod(other)
 
     def mod(self, other) -> Series:  # type: ignore
-        return self._apply_binary_op(other, ops.mod_op, ibis_dtypes.int64)
+        return self._apply_binary_op(other, ops.mod_op)
 
     def rmod(self, other) -> Series:  # type: ignore
-        return self._apply_binary_op(other, ops.reverse(ops.mod_op), ibis_dtypes.int64)
+        return self._apply_binary_op(other, ops.reverse(ops.mod_op))
 
     def __matmul__(self, other: Series):
         return (self * other).sum()
@@ -686,22 +683,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         self,
         other: typing.Any,
         op: ops.BinaryOp,
-        expected_dtype: typing.Optional[ibis_dtypes.DataType] = None,
-        short_nulls=True,
     ) -> Series:
         """Applies a binary operator to the series and other."""
         (left, right, index) = self._align(other)
 
         block = blocks.Block(index._expr)
         block.index = index
-        if isinstance(right, ibis_types.NullScalar) and short_nulls:
-            # Cannot do sql op with null literal, so just replace expression directly with default
-            # value
-            output_dtype = expected_dtype if expected_dtype else left.type()
-            default_value = ibis_types.null().cast(output_dtype)
-            result_expr = default_value.name(self._value_column)
-        else:
-            result_expr = op(left, right).name(self._value_column)
+        result_expr = op(left, right).name(self._value_column)
         block.replace_value_columns([result_expr])
 
         name = self._name

@@ -14,10 +14,12 @@
 
 from __future__ import annotations
 
+import functools
 import typing
 
 import ibis
 import ibis.common.exceptions
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
 
@@ -154,6 +156,24 @@ isnumeric_op = IsNumericOp()
 
 
 ### Binary Ops
+def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = None):
+    """Wraps a binary operator to generate nulls of the expected type if either input is a null scalar."""
+
+    def short_circuit_nulls_inner(binop):
+        @functools.wraps(binop)
+        def wrapped_binop(x: ibis_types.Value, y: ibis_types.Value):
+            if isinstance(x, ibis_types.NullScalar):
+                return ibis_types.null().cast(type_override or y.type())
+            elif isinstance(y, ibis_types.NullScalar):
+                return ibis_types.null().cast(type_override or x.type())
+            else:
+                return binop(x, y)
+
+        return wrapped_binop
+
+    return short_circuit_nulls_inner
+
+
 def and_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -172,15 +192,19 @@ def or_op(
     )
 
 
+@short_circuit_nulls()
 def add_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
+        return
     return typing.cast(ibis_types.NumericValue, x) + typing.cast(
         ibis_types.NumericValue, y
     )
 
 
+@short_circuit_nulls()
 def sub_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -190,6 +214,7 @@ def sub_op(
     )
 
 
+@short_circuit_nulls()
 def mul_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -199,6 +224,7 @@ def mul_op(
     )
 
 
+@short_circuit_nulls(ibis_dtypes.float)
 def div_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -208,6 +234,7 @@ def div_op(
     )
 
 
+@short_circuit_nulls(ibis_dtypes.bool)
 def lt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -215,6 +242,7 @@ def lt_op(
     return x < y
 
 
+@short_circuit_nulls(ibis_dtypes.bool)
 def le_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -222,6 +250,7 @@ def le_op(
     return x <= y
 
 
+@short_circuit_nulls(ibis_dtypes.bool)
 def gt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -229,6 +258,7 @@ def gt_op(
     return x > y
 
 
+@short_circuit_nulls(ibis_dtypes.bool)
 def ge_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -236,6 +266,7 @@ def ge_op(
     return x >= y
 
 
+@short_circuit_nulls(ibis_dtypes.int)
 def floordiv_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -253,6 +284,7 @@ def floordiv_op(
     )
 
 
+@short_circuit_nulls()
 def mod_op(
     x: ibis_types.Value,
     y: ibis_types.Value,

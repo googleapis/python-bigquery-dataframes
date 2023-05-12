@@ -258,6 +258,17 @@ class Block:
     def apply_unary_op(self, column: str, op: ops.UnaryOp, output_name=None):
         self.expr = self._expr.project_unary_op(column, op, output_name)
 
+    def project_binary_op(
+        self,
+        left_column_id: str,
+        right_column_id: str,
+        op: ops.BinaryOp,
+        output_id: str,
+    ):
+        self.expr = self._expr.project_binary_op(
+            left_column_id, right_column_id, op, output_id
+        )
+
     def apply_window_op(
         self,
         column: str,
