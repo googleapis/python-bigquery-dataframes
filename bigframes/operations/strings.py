@@ -53,3 +53,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
     def isnumeric(self) -> series.Series:
         """Check whether all characters in each string are numeric."""
         return self._apply_unary_op(ops.isnumeric_op)
+
+    def rstrip(self) -> series.Series:
+        """Remove whitespace from the right side of string in the Series."""
+        return self._apply_unary_op(ops.rstrip_op)

@@ -157,3 +157,16 @@ def test_isnumeric(session):
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
+
+
+def test_rstrip(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.rstrip().compute()
+    pd_result = scalars_pandas_df[col_name].str.rstrip()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )

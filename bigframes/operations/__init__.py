@@ -97,6 +97,11 @@ class IsNumericOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).re_search(r"^(\pN*)$")
 
 
+class RstripOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).rstrip()
+
+
 # Parameterized ops
 class AsTypeOp(UnaryOp):
     def __init__(self, to_type: bigframes.dtypes.IbisDtype):
@@ -155,6 +160,7 @@ lower_op = LowerOp()
 upper_op = UpperOp()
 strip_op = StripOp()
 isnumeric_op = IsNumericOp()
+rstrip_op = RstripOp()
 
 
 ### Binary Ops
