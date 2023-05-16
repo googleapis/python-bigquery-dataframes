@@ -645,8 +645,8 @@ class Session:
 
     def remote_function(
         self,
-        input_types: List[ibis.expr.datatypes.core.DataType],
-        output_type: ibis.expr.datatypes.core.DataType,
+        input_types: List[type],
+        output_type: type,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,

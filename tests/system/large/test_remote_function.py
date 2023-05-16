@@ -23,7 +23,6 @@ import textwrap
 
 from google.api_core.exceptions import NotFound, ResourceExhausted
 from google.cloud import functions_v2
-import ibis.expr.datatypes as dt
 import pandas
 import pytest
 import test_utils.prefixer
@@ -169,8 +168,8 @@ def test_remote_function_multiply_with_ibis(
     bq_cf_connection,
 ):
     @session.remote_function(
-        [dt.int64(), dt.int64()],
-        dt.int64(),
+        [int, int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -213,8 +212,8 @@ def test_remote_function_stringify_with_ibis(
     bq_cf_connection,
 ):
     @session.remote_function(
-        [dt.int64()],
-        dt.str(),
+        [int],
+        str,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -248,8 +247,8 @@ def test_remote_function_decorator_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     @session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -287,8 +286,8 @@ def test_remote_function_explicit_with_bigframes_series(
         return x + 1
 
     remote_add_one = session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -332,8 +331,8 @@ def test_remote_udf_referring_outside_var(
         return NO_SIGN
 
     remote_sign = session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -371,8 +370,8 @@ def test_remote_udf_referring_outside_import(
         return 2 * mymath.pi * radius
 
     remote_circumference = session.remote_function(
-        [dt.float64()],
-        dt.float64(),
+        [float],
+        float,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -413,8 +412,8 @@ def test_remote_udf_referring_global_var_and_import(
         return _team_pi
 
     remote_find_team = session.remote_function(
-        [dt.float64()],
-        dt.string(),
+        [float],
+        str,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -484,8 +483,8 @@ def test_remote_function_restore_with_bigframes_series(
     # The first time both the cloud function and the bq remote function don't
     # exist and would be created
     remote_add_one = session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=True,
@@ -550,8 +549,8 @@ def test_remote_function_restore_with_bigframes_series(
     # exist even though the remote function exists, and goes ahead and recreates
     # the cloud function
     remote_add_one = session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=True,
@@ -589,8 +588,8 @@ def test_remote_udf_mask_default_value(
         return flag
 
     is_odd_remote = session.remote_function(
-        [dt.int64],
-        dt.bool,
+        [int],
+        bool,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -622,8 +621,8 @@ def test_remote_udf_mask_custom_value(
         return flag
 
     is_odd_remote = session.remote_function(
-        [dt.int64],
-        dt.bool,
+        [int],
+        bool,
         dataset_id,
         bq_cf_connection,
         reuse=False,
@@ -650,8 +649,8 @@ def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
     add_one_lambda = lambda x: x + 1  # noqa: E731
 
     add_one_lambda_remote = session.remote_function(
-        [dt.int64],
-        dt.int64,
+        [int],
+        int,
         dataset_id,
         bq_cf_connection,
         reuse=False,

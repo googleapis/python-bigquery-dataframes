@@ -36,7 +36,7 @@ import cloudpickle
 from google.cloud import bigquery, functions_v2
 from ibis.backends.bigquery.compiler import compiles
 from ibis.backends.bigquery.datatypes import ibis_type_to_bigquery_type
-from ibis.expr.datatypes.core import DataType as ibis_data_type
+from ibis.expr.datatypes.core import dtype_from_object as python_type_to_bigquery_type
 import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
 
@@ -50,6 +50,11 @@ logger = logging.getLogger(__name__)
 # Protocol version 4 is available in python version 3.4 and above
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
+
+# Input and output python types supported by BigFrames remote functions.
+# TODO(shobs): Extend the support to all types supported by BQ remote functions
+# https://cloud.google.com/bigquery/docs/remote-functions#limitations
+_supported_io_types = set((bool, float, int, str))
 
 
 def get_remote_function_locations(bq_location):
@@ -485,8 +490,8 @@ class RemoteFunctionClient:
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: typing.List[ibis_data_type],
-    output_type: ibis_data_type,
+    input_types: typing.Sequence[type],
+    output_type: type,
     session: typing.Optional[Session] = None,
     bigquery_client: typing.Optional[bigquery.Client] = None,
     dataset: typing.Optional[str] = None,
@@ -496,9 +501,9 @@ def remote_function(
     """Decorator to turn a user defined function into a BigQuery remote function.
 
     Args:
-        input_types : list(ibis.expr.datatypes)
+        input_types : list(type)
             List of input data types in the user defined function.
-        output_type : ibis.expr.datatypes
+        output_type : type
             Data type of the output in the user defined function.
         session : bigframes.Session, Optional
             BigFrames session to use for getting default project, dataset and
@@ -605,16 +610,33 @@ def remote_function(
         signature = inspect.signature(f)
         parameter_names = signature.parameters.keys()
 
-        # TODO(shobs): Check that input_types maps 1:1 with the udf params and
-        # each of the provided one is supported in the current implementation
+        # Check supported python datatypes and convert to ibis datatypes
+        type_error_message_format = (
+            "type {{}} not supported, supported types are {}.".format(
+                ", ".join([type_.__name__ for type_ in _supported_io_types])
+            )
+        )
+        for type_ in input_types:
+            assert type_ in _supported_io_types, type_error_message_format.format(type_)
+        assert output_type in _supported_io_types, type_error_message_format.format(
+            output_type
+        )
+        input_types_ibis = [
+            python_type_to_bigquery_type(type_) for type_ in input_types
+        ]
+        output_type_ibis = python_type_to_bigquery_type(output_type)
+
         rf_node_fields = {
-            name: rlz.value(type) for name, type in zip(parameter_names, input_types)
+            name: rlz.value(type)
+            for name, type in zip(parameter_names, input_types_ibis)
         }
 
         try:
-            rf_node_fields["output_type"] = rlz.shape_like("args", dtype=output_type)
+            rf_node_fields["output_type"] = rlz.shape_like(
+                "args", dtype=output_type_ibis
+            )
         except TypeError:
-            rf_node_fields["output_dtype"] = property(lambda _: output_type)
+            rf_node_fields["output_dtype"] = property(lambda _: output_type_ibis)
             rf_node_fields["output_shape"] = rlz.shape_like("args")
 
         remote_function_client = RemoteFunctionClient(
@@ -626,7 +648,7 @@ def remote_function(
             bigquery_connection,
         )
         rf_name = remote_function_client.provision_bq_remote_function(
-            f, input_types, output_type, uniq_suffix
+            f, input_types_ibis, output_type_ibis, uniq_suffix
         )
         rf_fully_qualified_name = f"`{gcp_project_id}.{bq_dataset}`.{rf_name}"
         rf_node = type(rf_fully_qualified_name, (ops.ValueOp,), rf_node_fields)

@@ -91,9 +91,7 @@ attempt to create one assuming the necessary APIs and IAM permissions are setup 
 
 .. code-block:: python
 
-    import ibis.expr.datatypes as dt
-
-    @session.remote_function([dt.float64], dt.float64, bigquery_connection='bigframes-rf-conn')
+    @session.remote_function([float], float, bigquery_connection='bigframes-rf-conn')
     def get_capped_fare(fare):
         max_fare = 99.0
         return fare if fare <= max_fare else max_fare

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ibis.expr.datatypes as dt
 import pandas as pd
 import pytest
 
@@ -39,8 +38,8 @@ def test_remote_function_direct_no_session_param(
     bigquery_client, scalars_dfs, dataset_id_permanent, bq_cf_connection
 ):
     @remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         bigquery_client=bigquery_client,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection,
@@ -75,8 +74,8 @@ def test_remote_function_direct_no_session_param(
 @pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_remote_function_direct_session_param(session_with_bq_connection, scalars_dfs):
     @remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         session=session_with_bq_connection,
     )
     def square(x):
@@ -113,7 +112,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     # the default behavior of reuse=True will take effect. Please note that the
     # udf is same as the one used in other tests in this file so the underlying
     # cloud function would be common and quickly reused.
-    @session_with_bq_connection.remote_function([dt.int64()], dt.int64())
+    @session_with_bq_connection.remote_function([int], int)
     def square(x):
         return x * x
 
@@ -144,8 +143,8 @@ def test_remote_function_via_session_with_overrides(
     session, scalars_dfs, dataset_id_permanent, bq_cf_connection
 ):
     @session.remote_function(
-        [dt.int64()],
-        dt.int64(),
+        [int],
+        int,
         dataset_id_permanent,
         bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.
@@ -194,7 +193,7 @@ def test_remote_function_via_session_context_connection_setter(
     # unique dataset_id, even though the cloud function would be reused, the bq
     # remote function would still be created, making use of the bq connection
     # set in the Context above.
-    @session.remote_function([dt.int64()], dt.int64(), dataset=dataset_id)
+    @session.remote_function([int], int, dataset=dataset_id)
     def square(x):
         return x * x
 
