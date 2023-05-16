@@ -484,8 +484,8 @@ def test_df_notnull(scalars_dfs):
         "floor_divide",
     ],
 )
-# TODO(garrettwu): deal with NA values and 0 divisions
-@pytest.mark.parametrize(("other_scalar"), [1, 2.5])
+# TODO(garrettwu): deal with NA values
+@pytest.mark.parametrize(("other_scalar"), [1, 2.5, 0, 0.0])
 @pytest.mark.parametrize(("reverse_operands"), [True, False])
 def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -495,14 +495,6 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
 
     bf_result = maybe_reversed_op(scalars_df[columns], other_scalar).compute()
     pd_result = maybe_reversed_op(scalars_pandas_df[columns], other_scalar)
-
-    # BQ div operation returns NUMERIC values that be an integer for int floordiv float, but pandas returns float version of integer for that operation. https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#div
-    # As floor div value is always integer, type doesn't matter here.
-    if op == operator.floordiv:
-        if not reverse_operands and isinstance(other_scalar, float):
-            pd_result["int64_col"] = pd_result["int64_col"].astype(pd.Int64Dtype())
-        if reverse_operands and isinstance(other_scalar, int):
-            pd_result["float64_col"] = pd_result["float64_col"].astype(pd.Int64Dtype())
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -525,8 +517,21 @@ def test_scalar_binop_str_exception(scalars_dfs):
         (lambda x, y: x.rmul(y, axis="index")),
         (lambda x, y: x.truediv(y, axis="index")),
         (lambda x, y: x.rtruediv(y, axis="index")),
+        (lambda x, y: x.floordiv(y, axis="index")),
+        (lambda x, y: x.floordiv(y, axis="index")),
     ],
-    ids=["add", "radd", "sub", "rsub", "mul", "rmul", "truediv", "rtruediv"],
+    ids=[
+        "add",
+        "radd",
+        "sub",
+        "rsub",
+        "mul",
+        "rmul",
+        "truediv",
+        "rtruediv",
+        "floordiv",
+        "rfloordiv",
+    ],
 )
 def test_series_binop_axis_index(
     scalars_dfs,

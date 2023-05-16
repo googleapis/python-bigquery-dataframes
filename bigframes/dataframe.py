@@ -373,13 +373,17 @@ class DataFrame:
 
     __rtruediv__ = rdiv = rtruediv
 
-    def floordiv(self, other: float | int) -> DataFrame:
-        return self._apply_binop(other, ops.floordiv_op)
+    def floordiv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.floordiv_op, axis=axis)
 
     __floordiv__ = floordiv
 
-    def rfloordiv(self, other: float | int) -> DataFrame:
-        return self._apply_binop(other, ops.floordiv_op, reverse=True)
+    def rfloordiv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.floordiv_op, reverse=True, axis=axis)
 
     __rfloordiv__ = rfloordiv
 

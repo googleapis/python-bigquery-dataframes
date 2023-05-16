@@ -22,10 +22,12 @@ import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
+import numpy as np
 
 import bigframes.dtypes
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
+_INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.inf))
 
 BinaryOp = typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value]
 TernaryOp = typing.Callable[
@@ -274,11 +276,13 @@ def floordiv_op(
     x_numeric = typing.cast(ibis_types.NumericValue, x)
     y_numeric = typing.cast(ibis_types.NumericValue, y)
     floordiv_expr = x_numeric // y_numeric
-    # MOD(N, 0) will error in bigquery, but needs to return 0 in BQ so we short-circuit in this case.
+
+    # DIV(N, 0) will error in bigquery, but needs to return 0 for int, and inf for float in BQ so we short-circuit in this case.
     # Multiplying left by zero propogates nulls.
+    zero_result = _INF if (x.type().is_floating() or y.type().is_floating()) else _ZERO
     return (
         ibis.case()
-        .when(y_numeric == _ZERO, _ZERO * x_numeric)
+        .when(y_numeric == _ZERO, zero_result * x_numeric)
         .else_(floordiv_expr)
         .end()
     )
