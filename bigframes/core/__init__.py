@@ -54,6 +54,7 @@ class WindowSpec:
     ordering: typing.Sequence[OrderingColumnReference] = tuple()
     preceding: typing.Optional[int] = None
     following: typing.Optional[int] = None
+    min_periods: int = 0
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
@@ -458,14 +459,28 @@ class BigFramesExpr:
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
         window = self._ibis_window_from_spec(window_spec)
 
-        cumulative_value = op._as_ibis(column, window)
+        window_op = op._as_ibis(column, window)
+
+        clauses = []
         if op.skips_nulls:
-            cumulative_value = (
-                ibis.case().when(column.isnull(), ibis.NA).else_(cumulative_value).end()
+            clauses.append((column.isnull(), ibis.NA))
+        if window_spec.min_periods:
+            clauses.append(
+                (
+                    agg_ops.count_op._as_ibis(column, window)
+                    < ibis_types.literal(window_spec.min_periods),
+                    ibis.NA,
+                )
             )
-        result = self._set_or_replace_by_id(
-            output_name or column_name, cumulative_value
-        )
+
+        if clauses:
+            case_statement = ibis.case()
+            for clause in clauses:
+                case_statement = case_statement.when(clause[0], clause[1])
+            case_statement = case_statement.else_(window_op).end()
+            window_op = case_statement
+
+        result = self._set_or_replace_by_id(output_name or column_name, window_op)
         # TODO(tbergeron): Should defer this until second window is applied to avoid unnecessarily creating new table expressions every analytic op.
         return result._reproject_to_table()
 

@@ -34,6 +34,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner
 import bigframes.core.indexes.index
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
+import bigframes.core.window
 import bigframes.dtypes
 from bigframes.guid import generate_guid
 import bigframes.indexers
@@ -796,6 +797,21 @@ class Series(bigframes.operations.base.SeriesMethods):
             block,
             self._value_column,
             name=self.name,
+        )
+
+    def rolling(self, window: int, *, min_periods=None) -> bigframes.core.window.Window:
+        """Create a rolling window over the series
+
+        Arguments:
+            window: the fixed number of observations used for each window
+            min_periods: number of observations needed to produce a non-null result for a row, defaults to window
+        """
+        # To get n size window, need current row and n-1 preceding rows.
+        window_spec = WindowSpec(
+            preceding=window - 1, following=0, min_periods=min_periods or window
+        )
+        return bigframes.core.window.Window(
+            self._block.copy(), window_spec, self._value_column, self.name
         )
 
     def groupby(
