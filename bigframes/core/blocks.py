@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import itertools
 import typing
-from typing import Iterable, List, Optional, Sequence, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd  # type: ignore
 import ibis.expr.schema as ibis_schema
@@ -197,6 +197,13 @@ class Block:
         self, value_keys: Optional[Iterable[str]] = None, max_results=None
     ) -> pd.DataFrame:
         """Run query and download results as a pandas DataFrame."""
+        df, _ = self._compute_and_count(value_keys=value_keys, max_results=max_results)
+        return df
+
+    def _compute_and_count(
+        self, value_keys: Optional[Iterable[str]] = None, max_results=None
+    ) -> Tuple[pd.DataFrame, int]:
+        """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
 
@@ -208,8 +215,9 @@ class Block:
             value_columns = (expr.get_column(column_name) for column_name in value_keys)
             expr = expr.projection(itertools.chain(index_columns, value_columns))
 
+        results_iterator = expr.start_query().result(max_results=max_results)
         df = self._to_dataframe(
-            expr.start_query().result(max_results=max_results),
+            results_iterator,
             expr.to_ibis_expr().schema(),
         )
 
@@ -218,7 +226,8 @@ class Block:
             df = df.set_index(list(self.index_columns))
             # TODO(swast): Set names for all levels with MultiIndex.
             df.index.name = typing.cast(indexes.Index, self.index).name
-        return df
+
+        return df, results_iterator.total_rows
 
     def copy(self, value_columns: Optional[Iterable[ibis_types.Value]] = None) -> Block:
         """Create a copy of this Block, replacing value columns if desired."""

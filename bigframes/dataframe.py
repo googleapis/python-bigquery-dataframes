@@ -272,32 +272,52 @@ class DataFrame:
         return self.__getitem__(key)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string."""
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        job = self._block.expr.start_query().result()
-        # TODO(swast): Refactor this so that we don't have to execute the query
-        # twice (though at least the second time the query should be cached).
-        preview = self._block.compute(max_results=10)
-        preview.index.name = self.index.name
-        preview = preview.set_axis(self._col_labels, axis=1)
-        rows = job.total_rows
-        columns = len(preview.columns)
+        """Converts a DataFrame to a string. Calls compute. Only represents the first 25 results."""
+        max_results = 25
+        pandas_df, row_count = self._retrieve_repr_request_results(max_results)
+        column_count = len(pandas_df.columns)
 
-        # TODO(swast): Print the SQL too?
-        # Grab all but the final 2 lines if those are the shape of the DF. So we can replace the row count with
-        # the actual row count from the query.
-        lines = repr(preview).split("\n")
+        # Modify the end of the string to reflect count.
+        repr_string = repr(pandas_df)
+        lines = repr_string.split("\n")
         pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
         if pattern.match(lines[-1]):
             lines = lines[:-2]
 
-        if rows > len(preview.index):
+        if row_count > len(lines) - 1:
             lines.append("...")
 
         lines.append("")
-        lines.append(f"[{rows} rows x {columns} columns]")
+        lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
+
+    def _repr_html_(self) -> str:
+        """
+        Returns an html string primarily for use by notebooks for displaying
+        a representation of the DataFrame. Displays 20 rows by default since
+        many notebooks are not configured for large tables.
+        """
+        max_results = 20
+        pandas_df, row_count = self._retrieve_repr_request_results(max_results)
+        column_count = len(pandas_df.columns)
+        # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
+        html_string = pandas_df._repr_html_()  # type:ignore
+        html_string += f"[{row_count} rows x {column_count} columns in total]"
+        return html_string
+
+    def _retrieve_repr_request_results(
+        self, max_results: Optional[int]
+    ) -> Tuple[pd.DataFrame, int]:
+        """
+        Retrieves a pandas dataframe containing only max_results many rows for use with printing methods.
+
+        Returns a tuple of the dataframe and the overall number of rows of the query.
+        """
+        computed_df, count = self._block._compute_and_count(max_results=max_results)
+        formatted_df = computed_df.set_axis(self._col_labels, axis=1)
+        # we reset the axis and substitute the bf index name for the default
+        formatted_df.index.name = self.index.name
+        return formatted_df, count
 
     def _apply_binop(
         self,

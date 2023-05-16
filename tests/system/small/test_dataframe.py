@@ -134,6 +134,21 @@ def test_repr_w_all_rows(scalars_dfs):
     assert actual == expected
 
 
+def test_repr_html_w_all_rows(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    # get a pandas df of the expected format
+    pandas_df = scalars_df._block.compute().set_axis(scalars_df._col_labels, axis=1)
+    pandas_df.index.name = scalars_df.index.name
+
+    # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
+    actual = scalars_df.head(10)._repr_html_()
+    expected = (
+        pandas_df.head(10)._repr_html_()
+        + f"[6 rows x {len(pandas_df.columns)} columns in total]"
+    )
+    assert actual == expected
+
+
 def test_df_column_name_with_space(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name_dict = {"bool_col": "bool  col"}
