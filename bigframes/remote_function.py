@@ -17,7 +17,6 @@ from __future__ import annotations
 import functools
 import hashlib
 import inspect
-import json
 import logging
 import os
 import random
@@ -33,7 +32,8 @@ if typing.TYPE_CHECKING:
     from bigframes.session import Session
 
 import cloudpickle
-from google.cloud import bigquery, functions_v2
+import google.api_core.exceptions
+from google.cloud import bigquery, bigquery_connection_v1, functions_v2
 from ibis.backends.bigquery.compiler import compiles
 from ibis.backends.bigquery.datatypes import ibis_type_to_bigquery_type
 from ibis.expr.datatypes.core import dtype_from_object as python_type_to_bigquery_type
@@ -104,7 +104,7 @@ def get_remote_function_name(def_, uniq_suffix=None):
 
 class RemoteFunctionClient:
     # Wait time (in seconds) for an IAM binding to take effect after creation
-    _iam_wait_seconds = 90
+    _iam_wait_seconds = 120
 
     def __init__(
         self,
@@ -127,64 +127,20 @@ class RemoteFunctionClient:
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
-        # Command to show details of an existing BQ connection
-        command_show = f"bq show --connection --format=json {self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}"
-
-        # Command to list existing BQ connections
-        command_ls = f"bq ls --connection --project_id={self._gcp_project_id} --location={self._bq_location}"
-
-        # TODO(shobs): The below is passing on cloudtop with user credentials but
-        # failing in kokoro which runs with service account credentials.
-        #   ERROR: (gcloud.services.enable) PERMISSION_DENIED: Permission denied to
-        #   enable service [bigqueryconnection.googleapis.com]
-        # which suggests that the service account doesn't have enough privilege.
-        # For now enabled the API via cloud console, but we should revisit whether
-        # this needs to be automated for the BigFrames end user.
+        # TODO(shobs): The below command to enable BigQuery Connection API needs
+        # to be automated. Disabling for now since most target users would not
+        # have the privilege to enable API in a project.
         # log("Making sure BigQuery Connection API is enabled")
         # if os.system("gcloud services enable bigqueryconnection.googleapis.com"):
         #    raise ValueError("Failed to enable BigQuery Connection API")
 
-        logger.info("List of existing connections")
-        if os.system(command_ls):
-            raise ValueError("Failed to list bq connections")
-
         # If the intended connection does not exist then create it
-        connector_exists = os.system(f"{command_show} 2>&1 >/dev/null") == 0
-        if connector_exists:
+        if self.check_bq_connection_exists():
             logger.info(f"Connector {self._bq_connection_id} already exists")
         else:
-            # TODO(shobs): Find a more structured way of doing it than invoking CLI
-            # Create BQ connection
-            # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
-            command_mk = (
-                "bq mk --connection"
-                + f" --location={self._bq_location}"
-                + f" --project_id={self._gcp_project_id}"
-                + " --connection_type=CLOUD_RESOURCE"
-                + f" {self._bq_connection_id}"
-            )
-            logger.info(f"Creating BQ connection: {command_mk}")
-            if os.system(command_mk):
-                raise ValueError("Failed to make bq connection")
-
-            logger.info("List of connections after creating")
-            if os.system(command_ls):
-                raise ValueError("Failed to list bq connections")
-
-            # Fetch the service account id of the connection
-            # bq show --connection outputs the service account id
-            # TODO(shobs): again, we are parsing shell command output, instead we should
-            # be using more structured means, i.e. python/REST/grpc APIs
+            connection_name, service_account_id = self.create_bq_connection()
             logger.info(
-                f"Fetching service account id for connection {self._bq_connection_id}"
-            )
-            # TODO(shobs): Really fragile, try a better way to get the service account id
-            bq_connection_details = os.popen(command_show).read()
-            service_account_id = json.loads(bq_connection_details)["cloudResource"][
-                "serviceAccountId"
-            ]
-            logger.info(
-                f"connectionId: ({self._bq_connection_id}), serviceAccountId: ({service_account_id})"
+                f"Created BQ connection {connection_name} with service account id: {service_account_id}"
             )
 
             # Set up access on the newly created BQ connection
@@ -220,14 +176,10 @@ class RemoteFunctionClient:
     OPTIONS (
       endpoint = "{endpoint}"
     )"""
-        command_rf = f"bq query --use_legacy_sql=false '{create_function_ddl}'"
-        logger.info(f"Creating BQ remote function: {command_rf}")
-        if os.system(command_rf):
-            raise ValueError("Failed to make bq remote function")
-
-        logger.info(
-            f"Created remote function `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}"
-        )
+        logger.info(f"Creating BQ remote function: {create_function_ddl}")
+        query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
+        query_job.result()  # Wait for the job to complete.
+        logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_endpoint(self, name):
         """Get the http endpoint of a cloud function if it exists."""
@@ -242,6 +194,36 @@ class RemoteFunctionClient:
             if response.name == expected_cf_name:
                 return response.service_config.uri
         return None
+
+    def create_bq_connection(self):
+        """Create the BigQuery Connection and returns corresponding service account id."""
+        client = bigquery_connection_v1.ConnectionServiceClient()
+        connection = bigquery_connection_v1.Connection(
+            cloud_resource=bigquery_connection_v1.CloudResourceProperties()
+        )
+        request = bigquery_connection_v1.CreateConnectionRequest(
+            parent=client.common_location_path(self._gcp_project_id, self._bq_location),
+            connection_id=self._bq_connection_id,
+            connection=connection,
+        )
+        connection = client.create_connection(request)
+        return connection.name, connection.cloud_resource.service_account_id
+
+    def check_bq_connection_exists(self):
+        """Check if the BigQuery Connection exists."""
+        client = bigquery_connection_v1.ConnectionServiceClient()
+        request = bigquery_connection_v1.GetConnectionRequest(
+            name=client.connection_path(
+                self._gcp_project_id, self._bq_location, self._bq_connection_id
+            )
+        )
+
+        try:
+            client.get_connection(request=request)
+            return True
+        except google.api_core.exceptions.NotFound:
+            pass
+        return False
 
     def generate_udf_code(self, def_, dir):
         """Generate serialized bytecode using cloudpickle given a udf."""
