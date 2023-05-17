@@ -72,6 +72,44 @@ def test_r2_score_ok_fit_matches_sklearn(session):
     assert math.isclose(bf_result, sklearn_result)
 
 
+def test_accuracy_score_perfect_fit(session):
+    pd_df = pd.DataFrame({"y_true": [1, 7, 3, 2, 5], "y_pred": [1, 7, 3, 2, 5]})
+
+    df = session.read_pandas(pd_df)
+    assert bigframes.ml.metrics.accuracy_score(df[["y_true"]], df[["y_pred"]]) == 1.0
+
+
+def test_accuracy_score_bad_fit(session):
+    pd_df = pd.DataFrame({"y_true": [0, 2, 1, 3, 4], "y_pred": [0, 1, 2, 3, 4]})
+
+    df = session.read_pandas(pd_df)
+    assert bigframes.ml.metrics.accuracy_score(df[["y_true"]], df[["y_pred"]]) == 0.6
+
+
+def test_accuracy_score_not_normailze(session):
+    pd_df = pd.DataFrame({"y_true": [0, 2, 1, 3, 4], "y_pred": [0, 1, 2, 3, 4]})
+
+    df = session.read_pandas(pd_df)
+    assert (
+        bigframes.ml.metrics.accuracy_score(
+            df[["y_true"]], df[["y_pred"]], normalize=False
+        )
+        == 3
+    )
+
+
+@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
+def test_accuracy_score_fit_matches_sklearn(session):
+    pd_df = pd.DataFrame({"y_true": [1, 2, 3, 4, 5], "y_pred": [2, 3, 4, 3, 6]})
+
+    df = session.read_pandas(pd_df)
+    bf_result = bigframes.ml.metrics.accuracy_score(df[["y_true"]], df[["y_pred"]])
+    sklearn_result = sklearn_metrics.accuracy_score(
+        pd_df[["y_true"]], pd_df[["y_pred"]]
+    )
+    assert math.isclose(bf_result, sklearn_result)
+
+
 def test_roc_curve_binary_classification_prediction_returns_expected(session):
     pd_df = pd.DataFrame(
         {

@@ -65,6 +65,39 @@ def r2_score(
     return 1 - (ss_res / ss_total)
 
 
+def accuracy_score(
+    y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, normalize=True
+) -> float:
+    """Compute the accuracy classification score.
+
+    It calculates subset accuracy, where the predicted set of labels for a
+    sample must precisely match the corresponding set of labels in y_true.
+    This is the fraction of correct predictions. If normalize=False, it will
+    instead return the total number of correct predictions."""
+    # TODO(ashleyxu): support sample_weight as the parameter
+    if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    y_true_series = typing.cast(
+        bigframes.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
+    )
+    y_pred_series = typing.cast(
+        bigframes.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
+    )
+
+    # Compute accuracy for each possible representation
+    # TODO(ashleyxu): add multilabel classification support where y_type
+    # starts with "multilabel"
+    score = (y_true_series == y_pred_series).astype(pd.Int64Dtype())
+
+    if normalize:
+        return score.mean().compute()
+    else:
+        return score.sum().compute()
+
+
 def roc_curve(
     y_true: bigframes.DataFrame,
     y_score: bigframes.DataFrame,
