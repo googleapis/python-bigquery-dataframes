@@ -719,3 +719,30 @@ def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
     df_b = scalars_df[["float64_col"]]
     with pytest.raises(NotImplementedError):
         df_a.join(df_b, how="outer").compute()
+
+
+@pytest.mark.parametrize(
+    ("by", "ascending", "na_position"),
+    [
+        ("int64_col", True, "first"),
+        (["bool_col", "int64_col"], True, "last"),
+        ("int64_col", False, "first"),
+        (["bool_col", "int64_col"], [False, True], "last"),
+        (["bool_col", "int64_col"], [True, False], "first"),
+    ],
+)
+def test_dataframe_sort_values(
+    scalars_df_index, scalars_pandas_df_index, by, ascending, na_position
+):
+    # Test needs values to be unique
+    bf_result = scalars_df_index.sort_values(
+        by, ascending=ascending, na_position=na_position
+    ).compute()
+    pd_result = scalars_pandas_df_index.sort_values(
+        by, ascending=ascending, na_position=na_position
+    )
+
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )

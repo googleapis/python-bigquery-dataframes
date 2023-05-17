@@ -27,7 +27,6 @@ import bigframes.aggregations as agg_ops
 from bigframes.core.ordering import (
     ExpressionOrdering,
     OrderingColumnReference,
-    OrderingDirection,
     stringify_order_id,
 )
 import bigframes.guid
@@ -235,19 +234,9 @@ class BigFramesExpr:
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
-    def order_by(
-        self, by: Sequence[str], ascending=True, na_last=True
-    ) -> BigFramesExpr:
-        sort_col_ids = by
+    def order_by(self, by: Sequence[OrderingColumnReference]) -> BigFramesExpr:
         expr_builder = self.builder()
-        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
-        expr_builder.ordering = self._ordering.with_ordering_columns(
-            [
-                OrderingColumnReference(col_id, direction, na_last=na_last)
-                for col_id in sort_col_ids
-            ]
-        )
-        expr_builder.meta_columns = list(self.meta_columns)
+        expr_builder.ordering = self._ordering.with_ordering_columns(by)
         return expr_builder.build()
 
     @property

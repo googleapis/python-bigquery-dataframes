@@ -769,7 +769,13 @@ class Series(bigframes.operations.base.SeriesMethods):
     def value_counts(self):
         counts = self.groupby(self).count()
         block = counts._block
-        block.expr = block.expr.order_by([counts._value_column], ascending=False)
+        block.expr = block.expr.order_by(
+            [
+                OrderingColumnReference(
+                    counts._value_column, direction=OrderingDirection.DESC
+                )
+            ]
+        )
         return Series(block, counts._value_column, name="count")
 
     def sort_values(self, axis=0, ascending=True, na_position="last") -> Series:
@@ -777,8 +783,15 @@ class Series(bigframes.operations.base.SeriesMethods):
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._viewed_block
+        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
         block.expr = block.expr.order_by(
-            [self._value_column], ascending=ascending, na_last=(na_position == "last")
+            [
+                OrderingColumnReference(
+                    self._value_column,
+                    direction=direction,
+                    na_last=(na_position == "last"),
+                )
+            ]
         )
         return Series(
             block,
@@ -792,9 +805,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._viewed_block
-        block.expr = block.expr.order_by(
-            block.index_columns, ascending=ascending, na_last=(na_position == "last")
-        )
+        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
+        na_last = na_position == "last"
+        ordering = [
+            OrderingColumnReference(column, direction=direction, na_last=na_last)
+            for column in block.index_columns
+        ]
+        block.expr = block.expr.order_by(ordering)
         return Series(
             block,
             self._value_column,

@@ -40,6 +40,7 @@ import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
 import bigframes.core.joins as joins
+import bigframes.core.ordering as order
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
@@ -588,7 +589,7 @@ class DataFrame:
             len(expr.ordering)
             and expr.ordering[0].get_name() == bigframes.core.ORDER_ID_COLUMN
         ):
-            expr = expr.order_by([key])
+            expr = expr.order_by([order.OrderingColumnReference(key)])
 
         expr = expr.drop_columns(prev_index_columns)
 
@@ -610,11 +611,57 @@ class DataFrame:
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
         index_columns = self._block.index_columns
-        expr = self._block.expr.order_by(index_columns)
+        expr = self._block.expr.order_by(
+            [order.OrderingColumnReference(column) for column in index_columns]
+        )
         block = self._block.copy()
         block.expr = expr
         index = self._recreate_index(block)
         return DataFrame(index)
+
+    def sort_values(
+        self,
+        by: str | typing.Sequence[str],
+        *,
+        ascending: bool | typing.Sequence[bool] = True,
+        na_position: typing.Literal["first", "last"] = "last",
+    ) -> DataFrame:
+        """Sort dataframe ordering by value column(s)."""
+        if na_position not in {"first", "last"}:
+            raise ValueError("Param na_position must be one of 'first' or 'last'")
+
+        sort_labels = (by,) if isinstance(by, str) else tuple(by)
+        sort_column_ids = self._sql_names(sort_labels)
+
+        len_by = len(sort_labels)
+        if not isinstance(ascending, bool):
+            if len(ascending) != len_by:
+                raise ValueError("Length of 'ascending' must equal length of 'by'")
+            sort_directions = ascending
+        else:
+            sort_directions = (ascending,) * len_by
+
+        ordering = []
+        for i in range(len(sort_labels)):
+            column_id = sort_column_ids[i]
+            direction = (
+                order.OrderingDirection.ASC
+                if sort_directions[i]
+                else order.OrderingDirection.DESC
+            )
+            na_last = na_position == "last"
+            ordering.append(
+                order.OrderingColumnReference(
+                    column_id, direction=direction, na_last=na_last
+                )
+            )
+
+        block = self._block.copy()
+        block.expr = block.expr.order_by(ordering)
+        return DataFrame(
+            block.index,
+            columns=self._col_labels,
+        )
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
