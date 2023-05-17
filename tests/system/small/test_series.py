@@ -1037,6 +1037,9 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
         ("first",),
     ],
 )
+@pytest.mark.skipif(
+    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
+)
 def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, method):
     col_name = "bool_col"
     bf_result = (

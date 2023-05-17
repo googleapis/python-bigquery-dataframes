@@ -32,9 +32,6 @@ def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     actual = scalars_df_default_index.to_pandas().dtypes
     expected = scalars_df_default_index.dtypes
 
-    # TODO(chelsealin): Remove it after importing latest ibis with b/279503940.
-    expected["timestamp_col"] = "timestamp[us, tz=UTC][pyarrow]"
-
     pd.testing.assert_series_equal(actual, expected)
 
 

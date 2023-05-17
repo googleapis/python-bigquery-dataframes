@@ -19,7 +19,6 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
-import pyarrow as pa  # type: ignore
 import pytest
 
 import bigframes
@@ -208,9 +207,6 @@ def test_read_pandas(session, scalars_dfs):
     result = df.compute()
     expected = scalars_pandas_df
 
-    # TODO(chelsealin): Datetime types is detected as Timestamp type through BQ load job.
-    result["datetime_col"] = result["datetime_col"].astype("timestamp[us][pyarrow]")
-
     pd.testing.assert_frame_equal(result, expected)
 
 
@@ -239,11 +235,6 @@ def test_read_pandas_tokyo(
 
     query_job = df._block.expr.start_query()
     assert query_job.location == tokyo_location
-
-    # TODO(chelsealin): Datetime types is detected as Timestamp type through BQ load job.
-    result["datetime_col"] = result["datetime_col"].astype(
-        pd.ArrowDtype(pa.timestamp("us"))
-    )
 
     pd.testing.assert_frame_equal(result, expected)
 
@@ -298,9 +289,11 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
     pd.testing.assert_index_equal(df.columns, scalars_df.columns)
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
-    # numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    # datetime, numeric and geometry types, so they're skipped here.
+    df = df.drop(columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"])
+    scalars_df = scalars_df.drop(
+        columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    )
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
 
@@ -353,10 +346,12 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
         pd.testing.assert_index_equal(df.columns, scalars_df.columns)
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
-        # numeric and geometry types, so they're skipped here.
-        df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+        # datetime, numeric and geometry types, so they're skipped here.
+        df = df.drop(
+            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        )
         scalars_df = scalars_df.drop(
-            columns=["bytes_col", "numeric_col", "geography_col"]
+            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
         )
         assert df.shape[0] == scalars_df.shape[0]
         pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)

@@ -363,9 +363,7 @@ def test_get_dtypes(scalars_df_default_index):
                 "rowindex_2": pd.Int64Dtype(),
                 "string_col": pd.StringDtype(storage="pyarrow"),
                 "time_col": pd.ArrowDtype(pa.time64("us")),
-                # TODO(chelsealin): should be pd.ArrowDtype(pa.timestamp("us", tz="UTC")
-                # after fixing b/279503940.
-                "timestamp_col": pd.ArrowDtype(pa.timestamp("us")),
+                "timestamp_col": pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
             }
         ),
     )

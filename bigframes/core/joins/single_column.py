@@ -96,7 +96,12 @@ def join_by_column(
         # TODO(swast): Handle duplicate column names with suffixs, see "merge"
         # in DaPandas.
         combined_table = ibis.join(
-            left_table, right_table, predicates=join_condition, how=how
+            left_table,
+            right_table,
+            predicates=join_condition,
+            how=how,
+            lname="{name}_x",
+            rname="{name}_y",
         )
 
         def get_column_left(key: str) -> ibis_types.Value:

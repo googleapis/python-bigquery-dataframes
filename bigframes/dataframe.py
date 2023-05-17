@@ -699,7 +699,7 @@ class DataFrame:
     ) -> List[str]:
         left_col_labels = [
             (
-                col_label + suffixes[0]
+                ("{name}" + suffixes[0]).format(name=col_label)
                 if col_label in right._col_labels and col_label != on
                 else col_label
             )
@@ -707,7 +707,7 @@ class DataFrame:
         ]
         right_col_labels = [
             (
-                col_label + suffixes[1]
+                ("{name}" + suffixes[1]).format(name=col_label)
                 if col_label in self._col_labels and col_label != on
                 else col_label
             )

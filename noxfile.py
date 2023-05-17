@@ -74,9 +74,7 @@ nox.options.sessions = [
     "unit_prerelease",
     "system",
     "system_noextras",
-    # TODO(swast): Compatibility with latest ibis. "suffixes" argument renamed:
-    # https://github.com/ibis-project/ibis/commit/3caf3a12469d017428d5e2bb94143185e8770038
-    # "system_prerelease",
+    "system_prerelease",
     "cover",
     "lint",
     "lint_setup_py",
@@ -198,15 +196,6 @@ def unit(session):
 def mypy(session):
     """Run type checks with mypy."""
     session.install("-e", ".")
-
-    # TODO(swast): Ibis is included in the dependencies for
-    # bigframes, but we type with the types on GitHub. We can
-    # remove this when
-    # https://github.com/ibis-project/ibis/issues/5279 is released.
-    session.install(
-        "-e",  # Use -e so that py.typed file is included.
-        "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
-    )
 
     # Just install the dependencies' type info directly, since "mypy --install-types"
     # might require an additional pass.
@@ -457,15 +446,13 @@ def prerelease(session, tests_path):
     session.install(
         "--pre",
         "--upgrade",
-        # Workaround https://github.com/ibis-project/ibis/issues/5870
-        "--no-deps",
+        "-e",  # Use -e so that py.typed file is included.
         "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
     )
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
 
-    # TODO(b/276800568): Workaround to install pandas-gbq >=0.15.0. The package is
-    # required by test only.
+    # Workaround to install pandas-gbq >=0.15.0, which is required by test only.
     session.install("--no-deps", "pandas-gbq")
 
     session.install(

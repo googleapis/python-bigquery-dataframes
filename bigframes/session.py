@@ -428,13 +428,21 @@ class Session:
         pandas_dataframe_copy = pandas_dataframe.copy()
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
+        # Specify the datetime dtypes, which is auto-detected as timestamp types.
+        schema = []
+        for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
+            if dtype == "timestamp[us][pyarrow]":
+                schema.append(
+                    bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
+                )
+
         # Column values will be loaded as null if the column name has spaces.
         # https://github.com/googleapis/python-bigquery/issues/1566
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
-            job_config=bigquery.LoadJobConfig(),
+            job_config=bigquery.LoadJobConfig(schema=schema),
         )
         load_job.result()  # Wait for the job to complete
 

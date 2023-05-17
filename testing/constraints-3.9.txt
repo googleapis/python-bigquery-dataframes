@@ -42,7 +42,7 @@ greenlet==2.0.2
 grpc-google-iam-v1==0.12.6
 grpcio==1.53.0
 grpcio-status==1.48.2
-ibis-framework==5.0.0
+# TODO(chelsealin): Add ibis framework constraints after 6.0.0+ release.
 identify==2.5.22
 idna==3.4
 importlib-metadata==6.1.0

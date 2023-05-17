@@ -36,7 +36,7 @@ import bigframes.dtypes
         (ibis_dtypes.Timestamp(), pd.ArrowDtype(pa.timestamp("us"))),
         (ibis_dtypes.float64, pd.Float64Dtype()),
         (
-            ibis_dtypes.GeoSpatial(geotype="geography", srid=None, nullable=True),
+            ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
             gpd.array.GeometryDtype(),
         ),
         (ibis_dtypes.int64, pd.Int64Dtype()),
@@ -44,7 +44,6 @@ import bigframes.dtypes
         (ibis_dtypes.Decimal(precision=38, scale=9, nullable=True), np.dtype("O")),
         (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
         (ibis_dtypes.time, pd.ArrowDtype(pa.time64("us"))),
-        # TODO(chelsealin): obsolete until after fixing b/279503940.
         (
             ibis_dtypes.Timestamp(timezone="UTC"),
             pd.ArrowDtype(pa.timestamp("us", tz="UTC")),  # type: ignore

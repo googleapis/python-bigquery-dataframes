@@ -70,8 +70,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
     (ibis_dtypes.string, pd.StringDtype(storage="pyarrow")),
     (ibis_dtypes.date, pd.ArrowDtype(pa.date32())),
     (ibis_dtypes.time, pd.ArrowDtype(pa.time64("us"))),
-    (ibis_dtypes.timestamp, pd.ArrowDtype(pa.timestamp("us"))),
-    # TODO(chelsealin): obsolete until after fixing b/279503940.
+    (ibis_dtypes.Timestamp(timezone=None), pd.ArrowDtype(pa.timestamp("us"))),
     (
         ibis_dtypes.Timestamp(timezone="UTC"),
         pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
@@ -91,9 +90,8 @@ IBIS_TO_BIGFRAMES.update(
         ibis_dtypes.json: np.dtype("O"),
         ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): np.dtype("O"),
         ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): np.dtype("O"),
-        # TODO(chelsealin): switch to "srid=4326" after fixing the ibis BQ backend.
         ibis_dtypes.GeoSpatial(
-            geotype="geography", srid=None, nullable=True
+            geotype="geography", srid=4326, nullable=True
         ): gpd.array.GeometryDtype()
         # TODO: Interval, Array, Struct
     }
