@@ -56,7 +56,7 @@ def test_remote_function_direct_no_session_param(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -67,7 +67,7 @@ def test_remote_function_direct_no_session_param(
     # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
     # For this test let's force the pandas dtype to be same as bigframes' dtype.
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
-    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -88,7 +88,7 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -99,7 +99,7 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
     # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
     # For this test let's force the pandas dtype to be same as bigframes' dtype.
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
-    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -123,7 +123,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -134,7 +134,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
     # For this test let's force the pandas dtype to be same as bigframes' dtype.
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
-    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -160,7 +160,7 @@ def test_remote_function_via_session_with_overrides(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -171,7 +171,7 @@ def test_remote_function_via_session_with_overrides(
     # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
     # For this test let's force the pandas dtype to be same as bigframes' dtype.
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
-    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -204,7 +204,7 @@ def test_remote_function_via_session_context_connection_setter(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).compute()
+    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -215,6 +215,6 @@ def test_remote_function_via_session_context_connection_setter(
     # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
     # For this test let's force the pandas dtype to be same as bigframes' dtype.
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
-    pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
