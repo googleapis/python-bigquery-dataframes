@@ -67,6 +67,12 @@ class DataFrame:
         # One on one match between BF column names and real value column names in BQ SQL.
         self._col_labels = list(columns) if columns else list(self._block.value_columns)
 
+    def __dir__(self):
+        return dir(type(self)) + self._col_labels
+
+    def _ipython_key_completions_(self) -> List[str]:
+        return list(self._col_labels)
+
     def _copy(
         self, columns: Optional[Tuple[Sequence[ibis_types.Value], Sequence[str]]] = None
     ) -> DataFrame:

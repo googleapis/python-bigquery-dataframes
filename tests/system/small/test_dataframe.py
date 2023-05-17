@@ -803,3 +803,75 @@ def test_dataframe_general_analytic_op(
         pd_series,
         bf_result,
     )
+
+
+def test_ipython_key_completions_with_drop(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_names = "string_col"
+    bf_dataframe = scalars_df.drop(columns=col_names)
+    pd_dataframe = scalars_pandas_df.drop(columns=col_names)
+    expected = pd_dataframe.columns.tolist()
+
+    results = bf_dataframe._ipython_key_completions_()
+
+    assert col_names not in results
+    assert results == expected
+    # _ipython_key_completions_ is called with square brackets
+    # so only column names are relevant with tab completion
+    assert "to_gbq" not in results
+    assert "merge" not in results
+    assert "drop" not in results
+
+
+def test_ipython_key_completions_with_rename(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name_dict = {"string_col": "a_renamed_column"}
+    bf_dataframe = scalars_df.rename(columns=col_name_dict)
+    pd_dataframe = scalars_pandas_df.rename(columns=col_name_dict)
+    expected = pd_dataframe.columns.tolist()
+
+    results = bf_dataframe._ipython_key_completions_()
+
+    assert "string_col" not in results
+    assert "a_renamed_column" in results
+    assert results == expected
+    # _ipython_key_completions_ is called with square brackets
+    # so only column names are relevant with tab completion
+    assert "to_gbq" not in results
+    assert "merge" not in results
+    assert "drop" not in results
+
+
+def test__dir__with_drop(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_names = "string_col"
+    bf_dataframe = scalars_df.drop(columns=col_names)
+    pd_dataframe = scalars_pandas_df.drop(columns=col_names)
+    expected = pd_dataframe.columns.tolist()
+
+    results = dir(bf_dataframe)
+
+    assert col_names not in results
+    assert frozenset(expected) <= frozenset(results)
+    # __dir__ is called with a '.' and displays all methods, columns names, etc.
+    assert "to_gbq" in results
+    assert "merge" in results
+    assert "drop" in results
+
+
+def test__dir__with_rename(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name_dict = {"string_col": "a_renamed_column"}
+    bf_dataframe = scalars_df.rename(columns=col_name_dict)
+    pd_dataframe = scalars_pandas_df.rename(columns=col_name_dict)
+    expected = pd_dataframe.columns.tolist()
+
+    results = dir(bf_dataframe)
+
+    assert "string_col" not in results
+    assert "a_renamed_column" in results
+    assert frozenset(expected) <= frozenset(results)
+    # __dir__ is called with a '.' and displays all methods, columns names, etc.
+    assert "to_gbq" in results
+    assert "merge" in results
+    assert "drop" in results
