@@ -306,12 +306,15 @@ def mod_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    # TODO(tbergeron): fully support floats, including when mixed with integer
+    # Pandas has inconsitency about whether N mod 0. Most conventions have this be NAN.
+    # For some dtypes, the result is 0 instead. This implementation results in NA always.
     x_numeric = typing.cast(ibis_types.NumericValue, x)
     y_numeric = typing.cast(ibis_types.NumericValue, y)
-    # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to 0.
+    # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
     if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
-        return _ZERO * x_numeric  # Dummy op to propogate nulls and type from x arg
+        return ibis_types.null().cast(x.type())
 
     bq_mod = x_numeric % y_numeric  # Bigquery will maintain x sign here
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)

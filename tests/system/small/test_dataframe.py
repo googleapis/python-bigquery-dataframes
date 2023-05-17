@@ -599,6 +599,10 @@ def test_df_notnull(scalars_dfs):
         operator.mul,
         operator.truediv,
         operator.floordiv,
+        operator.gt,
+        operator.ge,
+        operator.lt,
+        operator.le,
     ],
     ids=[
         "add",
@@ -606,6 +610,10 @@ def test_df_notnull(scalars_dfs):
         "multiply",
         "true_divide",
         "floor_divide",
+        "gt",
+        "ge",
+        "lt",
+        "le",
     ],
 )
 # TODO(garrettwu): deal with NA values
@@ -619,6 +627,18 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
 
     bf_result = maybe_reversed_op(scalars_df[columns], other_scalar).compute()
     pd_result = maybe_reversed_op(scalars_pandas_df[columns], other_scalar)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(("other_scalar"), [1, -2])
+def test_mod(scalars_dfs, other_scalar):
+    # Zero case excluded as pandas produces 0 result for Int64 inputs rather than NA/NaN.
+    # This is likely a pandas bug as mod 0 is undefined in other dtypes, and most programming languages.
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (scalars_df[["int64_col", "int64_too"]] % other_scalar).compute()
+    pd_result = scalars_pandas_df[["int64_col", "int64_too"]] % other_scalar
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
@@ -643,6 +663,10 @@ def test_scalar_binop_str_exception(scalars_dfs):
         (lambda x, y: x.rtruediv(y, axis="index")),
         (lambda x, y: x.floordiv(y, axis="index")),
         (lambda x, y: x.floordiv(y, axis="index")),
+        (lambda x, y: x.gt(y, axis="index")),
+        (lambda x, y: x.ge(y, axis="index")),
+        (lambda x, y: x.lt(y, axis="index")),
+        (lambda x, y: x.le(y, axis="index")),
     ],
     ids=[
         "add",
@@ -655,6 +679,10 @@ def test_scalar_binop_str_exception(scalars_dfs):
         "rtruediv",
         "floordiv",
         "rfloordiv",
+        "gt",
+        "ge",
+        "lt",
+        "le",
     ],
 )
 def test_series_binop_axis_index(

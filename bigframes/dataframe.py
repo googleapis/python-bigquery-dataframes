@@ -483,6 +483,36 @@ class DataFrame:
 
     __rfloordiv__ = rfloordiv
 
+    def lt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.lt_op, axis=axis)
+
+    def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.le_op, axis=axis)
+
+    def gt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.gt_op, axis=axis)
+
+    def ge(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.ge_op, axis=axis)
+
+    __lt__ = lt
+
+    __le__ = le
+
+    __gt__ = gt
+
+    __ge__ = ge
+
+    def mod(self, other: int | bigframes.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+        return self._apply_binop(other, ops.mod_op, axis=axis)
+
+    def rmod(self, other: int | bigframes.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+        return self._apply_binop(other, ops.reverse(ops.mod_op), axis=axis)
+
+    __mod__ = mod
+
+    __rmod__ = rmod
+
     def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
         df = self._block.compute()
