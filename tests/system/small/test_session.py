@@ -263,7 +263,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, sep):
         path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index"
     path = path + "_w_sep.csv" if sep is not None else path + "_wo_sep.csv"
 
-    scalars_df.to_csv(path)
+    scalars_df.to_csv(path, index=False)
     dtype = scalars_df.dtypes.to_dict()
     dtype.pop("geography_col")
     df = session.read_csv(
@@ -291,7 +291,7 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
         path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index.csv"
     else:
         path = gcs_folder + "test_read_csv_gcs_bq_engine_wo_index.csv"
-    scalars_df.to_csv(path)
+    scalars_df.to_csv(path, index=False)
     df = session.read_csv(path, engine="bigquery")
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
@@ -463,7 +463,7 @@ def test_read_csv_gcs_default_engine_w_header(session, scalars_df_index, gcs_fol
 
 def test_read_csv_gcs_bq_engine_w_header(session, scalars_df_index, gcs_folder):
     path = gcs_folder + "test_read_csv_gcs_bq_engine_w_header.csv"
-    scalars_df_index.to_csv(path)
+    scalars_df_index.to_csv(path, index=False)
 
     # Skip the header and the first 2 data rows. Without provided schema, the column names
     # would be like `bool_field_0`, `string_field_1` and etc.

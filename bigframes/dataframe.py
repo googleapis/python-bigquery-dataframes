@@ -755,7 +755,7 @@ class DataFrame:
         # TODO(chelsealin): Add to_pandas_batches() API.
         return self.compute()
 
-    def to_csv(self, paths: str) -> None:
+    def to_csv(self, paths: str, *, index: bool = True) -> None:
         """Writes DataFrame to comma-separated values (csv) file(s) on GCS.
 
         Args:
@@ -764,10 +764,11 @@ class DataFrame:
                 If the data size is more than 1GB, you must use a wildcard to export the data into
                 multiple files and the size of the files varies.
 
+            index: whether write row names (index) or not.
+
         Returns:
             None.
         """
-        # TODO(swast): Support index=True argument.
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
@@ -778,7 +779,7 @@ class DataFrame:
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
 
-        source_table = self._get_destination_table()
+        source_table = self._execute_query(index=index)
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.CSV
         )
@@ -792,19 +793,20 @@ class DataFrame:
         destination_table: str,
         *,
         if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        index: bool = True,
     ) -> None:
         """Writes the BigFrames DataFrame as a BigQuery table.
 
         Args:
-            destination_table:
-                Name of table to be written, in the form `dataset.tablename` or
-                `project.dataset.tablename`.
+            destination_table: name of table to be written, in the form
+                `dataset.tablename` or `project.dataset.tablename`.
 
-            if_exists:
-                Behavior when the destination table exists. Value can be one of:
+            if_exists: behavior when the destination table exists. Value can be one of:
                 - `fail`: raise google.api_core.exceptions.Conflict.
                 - `replace`: If table exists, drop it, recreate it, and insert data.
                 - `append`: If table exists, insert data. Create if it does not exist.
+
+            index: whether write row names (index) or not.
 
         Returns:
             None.
@@ -832,9 +834,9 @@ class DataFrame:
             ),
         )
 
-        self._get_destination_table(job_config=job_config)
+        self._execute_query(index=index, job_config=job_config)
 
-    def to_parquet(self, paths: str) -> None:
+    def to_parquet(self, paths: str, *, index: bool = True) -> None:
         """Writes DataFrame to parquet file(s) on GCS.
 
         Args:
@@ -843,10 +845,11 @@ class DataFrame:
                 If the data size is more than 1GB, you must use a wildcard to export the data into
                 multiple files and the size of the files varies.
 
+            index: whether write row names (index) or not.
+
         Returns:
             None.
         """
-        # TODO(swast): Support index=True argument.
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
@@ -857,7 +860,7 @@ class DataFrame:
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
 
-        source_table = self._get_destination_table()
+        source_table = self._execute_query(index=index)
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.PARQUET
         )
@@ -873,12 +876,25 @@ class DataFrame:
         ]
         return self._copy((new_columns, self._col_labels))
 
-    def _get_destination_table(
-        self, job_config: Optional[bigquery.job.QueryJobConfig] = None
+    def _execute_query(
+        self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None
     ):
-        """Execute a query job presenting the DataFrames and returns the destination table."""
+        """Executes a query job presenting this dataframe and returns the destination
+        table."""
         expr = self._block.expr
-        value_columns = (expr.get_column(column_name) for column_name in self.columns)
+        columns = self.columns.tolist()
+        # This code drops unnamed indexes to keep consistent with the behavior of
+        # most pandas write APIs. The exception is `pandas.to_csv`, which keeps
+        # unnamed indexes as `Unnamed: 0`.
+        # TODO(chelsealin): check if works for multiple indexes.
+        if index and self.index.name is not None:
+            columns.append(self.index.name)
+        # TODO(chelsealin): onboard IO to standardize names to reflect the label
+        # after b/282205091. Add tests when the column name (label) is not equal to
+        # the column ID.
+        # TODO(chelsealin): normalize the file formats if we needs, such as arbitrary
+        # unicode for column labels.
+        value_columns = (expr.get_column(column_name) for column_name in columns)
         expr = expr.projection(value_columns)
         query_job: bigquery.QueryJob = expr.start_query(job_config)
         query_job.result()  # Wait for query to finish.
