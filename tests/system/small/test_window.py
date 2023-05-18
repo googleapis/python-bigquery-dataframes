@@ -13,29 +13,48 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 
-def test_rolling_min(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("windowing"),
+    [
+        (lambda x: x.expanding()),
+        (lambda x: x.rolling(3, min_periods=3)),
+    ],
+    ids=[
+        "expanding",
+        "rolling",
+    ],
+)
+@pytest.mark.parametrize(
+    ("agg_op"),
+    [
+        (lambda x: x.sum()),
+        (lambda x: x.min()),
+        (lambda x: x.max()),
+        (lambda x: x.mean()),
+        (lambda x: x.count()),
+        (lambda x: x.std()),
+        (lambda x: x.var()),
+    ],
+    ids=[
+        "sum",
+        "min",
+        "max",
+        "mean",
+        "count",
+        "std",
+        "var",
+    ],
+)
+def test_window_agg_ops(scalars_df_index, scalars_pandas_df_index, windowing, agg_op):
     col_name = "int64_too"
-    bf_series = scalars_df_index[col_name].rolling(3).min().compute()
-    pd_series = scalars_pandas_df_index[col_name].rolling(3).min()
+    bf_series = agg_op(windowing(scalars_df_index[col_name])).compute()
+    pd_series = agg_op(windowing(scalars_pandas_df_index[col_name]))
 
-    # Pandas converts to float64, which is not desired
-    pd_series = pd_series.astype("Int64")
-
-    pd.testing.assert_series_equal(
-        pd_series,
-        bf_series,
-    )
-
-
-def test_rolling_max(scalars_df_index, scalars_pandas_df_index):
-    col_name = "int64_too"
-    bf_series = scalars_df_index[col_name].rolling(3).max().compute()
-    pd_series = scalars_pandas_df_index[col_name].rolling(3).max()
-
-    # Pandas converts to float64, which is not desired
-    pd_series = pd_series.astype("Int64")
+    # Pandas always converts to float64, even for min/max/count, which is not desired
+    pd_series = pd_series.astype(bf_series.dtype)
 
     pd.testing.assert_series_equal(
         pd_series,

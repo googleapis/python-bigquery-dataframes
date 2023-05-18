@@ -27,6 +27,8 @@ if typing.TYPE_CHECKING:
 class Window:
     """Represents a window applied over a dataframe."""
 
+    # TODO(tbergeron): Windows with groupings should create multi-indexed results
+
     def __init__(
         self,
         block: blocks.Block,
@@ -46,6 +48,26 @@ class Window:
     def max(self) -> Series:
         """Calculate the windowed max of values in the dataset."""
         return self._apply_aggregate(agg_ops.max_op)
+
+    def sum(self) -> Series:
+        """Calculate the windowed sum of values in the dataset."""
+        return self._apply_aggregate(agg_ops.sum_op)
+
+    def count(self) -> Series:
+        """Calculate the windowed count of values in the dataset."""
+        return self._apply_aggregate(agg_ops.count_op)
+
+    def mean(self) -> Series:
+        """Calculate the windowed mean of values in the dataset."""
+        return self._apply_aggregate(agg_ops.mean_op)
+
+    def std(self) -> Series:
+        """Calculate the windowed standard deviation of values in the dataset."""
+        return self._apply_aggregate(agg_ops.std_op)
+
+    def var(self) -> Series:
+        """Calculate the windowed variance of values in the dataset."""
+        return self._apply_aggregate(agg_ops.var_op)
 
     def _apply_aggregate(
         self,

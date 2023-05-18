@@ -816,6 +816,17 @@ class Series(bigframes.operations.base.SeriesMethods):
             self._block.copy(), window_spec, self._value_column, self.name
         )
 
+    def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
+        """Create a expanding window over the series
+
+        Arguments:
+            min_periods: number of observations needed to produce a non-null result for a row, defaults to 1
+        """
+        window_spec = WindowSpec(following=0, min_periods=min_periods)
+        return bigframes.core.window.Window(
+            self._block.copy(), window_spec, self._value_column, self.name
+        )
+
     def groupby(
         self,
         by: typing.Optional[Series] = None,
