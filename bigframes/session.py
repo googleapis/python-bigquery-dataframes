@@ -517,6 +517,16 @@ class Session:
                 The BigQuery engine only supports having a single column name as the `index_col`.
                 Neither engine supports having a multi-column index.
 
+            usecols: list of column names to use. The BigQuery engine only supports having a list
+                of string column names. Column indices and callable functions are only supported
+                with the default engine. Using the default engine, the column names in `usecols`
+                can be defined to correspond to column names provided with the `names` parameter
+                (ignoring the document's header row of column names). The order of the column
+                indices/names in `usecols` is ignored with the default engine. The order of the
+                column names provided with the BigQuery engine will be consistent in the resulting
+                dataframe. If using a callable function with the default engine, only column names
+                that evaluate to True by the callable function will be in the resulting dataframe.
+
             dtype: data type for data or columns. Only to be used with default engine.
 
             engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
@@ -548,6 +558,18 @@ class Session:
             if index_col is None:
                 index_col = ()
 
+            # usecols should only be an iterable of strings (column names) for use as col_order in read_gbq.
+            col_order: Tuple[Any, ...] = tuple()
+            if usecols is not None:
+                if isinstance(usecols, Iterable) and all(
+                    isinstance(col, str) for col in usecols
+                ):
+                    col_order = tuple(col for col in usecols)
+                else:
+                    raise NotImplementedError(
+                        "BigQuery engine only supports an iterable of strings for `usecols`."
+                    )
+
             if not isinstance(filepath_or_buffer, str):
                 raise NotImplementedError("BigQuery engine does not support buffers.")
 
@@ -577,7 +599,9 @@ class Session:
                     )
             load_job.result()  # Wait for the job to complete
             return self.read_gbq(
-                f"SELECT * FROM `{table.table_id}`", index_cols=index_col
+                f"SELECT * FROM `{table.table_id}`",
+                index_cols=index_col,
+                col_order=col_order,
             )
         else:
             if any(arg in kwargs for arg in ("chunksize", "iterator")):

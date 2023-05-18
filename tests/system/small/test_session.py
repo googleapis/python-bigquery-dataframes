@@ -251,14 +251,8 @@ def test_read_pandas_tokyo(
 @pytest.mark.parametrize(
     "sep",
     [
-        pytest.param(
-            None,
-            id="without_sep",
-        ),
-        pytest.param(
-            ",",
-            id="with_sep",
-        ),
+        pytest.param(None, id="without_sep"),
+        pytest.param(",", id="with_sep"),
     ],
 )
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, sep):
@@ -314,14 +308,8 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 @pytest.mark.parametrize(
     "sep",
     [
-        pytest.param(
-            None,
-            id="without_sep",
-        ),
-        pytest.param(
-            ",",
-            id="with_sep",
-        ),
+        pytest.param(None, id="without_sep"),
+        pytest.param(",", id="with_sep"),
     ],
 )
 def test_read_csv_local_default_engine(session, scalars_dfs, sep):
@@ -401,6 +389,11 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
             {"engine": "bigquery", "index_col": 5},
             "BigQuery engine only supports a single column name for `index_col`.",
             id="with_index_col_not_str",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "usecols": [1, 2]},
+            "BigQuery engine only supports an iterable of strings for `usecols`.",
+            id="with_usecols_invalid",
         ),
     ],
 )
@@ -574,6 +567,41 @@ def test_read_csv_local_default_engine_w_index_col_index(
             df.columns, scalars_pandas_df_default_index.columns
         )
         assert df.index.name == "rowindex"
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param("bigquery", id="bq_engine"),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_gcs_w_usecols(session, scalars_df_index, gcs_folder, engine):
+    path = gcs_folder + "test_read_csv_gcs_w_usecols"
+    path = path + "_default_engine.csv" if engine is None else path + "_bq_engine.csv"
+    scalars_df_index.to_csv(path)
+
+    # df should only have 1 column which is bool_col.
+    df = session.read_csv(path, usecols=["bool_col"], engine=engine)
+    assert len(df.columns) == 1
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param("bigquery", id="bq_engine"),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
+    with tempfile.TemporaryDirectory() as dir:
+        path = dir + "/test_read_csv_local_w_usecols.csv"
+        # Using the pandas to_csv method because the BQ one does not support local write.
+        scalars_pandas_df_index.to_csv(path, index=False)
+
+        # df should only have 1 column which is bool_col.
+        df = session.read_csv(path, usecols=["bool_col"], engine=engine)
+        assert len(df.columns) == 1
 
 
 def test_session_id(session):
