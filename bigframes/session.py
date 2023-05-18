@@ -77,7 +77,17 @@ def _ensure_application_default_credentials_in_colab_environment():
         from google.colab import auth
 
         auth.authenticate_user()
-    except (ModuleNotFoundError, ImportError):
+    except Exception:
+        # We are catching a broad exception class here because we want to be
+        # agnostic to anything that could internally go wrong in the google
+        # colab auth. Some of the known exception we want to pass on are:
+        #
+        # ModuleNotFoundError: No module named 'google.colab'
+        # ImportError: cannot import name 'auth' from 'google.cloud'
+        # MessageError: Error: credential propagation was unsuccessful
+        #
+        # The MessageError happens on Vertex Colab when it fails to resolve auth
+        # from the Compute Engine Metadata server.
         pass
 
 
