@@ -61,6 +61,9 @@ IbisDtype = Union[
     ibis_dtypes.Timestamp,
 ]
 
+# Several operations are restricted to these types.
+NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
+
 # Type hints for Ibis data types that can be read to Python objects by BigFrames
 ReadOnlyIbisDtype = Union[
     ibis_dtypes.Binary, ibis_dtypes.JSON, ibis_dtypes.Decimal, ibis_dtypes.GeoSpatial

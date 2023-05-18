@@ -39,6 +39,7 @@ import pandas as pd
 import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.blocks as blocks
+import bigframes.core.groupby as groupby
 import bigframes.core.indexes as indexes
 import bigframes.core.joins as joins
 import bigframes.core.ordering as order
@@ -803,6 +804,29 @@ class DataFrame:
         )
         block.expr = expr_bldr.build()
         return DataFrame(combined_index, self._col_labels + other._col_labels)
+
+    def groupby(
+        self,
+        by: typing.Union[str, typing.Sequence[str]],
+        *,
+        dropna: bool = True,
+        as_index=True,
+    ) -> groupby.DataFrameGroupBy:
+        if as_index and not isinstance(by, str):
+            raise ValueError(
+                "Set as_index=False if grouping by list of values. Mutli-index not yet supported"
+            )
+        labels = self._col_labels
+        col_ids = self._block.value_columns
+        label_id_pairs = {col_id: label for col_id, label in zip(col_ids, labels)}
+        by_col_ids = self._sql_names(by)
+        return groupby.DataFrameGroupBy(
+            self._block.copy(),
+            label_id_pairs,
+            by_col_ids,
+            dropna=dropna,
+            as_index=as_index,
+        )
 
     def abs(self) -> DataFrame:
         return self._apply_to_rows(ops.abs_op)

@@ -316,16 +316,17 @@ class Block:
 
     def aggregate(
         self,
-        by_column_id: str,
+        by_column_ids: typing.Sequence[str],
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
         dropna: bool = True,
     ) -> Block:
         """
-        Apply aggregations to the block
+        Apply aggregations to the block. Callers responsible for setting index column(s) after.
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index
             aggregations: input_column_id, operation, output_column_id tuples
             dropna: whether null keys should be dropped
         """
-        result_expr = self.expr.aggregate(by_column_id, aggregations, dropna)
-        return Block(result_expr, index_columns=[by_column_id])
+        # Note: 'by' columns will be moved to the front
+        result_expr = self.expr.aggregate(by_column_ids, aggregations, dropna)
+        return Block(result_expr)

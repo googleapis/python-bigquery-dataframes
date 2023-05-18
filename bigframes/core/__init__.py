@@ -404,7 +404,7 @@ class BigFramesExpr:
 
     def aggregate(
         self,
-        by_column_id: str,
+        by_column_ids: typing.Sequence[str],
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
         dropna: bool = True,
     ) -> BigFramesExpr:
@@ -420,14 +420,18 @@ class BigFramesExpr:
             agg_op._as_ibis(table[col_in]).name(col_out)
             for col_in, agg_op, col_out in aggregations
         ]
-        result = table.group_by(by_column_id).aggregate(stats)
+        result = table.group_by(by_column_ids).aggregate(stats)
         # Must have deterministic ordering, so order by the unique "by" column
         ordering = ExpressionOrdering(
-            (OrderingColumnReference(column_id=by_column_id),)
+            [
+                OrderingColumnReference(column_id=column_id)
+                for column_id in by_column_ids
+            ]
         )
         expr = BigFramesExpr(self._session, result, ordering=ordering)
         if dropna:
-            expr = expr.filter(ops.notnull_op._as_ibis(expr.get_column(by_column_id)))
+            for column_id in by_column_ids:
+                expr = expr.filter(ops.notnull_op._as_ibis(expr.get_column(column_id)))
         # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
         return expr.project_offsets()
 

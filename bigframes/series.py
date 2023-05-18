@@ -493,7 +493,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         # Approach: Count each value, return each value for which count(x) == max(counts))
         value_count_col_id = self._value_column + "_bf_internal_value_count"
         block = block.aggregate(
-            self._value_column,
+            [self._value_column],
             ((self._value_column, agg_ops.count_op, value_count_col_id),),
         )
         max_value_count_col_id = self._value_column + "_bf_internal_max_value_count"
@@ -1187,10 +1187,11 @@ class SeriesGroupyBy:
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
         aggregate_col_id = self._value_column + "_bf_aggregated"
         result_block = self._block.aggregate(
-            self._by,
+            [self._by],
             ((self._value_column, aggregate_op, aggregate_col_id),),
             dropna=self._dropna,
         )
+        result_block.index_columns = [self._by]
         if self._key_name:
             result_block.index.name = self._key_name
         return Series(result_block, aggregate_col_id, name=self._value_name)
