@@ -53,6 +53,7 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
             transform,
             (
                 bigframes.ml.compose.ColumnTransformer,
+                bigframes.ml.preprocessing.NoModelStandardScaler,
                 bigframes.ml.preprocessing.StandardScaler,
                 bigframes.ml.preprocessing.OneHotEncoder,
             ),
@@ -76,39 +77,6 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
         self._transform = transform
         self._estimator = estimator
 
-    def _compile_transforms(self, input_schema: List[str]) -> List[str]:
-        """Combine transform steps with the schema of the input data to produce a list of SQL
-        expressions for the TRANSFORM clause."""
-        # TODO(bmil): input schema should have types also & be validated
-        # TODO(bmil): add some more graceful abstraction for representing preprocessors
-        def apply_preprocessor(
-            column: str, preprocessor: bigframes.ml.preprocessing.PreprocessorType
-        ) -> str:
-            if isinstance(preprocessor, bigframes.ml.preprocessing.StandardScaler):
-                return bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}")
-            elif isinstance(preprocessor, bigframes.ml.preprocessing.OneHotEncoder):
-                return bigframes.ml.sql.ml_one_hot_encoder(
-                    column, f"one_hot_encoded_{column}"
-                )
-
-        transform_exprs: List[str] = []
-        for column in input_schema:
-            if isinstance(
-                self._transform,
-                (
-                    bigframes.ml.preprocessing.StandardScaler,
-                    bigframes.ml.preprocessing.OneHotEncoder,
-                ),
-            ):
-                transform_exprs.append(apply_preprocessor(column, self._transform))
-            else:  # ColumnTransformer
-                for entry in self._transform.transformers_:
-                    _, preprocessor, target_column = entry
-                    if column == target_column:
-                        transform_exprs.append(apply_preprocessor(column, preprocessor))
-
-        return transform_exprs
-
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
         """Fit each estimator in the pipeline to the transformed output of the
         previous one. In bigframes.ml this will compile the pipeline to a single
@@ -118,20 +86,19 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
             X: training data. Must match the input requirements of the first step of
                 the pipeline
             y: training targets, if applicable"""
-        # TODO(bmil): BigFrames dataframe<->SQL mapping is being reworked, this will need to be updated
-        # TODO(bmil): It may be tidier to have standard ways for transforms to implement parts of their
-        # compilation to SQL, but for now, lets do everything in Pipeline
-        transforms = self._compile_transforms(X.columns.tolist())
+
+        compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
+        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
         # TODO(bmil): need a more elegant way to address this. Perhaps a mixin for supervised vs
         # unsupervised models? Or just lists of classes?
         if isinstance(self._estimator, bigframes.ml.cluster.KMeans):
-            self._estimator.fit(X=X, transforms=transforms)
+            self._estimator.fit(X=X, transforms=transform_sqls)
         else:
             if y is not None:
                 # If labels columns are present, they should pass through un-transformed
-                transforms.extend(y.columns.tolist())
-                self._estimator.fit(X=X, y=y, transforms=transforms)
+                transform_sqls.extend(y.columns.tolist())
+                self._estimator.fit(X=X, y=y, transforms=transform_sqls)
             else:
                 raise TypeError("Fitting this pipeline requires training targets `y`")
 

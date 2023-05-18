@@ -114,3 +114,9 @@ def ml_predict(model_name: str, source_sql: str) -> str:
     """Encode ML.PREDICT for BQML"""
     return f"""SELECT * FROM ML.PREDICT(MODEL `{model_name}`,
   ({source_sql}))"""
+
+
+def ml_transform(model_name: str, source_sql: str) -> str:
+    """Encode ML.TRANSFORM for BQML"""
+    return f"""SELECT * FROM ML.TRANSFORM(MODEL `{model_name}`,
+  ({source_sql}))"""

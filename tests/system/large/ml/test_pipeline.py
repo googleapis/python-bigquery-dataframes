@@ -23,6 +23,7 @@ from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
 def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
+    """Test a supervised model with a minimal preprocessing step"""
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
             ("scale", bigframes.ml.preprocessing.StandardScaler()),
@@ -96,10 +97,13 @@ def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
     )
 
 
-def test_pipeline_kmeans_fit_predict(session, penguins_pandas_df_default_index):
+def test_pipeline_nomodelscaler_kmeans_fit_predict(
+    session, penguins_pandas_df_default_index
+):
+    """Test an unsupervised model with a non-BQML implementation of StandardScaler"""
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
-            ("scale", bigframes.ml.preprocessing.StandardScaler()),
+            ("scale", bigframes.ml.preprocessing.NoModelStandardScaler()),
             ("kmeans", bigframes.ml.cluster.KMeans(n_clusters=2)),
         ]
     )
@@ -192,6 +196,7 @@ def test_pipeline_kmeans_fit_predict(session, penguins_pandas_df_default_index):
 
 
 def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
+    """Test a preprocessing step that manages heterogenous data with ColumnTransformer"""
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
             (

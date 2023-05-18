@@ -18,13 +18,22 @@ https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose"""
 
 from __future__ import annotations
 
+import typing
 from typing import List, Optional, Tuple, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     import bigframes
 
 import bigframes.ml.api_primitives
+import bigframes.ml.compose
+import bigframes.ml.core
 import bigframes.ml.preprocessing
+
+CompilablePreprocessorType = Union[
+    bigframes.ml.preprocessing.OneHotEncoder,
+    bigframes.ml.preprocessing.NoModelStandardScaler,
+    bigframes.ml.preprocessing.StandardScaler,
+]
 
 
 class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
@@ -32,18 +41,27 @@ class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
         self,
         transformers: List[
             Tuple[
-                str, bigframes.ml.preprocessing.PreprocessorType, Union[str, List[str]]
+                str,
+                CompilablePreprocessorType,
+                Union[str, List[str]],
             ]
         ],
     ):
         self.transformers = transformers
+        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
 
     @property
     def transformers_(
         self,
-    ) -> List[Tuple[str, bigframes.ml.preprocessing.PreprocessorType, str]]:
+    ) -> List[Tuple[str, CompilablePreprocessorType, str,]]:
         """The collection of transformers as tuples of (name, transformer, column)"""
-        result: List[Tuple[str, bigframes.ml.preprocessing.PreprocessorType, str]] = []
+        result: List[
+            Tuple[
+                str,
+                CompilablePreprocessorType,
+                str,
+            ]
+        ] = []
         for entry in self.transformers:
             name, transformer, column_or_columns = entry
             if isinstance(column_or_columns, str):
@@ -54,8 +72,47 @@ class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
 
         return result
 
-    def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
-        raise NotImplementedError("Not supported outside of Pipeline")
+    def _compile_to_sql(self, columns: List[str]) -> List[Tuple[str, str]]:
+        """Compile this transformer to a list of SQL expressions that can be included in
+        a BQML TRANSFORM clause
+
+        Args:
+            columns: a list of column names to transform
+
+        Returns: a list of tuples of (sql_expression, output_name)"""
+        return [
+            transformer._compile_to_sql([column])[0]
+            for column in columns
+            for _, transformer, target_column in self.transformers_
+            if column == target_column
+        ]
+
+    def fit(
+        self,
+        X: bigframes.DataFrame,
+    ):
+        """Fit the transform to training data
+
+        Args:
+            X: A dataframe with training data"""
+        compiled_transforms = self._compile_to_sql(X.columns.tolist())
+        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
+
+        self._bqml_model = bigframes.ml.core.create_bqml_model(
+            X,
+            options={"model_type": "transform_only"},
+            transforms=transform_sqls,
+        )
+
+        # The schema of TRANSFORM output is not available in the model API, so save it during fitting
+        self._output_names = [name for _, name in compiled_transforms]
 
     def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        raise NotImplementedError("Not supported outside of Pipeline")
+        if not self._bqml_model:
+            raise RuntimeError("Must be fitted before transform")
+
+        df = self._bqml_model.transform(X)
+        return typing.cast(
+            bigframes.dataframe.DataFrame,
+            df[self._output_names],
+        )

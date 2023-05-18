@@ -63,6 +63,20 @@ class BqmlModel:
 
         return df
 
+    def transform(
+        self, input_data: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
+        # TODO: validate input data schema
+        sql = bigframes.ml.sql.ml_transform(
+            model_name=self.model_name, source_sql=input_data.sql
+        )
+
+        # TODO: implement a more robust way to get index columns from a dataframe's SQL
+        index_columns = input_data._block.index_columns
+        df = self._session.read_gbq(sql, index_cols=index_columns)
+
+        return df
+
     def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
         # TODO: validate input data schema
         sql = bigframes.ml.sql.ml_evaluate(

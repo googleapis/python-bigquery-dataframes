@@ -18,7 +18,7 @@ import bigframes.ml.core
 import bigframes.ml.sql
 
 
-def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
+def test_bqml_e2e(session, dataset_id, penguins_df_default_index, new_penguins_df):
     df = penguins_df_default_index.dropna()
     train_X = df[
         [
@@ -63,24 +63,7 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
     )
 
     # predict new labels
-    new_penguins = session.read_pandas(
-        pandas.DataFrame(
-            {
-                "tag_number": [1633, 1672, 1690],
-                "species": [
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Chinstrap penguin (Pygoscelis antarctica)",
-                ],
-                "island": ["Torgersen", "Torgersen", "Dream"],
-                "culmen_length_mm": [39.5, 38.5, 37.9],
-                "culmen_depth_mm": [18.8, 17.2, 18.1],
-                "flipper_length_mm": [196.0, 181.0, 188.0],
-                "sex": ["MALE", "FEMALE", "FEMALE"],
-            }
-        ).set_index("tag_number")
-    )
-    predictions = model.predict(new_penguins).compute()
+    predictions = model.predict(new_penguins_df).compute()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
         dtype="Float64",
@@ -98,7 +81,9 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index):
     assert fetch_result.model_type == "LINEAR_REGRESSION"
 
 
-def test_bqml_manual_preprocessing_e2e(session, dataset_id, penguins_df_default_index):
+def test_bqml_manual_preprocessing_e2e(
+    session, dataset_id, penguins_df_default_index, new_penguins_df
+):
     df = penguins_df_default_index.dropna()
     train_X = df[
         [
@@ -146,24 +131,7 @@ def test_bqml_manual_preprocessing_e2e(session, dataset_id, penguins_df_default_
     )
 
     # predict new labels
-    new_penguins = session.read_pandas(
-        pandas.DataFrame(
-            {
-                "tag_number": [1633, 1672, 1690],
-                "species": [
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Chinstrap penguin (Pygoscelis antarctica)",
-                ],
-                "island": ["Torgersen", "Torgersen", "Dream"],
-                "culmen_length_mm": [39.5, 38.5, 37.9],
-                "culmen_depth_mm": [18.8, 17.2, 18.1],
-                "flipper_length_mm": [196.0, 181.0, 188.0],
-                "sex": ["MALE", "FEMALE", "FEMALE"],
-            }
-        ).set_index("tag_number")
-    )
-    predictions = model.predict(new_penguins).compute()
+    predictions = model.predict(new_penguins_df).compute()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": [3968.8, 3176.3, 3545.2]},
         dtype="Float64",
@@ -179,3 +147,37 @@ def test_bqml_manual_preprocessing_e2e(session, dataset_id, penguins_df_default_
 
     fetch_result = session.bqclient.get_model(new_name)
     assert fetch_result.model_type == "LINEAR_REGRESSION"
+
+
+def test_bqml_standalone_transform(penguins_df_default_index, new_penguins_df):
+    X = penguins_df_default_index[["culmen_length_mm", "species"]]
+    model = bigframes.ml.core.create_bqml_model(
+        X,
+        options={"model_type": "transform_only"},
+        transforms=[
+            "ML.STANDARD_SCALER(culmen_length_mm) OVER() AS scaled_culmen_length_mm",
+            "ML.ONE_HOT_ENCODER(species) OVER() AS onehotencoded_species",
+        ],
+    )
+
+    transformed = model.transform(new_penguins_df).compute()
+    expected = pandas.DataFrame(
+        {
+            "scaled_culmen_length_mm": [-0.8099, -0.9931, -1.103],
+            "onehotencoded_species": [
+                [{"index": 1, "value": 1.0}],
+                [{"index": 1, "value": 1.0}],
+                [{"index": 2, "value": 1.0}],
+            ],
+        },
+        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    expected["scaled_culmen_length_mm"] = expected["scaled_culmen_length_mm"].astype(
+        "Float64"
+    )
+    pandas.testing.assert_frame_equal(
+        transformed[["scaled_culmen_length_mm", "onehotencoded_species"]],
+        expected,
+        check_exact=False,
+        rtol=1e-2,
+    )

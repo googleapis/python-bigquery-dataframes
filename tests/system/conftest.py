@@ -356,6 +356,31 @@ def penguins_pandas_df_default_index() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="session")
+def new_penguins_pandas_df():
+    """Additional data matching the penguins dataset, with a new index"""
+    return pd.DataFrame(
+        {
+            "tag_number": [1633, 1672, 1690],
+            "species": [
+                "Adelie Penguin (Pygoscelis adeliae)",
+                "Adelie Penguin (Pygoscelis adeliae)",
+                "Chinstrap penguin (Pygoscelis antarctica)",
+            ],
+            "island": ["Torgersen", "Torgersen", "Dream"],
+            "culmen_length_mm": [39.5, 38.5, 37.9],
+            "culmen_depth_mm": [18.8, 17.2, 18.1],
+            "flipper_length_mm": [196.0, 181.0, 188.0],
+            "sex": ["MALE", "FEMALE", "FEMALE"],
+        }
+    ).set_index("tag_number")
+
+
+@pytest.fixture(scope="session")
+def new_penguins_df(session, new_penguins_pandas_df):
+    return session.read_pandas(new_penguins_pandas_df)
+
+
+@pytest.fixture(scope="session")
 def penguins_linear_model_name(
     session: bigframes.Session, dataset_id_permanent, penguins_table_id
 ) -> str:

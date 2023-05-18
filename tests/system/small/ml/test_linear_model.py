@@ -79,26 +79,8 @@ def test_model_score_with_data(penguins_linear_model, penguins_df_default_index)
     )
 
 
-def test_model_predict(session, penguins_linear_model):
-    new_penguins = session.read_pandas(
-        pandas.DataFrame(
-            {
-                "tag_number": [1633, 1672, 1690],
-                "species": [
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Adelie Penguin (Pygoscelis adeliae)",
-                    "Chinstrap penguin (Pygoscelis antarctica)",
-                ],
-                "island": ["Torgersen", "Torgersen", "Dream"],
-                "culmen_length_mm": [39.5, 38.5, 37.9],
-                "culmen_depth_mm": [18.8, 17.2, 18.1],
-                "flipper_length_mm": [196.0, 181.0, 188.0],
-                "sex": ["MALE", "FEMALE", "FEMALE"],
-            }
-        ).set_index("tag_number")
-    )
-
-    predictions = penguins_linear_model.predict(new_penguins).compute()
+def test_model_predict(penguins_linear_model, new_penguins_df):
+    predictions = penguins_linear_model.predict(new_penguins_df).compute()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
         dtype="Float64",

@@ -27,7 +27,7 @@ except ImportError:
 
 def test_columntransformer_init_expectedtransforms():
     onehot_transformer = bigframes.ml.preprocessing.OneHotEncoder()
-    scaler_transformer = bigframes.ml.preprocessing.StandardScaler()
+    scaler_transformer = bigframes.ml.preprocessing.NoModelStandardScaler()
     column_transformer = bigframes.ml.compose.ColumnTransformer(
         [
             ("onehot", onehot_transformer, "species"),
