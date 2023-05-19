@@ -93,9 +93,9 @@ def accuracy_score(
     score = (y_true_series == y_pred_series).astype(pd.Int64Dtype())
 
     if normalize:
-        return score.mean().compute()
+        return score.mean()
     else:
-        return score.sum().compute()
+        return score.sum()
 
 
 def roc_curve(
