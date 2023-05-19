@@ -437,6 +437,8 @@ class BigFramesExpr:
         op: agg_ops.WindowOp,
         window_spec: WindowSpec,
         output_name=None,
+        *,
+        skip_reproject_unsafe: bool = False,
     ) -> BigFramesExpr:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
@@ -444,6 +446,7 @@ class BigFramesExpr:
         op: the windowable operator to apply to the input column
         window_spec: a specification of the window over which to apply the operator
         output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
+        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
         window = self._ibis_window_from_spec(window_spec)
@@ -470,8 +473,8 @@ class BigFramesExpr:
             window_op = case_statement
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
-        # TODO(tbergeron): Should defer this until second window is applied to avoid unnecessarily creating new table expressions every analytic op.
-        return result._reproject_to_table()
+        # TODO(tbergeron): Automatically track analytic expression usage and defer reprojection until required for valid query generation.
+        return result._reproject_to_table() if not skip_reproject_unsafe else result
 
     def to_ibis_expr(
         self,

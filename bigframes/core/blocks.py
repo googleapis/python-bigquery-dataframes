@@ -297,8 +297,16 @@ class Block:
         op: agg_ops.WindowOp,
         window_spec: core.WindowSpec,
         output_name=None,
+        *,
+        skip_reproject_unsafe: bool = False,
     ):
-        self.expr = self._expr.project_window_op(column, op, window_spec, output_name)
+        self.expr = self._expr.project_window_op(
+            column,
+            op,
+            window_spec,
+            output_name,
+            skip_reproject_unsafe=skip_reproject_unsafe,
+        )
 
     def filter(self, column_name: str):
         condition = typing.cast(

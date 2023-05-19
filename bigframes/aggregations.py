@@ -17,6 +17,7 @@ from __future__ import annotations
 import typing
 
 import ibis
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 
@@ -37,6 +38,10 @@ class AggregateOp(WindowOp):
 
 def numeric_op(operation):
     def constrained_op(op, column: ibis_types.Column, window=None):
+        if column.type().is_boolean():
+            column = typing.cast(
+                ibis_types.NumericColumn, column.cast(ibis_dtypes.int64)
+            )
         if column.type().is_numeric():
             return operation(op, column, window)
         else:
@@ -52,7 +57,11 @@ class SumOp(AggregateOp):
     def _as_ibis(
         self, column: ibis_types.NumericColumn, window=None
     ) -> ibis_types.NumericValue:
-        return _apply_window_if_present(column.sum(), window)
+        # Will be null if all inputs are null. Pandas defaults to zero sum though.
+        bq_sum = _apply_window_if_present(column.sum(), window)
+        return (
+            ibis.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()
+        )
 
 
 class MeanOp(AggregateOp):

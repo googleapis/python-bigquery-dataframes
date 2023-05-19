@@ -34,6 +34,9 @@ BigFramesDtype = Union[
     pd.ArrowDtype,
 ]
 
+# Corresponds to the pandas concept of numeric type (such as when 'numeric_only' is specified in an operation)
+NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
+
 # Type hints for dtype strings supported by BigFrames
 BigFramesDtypeString = Literal[
     "boolean",

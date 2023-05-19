@@ -36,6 +36,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas as pd
 
+import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
@@ -815,6 +816,70 @@ class DataFrame:
         return self._apply_to_rows(ops.notnull_op)
 
     notna = notnull
+
+    def cumsum(self):
+        """Applies cumulative sum over an axis. All values must be numeric."""
+        is_numeric_types = [
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            for _, dtype in self.dtypes.items()
+        ]
+        if not all(is_numeric_types):
+            raise ValueError("All values must be numeric to apply cumsum.")
+        return self._apply_window_op(
+            agg_ops.sum_op,
+            bigframes.core.WindowSpec(following=0),
+        )
+
+    def cumprod(self) -> DataFrame:
+        """Applies cumulative product over an axis. All values must be numeric."""
+        is_numeric_types = [
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            for _, dtype in self.dtypes.items()
+        ]
+        if not all(is_numeric_types):
+            raise ValueError("All values must be numeric to apply cumsum.")
+        return self._apply_window_op(
+            agg_ops.product_op,
+            bigframes.core.WindowSpec(following=0),
+        )
+
+    def cummin(self) -> DataFrame:
+        """Applies cumulative min over an axis."""
+        return self._apply_window_op(
+            agg_ops.min_op,
+            bigframes.core.WindowSpec(following=0),
+        )
+
+    def cummax(self) -> DataFrame:
+        """Applies cumulative max over an axis."""
+        return self._apply_window_op(
+            agg_ops.max_op,
+            bigframes.core.WindowSpec(following=0),
+        )
+
+    def shift(self, periods=1) -> DataFrame:
+        """Shift index by desired number of periods."""
+        window = bigframes.core.WindowSpec(
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+
+    def _apply_window_op(
+        self,
+        op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
+    ):
+        block = self._block.copy()
+        for col_id in self._block.value_columns[:-1]:
+            block.apply_window_op(
+                col_id, op, window_spec=window_spec, skip_reproject_unsafe=True
+            )
+        # Reproject after applying final independent window operation.
+        block.apply_window_op(
+            self._block.value_columns[-1], op, window_spec=window_spec
+        )
+        return DataFrame(block.index, self._col_labels)
 
     def to_pandas(self) -> pd.DataFrame:
         """Writes DataFrame to Pandas DataFrame."""
