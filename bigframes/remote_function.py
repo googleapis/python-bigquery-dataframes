@@ -181,18 +181,25 @@ class RemoteFunctionClient:
         query_job.result()  # Wait for the job to complete.
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
+    def get_remote_function_fully_qualified_name(self, name):
+        "Get the fully qualilfied name for a BQ remote function."
+        return "{}.{}.{}".format(self._gcp_project_id, self._bq_dataset, name)
+
+    def get_cloud_function_fully_qualified_name(self, name):
+        "Get the fully qualilfied name for a cloud function."
+        return "projects/{}/locations/{}/functions/{}".format(
+            self._gcp_project_id, self._cloud_function_region, name
+        )
+
     def get_cloud_function_endpoint(self, name):
         """Get the http endpoint of a cloud function if it exists."""
         client = functions_v2.FunctionServiceClient()
-        parent = (
-            f"projects/{self._gcp_project_id}/locations/{self._cloud_function_region}"
-        )
-        request = functions_v2.ListFunctionsRequest(parent=parent)
-        page_result = client.list_functions(request=request)
-        expected_cf_name = parent + f"/functions/{name}"
-        for response in page_result:
-            if response.name == expected_cf_name:
-                return response.service_config.uri
+        fully_qualified_name = self.get_cloud_function_fully_qualified_name(name)
+        try:
+            response = client.get_function(name=fully_qualified_name)
+            return response.service_config.uri
+        except google.api_core.exceptions.NotFound:
+            pass
         return None
 
     def create_bq_connection(self):
@@ -424,7 +431,7 @@ class RemoteFunctionClient:
         else:
             logger.info(f"Remote function {remote_function_name} already exists.")
 
-        return remote_function_name
+        return remote_function_name, cloud_function_name
 
     def get_remote_function_specs(self, remote_function_name):
         """Check whether a remote function already exists for the udf."""
@@ -629,7 +636,7 @@ def remote_function(
             bigquery_client,
             bigquery_connection,
         )
-        rf_name = remote_function_client.provision_bq_remote_function(
+        rf_name, cf_name = remote_function_client.provision_bq_remote_function(
             f, input_types_ibis, output_type_ibis, uniq_suffix
         )
         rf_fully_qualified_name = f"`{gcp_project_id}.{bq_dataset}`.{rf_name}"
@@ -647,6 +654,12 @@ def remote_function(
             return node.to_expr()
 
         wrapped.__signature__ = signature
+        wrapped.bigframes_remote_function = (
+            remote_function_client.get_remote_function_fully_qualified_name(rf_name)
+        )
+        wrapped.bigframes_cloud_function = (
+            remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
+        )
         return wrapped
 
     return wrapper
