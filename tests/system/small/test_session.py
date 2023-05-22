@@ -239,27 +239,17 @@ def test_read_pandas_tokyo(
     pd.testing.assert_frame_equal(result, expected)
 
 
-@pytest.mark.parametrize(
-    "sep",
-    [
-        pytest.param(None, id="without_sep"),
-        pytest.param(",", id="with_sep"),
-    ],
-)
-def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, sep):
+def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_w_index"
+        path = gcs_folder + "test_read_csv_gcs_default_engine_w_index.csv"
     else:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index"
-    path = path + "_w_sep.csv" if sep is not None else path + "_wo_sep.csv"
-
+        path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index.csv"
     scalars_df.to_csv(path, index=False)
     dtype = scalars_df.dtypes.to_dict()
     dtype.pop("geography_col")
     df = session.read_csv(
         path,
-        sep=sep,
         # Convert default pandas dtypes to match BigFrames dtypes.
         dtype=dtype,
     )
@@ -301,8 +291,8 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 @pytest.mark.parametrize(
     "sep",
     [
-        pytest.param(None, id="without_sep"),
-        pytest.param(",", id="with_sep"),
+        pytest.param(",", id="default_sep"),
+        pytest.param("\t", id="custom_sep"),
     ],
 )
 def test_read_csv_local_default_engine(session, scalars_dfs, sep):
@@ -310,7 +300,7 @@ def test_read_csv_local_default_engine(session, scalars_dfs, sep):
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_default_engine.csv"
         # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df.to_csv(path, index=False)
+        scalars_pandas_df.to_csv(path, index=False, sep=sep)
         dtype = scalars_df.dtypes.to_dict()
         dtype.pop("geography_col")
         df = session.read_csv(
@@ -334,13 +324,20 @@ def test_read_csv_local_default_engine(session, scalars_dfs, sep):
         pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
 
 
-def test_read_csv_local_bq_engine(session, scalars_dfs):
+@pytest.mark.parametrize(
+    "sep",
+    [
+        pytest.param(",", id="default_sep"),
+        pytest.param("\t", id="custom_sep"),
+    ],
+)
+def test_read_csv_local_bq_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_bq_engine.csv"
         # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df.to_csv(path, index=False)
-        df = session.read_csv(path, engine="bigquery")
+        scalars_pandas_df.to_csv(path, index=False, sep=sep)
+        df = session.read_csv(path, engine="bigquery", sep=sep)
 
         # TODO(chelsealin): If we serialize the index, can more easily compare values.
         pd.testing.assert_index_equal(df.columns, scalars_df.columns)
@@ -360,11 +357,6 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        pytest.param(
-            {"engine": "bigquery", "sep": ","},
-            "BigQuery engine does not support these arguments",
-            id="with_sep",
-        ),
         pytest.param(
             {"engine": "bigquery", "names": []},
             "BigQuery engine does not support these arguments",
@@ -389,6 +381,11 @@ def test_read_csv_local_bq_engine(session, scalars_dfs):
             {"engine": "bigquery", "usecols": [1, 2]},
             "BigQuery engine only supports an iterable of strings for `usecols`.",
             id="with_usecols_invalid",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "encoding": "ASCII"},
+            "BigQuery engine only supports the following encodings",
+            id="with_encoding_invalid",
         ),
     ],
 )
@@ -597,6 +594,32 @@ def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
         # df should only have 1 column which is bool_col.
         df = session.read_csv(path, usecols=["bool_col"], engine=engine)
         assert len(df.columns) == 1
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param("bigquery", id="bq_engine"),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index, engine):
+    with tempfile.TemporaryDirectory() as dir:
+        path = dir + "/test_read_csv_local_w_encoding.csv"
+        # Using the pandas to_csv method because the BQ one does not support local write.
+        penguins_pandas_df_default_index.to_csv(
+            path, index=False, encoding="ISO-8859-1"
+        )
+
+        # File can only be read using the same character encoding as when written.
+        df = session.read_csv(path, engine=engine, encoding="ISO-8859-1")
+
+        # TODO(chelsealin): If we serialize the index, can more easily compare values.
+        pd.testing.assert_index_equal(
+            df.columns, penguins_pandas_df_default_index.columns
+        )
+
+        assert df.shape[0] == penguins_pandas_df_default_index.shape[0]
 
 
 def test_session_id(session):

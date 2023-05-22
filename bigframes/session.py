@@ -481,7 +481,7 @@ class Session:
         self,
         filepath_or_buffer: str,
         *,
-        sep: Optional[str] = None,
+        sep: Optional[str] = ",",
         header: Optional[int] = 0,
         names: Optional[
             Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
@@ -519,7 +519,13 @@ class Session:
         Args:
             filepath_or_buffer: a string path including GS and local file.
 
-            sep: delimiter to use. Only to be used with default engine.
+            sep: the separator for fields in a CSV file. For the BigQuery engine, the separator
+                can be any ISO-8859-1 single-byte character. To use a character in the range
+                128-255, you must encode the character as UTF-8. Both engines support
+                `sep="\t"` to specify tab character as separator. Default engine supports
+                having any number of spaces as separator by specifying `sep="\\s+"`. Separators
+                longer than 1 character are interpreted as regular expressions by the default
+                engine. BigQuery engine only supports single character separators.
 
             header: row number to use as the column names.
                 - ``None``: Instructs autodetect that there are no headers and data should be
@@ -564,6 +570,12 @@ class Session:
             engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
                 API will be used. Otherwise, the engine will be passed to pandas.read_csv.
 
+            encoding: the character encoding of the data. The default encoding is `UTF-8` for both
+                engines. The default engine acceps a wide range of encodings. Refer to Python
+                documentation for a comprehensive list,
+                https://docs.python.org/3/library/codecs.html#standard-encodings
+                The BigQuery engine only supports `UTF-8` and `ISO-8859-1`.
+
             **kwargs: keyword arguments.
 
 
@@ -573,8 +585,8 @@ class Session:
         table = bigquery.Table(self._create_session_table())
 
         if engine is not None and engine == "bigquery":
-            if any(param is not None for param in (sep, dtype, names)):
-                not_supported = ("sep", "dtype", "names")
+            if any(param is not None for param in (dtype, names)):
+                not_supported = ("dtype", "names")
                 raise NotImplementedError(
                     f"BigQuery engine does not support these arguments: {not_supported}"
                 )
@@ -605,11 +617,19 @@ class Session:
             if not isinstance(filepath_or_buffer, str):
                 raise NotImplementedError("BigQuery engine does not support buffers.")
 
+            valid_encodings = {"UTF-8", "ISO-8859-1"}
+            if encoding is not None and encoding not in valid_encodings:
+                raise NotImplementedError(
+                    f"BigQuery engine only supports the following encodings: {valid_encodings}"
+                )
+
             job_config = bigquery.LoadJobConfig()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
+            job_config.field_delimiter = sep
+            job_config.encoding = encoding
 
             # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
             # do not need to set `skip_leading_rows`. If header is None, then there is no header.
