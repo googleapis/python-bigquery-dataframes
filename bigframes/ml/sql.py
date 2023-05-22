@@ -55,6 +55,11 @@ def transform(*expr_sqls: str) -> str:
     return f"TRANSFORM({build_expr_list(*expr_sqls)})"
 
 
+def connection(conn_name: str) -> str:
+    """Encode the REMOTE WITH CONNECTION clause for BQML. conn_name is of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>."""
+    return f"REMOTE WITH CONNECTION `{conn_name}`"
+
+
 def ml_standard_scaler(numeric_expr_sql: str, name: str) -> str:
     """Encode ML.STANDARD_SCALER for BQML"""
     return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER() AS {name}"""
@@ -79,6 +84,20 @@ def create_model(
     if options_sql:
         parts.append(options_sql)
     parts.append(f"AS {source_sql}")
+    return "\n".join(parts)
+
+
+def create_remote_model(
+    model_name: str,
+    connection_name: str,
+    options_sql: Optional[str] = None,
+) -> str:
+    """Encode the CREATE MODEL statement for BQML"""
+    # TODO(bmil): This should be CREATE TEMP MODEL after b/145824779 is fixed
+    parts = [f"CREATE MODEL `{model_name}`"]
+    parts.append(connection(connection_name))
+    if options_sql:
+        parts.append(options_sql)
     return "\n".join(parts)
 
 

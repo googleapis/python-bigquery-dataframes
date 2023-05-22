@@ -79,6 +79,20 @@ AS my_source_sql"""
     )
 
 
+def test_create_remote_model_produces_correct_sql():
+    sql = ml_sql.create_remote_model(
+        model_name="my_dataset.my_model",
+        connection_name="my_project.us.my_connection",
+        options_sql="my_options_sql",
+    )
+    assert (
+        sql
+        == """CREATE MODEL `my_dataset.my_model`
+REMOTE WITH CONNECTION `my_project.us.my_connection`
+my_options_sql"""
+    )
+
+
 def test_ml_predict_produces_correct_sql():
     sql = ml_sql.ml_predict(
         model_name="my_dataset.my_model", source_sql="SELECT * FROM my_table"
