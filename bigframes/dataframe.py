@@ -131,6 +131,14 @@ class DataFrame:
         return self._index
 
     @property
+    def iloc(self) -> bigframes.indexers._iLocIndexer:
+        """Get items by slice.
+
+        Only slice type is supported currently for indexing the iloc object.
+        """
+        return bigframes.indexers._iLocIndexer(self)
+
+    @property
     def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
         return pd.Series(data=self._block.dtypes, index=self._col_labels)

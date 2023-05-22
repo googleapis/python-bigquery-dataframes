@@ -70,7 +70,7 @@ class IlocSeriesIndexer:
 
     def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.series.Series:
         if isinstance(key, slice):
-            return self._slice(key.start, key.stop, key.step)
+            return _slice_series(self._series, key.start, key.stop, key.step)
         if isinstance(key, list):
             # TODO(tbergeron): Implement list, may require fixing ibis table literal support
             raise NotImplementedError("iloc does not yet support single offsets")
@@ -80,31 +80,82 @@ class IlocSeriesIndexer:
         else:
             raise TypeError("Invalid argument type.")
 
-    def _slice(
-        self,
-        start: typing.Optional[int] = None,
-        stop: typing.Optional[int] = None,
-        step: typing.Optional[int] = None,
-    ):
-        expr_with_offsets = self._series._block.expr.project_offsets()
-        cond_list = []
-        # TODO(tbergeron): Handle negative indexing
-        if start:
-            cond_list.append(expr_with_offsets.offsets >= start)
-        if stop:
-            cond_list.append(expr_with_offsets.offsets < stop)
-        if step:
-            # TODO(tbergeron): Reverse the ordering if negative step
-            start = start if start else 0
-            cond_list.append((expr_with_offsets.offsets - start) % step == 0)
-        if not cond_list:
-            return self._series
-        block = blocks.Block(
-            expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
-            index_columns=self._series._block.index_columns,
-        )
-        # TODO(swast): Support MultiIndex.
-        block.index.name = self._series._block.index.name
-        return bigframes.Series(
-            block, self._series._value_column, name=self._series.name
-        )
+
+class _iLocIndexer:
+    def __init__(self, dataframe: bigframes.DataFrame):
+        self._dataframe = dataframe
+
+    def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.DataFrame:
+        """
+        Only slice type is supported currently for indexing the iloc object.
+        """
+        if isinstance(key, slice):
+            return _slice_dataframe(self._dataframe, key.start, key.stop, key.step)
+        if isinstance(key, list):
+            raise NotImplementedError("iloc does not yet support indexing with a list")
+        elif isinstance(key, int):
+            raise NotImplementedError("iloc does not yet support single offsets")
+        elif isinstance(key, tuple):
+            raise NotImplementedError(
+                "iloc does not yet support indexing with a (row, column) tuple"
+            )
+        elif callable(key):
+            raise NotImplementedError(
+                "iloc does not yet support indexing with a callable"
+            )
+        else:
+            raise TypeError("Invalid argument type.")
+
+
+def _slice_block(
+    block: bigframes.core.blocks.Block,
+    start: typing.Optional[int] = None,
+    stop: typing.Optional[int] = None,
+    step: typing.Optional[int] = None,
+) -> bigframes.core.blocks.Block:
+    expr_with_offsets = block.expr.project_offsets()
+    cond_list = []
+    # TODO(tbergeron): Handle negative indexing
+    if start:
+        cond_list.append(expr_with_offsets.offsets >= start)
+    if stop:
+        cond_list.append(expr_with_offsets.offsets < stop)
+    if step:
+        # TODO(tbergeron): Reverse the ordering if negative step
+        start = start if start else 0
+        cond_list.append((expr_with_offsets.offsets - start) % step == 0)
+    if not cond_list:
+        return block
+    original_name = block.index.name
+    block = blocks.Block(
+        expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
+        index_columns=block.index_columns,
+    )
+    # TODO(swast): Support MultiIndex.
+    block.index.name = original_name
+    return block
+
+
+def _slice_series(
+    series: bigframes.Series,
+    start: typing.Optional[int] = None,
+    stop: typing.Optional[int] = None,
+    step: typing.Optional[int] = None,
+) -> bigframes.Series:
+    return bigframes.Series(
+        _slice_block(series._block, start=start, stop=stop, step=step),
+        series._value_column,
+        name=series.name,
+    )
+
+
+def _slice_dataframe(
+    dataframe: bigframes.DataFrame,
+    start: typing.Optional[int] = None,
+    stop: typing.Optional[int] = None,
+    step: typing.Optional[int] = None,
+) -> bigframes.DataFrame:
+    block = _slice_block(dataframe._block, start=start, stop=stop, step=step)
+    result = dataframe._copy()
+    result._block = block
+    return result
