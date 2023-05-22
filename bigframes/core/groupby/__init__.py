@@ -111,28 +111,10 @@ class DataFrameGroupBy:
             (col_id, aggregate_op, col_id + "_bf_aggregated")
             for col_id in aggregated_col_ids
         ]
-
         result_block = self._block.aggregate(
             self._by_col_ids,
             aggregations,
+            as_index=self._as_index,
             dropna=self._dropna,
         )
-        if self._as_index:
-            # Promote 'by' column to index.
-            # TODO(tbergeron): generalize for multi-index (once multi-index introduced)
-            by_col_id = self._by_col_ids[0]
-            result_block.index_columns = self._by_col_ids
-            index_label = self._col_id_labels[by_col_id]
-            result_block.index.name = index_label
-            result_block.replace_column_labels(
-                [self._col_id_labels[col_id] for col_id in aggregated_col_ids]
-            )
-            return df.DataFrame(result_block.index)
-        else:
-            result_block = result_block.reset_index()
-            by_col_labels = [self._col_id_labels[col_id] for col_id in self._by_col_ids]
-            aggregate_labels = [
-                self._col_id_labels[col_id] for col_id in aggregated_col_ids
-            ]
-            result_block.replace_column_labels(by_col_labels + aggregate_labels)
-            return df.DataFrame(result_block.index)
+        return df.DataFrame(result_block.index)

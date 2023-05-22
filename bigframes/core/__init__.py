@@ -21,6 +21,7 @@ from typing import Collection, Dict, Iterable, Optional, Sequence
 
 from google.cloud import bigquery
 import ibis
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes.aggregations as agg_ops
@@ -408,8 +409,8 @@ class BigFramesExpr:
 
     def aggregate(
         self,
-        by_column_ids: typing.Sequence[str],
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> BigFramesExpr:
         """
@@ -420,24 +421,42 @@ class BigFramesExpr:
             dropna: whether null keys should be dropped
         """
         table = self.to_ibis_expr()
-        stats = [
-            agg_op._as_ibis(table[col_in]).name(col_out)
+        stats = {
+            col_out: agg_op._as_ibis(table[col_in])
             for col_in, agg_op, col_out in aggregations
-        ]
-        result = table.group_by(by_column_ids).aggregate(stats)
-        # Must have deterministic ordering, so order by the unique "by" column
-        ordering = ExpressionOrdering(
-            [
-                OrderingColumnReference(column_id=column_id)
-                for column_id in by_column_ids
-            ]
-        )
-        expr = BigFramesExpr(self._session, result, ordering=ordering)
-        if dropna:
-            for column_id in by_column_ids:
-                expr = expr.filter(ops.notnull_op._as_ibis(expr.get_column(column_id)))
-        # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
-        return expr.project_offsets()
+        }
+        if by_column_ids:
+            result = table.group_by(by_column_ids).aggregate(**stats)
+            # Must have deterministic ordering, so order by the unique "by" column
+            ordering = ExpressionOrdering(
+                [
+                    OrderingColumnReference(column_id=column_id)
+                    for column_id in by_column_ids
+                ]
+            )
+            expr = BigFramesExpr(self._session, result, ordering=ordering)
+            if dropna:
+                for column_id in by_column_ids:
+                    expr = expr.filter(
+                        ops.notnull_op._as_ibis(expr.get_column(column_id))
+                    )
+            # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
+            return expr.project_offsets()
+        else:
+            aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
+            result = table.aggregate(**aggregates)
+            # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
+            ordering = ExpressionOrdering(
+                ordering_id_column=OrderingColumnReference(column_id=ORDER_ID_COLUMN),
+                is_sequential=True,
+            )
+            return BigFramesExpr(
+                self._session,
+                result,
+                columns=[result[col_id] for col_id in [*stats.keys()]],
+                hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
+                ordering=ordering,
+            )
 
     def project_window_op(
         self,
@@ -653,6 +672,30 @@ class BigFramesExpr:
             group_by=group_by,
         )
 
+    def transpose_single_row(
+        self, labels, *, index_col_id: str = "index", value_col_id: str = "values"
+    ) -> BigFramesExpr:
+        """Pivot a single row into a 3 column expression with index, values and offsets. Only works if all values can be cast to float."""
+        table = self.to_ibis_expr(ordering_mode="unordered")
+        sub_expressions = []
+        for i, col_id in enumerate(self._column_names.keys()):
+            sub_expr = table.select(
+                ibis_types.literal(labels[i]).name(index_col_id),
+                _numeric_to_float(table[col_id]).name(value_col_id),
+                ibis_types.literal(i).name(ORDER_ID_COLUMN),
+            )
+            sub_expressions.append(sub_expr)
+        rotated_table = ibis.union(*sub_expressions)
+        return BigFramesExpr(
+            session=self._session,
+            table=rotated_table,
+            columns=[rotated_table[index_col_id], rotated_table[value_col_id]],
+            hidden_ordering_columns=[rotated_table[ORDER_ID_COLUMN]],
+            ordering=ExpressionOrdering(
+                ordering_id_column=OrderingColumnReference(column_id=ORDER_ID_COLUMN),
+            ),
+        )
+
     # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
     def deprecated_rename_column(self, old_id, new_id) -> BigFramesExpr:
         """
@@ -742,3 +785,12 @@ def _convert_ordering_to_table_values(
             ordering_values.append(ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
+
+
+def _numeric_to_float(value: ibis_types.Value):
+    if value.type().is_float64():
+        return value
+    if value.type().is_boolean():
+        return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
+    else:
+        return value.cast(ibis_dtypes.float64)

@@ -340,10 +340,31 @@ class Block:
         )
         self.expr = self.expr.filter(condition)
 
+    def aggregate_all_and_pivot(
+        self,
+        operation: agg_ops.AggregateOp,
+        *,
+        value_col_id: str = "values",
+        dropna: bool = True,
+    ) -> Block:
+        aggregations = [
+            (col_id, operation, col_id)
+            for col_id, dtype in zip(self.value_columns, self.dtypes)
+            if (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+        ]
+        result_expr = self.expr.aggregate(
+            aggregations, dropna=dropna
+        ).transpose_single_row(
+            labels=self.column_labels, index_col_id="index", value_col_id=value_col_id
+        )
+        return Block(result_expr, index_columns=["index"])
+
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str],
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        *,
+        as_index: bool = True,
         dropna: bool = True,
     ) -> Block:
         """
@@ -351,8 +372,37 @@ class Block:
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index
             aggregations: input_column_id, operation, output_column_id tuples
+            as_index: if True, grouping keys will be index columns in result, otherwise they will be non-index columns.
             dropna: whether null keys should be dropped
         """
-        # Note: 'by' columns will be moved to the front
-        result_expr = self.expr.aggregate(by_column_ids, aggregations, dropna)
-        return Block(result_expr)
+        result_expr = self.expr.aggregate(aggregations, by_column_ids, dropna=dropna)
+
+        aggregate_labels = self._get_labels_for_columns(
+            [agg[0] for agg in aggregations]
+        )
+        if as_index:
+            # TODO: Generalize to multi-index
+            block = Block(
+                result_expr, index_columns=by_column_ids, column_labels=aggregate_labels
+            )
+            by_col_id = by_column_ids[0]
+            if by_col_id in self.index_columns:
+                # Groupby level 0 case, keep index name
+                block.index.name = self.index.name
+            else:
+                block.index.name = self._get_labels_for_columns(by_column_ids)[0]
+            return block
+        else:
+            by_column_labels = self._get_labels_for_columns(by_column_ids)
+            labels = (*by_column_labels, *aggregate_labels)
+            return Block(
+                result_expr, index_columns=[], column_labels=labels
+            ).reset_index()
+
+    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
+        """Get column label for value columns, or index name for index columns"""
+        lookup = {
+            col_id: label
+            for col_id, label in zip(self.value_columns, self._column_labels)
+        }
+        return [lookup.get(col_id, None) for col_id in column_ids]

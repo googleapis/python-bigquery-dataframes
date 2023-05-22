@@ -992,3 +992,34 @@ def test_loc_bool_series_default_index(
         bf_result,
         pd_result,
     )
+
+
+@pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x: x.sum(numeric_only=True)),
+        (lambda x: x.mean(numeric_only=True)),
+        (lambda x: x.min(numeric_only=True)),
+        (lambda x: x.max(numeric_only=True)),
+        (lambda x: x.std(numeric_only=True)),
+        (lambda x: x.var(numeric_only=True)),
+    ],
+    ids=[
+        "sum",
+        "mean",
+        "min",
+        "max",
+        "std",
+        "var",
+    ],
+)
+def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    bf_series = op(scalars_df_index[col_names])
+    pd_series = op(scalars_pandas_df_index[col_names])
+    bf_result = bf_series.compute()
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_series = pd_series.astype("Float64")
+    # Pandas has object index type
+    pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)

@@ -784,6 +784,60 @@ class DataFrame:
             df._block.expr = df._block.expr.filter(predicate)
         return df
 
+    def sum(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.sum_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
+    def mean(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.mean_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
+    def std(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.std_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
+    def var(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.var_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
+    def min(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.min_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
+    def max(self, *, numeric_only=False) -> bigframes.Series:
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        block = self._block.aggregate_all_and_pivot(agg_ops.max_op)
+        return bigframes.Series(
+            block,
+            value_column="values",
+        )
+
     def merge(
         self,
         right: DataFrame,
