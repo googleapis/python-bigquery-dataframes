@@ -36,7 +36,15 @@ python3 -m pip install --require-hashes -r .kokoro/requirements.txt
 export PYTHONUNBUFFERED=1
 
 # Install dependencies, as the following steps depend on it
-pip install -e .[tests]
+pip install -e .[all]
+
+# If NOX_SESSION is set, it only runs the specified session,
+# otherwise run all the sessions.
+if [[ -n "${NOX_SESSION:-}" ]]; then
+    python3 -m nox -s ${NOX_SESSION:-}
+else
+    python3 -m nox
+fi
 
 # Update version string to include git hash and date
 CURRENT_DATE=$(date '+%Y%m%d')
