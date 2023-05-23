@@ -507,22 +507,22 @@ class Session:
         encoding: Optional[str] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
-        # TODO(osmanamjad): update description when multi-index is supported.
+        # TODO(osmanamjad): update docstring when multi-index is supported.
         """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
 
-        Note: using the `bigquery` engine will not guarantee the same ordering as the
+        Note: using `engine="bigquery"` will not guarantee the same ordering as the
         file in the resulting dataframe.
 
         Args:
-            filepath_or_buffer: a string path including GS and local file.
+            filepath_or_buffer: a string path including GCS and local file.
 
             sep: the separator for fields in a CSV file. For the BigQuery engine, the separator
                 can be any ISO-8859-1 single-byte character. To use a character in the range
                 128-255, you must encode the character as UTF-8. Both engines support
-                `sep="\t"` to specify tab character as separator. Default engine supports
+                `sep="\\t"` to specify tab character as separator. Default engine supports
                 having any number of spaces as separator by specifying `sep="\\s+"`. Separators
                 longer than 1 character are interpreted as regular expressions by the default
                 engine. BigQuery engine only supports single character separators.
@@ -530,13 +530,13 @@ class Session:
             header: row number to use as the column names.
                 - ``None``: Instructs autodetect that there are no headers and data should be
                 read starting from the first row.
-                - ``0``: If using engine="bigquery", Autodetect tries to detect headers in the
+                - ``0``: If using `engine="bigquery"`, Autodetect tries to detect headers in the
                 first row. If they are not detected, the row is read as data. Otherwise data
                 is read starting from the second row. When using default engine, pandas assumes
                 the first row contains column names unless the `names` argument is specified.
                 If `names` is provided, then the first row is ignored, second row is read as
                 data, and column names are inferred from `names`.
-                - ``N > 0``: If using engine="bigquery", Autodetect skips N rows and tries
+                - ``N > 0``: If using `engine="bigquery"`, Autodetect skips N rows and tries
                 to detect headers in row N+1. If headers are not detected, row N+1 is just
                 skipped. Otherwise row N+1 is used to extract column names for the detected
                 schema. When using default engine, pandas will skip N rows and assumes row N+1
@@ -549,9 +549,9 @@ class Session:
                 first (header) row is ignored. Only to be used with default engine.
 
             index_col: column(s) to use as the row labels of the DataFrame, either given as
-                string name or column index. `index_col=False` can be used with the pandas
+                string name or column index. `index_col=False` can be used with the default
                 engine only to enforce that the first column is not used as the index. Using
-                column index instead of column name is only supported with the pandas engine.
+                column index instead of column name is only supported with the default engine.
                 The BigQuery engine only supports having a single column name as the `index_col`.
                 Neither engine supports having a multi-column index.
 
@@ -567,8 +567,8 @@ class Session:
 
             dtype: data type for data or columns. Only to be used with default engine.
 
-            engine: type of engine to use. If "bigquery" is specified, then BigQuery's load
-                API will be used. Otherwise, the engine will be passed to pandas.read_csv.
+            engine: type of engine to use. If `engine="bigquery"` is specified, then BigQuery's
+                load API will be used. Otherwise, the engine will be passed to `pandas.read_csv`.
 
             encoding: the character encoding of the data. The default encoding is `UTF-8` for both
                 engines. The default engine acceps a wide range of encodings. Refer to Python
