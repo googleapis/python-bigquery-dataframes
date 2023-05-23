@@ -165,3 +165,47 @@ def test_to_parquet_index(scalars_dfs, gcs_folder, index):
     assert len(gcs_df.index) == len(scalars_pandas_df.index)
     pd.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
     assert_pandas_df_equal_ignore_ordering(gcs_df, scalars_pandas_df)
+
+
+def test_to_sql_query_named_index_included(
+    session, scalars_df_index, scalars_pandas_df_index
+):
+    sql, index_columns = scalars_df_index.to_sql_query(always_include_index=True)
+    assert len(index_columns) == 1
+    index_column, is_named = index_columns[0]
+    assert index_column == "rowindex"
+    assert is_named
+
+    roundtrip = session.read_gbq(sql, index_cols=[index_column])
+    assert_pandas_df_equal_ignore_ordering(
+        roundtrip.to_pandas(), scalars_pandas_df_index
+    )
+
+
+def test_to_sql_query_unnamed_index_excluded(
+    session, scalars_df_default_index, scalars_pandas_df_default_index
+):
+    # The .sql property should return SQL without the unnamed indexes
+    sql = scalars_df_default_index.sql
+    roundtrip = session.read_gbq(sql)
+    assert_pandas_df_equal_ignore_ordering(
+        roundtrip.to_pandas(), scalars_pandas_df_default_index
+    )
+
+
+def test_to_sql_query_unnamed_index_always_include(
+    session, scalars_df_default_index, scalars_pandas_df_default_index
+):
+    sql, index_columns = scalars_df_default_index.to_sql_query(
+        always_include_index=True
+    )
+    assert len(index_columns) == 1
+    index_column, is_named = index_columns[0]
+    assert index_column == "bigframes_index_0"
+    assert not is_named
+
+    roundtrip = session.read_gbq(sql, index_cols=[index_column])
+    roundtrip.index.name = None
+    assert_pandas_df_equal_ignore_ordering(
+        roundtrip.to_pandas(), scalars_pandas_df_default_index
+    )

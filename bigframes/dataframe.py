@@ -158,9 +158,19 @@ class DataFrame:
     def empty(self) -> bool:
         return not bool(self._block.value_columns)
 
-    @property
-    def sql(self) -> str:
-        """Compiles this dataframe's expression tree to SQL"""
+    def to_sql_query(
+        self, always_include_index: bool
+    ) -> Tuple[str, List[Tuple[str, bool]]]:
+        """Compiles this dataframe's expression tree to SQL, optionally
+        including unnamed index columns
+
+        Args:
+            always_include_index: whether to include unnamed index columns.
+            If False, only named indexes are included.
+
+        Returns: a tuple of (sql_string, index_column_list). Each entry in the
+            index column list is a tuple of (column_name, named). If named is
+            is false, then the column name exists only in SQL"""
         # Has to be unordered as it is impossible to order the sql without
         # including metadata columns in selection with ibis.
         ibis_expr = self._block.expr.to_ibis_expr(ordering_mode="unordered")
@@ -168,11 +178,19 @@ class DataFrame:
 
         # TODO(swast): Need to have a better way of controlling when to include
         # the index or not.
-        if self.index.name is not None:
-            column_labels = column_labels + [self.index.name]
+        index_has_name = self.index.name is not None
+        if index_has_name:
+            column_labels = column_labels + [typing.cast(str, self.index.name)]
+        elif always_include_index:
+            # In this mode include the index even if it is a nameless generated
+            # column like 'bigframes_index_0'
+            column_labels = column_labels + [self._block.index_columns[0]]
 
-        column_labels_deduped = vendored_pandas_io_common.dedup_names(
-            column_labels, is_potential_multiindex=False
+        column_labels_deduped = typing.cast(
+            List[str],
+            vendored_pandas_io_common.dedup_names(
+                column_labels, is_potential_multiindex=False
+            ),
         )
         column_ids = self._block.value_columns
         substitutions = {}
@@ -181,13 +199,24 @@ class DataFrame:
             # the BigQuery unicode column name feature?
             substitutions[column_id] = column_label
 
-        if self.index.name is not None:
+        index_cols: List[Tuple[str, bool]] = []
+        if index_has_name or always_include_index:
+            if len(self._block.index_columns) != 1:
+                raise NotImplementedError("Only exactly 1 index column is supported")
+
             substitutions[self._block.index_columns[0]] = column_labels_deduped[-1]
+            index_cols = [(column_labels_deduped[-1], index_has_name)]
         else:
             ibis_expr = ibis_expr.drop(self._block.index_columns[0])
 
         ibis_expr = ibis_expr.relabel(substitutions)
-        return ibis_expr.compile()
+        return typing.cast(str, ibis_expr.compile()), index_cols
+
+    @property
+    def sql(self) -> str:
+        """Compiles this dataframe's expression tree to SQL"""
+        sql, _ = self.to_sql_query(always_include_index=False)
+        return sql
 
     def _recreate_index(self, block) -> indexes.ImplicitJoiner:
         return (
