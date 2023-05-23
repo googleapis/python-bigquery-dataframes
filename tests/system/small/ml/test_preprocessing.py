@@ -64,17 +64,16 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
         ]
     )
 
-    # TODO: uncomment this section of the test once indexing bugs are fixed
-    # result = scaler.transform(
-    #    penguins_df_default_index[
-    #         "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"
-    #     ]
-    # ).to_pandas()
+    result = scaler.transform(
+        penguins_df_default_index[
+            "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"
+        ]
+    ).to_pandas()
 
     # If standard-scaled correctly, mean should be 0.0 and standard deviation 1.0
-    # for column in result.columns:
-    #     assert math.isclose(result[column].mean(), 0.0, abs_tol=1e-3)
-    #     assert math.isclose(result[column].std(), 1.0, abs_tol=1e-3)
+    for column in result.columns:
+        assert math.isclose(result[column].mean(), 0.0, abs_tol=1e-3)
+        assert math.isclose(result[column].std(), 1.0, abs_tol=1e-3)
 
     result = scaler.transform(new_penguins_df).to_pandas()
 

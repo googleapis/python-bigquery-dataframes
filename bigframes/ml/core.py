@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Callable, Dict, Iterable, List, Optional, Union
 import uuid
 
 from google.cloud import bigquery
@@ -49,39 +49,71 @@ class BqmlModel:
         """Get the BQML model associated with this wrapper"""
         return self._model
 
+    @staticmethod
+    def _apply_sql(
+        session: bigframes.Session,
+        input_data: bigframes.DataFrame,
+        func: Callable[[str], str],
+    ) -> bigframes.DataFrame:
+        """Helper to wrap a dataframe in a SQL query, keeping the index intact.
+
+        Args:
+            session: the active bigframes.Session
+
+            input_data: the dataframe to be wrapped
+
+            func: a function that will accept a SQL string and produce a new SQL
+                string from which to construct the output dataframe. It must
+                include the index columns of the input SQL."""
+        source_sql, tagged_index_cols = input_data.to_sql_query(
+            always_include_index=True
+        )
+
+        if len(tagged_index_cols) != 1:
+            raise NotImplementedError("Only exactly one index column is supported")
+
+        index_col_name, is_named_index = tagged_index_cols[0]
+        sql = func(source_sql)
+        df = session.read_gbq(sql, index_cols=[index_col_name])
+        if not is_named_index:
+            df.index.name = None
+
+        return df
+
     def predict(
         self, input_data: bigframes.dataframe.DataFrame
     ) -> bigframes.dataframe.DataFrame:
         # TODO: validate input data schema
-        sql = bigframes.ml.sql.ml_predict(
-            model_name=self.model_name, source_sql=input_data.sql
+        return self._apply_sql(
+            self._session,
+            input_data,
+            lambda source_sql: bigframes.ml.sql.ml_predict(
+                model_name=self.model_name, source_sql=source_sql
+            ),
         )
-
-        # TODO: implement a more robust way to get index columns from a dataframe's SQL
-        index_columns = input_data._block.index_columns
-        df = self._session.read_gbq(sql, index_cols=index_columns)
-
-        return df
 
     def transform(
         self, input_data: bigframes.dataframe.DataFrame
     ) -> bigframes.dataframe.DataFrame:
         # TODO: validate input data schema
-        sql = bigframes.ml.sql.ml_transform(
-            model_name=self.model_name, source_sql=input_data.sql
+        return self._apply_sql(
+            self._session,
+            input_data,
+            lambda source_sql: bigframes.ml.sql.ml_transform(
+                model_name=self.model_name, source_sql=source_sql
+            ),
         )
-
-        # TODO: implement a more robust way to get index columns from a dataframe's SQL
-        index_columns = input_data._block.index_columns
-        df = self._session.read_gbq(sql, index_cols=index_columns)
-
-        return df
 
     def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
         # TODO: validate input data schema
-        sql = bigframes.ml.sql.ml_evaluate(
-            self.model_name, input_data.sql if input_data else None
+        # Note: don't need index as evaluate returns a new table
+        source_sql, _ = (
+            input_data.to_sql_query(always_include_index=False)
+            if input_data
+            else (None, None)
         )
+        sql = bigframes.ml.sql.ml_evaluate(self.model_name, source_sql)
+
         return self._session.read_gbq(sql)
 
     def copy(self, new_model_name, replace=False) -> BqmlModel:

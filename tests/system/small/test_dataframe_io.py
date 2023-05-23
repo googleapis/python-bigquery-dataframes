@@ -219,7 +219,11 @@ def test_to_sql_query_unnamed_index_excluded(
     session, scalars_df_default_index, scalars_pandas_df_default_index
 ):
     # The .sql property should return SQL without the unnamed indexes
-    sql = scalars_df_default_index.sql
+    sql, index_columns = scalars_df_default_index.to_sql_query(
+        always_include_index=False
+    )
+    assert len(index_columns) == 0
+
     roundtrip = session.read_gbq(sql)
     assert_pandas_df_equal_ignore_ordering(
         roundtrip.to_pandas(), scalars_pandas_df_default_index

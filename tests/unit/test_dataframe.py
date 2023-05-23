@@ -27,10 +27,11 @@ def test_get_columns(scalars_df, scalars_pandas_df):
     pd.testing.assert_index_equal(scalars_df.columns, scalars_pandas_df.columns)
 
 
-def test_sql(scalars_df):
+def test_to_sql_query(scalars_df):
     # Note: Exact generated SQL depends on Ibis backend
     # so don't test it here
-    assert "SELECT " in scalars_df.sql
+    sql, _ = scalars_df.to_sql_query(always_include_index=False)
+    assert "SELECT " in sql
 
 
 def test_assign_coerces_literals_to_compatible_types(scalars_df):
