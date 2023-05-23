@@ -73,11 +73,6 @@ def join_by_row_identity(
     meta_columns = []
     new_ordering = core.ExpressionOrdering()
     if left._ordering and right._ordering:
-        new_ordering_id = (
-            map_left_id(left._ordering.ordering_id)
-            if (left._ordering.ordering_id)
-            else None
-        )
         # These ordering columns will be present in the BigFramesExpr, as
         # we haven't hidden any value / index column(s). Code that is aware
         # of which columns are index columns / value columns columns will
@@ -92,19 +87,29 @@ def join_by_row_identity(
                 for col_ref in right._ordering.ordering_value_columns
             ]
         )
-        if new_ordering_id:
-            new_ordering = new_ordering.with_ordering_id(new_ordering_id)
 
         # TODO(swast): In `to_ibis_expr()`, we assume all "meta" columns are
         # actually hidden ordering columns. Do we have other uses for these? If
         # not, perhaps we rename this to better reflect its purpose?
         meta_columns = [
-            left._get_meta_column(key).name(map_left_id(key))
-            for key in left._meta_column_names.keys()
+            left._get_meta_column(key.column_id).name(map_left_id(key.column_id))
+            for key in left._ordering.ordering_value_columns
+            if key.column_id in left._meta_column_names.keys()
         ] + [
-            right._get_meta_column(key).name(map_right_id(key))
-            for key in right._meta_column_names.keys()
+            right._get_meta_column(key.column_id).name(map_right_id(key.column_id))
+            for key in right._ordering.ordering_value_columns
+            if key.column_id in right._meta_column_names.keys()
         ]
+
+        left_ordering_id = left._ordering.ordering_id
+        if left_ordering_id:
+            new_ordering = new_ordering.with_ordering_id(map_left_id(left_ordering_id))
+            if left_ordering_id in left._meta_column_names.keys():
+                meta_columns.append(
+                    left._get_meta_column(left_ordering_id).name(
+                        map_left_id(left_ordering_id)
+                    )
+                )
 
     joined_expr = core.BigFramesExpr(
         left._session,
