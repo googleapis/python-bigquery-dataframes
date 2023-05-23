@@ -313,18 +313,12 @@ def scalars_pandas_df_multi_index(
     ).sort_index()
 
 
-@pytest.fixture(scope="session", params=("index", "default_index"))
+@pytest.fixture(scope="session")
 def scalars_dfs(
-    request,
-    scalars_df_default_index,
     scalars_df_index,
-    scalars_pandas_df_default_index,
     scalars_pandas_df_index,
 ):
-    if request.param == "index":
-        return scalars_df_index, scalars_pandas_df_index
-    else:
-        return scalars_df_default_index, scalars_pandas_df_default_index
+    return scalars_df_index, scalars_pandas_df_index
 
 
 @pytest.fixture(scope="session")
