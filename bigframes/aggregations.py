@@ -122,6 +122,7 @@ class MinOp(AggregateOp):
 
 
 class StdOp(AggregateOp):
+    @numeric_op
     def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(
             typing.cast(ibis_types.NumericColumn, x).std(), window
@@ -129,6 +130,7 @@ class StdOp(AggregateOp):
 
 
 class VarOp(AggregateOp):
+    @numeric_op
     def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(
             typing.cast(ibis_types.NumericColumn, x).var(), window
@@ -183,7 +185,7 @@ class AllOp(AggregateOp):
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.BooleanValue:
         # BQ will return null for empty column, result would be true in pandas.
-        result = typing.cast(ibis_types.BooleanColumn, column != 0).all()
+        result = _is_true(column).all()
         return typing.cast(
             ibis_types.BooleanScalar,
             _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
@@ -195,15 +197,42 @@ class AnyOp(AggregateOp):
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.BooleanValue:
         # BQ will return null for empty column, result would be false in pandas.
-        result = typing.cast(ibis_types.BooleanColumn, column != 0).any()
+        result = _is_true(column).any()
         return typing.cast(
             ibis_types.BooleanScalar,
             _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
         )
 
 
+def _is_true(column: ibis_types.Column) -> ibis_types.BooleanColumn:
+    if column.type().is_boolean():
+        return typing.cast(ibis_types.BooleanColumn, column)
+    elif column.type().is_numeric():
+        result = typing.cast(ibis_types.NumericColumn, column).__ne__(
+            ibis_types.literal(0)
+        )
+        return typing.cast(ibis_types.BooleanColumn, result)
+    elif column.type().is_string():
+        result = typing.cast(
+            ibis_types.StringValue, column
+        ).length() > ibis_types.literal(0)
+        return typing.cast(ibis_types.BooleanColumn, result)
+    else:
+        # Time and geo values don't have a 'False' value
+        return typing.cast(
+            ibis_types.BooleanColumn, _map_to_literal(column, ibis_types.literal(True))
+        )
+
+
 def _apply_window_if_present(value: ibis_types.Value, window):
     return value.over(window) if (window is not None) else value
+
+
+def _map_to_literal(
+    original: ibis_types.Value, literal: ibis_types.Scalar
+) -> ibis_types.Column:
+    # Hack required to perform aggregations on literals in ibis, even though bigquery will let you directly aggregate literals (eg. 'SELECT COUNT(1) from table1')
+    return ibis.ifelse(original.isnull(), literal, literal)
 
 
 sum_op = SumOp()

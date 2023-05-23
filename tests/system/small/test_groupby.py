@@ -13,17 +13,61 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 
-def test_dataframe_groupby_sum(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x: x.sum(numeric_only=True)),
+        (lambda x: x.mean(numeric_only=True)),
+        (lambda x: x.min(numeric_only=True)),
+        (lambda x: x.max(numeric_only=True)),
+        (lambda x: x.std(numeric_only=True)),
+        (lambda x: x.var(numeric_only=True)),
+    ],
+    ids=[
+        "sum",
+        "mean",
+        "min",
+        "max",
+        "std",
+        "var",
+    ],
+)
+def test_dataframe_groupby_numeric_aggregate(
+    scalars_df_index, scalars_pandas_df_index, operator
+):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
-    bf_series = scalars_df_index[col_names].groupby("string_col").sum()
-    pd_series = scalars_pandas_df_index[col_names].groupby("string_col").sum()
-    bf_result = bf_series.compute()
-    pd.testing.assert_frame_equal(
-        pd_series,
-        bf_result,
-    )
+    bf_result = operator(scalars_df_index[col_names].groupby("string_col"))
+    pd_result = operator(scalars_pandas_df_index[col_names].groupby("string_col"))
+    bf_result_computed = bf_result.compute()
+    # Pandas std function produces float64, not matching Float64 from bigframes
+    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x: x.count()),
+        (lambda x: x.any()),
+        (lambda x: x.all()),
+    ],
+    ids=[
+        "count",
+        "any",
+        "all",
+    ],
+)
+def test_dataframe_groupby_aggregate(
+    scalars_df_index, scalars_pandas_df_index, operator
+):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = operator(scalars_df_index[col_names].groupby("string_col"))
+    pd_result = operator(scalars_pandas_df_index[col_names].groupby("string_col"))
+    bf_result_computed = bf_result.compute()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
 def test_dataframe_groupby_multi_sum(scalars_df_index, scalars_pandas_df_index):

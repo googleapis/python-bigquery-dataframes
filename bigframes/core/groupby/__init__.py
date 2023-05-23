@@ -45,15 +45,58 @@ class DataFrameGroupBy:
         self._dropna = dropna  # Applies to aggregations but not windowing
         self._as_index = as_index
 
-    def sum(self) -> df.DataFrame:
+    def sum(self, *args, **kwargs) -> df.DataFrame:
         """Sums the numeric values for each group in the dataframe. Drops non-numeric columns always (like numeric_only=True in Pandas)."""
-        aggregated_col_ids = [
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.sum_op, aggregated_col_ids)
+
+    def mean(self, *args, **kwargs) -> df.DataFrame:
+        """Calculates the mean of non-null values in each group. Drops non-numeric columns."""
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.mean_op, aggregated_col_ids)
+
+    def min(self, *args, **kwargs) -> df.DataFrame:
+        """Calculates the minimum value in each group."""
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.min_op, aggregated_col_ids)
+
+    def max(self, *args, **kwargs) -> df.DataFrame:
+        """Calculates the maximum value in each group."""
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.max_op, aggregated_col_ids)
+
+    def std(self, *args, **kwargs) -> df.DataFrame:
+        """Calculates the standard deviation of values in each group. Drops non-numeric columns."""
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.std_op, aggregated_col_ids)
+
+    def var(self, *args, **kwargs) -> df.DataFrame:
+        """Calculates the variance of values in each group. Drops non-numeric columns."""
+        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
+        return self._aggregate(agg_ops.var_op, aggregated_col_ids)
+
+    def all(self, *args, **kwargs) -> df.DataFrame:
+        """Returns true if any non-null value evalutes to true for each group."""
+        return self._aggregate(agg_ops.all_op, self._aggregated_columns())
+
+    def any(self, *args, **kwargs) -> df.DataFrame:
+        """Returns true if all non-null values evaluate to true for each group."""
+        return self._aggregate(agg_ops.any_op, self._aggregated_columns())
+
+    def count(self, *args, **kwargs) -> df.DataFrame:
+        """Counts the non-null values in each group."""
+        return self._aggregate(agg_ops.count_op, self._aggregated_columns())
+
+    def _aggregated_columns(self, numeric_only: bool = False):
+        return [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
             if col_id not in self._by_col_ids
-            and dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            and (
+                (not numeric_only)
+                or (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            )
         ]
-        return self._aggregate(agg_ops.sum_op, aggregated_col_ids)
 
     def _aggregate(
         self,
