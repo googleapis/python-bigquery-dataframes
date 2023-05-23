@@ -40,6 +40,7 @@ from bigframes.guid import generate_guid
 import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.operations.base
+import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import bigframes.scalar
 
@@ -51,6 +52,15 @@ class Series(bigframes.operations.base.SeriesMethods):
         This constructor is **private**. Use a public method such as
         ``DataFrame[column_name]`` to construct a Series.
     """
+
+    @property
+    def dt(self) -> dt.DatetimeMethods:
+        """Methods that act on a datetime Series.
+
+        Returns:
+            bigframes.operations.datetime.DatetimeMethods: Methods that act on a datetime Series.
+        """
+        return dt.DatetimeMethods(self._block, self._value_column, name=self._name)
 
     @property
     def dtype(self):

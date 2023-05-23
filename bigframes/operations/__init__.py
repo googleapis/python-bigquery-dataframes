@@ -107,6 +107,51 @@ class LstripOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).lstrip()
 
 
+class DayOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).day()
+
+
+class DateOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).date()
+
+
+class DayofweekOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).day_of_week.index()
+
+
+class HourOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).hour()
+
+
+class MinuteOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).minute()
+
+
+class MonthOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).month()
+
+
+class SecondOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).second()
+
+
+class TimeOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).time()
+
+
+class YearOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).year()
+
+
 # Parameterized ops
 class AsTypeOp(UnaryOp):
     def __init__(self, to_type: bigframes.dtypes.IbisDtype):
@@ -175,6 +220,15 @@ strip_op = StripOp()
 isnumeric_op = IsNumericOp()
 rstrip_op = RstripOp()
 lstrip_op = LstripOp()
+day_op = DayOp()
+dayofweek_op = DayofweekOp()
+date_op = DateOp()
+hour_op = HourOp()
+minute_op = MinuteOp()
+month_op = MonthOp()
+second_op = SecondOp()
+time_op = TimeOp()
+year_op = YearOp()
 
 
 ### Binary Ops
