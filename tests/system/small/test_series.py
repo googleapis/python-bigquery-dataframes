@@ -869,6 +869,13 @@ def test_drop_label_list(scalars_df_index, scalars_pandas_df_index):
 
 
 @pytest.mark.parametrize(
+    ("col_name",),
+    [
+        ("bool_col",),
+        ("int64_too",),
+    ],
+)
+@pytest.mark.parametrize(
     ("keep",),
     [
         ("first",),
@@ -876,8 +883,7 @@ def test_drop_label_list(scalars_df_index, scalars_pandas_df_index):
         (False,),
     ],
 )
-def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep):
-    col_name = "bool_col"
+def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_name):
     bf_series = scalars_df_index[col_name].drop_duplicates(keep=keep).compute()
     pd_series = scalars_pandas_df_index[col_name].drop_duplicates(keep=keep)
     pd.testing.assert_series_equal(

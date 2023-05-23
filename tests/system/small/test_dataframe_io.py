@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Tuple
+
 import google.api_core.exceptions
 import pandas as pd
 import pytest
@@ -26,6 +28,8 @@ try:
 except ImportError:
     pandas_gbq = None
 
+import bigframes
+
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     """Verify to_pandas() APIs returns the expected dtypes."""
@@ -39,7 +43,11 @@ def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     ("index"),
     [True, False],
 )
-def test_to_csv_index(scalars_dfs, gcs_folder, index):
+def test_to_csv_index(
+    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    gcs_folder: str,
+    index: bool,
+):
     """Test the `to_csv` API with the `index` parameter."""
     scalars_df, scalars_pandas_df = scalars_dfs
     index_col = None
@@ -50,6 +58,8 @@ def test_to_csv_index(scalars_dfs, gcs_folder, index):
     else:
         path = gcs_folder + f"test_default_index_df_to_csv_index_{index}"
 
+    # TODO(swast): Support "date_format" parameter and make sure our
+    # DATETIME/TIMESTAMP column export is the same format as pandas by default.
     scalars_df.to_csv(path, index=index)
 
     # Pandas dataframes dtypes from read_csv are not fully compatible with BigFrames

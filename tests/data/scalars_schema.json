@@ -27,7 +27,8 @@
     {
       "mode": "NULLABLE",
       "name": "int64_col",
-      "type": "INTEGER"
+      "type": "INTEGER",
+      "description": "Assumed to be have unique values."
     },
     {
       "mode": "REQUIRED",
@@ -47,12 +48,14 @@
     {
       "mode": "REQUIRED",
       "name": "rowindex",
-      "type": "INTEGER"
+      "type": "INTEGER",
+      "description": "Assumed to be sequential integers."
     },
     {
       "mode": "REQUIRED",
       "name": "rowindex_2",
-      "type": "INTEGER"
+      "type": "INTEGER",
+      "description": "Assumed to be a copy of the rowindex column."
     },
     {
       "mode": "NULLABLE",

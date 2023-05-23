@@ -144,7 +144,7 @@ def test_repr_html_w_all_rows(scalars_dfs):
     actual = scalars_df.head(10)._repr_html_()
     expected = (
         pandas_df.head(10)._repr_html_()
-        + f"[6 rows x {len(pandas_df.columns)} columns in total]"
+        + f"[{len(pandas_df.index)} rows x {len(pandas_df.columns)} columns in total]"
     )
     assert actual == expected
 
