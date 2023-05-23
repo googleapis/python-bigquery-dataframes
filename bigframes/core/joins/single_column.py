@@ -143,7 +143,7 @@ def join_by_column(
         new_order_id = new_order_id_col.get_name()
         if new_order_id is None:
             raise ValueError("new_order_id unexpectedly has no name")
-        metadata_columns = (new_order_id_col,)
+        hidden_columns = (new_order_id_col,)
         original_ordering = core.ExpressionOrdering(
             ordering_id_column=core.OrderingColumnReference(new_order_id)
             if (new_order_id_col is not None)
@@ -154,7 +154,7 @@ def join_by_column(
         combined_expr = core.BigFramesExpr(
             left._session,
             combined_table,
-            meta_columns=metadata_columns,
+            hidden_ordering_columns=hidden_columns,
         )
 
     join_key_col = (

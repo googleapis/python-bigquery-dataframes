@@ -70,13 +70,13 @@ def join_by_row_identity(
         for key in right.column_names.keys()
     ]
 
-    meta_columns = []
+    hidden_ordering_columns = []
     new_ordering = core.ExpressionOrdering()
     if left._ordering and right._ordering:
-        # These ordering columns will be present in the BigFramesExpr, as
-        # we haven't hidden any value / index column(s). Code that is aware
-        # of which columns are index columns / value columns columns will
-        # need to add the previous columns to hidden meta columns.
+        # These ordering columns will be present in the BigFramesExpr, as we
+        # haven't hidden any value / index column(s). Code that is aware of
+        # which columns are index columns / value columns columns will need to
+        # add the previous columns to hidden columns.
         new_ordering = left._ordering.with_ordering_columns(
             [
                 col_ref.with_name(map_left_id(col_ref.column_id))
@@ -88,25 +88,26 @@ def join_by_row_identity(
             ]
         )
 
-        # TODO(swast): In `to_ibis_expr()`, we assume all "meta" columns are
-        # actually hidden ordering columns. Do we have other uses for these? If
-        # not, perhaps we rename this to better reflect its purpose?
-        meta_columns = [
-            left._get_meta_column(key.column_id).name(map_left_id(key.column_id))
+        hidden_ordering_columns = [
+            left._get_hidden_ordering_column(key.column_id).name(
+                map_left_id(key.column_id)
+            )
             for key in left._ordering.ordering_value_columns
-            if key.column_id in left._meta_column_names.keys()
+            if key.column_id in left._hidden_ordering_column_names.keys()
         ] + [
-            right._get_meta_column(key.column_id).name(map_right_id(key.column_id))
+            right._get_hidden_ordering_column(key.column_id).name(
+                map_right_id(key.column_id)
+            )
             for key in right._ordering.ordering_value_columns
-            if key.column_id in right._meta_column_names.keys()
+            if key.column_id in right._hidden_ordering_column_names.keys()
         ]
 
         left_ordering_id = left._ordering.ordering_id
         if left_ordering_id:
             new_ordering = new_ordering.with_ordering_id(map_left_id(left_ordering_id))
-            if left_ordering_id in left._meta_column_names.keys():
-                meta_columns.append(
-                    left._get_meta_column(left_ordering_id).name(
+            if left_ordering_id in left._hidden_ordering_column_names.keys():
+                hidden_ordering_columns.append(
+                    left._get_hidden_ordering_column(left_ordering_id).name(
                         map_left_id(left_ordering_id)
                     )
                 )
@@ -115,7 +116,7 @@ def join_by_row_identity(
         left._session,
         left.table,
         columns=joined_columns,
-        meta_columns=meta_columns,
+        hidden_ordering_columns=hidden_ordering_columns,
         ordering=new_ordering,
         predicates=combined_predicates,
     )

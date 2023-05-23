@@ -357,9 +357,8 @@ class Session:
         else:
             index_col_name = None
             # Make sure we have a separate "copy" of the ordering ID to use as
-            # the index, because we assume the ordering ID is a hidden "meta"
-            # column in BigFramesExpr, but the index column appears as a
-            # "column".
+            # the index, because we assume the ordering ID is a hidden column
+            # in BigFramesExpr, but the index column appears as a "column".
             index_id = indexes.INDEX_COLUMN_ID.format(0)
             index_col = table_expression[default_ordering_name].name(index_id)
             table_expression = table_expression.mutate(**{index_id: index_col})
@@ -384,9 +383,9 @@ class Session:
         ordering: Optional[core.ExpressionOrdering] = None,
     ):
         """Turns a table expression (plus index column) into a DataFrame."""
-        meta_columns = None
+        hidden_ordering_columns = None
         if ordering is not None:
-            meta_columns = (table_expression[ordering.ordering_id],)
+            hidden_ordering_columns = (table_expression[ordering.ordering_id],)
 
         columns = [index_col]
         for key in column_keys:
@@ -395,7 +394,9 @@ class Session:
             columns.append(table_expression[key])
 
         block = blocks.Block(
-            core.BigFramesExpr(self, table_expression, columns, meta_columns, ordering),
+            core.BigFramesExpr(
+                self, table_expression, columns, hidden_ordering_columns, ordering
+            ),
             [index_col.get_name()],
         )
 

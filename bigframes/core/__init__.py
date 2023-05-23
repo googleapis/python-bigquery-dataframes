@@ -70,7 +70,7 @@ class BigFramesExpr:
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.
-        meta_columns: Ibis value expressions to store ordering.
+        hidden_ordering_columns: Ibis value expressions to store ordering.
         ordering: An ordering property of the data frame.
         predicates: A list of filters on the data frame.
     """
@@ -80,7 +80,7 @@ class BigFramesExpr:
         session: Session,
         table: ibis_types.Table,
         columns: Optional[Sequence[ibis_types.Value]] = None,
-        meta_columns: Optional[Sequence[ibis_types.Value]] = None,
+        hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
@@ -102,13 +102,17 @@ class BigFramesExpr:
             self._columns = tuple(columns)
 
         # Meta columns store ordering, or other data that doesn't correspond to dataframe columns
-        self._meta_columns = tuple(meta_columns) if meta_columns is not None else ()
+        self._hidden_ordering_columns = (
+            tuple(hidden_ordering_columns)
+            if hidden_ordering_columns is not None
+            else ()
+        )
 
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
         self._column_names = {column.get_name(): column for column in self._columns}
-        self._meta_column_names = {
-            column.get_name(): column for column in self._meta_columns
+        self._hidden_ordering_column_names = {
+            column.get_name(): column for column in self._hidden_ordering_columns
         }
 
     @property
@@ -137,8 +141,8 @@ class BigFramesExpr:
         return self._column_names
 
     @property
-    def meta_columns(self) -> typing.Tuple[ibis_types.Value, ...]:
-        return self._meta_columns
+    def hidden_ordering_columns(self) -> typing.Tuple[ibis_types.Value, ...]:
+        return self._hidden_ordering_columns
 
     @property
     def ordering(self) -> Sequence[ibis_types.Value]:
@@ -150,7 +154,7 @@ class BigFramesExpr:
             # have a true Column. Do we need to check this before trying to
             # sort by such a column?
             return _convert_ordering_to_table_values(
-                {**self._column_names, **self._meta_column_names},
+                {**self._column_names, **self._hidden_ordering_column_names},
                 self._ordering.all_ordering_columns,
             )
 
@@ -163,7 +167,7 @@ class BigFramesExpr:
             self._session,
             self._table,
             self._columns,
-            self._meta_columns,
+            self._hidden_ordering_columns,
             ordering=self._ordering,
             predicates=self._predicates,
         )
@@ -199,8 +203,8 @@ class BigFramesExpr:
         return typing.cast(ibis_types.Value, self._column_names[key])
 
     def get_any_column(self, key: str) -> ibis_types.Value:
-        """Gets the Ibis expression for a given column. Will also get hidden meta columns."""
-        all_columns = {**self._column_names, **self._meta_column_names}
+        """Gets the Ibis expression for a given column. Will also get hidden columns."""
+        all_columns = {**self._column_names, **self._hidden_ordering_column_names}
         if key not in all_columns.keys():
             raise ValueError(
                 "Column name {} not in set of values: {}".format(
@@ -209,15 +213,15 @@ class BigFramesExpr:
             )
         return typing.cast(ibis_types.Value, all_columns[key])
 
-    def _get_meta_column(self, key: str) -> ibis_types.Value:
-        """Gets the Ibis expression for a given metadata column."""
-        if key not in self._meta_column_names.keys():
+    def _get_hidden_ordering_column(self, key: str) -> ibis_types.Value:
+        """Gets the Ibis expression for a given hidden column."""
+        if key not in self._hidden_ordering_column_names.keys():
             raise ValueError(
                 "Column name {} not in set of values: {}".format(
-                    key, self._meta_column_names.keys()
+                    key, self._hidden_ordering_column_names.keys()
                 )
             )
-        return self._meta_column_names[key]
+        return self._hidden_ordering_column_names[key]
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
         table = self.to_ibis_expr().limit(max_results)
@@ -245,7 +249,7 @@ class BigFramesExpr:
             raise ValueError(
                 "Expression does not have offsets. Generate them first using project_offsets."
             )
-        return self._get_meta_column(self._ordering.ordering_id)
+        return self._get_hidden_ordering_column(self._ordering.ordering_id)
 
     def project_offsets(self) -> BigFramesExpr:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
@@ -264,18 +268,18 @@ class BigFramesExpr:
             self._session,
             table,
             columns=columns,
-            meta_columns=[table[ORDER_ID_COLUMN]],
+            hidden_ordering_columns=[table[ORDER_ID_COLUMN]],
             ordering=ordering,
         )
 
     def _hide_column(self, column_id) -> BigFramesExpr:
-        """Pushes columns to metadata columns list. Used to hide ordering columns that have been dropped or destructively mutated."""
+        """Pushes columns to hidden columns list. Used to hide ordering columns that have been dropped or destructively mutated."""
         expr_builder = self.builder()
         # Need to rename column as caller might be creating a new row with the same name but different values.
         # Can avoid this if don't allow callers to determine ids and instead generate unique ones in this class.
-        new_name = bigframes.guid.generate_guid(prefix="bigframes_meta_")
-        expr_builder.meta_columns = [
-            *self._meta_columns,
+        new_name = bigframes.guid.generate_guid(prefix="bigframes_hidden_")
+        expr_builder.hidden_ordering_columns = [
+            *self._hidden_ordering_columns,
             self.get_column(column_id).name(new_name),
         ]
 
@@ -302,7 +306,7 @@ class BigFramesExpr:
             return self.project_offsets().promote_offsets(value_col_id)
         expr_builder = self.builder()
         expr_builder.columns = [
-            self._get_meta_column(ordering.ordering_id).name(value_col_id),
+            self._get_hidden_ordering_column(ordering.ordering_id).name(value_col_id),
             *self.columns,
         ]
         return expr_builder.build()
@@ -376,7 +380,7 @@ class BigFramesExpr:
                 for col in combined_table.columns
                 if col != ORDER_ID_COLUMN
             ],
-            meta_columns=[combined_table[ORDER_ID_COLUMN]],
+            hidden_ordering_columns=[combined_table[ORDER_ID_COLUMN]],
             ordering=ordering,
         )
 
@@ -493,7 +497,7 @@ class BigFramesExpr:
         "order_by": The output table will not have an ordering column, however there will be an order_by clause applied to the ouput.
         "offset_col": Zero-based offsets are generated as a column, this will not sort the rows however.
         "ordered_col": An ordered column is provided in output table, without guarantee that the values are sequential
-        "expose_metadata": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
+        "expose_hidden_cols": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
         "unordered": No ordering information will be provided in output. Only value columns are projected.
         For offset or ordered column, order_col_name can be used to assign the output label for the ordering column.
         If none is specified, the default column name will be 'bigrames_ordering_id'
@@ -508,7 +512,7 @@ class BigFramesExpr:
             "order_by",
             "ordered_col",
             "offset_col",
-            "expose_metadata",
+            "expose_hidden_cols",
             "unordered",
         )
 
@@ -533,7 +537,7 @@ class BigFramesExpr:
                 columns.append(ibis.row_number().name(order_col_name).over(window))
             elif self._ordering.ordering_id:
                 columns.append(
-                    self._get_meta_column(self._ordering.ordering_id).name(
+                    self._get_hidden_ordering_column(self._ordering.ordering_id).name(
                         order_col_name
                     )
                 )
@@ -544,10 +548,13 @@ class BigFramesExpr:
                 )
         elif ordering_mode == "order_by":
             columns.extend(
-                [self._get_meta_column(name) for name in hidden_ordering_columns]
+                [
+                    self._get_hidden_ordering_column(name)
+                    for name in hidden_ordering_columns
+                ]
             )
-        elif ordering_mode == "expose_metadata":
-            columns.extend(self._meta_columns)
+        elif ordering_mode == "expose_hidden_cols":
+            columns.extend(self._hidden_ordering_columns)
 
         # Special case for empty tables, since we can't create an empty
         # projection.
@@ -567,7 +574,7 @@ class BigFramesExpr:
                     self._ordering.all_ordering_columns,
                 )  # type: ignore
             )
-            if not (ordering_mode == "expose_metadata"):
+            if not (ordering_mode == "expose_hidden_cols"):
                 table = table.drop(*hidden_ordering_columns)
         return table
 
@@ -601,15 +608,18 @@ class BigFramesExpr:
         recursively in projections.
         """
         table = self.to_ibis_expr(
-            ordering_mode="expose_metadata", order_col_name=self._ordering.ordering_id
+            ordering_mode="expose_hidden_cols",
+            order_col_name=self._ordering.ordering_id,
         )
         columns = [table[column_name] for column_name in self._column_names]
-        meta_columns = [table[column_name] for column_name in self._meta_column_names]
+        hidden_ordering_columns = [
+            table[column_name] for column_name in self._hidden_ordering_column_names
+        ]
         return BigFramesExpr(
             self._session,
             table,
             columns=columns,
-            meta_columns=meta_columns,
+            hidden_ordering_columns=hidden_ordering_columns,
             ordering=self._ordering,
         )
 
@@ -626,7 +636,8 @@ class BigFramesExpr:
             group_by.append(self.reduced_predicate)
         if window_spec.ordering:
             order_overrides = _convert_ordering_to_table_values(
-                {**self._column_names, **self._meta_column_names}, window_spec.ordering
+                {**self._column_names, **self._hidden_ordering_column_names},
+                window_spec.ordering,
             )
             order_by = tuple([*order_overrides, *self.ordering])
         elif (window_spec.following is not None) or (window_spec.preceding is not None):
@@ -673,14 +684,14 @@ class BigFramesExprBuilder:
         session: Session,
         table: ibis_types.Table,
         columns: Collection[ibis_types.Value] = (),
-        meta_columns: Collection[ibis_types.Value] = (),
+        hidden_ordering_columns: Collection[ibis_types.Value] = (),
         ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self.session = session
         self.table = table
         self.columns = list(columns)
-        self.meta_columns = list(meta_columns)
+        self.hidden_ordering_columns = list(hidden_ordering_columns)
         self.ordering = ordering
         self.predicates = list(predicates) if predicates is not None else None
 
@@ -689,7 +700,7 @@ class BigFramesExprBuilder:
             session=self.session,
             table=self.table,
             columns=self.columns,
-            meta_columns=self.meta_columns,
+            hidden_ordering_columns=self.hidden_ordering_columns,
             ordering=self.ordering,
             predicates=self.predicates,
         )
