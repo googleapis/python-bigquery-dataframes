@@ -127,6 +127,7 @@ class DataFrame:
     def index(
         self,
     ) -> Union[indexes.ImplicitJoiner, indexes.Index,]:
+        """The index of the dataframe."""
         return self._index
 
     @property
@@ -147,15 +148,18 @@ class DataFrame:
 
     @property
     def size(self) -> int:
+        """The size of the dataframe, defined as the number of rows times the number of columns."""
         rows, cols = self.shape
         return rows * cols
 
     @property
     def ndim(self) -> int:
+        """Number of dimensions. Always 2 for dataframe."""
         return 2
 
     @property
     def empty(self) -> bool:
+        """Whether the dataframe is entirely empty with 0 columns and 0 rows"""
         return not bool(self._block.value_columns)
 
     def to_sql_query(
@@ -418,6 +422,7 @@ class DataFrame:
     def add(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Add dataframe and other element-wise."""
         return self._apply_binop(other, ops.add_op, axis=axis)
 
     __radd__ = __add__ = radd = add
@@ -425,6 +430,7 @@ class DataFrame:
     def sub(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Subtract other from dataframe element-wise."""
         return self._apply_binop(other, ops.sub_op, axis=axis)
 
     __sub__ = sub
@@ -432,6 +438,7 @@ class DataFrame:
     def rsub(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Subtract dataframe from other element-wise."""
         return self._apply_binop(other, ops.sub_op, reverse=True, axis=axis)
 
     __rsub__ = rsub
@@ -439,6 +446,7 @@ class DataFrame:
     def mul(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Multiply dataframe and other element-wise."""
         return self._apply_binop(other, ops.mul_op, axis=axis)
 
     __rmul__ = __mul__ = rmul = mul
@@ -446,6 +454,7 @@ class DataFrame:
     def truediv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Divide dataframe by other element-wise."""
         return self._apply_binop(other, ops.div_op, axis=axis)
 
     div = __truediv__ = truediv
@@ -453,6 +462,7 @@ class DataFrame:
     def rtruediv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Divide other by dataframe element-wise."""
         return self._apply_binop(other, ops.div_op, reverse=True, axis=axis)
 
     __rtruediv__ = rdiv = rtruediv
@@ -460,6 +470,7 @@ class DataFrame:
     def floordiv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Divide dataframe by other element-wise, rounding down to the next integer."""
         return self._apply_binop(other, ops.floordiv_op, axis=axis)
 
     __floordiv__ = floordiv
@@ -467,6 +478,7 @@ class DataFrame:
     def rfloordiv(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
     ) -> DataFrame:
+        """Divide other by dataframe element-wise, rounding down to the next integer."""
         return self._apply_binop(other, ops.floordiv_op, reverse=True, axis=axis)
 
     __rfloordiv__ = rfloordiv
@@ -847,6 +859,15 @@ class DataFrame:
         dropna: bool = True,
         as_index=True,
     ) -> groupby.DataFrameGroupBy:
+        """Group the dataframe by a given list of column labels.
+
+        Arguments:
+            by: a column label or list of column labels to group on
+            dropna: NA-valued grouping keys will be dropped from result if True
+            as_index: grouping keys will be used as index if True
+        Returns:
+            DataFrameGroupBy
+        """
         if as_index and not isinstance(by, str):
             raise ValueError(
                 "Set as_index=False if grouping by list of values. Mutli-index not yet supported"
@@ -864,14 +885,17 @@ class DataFrame:
         )
 
     def abs(self) -> DataFrame:
+        """Calculates the absolute value of elements in the dataframe."""
         return self._apply_to_rows(ops.abs_op)
 
     def isnull(self) -> DataFrame:
+        """Maps NA values to True and non-NA values to False."""
         return self._apply_to_rows(ops.isnull_op)
 
     isna = isnull
 
     def notnull(self) -> DataFrame:
+        """Maps NA values to False and non-NA values to True."""
         return self._apply_to_rows(ops.notnull_op)
 
     notna = notnull

@@ -64,6 +64,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
+        """The index of the series."""
         return self._viewed_block.index
 
     @property
@@ -84,9 +85,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     @property
     def name(self) -> Optional[str]:
-        # TODO(swast): Introduce a level of indirection over Ibis to allow for
-        # more accurate pandas behavior (such as allowing for unnamed or
-        # non-uniquely named objects) without breaking SQL.
+        """The name of the series."""
         return self._name
 
     @property
@@ -165,6 +164,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
         ],
     ) -> Series:
+        """Casts the series to another compatible dtype."""
         ibis_dtype = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(dtype)
         return self._apply_unary_op(bigframes.operations.AsTypeOp(ibis_dtype))
 
@@ -193,6 +193,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         return Series(block, self._value_column, name=self.name)
 
     def between(self, left, right, inclusive="both"):
+        """Returns True for values between 'left' and 'right', else False."""
         if inclusive not in ["both", "neither", "left", "right"]:
             raise ValueError(
                 "Must set 'inclusive' to one of 'both', 'neither', 'left', or 'right'"
@@ -204,16 +205,19 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def cumsum(self) -> Series:
+        """The cumulative sum of values in the series."""
         return self._apply_window_op(
             agg_ops.sum_op, bigframes.core.WindowSpec(following=0)
         )
 
     def cummax(self) -> Series:
+        """The cumulative maximum of values in the series."""
         return self._apply_window_op(
             agg_ops.max_op, bigframes.core.WindowSpec(following=0)
         )
 
     def cummin(self) -> Series:
+        """The cumulative minimum of values in the series."""
         return self._apply_window_op(
             agg_ops.min_op, bigframes.core.WindowSpec(following=0)
         )
@@ -236,6 +240,22 @@ class Series(bigframes.operations.base.SeriesMethods):
     def rank(
         self, method: METHOD = "average", *, na_option: NA_OPTION = "keep"
     ) -> Series:
+        """Calculates the rank of values in the series.
+
+        Arguments:
+            method: How groups of tied elements are handled: either 'average', 'min', 'max', or 'first'
+                * average: mean rank of items in each group is used as rank
+                * min: minimum rank of items in each group is used as rank
+                * max: maximum rank of items in each group is used as rank
+                * first: original ordering is used to break ties in ranking
+            na_option: How NA-values elements are interpreted: either 'keep', 'top', or 'bottom'
+                * keep: NA values result in NA rank
+                * top: NA values will be ranked above other values
+                * bottom: NA values will be ranked below other values
+
+        Returns:
+            Series of numeric ranks.
+        """
         if method not in ["average", "min", "max", "first", "dense"]:
             raise ValueError(
                 "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
@@ -339,9 +359,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.radd(other)
 
     def add(self, other: float | int | Series | pandas.Series) -> Series:
+        """Add series to other element-wise."""
         return self._apply_binary_op(other, ops.add_op)
 
     def radd(self, other: float | int | Series | pandas.Series) -> Series:
+        """Add series to other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.add_op))
 
     def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
@@ -351,9 +373,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rsub(other)
 
     def sub(self, other: float | int | Series | pandas.Series) -> Series:
+        """Subtract other from series element-wise."""
         return self._apply_binary_op(other, ops.sub_op)
 
     def rsub(self, other: float | int | Series | pandas.Series) -> Series:
+        """Subtract series from other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
     def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
@@ -363,9 +387,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rmul(other)
 
     def mul(self, other: float | int | Series | pandas.Series) -> Series:
+        """Multiply series and other element-wise."""
         return self._apply_binary_op(other, ops.mul_op)
 
     def rmul(self, other: float | int | Series | pandas.Series) -> Series:
+        """Multiply series and other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.mul_op))
 
     multiply = mul
@@ -377,9 +403,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rtruediv(other)
 
     def truediv(self, other: float | int | Series | pandas.Series) -> Series:
+        """Divide series by other element-wise."""
         return self._apply_binary_op(other, ops.div_op)
 
     def rtruediv(self, other: float | int | Series | pandas.Series) -> Series:
+        """Divide other by series element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.div_op))
 
     div = truediv
@@ -395,9 +423,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rfloordiv(other)
 
     def floordiv(self, other: float | int | Series | pandas.Series) -> Series:
+        """Divide series by other element-wise, rounding down to the next integer."""
         return self._apply_binary_op(other, ops.floordiv_op)
 
     def rfloordiv(self, other: float | int | Series | pandas.Series) -> Series:
+        """Divide other by series element-wise, rounding down to the next integer."""
         return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
 
     def __lt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
@@ -407,9 +437,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.le(other)
 
     def lt(self, other) -> Series:
+        """Element-wise less than."""
         return self._apply_binary_op(other, ops.lt_op)
 
     def le(self, other) -> Series:
+        """Element-wise less than or equal."""
         return self._apply_binary_op(other, ops.le_op)
 
     def __gt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
@@ -419,9 +451,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.ge(other)
 
     def gt(self, other) -> Series:
+        """Element-wise greater than."""
         return self._apply_binary_op(other, ops.gt_op)
 
     def ge(self, other) -> Series:
+        """Element-wise greater than or equal."""
         return self._apply_binary_op(other, ops.ge_op)
 
     def __mod__(self, other) -> Series:  # type: ignore
@@ -431,12 +465,15 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rmod(other)
 
     def mod(self, other) -> Series:  # type: ignore
+        """Calculate series modulo other element-wise."""
         return self._apply_binary_op(other, ops.mod_op)
 
     def rmod(self, other) -> Series:  # type: ignore
+        """Calculate other modulo series element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.mod_op))
 
     def __matmul__(self, other: Series):
+        """Calculate dot product of series and other."""
         return (self * other).sum()
 
     dot = __matmul__
@@ -626,11 +663,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def where(self, cond, other=None):
+        """Keep original values where 'cond' is True, else repacle with values from 'other'"""
         return self._apply_ternary_op(
             cond, other if (other is not None) else pandas.NA, ops.where_op
         )
 
     def clip(self, lower, upper):
+        """Clip series values to 'lower' and 'upper' bounds."""
         return self._apply_ternary_op(lower, upper, ops.clip_op)
 
     def __getitem__(self, indexer: Series):
@@ -767,6 +806,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._apply_unary_op(FindOp())
 
     def value_counts(self):
+        """Count the number of occurences of each value in the Series. Results are sorted in decreasing order of frequency."""
         counts = self.groupby(self).count()
         block = counts._block
         block.expr = block.expr.order_by(
@@ -1137,30 +1177,35 @@ class SeriesGroupyBy:
         return self._aggregate(agg_ops.product_op)
 
     def cumsum(self) -> Series:
+        """Calculate the cumulative sum of values in each grouping."""
         return self._apply_window_op(
             agg_ops.sum_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cumprod(self) -> Series:
+        """Calculate the cumulative product of values in each grouping."""
         return self._apply_window_op(
             agg_ops.product_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cummax(self) -> Series:
+        """Calculate the cumulative maximum of values in each grouping."""
         return self._apply_window_op(
             agg_ops.max_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cummin(self) -> Series:
+        """Calculate the cumulative minimum of values in each grouping."""
         return self._apply_window_op(
             agg_ops.min_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
         )
 
     def cumcount(self) -> Series:
+        """Calculate the cumulative count of values within each grouping."""
         return self._apply_window_op(
             agg_ops.rank_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
