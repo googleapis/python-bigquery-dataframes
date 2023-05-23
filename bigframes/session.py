@@ -207,6 +207,7 @@ class Session:
         query_job = self.bqclient.query(
             "SELECT 1", job_config=job_config, location=self._location
         )
+        query_job.result()  # blocks until finished
         self._session_id = query_job.session_info.session_id
 
         self.bqclient.default_query_job_config = bigquery.QueryJobConfig(
