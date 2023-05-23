@@ -37,7 +37,7 @@ python3 -m nox --version
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
 if [[ -n "${NOX_SESSION:-}" ]]; then
-    python3 -m nox -s ${NOX_SESSION:-}
+    python3 -m nox --stop-on-first-error -s ${NOX_SESSION:-}
 else
-    python3 -m nox
+    python3 -m nox --stop-on-first-error
 fi

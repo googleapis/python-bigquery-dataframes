@@ -68,19 +68,21 @@ SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
+# Sessions are executed in the order so putting the smaller sessions
+# ahead to fail fast at presubmit running.
 # 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
+    "lint",
+    "lint_setup_py",
+    "mypy",
+    "format",
+    "docs",
     "unit",
     "unit_prerelease",
     "system",
     "system_noextras",
     "system_prerelease",
     "cover",
-    "lint",
-    "lint_setup_py",
-    "mypy",
-    "format",
-    "docs",
 ]
 
 # Error if a python version is missing
