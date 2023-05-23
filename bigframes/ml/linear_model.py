@@ -26,6 +26,13 @@ import bigframes.ml.core
 
 
 class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
+    """Ordinary least squares Linear Regression.
+
+    Args:
+        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
+        fit_intercept: whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered). Default to True.
+    """
+
     def __init__(
         self,
         data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
@@ -88,6 +95,12 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Predict the closest cluster for each sample in X.
+
+        Args:
+            X: a BigFrames DataFrame to predict.
+
+        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -107,6 +120,13 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
+        """Calculate evaluation metrics of the model.
+
+        Args:
+            X: a BigFrames DataFrame as evaluation data.
+            y: a BigFrames DataFrame as evaluation labels.
+
+        Returns: a BigFrames DataFrame as evaluation result."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -118,6 +138,13 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LinearRegression:
+        """Save the model to Google Cloud BigQuey.
+
+        Args:
+            model_name: the name of the model.
+            replace: whether to replace if the model already exists. Default to False.
+
+        Returns: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

@@ -33,6 +33,13 @@ def from_bq(
     bigframes.ml.cluster.KMeans,
     bigframes.ml.linear_model.LinearRegression,
 ]:
+    """Load a BQML model to BigFrames ML.
+
+    Args:
+        session: a BigFrames session.
+        model: a BigQuery model.
+
+    Returns: a BigFrames ML model object."""
     if model.model_type == "LINEAR_REGRESSION":
         return bigframes.ml.linear_model.LinearRegression._from_bq(session, model)
     elif model.model_type == "KMEANS":

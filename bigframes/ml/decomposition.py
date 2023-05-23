@@ -29,6 +29,11 @@ import bigframes.ml.core
 
 
 class PCA(bigframes.ml.api_primitives.BaseEstimator):
+    """Principal component analysis (PCA).
+
+    Args:
+        n_components: Number of components to keep. if n_components is not set all components are kept."""
+
     def __init__(self, n_components=3):
         self.n_components = n_components
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
@@ -49,6 +54,10 @@ class PCA(bigframes.ml.api_primitives.BaseEstimator):
         return new_pca
 
     def fit(self, X: bigframes.DataFrame):
+        """Fit the model with X.
+
+        Args:
+            X: training BigFrames DataFrame."""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
             options={
@@ -58,7 +67,12 @@ class PCA(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X"""
+        """Predict the closest cluster for each sample in X.
+
+        Args:
+            X: a BigFrames DataFrame to predict.
+
+        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -70,6 +84,13 @@ class PCA(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
+        """Save the model to Google Cloud BigQuey.
+
+        Args:
+            model_name: the name of the model.
+            replace: whether to replace if the model already exists. Default to False.
+
+        Returns: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

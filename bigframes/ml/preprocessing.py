@@ -59,6 +59,10 @@ class NoModelStandardScaler(bigframes.ml.api_primitives.BaseEstimator):
         return StandardScaler()._compile_to_sql(columns)
 
     def fit(self, X: bigframes.DataFrame):
+        """Fit the transformer to training data
+
+        Args:
+            X: A dataframe with training data"""
         # TODO(bmil): ensure columns are numeric
         # TODO(bmil): record schema, and check it matches in .transform
         # TODO(bmil): remove pandas dependency once BigFrames supports these
@@ -67,6 +71,12 @@ class NoModelStandardScaler(bigframes.ml.api_primitives.BaseEstimator):
         self._stdev = pd_X.std()
 
     def transform(self, X: bigframes.DataFrame):
+        """Transform X
+
+        Args:
+            X: The DataFrame to be transformed.
+
+        Returns: Transformed result."""
         if self._avg is None or self._stdev is None:
             raise RuntimeError("A transform must be fitted before .transform()")
 
@@ -128,6 +138,12 @@ class StandardScaler(bigframes.ml.api_primitives.BaseEstimator):
         self._output_names = [name for _, name in compiled_transforms]
 
     def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Transform X
+
+        Args:
+            X: The DataFrame to be transformed.
+
+        Returns: Transformed result."""
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -188,6 +204,12 @@ class OneHotEncoder(bigframes.ml.api_primitives.BaseEstimator):
         self._output_names = [name for _, name in compiled_transforms]
 
     def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Transform X
+
+        Args:
+            X: The DataFrame to be transformed.
+
+        Returns: Transformed result."""
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

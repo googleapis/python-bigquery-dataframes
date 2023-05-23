@@ -103,6 +103,13 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
                 raise TypeError("Fitting this pipeline requires training targets `y`")
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Predict the pipeline result for each sample in X.
+
+        Args:
+            X: a BigFrames DataFrame to predict.
+
+        Return: a BigFrames Dataframe representing predicted result.
+        """
         return self._estimator.predict(X)
 
     def score(
@@ -110,5 +117,12 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
+        """Calculate evaluation metrics of the model.
+
+        Args:
+            X: a BigFrames DataFrame as evaluation data.
+            y: a BigFrames DataFrame as evaluation labels.
+
+        Returns: a BigFrames DataFrame as evaluation result."""
         if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
             return self._estimator.score(X=X, y=y)

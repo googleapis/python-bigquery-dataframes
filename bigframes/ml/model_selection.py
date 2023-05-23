@@ -39,7 +39,9 @@ def train_test_split(
             this will default to the complement of test_size.
 
         random_state: a seed to use for randomly choosing the rows of the split. If not
-            set, a random split will be generated each time."""
+            set, a random split will be generated each time.
+
+    Returns: a list of BigFrames DataFrame."""
     # TODO(bmil): Remove this once DataFrame.sample() is implemented
     session = dataframes[0]._block.expr._session
     pd_dataframes = [df.to_pandas() for df in dataframes]

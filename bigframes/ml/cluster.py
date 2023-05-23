@@ -29,6 +29,12 @@ import bigframes.ml.core
 
 
 class KMeans(bigframes.ml.api_primitives.BaseEstimator):
+    """K-Means clustering.
+
+    Args:
+        n_clusters: int, default=8. The number of clusters to form as well as the number of centroids to generate.
+    """
+
     def __init__(self, n_clusters=8):
         self.n_clusters = n_clusters
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
@@ -57,7 +63,7 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         """Fit the model to training data
 
         Args:
-            X: A dataframe with training data
+            X: a BigFrames Dataframe with training data
 
             transforms: an optional list of SQL expressions to apply over top of
                 the model inputs as preprocessing. This preprocessing will be
@@ -71,7 +77,13 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X"""
+        """Predict the closest cluster for each sample in X.
+
+        Args:
+            X: a BigFrames DataFrame to predict.
+
+        Returns: a BigFrames Dataframe representing predicted result.
+        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -80,6 +92,13 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> KMeans:
+        """Save the model to Google Cloud BigQuey.
+
+        Args:
+            model_name: the name of the model.
+            replace: whether to replace if the model already exists. Default to False.
+
+        Returns: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

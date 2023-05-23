@@ -32,7 +32,18 @@ def r2_score(
 
     If all of y_true has the same value, the score would be NaN or -Inf; to avoid
     this 1.0 or 0.0 respectively will be returned instead. This behavior can be
-    disabled by setting force_finite=False"""
+    disabled by setting force_finite=False
+
+    Args:
+        y_true: Ground truth (correct) target values.
+
+        y_score: Estimated target values.
+
+        force_finite: Flag indicating if NaN and -Inf scores resulting from constant
+            data should be replaced with real numbers (1.0 if prediction is perfect,
+            0.0 otherwise). Default is True.
+
+    Returns: the R^2 score."""
     # TODO(bmil): support multioutput
     if len(y_true.columns) > 1 or len(y_pred.columns) > 1:
         raise NotImplementedError(
@@ -73,7 +84,20 @@ def accuracy_score(
     It calculates subset accuracy, where the predicted set of labels for a
     sample must precisely match the corresponding set of labels in y_true.
     This is the fraction of correct predictions. If normalize=False, it will
-    instead return the total number of correct predictions."""
+    instead return the total number of correct predictions.
+
+    Args:
+        y_true: Ground truth (correct) labels.
+
+        y_score: Predicted labels, as returned by a classifier.
+
+        normalize: If False, return the number of correctly classified samples.
+            Otherwise, return the fraction of correctly classified samples.
+
+    Returns: If normalize == True, return the fraction of correctly classified
+            samples, else returns the number of correctly classified samples.
+
+    """
     # TODO(ashleyxu): support sample_weight as the parameter
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
@@ -199,6 +223,8 @@ def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> 
 
            For binary predictions this may be a single column containing
            either probability estimates, or the decision value.
+
+    Returns: Area Under the Curve score.
     """
     # TODO(bmil): Add multi-class support
     # TODO(bmil): Add multi-label support
