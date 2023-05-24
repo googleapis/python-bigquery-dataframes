@@ -161,6 +161,7 @@ def load_test_data(
     job_config.schema = tuple(
         bigquery_client.schema_from_json(DATA_DIR / schema_filename)
     )
+    job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
     with open(DATA_DIR / data_filename, "rb") as input_file:
         # TODO(swast): Location is allowed to be None in BigQuery Client.
         # Can remove after
