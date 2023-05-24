@@ -509,7 +509,7 @@ class Session:
         **kwargs,
     ) -> dataframe.DataFrame:
         # TODO(osmanamjad): update docstring when multi-index is supported.
-        """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
+        r"""Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
@@ -523,8 +523,8 @@ class Session:
             sep: the separator for fields in a CSV file. For the BigQuery engine, the separator
                 can be any ISO-8859-1 single-byte character. To use a character in the range
                 128-255, you must encode the character as UTF-8. Both engines support
-                `sep="\\t"` to specify tab character as separator. Default engine supports
-                having any number of spaces as separator by specifying `sep="\\s+"`. Separators
+                `sep="\t"` to specify tab character as separator. Default engine supports
+                having any number of spaces as separator by specifying `sep="\s+"`. Separators
                 longer than 1 character are interpreted as regular expressions by the default
                 engine. BigQuery engine only supports single character separators.
 
