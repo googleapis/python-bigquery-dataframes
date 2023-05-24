@@ -369,6 +369,24 @@ def test_get_dtypes(scalars_df_default_index):
     )
 
 
+def test_get_dtypes_array_struct(session):
+    """We may upgrade struct and array to proper arrow dtype support in future. For now,
+    we return python objects"""
+    df = session.read_gbq(
+        """SELECT
+        [1, 3, 2] AS array_column,
+        STRUCT(
+            "a" AS string_field,
+            1.2 AS float_field) AS struct_column"""
+    )
+
+    dtypes = df.dtypes
+    pd.testing.assert_series_equal(
+        dtypes,
+        pd.Series({"array_column": np.dtype("O"), "struct_column": np.dtype("O")}),
+    )
+
+
 def test_shape(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df.shape

@@ -66,7 +66,12 @@ NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()
 
 # Type hints for Ibis data types that can be read to Python objects by BigFrames
 ReadOnlyIbisDtype = Union[
-    ibis_dtypes.Binary, ibis_dtypes.JSON, ibis_dtypes.Decimal, ibis_dtypes.GeoSpatial
+    ibis_dtypes.Binary,
+    ibis_dtypes.JSON,
+    ibis_dtypes.Decimal,
+    ibis_dtypes.GeoSpatial,
+    ibis_dtypes.Array,
+    ibis_dtypes.Struct,
 ]
 
 BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
@@ -98,8 +103,8 @@ IBIS_TO_BIGFRAMES.update(
         ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): np.dtype("O"),
         ibis_dtypes.GeoSpatial(
             geotype="geography", srid=4326, nullable=True
-        ): gpd.array.GeometryDtype()
-        # TODO: Interval, Array, Struct
+        ): gpd.array.GeometryDtype(),
+        # TODO: Interval
     }
 )
 
@@ -129,6 +134,14 @@ def ibis_dtype_to_bigframes_dtype(
     Raises:
         ValueError: if passed an unexpected type
     """
+    # Special cases: Ibis supports variations on these types, but currently
+    # our IO returns them as objects. Eventually, we should support them as
+    # ArrowDType (and update the IO accordingly)
+    if isinstance(ibis_dtype, ibis_dtypes.Array) or isinstance(
+        ibis_dtype, ibis_dtypes.Struct
+    ):
+        return np.dtype("O")
+
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     else:

@@ -39,6 +39,29 @@ def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     pd.testing.assert_series_equal(actual, expected)
 
 
+def test_to_pandas_array_struct_correct_result(session):
+    """In future, we should support arrays and structs with arrow types.
+    For now we fall back to the current connector behavior of converting
+    to Python objects"""
+    df = session.read_gbq(
+        """SELECT
+        [1, 3, 2] AS array_column,
+        STRUCT(
+            "a" AS string_field,
+            1.2 AS float_field) AS struct_column"""
+    )
+
+    result = df.to_pandas()
+    expected = pd.DataFrame(
+        {
+            "array_column": [[1, 3, 2]],
+            "struct_column": [{"string_field": "a", "float_field": 1.2}],
+        }
+    )
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_frame_equal(result, expected)
+
+
 @pytest.mark.parametrize(
     ("index"),
     [True, False],
