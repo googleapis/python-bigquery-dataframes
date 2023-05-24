@@ -795,15 +795,6 @@ class Series(bigframes.operations.base.SeriesMethods):
             name=self.name,
         )
 
-    def find(self, sub, start=None, end=None) -> "Series":
-        """Return the position of the first occurence of substring."""
-        # is actually a ternary op
-        class FindOp(ops.UnaryOp):
-            def _as_ibis(self, x: ibis_types.Value):
-                return typing.cast(ibis_types.StringValue, x).find(sub, start, end)
-
-        return self._apply_unary_op(FindOp())
-
     def value_counts(self):
         """Count the number of occurences of each value in the Series. Results are sorted in decreasing order of frequency."""
         counts = self.groupby(self).count()

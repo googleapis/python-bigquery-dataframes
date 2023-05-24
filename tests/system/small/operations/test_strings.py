@@ -170,3 +170,30 @@ def test_rstrip(scalars_dfs):
         pd_result,
         bf_result,
     )
+
+
+def test_lstrip(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.lstrip().compute()
+    pd_result = scalars_pandas_df[col_name].str.lstrip()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(["repeats"], [(5,), (0,), (1,)])
+def test_repeat(scalars_dfs, repeats):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.repeat(repeats).compute()
+    pd_result = scalars_pandas_df[col_name].str.repeat(repeats)
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )

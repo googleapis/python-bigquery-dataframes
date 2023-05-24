@@ -57,3 +57,11 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
     def rstrip(self) -> series.Series:
         """Remove whitespace from the right side of string in the Series."""
         return self._apply_unary_op(ops.rstrip_op)
+
+    def lstrip(self) -> series.Series:
+        """Remove whitespace from the left side of a string in the Series."""
+        return self._apply_unary_op(ops.lstrip_op)
+
+    def repeat(self, repeats=None) -> series.Series:
+        """Duplicate each string in the Series."""
+        return self._apply_unary_op(ops.RepeatOp(repeats))

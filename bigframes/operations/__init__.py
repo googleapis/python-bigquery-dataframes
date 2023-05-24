@@ -102,6 +102,11 @@ class RstripOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).rstrip()
 
 
+class LstripOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).lstrip()
+
+
 # Parameterized ops
 class AsTypeOp(UnaryOp):
     def __init__(self, to_type: bigframes.dtypes.IbisDtype):
@@ -150,6 +155,14 @@ class BinopPartialLeft(UnaryOp):
         return self._binop(self._left, x)
 
 
+class RepeatOp(UnaryOp):
+    def __init__(self, repeats):
+        self._repeats = repeats
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).repeat(self._repeats)
+
+
 abs_op = AbsOp()
 invert_op = InvertOp()
 isnull_op = IsNullOp()
@@ -161,6 +174,7 @@ upper_op = UpperOp()
 strip_op = StripOp()
 isnumeric_op = IsNumericOp()
 rstrip_op = RstripOp()
+lstrip_op = LstripOp()
 
 
 ### Binary Ops
