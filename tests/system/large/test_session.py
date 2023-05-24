@@ -30,18 +30,20 @@ from bigframes import Session
             (),
             id="30g_table_w_default_index",
         ),
-        # Adding default index to large tables would take much longer time,
-        # e.g. ~5 mins for a 100G table, ~20 mins for a 1T table.
-        pytest.param(
-            "bigquery-public-data.stackoverflow.post_history",
-            ["id"],
-            id="100g_table_w_unique_column_index",
-        ),
-        pytest.param(
-            "bigquery-public-data.wise_all_sky_data_release.all_wise",
-            ["cntr"],
-            id="1t_table_w_unique_column_index",
-        ),
+        # TODO(chelsealin): Disable the long run tests until we have propertily
+        # ordering support to avoid materializating any data.
+        # # Adding default index to large tables would take much longer time,
+        # # e.g. ~5 mins for a 100G table, ~20 mins for a 1T table.
+        # pytest.param(
+        #     "bigquery-public-data.stackoverflow.post_history",
+        #     ["id"],
+        #     id="100g_table_w_unique_column_index",
+        # ),
+        # pytest.param(
+        #     "bigquery-public-data.wise_all_sky_data_release.all_wise",
+        #     ["cntr"],
+        #     id="1t_table_w_unique_column_index",
+        # ),
     ],
 )
 def test_read_gbq_for_large_tables(session: Session, query_or_table, index_cols):

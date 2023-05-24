@@ -53,6 +53,7 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "openpyxl",
     "pytest",
     "pytest-cov",
+    "pytest-timeout",
     "pytest-xdist",
     "google-cloud-testutils",
     "tabulate",
@@ -286,6 +287,8 @@ def run_system(
         "py.test",
         "--quiet",
         "-n 20",
+        # Any indivisual test taking longer than 10 mins will be terminated.
+        "--timeout=600",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
     ]
     if print_duration:
@@ -499,6 +502,8 @@ def prerelease(session, tests_path):
         "py.test",
         "--quiet",
         "-n 20",
+        # Any indivisual test taking longer than 10 mins will be terminated.
+        "--timeout=600",
         f"--junitxml={os.path.split(tests_path)[-1]}_prerelease_{session.python}_sponge_log.xml",
         "--cov=bigframes",
         f"--cov={tests_path}",
