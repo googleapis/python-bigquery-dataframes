@@ -56,7 +56,7 @@ def transform(*expr_sqls: str) -> str:
 
 
 def connection(conn_name: str) -> str:
-    """Encode the REMOTE WITH CONNECTION clause for BQML. conn_name is of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>."""
+    """Encode the REMOTE WITH CONNECTION clause for BQML. conn_name is of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>."""
     return f"REMOTE WITH CONNECTION `{conn_name}`"
 
 
@@ -119,4 +119,10 @@ def ml_predict(model_name: str, source_sql: str) -> str:
 def ml_transform(model_name: str, source_sql: str) -> str:
     """Encode ML.TRANSFORM for BQML"""
     return f"""SELECT * FROM ML.TRANSFORM(MODEL `{model_name}`,
+  ({source_sql}))"""
+
+
+def ml_generate_text(model_name: str, source_sql: str) -> str:
+    """Encode ML.GENERATE_TEXT for BQML"""
+    return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{model_name}`,
   ({source_sql}))"""

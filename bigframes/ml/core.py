@@ -104,6 +104,18 @@ class BqmlModel:
             ),
         )
 
+    def generate_text(
+        self, input_data: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
+        # TODO: validate input data schema
+        return self._apply_sql(
+            self._session,
+            input_data,
+            lambda source_sql: bigframes.ml.sql.ml_generate_text(
+                model_name=self.model_name, source_sql=source_sql
+            ),
+        )
+
     def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
         # TODO: validate input data schema
         # Note: don't need index as evaluate returns a new table
@@ -171,6 +183,35 @@ def create_bqml_model(
         model_name=model_name,
         source_sql=source_sql,
         transform_sql=transform_sql,
+        options_sql=options_sql,
+    )
+
+    # fit the model, synchronously
+    session.bqclient.query(sql).result()
+
+    model = session.bqclient.get_model(model_name)
+    return BqmlModel(session, model)
+
+
+def create_bqml_remote_model(
+    connection_name: str,
+    options: Dict[str, Union[str, int, float, List[str]]] = {},
+) -> BqmlModel:
+    """Create a session-temporary BQML remote model with the CREATE MODEL statement
+
+    Args:
+        connection_name: a BQ connection to talk with Vertex AI, of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>. https://cloud.google.com/bigquery/docs/create-cloud-resource-connection
+        options: a dict of options to configure the model. Generates a BQML OPTIONS
+            clause
+
+    Returns: a BqmlModel, wrapping a trained model in BigQuery
+    """
+    session = bigframes.Session()
+    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
+    options_sql = bigframes.ml.sql.options(**options)
+    sql = bigframes.ml.sql.create_remote_model(
+        model_name=model_name,
+        connection_name=connection_name,
         options_sql=options_sql,
     )
 

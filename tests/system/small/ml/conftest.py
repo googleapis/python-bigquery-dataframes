@@ -25,6 +25,11 @@ import bigframes.ml.linear_model
 
 
 @pytest.fixture(scope="session")
+def ml_connection() -> str:
+    return "bigframes-dev.us.bigframes-ml"
+
+
+@pytest.fixture(scope="session")
 def penguins_bqml_linear_model(
     session, penguins_linear_model_name
 ) -> bigframes.ml.core.BqmlModel:

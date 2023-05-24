@@ -118,3 +118,14 @@ def test_ml_evaluate_produces_correct_sql():
 def test_ml_evaluate_no_source_produces_correct_sql():
     sql = ml_sql.ml_evaluate(model_name="my_dataset.my_model")
     assert sql == """SELECT * FROM ML.EVALUATE(MODEL `my_dataset.my_model`)"""
+
+
+def test_ml_generate_text_produces_correct_sql():
+    sql = ml_sql.ml_generate_text(
+        model_name="my_dataset.my_model", source_sql="SELECT * FROM my_table"
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.GENERATE_TEXT(MODEL `my_dataset.my_model`,
+  (SELECT * FROM my_table))"""
+    )
