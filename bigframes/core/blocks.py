@@ -47,11 +47,15 @@ class Block:
         self,
         expr: core.BigFramesExpr,
         index_columns: Iterable[str] = (),
+        column_labels: Optional[Sequence[str]] = None,
     ):
         self._expr = expr
         self._index = indexes.ImplicitJoiner(self)
         self._index_columns = tuple(index_columns)
         self._sync_index()
+        self._column_labels = (
+            list(column_labels) if column_labels else list(self.value_columns)
+        )
 
     @property
     def index(self) -> Union[indexes.ImplicitJoiner, indexes.Index]:
@@ -89,6 +93,10 @@ class Block:
             for column in self._expr.column_names
             if column not in self.index_columns
         ]
+
+    @property
+    def column_labels(self) -> List[str]:
+        return self._column_labels
 
     @property
     def expr(self) -> core.BigFramesExpr:
@@ -229,7 +237,11 @@ class Block:
 
         return df, results_iterator.total_rows
 
-    def copy(self, value_columns: Optional[Iterable[ibis_types.Value]] = None) -> Block:
+    def copy(
+        self,
+        value_columns: Optional[Iterable[ibis_types.Value]] = None,
+        column_labels: Optional[Sequence[str]] = None,
+    ) -> Block:
         """Create a copy of this Block, replacing value columns if desired."""
         # BigFramesExpr and Tuple are immutable, so just need a new wrapper.
         if value_columns is not None:
@@ -237,7 +249,13 @@ class Block:
         else:
             expr = self._expr
 
-        block = Block(expr, self._index_columns)
+        block = Block(
+            expr,
+            index_columns=self._index_columns,
+            column_labels=self._column_labels
+            if column_labels is None
+            else column_labels,
+        )
 
         # TODO(swast): Support MultiIndex.
         block.index.name = self.index.name
@@ -264,6 +282,14 @@ class Block:
         # so that predicates are valid and column labels stay in sync in
         # DataFrame.
         self.expr = self._project_value_columns(value_columns)
+
+    def replace_column_labels(self, value: List[str]):
+        if len(value) != len(self.value_columns):
+            raise ValueError(
+                f"The column labels size `{len(value)} ` should equal to the value"
+                + f"columns size: {len(self.value_columns)}."
+            )
+        self._column_labels = value
 
     def get_value_col_exprs(
         self, column_names: Optional[Sequence[str]] = None

@@ -37,13 +37,14 @@ class SeriesMethods:
 
     @property
     def _viewed_block(self) -> blocks.Block:
-        """Gets a copy of block after any views have been applied. Mutations to this copy do not affect any existing series/dataframes."""
+        """Gets a copy of block after any views have been applied. Mutations to this
+        copy do not affect any existing series/dataframes."""
         return self._block.copy()
 
     @property
     def _value(self) -> ibis_types.Value:
         """Private property to get Ibis expression for the value column."""
-        return self._viewed_block.expr.get_column(self._value_column)
+        return self._block.expr.get_column(self._value_column)
 
     def _apply_unary_op(
         self,

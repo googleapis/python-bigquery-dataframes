@@ -30,6 +30,10 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
     expressions = [obj._block.expr for obj in objs]
     index_names = list(set([obj._block.index.name for obj in objs]))
     cat_expr = expressions[0].concat(expressions[1:])
-    block = blocks.Block(cat_expr, block_0.index_columns)
+    block = blocks.Block(
+        cat_expr,
+        index_columns=block_0.index_columns,
+        column_labels=objs[0]._block.column_labels,
+    )
     block.index.name = index_names[0] if len(index_names) == 1 else None
-    return DataFrame(block.index, objs[0]._col_labels)
+    return DataFrame(block.index)

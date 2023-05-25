@@ -137,9 +137,8 @@ class Series(bigframes.operations.base.SeriesMethods):
             block.expr = block._expr.deprecated_rename_column(
                 self._value_column, series_value_label
             ).deprecated_rename_column(old_index_col_id, former_index_label)
-            return bigframes.DataFrame(
-                block.index, [former_index_label, series_value_label]
-            )
+            block.replace_column_labels([former_index_label, series_value_label])
+            return bigframes.DataFrame(block.index)
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -1028,8 +1027,8 @@ class Series(bigframes.operations.base.SeriesMethods):
         block = self._viewed_block
 
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
-        col_names = [self.name] if self.name else ["0"]
-        return bigframes.DataFrame(block.index, col_names)
+        block.replace_column_labels([self.name] if self.name else ["0"])
+        return bigframes.DataFrame(block.index)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
         """Convert series to a excel."""

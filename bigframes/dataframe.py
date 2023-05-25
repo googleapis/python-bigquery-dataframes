@@ -60,49 +60,49 @@ class DataFrame:
     def __init__(
         self,
         index: indexes.ImplicitJoiner,
-        columns: Optional[Sequence[str]] = None,
     ):
         self._index = index
         self._block = index._block
-        # One on one match between BF column names and real value column names in BQ SQL.
-        self._col_labels = list(columns) if columns else list(self._block.value_columns)
 
     def __dir__(self):
-        return dir(type(self)) + self._col_labels
+        return dir(type(self)) + self._block.column_labels
 
     def _ipython_key_completions_(self) -> List[str]:
-        return list(self._col_labels)
+        return list(self._block.column_labels)
 
     def _copy(
         self, columns: Optional[Tuple[Sequence[ibis_types.Value], Sequence[str]]] = None
     ) -> DataFrame:
         if not columns:
-            return DataFrame(self._block.copy().index, columns=self._col_labels)
+            return DataFrame(self._block.copy().index)
 
         value_cols, col_labels = columns
         if len(value_cols) != len(col_labels):
             raise ValueError(
-                f"Column sizes not equal. Value columns size: {len(value_cols)}, column names size: {len(col_labels)}"
+                f"Column sizes not equal. Value columns size: {len(value_cols)}, "
+                + f"column names size: {len(col_labels)}"
             )
 
-        block = self._block.copy(value_cols)
+        block = self._block.copy(value_columns=value_cols, column_labels=col_labels)
         index = self._recreate_index(block)
-        return DataFrame(index, col_labels)
+        return DataFrame(index)
 
     def _find_indices(
         self, columns: Union[str, Sequence[str]], tolerance: bool = False
     ) -> Sequence[int]:
-        """Find corresponding indices in df._col_labels for column name(s). Order is kept the same as input names order.
+        """Find corresponding indices in df._block.column_labels for column name(s).
+        Order is kept the same as input names order.
 
         Args:
             columns: column name(s)
-            tolerance: True to pass through columns not found. False to raise ValueError.
+            tolerance: True to pass through columns not found. False to raise
+                ValueError.
         """
         columns = [columns] if isinstance(columns, str) else columns
 
         # Dict of {col_label -> [indices]}
         col_indices_dict: Dict[str, List[int]] = {}
-        for i, col_label in enumerate(self._col_labels):
+        for i, col_label in enumerate(self._block.column_labels):
             col_indices_dict[col_label] = col_indices_dict.get(col_label, [])
             col_indices_dict[col_label].append(i)
 
@@ -141,7 +141,7 @@ class DataFrame:
     @property
     def dtypes(self) -> pd.Series:
         """Returns the dtypes as a Pandas Series object"""
-        return pd.Series(data=self._block.dtypes, index=self._col_labels)
+        return pd.Series(data=self._block.dtypes, index=self._block.column_labels)
 
     @property
     def columns(self) -> pd.Index:
@@ -156,7 +156,8 @@ class DataFrame:
 
     @property
     def size(self) -> int:
-        """The size of the dataframe, defined as the number of rows times the number of columns."""
+        """The size of the dataframe, defined as the number of rows times the number
+        of columns."""
         rows, cols = self.shape
         return rows * cols
 
@@ -186,7 +187,7 @@ class DataFrame:
         # Has to be unordered as it is impossible to order the sql without
         # including metadata columns in selection with ibis.
         ibis_expr = self._block.expr.to_ibis_expr(ordering_mode="unordered")
-        column_labels = self._col_labels
+        column_labels = self._block.column_labels
 
         # TODO(swast): Need to have a better way of controlling when to include
         # the index or not.
@@ -286,11 +287,12 @@ class DataFrame:
 
         value_cols = self._block.get_value_col_exprs(sql_names)
         col_label_count: Dict[str, int] = {}
-        for col_label in self._col_labels:
+        for col_label in self._block.column_labels:
             col_label_count[col_label] = col_label_count.get(col_label, 0) + 1
         col_labels = []
         for item_name in key:
-            # Every item is guaranteed to exist, otherwise it already raised exception in sql_names.
+            # Every item is guaranteed to exist, otherwise it already raised exception
+            # in sql_names.
             col_labels += [item_name] * col_label_count[item_name]
 
         return self._copy((value_cols, col_labels))
@@ -311,18 +313,20 @@ class DataFrame:
                 for left_col in self._block.value_columns
             ]
         )
-        right = get_column_right(key._value_column)
+        block.replace_column_labels(self._block.column_labels)
 
+        right = get_column_right(key._value_column)
         block.expr = block.expr.filter((right == ibis.literal(True)))
-        return DataFrame(combined_index, self._col_labels)
+        return DataFrame(combined_index)
 
     def __getattr__(self, key: str):
-        if key not in self._col_labels:
+        if key not in self._block.column_labels:
             raise AttributeError(key)
         return self.__getitem__(key)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string. Calls compute. Only represents the first 25 results."""
+        """Converts a DataFrame to a string. Calls compute. Only represents the first
+        25 results."""
         max_results = 25
         pandas_df, row_count = self._retrieve_repr_request_results(max_results)
         column_count = len(pandas_df.columns)
@@ -359,12 +363,13 @@ class DataFrame:
         self, max_results: Optional[int]
     ) -> Tuple[pd.DataFrame, int]:
         """
-        Retrieves a pandas dataframe containing only max_results many rows for use with printing methods.
+        Retrieves a pandas dataframe containing only max_results many rows for use
+        with printing methods.
 
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
         computed_df, count = self._block._compute_and_count(max_results=max_results)
-        formatted_df = computed_df.set_axis(self._col_labels, axis=1)
+        formatted_df = computed_df.set_axis(self._block.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
         return formatted_df, count
@@ -392,7 +397,7 @@ class DataFrame:
                     value_col.get_name()
                 )
             )
-        return self._copy((value_cols, self._col_labels))
+        return self._copy((value_cols, self._block.column_labels))
 
     def _apply_series_binop(
         self,
@@ -425,7 +430,8 @@ class DataFrame:
 
         block = joined_index._block
         block.replace_value_columns(value_cols)
-        return DataFrame(joined_index, self._col_labels)
+        block.replace_column_labels(self._block.column_labels)
+        return DataFrame(joined_index)
 
     def add(
         self, other: float | int | bigframes.Series, axis: str | int = "columns"
@@ -524,7 +530,7 @@ class DataFrame:
     def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
         df = self._block.compute()
-        return df.set_axis(self._col_labels, axis=1)
+        return df.set_axis(self._block.column_labels, axis=1)
 
     def copy(self) -> DataFrame:
         """Creates a deep copy of the DataFrame."""
@@ -546,23 +552,29 @@ class DataFrame:
 
         df = self._copy()
         df._block.expr = self._block.expr.drop_columns(self._sql_names(columns))
-        df._col_labels = [
-            col_label for col_label in self._col_labels if col_label not in columns
-        ]
+        df._block.replace_column_labels(
+            [
+                col_label
+                for col_label in self._block.column_labels
+                if col_label not in columns
+            ]
+        )
         return df
 
     def rename(self, *, columns: Mapping[str, str]) -> DataFrame:
         """Alter column labels."""
         # TODO(garrettwu) Support function(Callable) as columns parameter.
         col_labels = [
-            (columns.get(col_label, col_label)) for col_label in self._col_labels
+            (columns.get(col_label, col_label))
+            for col_label in self._block.column_labels
         ]
         return self._copy((self._block.get_value_col_exprs(), col_labels))
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
 
-        Returns a new object with all original columns in addition to new ones. Existing columns that are re-assigned will be overwritten.
+        Returns a new object with all original columns in addition to new ones.
+        Existing columns that are re-assigned will be overwritten.
         """
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
@@ -588,7 +600,7 @@ class DataFrame:
         scalar = scalar.name(k)
 
         value_cols = self._block.get_value_col_exprs()
-        col_labels = list(self._col_labels)
+        col_labels = list(self._block.column_labels)
 
         sql_names = self._sql_names(k, tolerance=True)
         if sql_names:
@@ -609,7 +621,7 @@ class DataFrame:
         joined_index.name = self._index.name
 
         sql_names = self._sql_names(k, tolerance=True)
-        col_labels = list(self._col_labels)
+        column_labels = list(self._block.column_labels)
 
         # Restore original column names
         value_cols = []
@@ -624,11 +636,12 @@ class DataFrame:
         if not sql_names:
             # TODO(garrettwu): make sure sql name doesn't already exist.
             value_cols.append(get_column_right(v._value.get_name()).name(k))
-            col_labels.append(k)
+            column_labels.append(k)
 
         block = joined_index._block
         block.replace_value_columns(value_cols)
-        return DataFrame(joined_index, col_labels)
+        block.replace_column_labels(column_labels)
+        return DataFrame(joined_index)
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
@@ -638,7 +651,7 @@ class DataFrame:
         if len(original_index_ids) != 1:
             raise NotImplementedError("reset_index() doesn't yet support MultiIndex.")
 
-        col_labels = list(self._col_labels)
+        column_labels = list(self._block.column_labels)
         block = self._block.reset_index()
 
         if drop:
@@ -650,19 +663,20 @@ class DataFrame:
             # TODO(swast): Support MultiIndex
             index_label = original_index_label
             if index_label is None:
-                if "index" not in col_labels:
+                if "index" not in column_labels:
                     index_label = "index"
                 else:
                     index_label = "level_0"
 
-            if index_label in col_labels:
+            if index_label in column_labels:
                 raise ValueError(f"cannot insert {index_label}, already exists")
 
-            col_labels = [index_label] + col_labels
+            column_labels = [index_label] + column_labels
+            block.replace_column_labels(column_labels)
 
         index = block.index
         index.name = None
-        return DataFrame(index, col_labels)
+        return DataFrame(index)
 
     def set_index(self, key: str, *, drop: bool = True) -> DataFrame:
         """Set the DataFrame index using existing columns."""
@@ -680,7 +694,7 @@ class DataFrame:
 
         expr = expr.drop_columns(prev_index_columns)
 
-        col_labels = list(self._col_labels)
+        column_labels = list(self._block.column_labels)
         index_columns = self._sql_names(key)
         if not drop:
             index_column_id = indexes.INDEX_COLUMN_ID.format(0)
@@ -688,12 +702,14 @@ class DataFrame:
             expr = expr.insert_column(0, index_expr)
             index_columns = [index_column_id]
         else:
-            col_labels.remove(key)
+            column_labels.remove(key)
 
-        block = blocks.Block(expr, index_columns)
+        block = blocks.Block(
+            expr, index_columns=index_columns, column_labels=column_labels
+        )
         index = block.index
         index.name = key
-        return DataFrame(index, col_labels)
+        return DataFrame(index)
 
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
@@ -745,10 +761,7 @@ class DataFrame:
 
         block = self._block.copy()
         block.expr = block.expr.order_by(ordering)
-        return DataFrame(
-            block.index,
-            columns=self._col_labels,
-        )
+        return DataFrame(block.index)
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
@@ -770,8 +783,11 @@ class DataFrame:
             "left",
             "outer",
             "right",
-        ] = "inner",  # TODO(garrettwu): Currently can take inner, outer, left and right. To support cross joins
-        # TODO(garrettwu): Support "on" list of columns and None. Currently a single column must be provided
+        ] = "inner",
+        # TODO(garrettwu): Currently can take inner, outer, left and right. To support
+        # cross joins
+        # TODO(garrettwu): Support "on" list of columns and None. Currently a single
+        # column must be provided
         on: Optional[str] = None,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
@@ -822,11 +838,13 @@ class DataFrame:
         )
 
         block = blocks.Block(joined_expr)
+        block.replace_column_labels(
+            self._get_merged_col_labels(right, on=on, suffixes=suffixes)
+        )
         # TODO(swast): Need to reset to a sequential index and materialize to
         # be fully consistent with pandas.
         index = indexes.ImplicitJoiner(block)
-        col_labels = self._get_merged_col_labels(right, on=on, suffixes=suffixes)
-        return DataFrame(index, columns=col_labels)
+        return DataFrame(index)
 
     def _get_merged_col_labels(
         self, right: DataFrame, on: str, suffixes: tuple[str, str] = ("_x", "_y")
@@ -834,18 +852,18 @@ class DataFrame:
         left_col_labels = [
             (
                 ("{name}" + suffixes[0]).format(name=col_label)
-                if col_label in right._col_labels and col_label != on
+                if col_label in right._block.column_labels and col_label != on
                 else col_label
             )
-            for col_label in self._col_labels
+            for col_label in self._block.column_labels
         ]
         right_col_labels = [
             (
                 ("{name}" + suffixes[1]).format(name=col_label)
-                if col_label in self._col_labels and col_label != on
+                if col_label in self._block.column_labels and col_label != on
                 else col_label
             )
-            for col_label in right._col_labels
+            for col_label in right._block.column_labels
             if col_label != on
         ]
         return left_col_labels + right_col_labels
@@ -888,7 +906,10 @@ class DataFrame:
             ]
         )
         block.expr = expr_bldr.build()
-        return DataFrame(combined_index, self._col_labels + other._col_labels)
+        block.replace_column_labels(
+            self._block.column_labels + other._block.column_labels
+        )
+        return DataFrame(combined_index)
 
     def groupby(
         self,
@@ -908,15 +929,12 @@ class DataFrame:
         """
         if as_index and not isinstance(by, str):
             raise ValueError(
-                "Set as_index=False if grouping by list of values. Mutli-index not yet supported"
+                "Set as_index=False if grouping by list of values. Mutli-index not"
+                + "yet supported"
             )
-        labels = self._col_labels
-        col_ids = self._block.value_columns
-        label_id_pairs = {col_id: label for col_id, label in zip(col_ids, labels)}
         by_col_ids = self._sql_names(by)
         return groupby.DataFrameGroupBy(
             self._block.copy(),
-            label_id_pairs,
             by_col_ids,
             dropna=dropna,
             as_index=as_index,
@@ -1000,7 +1018,7 @@ class DataFrame:
         block.apply_window_op(
             self._block.value_columns[-1], op, window_spec=window_spec
         )
-        return DataFrame(block.index, self._col_labels)
+        return DataFrame(block.index)
 
     def to_pandas(self) -> pd.DataFrame:
         """Writes DataFrame to Pandas DataFrame."""
@@ -1012,10 +1030,11 @@ class DataFrame:
         """Writes DataFrame to comma-separated values (csv) file(s) on GCS.
 
         Args:
-            paths: a destination URIs of GCS files(s) to store the extracted dataframe in format of
+            paths: a destination URIs of GCS files(s) to store the extracted dataframe
+            in format of
                 ``gs://<bucket_name>/<object_name_or_glob>``.
-                If the data size is more than 1GB, you must use a wildcard to export the data into
-                multiple files and the size of the files varies.
+                If the data size is more than 1GB, you must use a wildcard to export
+                the data into multiple files and the size of the files varies.
 
             index: whether write row names (index) or not.
 
@@ -1093,10 +1112,10 @@ class DataFrame:
         """Writes DataFrame to parquet file(s) on GCS.
 
         Args:
-            paths: a destination URIs of GCS files(s) to store the extracted dataframe in format of
-                ``gs://<bucket_name>/<object_name_or_glob>``.
-                If the data size is more than 1GB, you must use a wildcard to export the data into
-                multiple files and the size of the files varies.
+            paths: a destination URIs of GCS files(s) to store the extracted dataframe
+                in format of ``gs://<bucket_name>/<object_name_or_glob>``.
+                If the data size is more than 1GB, you must use a wildcard to export
+                the data into multiple files and the size of the files varies.
 
             index: whether write row names (index) or not.
 
@@ -1127,7 +1146,7 @@ class DataFrame:
         new_columns = [
             operation._as_ibis(column).name(column.get_name()) for column in columns
         ]
-        return self._copy((new_columns, self._col_labels))
+        return self._copy((new_columns, self._block.column_labels))
 
     def _execute_query(
         self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None

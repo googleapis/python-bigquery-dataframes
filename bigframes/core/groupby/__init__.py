@@ -28,7 +28,6 @@ class DataFrameGroupBy:
     def __init__(
         self,
         block: blocks.Block,
-        col_id_labels: typing.Mapping[str, str],
         by_col_ids: typing.Sequence[str],
         *,
         dropna: bool = True,
@@ -40,7 +39,12 @@ class DataFrameGroupBy:
             )
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
-        self._col_id_labels = col_id_labels
+        self._col_id_labels = {
+            value_column: column_label
+            for value_column, column_label in zip(
+                block.value_columns, block.column_labels
+            )
+        }
         self._by_col_ids = by_col_ids
         self._dropna = dropna  # Applies to aggregations but not windowing
         self._as_index = as_index
@@ -120,12 +124,15 @@ class DataFrameGroupBy:
             result_block.index_columns = self._by_col_ids
             index_label = self._col_id_labels[by_col_id]
             result_block.index.name = index_label
-            labels = [self._col_id_labels[col_id] for col_id in aggregated_col_ids]
-            return df.DataFrame(result_block.index, labels)
+            result_block.replace_column_labels(
+                [self._col_id_labels[col_id] for col_id in aggregated_col_ids]
+            )
+            return df.DataFrame(result_block.index)
         else:
             result_block = result_block.reset_index()
             by_col_labels = [self._col_id_labels[col_id] for col_id in self._by_col_ids]
             aggregate_labels = [
                 self._col_id_labels[col_id] for col_id in aggregated_col_ids
             ]
-            return df.DataFrame(result_block.index, by_col_labels + aggregate_labels)
+            result_block.replace_column_labels(by_col_labels + aggregate_labels)
+            return df.DataFrame(result_block.index)
