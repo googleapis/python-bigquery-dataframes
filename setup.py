@@ -39,7 +39,7 @@ dependencies = [
     "google-cloud-functions >=1.10.1",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-storage >=2.0.0",
-    "ibis-framework[bigquery] @ git+https://github.com/ibis-project/ibis.git@25781898b505c5ce0b12c9f92eb123be8e94f116#egg=ibis-framework",
+    "ibis-framework[bigquery] @ git+https://github.com/ibis-project/ibis.git@845f7abf75fe2bd42901f7cf230a0527f99f0bf1#egg=ibis-framework",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
 ]

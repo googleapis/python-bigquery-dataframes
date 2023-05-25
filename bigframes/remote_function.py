@@ -35,8 +35,10 @@ import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, bigquery_connection_v1, functions_v2
 from ibis.backends.bigquery.compiler import compiles
-from ibis.backends.bigquery.datatypes import ibis_type_to_bigquery_type
-from ibis.expr.datatypes.core import dtype_from_object as python_type_to_bigquery_type
+from ibis.backends.bigquery.datatypes import (
+    dtype_to_bigquery as ibis_type_to_bigquery_type,
+)
+from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
 
