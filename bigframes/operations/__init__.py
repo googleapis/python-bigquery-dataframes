@@ -208,6 +208,23 @@ class RepeatOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).repeat(self._repeats)
 
 
+class RemoteFunctionOp(UnaryOp):
+    def __init__(self, func: typing.Callable, apply_on_null=True):
+        if not hasattr(func, "bigframes_remote_function"):
+            raise TypeError(
+                "only a bigframes remote function is supported as a callable"
+            )
+
+        self._func = func
+        self._apply_on_null = apply_on_null
+
+    def _as_ibis(self, x: ibis_types.Value):
+        x_transformed = self._func(x)
+        if not self._apply_on_null:
+            x_transformed = where_op(x, x.isnull(), x_transformed)
+        return x_transformed
+
+
 abs_op = AbsOp()
 invert_op = InvertOp()
 isnull_op = IsNullOp()

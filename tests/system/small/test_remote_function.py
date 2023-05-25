@@ -219,3 +219,55 @@ def test_remote_function_via_session_context_connection_setter(
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_dataframe_applymap(session_with_bq_connection, scalars_dfs):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function([int], int)(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df.dropna()
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).compute()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df.dropna()
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function([int], int)(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_result = bf_int64_df.applymap(remote_add_one, na_action="ignore").compute()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_result = pd_int64_df.applymap(add_one, na_action="ignore")
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df[col].dtype)
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

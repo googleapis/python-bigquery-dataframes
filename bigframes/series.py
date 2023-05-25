@@ -959,14 +959,18 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def apply(self, func) -> Series:
-        """Returns a series with a user defined function applied."""
+        """Returns a series with a user defined function applied.
+
+        Args:
+            func: callable.
+                A scalar remote function.
+
+        Returns:
+            A new Series with `func` applied elementwise.
+        """
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
-        class RemoteOp(ops.UnaryOp):
-            def _as_ibis(self, x: ibis_types.Value):
-                return func(x)
-
-        return self._apply_unary_op(RemoteOp())
+        return self._apply_unary_op(ops.RemoteFunctionOp(func))
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
         """

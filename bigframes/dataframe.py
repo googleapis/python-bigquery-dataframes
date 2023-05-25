@@ -1291,3 +1291,29 @@ class DataFrame:
         query_job.result()  # Wait for query to finish.
         query_job.reload()  # Download latest job metadata.
         return query_job.destination
+
+    def applymap(self, func, na_action=None) -> DataFrame:
+        """
+        Returns a dataframe with a user defined function applied elementwise.
+        The user defined function must accept and return a scalar.
+
+        Args:
+            func: callable.
+                A scalar remote function.
+            na_action: {None, 'defult'}, default None.
+                If `ignore`, propagate NA values, without passing them to func.
+
+        Returns:
+            A new DataFrame with `func` applied elementwise.
+        """
+        if not callable(func):
+            raise TypeError("the first argument must be callable")
+
+        if na_action not in {None, "ignore"}:
+            raise ValueError(f"na_action={na_action} not supported")
+
+        # TODO(shobs): Support **kwargs
+
+        return self._apply_to_rows(
+            ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
+        )
