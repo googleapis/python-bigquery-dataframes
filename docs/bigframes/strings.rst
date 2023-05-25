@@ -1,4 +1,4 @@
-BigFrames String Methods
+BigFrames string methods
 ========================
 
 .. automodule:: bigframes.operations.strings

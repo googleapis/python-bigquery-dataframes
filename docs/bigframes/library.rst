@@ -1,4 +1,4 @@
-BigFrames Library
+BigFrames methods
 =================
 
 .. automodule:: bigframes

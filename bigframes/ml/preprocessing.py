@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implements Scikit-Learn's sklearn.preprocessing API"""
+"""Transformers that prepare data for other estimators. This module is styled after
+Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html"""
+
 
 import typing
 from typing import List, Optional, Tuple

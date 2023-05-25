@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implements Scikit-Learn's sklearn.metrics API"""
+"""Metrics functions for evaluating models. This module is styled after
+Scikit-Learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html"""
 
 import typing
 from typing import Tuple

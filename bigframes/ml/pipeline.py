@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implements Scikit-Learn's sklearn.pipeline API"""
+"""For composing estimators together. This module is styled after Scikit-Learn's
+pipeline module: https://scikit-learn.org/stable/modules/pipeline.html"""
+
 
 from __future__ import annotations
 

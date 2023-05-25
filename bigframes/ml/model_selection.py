@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implements Scikit-Learn's sklearn.model_selection API for data
-splitting and hyper-parameter tuning"""
+"""Functions for test/train split and model tuning. This module is styled after
+Scikit-Learn's model_selection module:
+https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_selection"""
+
 
 from typing import List, Union
 
