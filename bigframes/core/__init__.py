@@ -465,6 +465,7 @@ class BigFramesExpr:
         window_spec: WindowSpec,
         output_name=None,
         *,
+        skip_null_groups=False,
         skip_reproject_unsafe: bool = False,
     ) -> BigFramesExpr:
         """
@@ -473,6 +474,7 @@ class BigFramesExpr:
         op: the windowable operator to apply to the input column
         window_spec: a specification of the window over which to apply the operator
         output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
+        skip_null_groups: will filter out any rows where any of the grouping keys is null
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
@@ -483,6 +485,9 @@ class BigFramesExpr:
         clauses = []
         if op.skips_nulls:
             clauses.append((column.isnull(), ibis.NA))
+        if skip_null_groups:
+            for key in window_spec.grouping_keys:
+                clauses.append((self.get_column(key).isnull(), ibis.NA))
         if window_spec.min_periods:
             clauses.append(
                 (
@@ -708,12 +713,15 @@ class BigFramesExpr:
             [old_id]
         )
 
-    def _set_or_replace_by_id(self, id: str, value: ibis_types.Value):
-        expr = self
+    def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value):
+        builder = self.builder()
         if id in self.column_names:
-            expr = expr.drop_columns([id])
-        builder = expr.builder()
-        builder.columns = [*expr.columns, value.name(id)]
+            builder.columns = [
+                val if (col_id != id) else new_value.name(id)
+                for col_id, val in self.column_names.items()
+            ]
+        else:
+            builder.columns = [*self.columns, new_value.name(id)]
         return builder.build()
 
 

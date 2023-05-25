@@ -18,6 +18,7 @@ import typing
 
 import bigframes.aggregations as agg_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.window
 import bigframes.dataframe as df
 import bigframes.dtypes
 
@@ -49,47 +50,109 @@ class DataFrameGroupBy:
         self._dropna = dropna  # Applies to aggregations but not windowing
         self._as_index = as_index
 
-    def sum(self, *args, **kwargs) -> df.DataFrame:
-        """Sums the numeric values for each group in the dataframe. Drops non-numeric columns always (like numeric_only=True in Pandas)."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.sum_op, aggregated_col_ids)
+    def sum(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Sums the numeric values for each group in the dataframe. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.sum_op, numeric_only=True)
 
-    def mean(self, *args, **kwargs) -> df.DataFrame:
-        """Calculates the mean of non-null values in each group. Drops non-numeric columns."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.mean_op, aggregated_col_ids)
+    def mean(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculates the mean of non-null values in each group. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.mean_op, numeric_only=True)
 
-    def min(self, *args, **kwargs) -> df.DataFrame:
-        """Calculates the minimum value in each group."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.min_op, aggregated_col_ids)
+    def min(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculates the minimum value in each group. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.min_op, numeric_only=True)
 
-    def max(self, *args, **kwargs) -> df.DataFrame:
-        """Calculates the maximum value in each group."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.max_op, aggregated_col_ids)
+    def max(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculates the maximum value in each group. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.max_op, numeric_only=True)
 
-    def std(self, *args, **kwargs) -> df.DataFrame:
-        """Calculates the standard deviation of values in each group. Drops non-numeric columns."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.std_op, aggregated_col_ids)
+    def std(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculates the standard deviation of values in each group. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.std_op, numeric_only=True)
 
-    def var(self, *args, **kwargs) -> df.DataFrame:
-        """Calculates the variance of values in each group. Drops non-numeric columns."""
-        aggregated_col_ids = self._aggregated_columns(numeric_only=True)
-        return self._aggregate(agg_ops.var_op, aggregated_col_ids)
+    def var(
+        self,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculates the variance of values in each group. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        return self._aggregate(agg_ops.var_op, numeric_only=True)
 
-    def all(self, *args, **kwargs) -> df.DataFrame:
+    def all(self) -> df.DataFrame:
         """Returns true if any non-null value evalutes to true for each group."""
-        return self._aggregate(agg_ops.all_op, self._aggregated_columns())
+        return self._aggregate(agg_ops.all_op)
 
-    def any(self, *args, **kwargs) -> df.DataFrame:
+    def any(self) -> df.DataFrame:
         """Returns true if all non-null values evaluate to true for each group."""
-        return self._aggregate(agg_ops.any_op, self._aggregated_columns())
+        return self._aggregate(agg_ops.any_op)
 
-    def count(self, *args, **kwargs) -> df.DataFrame:
+    def count(self) -> df.DataFrame:
         """Counts the non-null values in each group."""
-        return self._aggregate(agg_ops.count_op, self._aggregated_columns())
+        return self._aggregate(agg_ops.count_op)
+
+    def cumsum(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculate the cumulative sum of values in each grouping. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
+        return self._apply_window_op(agg_ops.sum_op, window, numeric_only=True)
+
+    def cummin(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculate the cumulative minimum of values in each grouping. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
+        return self._apply_window_op(agg_ops.min_op, window, numeric_only=True)
+
+    def cummax(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        """Calculate the cumulative maximum of values in each grouping. Only supports 'numeric_only'=True."""
+        if not numeric_only:
+            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+        window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
+        return self._apply_window_op(agg_ops.max_op, window, numeric_only=True)
+
+    def cumprod(self) -> df.DataFrame:
+        """Calculate the cumulative product of values in each grouping. Drops non-numeric columns always."""
+        window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
+        return self._apply_window_op(agg_ops.product_op, window, numeric_only=True)
 
     def _aggregated_columns(self, numeric_only: bool = False):
         return [
@@ -103,10 +166,9 @@ class DataFrameGroupBy:
         ]
 
     def _aggregate(
-        self,
-        aggregate_op: agg_ops.AggregateOp,
-        aggregated_col_ids: typing.Sequence[str],
+        self, aggregate_op: agg_ops.AggregateOp, numeric_only: bool = False
     ) -> df.DataFrame:
+        aggregated_col_ids = self._aggregated_columns(numeric_only=numeric_only)
         aggregations = [
             (col_id, aggregate_op, col_id + "_bf_aggregated")
             for col_id in aggregated_col_ids
@@ -118,3 +180,30 @@ class DataFrameGroupBy:
             dropna=self._dropna,
         )
         return df.DataFrame(result_block.index)
+
+    def _apply_window_op(
+        self,
+        op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
+        numeric_only: bool = False,
+    ):
+        columns = self._aggregated_columns(numeric_only=numeric_only)
+        pruned_block = self._block.copy().drop_columns(
+            [
+                col
+                for col in self._block.value_columns
+                if col not in [*columns, *window_spec.grouping_keys]
+            ]
+        )
+        for col_id in columns[:-1]:
+            pruned_block.apply_window_op(
+                col_id,
+                op,
+                window_spec=window_spec,
+                skip_null_groups=self._dropna,
+                skip_reproject_unsafe=True,
+            )
+        # Reproject after applying final independent window operation.
+        pruned_block.apply_window_op(columns[-1], op, window_spec=window_spec)
+        final_block = pruned_block.drop_columns(window_spec.grouping_keys)
+        return df.DataFrame(final_block.index)

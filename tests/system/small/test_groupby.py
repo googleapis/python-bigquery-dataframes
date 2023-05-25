@@ -75,7 +75,7 @@ def test_dataframe_groupby_multi_sum(scalars_df_index, scalars_pandas_df_index):
     bf_series = (
         scalars_df_index[col_names]
         .groupby(["bool_col", "int64_col"], as_index=False)
-        .sum()
+        .sum(numeric_only=True)
     )
     pd_series = (
         scalars_pandas_df_index[col_names]
@@ -91,3 +91,29 @@ def test_dataframe_groupby_multi_sum(scalars_df_index, scalars_pandas_df_index):
         pd_series,
         bf_result,
     )
+
+
+@pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x: x.cumsum(numeric_only=True)),
+        (lambda x: x.cummax(numeric_only=True)),
+        (lambda x: x.cummin(numeric_only=True)),
+        (lambda x: x.cumprod()),
+    ],
+    ids=[
+        "cumsum",
+        "cummax",
+        "cummin",
+        "cumprod",
+    ],
+)
+def test_dataframe_groupby_analytic(
+    scalars_df_index, scalars_pandas_df_index, operator
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = operator(scalars_df_index[col_names].groupby("string_col"))
+    pd_result = operator(scalars_pandas_df_index[col_names].groupby("string_col"))
+    bf_result_computed = bf_result.compute()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)

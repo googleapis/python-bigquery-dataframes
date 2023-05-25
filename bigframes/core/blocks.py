@@ -324,6 +324,7 @@ class Block:
         window_spec: core.WindowSpec,
         output_name=None,
         *,
+        skip_null_groups: bool = False,
         skip_reproject_unsafe: bool = False,
     ):
         self.expr = self._expr.project_window_op(
@@ -331,6 +332,7 @@ class Block:
             op,
             window_spec,
             output_name,
+            skip_null_groups=skip_null_groups,
             skip_reproject_unsafe=skip_reproject_unsafe,
         )
 
@@ -358,6 +360,21 @@ class Block:
             labels=self.column_labels, index_col_id="index", value_col_id=value_col_id
         )
         return Block(result_expr, index_columns=["index"])
+
+    def drop_columns(self, ids_to_drop: typing.Sequence[str]):
+        """Drops columns by id. Can drop index"""
+        if set(ids_to_drop) & set(self.index_columns):
+            raise ValueError(
+                "Cannot directly drop index column. Use reset_index(drop=True)"
+            )
+        expr = self._expr.drop_columns(ids_to_drop)
+        remaining_value_col_ids = [
+            col_id for col_id in self.value_columns if (col_id not in ids_to_drop)
+        ]
+        labels = self._get_labels_for_columns(remaining_value_col_ids)
+        block = Block(expr, self.index_columns, labels)
+        block.index.name = self.index.name
+        return block
 
     def aggregate(
         self,

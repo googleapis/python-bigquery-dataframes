@@ -1248,7 +1248,12 @@ class SeriesGroupyBy:
         discard_name=False,
     ):
         block = self._block.copy()
-        block.apply_window_op(self._value_column, op, window_spec=window_spec)
+        block.apply_window_op(
+            self._value_column,
+            op,
+            window_spec=window_spec,
+            skip_null_groups=self._dropna,
+        )
         return Series(
             block,
             self._value_column,
