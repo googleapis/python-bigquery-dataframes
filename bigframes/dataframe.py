@@ -131,6 +131,15 @@ class DataFrame:
         return self._index
 
     @property
+    def loc(self) -> bigframes.indexers._LocIndexer:
+        """
+        Index the rows of the dataframe using square brackets.
+
+        Currently, only indexing using a boolean Series is supported.
+        """
+        return bigframes.indexers._LocIndexer(self)
+
+    @property
     def iloc(self) -> bigframes.indexers._iLocIndexer:
         """Get items by slice.
 

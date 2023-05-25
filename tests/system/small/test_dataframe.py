@@ -939,7 +939,7 @@ def test__dir__with_rename(scalars_dfs):
         (1, 7, 50000000000),
     ],
 )
-def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
+def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index.iloc[start:stop:step].compute()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
 
@@ -958,11 +958,37 @@ def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     )
 
 
-def test_iloc_nested(scalars_df_index, scalars_pandas_df_index):
+def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.iloc[1:].iloc[1:].compute()
     pd_result = scalars_pandas_df_index.iloc[1:].iloc[1:]
 
     pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_loc_bool_series_explicit_index(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.loc[scalars_df_index.bool_col].compute()
+    pd_result = scalars_pandas_df_index.loc[scalars_pandas_df_index.bool_col]
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_loc_bool_series_default_index(
+    scalars_df_default_index, scalars_pandas_df_default_index
+):
+    bf_result = scalars_df_default_index.loc[
+        scalars_df_default_index.bool_col
+    ].compute()
+    pd_result = scalars_pandas_df_default_index.loc[
+        scalars_pandas_df_default_index.bool_col
+    ]
+
+    assert_pandas_df_equal_ignore_ordering(
         bf_result,
         pd_result,
     )

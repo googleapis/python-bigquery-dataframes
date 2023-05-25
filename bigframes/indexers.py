@@ -81,6 +81,32 @@ class IlocSeriesIndexer:
             raise TypeError("Invalid argument type.")
 
 
+class _LocIndexer:
+    def __init__(self, dataframe: bigframes.DataFrame):
+        self._dataframe = dataframe
+
+    def __getitem__(self, key) -> typing.Union[bigframes.Series, bigframes.DataFrame]:
+        """
+        Only indexing by a boolean bigframes.Series is currently supported
+        """
+        if isinstance(key, bigframes.Series):
+            return self._dataframe[key]
+        elif isinstance(key, list):
+            raise NotImplementedError(
+                "loc does not yet support indexing with a list of labels"
+            )
+        elif isinstance(key, slice):
+            raise NotImplementedError("loc does not yet support indexing with a slice")
+        elif callable(key):
+            raise NotImplementedError(
+                "loc does not yet support indexing with a callable"
+            )
+        else:
+            raise TypeError(
+                "Invalid argument type. DataFrame.loc currently only supports indexing with a boolean bigframes Series."
+            )
+
+
 class _iLocIndexer:
     def __init__(self, dataframe: bigframes.DataFrame):
         self._dataframe = dataframe
