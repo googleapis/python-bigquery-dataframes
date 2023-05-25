@@ -126,3 +126,9 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
         Returns: a BigFrames DataFrame as evaluation result."""
         if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
             return self._estimator.score(X=X, y=y)
+
+    def to_gbq(self, model_name: str, replace: bool = False):
+        self._estimator.to_gbq(model_name, replace)
+
+        # TODO: should instead load from GBQ, but loading pipelines is not implemented yet
+        return self
