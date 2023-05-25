@@ -23,4 +23,5 @@ __all__ = [
     "model_selection",
     "pipeline",
     "preprocessing",
+    "llm",
 ]

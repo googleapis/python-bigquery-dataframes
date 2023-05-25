@@ -17,6 +17,7 @@ import logging
 from typing import cast
 
 import google.cloud.exceptions
+import pandas as pd
 import pytest
 
 import bigframes.ml.cluster
@@ -106,3 +107,18 @@ FROM `{penguins_table_id}`"""
         )
         session.bqclient.query(sql).result()
         return session.read_gbq_model(model_name)
+
+
+@pytest.fixture(scope="session")
+def llm_text_pandas_df():
+    """Additional data matching the penguins dataset, with a new index"""
+    return pd.DataFrame(
+        {
+            "prompt": ["What is BigQuery?", "What is BQML?", "What is BigFrames?"],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def llm_text_df(session, llm_text_pandas_df):
+    return session.read_pandas(llm_text_pandas_df)

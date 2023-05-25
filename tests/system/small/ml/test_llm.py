@@ -12,11 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import TestCase
+
 from bigframes.ml import llm
 
 
-def test_create_model(ml_connection):
+def test_create_model_and_predict_success(session, ml_connection, llm_text_df):
     # Model creation doesn't return error
-    model = llm.PaLMTextGenerator(connection_name=ml_connection)
-
+    model = llm.PaLMTextGenerator(session=session, connection_name=ml_connection)
     assert model is not None
+
+    df = model.predict(llm_text_df).compute()
+    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert llm._TEXT_GENERATE_RESULT_COLUMN in df.columns
+    assert any(df[llm._TEXT_GENERATE_RESULT_COLUMN].str.contains("predictions"))
+    # TODO(garrettwu): test content when throttling issues (returns empty prediction for some prompts) is resolved.

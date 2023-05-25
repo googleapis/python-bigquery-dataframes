@@ -194,6 +194,7 @@ def create_bqml_model(
 
 
 def create_bqml_remote_model(
+    session: bigframes.Session,
     connection_name: str,
     options: Dict[str, Union[str, int, float, List[str]]] = {},
 ) -> BqmlModel:
@@ -206,7 +207,6 @@ def create_bqml_remote_model(
 
     Returns: a BqmlModel, wrapping a trained model in BigQuery
     """
-    session = bigframes.Session()
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     options_sql = bigframes.ml.sql.options(**options)
     sql = bigframes.ml.sql.create_remote_model(
@@ -215,7 +215,7 @@ def create_bqml_remote_model(
         options_sql=options_sql,
     )
 
-    # fit the model, synchronously
+    # create the model, synchronously
     session.bqclient.query(sql).result()
 
     model = session.bqclient.get_model(model_name)

@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import bigframes
@@ -23,15 +23,18 @@ import bigframes.ml.api_primitives
 import bigframes.ml.core
 
 _REMOTE_LLM_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
+_TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_result"
 
 
 class PaLMTextGenerator(bigframes.ml.api_primitives.BaseEstimator):
     """PaLM text generator LLM model.
 
     Args:
+        session: BQ session to create the model
         connection_name: connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>"""
 
-    def __init__(self, connection_name: str):
+    def __init__(self, session: bigframes.Session, connection_name: str):
+        self.session = session
         self.connection_name = connection_name
         self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
 
@@ -39,5 +42,18 @@ class PaLMTextGenerator(bigframes.ml.api_primitives.BaseEstimator):
         options = {"remote_service_type": _REMOTE_LLM_MODEL_CODE}
 
         return bigframes.ml.core.create_bqml_remote_model(
-            connection_name=self.connection_name, options=options
+            session=self.session, connection_name=self.connection_name, options=options
+        )
+
+    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Predict the result from input DataFrame.
+
+        Args:
+            X: input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input.
+
+        Returns: output DataFrame with only 1 column as the JSON output results."""
+        df = self._bqml_model.generate_text(X)
+        return cast(
+            bigframes.DataFrame,
+            df[[_TEXT_GENERATE_RESULT_COLUMN]],
         )
