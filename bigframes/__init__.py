@@ -14,6 +14,8 @@
 
 """Bigframes provides a DataFrame API for BigQuery."""
 
+from bigframes._config import options
+from bigframes._config.bigquery_options import BigQueryOptions
 from bigframes.bigframes import concat
 from bigframes.dataframe import DataFrame
 from bigframes.remote_function import (
@@ -22,18 +24,19 @@ from bigframes.remote_function import (
     remote_function,
 )
 from bigframes.series import Series
-from bigframes.session import connect, Context, Session
+from bigframes.session import connect, Session
 from bigframes.version import __version__
 
 __all__ = [
+    "BigQueryOptions",
     "concat",
     "connect",
-    "Context",
     "Session",
     "DataFrame",
     "Series",
     "get_remote_function_locations",
     "get_cloud_function_name",
+    "options",
     "remote_function",
     "__version__",
 ]

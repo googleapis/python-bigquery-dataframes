@@ -30,7 +30,9 @@ def bq_cf_connection() -> str:
 
 @pytest.fixture(scope="module")
 def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
-    return bigframes.Session(bigframes.Context(bigquery_connection=bq_cf_connection))
+    return bigframes.Session(
+        bigframes.BigQueryOptions(remote_udf_connection=bq_cf_connection)
+    )
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
@@ -108,7 +110,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     # Session has bigquery connection initialized via context. Without an
     # explicit dataset the default dataset from the session would be used.
     # Without an explicit bigquery connection, the one present in Session set
-    # through the explicit Context would be used. Without an explicit `reuse`
+    # through the explicit BigQueryOptions would be used. Without an explicit `reuse`
     # the default behavior of reuse=True will take effect. Please note that the
     # udf is same as the one used in other tests in this file so the underlying
     # cloud function would be common and quickly reused.
@@ -181,8 +183,8 @@ def test_remote_function_via_session_context_connection_setter(
 ):
     # Creating a session scoped only to this test as we would be setting a
     # property in it
-    context = bigframes.Context()
-    context.bigquery_connection = bq_cf_connection
+    context = bigframes.BigQueryOptions()
+    context.remote_udf_connection = bq_cf_connection
     session = bigframes.connect(context)
 
     # Without an explicit bigquery connection, the one present in Session,
@@ -192,7 +194,7 @@ def test_remote_function_via_session_context_connection_setter(
     # cloud function would be common with reuse=True. Since we are using a
     # unique dataset_id, even though the cloud function would be reused, the bq
     # remote function would still be created, making use of the bq connection
-    # set in the Context above.
+    # set in the BigQueryOptions above.
     @session.remote_function([int], int, dataset=dataset_id)
     def square(x):
         return x * x

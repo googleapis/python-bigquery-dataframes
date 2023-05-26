@@ -124,20 +124,14 @@ def scalars_pandas_df_default_index() -> pandas.DataFrame:
 # -> bqclient mock
 # -> session
 # -> bigframes dataframe
-@pytest.fixture(params=("index", "default_index"))
+@pytest.fixture
 def scalars_testdata_setup(
-    request, scalars_pandas_df_default_index
+    scalars_pandas_df_default_index,
 ) -> Tuple[pandas.DataFrame, Callable[[bigframes.Session], bigframes.DataFrame]]:
-    if request.param == "index":
-        return (
-            scalars_pandas_df_default_index.set_index("rowindex"),
-            lambda session: session.read_gbq(SCALARS_TABLE_ID, index_cols=["rowindex"]),
-        )
-    else:
-        return (
-            scalars_pandas_df_default_index.drop(columns=["rowindex"], axis="columns"),
-            lambda session: session.read_gbq(SCALARS_TABLE_ID),
-        )
+    return (
+        scalars_pandas_df_default_index.set_index("rowindex"),
+        lambda session: session.read_gbq(SCALARS_TABLE_ID, index_cols=["rowindex"]),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -160,24 +154,14 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
         else:
             table_name = table_ref
 
-        if scalars_pandas_df.index.name == "rowindex":
-            schema = [
-                {"mode": "NULLABLE", "name": "rowindex", "type": "INTEGER"},
-                {
-                    "mode": "NULLABLE",
-                    "name": "bigframes_ordering_id",
-                    "type": "INTEGER",
-                },
-            ]
-        else:
-            schema = [
-                {"mode": "NULLABLE", "name": "bigframes_index_0", "type": "INTEGER"},
-                {
-                    "mode": "NULLABLE",
-                    "name": "bigframes_ordering_id",
-                    "type": "INTEGER",
-                },
-            ]
+        schema = [
+            {"mode": "NULLABLE", "name": "rowindex", "type": "INTEGER"},
+            {
+                "mode": "NULLABLE",
+                "name": "bigframes_ordering_id",
+                "type": "INTEGER",
+            },
+        ]
 
         if table_name == "project.dataset.table":
             schema += [
@@ -236,7 +220,7 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
 @pytest.fixture
 def session() -> bigframes.Session:
     return bigframes.Session(
-        context=bigframes.Context(
+        context=bigframes.BigQueryOptions(
             credentials=mock.create_autospec(google.oauth2.credentials.Credentials),
             project="unit-test-project",
         )

@@ -46,6 +46,7 @@ import numpy as np
 import pandas
 import pydata_google_auth
 
+import bigframes._config.bigquery_options as bigquery_options
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
@@ -91,73 +92,13 @@ def _ensure_application_default_credentials_in_colab_environment():
         pass
 
 
-class Context:
-    """Encapsulates configuration for working with an Session.
-
-    Attributes:
-      credentials: The OAuth2 Credentials to use for this client. If not passed
-        falls back to the default inferred from the environment.
-      project: Project ID for the project which the client acts on behalf of. Will
-        be passed when creating a dataset / job. If not passed, falls back to the
-        default inferred from the environment.
-      location: Default location for jobs / datasets / tables.
-      bigquery_connection: Name of the BigQuery connection for the purpose of
-        remote udfs. It should be either pre created in `location`, or the user
-        should have privilege to create one.
-    """
-
-    def __init__(
-        self,
-        credentials: Optional[google.auth.credentials.Credentials] = None,
-        project: Optional[str] = None,
-        location: Optional[str] = None,
-        bigquery_connection: Optional[str] = None,
-    ):
-        self._credentials = credentials
-        self._project = project
-        self._location = location
-        self._bigquery_connection = bigquery_connection
-
-    @property
-    def credentials(self) -> Optional[google.auth.credentials.Credentials]:
-        return self._credentials
-
-    @credentials.setter
-    def credentials(self, value: Optional[google.auth.credentials.Credentials]):
-        self._credentials = value
-
-    @property
-    def project(self) -> Optional[str]:
-        return self._project
-
-    @project.setter
-    def project(self, value: Optional[str]):
-        self._project = value
-
-    @property
-    def location(self) -> Optional[str]:
-        return self._location
-
-    @location.setter
-    def location(self, value: Optional[str]):
-        self._location = value
-
-    @property
-    def bigquery_connection(self) -> Optional[str]:
-        return self._bigquery_connection
-
-    @bigquery_connection.setter
-    def bigquery_connection(self, value: Optional[str]):
-        self._bigquery_connection = value
-
-
 class Session:
     """Establishes a BigQuery connection to capture a group of job activities related to
     DataFrames."""
 
-    def __init__(self, context: Optional[Context] = None):
+    def __init__(self, context: Optional[bigquery_options.BigQueryOptions] = None):
         if context is None:
-            context = Context()
+            context = bigquery_options.BigQueryOptions()
 
         # We want to initiate auth via a non-local web server which particularly
         # helps in a cloud notebook environment where the machine running the
@@ -191,7 +132,11 @@ class Session:
             "US" if context is None or context.location is None else context.location
         )
         self._create_and_bind_bq_session()
-        self._bigquery_connection = context.bigquery_connection
+        self._remote_udf_connection = context.remote_udf_connection
+
+        # Now that we're starting the session, don't allow the options to be
+        # changed.
+        context._session_started = True
 
     @property
     def _session_dataset_id(self):
@@ -263,6 +208,7 @@ class Session:
         Returns:
             A DataFrame representing results of the query or table.
         """
+        # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if _is_query(query_or_table):
             table_expression = self.ibis_client.sql(query_or_table)
@@ -415,6 +361,7 @@ class Session:
         Returns:
             A bigframes.ml Model wrapping the model
         """
+        # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
         model_ref = bigquery.ModelReference.from_string(
             model_name, default_project=self.bqclient.project
         )
@@ -433,6 +380,7 @@ class Session:
         Returns:
             A BigFrame DataFrame.
         """
+        # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
         columns = frozenset(pandas_dataframe.columns)
@@ -496,7 +444,7 @@ class Session:
                 MutableSequence[str],
                 Tuple[str, ...],
                 Sequence[int],
-                pandas.Series[Any],
+                pandas.Series,
                 pandas.Index,
                 np.ndarray[Any, Any],
                 Callable[[Any], bool],
@@ -509,7 +457,6 @@ class Session:
         encoding: Optional[str] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
-        # TODO(osmanamjad): update docstring when multi-index is supported.
         r"""Loads DataFrame from comma-separated values (csv) file locally or from GCS.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
@@ -584,6 +531,8 @@ class Session:
         Returns:
             A BigFrame DataFrame.
         """
+        # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
+        # TODO(osmanamjad): update docstring when multi-index is supported.
         table = bigquery.Table(self._create_session_table())
 
         if engine is not None and engine == "bigquery":
@@ -730,6 +679,7 @@ class Session:
         reuse: bool = True,
     ):
         """Create a remote function from a user defined function."""
+        # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
 
         return biframes_rf(
             input_types,
@@ -741,5 +691,5 @@ class Session:
         )
 
 
-def connect(context: Optional[Context] = None) -> Session:
+def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)

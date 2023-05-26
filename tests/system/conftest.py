@@ -89,7 +89,7 @@ def session() -> bigframes.Session:
 
 @pytest.fixture(scope="session")
 def session_tokyo(tokyo_location: str) -> bigframes.Session:
-    context = bigframes.Context(
+    context = bigframes.BigQueryOptions(
         location=tokyo_location,
     )
     return bigframes.Session(context=context)
