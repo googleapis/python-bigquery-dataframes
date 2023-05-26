@@ -244,7 +244,7 @@ def read_gbq_model(model_name: str):
         to load from the default project.
 
     Returns:
-        A bigframes.ml Model wrapping the model
+        A bigframes.ml Model wrapping the model.
     """
     # NOTE: Please keep this docstring in sync with the one in bigframes.session.
     return _with_default_session(

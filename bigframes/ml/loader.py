@@ -32,6 +32,7 @@ def from_bq(
     bigframes.ml.decomposition.PCA,
     bigframes.ml.cluster.KMeans,
     bigframes.ml.linear_model.LinearRegression,
+    bigframes.ml.linear_model.LogisticRegression,
 ]:
     """Load a BQML model to BigFrames ML.
 
@@ -46,6 +47,8 @@ def from_bq(
         return bigframes.ml.cluster.KMeans._from_bq(session, model)
     elif model.model_type == "PCA":
         return bigframes.ml.decomposition.PCA._from_bq(session, model)
+    elif model.model_type == "LOGISTIC_REGRESSION":
+        return bigframes.ml.linear_model.LogisticRegression._from_bq(session, model)
     else:
         raise NotImplementedError(
             f"Model type {model.model_type} is not yet supported by BigFrames"

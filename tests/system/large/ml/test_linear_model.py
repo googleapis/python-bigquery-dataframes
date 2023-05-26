@@ -110,3 +110,101 @@ def test_linear_regression_manual_split_configure_fit_score(
     )
     assert reloaded_model.fit_intercept is True
     assert reloaded_model.data_split_method == "NO_SPLIT"
+
+
+def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
+    penguins_df_default_index, dataset_id
+):
+    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
+    model = bigframes.ml.linear_model.LogisticRegression(data_split_method="AUTO_SPLIT")
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    train_y = df[["sex"]]
+    model.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    result = model.score().compute()
+    expected = pandas.DataFrame(
+        {
+            "precision": [0.58085],
+            "recall": [0.582576],
+            "accuracy": [0.871257],
+            "f1_score": [0.58171],
+            "log_loss": [1.59285],
+            "roc_auc": [0.9602],
+        },
+        dtype="Float64",
+    )
+    expected = expected.reindex(index=expected.index.astype("Int64"))
+    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+
+    # save, load, check parameters to ensure configuration was kept
+    reloaded_model = model.to_gbq(
+        f"{dataset_id}.temp_configured_logistic_reg_model", replace=True
+    )
+    assert (
+        f"{dataset_id}.temp_configured_logistic_reg_model"
+        in reloaded_model._bqml_model.model_name
+    )
+    assert reloaded_model.fit_intercept is True
+    assert reloaded_model.data_split_method == "AUTO_SPLIT"
+    # TODO(gaotianxiang): enable this once (auto_class_weights missing from API) is fixed
+    # assert reloaded_model.auto_class_weights is True
+
+
+def test_logistic_regression_manual_split_configure_fit_score(
+    penguins_df_default_index, dataset_id
+):
+    model = bigframes.ml.linear_model.LogisticRegression(
+        data_split_method="NO_SPLIT", fit_intercept=True
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    train_y = df[["sex"]]
+    model.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    result = model.score().compute()
+    expected = pandas.DataFrame(
+        {
+            "precision": [0.616753],
+            "recall": [0.618615],
+            "accuracy": [0.92515],
+            "f1_score": [0.617681],
+            "log_loss": [1.498832],
+            "roc_auc": [0.975807],
+        },
+        dtype="Float64",
+    )
+    expected = expected.reindex(index=expected.index.astype("Int64"))
+    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+
+    # save, load, check parameters to ensure configuration was kept
+    reloaded_model = model.to_gbq(
+        f"{dataset_id}.temp_configured_logistic_reg_model", replace=True
+    )
+    assert (
+        f"{dataset_id}.temp_configured_logistic_reg_model"
+        in reloaded_model._bqml_model.model_name
+    )
+    assert reloaded_model.fit_intercept is True
+    assert reloaded_model.data_split_method == "NO_SPLIT"
+    assert reloaded_model.auto_class_weights is False

@@ -364,6 +364,7 @@ def new_penguins_pandas_df():
             "culmen_length_mm": [39.5, 38.5, 37.9],
             "culmen_depth_mm": [18.8, 17.2, 18.1],
             "flipper_length_mm": [196.0, 181.0, 188.0],
+            "body_mass_g": [3750.0, 5200.0, 3325.0],
             "sex": ["MALE", "FEMALE", "FEMALE"],
         }
     ).set_index("tag_number")
@@ -400,6 +401,37 @@ WHERE
     except google.cloud.exceptions.NotFound:
         logging.info(
             "penguins_linear_model fixture was not found in the permanent dataset, regenerating it..."
+        )
+        session.bqclient.query(sql).result()
+    finally:
+        return model_name
+
+
+@pytest.fixture(scope="session")
+def penguins_logistic_model_name(
+    session: bigframes.Session, dataset_id_permanent, penguins_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...)"""
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='logistic_reg',
+    input_label_cols=['sex']
+) AS SELECT
+    *
+FROM `{penguins_table_id}`
+WHERE
+  sex IS NOT NULL"""
+    # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
+    model_name = f"{dataset_id_permanent}.penguins_logistic_reg_{hashlib.md5(sql.encode()).hexdigest()}"
+    sql = sql.replace("$model_name", model_name)
+
+    try:
+        session.bqclient.get_model(model_name)
+    except google.cloud.exceptions.NotFound:
+        logging.info(
+            "penguins_logistic_model fixture was not found in the permanent dataset, regenerating it..."
         )
         session.bqclient.query(sql).result()
     finally:

@@ -49,6 +49,16 @@ def penguins_linear_model(
 
 
 @pytest.fixture(scope="session")
+def penguins_logistic_model(
+    session, penguins_logistic_model_name
+) -> bigframes.ml.linear_model.LogisticRegression:
+    return cast(
+        bigframes.ml.linear_model.LogisticRegression,
+        session.read_gbq_model(penguins_logistic_model_name),
+    )
+
+
+@pytest.fixture(scope="session")
 def penguins_kmeans_model(
     session: bigframes.Session, dataset_id_permanent, penguins_table_id
 ) -> bigframes.ml.cluster.KMeans:

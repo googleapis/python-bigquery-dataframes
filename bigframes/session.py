@@ -359,7 +359,7 @@ class Session:
             to load from the default project.
 
         Returns:
-            A bigframes.ml Model wrapping the model
+            A bigframes.ml Model wrapping the model.
         """
         # NOTE: Please keep this docstring in sync with the one in bigframes.pandas.
         model_ref = bigquery.ModelReference.from_string(
