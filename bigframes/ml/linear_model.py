@@ -57,14 +57,14 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         if "dataSplitMethod" in last_fitting:
             kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
         if "fitIntercept" in last_fitting:
-            kwargs["last_fitting"] = last_fitting["fitIntercept"]
+            kwargs["fit_intercept"] = last_fitting["fitIntercept"]
 
         new_linear_regression = LinearRegression(**kwargs)
         new_linear_regression._bqml_model = bigframes.ml.core.BqmlModel(session, model)
         return new_linear_regression
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | float | List[str]]:
+    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
         return {
             "model_type": "LINEAR_REG",
