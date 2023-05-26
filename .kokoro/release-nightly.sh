@@ -69,8 +69,9 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
                 gs://dl-platform-colab/bigframes/;
 do
-  gsutil cp dist/* $gcs_path
-  gsutil cp "notebooks/00 - Summary.ipynb" $gcs_path/notebooks/
+  gsutil cp -v dist/* ${gcs_path}
+  gsutil cp -v LICENSE ${gcs_path}
+  gsutil cp -v "notebooks/00 - Summary.ipynb" ${gcs_path}notebooks/
 done
 
 # publish API coverage information to BigQuery
