@@ -18,6 +18,7 @@ import functools
 import typing
 
 import ibis
+import pandas as pd
 
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.index
@@ -111,16 +112,32 @@ class _iLocIndexer:
     def __init__(self, dataframe: bigframes.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.DataFrame:
+    def __getitem__(
+        self, key
+    ) -> bigframes.scalar.Scalar | bigframes.DataFrame | pd.Series:
         """
-        Only slice type is supported currently for indexing the iloc object.
+        Index dataframe using integer offsets. Currently supports index by key type:
+
+        slice: i.e. df.iloc[2:5] returns rows at index 2, 3, and 4 as a dataframe
+        individual offset: i.e. df.iloc[0] returns row at index 0 as a pandas Series
+
+        Other key types are not yet supported.
         """
-        if isinstance(key, slice):
+        if isinstance(key, int):
+            if key < 0:
+                raise NotImplementedError(
+                    "iloc does not yet support negative single positional index"
+                )
+            result_df = _slice_dataframe(self._dataframe, key, key + 1, 1)
+            result_pd_df = result_df.compute()
+            if result_pd_df.empty:
+                raise IndexError("single positional indexer is out-of-bounds")
+            result_pd_series = result_pd_df.iloc[0]
+            return result_pd_series
+        elif isinstance(key, slice):
             return _slice_dataframe(self._dataframe, key.start, key.stop, key.step)
-        if isinstance(key, list):
+        elif isinstance(key, list):
             raise NotImplementedError("iloc does not yet support indexing with a list")
-        elif isinstance(key, int):
-            raise NotImplementedError("iloc does not yet support single offsets")
         elif isinstance(key, tuple):
             raise NotImplementedError(
                 "iloc does not yet support indexing with a (row, column) tuple"

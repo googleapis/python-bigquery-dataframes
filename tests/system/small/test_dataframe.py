@@ -968,6 +968,27 @@ def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@pytest.mark.parametrize(
+    "index",
+    [0, 5],
+)
+def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iloc[index]
+    pd_result = scalars_pandas_df_index.iloc[index]
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_iloc_single_integer_out_of_bound_error(
+    scalars_df_index, scalars_pandas_df_index
+):
+    with pytest.raises(IndexError, match="single positional indexer is out-of-bounds"):
+        scalars_df_index.iloc[99]
+
+
 def test_loc_bool_series_explicit_index(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.loc[scalars_df_index.bool_col].compute()
     pd_result = scalars_pandas_df_index.loc[scalars_pandas_df_index.bool_col]
