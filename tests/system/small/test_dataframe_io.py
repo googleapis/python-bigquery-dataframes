@@ -173,6 +173,71 @@ def test_to_gbq_w_invalid_destination_table(scalars_df_index):
     ("index"),
     [True, False],
 )
+def test_to_json_index_invalid_orient(
+    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    gcs_folder: str,
+    index: bool,
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if scalars_df.index.name is not None:
+        path = gcs_folder + f"test_index_df_to_json_index_{index}"
+    else:
+        path = gcs_folder + f"test_default_index_df_to_json_index_{index}"
+    with pytest.raises(ValueError):
+        scalars_df.to_json(path, index=index, lines=True)
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [True, False],
+)
+def test_to_json_index_invalid_lines(
+    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    gcs_folder: str,
+    index: bool,
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if scalars_df.index.name is not None:
+        path = gcs_folder + f"test_index_df_to_json_index_{index}"
+    else:
+        path = gcs_folder + f"test_default_index_df_to_json_index_{index}"
+    with pytest.raises(NotImplementedError):
+        scalars_df.to_json(path, index=index)
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [True, False],
+)
+def test_to_json_index_records_orient(
+    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    gcs_folder: str,
+    index: bool,
+):
+    """Test the `to_json` API with the `index` parameter."""
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if scalars_df.index.name is not None:
+        path = gcs_folder + f"test_index_df_to_json_index_{index}"
+    else:
+        path = gcs_folder + f"test_default_index_df_to_json_index_{index}"
+
+    """ Test the `to_json` API with `orient` is `records` and `lines` is True"""
+    scalars_df.to_json(path, index=index, orient="records", lines=True)
+
+    gcs_df = pd.read_json(path, lines=True, convert_dates=["datetime_col"])
+    convert_pandas_dtypes(gcs_df, bytes_col=True)
+    if index and scalars_df.index.name is not None:
+        gcs_df = gcs_df.set_index(scalars_df.index.name)
+
+    assert len(gcs_df.index) == len(scalars_pandas_df.index)
+    pd.testing.assert_index_equal(gcs_df.columns, scalars_pandas_df.columns)
+    assert_pandas_df_equal_ignore_ordering(gcs_df, scalars_pandas_df)
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [True, False],
+)
 def test_to_parquet_index(scalars_dfs, gcs_folder, index):
     """Test the `to_parquet` API with the `index` parameter."""
     scalars_df, scalars_pandas_df = scalars_dfs

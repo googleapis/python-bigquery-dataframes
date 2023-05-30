@@ -1123,6 +1123,65 @@ class DataFrame:
         )
         extract_job.result()  # Wait for extract job to finish
 
+    def to_json(
+        self,
+        paths: str,
+        *,
+        index: bool = True,
+        orient: Literal[
+            "split", "records", "index", "columns", "values", "table"
+        ] = "columns",
+        lines: bool = False,
+    ) -> None:
+        """Writes DataFrame to newline delimited JSON file(s) on GCS.
+
+        Args:
+            paths: a destination URIs of GCS files(s) to store the extracted dataframe
+            in format of
+                ``gs://<bucket_name>/<object_name_or_glob>``.
+                If the data size is more than 1GB, you must use a wildcard to export
+                the data into multiple files and the size of the files varies.
+
+            index: whether write row names (index) or not.
+
+            orient: indication of expected JSON string format. Possible values: "split",
+                "records", "index", "columns", "values", "table". Default to "columns".
+
+            lines: if ‘orient’ is "records" write out line-delimited json format. Default to False.
+        Returns:
+            None.
+        """
+        # TODO(swast): Can we support partition columns argument?
+        # TODO(chelsealin): Support local file paths.
+        # TODO(swast): Some warning that wildcard is recommended for large
+        # query results? See:
+        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
+        if not paths.startswith("gs://"):
+            raise NotImplementedError(
+                "Only Google Cloud Storage (gs://...) paths are supported."
+            )
+
+        if lines is True and orient != "records":
+            raise ValueError(
+                "'lines' keyword is only valid when 'orient' is 'records'."
+            )
+
+        # TODO(ashleyxu) Support lines=False for small tables with arrays and TO_JSON_STRING.
+        # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string
+        if lines is False:
+            raise NotImplementedError(
+                "Only newline delimited JSON format is supported."
+            )
+
+        source_table = self._execute_query(index=index)
+        job_config = bigquery.ExtractJobConfig(
+            destination_format=bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
+        )
+        extract_job = self._block.expr._session.bqclient.extract_table(
+            source_table, destination_uris=[paths], job_config=job_config
+        )
+        extract_job.result()  # Wait for extract job to finish
+
     def to_gbq(
         self,
         destination_table: str,
