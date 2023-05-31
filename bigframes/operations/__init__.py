@@ -137,6 +137,11 @@ class MonthOp(UnaryOp):
         return typing.cast(ibis_types.TimestampValue, x).month()
 
 
+class QuarterOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.TimestampValue, x).quarter()
+
+
 class SecondOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.TimestampValue, x).second()
@@ -243,6 +248,7 @@ date_op = DateOp()
 hour_op = HourOp()
 minute_op = MinuteOp()
 month_op = MonthOp()
+quarter_op = QuarterOp()
 second_op = SecondOp()
 time_op = TimeOp()
 year_op = YearOp()

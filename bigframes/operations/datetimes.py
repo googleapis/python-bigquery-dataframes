@@ -76,6 +76,16 @@ class DatetimeMethods(bigframes.operations.base.SeriesMethods):
         return self._apply_unary_op(ops.time_op)
 
     @property
+    def quarter(self) -> series.Series:
+        """The quarter of the date.
+
+        warning:
+           This method returns a Series whereas pandas returns
+           a numpy array.
+        """
+        return self._apply_unary_op(ops.quarter_op)
+
+    @property
     def year(self) -> series.Series:
         """Returns the year of the datetime"""
         return self._apply_unary_op(ops.year_op)

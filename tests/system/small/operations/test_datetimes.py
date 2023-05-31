@@ -130,6 +130,24 @@ def test_month(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
+def test_quarter(scalars_dfs, col_name):
+    if pd.__version__.startswith("1."):
+        pytest.skip("Pyarrow datetime objects not support in pandas 1.x.")
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.dt.quarter.compute()
+    pd_result = scalars_pandas_df[col_name].dt.quarter
+
+    assert_series_equal_ignoring_order(
+        pd_result.astype(pd.Int64Dtype()),
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    DATETIME_COL_NAMES,
+)
 def test_second(scalars_dfs, col_name):
     if pd.__version__.startswith("1."):
         pytest.skip("Pyarrow datetime objects not support in pandas 1.x.")
