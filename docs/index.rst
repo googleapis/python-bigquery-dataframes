@@ -2,11 +2,8 @@
 
 API Reference
 -------------
+
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
 
-    bigframes/library
-
-    bigframes/strings
-
-    bigframes.ml/index
+    reference/index

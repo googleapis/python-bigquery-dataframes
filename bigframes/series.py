@@ -58,7 +58,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Methods that act on a datetime Series.
 
         Returns:
-            bigframes.operations.datetime.DatetimeMethods: Methods that act on a datetime Series.
+            bigframes.operations.datetimes.DatetimeMethods: Methods that act on a datetime Series.
         """
         return dt.DatetimeMethods(self._block, self._value_column, name=self._name)
 
@@ -934,7 +934,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         group_key = self._block.index_columns[0]
         key = block._expr.get_column(group_key)
         value = self._value
-        return SeriesGroupyBy(
+        return SeriesGroupBy(
             block,
             value.get_name(),
             key.get_name(),
@@ -949,7 +949,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         dropna: bool = True,
     ):
         (value, key, index) = self._align(by, "inner" if dropna else "left")
-        return SeriesGroupyBy(
+        return SeriesGroupBy(
             index._block,
             value.get_name(),
             key.get_name(),
@@ -1124,7 +1124,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         return strings.StringMethods(self._block, self._value_column, name=self._name)
 
 
-class SeriesGroupyBy:
+class SeriesGroupBy:
     """Represents a deferred series with a grouping expression."""
 
     def __init__(
