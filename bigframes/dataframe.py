@@ -61,7 +61,6 @@ class DataFrame:
         self,
         index: indexes.ImplicitJoiner,
     ):
-        self._index = index
         self._block = index._block
 
     def __dir__(self):
@@ -128,7 +127,7 @@ class DataFrame:
         self,
     ) -> Union[indexes.ImplicitJoiner, indexes.Index,]:
         """The index of the dataframe."""
-        return self._index
+        return self._block.index
 
     @property
     def loc(self) -> bigframes.indexers._LocIndexer:
@@ -424,7 +423,7 @@ class DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
             other.index, how="outer"
         )
-        joined_index.name = self._index.name
+        joined_index.name = self.index.name
 
         series_column_id = other._value.get_name()
         series_col = get_column_right(series_column_id)
@@ -549,8 +548,6 @@ class DataFrame:
         """Limits DataFrame to a specific number of rows."""
         df = self._copy()
         df._block.expr = self._block.expr.apply_limit(n)
-        # TODO(swast): Why isn't the name sticking?
-        df.index.name = self.index.name
         return df
 
     def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
@@ -627,7 +624,7 @@ class DataFrame:
         joined_index, (get_column_left, get_column_right) = self.index.join(
             v.index, how="left"
         )
-        joined_index.name = self._index.name
+        joined_index.name = self.index.name
 
         sql_names = self._sql_names(k, tolerance=True)
         column_labels = list(self._block.column_labels)
