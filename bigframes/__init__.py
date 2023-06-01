@@ -18,11 +18,7 @@ from bigframes._config import options
 from bigframes._config.bigquery_options import BigQueryOptions
 from bigframes.bigframes import concat
 from bigframes.dataframe import DataFrame
-from bigframes.remote_function import (
-    get_cloud_function_name,
-    get_remote_function_locations,
-    remote_function,
-)
+from bigframes.remote_function import remote_function
 from bigframes.series import Series
 from bigframes.session import connect, Session
 from bigframes.version import __version__
@@ -34,8 +30,6 @@ __all__ = [
     "Session",
     "DataFrame",
     "Series",
-    "get_remote_function_locations",
-    "get_cloud_function_name",
     "options",
     "remote_function",
     "__version__",

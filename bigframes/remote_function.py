@@ -327,10 +327,6 @@ class RemoteFunctionClient:
     def create_cloud_function(self, def_, cf_name):
         """Create a cloud function from the given user defined function."""
 
-        # Display existing cloud functions before creation
-        logger.info("Existing cloud functions")
-        os.system(f"gcloud functions list --project={self._gcp_project_id}")
-
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as dir:
             entry_point = self.generate_cloud_function_code(def_, dir)
@@ -389,10 +385,6 @@ class RemoteFunctionClient:
                 logger.info(f"Creating new cloud function: {command}")
             if os.system(command):
                 raise ValueError("Failed at gcloud functions deploy")
-
-        # Display existing cloud functions after creation
-        logger.info("Existing cloud functions")
-        os.system(f"gcloud functions list --project={self._gcp_project_id}")
 
         # Fetch the endpoint of the just created function
         endpoint = self.get_cloud_function_endpoint(cf_name)
@@ -524,20 +516,26 @@ def remote_function(
         Please make sure following is setup before using this API:
 
         1. Have the below APIs enabled for your project:
-              a. Cloud Build API
-              b. Artifact Registry API
-              c. Cloud Functions API
-              d. BigQuery Connection API
+              a. BigQuery Connection API
+              b. Cloud Functions API
+              c. Cloud Run API
+              d. Cloud Build API
+              e. Artifact Registry API
+              f. Cloud Resource Manager API
 
            This can be done from the cloud console (change PROJECT_ID to yours):
-              https://console.cloud.google.com/apis/enableflow?apiid=cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudfunctions.googleapis.com,bigqueryconnection.googleapis.com&project=PROJECT_ID
+              https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
            Or from the gcloud CLI:
-              $ gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com cloudfunctions.googleapis.com bigqueryconnection.googleapis.com
+              $ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com
 
         2. Have following IAM roles enabled for you:
-              a. BigQuery Job User (roles/bigquery.jobUser)
-              b. BigQuery Connection User (roles/bigquery.connectionUser)
+              a. BigQuery Data Editor (roles/bigquery.dataEditor)
+              b. BigQuery Connection Admin (roles/bigquery.connectionAdmin)
               c. Cloud Functions Developer (roles/cloudfunctions.developer)
+              d. Service Account User (roles/iam.serviceAccountUser)
+              e. Storage Object Viewer (roles/storage.objectViewer)
+              f. Project IAM Admin (roles/resourcemanager.projectIamAdmin)
+                 (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
 
         3. Either the user has setIamPolicy privilege on the project, or a BigQuery connection is pre-created with necessary IAM role set:
               a. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection

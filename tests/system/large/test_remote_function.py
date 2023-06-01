@@ -27,7 +27,10 @@ import pandas
 import pytest
 import test_utils.prefixer
 
-from bigframes import get_cloud_function_name, get_remote_function_locations
+from bigframes.remote_function import (
+    get_cloud_function_name,
+    get_remote_function_locations,
+)
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 # Use this to control the number of cloud functions being deleted in a single
