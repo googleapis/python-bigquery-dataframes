@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import random
 import re
 import typing
 from typing import (
@@ -964,6 +965,85 @@ class DataFrame:
             self._block.value_columns[-1], op, window_spec=window_spec
         )
         return DataFrame(block)
+
+    def sample(
+        self,
+        n: Optional[int] = None,
+        frac: Optional[float] = None,
+        random_state: Optional[int] = None,
+    ) -> DataFrame:
+        """Return a random sample of rows from the DataFrame.
+
+        Arguments:
+            n: number of rows to return. Defaults to 1 if frac=None.
+            Cannot be used if frac is used.
+            frac: fraction of rows to return. Cannot be used if n is used.
+            random_state: random int used for reproducibility of samples.
+        Returns:
+            DataFrame
+        """
+        block = self._block.copy()
+        sample_size = None
+        if n is not None and frac is not None:
+            raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
+        elif n is not None:
+            sample_size = n
+        elif frac is not None:
+            total_rows = block.shape()[0]
+            # Round to nearest integer. "round half to even" rule applies.
+            sample_size = round(frac * total_rows)
+        else:
+            # To match pandas behavior, sample_size should be 1 by default if frac and n are None.
+            sample_size = 1
+
+        # Set random_state if it is not provided
+        if random_state is None:
+            random_state = random.randint(-(2**30), 2**30)
+
+        # Add guid to new column names to avoid collisions.
+        random_state_col = bigframes.guid.generate_guid("random_state")
+        ordering_col = bigframes.guid.generate_guid("ordering")
+        sum_col = bigframes.guid.generate_guid("sum")
+        row_number_col = bigframes.guid.generate_guid("row_number")
+        sample_size_col = bigframes.guid.generate_guid("sample_size")
+        less_than_col = bigframes.guid.generate_guid("less_than")
+
+        # Create a new column with random_state value.
+        block = block.assign_constant(random_state_col, random_state)
+
+        # Create an ordering col and a new sum col which is ordering+random_state.
+        block.promote_offsets(ordering_col)
+        block.apply_binary_op(ordering_col, random_state_col, ops.add_op, sum_col)
+        block.replace_column_labels([*block.column_labels, sum_col])
+
+        # Apply hash method to sum col and order by it.
+        block.apply_unary_op(sum_col, ops.AsTypeOp(ibis_dtypes.string))
+        block.apply_unary_op(sum_col, ops.hash_op)
+        block.order_by(sum_col)
+
+        # Create a new row_number column based on ordering by the hashed values.
+        block.promote_offsets(row_number_col)
+
+        # Create a new column with sample_size value and filter rows < sample_size.
+        block = block.assign_constant(sample_size_col, sample_size)
+        block.apply_binary_op(
+            row_number_col, sample_size_col, ops.lt_op, output_id=less_than_col
+        )
+        block.filter(less_than_col)
+
+        # Drop temporary columns from result.
+        drop_cols = [
+            random_state_col,
+            ordering_col,
+            sum_col,
+            row_number_col,
+            sample_size_col,
+            less_than_col,
+        ]
+        block = block.drop_columns(drop_cols)
+
+        df = DataFrame(block)
+        return df
 
     def to_pandas(self) -> pd.DataFrame:
         """Writes DataFrame to Pandas DataFrame."""

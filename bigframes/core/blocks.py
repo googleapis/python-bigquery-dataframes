@@ -35,6 +35,7 @@ import pyarrow as pa  # type: ignore
 import bigframes.aggregations as agg_ops
 import bigframes.core as core
 import bigframes.core.indexes as indexes
+from bigframes.core.ordering import OrderingColumnReference
 import bigframes.dtypes
 import bigframes.guid as guid
 import bigframes.operations as ops
@@ -528,3 +529,10 @@ class Block:
         )
         # TODO(swast): Support MultiIndex.
         return block
+
+    def promote_offsets(self, value_col_id: str):
+        self.expr = self._expr.promote_offsets(value_col_id=value_col_id)
+        self.replace_column_labels([value_col_id, *self.column_labels])
+
+    def order_by(self, order_col_id: str):
+        self.expr = self._expr.order_by([OrderingColumnReference(order_col_id)])

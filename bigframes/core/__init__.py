@@ -537,7 +537,7 @@ class BigFramesExpr:
         """
         Creates an Ibis table expression representing the DataFrame.
 
-        BigFrames expression are sorted, so three options are avaiable to reflect this in the ibis expression.
+        BigFrames expression are sorted, so three options are available to reflect this in the ibis expression.
         The default is that the expression will be ordered by an order_by clause.
         "order_by": The output table will not have an ordering column, however there will be an order_by clause applied to the ouput.
         "offset_col": Zero-based offsets are generated as a column, this will not sort the rows however.
@@ -545,7 +545,7 @@ class BigFramesExpr:
         "expose_hidden_cols": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
         "unordered": No ordering information will be provided in output. Only value columns are projected.
         For offset or ordered column, order_col_name can be used to assign the output label for the ordering column.
-        If none is specified, the default column name will be 'bigrames_ordering_id'
+        If none is specified, the default column name will be 'bigframes_ordering_id'
 
         Args:
             with_offsets: Output will include 0-based offsets as a column if set to True

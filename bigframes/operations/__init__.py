@@ -107,6 +107,11 @@ class LstripOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).lstrip()
 
 
+class HashOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.IntegerValue, x).hash()
+
+
 class DayOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.TimestampValue, x).day()
@@ -242,6 +247,7 @@ strip_op = StripOp()
 isnumeric_op = IsNumericOp()
 rstrip_op = RstripOp()
 lstrip_op = LstripOp()
+hash_op = HashOp()
 day_op = DayOp()
 dayofweek_op = DayofweekOp()
 date_op = DateOp()

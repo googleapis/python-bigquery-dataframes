@@ -1105,3 +1105,39 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
     pd_series = pd_series.astype("Float64")
     # Pandas has object index type
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
+
+
+@pytest.mark.parametrize(
+    ("frac", "n", "random_state"),
+    [
+        (None, 4, None),
+        (0.5, None, None),
+        (None, 4, 10),
+        (0.5, None, 10),
+        (None, None, None),
+    ],
+    ids=[
+        "n_wo_random_state",
+        "frac_wo_random_state",
+        "n_w_random_state",
+        "frac_w_random_state",
+        "n_default",
+    ],
+)
+def test_sample(scalars_dfs, frac, n, random_state):
+    scalars_df, _ = scalars_dfs
+    df = scalars_df.sample(frac=frac, n=n, random_state=random_state)
+    bf_result = df.compute()
+
+    n = 1 if n is None else n
+    expected_sample_size = round(frac * scalars_df.shape[0]) if frac is not None else n
+    assert bf_result.shape[0] == expected_sample_size
+    assert bf_result.shape[1] == scalars_df.shape[1]
+
+
+def test_sample_raises_value_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    with pytest.raises(
+        ValueError, match="Only one of 'n' or 'frac' parameter can be specified."
+    ):
+        scalars_df.sample(frac=0.5, n=4)
