@@ -30,10 +30,7 @@ SUPPORTED_ROW_IDENTITY_HOW = {"outer", "left", "inner"}
 
 def join_by_row_identity(
     left: core.BigFramesExpr, right: core.BigFramesExpr, *, how: str
-) -> Tuple[
-    core.BigFramesExpr,
-    Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
-]:
+) -> Tuple[core.BigFramesExpr, Tuple[Callable[[str], str], Callable[[str], str]],]:
     """Compute join when we are joining by row identity not a specific column."""
     if how not in SUPPORTED_ROW_IDENTITY_HOW:
         raise NotImplementedError("Only how='outer','left','inner' currently supported")
@@ -121,8 +118,8 @@ def join_by_row_identity(
         predicates=combined_predicates,
     )
     return joined_expr, (
-        lambda key: joined_expr.get_any_column(map_left_id(key)),
-        lambda key: joined_expr.get_any_column(map_right_id(key)),
+        lambda key: map_left_id(key),
+        lambda key: map_right_id(key),
     )
 
 

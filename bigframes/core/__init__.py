@@ -23,6 +23,7 @@ from google.cloud import bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
+import pandas
 
 import bigframes.aggregations as agg_ops
 from bigframes.core.ordering import (
@@ -30,6 +31,7 @@ from bigframes.core.ordering import (
     OrderingColumnReference,
     stringify_order_id,
 )
+import bigframes.dtypes
 import bigframes.guid
 import bigframes.operations as ops
 
@@ -312,6 +314,9 @@ class BigFramesExpr:
         ]
         return expr_builder.build()
 
+    def select_columns(self, column_ids: typing.Sequence[str]):
+        return self.projection([self.get_column(col_id) for col_id in column_ids])
+
     def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
@@ -404,6 +409,22 @@ class BigFramesExpr:
         """Creates a new expression based on this expression with binary operation applied to two columns."""
         value = op(
             self.get_column(left_column_id), self.get_column(right_column_id)
+        ).name(output_column_id)
+        return self._set_or_replace_by_id(output_column_id, value)
+
+    def project_ternary_op(
+        self,
+        col_id_1: str,
+        col_id_2: str,
+        col_id_3: str,
+        op: ops.TernaryOp,
+        output_column_id: str,
+    ) -> BigFramesExpr:
+        """Creates a new expression based on this expression with ternary operation applied to three columns."""
+        value = op(
+            self.get_column(col_id_1),
+            self.get_column(col_id_2),
+            self.get_column(col_id_3),
         ).name(output_column_id)
         return self._set_or_replace_by_id(output_column_id, value)
 
@@ -713,6 +734,18 @@ class BigFramesExpr:
             [old_id]
         )
 
+    def assign(self, source_id: str, destination_id: str) -> BigFramesExpr:
+        return self._set_or_replace_by_id(destination_id, self.get_column(source_id))
+
+    def assign_constant(self, destination_id: str, value: typing.Any) -> BigFramesExpr:
+        # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
+        ibis_value = _interpret_as_ibis_literal(value)
+        if ibis_value is None:
+            raise NotImplementedError(
+                f"Type not supported as scalar value {type(value)}"
+            )
+        return self._set_or_replace_by_id(destination_id, ibis_value)
+
     def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value):
         builder = self.builder()
         if id in self.column_names:
@@ -802,3 +835,10 @@ def _numeric_to_float(value: ibis_types.Value):
         return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
     else:
         return value.cast(ibis_dtypes.float64)
+
+
+def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
+    if pandas.isna(value):
+        # TODO(tbergeron): Ensure correct handling of NaN - maybe not map to Null
+        return ibis_types.null()
+    return bigframes.dtypes.literal_to_ibis_scalar(value)

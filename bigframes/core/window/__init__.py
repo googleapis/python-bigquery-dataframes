@@ -77,4 +77,4 @@ class Window:
         block.apply_window_op(self._value_column_id, op, self._window_spec)
         from bigframes.series import Series
 
-        return Series(block, self._value_column_id, name=self._label)
+        return Series(block.select_column(self._value_column_id), name=self._label)

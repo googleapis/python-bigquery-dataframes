@@ -179,7 +179,7 @@ class DataFrameGroupBy:
             as_index=self._as_index,
             dropna=self._dropna,
         )
-        return df.DataFrame(result_block.index)
+        return df.DataFrame(result_block)
 
     def _apply_window_op(
         self,
@@ -206,4 +206,4 @@ class DataFrameGroupBy:
         # Reproject after applying final independent window operation.
         pruned_block.apply_window_op(columns[-1], op, window_spec=window_spec)
         final_block = pruned_block.drop_columns(window_spec.grouping_keys)
-        return df.DataFrame(final_block.index)
+        return df.DataFrame(final_block)

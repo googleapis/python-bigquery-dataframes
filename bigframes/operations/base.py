@@ -24,16 +24,17 @@ import bigframes.series as series
 
 
 class SeriesMethods:
-    def __init__(
-        self,
-        block: blocks.Block,
-        value_column: str,
-        *,
-        name: Optional[str] = None,
-    ):
-        self._block = block
-        self._value_column = value_column
-        self._name = name
+    def __init__(self, block: blocks.Block, *, name: Optional[str] = None):
+        assert len(block.value_columns) == 1
+        assert len(block.column_labels) == 1
+        if name:
+            new_block = block.copy()
+            new_block.replace_column_labels([name])
+            self._block = new_block
+        else:
+            self._block = block
+        self._value_column = self._block.value_columns[0]
+        self._name = self._block.column_labels[0]
 
     @property
     def _viewed_block(self) -> blocks.Block:
@@ -53,8 +54,4 @@ class SeriesMethods:
         """Applies a unary operator to the series."""
         block = self._viewed_block
         block.apply_unary_op(self._value_column, op)
-        return series.Series(
-            block,
-            self._value_column,
-            name=self._name,
-        )
+        return series.Series(block.select_column(self._value_column))

@@ -19,8 +19,6 @@ from __future__ import annotations
 import typing
 from typing import Callable, Tuple
 
-import ibis.expr.types as ibis_types
-
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.joins as joins
@@ -64,15 +62,15 @@ class ImplicitJoiner:
         other: ImplicitJoiner,
         *,
         how="left",
-    ) -> Tuple[
-        ImplicitJoiner,
-        Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
-    ]:
+    ) -> Tuple[ImplicitJoiner, Tuple[Callable[[str], str], Callable[[str], str]],]:
         """Compute join_index and indexers to conform data structures to the new index."""
         joined_expr, (get_column_left, get_column_right) = joins.join_by_row_identity(
             self._expr, other._expr, how=how
         )
-        block = blocks.Block(joined_expr)
+        block = blocks.Block(
+            joined_expr,
+            column_labels=[*self._block.column_labels, *other._block.column_labels],
+        )
         return ImplicitJoiner(block, name=self.name), (
             get_column_left,
             get_column_right,

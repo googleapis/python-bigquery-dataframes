@@ -344,11 +344,10 @@ class Session:
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
             [index_col.get_name()],
+            index_labels=[index_name],
         )
 
-        df = dataframe.DataFrame(block.index)
-        df.index.name = index_name
-        return df
+        return dataframe.DataFrame(block)
 
     def read_gbq_model(self, model_name: str):
         """Loads a BQML model from Google BigQuery.

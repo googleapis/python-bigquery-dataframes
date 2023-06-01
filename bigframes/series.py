@@ -19,8 +19,6 @@ from __future__ import annotations
 import typing
 from typing import Optional, Union
 
-import ibis
-import ibis.common.exceptions
 import ibis.expr.types as ibis_types
 import numpy
 import pandas
@@ -60,7 +58,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             bigframes.operations.datetimes.DatetimeMethods: Methods that act on a datetime Series.
         """
-        return dt.DatetimeMethods(self._block, self._value_column, name=self._name)
+        return dt.DatetimeMethods(self._block, name=self._name)
 
     @property
     def dtype(self):
@@ -75,7 +73,7 @@ class Series(bigframes.operations.base.SeriesMethods):
     @property
     def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
         """The index of the series."""
-        return self._viewed_block.index
+        return self._block.index
 
     @property
     def loc(self) -> bigframes.indexers.LocSeriesIndexer:
@@ -115,7 +113,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def copy(self) -> Series:
         """Creates a deep copy of the series."""
-        return Series(self._block.copy(), self._value_column, name=self.name)
+        return Series(self._block.copy())
 
     def reset_index(
         self,
@@ -133,22 +131,14 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             Series if drop=True else Dataframe
         """
-        block = self._block.reset_index()
-
+        block = self._block.reset_index(drop)
         if drop:
-            return Series(block, self._value_column, name=self.name)
+            return Series(block)
         else:
-            old_index_col_id = self._block.index_columns[0]
-            # Need to generate some non-null labels until dataframe decouples column labels from internal column id
-            # This may also cause collisions as we are overriding unique internal ids
-            former_index_label = self.index.name or generate_guid("index_")
-            series_value_label = name or self.name or generate_guid("value_")
-            # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
-            block.expr = block._expr.deprecated_rename_column(
-                self._value_column, series_value_label
-            ).deprecated_rename_column(old_index_col_id, former_index_label)
+            former_index_label = self.index.name
+            series_value_label = name or self.name
             block.replace_column_labels([former_index_label, series_value_label])
-            return bigframes.DataFrame(block.index)
+            return bigframes.DataFrame(block)
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -188,18 +178,24 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Drops rows with the given label(s). Note: will never raise KeyError even if labels are not present."""
         block = self._block.copy()
         if isinstance(block._index, bigframes.core.indexes.Index):
-            index_column = block.expr.get_column(block._index._index_column)
+            index_column = block._index._index_column
         else:
             raise ValueError("Cannot drop labels without explicit index.")
+
+        condition_id = generate_guid("drop_cond")
         if _is_list_like(labels):
-            condition = ~index_column.isin(labels)
+            block.apply_unary_op(
+                index_column, ops.partial_right(ops.isin_op, labels), condition_id
+            )
+            block.apply_unary_op(condition_id, ops.invert_op)
+
         else:
-            label_value = _interpret_as_ibis_literal(labels)
-            if label_value is None:
-                raise ValueError(f"Could not interpret label value(s): {labels}")
-            condition = index_column.__ne__(label_value)
-        block.expr = self._block.expr.filter(condition)
-        return Series(block, self._value_column, name=self.name)
+            block.apply_unary_op(
+                index_column, ops.partial_right(ops.ne_op, labels), condition_id
+            )
+        block.filter(condition_id)
+        block = block.drop_columns([condition_id])
+        return Series(block.select_column(self._value_column), name=self.name)
 
     def between(self, left, right, inclusive="both"):
         """Returns True for values between 'left' and 'right', else False."""
@@ -302,7 +298,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             output_name=rownum_id,
         )
         if method == "first":
-            result = Series(block, rownum_id, name=self.name)
+            result = Series(block.select_column(rownum_id), name=self.name)
         else:
             # Step 2: Apply aggregate to groups of like input values.
             # This step is skipped for method=='first'
@@ -318,7 +314,7 @@ class Series(bigframes.operations.base.SeriesMethods):
                 window_spec=WindowSpec(grouping_keys=(self._value_column,)),
                 output_name=rank_id,
             )
-            result = Series(block, rank_id, name=self.name)
+            result = Series(block.select_column(rank_id), name=self.name)
         if na_option == "keep":
             # For na_option "keep", null inputs must produce null outputs
             result = result.mask(self.isnull(), pandas.NA)
@@ -541,6 +537,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         block = block.aggregate(
             [self._value_column],
             ((self._value_column, agg_ops.count_op, value_count_col_id),),
+            as_index=False,
         )
         max_value_count_col_id = self._value_column + "_bf_internal_max_value_count"
         block.apply_window_op(
@@ -550,7 +547,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             output_name=max_value_count_col_id,
         )
         is_mode_col_id = self._value_column + "_bf_internal_is_mode"
-        block.project_binary_op(
+        block.apply_binary_op(
             value_count_col_id,
             max_value_count_col_id,
             ops.eq_op,
@@ -558,7 +555,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
         block.filter(is_mode_col_id)
         return (
-            Series(block, self._value_column, name=self.name)
+            Series(block.select_column(self._value_column), name=self.name)
             .sort_values()
             .reset_index(drop=True)
         )
@@ -620,7 +617,6 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def __invert__(self) -> Series:
         """Element-wise logical negation. Does not handle null or nan values."""
-
         return self._apply_unary_op(ops.invert_op)
 
     def eq(self, other: object) -> Series:
@@ -630,22 +626,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
         """
         # TODO: enforce stricter alignment
-        (left, right, index) = self._align(other)
-        block = blocks.Block(index._expr)
-        block.index = index
-        block.replace_value_columns(
-            [
-                (left == right).name(self._value_column),
-            ]
-        )
-        name = self._name
-        if isinstance(other, Series) and other.name != self.name:
-            name = None
-        return Series(
-            block,
-            self._value_column,
-            name=name,
-        )
+        return self._apply_binary_op(other, ops.eq_op)
 
     def ne(self, other: object) -> Series:
         """
@@ -654,22 +635,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
         """
         # TODO: enforce stricter alignment
-        (left, right, index) = self._align(other)
-        block = blocks.Block(index._expr)
-        block.index = index
-        block.replace_value_columns(
-            [
-                (left != right).name(self._value_column),
-            ]
-        )
-        name = self._name
-        if isinstance(other, Series) and other.name != self.name:
-            name = None
-        return Series(
-            block,
-            self._value_column,
-            name=name,
-        )
+        return self._apply_binary_op(other, ops.ne_op)
 
     def where(self, cond, other=None):
         """Keep original values where 'cond' is True, else repacle with values from 'other'"""
@@ -684,63 +650,54 @@ class Series(bigframes.operations.base.SeriesMethods):
     def __getitem__(self, indexer: Series):
         """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
-        (left, right, index) = self._align(indexer, "left")
-        block = self._viewed_block
-        block.index = index
-        block.replace_value_columns(
-            [
-                left.name(self._value_column),
-            ]
-        )
-        filtered_expr = block.expr.filter((right == ibis.literal(True)))
-        block.expr = filtered_expr
-        return Series(block, self._value_column, name=self._name)
+        (left, right, block) = self._align(indexer, "left")
+        block.filter(right)
+        return Series(block.select_column(left), name=self._name)
 
-    def _align(self, other: typing.Any, how="outer") -> tuple[ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
-        """Aligns the series value with other scalar or series object. Returns new left value, right value and joined tabled expression."""
-        values, index = self._align_n(
+    def _align(self, other: typing.Any, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
+        """Aligns the series value with other scalar or series object. Returns new left column id, right column id and joined tabled expression."""
+        values, block = self._align_n(
             [
                 other,
             ],
             how,
         )
-        return (values[0], values[1], index)
+        return (values[0], values[1], block)
 
-    def _align3(self, other1: typing.Any, other2: typing.Any, how="left") -> tuple[ibis_types.Value, ibis_types.Value, ibis_types.Value, bigframes.core.indexes.implicitjoiner.ImplicitJoiner]:  # type: ignore
+    def _align3(self, other1: typing.Any, other2: typing.Any, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
         values, index = self._align_n([other1, other2], how)
         return (values[0], values[1], values[2], index)
 
     def _align_n(
         self, others: typing.Sequence[typing.Any], how="outer"
-    ) -> tuple[
-        typing.Sequence[ibis_types.Value],
-        bigframes.core.indexes.implicitjoiner.ImplicitJoiner,
-    ]:
-        values = [self._value]
-        index = self.index
+    ) -> tuple[typing.Sequence[str], blocks.Block]:
+        value_ids = [self._value_column]
+        block = self._block
         for other in others:
-            as_literal = _interpret_as_ibis_literal(other)
             if isinstance(other, Series):
                 combined_index, (
                     get_column_left,
                     get_column_right,
-                ) = index.join(other.index, how=how)
-                values = [
-                    *[get_column_left(value.get_name()) for value in values],
+                ) = block.index.join(other.index, how=how)
+                value_ids = [
+                    *[get_column_left(value) for value in value_ids],
                     get_column_right(other._value_column),
                 ]
-                index = combined_index
+                block = combined_index._block
             elif isinstance(other, bigframes.scalar.DeferredScalar):
                 # TODO(tbereron): support deferred scalars.
-                raise ValueError(
-                    "Deferred scalar not yet supported for binary operations."
+                raise ValueError("Deferred scalar not supported as operand.")
+            elif isinstance(other, pandas.Series):
+                raise NotImplementedError(
+                    "Pandas series not supported supported as operand."
                 )
-            elif as_literal is not None:
-                values = [*values, as_literal]
             else:
-                raise NotImplementedError(f"Unsupported operand of type {type(other)}")
-        return (values, index)
+                id_for_constant = generate_guid()
+                # Will throw if can't interpret as scalar.
+                block = block.copy().assign_constant(id_for_constant, other)
+                value_ids = [*value_ids, id_for_constant]
+        return (value_ids, block)
 
     def _apply_aggregation(
         self, op: agg_ops.AggregateOp
@@ -758,8 +715,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         block = self._block.copy()
         block.apply_window_op(self._value_column, op, window_spec=window_spec)
         return Series(
-            block,
-            self._value_column,
+            block.select_column(self._value_column),
             name=self.name,
         )
 
@@ -769,20 +725,18 @@ class Series(bigframes.operations.base.SeriesMethods):
         op: ops.BinaryOp,
     ) -> Series:
         """Applies a binary operator to the series and other."""
-        (left, right, index) = self._align(other)
+        (left, right, block) = self._align(other)
 
-        block = index._block
-        result_expr = op(left, right).name(self._value_column)
-        block.replace_value_columns([result_expr])
+        block.apply_binary_op(left, right, op, self._value_column)
 
         name = self._name
         if isinstance(other, Series) and other.name != self.name:
             name = None
 
         return Series(
-            block,
-            self._value_column,
-            name=name,
+            block.select_column(self._value_column).assign_label(
+                self._value_column, name
+            )
         )
 
     def _apply_ternary_op(
@@ -792,16 +746,12 @@ class Series(bigframes.operations.base.SeriesMethods):
         op: ops.TernaryOp,
     ) -> Series:
         """Applies a ternary operator to the series, other, and other2."""
-        (x, y, z, index) = self._align3(other, other2)
+        (x, y, z, block) = self._align3(other, other2)
 
-        block = blocks.Block(index._expr)
-        block.index = index
+        block.apply_ternary_op(x, y, z, op, self._value_column)
 
-        result_expr = op(x, y, z).name(self._value_column)
-        block.replace_value_columns([result_expr])
         return Series(
-            block,
-            self._value_column,
+            block.select_column(self._value_column),
             name=self.name,
         )
 
@@ -816,7 +766,7 @@ class Series(bigframes.operations.base.SeriesMethods):
                 )
             ]
         )
-        return Series(block, counts._value_column, name="count")
+        return Series(block.select_column(counts._value_column), name="count")
 
     def sort_values(self, axis=0, ascending=True, na_position="last") -> Series:
         """Sort series by values in ascending or descending order."""
@@ -834,8 +784,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             ]
         )
         return Series(
-            block,
-            self._value_column,
+            block.select_column(self._value_column),
             name=self.name,
         )
 
@@ -853,8 +802,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         ]
         block.expr = block.expr.order_by(ordering)
         return Series(
-            block,
-            self._value_column,
+            block.select_column(self._value_column),
             name=self.name,
         )
 
@@ -932,12 +880,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         block = self._viewed_block
         # If all validations passed, must be grouping on the single-level index
         group_key = self._block.index_columns[0]
-        key = block._expr.get_column(group_key)
-        value = self._value
         return SeriesGroupBy(
             block,
-            value.get_name(),
-            key.get_name(),
+            self._value_column,
+            group_key,
             value_name=self.name,
             key_name=self.index.name,
             dropna=dropna,
@@ -948,11 +894,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         by: Series,
         dropna: bool = True,
     ):
-        (value, key, index) = self._align(by, "inner" if dropna else "left")
+        (value, key, block) = self._align(by, "inner" if dropna else "left")
         return SeriesGroupBy(
-            index._block,
-            value.get_name(),
-            key.get_name(),
+            block,
+            value,
+            key,
             value_name=self.name,
             key_name=by.name,
             dropna=dropna,
@@ -1014,7 +960,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             output_name=keep_condition_col_id,
         )
         block.filter(keep_condition_col_id)
-        return Series(block, self._value_column, name=self._name)
+        return Series(block.select_column(self._value_column), name=self._name)
 
     def mask(self, cond, other=None) -> Series:
         """Replace values in a series where the condition is true."""
@@ -1033,7 +979,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block.replace_column_labels([self.name] if self.name else ["0"])
-        return bigframes.DataFrame(block.index)
+        return bigframes.DataFrame(block)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
         """Convert series to a excel."""
@@ -1121,7 +1067,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             bigframes.operations.strings.StringMethods: Methods that act on a string Series.
         """
-        return strings.StringMethods(self._block, self._value_column, name=self._name)
+        return strings.StringMethods(
+            self._block.select_column(self._value_column), name=self._name
+        )
 
 
 class SeriesGroupBy:
@@ -1231,7 +1179,9 @@ class SeriesGroupBy:
 
     def _ungroup(self) -> Series:
         """Convert back to regular series, without aggregating."""
-        return Series(self._block, self._value_column, name=self._value_name)
+        return Series(
+            self._block.select_column(self._value_column), name=self._value_name
+        )
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
         aggregate_col_id = self._value_column + "_bf_aggregated"
@@ -1243,7 +1193,9 @@ class SeriesGroupBy:
         result_block.index_columns = [self._by]
         if self._key_name:
             result_block.index.name = self._key_name
-        return Series(result_block, aggregate_col_id, name=self._value_name)
+        return Series(
+            result_block.select_column(aggregate_col_id), name=self._value_name
+        )
 
     def _apply_window_op(
         self,
@@ -1258,29 +1210,13 @@ class SeriesGroupBy:
             window_spec=window_spec,
             skip_null_groups=self._dropna,
         )
+        label = self._value_name if not discard_name else None
         return Series(
-            block,
-            self._value_column,
-            name=self._value_name if not discard_name else None,
+            block.select_column(self._value_column).assign_label(
+                self._value_column, label
+            )
         )
 
 
-def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
-    if (
-        isinstance(value, Series)
-        or isinstance(value, bigframes.scalar.DeferredScalar)
-        or isinstance(value, pandas.Series)
-    ):
-        return None
-    if pandas.isna(value):
-        # TODO(tbergeron): Ensure correct handling of NaN - maybe not map to Null
-        return ibis_types.null()
-    try:
-        return ibis_types.literal(value)
-    except ibis.common.exceptions.IbisTypeError:
-        # Value cannot be converted into literal.
-        return None
-
-
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
-    return pandas.core.dtypes.common.is_list_like(obj)
+    return pandas.api.types.is_list_like(obj)

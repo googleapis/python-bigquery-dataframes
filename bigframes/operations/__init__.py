@@ -267,6 +267,20 @@ def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = N
     return short_circuit_nulls_inner
 
 
+def eq_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return x == y
+
+
+def ne_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return x != y
+
+
 def and_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
@@ -283,6 +297,13 @@ def or_op(
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
         ibis_types.BooleanValue, y
     )
+
+
+def isin_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return x.isin(y)
 
 
 @short_circuit_nulls()
@@ -325,13 +346,6 @@ def div_op(
     return typing.cast(ibis_types.NumericValue, x) / typing.cast(
         ibis_types.NumericValue, y
     )
-
-
-def eq_op(
-    x: ibis_types.Value,
-    y: ibis_types.Value,
-):
-    return x.__eq__(y)
 
 
 @short_circuit_nulls(ibis_dtypes.bool)

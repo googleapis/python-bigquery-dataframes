@@ -36,4 +36,4 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
         column_labels=objs[0]._block.column_labels,
     )
     block.index.name = index_names[0] if len(index_names) == 1 else None
-    return DataFrame(block.index)
+    return DataFrame(block)

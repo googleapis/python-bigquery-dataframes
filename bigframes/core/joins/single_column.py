@@ -40,11 +40,7 @@ def join_by_column(
         "right",
     ],
     sort: bool = False,
-) -> Tuple[
-    core.BigFramesExpr,
-    str,
-    Tuple[Callable[[str], ibis_types.Value], Callable[[str], ibis_types.Value]],
-]:
+) -> Tuple[core.BigFramesExpr, str, Tuple[Callable[[str], str], Callable[[str], str]],]:
     """Join two expressions by column equality.
 
     Arguments:
@@ -62,7 +58,7 @@ def join_by_column(
           left/right table will have missing rows. This column pulls the
           non-NULL value from either left/right.
         * Tuple[Callable, Callable]: For a given column ID from left or right,
-          respectively, return the new column from the combined expression.
+          respectively, return the new column id from the combined expression.
     """
 
     if (
@@ -101,7 +97,7 @@ def join_by_column(
             rname="{name}_y",
         )
 
-        def get_column_left(key: str) -> ibis_types.Value:
+        def get_column_left(key: str) -> str:
             if how == "inner" and key == left_column_id:
                 # Don't rename the column if it's the index on an inner
                 # join.
@@ -109,9 +105,9 @@ def join_by_column(
             elif key in right_table.columns:
                 key = f"{key}_x"
 
-            return combined_table[key]
+            return key
 
-        def get_column_right(key: str) -> ibis_types.Value:
+        def get_column_right(key: str) -> str:
             if how == "inner" and key == right_column_id:
                 # Don't rename the column if it's the index on an inner
                 # join.
@@ -119,7 +115,7 @@ def join_by_column(
             elif key in left_table.columns:
                 key = f"{key}_y"
 
-            return combined_table[key]
+            return key
 
         left_ordering_encoding_size = (
             left._ordering.ordering_encoding_size
@@ -134,9 +130,9 @@ def join_by_column(
         left_order_id = get_column_left(core.ORDER_ID_COLUMN)
         right_order_id = get_column_right(core.ORDER_ID_COLUMN)
         new_order_id_col = _merge_order_ids(
-            left_order_id,
+            combined_table[left_order_id],
             left_ordering_encoding_size,
-            right_order_id,
+            combined_table[right_order_id],
             right_ordering_encoding_size,
             how,
         )
@@ -162,8 +158,8 @@ def join_by_column(
         # example due to an outer join with different numbers of rows. Coalesce
         # these to take the index value from either column.
         ibis.coalesce(
-            get_column_left(left_column_id),
-            get_column_right(right_column_id),
+            combined_expr.get_column(get_column_left(left_column_id)),
+            combined_expr.get_column(get_column_right(right_column_id)),
         )
         # Use a random name in case the left index and the right index have the
         # same name. In such a case, _x and _y suffixes will already be used.
@@ -174,8 +170,14 @@ def join_by_column(
     # might still reference them in implicit joins.
     columns = (
         [join_key_col]
-        + [get_column_left(key) for key in left.column_names.keys()]
-        + [get_column_right(key) for key in right.column_names.keys()]
+        + [
+            combined_expr.get_column(get_column_left(key))
+            for key in left.column_names.keys()
+        ]
+        + [
+            combined_expr.get_column(get_column_right(key))
+            for key in right.column_names.keys()
+        ]
     )
 
     if sort:

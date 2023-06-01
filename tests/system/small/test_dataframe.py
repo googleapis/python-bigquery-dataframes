@@ -226,6 +226,18 @@ def test_assign_series(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_assign_series_overwrite(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    column_name = "int64_col"
+    df = scalars_df.assign(**{column_name: scalars_df[column_name] + 3})
+    bf_result = df.compute()
+    pd_result = scalars_pandas_df.assign(
+        **{column_name: scalars_pandas_df[column_name] + 3}
+    )
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 def test_assign_sequential(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     kwargs = {"int64_col": 2, "new_col": 3, "new_col2": 4}
@@ -302,7 +314,8 @@ def test_merge(scalars_dfs, merge_how):
     left = scalars_df[left_columns]
     # Offset the rows somewhat so that outer join can have an effect.
     right = scalars_df[right_columns].assign(rowindex_2=scalars_df["rowindex_2"] + 2)
-    df = left.merge(right, merge_how, on)
+
+    df = left.merge(right, merge_how, on, sort=True)
     bf_result = df.compute()
 
     pd_result = scalars_pandas_df[left_columns].merge(
@@ -311,6 +324,7 @@ def test_merge(scalars_dfs, merge_how):
         ),
         merge_how,
         on,
+        sort=True,
     )
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -335,13 +349,13 @@ def test_merge_custom_col_name(scalars_dfs, merge_how):
     left = scalars_df[left_columns]
     left = left.rename(columns=rename_columns)
     right = scalars_df[right_columns]
-    df = left.merge(right, merge_how, on)
+    df = left.merge(right, merge_how, on, sort=True)
     bf_result = df.compute()
 
     pandas_left_df = scalars_pandas_df[left_columns]
     pandas_left_df = pandas_left_df.rename(columns=rename_columns)
     pandas_right_df = scalars_pandas_df[right_columns]
-    pd_result = pandas_left_df.merge(pandas_right_df, merge_how, on)
+    pd_result = pandas_left_df.merge(pandas_right_df, merge_how, on, sort=True)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 

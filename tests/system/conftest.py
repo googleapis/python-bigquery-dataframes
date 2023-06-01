@@ -278,7 +278,7 @@ def scalars_df_2_index(
     scalars_df_2_default_index: bigframes.DataFrame,
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
-    return scalars_df_2_default_index.set_index("rowindex")
+    return scalars_df_2_default_index.set_index("rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")

@@ -151,11 +151,11 @@ class _iLocIndexer:
 
 
 def _slice_block(
-    block: bigframes.core.blocks.Block,
+    block: blocks.Block,
     start: typing.Optional[int] = None,
     stop: typing.Optional[int] = None,
     step: typing.Optional[int] = None,
-) -> bigframes.core.blocks.Block:
+) -> blocks.Block:
     expr_with_offsets = block.expr.project_offsets()
     cond_list = []
     # TODO(tbergeron): Handle negative indexing
@@ -169,14 +169,13 @@ def _slice_block(
         cond_list.append((expr_with_offsets.offsets - start) % step == 0)
     if not cond_list:
         return block
+    # TODO(swast): Support MultiIndex.
     original_name = block.index.name
-    block = blocks.Block(
+    return blocks.Block(
         expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
         index_columns=block.index_columns,
+        index_labels=[original_name],
     )
-    # TODO(swast): Support MultiIndex.
-    block.index.name = original_name
-    return block
 
 
 def _slice_series(
@@ -186,8 +185,9 @@ def _slice_series(
     step: typing.Optional[int] = None,
 ) -> bigframes.Series:
     return bigframes.Series(
-        _slice_block(series._block, start=start, stop=stop, step=step),
-        series._value_column,
+        _slice_block(series._block, start=start, stop=stop, step=step).select_column(
+            series._value_column
+        ),
         name=series.name,
     )
 
