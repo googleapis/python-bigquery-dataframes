@@ -83,3 +83,23 @@ python3 publish_api_coverage.py \
   --bigframes_version=$BIGFRAMES_VERSION \
   --release_version=$RELEASE_VERSION \
   --bigquery_table=$COVERAGE_TABLE
+
+# Keep this last so as not to block the release on PDF docs build.
+pdf_docs () {
+  apt update
+  apt install -y texlive latexmk
+
+  cd "${PROJECT_ROOT}/docs"
+  make latexpdf
+
+  cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-${RELEASE_VERSION}.pdf"
+  cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-latest.pdf"
+
+  for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
+                  gs://dl-platform-colab/bigframes/;
+  do
+    gsutil cp -v "_build/latex/bigframes-*.pdf" ${gcs_path}
+  done
+}
+
+pdf_docs
