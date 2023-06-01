@@ -14,13 +14,11 @@
 
 from __future__ import annotations
 
-import functools
 import typing
 
 import ibis
 import pandas as pd
 
-import bigframes.core.blocks as blocks
 import bigframes.core.indexes.index
 import bigframes.series
 
@@ -28,6 +26,12 @@ import bigframes.series
 class LocSeriesIndexer:
     def __init__(self, series: bigframes.series.Series):
         self._series = series
+
+    def __getitem__(self, key) -> bigframes.Series:
+        """
+        Only indexing by a boolean bigframes.Series is currently supported
+        """
+        return _loc_getitem_series_or_dataframe(self._series, key)
 
     def __setitem__(self, key, value) -> None:
         index = self._series.index
@@ -70,51 +74,33 @@ class IlocSeriesIndexer:
         self._series = series
 
     def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.series.Series:
-        if isinstance(key, slice):
-            return _slice_series(self._series, key.start, key.stop, key.step)
-        if isinstance(key, list):
-            # TODO(tbergeron): Implement list, may require fixing ibis table literal support
-            raise NotImplementedError("iloc does not yet support single offsets")
-        elif isinstance(key, int):
-            # TODO(tbergeron): Implement iloc for single offset returning deferred scalar
-            raise NotImplementedError("iloc does not yet support single offsets")
-        else:
-            raise TypeError("Invalid argument type.")
+        """
+        Index series using integer offsets. Currently supports index by key type:
+
+        slice: i.e. series.iloc[2:5] returns values at index 2, 3, and 4 as a series
+        individual offset: i.e. series.iloc[0] returns value at index 0 as a scalar
+
+        Other key types are not yet supported.
+        """
+        return _iloc_getitem_series_or_dataframe(self._series, key)
 
 
 class _LocIndexer:
     def __init__(self, dataframe: bigframes.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> typing.Union[bigframes.Series, bigframes.DataFrame]:
+    def __getitem__(self, key) -> bigframes.DataFrame:
         """
         Only indexing by a boolean bigframes.Series is currently supported
         """
-        if isinstance(key, bigframes.Series):
-            return self._dataframe[key]
-        elif isinstance(key, list):
-            raise NotImplementedError(
-                "loc does not yet support indexing with a list of labels"
-            )
-        elif isinstance(key, slice):
-            raise NotImplementedError("loc does not yet support indexing with a slice")
-        elif callable(key):
-            raise NotImplementedError(
-                "loc does not yet support indexing with a callable"
-            )
-        else:
-            raise TypeError(
-                "Invalid argument type. DataFrame.loc currently only supports indexing with a boolean bigframes Series."
-            )
+        return _loc_getitem_series_or_dataframe(self._dataframe, key)
 
 
 class _iLocIndexer:
     def __init__(self, dataframe: bigframes.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(
-        self, key
-    ) -> bigframes.scalar.Scalar | bigframes.DataFrame | pd.Series:
+    def __getitem__(self, key) -> bigframes.DataFrame | pd.Series:
         """
         Index dataframe using integer offsets. Currently supports index by key type:
 
@@ -123,82 +109,78 @@ class _iLocIndexer:
 
         Other key types are not yet supported.
         """
-        if isinstance(key, int):
-            if key < 0:
-                raise NotImplementedError(
-                    "iloc does not yet support negative single positional index"
-                )
-            result_df = _slice_dataframe(self._dataframe, key, key + 1, 1)
-            result_pd_df = result_df.compute()
-            if result_pd_df.empty:
-                raise IndexError("single positional indexer is out-of-bounds")
-            result_pd_series = result_pd_df.iloc[0]
-            return result_pd_series
-        elif isinstance(key, slice):
-            return _slice_dataframe(self._dataframe, key.start, key.stop, key.step)
-        elif isinstance(key, list):
-            raise NotImplementedError("iloc does not yet support indexing with a list")
-        elif isinstance(key, tuple):
-            raise NotImplementedError(
-                "iloc does not yet support indexing with a (row, column) tuple"
-            )
-        elif callable(key):
-            raise NotImplementedError(
-                "iloc does not yet support indexing with a callable"
-            )
-        else:
-            raise TypeError("Invalid argument type.")
+        return _iloc_getitem_series_or_dataframe(self._dataframe, key)
 
 
-def _slice_block(
-    block: blocks.Block,
-    start: typing.Optional[int] = None,
-    stop: typing.Optional[int] = None,
-    step: typing.Optional[int] = None,
-) -> blocks.Block:
-    expr_with_offsets = block.expr.project_offsets()
-    cond_list = []
-    # TODO(tbergeron): Handle negative indexing
-    if start:
-        cond_list.append(expr_with_offsets.offsets >= start)
-    if stop:
-        cond_list.append(expr_with_offsets.offsets < stop)
-    if step:
-        # TODO(tbergeron): Reverse the ordering if negative step
-        start = start if start else 0
-        cond_list.append((expr_with_offsets.offsets - start) % step == 0)
-    if not cond_list:
-        return block
-    # TODO(swast): Support MultiIndex.
-    original_name = block.index.name
-    return blocks.Block(
-        expr_with_offsets.filter(functools.reduce(lambda x, y: x & y, cond_list)),
-        index_columns=block.index_columns,
-        index_labels=[original_name],
-    )
-
-
-def _slice_series(
-    series: bigframes.Series,
-    start: typing.Optional[int] = None,
-    stop: typing.Optional[int] = None,
-    step: typing.Optional[int] = None,
-) -> bigframes.Series:
-    return bigframes.Series(
-        _slice_block(series._block, start=start, stop=stop, step=step).select_column(
-            series._value_column
-        ),
-        name=series.name,
-    )
-
-
-def _slice_dataframe(
-    dataframe: bigframes.DataFrame,
-    start: typing.Optional[int] = None,
-    stop: typing.Optional[int] = None,
-    step: typing.Optional[int] = None,
+@typing.overload
+def _loc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.DataFrame, key
 ) -> bigframes.DataFrame:
-    block = _slice_block(dataframe._block, start=start, stop=stop, step=step)
-    result = dataframe._copy()
-    result._block = block
-    return result
+    ...
+
+
+@typing.overload
+def _loc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.Series, key
+) -> bigframes.Series:
+    ...
+
+
+def _loc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
+) -> bigframes.DataFrame | bigframes.Series:
+    if isinstance(key, bigframes.Series):
+        return series_or_dataframe[key]
+    elif isinstance(key, list):
+        raise NotImplementedError(
+            "loc does not yet support indexing with a list of labels"
+        )
+    elif isinstance(key, slice):
+        raise NotImplementedError("loc does not yet support indexing with a slice")
+    elif callable(key):
+        raise NotImplementedError("loc does not yet support indexing with a callable")
+    else:
+        raise TypeError(
+            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series."
+        )
+
+
+@typing.overload
+def _iloc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.Series, key
+) -> bigframes.Series | bigframes.scalar.Scalar:
+    ...
+
+
+@typing.overload
+def _iloc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.DataFrame, key
+) -> bigframes.DataFrame | pd.Series:
+    ...
+
+
+def _iloc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
+) -> bigframes.DataFrame | bigframes.Series | bigframes.scalar.Scalar | pd.Series:
+    if isinstance(key, int):
+        if key < 0:
+            raise NotImplementedError(
+                "iloc does not yet support negative single positional index"
+            )
+        internal_slice_result = series_or_dataframe._slice(key, key + 1, 1)
+        result_pd_df = internal_slice_result.compute()
+        if result_pd_df.empty:
+            raise IndexError("single positional indexer is out-of-bounds")
+        return result_pd_df.iloc[0]
+    elif isinstance(key, slice):
+        return series_or_dataframe._slice(key.start, key.stop, key.step)
+    elif isinstance(key, list):
+        raise NotImplementedError("iloc does not yet support indexing with a list")
+    elif isinstance(key, tuple):
+        raise NotImplementedError(
+            "iloc does not yet support indexing with a (row, column) tuple"
+        )
+    elif callable(key):
+        raise NotImplementedError("iloc does not yet support indexing with a callable")
+    else:
+        raise TypeError("Invalid argument type.")

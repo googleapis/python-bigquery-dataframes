@@ -1526,3 +1526,47 @@ def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
     bf_result = scalars_df_index[column].astype(to_type).compute()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    "index",
+    [0, 5],
+)
+def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.string_col.iloc[index]
+    pd_result = scalars_pandas_df_index.string_col.iloc[index]
+
+    assert bf_result == pd_result
+
+
+def test_iloc_single_integer_out_of_bound_error(
+    scalars_df_index, scalars_pandas_df_index
+):
+    with pytest.raises(IndexError, match="single positional indexer is out-of-bounds"):
+        scalars_df_index.string_col.iloc[99]
+
+
+def test_loc_bool_series_explicit_index(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.loc[scalars_df_index.bool_col].compute()
+    pd_result = scalars_pandas_df_index.string_col.loc[scalars_pandas_df_index.bool_col]
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_loc_bool_series_default_index(
+    scalars_df_default_index, scalars_pandas_df_default_index
+):
+    bf_result = scalars_df_default_index.string_col.loc[
+        scalars_df_default_index.bool_col
+    ].compute()
+    pd_result = scalars_pandas_df_default_index.string_col.loc[
+        scalars_pandas_df_default_index.bool_col
+    ]
+
+    assert_pandas_df_equal_ignore_ordering(
+        bf_result.to_frame(),
+        pd_result.to_frame(),
+    )

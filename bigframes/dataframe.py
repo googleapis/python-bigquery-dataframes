@@ -1203,6 +1203,15 @@ class DataFrame:
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
         )
 
+    def _slice(
+        self,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ) -> bigframes.DataFrame:
+        block = self._block.slice(start=start, stop=stop, step=step)
+        return bigframes.DataFrame(block)
+
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
     return pd.api.types.is_list_like(obj)

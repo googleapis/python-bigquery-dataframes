@@ -757,6 +757,29 @@ class BigFramesExpr:
             builder.columns = [*self.columns, new_value.name(id)]
         return builder.build()
 
+    def slice(
+        self,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ) -> BigFramesExpr:
+        expr_with_offsets = self.project_offsets()
+        # start with True and reduce with start, stop, and step conditions
+        cond_list = [expr_with_offsets.offsets == expr_with_offsets.offsets]
+        # TODO(tbergeron): Handle negative indexing
+        if start:
+            cond_list.append(expr_with_offsets.offsets >= start)
+        if stop:
+            cond_list.append(expr_with_offsets.offsets < stop)
+        if step:
+            # TODO(tbergeron): Reverse the ordering if negative step
+            start = start if start else 0
+            cond_list.append((expr_with_offsets.offsets - start) % step == 0)
+        sliced_expr = expr_with_offsets.filter(
+            functools.reduce(lambda x, y: x & y, cond_list)
+        )
+        return sliced_expr
+
 
 class BigFramesExprBuilder:
     """Mutable expression class.

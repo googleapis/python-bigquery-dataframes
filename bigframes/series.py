@@ -1071,6 +1071,18 @@ class Series(bigframes.operations.base.SeriesMethods):
             self._block.select_column(self._value_column), name=self._name
         )
 
+    def _slice(
+        self,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ) -> bigframes.Series:
+        return bigframes.Series(
+            self._block.slice(start=start, stop=stop, step=step).select_column(
+                self._value_column
+            ),
+        )
+
 
 class SeriesGroupBy:
     """Represents a deferred series with a grouping expression."""

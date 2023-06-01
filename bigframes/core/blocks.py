@@ -511,3 +511,20 @@ class Block:
             self._index = indexes.Index(self, index_column, name=self.index.name)
         else:
             raise NotImplementedError("MultiIndex not supported.")
+
+    def slice(
+        self: bigframes.core.blocks.Block,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ) -> bigframes.core.blocks.Block:
+        sliced_expr = self.expr.slice(start=start, stop=stop, step=step)
+        # since this is slice, return a copy even if unchanged
+        block = Block(
+            sliced_expr,
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=[self.index.name],
+        )
+        # TODO(swast): Support MultiIndex.
+        return block
