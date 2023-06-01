@@ -14,16 +14,20 @@
 
 
 def run_quickstart(project_id: str):
-    # [START bigframes_quickstart]
+    # [START bigquery_bigframes_quickstart]
     import bigframes.pandas as pd
 
     # TODO: (Optional) Setup your session with the configuration. Some of these
     # settings cannot be changed once a session has started.
     pd.options.bigquery.project = "your-gcp-project-id"
     pd.options.bigquery.location = "us"
-    # [END bigframes_quickstart]
+
+    # [START_EXCLUDE silent]
+    # Ignore the lines between "EXCLUDE" comments. They replace values so this
+    # sample runs in our test suite.
     pd.options.bigquery.project = project_id
-    # [START bigframes_quickstart]
+    # [END_EXCLUDE]
+
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     df = pd.read_gbq(query_or_table)
 
@@ -44,10 +48,15 @@ def run_quickstart(project_id: str):
     session_options = bigframes.BigQueryOptions()
     session_options.project = "your-gcp-project-id"
     session_options.location = "us"
-    # [END bigframes_quickstart]
+
+    # [START_EXCLUDE silent]
+    # Ignore the lines between "EXCLUDE" comments. They replace values so this
+    # sample runs in our test suite.
     session_options.project = project_id
-    # [START bigframes_quickstart]
+    # [END_EXCLUDE]
+
     session = bigframes.connect(session_options)
     df_session = session.read_gbq(query_or_table)
     average_body_mass = df_session["body_mass_g"].mean()
     print(f"average_body_mass (df_session): {average_body_mass}")
+    # [END bigquery_bigframes_quickstart]
