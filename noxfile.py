@@ -449,7 +449,6 @@ def prerelease(session, tests_path):
         "pandas",
     )
     session.install(
-        "--pre",
         "--upgrade",
         "-e",  # Use -e so that py.typed file is included.
         "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",

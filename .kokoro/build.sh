@@ -27,6 +27,10 @@ export PYTHONUNBUFFERED=1
 # Debug: show build environment
 env | grep KOKORO
 
+# Install pip
+python3 -m pip install --upgrade --quiet pip
+python3 -m pip --version
+
 # Remove old nox
 python3 -m pip uninstall --yes --quiet nox-automation
 
