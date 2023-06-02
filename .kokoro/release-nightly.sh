@@ -87,7 +87,7 @@ python3 publish_api_coverage.py \
 # Keep this last so as not to block the release on PDF docs build.
 pdf_docs () {
   apt update
-  apt install -y texlive latexmk
+  apt install -y texlive texlive-latex-extra latexmk
 
   cd "${PROJECT_ROOT}/docs"
   make latexpdf
