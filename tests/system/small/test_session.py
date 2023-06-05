@@ -637,7 +637,7 @@ def test_session_dataset_exists_and_configured(session: bigframes.Session):
     assert dataset.default_table_expiration_ms == 24 * 60 * 60 * 1000
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2)
 def test_to_close_session():
     session = bigframes.Session()
     assert session._session_id is not None

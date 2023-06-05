@@ -47,12 +47,12 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
-    "flaky",
     "jinja2",
     "mock",
     "openpyxl",
     "pytest",
     "pytest-cov",
+    "pytest-retry",
     "pytest-timeout",
     "pytest-xdist",
     "google-cloud-testutils",

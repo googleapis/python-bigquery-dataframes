@@ -175,7 +175,7 @@ def cleanup_cloud_functions(session, functions_client, dataset_id_permanent):
             break
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_multiply_with_ibis(
     session,
     scalars_table_id,
@@ -227,7 +227,7 @@ def test_remote_function_multiply_with_ibis(
         cleanup_remote_function_assets(session.bqclient, functions_client, multiply)
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_stringify_with_ibis(
     session,
     scalars_table_id,
@@ -272,7 +272,7 @@ def test_remote_function_stringify_with_ibis(
         cleanup_remote_function_assets(session.bqclient, functions_client, stringify)
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_decorator_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -315,7 +315,7 @@ def test_remote_function_decorator_with_bigframes_series(
         cleanup_remote_function_assets(session.bqclient, functions_client, square)
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_explicit_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -361,7 +361,7 @@ def test_remote_function_explicit_with_bigframes_series(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_var(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -412,7 +412,7 @@ def test_remote_udf_referring_outside_var(
         cleanup_remote_function_assets(session.bqclient, functions_client, remote_sign)
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_import(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -459,7 +459,7 @@ def test_remote_udf_referring_outside_import(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_global_var_and_import(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -508,7 +508,7 @@ def test_remote_udf_referring_global_var_and_import(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_restore_with_bigframes_series(
     session,
     scalars_dfs,
@@ -649,7 +649,7 @@ def test_remote_function_restore_with_bigframes_series(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_default_value(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -689,7 +689,7 @@ def test_remote_udf_mask_default_value(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_custom_value(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
@@ -732,7 +732,7 @@ def test_remote_udf_mask_custom_value(
         )
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_lambda(
     session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
 ):
