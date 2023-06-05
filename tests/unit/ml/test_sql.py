@@ -122,10 +122,12 @@ def test_ml_evaluate_no_source_produces_correct_sql():
 
 def test_ml_generate_text_produces_correct_sql():
     sql = ml_sql.ml_generate_text(
-        model_name="my_dataset.my_model", source_sql="SELECT * FROM my_table"
+        model_name="my_dataset.my_model",
+        source_sql="SELECT * FROM my_table",
+        struct_options="STRUCT(value AS item)",
     )
     assert (
         sql
         == """SELECT * FROM ML.GENERATE_TEXT(MODEL `my_dataset.my_model`,
-  (SELECT * FROM my_table))"""
+  (SELECT * FROM my_table), STRUCT(value AS item))"""
     )

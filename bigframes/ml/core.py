@@ -105,14 +105,16 @@ class BqmlModel:
         )
 
     def generate_text(
-        self, input_data: bigframes.dataframe.DataFrame
+        self, input_data: bigframes.dataframe.DataFrame, options: Dict[str, int | float]
     ) -> bigframes.dataframe.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
             self._session,
             input_data,
             lambda source_sql: bigframes.ml.sql.ml_generate_text(
-                model_name=self.model_name, source_sql=source_sql
+                model_name=self.model_name,
+                source_sql=source_sql,
+                struct_options=bigframes.ml.sql.struct_options(**options),
             ),
         )
 

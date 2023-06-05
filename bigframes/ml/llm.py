@@ -52,14 +52,61 @@ class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self,
+        X: bigframes.DataFrame,
+        temperature: float = 0.0,
+        max_output_tokens: int = 128,
+        top_k: int = 40,
+        top_p: float = 0.95,
+    ) -> bigframes.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X: input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input.
+            X: Input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input. Prompts can include preamble, questions, suggestions, instructions, or examples.
 
-        Returns: output DataFrame with only 1 column as the JSON output results."""
-        df = self._bqml_model.generate_text(X)
+            temperature: The temperature is used for sampling during the response generation, which occurs when topP and topK are applied.
+                Temperature controls the degree of randomness in token selection. Lower temperatures are good for prompts that expect a true or correct response,
+                while higher temperatures can lead to more diverse or unexpected results. A temperature of 0 is deterministic:
+                the highest probability token is always selected. For most use cases, try starting with a temperature of 0.2.
+                Default 0.
+
+            max_output_tokens: Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
+                A token may be smaller than a word. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
+                Default 128.
+
+            top_k: Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
+                in the model’s vocabulary (also called greedy decoding), while a top-k of 3 means that the next token is selected from among the 3 most probable tokens (using temperature).
+                For each token selection step, the top K tokens with the highest probabilities are sampled. Then tokens are further filtered based on topP with the final token selected using temperature sampling.
+                Specify a lower value for less random responses and a higher value for more random responses.
+                Default 40.
+
+            top_p: Top-p changes how the model selects tokens for output. Tokens are selected from most K (see topK parameter) probable to least until the sum of their probabilities equals the top-p value.
+                For example, if tokens A, B, and C have a probability of 0.3, 0.2, and 0.1 and the top-p value is 0.5, then the model will select either A or B as the next token (using temperature)
+                and not consider C at all.
+                Specify a lower value for less random responses and a higher value for more random responses.
+                Default 0.95.
+
+
+        Returns: Output DataFrame with only 1 column as the JSON output results."""
+
+        # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
+        assert (
+            temperature >= 0.0 and temperature <= 1.0
+        ), "temperature must be [0.0, 1.0]."
+        assert max_output_tokens in range(
+            1, 1025
+        ), "max_output_token must be [1, 1024]."
+        assert top_k in range(1, 41), "top_k must be [1, 40]."
+        assert top_p >= 0.0 and top_p <= 1.0, "top_p must be [0.0, 1.0]."
+
+        options = {
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
+            "top_k": top_k,
+            "top_p": top_p,
+        }
+        df = self._bqml_model.generate_text(X, options)
         return cast(
             bigframes.DataFrame,
             df[[_TEXT_GENERATE_RESULT_COLUMN]],

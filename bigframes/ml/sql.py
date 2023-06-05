@@ -19,40 +19,52 @@ Generates SQL queries needed for BigFrames ML
 from typing import List, Optional, Union
 
 
-def encode_value(v: Union[str, int, float, List[str]]) -> str:
+def _encode_value(v: Union[str, int, float, List[str]]) -> str:
     """Encode a parameter value for SQL"""
     if isinstance(v, str):
         return f'"{v}"'
     elif isinstance(v, int) or isinstance(v, float):
         return f"{v}"
     elif isinstance(v, list):
-        inner = ", ".join([encode_value(x) for x in v])
+        inner = ", ".join([_encode_value(x) for x in v])
         return f"[{inner}]"
     else:
         raise ValueError("Unexpected value type")
 
 
-def build_param_list(**kwargs: Union[str, int, float, List[str]]) -> str:
+def _build_param_list(**kwargs: Union[str, int, float, List[str]]) -> str:
     """Encode a dict of values into a formatted list of KVPs for SQL"""
     indent_str = "  "
-    param_strs = [f"{k}={encode_value(v)}" for k, v in kwargs.items()]
+    param_strs = [f"{k}={_encode_value(v)}" for k, v in kwargs.items()]
     return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
 
 
 def options(**kwargs: Union[str, int, float, List[str]]) -> str:
     """Encode the OPTIONS clause for BQML"""
-    return f"OPTIONS({build_param_list(**kwargs)})"
+    return f"OPTIONS({_build_param_list(**kwargs)})"
 
 
-def build_expr_list(*expr_sqls: str) -> str:
-    "Encode a list of SQL expressions into a formatted list for SQL"
+def _build_struct_param_list(**kwargs: Union[int, float]) -> str:
+    """Encode a dict of values into a formatted STRUCT items for SQL"""
+    indent_str = "  "
+    param_strs = [f"{v} AS {k}" for k, v in kwargs.items()]
+    return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
+
+
+def struct_options(**kwargs: Union[int, float]) -> str:
+    """Encode a BQ STRUCT as options."""
+    return f"STRUCT({_build_struct_param_list(**kwargs)})"
+
+
+def _build_expr_list(*expr_sqls: str) -> str:
+    """Encode a list of SQL expressions into a formatted list for SQL"""
     indent_str = "  "
     return "\n" + indent_str + f",\n{indent_str}".join(expr_sqls)
 
 
 def transform(*expr_sqls: str) -> str:
     """Encode the TRANSFORM clause for BQML"""
-    return f"TRANSFORM({build_expr_list(*expr_sqls)})"
+    return f"TRANSFORM({_build_expr_list(*expr_sqls)})"
 
 
 def connection(conn_name: str) -> str:
@@ -122,7 +134,7 @@ def ml_transform(model_name: str, source_sql: str) -> str:
   ({source_sql}))"""
 
 
-def ml_generate_text(model_name: str, source_sql: str) -> str:
+def ml_generate_text(model_name: str, source_sql: str, struct_options: str) -> str:
     """Encode ML.GENERATE_TEXT for BQML"""
     return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{model_name}`,
-  ({source_sql}))"""
+  ({source_sql}), {struct_options})"""
