@@ -67,7 +67,8 @@ cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 # See internal bug 274624240 for details.
 
 for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                gs://dl-platform-colab/bigframes/;
+                gs://dl-platform-colab/bigframes/ \
+                gs://bigframes-wheels/;
 do
   gsutil cp -v dist/* ${gcs_path}
   gsutil cp -v LICENSE ${gcs_path}
@@ -96,7 +97,8 @@ pdf_docs () {
   cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-latest.pdf"
 
   for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                  gs://dl-platform-colab/bigframes/;
+                  gs://dl-platform-colab/bigframes/ \
+                  gs://bigframes-wheels/;
   do
     gsutil cp -v "_build/latex/bigframes-*.pdf" ${gcs_path}
   done
