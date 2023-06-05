@@ -29,12 +29,11 @@ import bigframes.aggregations as agg_ops
 import bigframes.core
 from bigframes.core import WindowSpec
 import bigframes.core.blocks as blocks
+import bigframes.core.indexes as indexes
 import bigframes.core.indexes.implicitjoiner
-import bigframes.core.indexes.index
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.core.window
 import bigframes.dtypes
-from bigframes.guid import generate_guid
 import bigframes.indexers
 import bigframes.operations as ops
 import bigframes.operations.base
@@ -58,7 +57,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             bigframes.operations.datetimes.DatetimeMethods: Methods that act on a datetime Series.
         """
-        return dt.DatetimeMethods(self._block, name=self._name)
+        return dt.DatetimeMethods(self._block)
 
     @property
     def dtype(self):
@@ -71,9 +70,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._block.dtypes[0]
 
     @property
-    def index(self) -> bigframes.core.indexes.implicitjoiner.ImplicitJoiner:
+    def index(self) -> indexes.Index:
         """The index of the series."""
-        return self._block.index
+        return indexes.Index(self)
 
     @property
     def loc(self) -> bigframes.indexers.LocSeriesIndexer:
@@ -113,7 +112,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def copy(self) -> Series:
         """Creates a deep copy of the series."""
-        return Series(self._block.copy())
+        return Series(self._block)
 
     def reset_index(
         self,
@@ -135,9 +134,8 @@ class Series(bigframes.operations.base.SeriesMethods):
         if drop:
             return Series(block)
         else:
-            former_index_label = self.index.name
-            series_value_label = name or self.name
-            block.replace_column_labels([former_index_label, series_value_label])
+            if name:
+                block = block.assign_label(self._value_column, name)
             return bigframes.DataFrame(block)
 
     def __repr__(self) -> str:
@@ -151,7 +149,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""
-        expr = self._viewed_block.expr.projection([self._value])
+        expr = self._block.expr.projection([self._value])
         ibis_expr = expr.to_ibis_expr()[self._value_column]
         if self._name:
             return ibis_expr.name(self._name)
@@ -169,33 +167,31 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
-        df = self._viewed_block.compute((self._value_column,))
+        df = self._block.compute((self._value_column,))
         series = df[self._value_column]
         series.name = self._name
         return series
 
     def drop(self, labels: str | typing.Sequence[str]):
         """Drops rows with the given label(s). Note: will never raise KeyError even if labels are not present."""
-        block = self._block.copy()
-        if isinstance(block._index, bigframes.core.indexes.Index):
-            index_column = block._index._index_column
-        else:
-            raise ValueError("Cannot drop labels without explicit index.")
+        block = self._block
+        index_column = block.index_columns[0]
 
-        condition_id = generate_guid("drop_cond")
         if _is_list_like(labels):
-            block.apply_unary_op(
-                index_column, ops.partial_right(ops.isin_op, labels), condition_id
+            block, inverse_condition_id = block.apply_unary_op(
+                index_column, ops.partial_right(ops.isin_op, labels)
             )
-            block.apply_unary_op(condition_id, ops.invert_op)
+            block, condition_id = block.apply_unary_op(
+                inverse_condition_id, ops.invert_op
+            )
 
         else:
-            block.apply_unary_op(
-                index_column, ops.partial_right(ops.ne_op, labels), condition_id
+            block, condition_id = block.apply_unary_op(
+                index_column, ops.partial_right(ops.ne_op, labels)
             )
-        block.filter(condition_id)
+        block = block.filter(condition_id)
         block = block.drop_columns([condition_id])
-        return Series(block.select_column(self._value_column), name=self.name)
+        return Series(block.select_column(self._value_column))
 
     def between(self, left, right, inclusive="both"):
         """Returns True for values between 'left' and 'right', else False."""
@@ -271,13 +267,11 @@ class Series(bigframes.operations.base.SeriesMethods):
             # Dense rank has a somewhat different implementation than all other methods
             return self._dense_rank(na_option)
         # Step 1: Calculate row numbers for each row
-        block = self._block.copy()
+        block = self._block
         # Identify null values to be treated according to na_option param
-        nullity_col_id = self._value_column + "_bf_internal_nullity"
-        block.apply_unary_op(
+        block, nullity_col_id = block.apply_unary_op(
             self._value_column,
             ops.isnull_op,
-            output_name=nullity_col_id,
         )
         window = WindowSpec(
             # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
@@ -289,32 +283,32 @@ class Series(bigframes.operations.base.SeriesMethods):
                 ),
             ),
         )
-        rownum_id = f"{self._value_column}_bf_internal_rownum"
         # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
-        block.apply_window_op(
+        block, rownum_id = block.apply_window_op(
             self._value_column if na_option == "keep" else nullity_col_id,
             agg_ops.count_op,
             window_spec=window,
-            output_name=rownum_id,
         )
         if method == "first":
-            result = Series(block.select_column(rownum_id), name=self.name)
+            result = Series(
+                block.select_column(rownum_id).assign_label(rownum_id, self.name)
+            )
         else:
             # Step 2: Apply aggregate to groups of like input values.
             # This step is skipped for method=='first'
-            rank_id = f"{self._value_column}_bigframes_rank"
             agg_op = {
                 "average": agg_ops.mean_op,
                 "min": agg_ops.min_op,
                 "max": agg_ops.max_op,
             }[method]
-            block.apply_window_op(
+            block, rank_id = block.apply_window_op(
                 rownum_id,
                 agg_op,
                 window_spec=WindowSpec(grouping_keys=(self._value_column,)),
-                output_name=rank_id,
             )
-            result = Series(block.select_column(rank_id), name=self.name)
+            result = Series(
+                block.select_column(rank_id).assign_label(rank_id, self.name)
+            )
         if na_option == "keep":
             # For na_option "keep", null inputs must produce null outputs
             result = result.mask(self.isnull(), pandas.NA)
@@ -531,7 +525,7 @@ class Series(bigframes.operations.base.SeriesMethods):
 
         The mode(s) are the values(s) that occur the most times in the series.
         """
-        block = self._block.copy()
+        block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
         value_count_col_id = self._value_column + "_bf_internal_value_count"
         block = block.aggregate(
@@ -539,23 +533,23 @@ class Series(bigframes.operations.base.SeriesMethods):
             ((self._value_column, agg_ops.count_op, value_count_col_id),),
             as_index=False,
         )
-        max_value_count_col_id = self._value_column + "_bf_internal_max_value_count"
-        block.apply_window_op(
+        block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
             window_spec=WindowSpec(),
-            output_name=max_value_count_col_id,
         )
-        is_mode_col_id = self._value_column + "_bf_internal_is_mode"
-        block.apply_binary_op(
+        block, is_mode_col_id = block.apply_binary_op(
             value_count_col_id,
             max_value_count_col_id,
             ops.eq_op,
-            output_id=is_mode_col_id,
         )
-        block.filter(is_mode_col_id)
+        block = block.filter(is_mode_col_id)
         return (
-            Series(block.select_column(self._value_column), name=self.name)
+            Series(
+                block.select_column(self._value_column).assign_label(
+                    self._value_column, self.name
+                )
+            )
             .sort_values()
             .reset_index(drop=True)
         )
@@ -651,8 +645,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
         (left, right, block) = self._align(indexer, "left")
-        block.filter(right)
-        return Series(block.select_column(left), name=self._name)
+        block = block.filter(right)
+        block = block.select_column(left)
+        return Series(block)
 
     def __getattr__(self, key: str):
         if hasattr(pandas.Series(), key):
@@ -689,7 +684,7 @@ class Series(bigframes.operations.base.SeriesMethods):
                 combined_index, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(other.index, how=how)
+                ) = block.index.join(other._block.index, how=how)
                 value_ids = [
                     *[get_column_left(value) for value in value_ids],
                     get_column_right(other._value_column),
@@ -703,10 +698,9 @@ class Series(bigframes.operations.base.SeriesMethods):
                     "Pandas series not supported supported as operand."
                 )
             else:
-                id_for_constant = generate_guid()
                 # Will throw if can't interpret as scalar.
-                block = block.copy().assign_constant(id_for_constant, other)
-                value_ids = [*value_ids, id_for_constant]
+                block, constant_col_id = block.create_constant(other)
+                value_ids = [*value_ids, constant_col_id]
         return (value_ids, block)
 
     def _apply_aggregation(
@@ -722,12 +716,11 @@ class Series(bigframes.operations.base.SeriesMethods):
         op: agg_ops.WindowOp,
         window_spec: bigframes.core.WindowSpec,
     ):
-        block = self._block.copy()
-        block.apply_window_op(self._value_column, op, window_spec=window_spec)
-        return Series(
-            block.select_column(self._value_column),
-            name=self.name,
+        block = self._block
+        block, result_id = block.apply_window_op(
+            self._value_column, op, window_spec=window_spec, result_label=self.name
         )
+        return Series(block.select_column(result_id))
 
     def _apply_binary_op(
         self,
@@ -737,17 +730,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Applies a binary operator to the series and other."""
         (left, right, block) = self._align(other)
 
-        block.apply_binary_op(left, right, op, self._value_column)
+        block, result_id = block.apply_binary_op(left, right, op, self._value_column)
 
         name = self._name
         if isinstance(other, Series) and other.name != self.name:
             name = None
 
-        return Series(
-            block.select_column(self._value_column).assign_label(
-                self._value_column, name
-            )
-        )
+        return Series(block.select_column(result_id).assign_label(result_id, name))
 
     def _apply_ternary_op(
         self,
@@ -758,33 +747,33 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Applies a ternary operator to the series, other, and other2."""
         (x, y, z, block) = self._align3(other, other2)
 
-        block.apply_ternary_op(x, y, z, op, self._value_column)
+        block, result_id = block.apply_ternary_op(x, y, z, op, result_label=self.name)
 
-        return Series(
-            block.select_column(self._value_column),
-            name=self.name,
-        )
+        return Series(block.select_column(result_id))
 
     def value_counts(self):
         """Count the number of occurences of each value in the Series. Results are sorted in decreasing order of frequency."""
         counts = self.groupby(self).count()
         block = counts._block
-        block.expr = block.expr.order_by(
+        block = block.order_by(
             [
                 OrderingColumnReference(
                     counts._value_column, direction=OrderingDirection.DESC
                 )
             ]
         )
-        return Series(block.select_column(counts._value_column), name="count")
+        return Series(
+            block.select_column(counts._value_column).assign_label(
+                counts._value_column, "count"
+            )
+        )
 
     def sort_values(self, axis=0, ascending=True, na_position="last") -> Series:
         """Sort series by values in ascending or descending order."""
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        block = self._viewed_block
         direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
-        block.expr = block.expr.order_by(
+        block = self._block.order_by(
             [
                 OrderingColumnReference(
                     self._value_column,
@@ -793,28 +782,22 @@ class Series(bigframes.operations.base.SeriesMethods):
                 )
             ]
         )
-        return Series(
-            block.select_column(self._value_column),
-            name=self.name,
-        )
+        return Series(block)
 
     def sort_index(self, axis=0, *, ascending=True, na_position="last") -> Series:
         """Sort series by index labels in ascending or descending order."""
         # TODO(tbergeron): Support level parameter once multi-index introduced.
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        block = self._viewed_block
+        block = self._block
         direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
         na_last = na_position == "last"
         ordering = [
             OrderingColumnReference(column, direction=direction, na_last=na_last)
             for column in block.index_columns
         ]
-        block.expr = block.expr.order_by(ordering)
-        return Series(
-            block.select_column(self._value_column),
-            name=self.name,
-        )
+        block = block.order_by(ordering)
+        return Series(block)
 
     def rolling(self, window: int, *, min_periods=None) -> bigframes.core.window.Window:
         """Create a rolling window over the series
@@ -828,7 +811,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
-            self._block.copy(), window_spec, self._value_column, self.name
+            self._block, window_spec, self._value_column, self.name
         )
 
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
@@ -839,7 +822,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """
         window_spec = WindowSpec(following=0, min_periods=min_periods)
         return bigframes.core.window.Window(
-            self._block.copy(), window_spec, self._value_column, self.name
+            self._block, window_spec, self._value_column, self.name
         )
 
     def groupby(
@@ -887,11 +870,10 @@ class Series(bigframes.operations.base.SeriesMethods):
             raise ValueError(
                 "groupby level requires and explicit index on the dataframe"
             )
-        block = self._viewed_block
         # If all validations passed, must be grouping on the single-level index
         group_key = self._block.index_columns[0]
         return SeriesGroupBy(
-            block,
+            self._block,
             self._value_column,
             group_key,
             value_name=self.name,
@@ -937,7 +919,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         """
         if keep not in ["first", "last", False]:
             raise ValueError("keep must be one of 'first', 'last', or False'")
-        block = self._block.copy()
+        block = self._block
         val_count_col_id = self._value_column + "_bf_internal_counter_before"
         if keep == "first":
             # Count how many copies occur up to current copy of value
@@ -957,20 +939,17 @@ class Series(bigframes.operations.base.SeriesMethods):
             # Count how many copies of the value occur in entire series.
             # Discard this value if there are copies ANYWHERE
             window_spec = WindowSpec(grouping_keys=(self._value_column,))
-        block.apply_window_op(
+        block, val_count_col_id = block.apply_window_op(
             self._value_column,
             agg_ops.count_op,
             window_spec=window_spec,
-            output_name=val_count_col_id,
         )
-        keep_condition_col_id = self._value_column + "_bf_internal_keep_cond"
-        block.apply_unary_op(
+        block, keep_condition_col_id = block.apply_unary_op(
             val_count_col_id,
             ops.partial_right(ops.le_op, 1),
-            output_name=keep_condition_col_id,
         )
-        block.filter(keep_condition_col_id)
-        return Series(block.select_column(self._value_column), name=self._name)
+        block = block.filter(keep_condition_col_id)
+        return Series(block.select_column(self._value_column))
 
     def mask(self, cond, other=None) -> Series:
         """Replace values in a series where the condition is true."""
@@ -985,10 +964,8 @@ class Series(bigframes.operations.base.SeriesMethods):
 
     def to_frame(self) -> bigframes.DataFrame:
         """Convert Series to DataFrame."""
-        block = self._viewed_block
-
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
-        block.replace_column_labels([self.name] if self.name else ["0"])
+        block = self._block.with_column_labels([self.name] if self.name else ["0"])
         return bigframes.DataFrame(block)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
@@ -1077,9 +1054,13 @@ class Series(bigframes.operations.base.SeriesMethods):
         Returns:
             bigframes.operations.strings.StringMethods: Methods that act on a string Series.
         """
-        return strings.StringMethods(
-            self._block.select_column(self._value_column), name=self._name
-        )
+        return strings.StringMethods(self._block)
+
+    def _set_block(self, block: blocks.Block):
+        self._block = block
+
+    def _get_block(self):
+        return self._block
 
     def _slice(
         self,
@@ -1201,9 +1182,7 @@ class SeriesGroupBy:
 
     def _ungroup(self) -> Series:
         """Convert back to regular series, without aggregating."""
-        return Series(
-            self._block.select_column(self._value_column), name=self._value_name
-        )
+        return Series(self._block.select_column(self._value_column))
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
         aggregate_col_id = self._value_column + "_bf_aggregated"
@@ -1212,11 +1191,11 @@ class SeriesGroupBy:
             ((self._value_column, aggregate_op, aggregate_col_id),),
             dropna=self._dropna,
         )
-        result_block.index_columns = [self._by]
-        if self._key_name:
-            result_block.index.name = self._key_name
+
         return Series(
-            result_block.select_column(aggregate_col_id), name=self._value_name
+            result_block.select_column(aggregate_col_id).assign_label(
+                aggregate_col_id, self._value_name
+            )
         )
 
     def _apply_window_op(
@@ -1225,19 +1204,15 @@ class SeriesGroupBy:
         window_spec: bigframes.core.WindowSpec,
         discard_name=False,
     ):
-        block = self._block.copy()
-        block.apply_window_op(
+        label = self._value_name if not discard_name else None
+        block, result_id = self._block.apply_window_op(
             self._value_column,
             op,
+            result_label=label,
             window_spec=window_spec,
             skip_null_groups=self._dropna,
         )
-        label = self._value_name if not discard_name else None
-        return Series(
-            block.select_column(self._value_column).assign_label(
-                self._value_column, label
-            )
-        )
+        return Series(block.select_column(result_id))
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:

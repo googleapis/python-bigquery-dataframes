@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 import pandas as pd
 
@@ -26,17 +26,38 @@ import bigframes.core.indexes.implicitjoiner as implicitjoiner
 import bigframes.core.joins as joins
 
 
-class Index(implicitjoiner.ImplicitJoiner):
+class Index:
+    def __init__(self, data: blocks.BlockHolder):
+        self._data = data
+
+    @property
+    def name(self) -> typing.Optional[str]:
+        """Get the name of the Index."""
+        # This introduces a level of indirection over Ibis to allow for more
+        # accurate pandas behavior (such as allowing for unnamed or
+        # non-uniquely named objects) without breaking SQL generation.
+        return self._data._get_block()._index_labels[0]
+
+    @name.setter
+    def name(self, value: blocks.Label) -> typing.Optional[str]:
+        """Set the name of the Index."""
+        # This introduces a level of indirection over Ibis to allow for more
+        # accurate pandas behavior (such as allowing for unnamed or
+        # non-uniquely named objects) without breaking SQL generation.
+        return self._data._set_block(self._data._get_block().with_index_labels([value]))
+
+    def compute(self) -> pd.Index:
+        return IndexValue(self._data._get_block()).compute()
+
+
+class IndexValue(implicitjoiner.ImplicitJoiner):
     """An index based on a single column."""
 
     # TODO(swast): Handle more than 1 index column, possibly in a separate
     # MultiIndex class.
     # TODO(swast): Include ordering here?
-    def __init__(
-        self, block: blocks.Block, index_column: str, name: Optional[str] = None
-    ):
-        super().__init__(block, name=name)
-        self._index_column = index_column
+    def __init__(self, block: blocks.Block):
+        super().__init__(block)
 
     def __repr__(self) -> str:
         """Converts an Index to a string."""
@@ -50,8 +71,9 @@ class Index(implicitjoiner.ImplicitJoiner):
     def compute(self) -> pd.Index:
         """Executes deferred operations and downloads the results."""
         # Project down to only the index column. So the query can be cached to visualize other data.
-        expr = self._expr.projection([self._expr.get_any_column(self._index_column)])
-        df = (
+        index_column = self._block.index_columns[0]
+        expr = self._expr.projection([self._expr.get_any_column(index_column)])
+        df: pd.DataFrame = (
             expr.start_query()
             .result()
             .to_dataframe(
@@ -61,20 +83,15 @@ class Index(implicitjoiner.ImplicitJoiner):
                 string_dtype=pd.StringDtype(storage="pyarrow"),
             )
         )
-        df.set_index(self._index_column)
+        df.set_index(index_column)
         index = df.index
-        index.name = self._name
+        index.name = self._block._index_labels[0]
         return index
-
-    def copy(self) -> Index:
-        """Make a copy of this object."""
-        # TODO(swast): Should this make a copy of block?
-        return Index(self._block, self._index_column, name=self.name)
 
     def join(
         self, other: implicitjoiner.ImplicitJoiner, *, how="left", sort=False
-    ) -> Tuple[Index, Tuple[Callable[[str], str], Callable[[str], str]],]:
-        if not isinstance(other, Index):
+    ) -> Tuple[IndexValue, Tuple[Callable[[str], str], Callable[[str], str]],]:
+        if not isinstance(other, IndexValue):
             # TODO(swast): We need to improve this error message to be more
             # actionable for the user. For example, it's possible they
             # could call set_index and try again to resolve this error.
@@ -94,9 +111,9 @@ class Index(implicitjoiner.ImplicitJoiner):
             (get_column_left, get_column_right),
         ) = joins.join_by_column(
             self._block.expr,
-            self._index_column,
+            self._block.index_columns[0],
             other._block.expr,
-            other._index_column,
+            other._block.index_columns[0],
             how=how,
             sort=sort,
         )
@@ -115,6 +132,6 @@ class Index(implicitjoiner.ImplicitJoiner):
             index_labels=[self.name] if self.name == other.name else [None],
         )
         return (
-            typing.cast(Index, block.index),
+            typing.cast(IndexValue, block.index),
             (get_column_left, get_column_right),
         )

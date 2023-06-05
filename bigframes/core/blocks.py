@@ -21,6 +21,7 @@ circular dependencies.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import typing
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
@@ -35,7 +36,7 @@ import pyarrow as pa  # type: ignore
 import bigframes.aggregations as agg_ops
 import bigframes.core as core
 import bigframes.core.indexes as indexes
-from bigframes.core.ordering import OrderingColumnReference
+import bigframes.core.ordering as ordering
 import bigframes.dtypes
 import bigframes.guid as guid
 import bigframes.operations as ops
@@ -44,8 +45,18 @@ import bigframes.operations as ops
 Label = typing.Optional[str]
 
 
+class BlockHolder(typing.Protocol):
+    """Interface for mutable objects with state represented by a block value object."""
+
+    def _set_block(self, block: Block):
+        """Set the underlying block value of the object"""
+
+    def _get_block(self) -> Block:
+        """Get the underlying block value of the object"""
+
+
 class Block:
-    """A mutable 2D data structure."""
+    """A immutable 2D data structure."""
 
     def __init__(
         self,
@@ -66,12 +77,11 @@ class Block:
         if len(list(index_columns)) > 1:
             raise NotImplementedError("MultiIndex not supported")
         self._index_columns = tuple(index_columns)
-        index_labels = (
+        self._index_labels = (
             tuple(index_labels)
             if index_labels
             else tuple([None for _ in index_columns])
         )
-        self._index = indexes.Index(self, self._index_columns[0], name=index_labels[0])
         self._expr = self._normalize_expression(expr, self._index_columns)
         # TODO(tbergeron): Force callers to provide column labels
         self._column_labels = (
@@ -83,31 +93,14 @@ class Block:
             )
 
     @property
-    def index(self) -> indexes.Index:
+    def index(self) -> indexes.IndexValue:
         """Row identities for values in the Block."""
-        # TODO(285636739): Derive index value from block value
-        return self._index
-
-    @index.setter
-    def index(self, value: indexes.Index):
-        # TODO(swast): We shouldn't allow changing the index, as that'll break
-        # references to this block from existing Index objects.
-        self._expr = self._normalize_expression(value._expr, (value._index_column,))
-        self._index_columns = (value._index_column,)
-        self._index = value
+        return indexes.IndexValue(self)
 
     @property
     def index_columns(self) -> Sequence[str]:
         """Column(s) to use as row labels."""
         return self._index_columns
-
-    @index_columns.setter
-    def index_columns(self, value: Iterable[str]):
-        # TODO(swast): We shouldn't allow changing the index, as that'll break
-        # references to this block from existing Index objects.
-        self._index_columns = tuple(value)
-        self._sync_to_index()
-        self._expr = self._normalize_expression(self._expr, self._index_columns)
 
     @property
     def value_columns(self) -> Sequence[str]:
@@ -127,11 +120,6 @@ class Block:
         """Expression representing all columns, including index columns."""
         return self._expr
 
-    @expr.setter
-    def expr(self, expr: core.BigFramesExpr):
-        # WARNING: Can corrupt block. Must make sure labels is updated to reflect changes.
-        self._expr = self._normalize_expression(expr, self._index_columns)
-
     @property
     def dtypes(
         self,
@@ -149,6 +137,30 @@ class Block:
             for ibis_dtype in ibis_dtypes
         ]
 
+    @functools.cached_property
+    def col_id_to_label(self) -> typing.Mapping[str, Label]:
+        """Get column label for value columns, or index name for index columns"""
+        return {
+            col_id: label
+            for col_id, label in zip(self.value_columns, self._column_labels)
+        }
+
+    @functools.cached_property
+    def label_to_col_id(self) -> typing.Mapping[Label, typing.Sequence[str]]:
+        """Get column label for value columns, or index name for index columns"""
+        mapping: typing.Dict[Label, typing.Sequence[str]] = {}
+        for id, label in self.col_id_to_label.items():
+            mapping[label] = (*mapping.get(label, ()), id)
+        return mapping
+
+    def order_by(self, by: typing.Sequence[ordering.OrderingColumnReference]) -> Block:
+        return Block(
+            self._expr.order_by(by),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=[self.index.name],
+        )
+
     def reset_index(self, drop: bool = True) -> Block:
         """Reset the index of the block, promoting the old index to a value column.
 
@@ -159,7 +171,7 @@ class Block:
             A new Block because dropping index columns can break references
             from Index classes that point to this block.
         """
-        block = self.copy()
+        block = self
         new_index_col_id = guid.generate_guid(prefix="index_")
         expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
@@ -249,61 +261,35 @@ class Block:
         if self.index_columns:
             df = df.set_index(list(self.index_columns))
             # TODO(swast): Set names for all levels with MultiIndex.
-            df.index.name = typing.cast(indexes.Index, self.index).name
+            df.index.name = self.index.name
 
         return df, results_iterator.total_rows
 
-    def copy(
-        self,
-        value_columns: Optional[Iterable[ibis_types.Value]] = None,
-        column_labels: Optional[Sequence[Label]] = None,
-    ) -> Block:
-        """Create a copy of this Block, replacing value columns if desired."""
-        # BigFramesExpr and Tuple are immutable, so just need a new wrapper.
-        if value_columns is not None:
-            expr = self._project_value_columns(value_columns)
-        else:
-            expr = self._expr
-
-        # TODO(swast): Support MultiIndex.
-        return Block(
-            expr,
-            index_columns=self._index_columns,
-            column_labels=column_labels
-            if (column_labels is not None)
-            else self._column_labels,
-            index_labels=[self.index.name],
-        )
-
-    def _project_value_columns(
-        self, value_columns: Iterable[ibis_types.Value]
-    ) -> core.BigFramesExpr:
-        """Return a related expression with new value columns."""
-        columns = []
-        index_columns = (
-            self._expr.get_column(column_name) for column_name in self._index_columns
-        )
-        for column in itertools.chain(index_columns, value_columns):
-            columns.append(column)
-        return self._expr.projection(columns)
-
-    def replace_value_columns(self, value_columns: Iterable[ibis_types.Value]):
-        """Mutate all value columns in-place."""
-        # TODO(swast): Deprecate this method, as it allows for operations
-        # directly on Ibis values, which we want to discourage from higher
-        # levels.
-        # TODO(swast): Should we validate that we aren't dropping any columns
-        # so that predicates are valid and column labels stay in sync in
-        # DataFrame.
-        self.expr = self._project_value_columns(value_columns)
-
-    def replace_column_labels(self, value: List[Label]):
+    def with_column_labels(self, value: List[Label]) -> Block:
         if len(value) != len(self.value_columns):
             raise ValueError(
                 f"The column labels size `{len(value)} ` should equal to the value"
                 + f"columns size: {len(self.value_columns)}."
             )
-        self._column_labels = tuple(value)
+        return Block(
+            self._expr,
+            index_columns=self.index_columns,
+            column_labels=tuple(value),
+            index_labels=[self.index.name],
+        )
+
+    def with_index_labels(self, value: List[Label]) -> Block:
+        if len(value) != len(self.index_columns):
+            raise ValueError(
+                f"The index labels size `{len(value)} ` should equal to the index"
+                + f"columns size: {len(self.value_columns)}."
+            )
+        return Block(
+            self._expr,
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=tuple(value),
+        )
 
     def get_value_col_exprs(
         self, column_names: Optional[Sequence[str]] = None
@@ -317,21 +303,41 @@ class Block:
         impl_length, impl_width = self._expr.shape()
         return (impl_length, impl_width - len(self.index_columns))
 
-    def apply_unary_op(self, column: str, op: ops.UnaryOp, output_name=None):
+    def apply_unary_op(
+        self, column: str, op: ops.UnaryOp, result_label: Label = None
+    ) -> typing.Tuple[Block, str]:
+        """
+        Apply a unary op to the block. Creates a new column to store the result.
+        """
         # TODO(tbergeron): handle labels safely so callers don't need to
-        self.expr = self._expr.project_unary_op(column, op, output_name)
+        result_id = guid.generate_guid()
+        expr = self._expr.project_unary_op(column, op, result_id)
+        block = Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=[*self.column_labels, result_label],
+            index_labels=[self.index.name],
+        )
+        return (block, result_id)
 
     def apply_binary_op(
         self,
         left_column_id: str,
         right_column_id: str,
         op: ops.BinaryOp,
-        output_id: str,
-    ):
-        # TODO(tbergeron): handle labels safely so callers don't need to
-        self.expr = self._expr.project_binary_op(
-            left_column_id, right_column_id, op, output_id
+        result_label: Label = None,
+    ) -> typing.Tuple[Block, str]:
+        result_id = guid.generate_guid()
+        expr = self._expr.project_binary_op(
+            left_column_id, right_column_id, op, result_id
         )
+        block = Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=[*self.column_labels, result_label],
+            index_labels=[self.index.name],
+        )
+        return (block, result_id)
 
     def apply_ternary_op(
         self,
@@ -339,64 +345,114 @@ class Block:
         col_id_2: str,
         col_id_3: str,
         op: ops.TernaryOp,
-        output_id: str,
-    ):
-        # TODO(tbergeron): handle labels safely so callers don't need to
-        self.expr = self._expr.project_ternary_op(
-            col_id_1, col_id_2, col_id_3, op, output_id
+        result_label: Label = None,
+    ) -> typing.Tuple[Block, str]:
+        result_id = guid.generate_guid()
+        expr = self._expr.project_ternary_op(
+            col_id_1, col_id_2, col_id_3, op, result_id
         )
+        block = Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=[*self.column_labels, result_label],
+            index_labels=[self.index.name],
+        )
+        return (block, result_id)
+
+    def multi_apply_window_op(
+        self,
+        columns: typing.Sequence[str],
+        op: agg_ops.WindowOp,
+        window_spec: core.WindowSpec,
+        *,
+        skip_null_groups: bool = False,
+    ) -> Block:
+        block = self
+        for i, col_id in enumerate(columns):
+            label = self.col_id_to_label[col_id]
+            block, result_id = block.apply_window_op(
+                col_id,
+                op,
+                window_spec=window_spec,
+                skip_reproject_unsafe=(i + 1) < len(columns),
+                result_label=label,
+                skip_null_groups=skip_null_groups,
+            )
+            block = block.copy_values(result_id, col_id)
+            block = block.drop_columns(result_id)
+        return block
 
     def apply_window_op(
         self,
         column: str,
         op: agg_ops.WindowOp,
         window_spec: core.WindowSpec,
-        output_name=None,
         *,
+        result_label: Label = None,
         skip_null_groups: bool = False,
         skip_reproject_unsafe: bool = False,
-    ):
-        self.expr = self._expr.project_window_op(
+    ) -> typing.Tuple[Block, str]:
+        result_id = guid.generate_guid()
+        expr = self._expr.project_window_op(
             column,
             op,
             window_spec,
-            output_name,
+            result_id,
             skip_null_groups=skip_null_groups,
             skip_reproject_unsafe=skip_reproject_unsafe,
         )
+        block = Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=[*self.column_labels, result_label],
+            index_labels=self._index_labels,
+        )
+        return (block, result_id)
 
-    def assign_column(self, source_column_id: str, destination_column_id: str) -> Block:
-        block = self.copy()
-        block.expr = block.expr.assign(source_column_id, destination_column_id)
-        if destination_column_id not in self.value_columns:
-            block.replace_column_labels([*self.column_labels, None])
-        return block
+    def copy_values(self, source_column_id: str, destination_column_id: str) -> Block:
+        expr = self.expr.assign(source_column_id, destination_column_id)
+        return Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self._index_labels,
+        )
 
-    def assign_constant(
+    def create_constant(
         self,
-        column_id: str,
         scalar_constant: typing.Any,
-        label: typing.Optional[str] = None,
-    ) -> Block:
-        block = self.copy()
-        block.expr = block.expr.assign_constant(column_id, scalar_constant)
-        if column_id not in self.value_columns:
-            block.replace_column_labels([*self.column_labels, label])
-        elif label:
-            block = block.assign_label(column_id, label)
-        return block
+        label: Label = None,
+    ) -> typing.Tuple[Block, str]:
+        result_id = guid.generate_guid()
+        expr = self.expr.assign_constant(result_id, scalar_constant)
+        labels = [*self.column_labels, label]
+        return (
+            Block(
+                expr,
+                index_columns=self.index_columns,
+                column_labels=labels,
+                index_labels=self._index_labels,
+            ),
+            result_id,
+        )
 
     def assign_label(self, column_id: str, new_label: Label) -> Block:
         col_index = self.value_columns.index(column_id)
         new_labels = list(self.column_labels)
         new_labels[col_index] = new_label
-        return self.copy(column_labels=new_labels)
+        return self.with_column_labels(new_labels)
 
     def filter(self, column_name: str):
         condition = typing.cast(
             ibis_types.BooleanValue, self._expr.get_column(column_name)
         )
-        self.expr = self.expr.filter(condition)
+        filtered_expr = self.expr.filter(condition)
+        return Block(
+            filtered_expr,
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self._index_labels,
+        )
 
     def aggregate_all_and_pivot(
         self,
@@ -418,9 +474,12 @@ class Block:
         return Block(result_expr, index_columns=["index"], column_labels=[None])
 
     def select_column(self, id: str) -> Block:
-        return self.drop_columns(
-            [col_id for col_id in self.value_columns if col_id != id]
-        )
+        return self.select_columns([id])
+
+    def select_columns(self, ids: typing.Sequence[str]) -> Block:
+        expr = self._expr.select_columns([*self.index_columns, *ids])
+        col_labels = self._get_labels_for_columns(ids)
+        return Block(expr, self.index_columns, col_labels, [self.index.name])
 
     def drop_columns(self, ids_to_drop: typing.Sequence[str]) -> Block:
         """Drops columns by id. Can drop index"""
@@ -434,6 +493,13 @@ class Block:
         ]
         labels = self._get_labels_for_columns(remaining_value_col_ids)
         return Block(expr, self.index_columns, labels, [self.index.name])
+
+    def rename(self, *, columns: typing.Mapping[Label, Label]):
+        # TODO(tbergeron) Support function(Callable) as columns parameter.
+        col_labels = [
+            (columns.get(col_label, col_label)) for col_label in self.column_labels
+        ]
+        return self.with_column_labels(col_labels)
 
     def aggregate(
         self,
@@ -463,7 +529,7 @@ class Block:
                 # Groupby level 0 case, keep index name
                 index_name = self.index.name
             else:
-                index_name = self._get_labels_for_columns(by_column_ids)[0]
+                index_name = self.col_id_to_label[by_col_id]
             return Block(
                 result_expr,
                 index_columns=by_column_ids,
@@ -477,10 +543,7 @@ class Block:
 
     def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
         """Get column label for value columns, or index name for index columns"""
-        lookup = {
-            col_id: label
-            for col_id, label in zip(self.value_columns, self._column_labels)
-        }
+        lookup = self.col_id_to_label
         return [lookup.get(col_id, None) for col_id in column_ids]
 
     def _normalize_expression(
@@ -499,20 +562,6 @@ class Block:
             raise ValueError("Unexpected number of value columns.")
         return expr.select_columns([*index_columns, *value_columns])
 
-    def _sync_to_index(self):
-        """Update index to match latest expression and column(s).
-
-        Index object contains a reference to the expression object so any changes to the block's expression requires building a new index object as well.
-        """
-        columns = self._index_columns
-        if len(columns) == 0:
-            raise ValueError("Expect at least one index column.")
-        elif len(columns) == 1:
-            index_column = columns[0]
-            self._index = indexes.Index(self, index_column, name=self.index.name)
-        else:
-            raise NotImplementedError("MultiIndex not supported.")
-
     def slice(
         self: bigframes.core.blocks.Block,
         start: typing.Optional[int] = None,
@@ -530,9 +579,10 @@ class Block:
         # TODO(swast): Support MultiIndex.
         return block
 
-    def promote_offsets(self, value_col_id: str):
-        self.expr = self._expr.promote_offsets(value_col_id=value_col_id)
-        self.replace_column_labels([value_col_id, *self.column_labels])
-
-    def order_by(self, order_col_id: str):
-        self.expr = self._expr.order_by([OrderingColumnReference(order_col_id)])
+    def promote_offsets(self, value_col_id: str) -> Block:
+        return Block(
+            self._expr.promote_offsets(value_col_id=value_col_id),
+            index_columns=self.index_columns,
+            column_labels=[value_col_id, *self.column_labels],
+            index_labels=self._index_labels,
+        )

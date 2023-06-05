@@ -73,8 +73,12 @@ class Window:
         self,
         op: agg_ops.AggregateOp,
     ) -> Series:
-        block = self._block.copy()
-        block.apply_window_op(self._value_column_id, op, self._window_spec)
+        block = self._block
+        block, result_id = block.apply_window_op(
+            self._value_column_id, op, self._window_spec
+        )
         from bigframes.series import Series
 
-        return Series(block.select_column(self._value_column_id), name=self._label)
+        return Series(
+            block.select_column(result_id).assign_label(result_id, self._label)
+        )

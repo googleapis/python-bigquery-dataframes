@@ -188,22 +188,11 @@ class DataFrameGroupBy:
         numeric_only: bool = False,
     ):
         columns = self._aggregated_columns(numeric_only=numeric_only)
-        pruned_block = self._block.copy().drop_columns(
-            [
-                col
-                for col in self._block.value_columns
-                if col not in [*columns, *window_spec.grouping_keys]
-            ]
+        block = self._block.select_columns([*columns, *window_spec.grouping_keys])
+        block = self._block.multi_apply_window_op(
+            columns,
+            op,
+            window_spec=window_spec,
         )
-        for col_id in columns[:-1]:
-            pruned_block.apply_window_op(
-                col_id,
-                op,
-                window_spec=window_spec,
-                skip_null_groups=self._dropna,
-                skip_reproject_unsafe=True,
-            )
-        # Reproject after applying final independent window operation.
-        pruned_block.apply_window_op(columns[-1], op, window_spec=window_spec)
-        final_block = pruned_block.drop_columns(window_spec.grouping_keys)
-        return df.DataFrame(final_block)
+        block = block.select_columns(columns)
+        return df.DataFrame(block)

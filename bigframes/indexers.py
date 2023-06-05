@@ -19,6 +19,7 @@ import typing
 import ibis
 import pandas as pd
 
+import bigframes.core.blocks as blocks
 import bigframes.core.indexes.index
 import bigframes.series
 
@@ -34,11 +35,7 @@ class LocSeriesIndexer:
         return _loc_getitem_series_or_dataframe(self._series, key)
 
     def __setitem__(self, key, value) -> None:
-        index = self._series.index
         # TODO(swast): support MultiIndex
-        if not isinstance(index, bigframes.core.indexes.index.Index):
-            raise ValueError("loc requires labeled index")
-
         if isinstance(key, slice):
             # TODO(swast): Implement loc with slices.
             raise NotImplementedError("loc does not yet support slices")
@@ -49,7 +46,7 @@ class LocSeriesIndexer:
         # Assume the key is for the index label.
         block = self._series._block
         value_column = self._series._value
-        index_column = block.expr.get_column(index._index_column)
+        index_column = block.expr.get_column(block.index_columns[0])
         new_value = (
             ibis.case()
             .when(
@@ -66,7 +63,17 @@ class LocSeriesIndexer:
                 all_columns.append(column)
             else:
                 all_columns.append(new_value)
-        block.expr = block.expr.projection(all_columns)
+        new_expr = block.expr.projection(all_columns)
+
+        # TODO(tbergeron): Use block operators rather than directly building desired ibis expressions.
+        self._series._set_block(
+            blocks.Block(
+                new_expr,
+                self._series._block.index_columns,
+                self._series._block.column_labels,
+                [self._series._block.index.name],
+            )
+        )
 
 
 class IlocSeriesIndexer:

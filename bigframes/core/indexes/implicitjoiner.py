@@ -27,14 +27,8 @@ import bigframes.core.joins as joins
 class ImplicitJoiner:
     """Allow implicit joins without row labels on related table expressions."""
 
-    def __init__(self, block: blocks.Block, name: typing.Optional[str] = None):
+    def __init__(self, block: blocks.Block):
         self._block = block
-        self._name = name
-
-    def copy(self) -> ImplicitJoiner:
-        """Make a copy of this object."""
-        # TODO(swast): Should this make a copy of block?
-        return ImplicitJoiner(self._block, self._name)
 
     @property
     def _expr(self) -> core.BigFramesExpr:
@@ -46,11 +40,7 @@ class ImplicitJoiner:
         # This introduces a level of indirection over Ibis to allow for more
         # accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL generation.
-        return self._name
-
-    @name.setter
-    def name(self, value: typing.Optional[str]):
-        self._name = value
+        return self._block._index_labels[0]
 
     # TODO(swast): In pandas, "left_indexer" and "right_indexer" are numpy
     # arrays that indicate where the rows line up. Do we want to wrap ibis to
@@ -71,7 +61,7 @@ class ImplicitJoiner:
             joined_expr,
             column_labels=[*self._block.column_labels, *other._block.column_labels],
         )
-        return ImplicitJoiner(block, name=self.name), (
+        return ImplicitJoiner(block), (
             get_column_left,
             get_column_right,
         )

@@ -13,12 +13,13 @@
 # limitations under the License.
 
 from bigframes.core.indexes.implicitjoiner import ImplicitJoiner
-from bigframes.core.indexes.index import Index
+from bigframes.core.indexes.index import Index, IndexValue
 
 INDEX_COLUMN_ID = "bigframes_index_{}"
 
 __all__ = [
     "ImplicitJoiner",
     "Index",
+    "IndexValue",
     "INDEX_COLUMN_ID",
 ]

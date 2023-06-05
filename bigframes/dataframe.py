@@ -46,6 +46,7 @@ import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.dtypes
 import bigframes.guid
+import bigframes.indexers as indexers
 import bigframes.operations as ops
 import bigframes.series
 import third_party.bigframes_vendored.pandas.pandas.io.common as vendored_pandas_io_common
@@ -70,26 +71,6 @@ class DataFrame:
 
     def _ipython_key_completions_(self) -> List[str]:
         return list([label for label in self._block.column_labels if label])
-
-    def _copy(
-        self,
-        columns: Optional[
-            Tuple[Sequence[ibis_types.Value], Sequence[blocks.Label]]
-        ] = None,
-    ) -> DataFrame:
-        if not columns:
-            return DataFrame(self._block.copy())
-
-        value_cols, col_labels = columns
-        if len(value_cols) != len(col_labels):
-            raise ValueError(
-                f"Column sizes not equal. Value columns size: {len(value_cols)}, "
-                + f"column names size: {len(col_labels)}"
-            )
-
-        block = self._block.copy(value_columns=value_cols, column_labels=col_labels)
-        block.index.name = self.index.name
-        return DataFrame(block)
 
     def _find_indices(
         self,
@@ -134,26 +115,26 @@ class DataFrame:
     @property
     def index(
         self,
-    ) -> Union[indexes.ImplicitJoiner, indexes.Index,]:
+    ) -> indexes.Index:
         """The index of the dataframe."""
-        return self._block.index
+        return indexes.Index(self)
 
     @property
-    def loc(self) -> bigframes.indexers._LocIndexer:
+    def loc(self) -> indexers._LocIndexer:
         """
         Index the rows of the dataframe using square brackets.
 
         Currently, only indexing using a boolean Series is supported.
         """
-        return bigframes.indexers._LocIndexer(self)
+        return indexers._LocIndexer(self)
 
     @property
-    def iloc(self) -> bigframes.indexers._iLocIndexer:
+    def iloc(self) -> indexers._iLocIndexer:
         """Get items by slice.
 
         Only slice type is supported currently for indexing the iloc object.
         """
-        return bigframes.indexers._iLocIndexer(self)
+        return indexers._iLocIndexer(self)
 
     @property
     def dtypes(self) -> pd.Series:
@@ -279,17 +260,12 @@ class DataFrame:
         # Select a number of columns as DF.
         key = key if _is_list_like(key) else [key]  # type:ignore
 
-        value_cols = self._block.get_value_col_exprs(sql_names)
-        col_label_count: Dict[blocks.Label, int] = {}
-        for col_label in self._block.column_labels:
-            col_label_count[col_label] = col_label_count.get(col_label, 0) + 1
-        col_labels = []
-        for item_name in key:
-            # Every item is guaranteed to exist, otherwise it already raised exception
-            # in sql_names.
-            col_labels += [item_name] * col_label_count[item_name]
+        selected_ids: Tuple[str, ...] = ()
+        for label in key:
+            col_ids = self._block.label_to_col_id.get(label, [])
+            selected_ids = (*selected_ids, *col_ids)
 
-        return self._copy((value_cols, col_labels))
+        return DataFrame(self._block.select_columns(selected_ids))
 
     # Bool Series selects rows
     def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
@@ -299,10 +275,10 @@ class DataFrame:
         combined_index, (
             get_column_left,
             get_column_right,
-        ) = self._block.index.join(key.index, how="left")
+        ) = self._block.index.join(key._block.index, how="left")
         block = combined_index._block
         filter_col_id = get_column_right(key._value_column)
-        block.filter(filter_col_id)
+        block = block.filter(filter_col_id)
         block = block.drop_columns([filter_col_id])
         return DataFrame(block)
 
@@ -382,18 +358,20 @@ class DataFrame:
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
         )
 
-    def _apply_scalar_binop(
-        self, other: float | int, op, reverse: bool = False
-    ) -> DataFrame:
-        scalar = bigframes.dtypes.literal_to_ibis_scalar(other)
-        value_cols = []
-        for value_col in self._block.get_value_col_exprs():
-            value_cols.append(
-                (op(scalar, value_col) if reverse else op(value_col, scalar)).name(
-                    value_col.get_name()
-                )
+    def _apply_scalar_binop(self, other: float | int, op: ops.BinaryOp) -> DataFrame:
+        block, constant_col_id = self._block.create_constant(other)
+        for column_id, label in zip(
+            self._block.value_columns, self._block.column_labels
+        ):
+            block, _ = block.apply_binary_op(
+                column_id,
+                constant_col_id,
+                op,
+                result_label=label,
             )
-        return self._copy((value_cols, self._block.column_labels))
+            block = block.drop_columns([column_id])
+        block = block.drop_columns([constant_col_id])
+        return DataFrame(block)
 
     def _apply_series_binop(
         self,
@@ -407,20 +385,26 @@ class DataFrame:
         if axis in ("columns", 1):
             raise NotImplementedError("Row Series operations haven't been supported.")
 
-        joined_index, (get_column_left, get_column_right) = self.index.join(
-            other.index, how="outer"
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            other._block.index, how="outer"
         )
-        joined_index.name = self.index.name
 
         series_column_id = other._value.get_name()
         series_col = get_column_right(series_column_id)
         block = joined_index._block
-        for column_id in self._block.value_columns:
-            block.apply_binary_op(
-                get_column_left(column_id), series_col, op, get_column_left(column_id)
+        for column_id, label in zip(
+            self._block.value_columns, self._block.column_labels
+        ):
+            block, _ = block.apply_binary_op(
+                get_column_left(column_id),
+                series_col,
+                op,
+                result_label=label,
             )
+            block = block.drop_columns([get_column_left(column_id)])
 
         block = block.drop_columns([series_col])
+        block = block.with_index_labels([self.index.name])
         return DataFrame(block)
 
     def add(
@@ -524,39 +508,25 @@ class DataFrame:
 
     def copy(self) -> DataFrame:
         """Creates a deep copy of the DataFrame."""
-        return self._copy()
+        return DataFrame(self._block)
 
     def head(self, n: int = 5) -> DataFrame:
         """Limits DataFrame to a specific number of rows."""
-        df = self._copy()
-        df._block.expr = self._block.expr.apply_limit(n)
-        return df
+        return typing.cast(DataFrame, self.iloc[:n])
 
     def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
         """Drop specified column(s)."""
-        if isinstance(columns, str):
-            columns = [columns]
+        if not _is_list_like(columns):
+            columns = [columns]  # type:ignore
         columns = list(columns)
 
-        df = self._copy()
-        df._block.expr = self._block.expr.drop_columns(self._sql_names(columns))
-        df._block.replace_column_labels(
-            [
-                col_label
-                for col_label in self._block.column_labels
-                if col_label not in columns
-            ]
-        )
-        return df
+        block = self._block.drop_columns(self._sql_names(columns))
+        return DataFrame(block)
 
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         """Alter column labels."""
-        # TODO(garrettwu) Support function(Callable) as columns parameter.
-        col_labels = [
-            (columns.get(col_label, col_label))
-            for col_label in self._block.column_labels
-        ]
-        return self._copy((self._block.get_value_col_exprs(), col_labels))
+        block = self._block.rename(columns=columns)
+        return DataFrame(block)
 
     def assign(self, **kwargs) -> DataFrame:
         """Assign new columns to a DataFrame.
@@ -584,32 +554,33 @@ class DataFrame:
     def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
         # TODO(swast): Make sure that k is the ID / SQL name, not a label,
         # which could be invalid SQL.
-        col_ids = self._sql_names(label, tolerance=True) or [
-            bigframes.guid.generate_guid()
-        ]
+        col_ids = self._sql_names(label, tolerance=True)
 
+        block, constant_col_id = self._block.create_constant(value, label)
         for col_id in col_ids:
-            block = self._block.assign_constant(col_id, value, label)
+            block = block.copy_values(constant_col_id, col_id)
+
+        if len(col_ids) > 0:
+            block = block.drop_columns([constant_col_id])
 
         return DataFrame(block)
 
     def _assign_series_join_on_index(
         self, label: str, series: bigframes.series.Series
     ) -> DataFrame:
-        joined_index, (get_column_left, get_column_right) = self.index.join(
-            series.index, how="left"
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            series._block.index, how="left"
         )
-        joined_index.name = self.index.name
 
         column_ids = [
             get_column_left(col_id) for col_id in self._sql_names(label, tolerance=True)
         ]
-        block = joined_index._block.copy()
+        block = joined_index._block
         source_column = get_column_right(series._value_column)
 
         # Replace each column matching the label
         for column_id in column_ids:
-            block = block.assign_column(source_column, column_id).assign_label(
+            block = block.copy_values(source_column, column_id).assign_label(
                 column_id, label
             )
 
@@ -620,7 +591,7 @@ class DataFrame:
             # Update case, remove after copying into columns
             block = block.drop_columns([source_column])
 
-        return DataFrame(block)
+        return DataFrame(block.with_index_labels([self.index.name]))
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         """Reset the index of the DataFrame, and use the default one instead."""
@@ -667,13 +638,8 @@ class DataFrame:
     def sort_index(self) -> DataFrame:
         """Sort the DataFrame by index labels."""
         index_columns = self._block.index_columns
-        expr = self._block.expr.order_by(
-            [order.OrderingColumnReference(column) for column in index_columns]
-        )
-        block = self._block.copy()
-        block.expr = expr
-        block.index.name = self.index.name
-        return DataFrame(block)
+        ordering = [order.OrderingColumnReference(column) for column in index_columns]
+        return DataFrame(self._block.order_by(ordering))
 
     def sort_values(
         self,
@@ -712,27 +678,23 @@ class DataFrame:
                 )
             )
 
-        block = self._block.copy()
-        block.expr = block.expr.order_by(ordering)
-        return DataFrame(block)
+        return DataFrame(self._block.order_by(ordering))
 
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
-        predicates = [
-            column.notnull()
-            for column in self._block.expr.columns
-            if column.get_name() in self._block.value_columns
-        ]
-        df = self._copy()
-        for predicate in predicates:
-            df._block.expr = df._block.expr.filter(predicate)
-        return df
+        block = self._block
+        for column in self._block.value_columns:
+            block, result_id = block.apply_unary_op(column, ops.notnull_op)
+            block = block.filter(result_id)
+            block = block.drop_columns([result_id])
+
+        return DataFrame(block)
 
     def sum(self, *, numeric_only=False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.sum_op)
-        return bigframes.Series(block.select_column("values"), name=None)
+        return bigframes.Series(block.select_column("values"))
 
     def mean(self, *, numeric_only=False) -> bigframes.Series:
         if not numeric_only:
@@ -859,8 +821,8 @@ class DataFrame:
 
         left = self
         right = other
-        combined_index, (get_column_left, get_column_right) = left.index.join(
-            right.index, how=how
+        combined_index, (get_column_left, get_column_right) = left._block.index.join(
+            right._block.index, how=how
         )
         return DataFrame(combined_index._block)
 
@@ -887,7 +849,7 @@ class DataFrame:
             )
         by_col_ids = self._sql_names(by)
         return groupby.DataFrameGroupBy(
-            self._block.copy(),
+            self._block,
             by_col_ids,
             dropna=dropna,
             as_index=as_index,
@@ -962,14 +924,10 @@ class DataFrame:
         op: agg_ops.WindowOp,
         window_spec: bigframes.core.WindowSpec,
     ):
-        block = self._block.copy()
-        for col_id in self._block.value_columns[:-1]:
-            block.apply_window_op(
-                col_id, op, window_spec=window_spec, skip_reproject_unsafe=True
-            )
-        # Reproject after applying final independent window operation.
-        block.apply_window_op(
-            self._block.value_columns[-1], op, window_spec=window_spec
+        block = self._block.multi_apply_window_op(
+            self._block.value_columns,
+            op,
+            window_spec=window_spec,
         )
         return DataFrame(block)
 
@@ -989,7 +947,7 @@ class DataFrame:
         Returns:
             DataFrame
         """
-        block = self._block.copy()
+        block = self._block
         sample_size = None
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
@@ -1008,49 +966,49 @@ class DataFrame:
             random_state = random.randint(-(2**30), 2**30)
 
         # Add guid to new column names to avoid collisions.
-        random_state_col = bigframes.guid.generate_guid("random_state")
         ordering_col = bigframes.guid.generate_guid("ordering")
-        sum_col = bigframes.guid.generate_guid("sum")
         row_number_col = bigframes.guid.generate_guid("row_number")
-        sample_size_col = bigframes.guid.generate_guid("sample_size")
-        less_than_col = bigframes.guid.generate_guid("less_than")
 
         # Create a new column with random_state value.
-        block = block.assign_constant(random_state_col, random_state)
+        block, random_state_col = block.create_constant(random_state)
 
         # Create an ordering col and a new sum col which is ordering+random_state.
-        block.promote_offsets(ordering_col)
-        block.apply_binary_op(ordering_col, random_state_col, ops.add_op, sum_col)
-        block.replace_column_labels([*block.column_labels, sum_col])
+        block = block.promote_offsets(ordering_col)
+        block, sum_col = block.apply_binary_op(
+            ordering_col, random_state_col, ops.add_op
+        )
 
         # Apply hash method to sum col and order by it.
-        block.apply_unary_op(sum_col, ops.AsTypeOp(ibis_dtypes.string))
-        block.apply_unary_op(sum_col, ops.hash_op)
-        block.order_by(sum_col)
+        block, string_sum_col = block.apply_unary_op(
+            sum_col, ops.AsTypeOp(ibis_dtypes.string)
+        )
+        block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
+        block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
 
         # Create a new row_number column based on ordering by the hashed values.
-        block.promote_offsets(row_number_col)
+        block = block.promote_offsets(row_number_col)
 
         # Create a new column with sample_size value and filter rows < sample_size.
-        block = block.assign_constant(sample_size_col, sample_size)
-        block.apply_binary_op(
-            row_number_col, sample_size_col, ops.lt_op, output_id=less_than_col
+        block, sample_size_col = block.create_constant(sample_size)
+        block, less_than_col = block.apply_binary_op(
+            row_number_col, sample_size_col, ops.lt_op
         )
-        block.filter(less_than_col)
+        block = block.filter(less_than_col)
 
         # Drop temporary columns from result.
         drop_cols = [
             random_state_col,
             ordering_col,
             sum_col,
+            string_sum_col,
+            hash_string_sum_col,
             row_number_col,
             sample_size_col,
             less_than_col,
         ]
         block = block.drop_columns(drop_cols)
 
-        df = DataFrame(block)
-        return df
+        return DataFrame(block)
 
     def to_pandas(self) -> pd.DataFrame:
         """Writes DataFrame to Pandas DataFrame."""
@@ -1233,11 +1191,18 @@ class DataFrame:
         extract_job.result()  # Wait for extract job to finish
 
     def _apply_to_rows(self, operation: ops.UnaryOp):
-        columns = self._block.get_value_col_exprs()
-        new_columns = [
-            operation._as_ibis(column).name(column.get_name()) for column in columns
-        ]
-        return self._copy((new_columns, self._block.column_labels))
+        block = self._block
+        for column_id, label in zip(
+            self._block.value_columns, self._block.column_labels
+        ):
+            block, _ = block.apply_unary_op(
+                column_id,
+                operation,
+                result_label=label,
+            )
+            block = block.drop_columns([column_id])
+
+        return DataFrame(block)
 
     def _execute_query(
         self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None
@@ -1298,6 +1263,12 @@ class DataFrame:
     ) -> bigframes.DataFrame:
         block = self._block.slice(start=start, stop=stop, step=step)
         return bigframes.DataFrame(block)
+
+    def _set_block(self, block: blocks.Block):
+        self._block = block
+
+    def _get_block(self):
+        return self._block
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:

@@ -34,6 +34,6 @@ def concat(objs: Iterable[DataFrame]) -> DataFrame:
         cat_expr,
         index_columns=block_0.index_columns,
         column_labels=objs[0]._block.column_labels,
+        index_labels=[index_names[0] if len(index_names) == 1 else None],
     )
-    block.index.name = index_names[0] if len(index_names) == 1 else None
     return DataFrame(block)

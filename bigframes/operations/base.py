@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import ibis.expr.types as ibis_types
 
 import bigframes.core.blocks as blocks
@@ -24,23 +22,12 @@ import bigframes.series as series
 
 
 class SeriesMethods:
-    def __init__(self, block: blocks.Block, *, name: Optional[str] = None):
+    def __init__(self, block: blocks.Block):
         assert len(block.value_columns) == 1
         assert len(block.column_labels) == 1
-        if name:
-            new_block = block.copy()
-            new_block.replace_column_labels([name])
-            self._block = new_block
-        else:
-            self._block = block
+        self._block = block
         self._value_column = self._block.value_columns[0]
         self._name = self._block.column_labels[0]
-
-    @property
-    def _viewed_block(self) -> blocks.Block:
-        """Gets a copy of block after any views have been applied. Mutations to this
-        copy do not affect any existing series/dataframes."""
-        return self._block.copy()
 
     @property
     def _value(self) -> ibis_types.Value:
@@ -52,6 +39,7 @@ class SeriesMethods:
         op: bigframes.operations.UnaryOp,
     ) -> series.Series:
         """Applies a unary operator to the series."""
-        block = self._viewed_block
-        block.apply_unary_op(self._value_column, op)
-        return series.Series(block.select_column(self._value_column))
+        block, result_id = self._block.apply_unary_op(
+            self._value_column, op, result_label=self._name
+        )
+        return series.Series(block.select_column(result_id))
