@@ -23,6 +23,7 @@ import pytest
 from bigframes.ml import core, llm
 import bigframes.ml.cluster
 import bigframes.ml.core
+import bigframes.ml.ensemble
 import bigframes.ml.linear_model
 
 
@@ -56,6 +57,16 @@ def penguins_logistic_model(
     return cast(
         bigframes.ml.linear_model.LogisticRegression,
         session.read_gbq_model(penguins_logistic_model_name),
+    )
+
+
+@pytest.fixture(scope="session")
+def penguins_xgbregressor_model(
+    session, penguins_xgbregressor_model_name
+) -> bigframes.ml.ensemble.XGBRegressor:
+    return cast(
+        bigframes.ml.ensemble.XGBRegressor,
+        session.read_gbq_model(penguins_xgbregressor_model_name),
     )
 
 

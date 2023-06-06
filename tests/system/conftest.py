@@ -438,3 +438,39 @@ WHERE
         session.bqclient.query(sql).result()
     finally:
         return model_name
+
+
+@pytest.fixture(scope="session")
+def penguins_xgbregressor_model_name(
+    session: bigframes.Session, dataset_id_permanent, penguins_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...)"""
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='BOOSTED_TREE_REGRESSOR',
+    num_parallel_tree=1,
+    booster_type='GBTREE',
+    early_stop=True,
+    data_split_method='NO_SPLIT',
+    subsample=1.0,
+    input_label_cols=['body_mass_g']
+) AS SELECT
+    *
+FROM `{penguins_table_id}`
+WHERE
+  body_mass_g IS NOT NULL"""
+    # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
+    model_name = f"{dataset_id_permanent}.penguins_xgbregressor_{hashlib.md5(sql.encode()).hexdigest()}"
+    sql = sql.replace("$model_name", model_name)
+
+    try:
+        session.bqclient.get_model(model_name)
+    except google.cloud.exceptions.NotFound:
+        logging.info(
+            "penguins_xgbregressor_model fixture was not found in the permanent dataset, regenerating it..."
+        )
+        session.bqclient.query(sql).result()
+    finally:
+        return model_name
