@@ -19,6 +19,7 @@ import typing
 from typing import Tuple
 
 import pandas as pd
+import sklearn.metrics as sklearn_metrics  # type: ignore
 
 import bigframes
 
@@ -242,3 +243,25 @@ def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> 
     width_diff = pd_fpr.diff().iloc[1:].reset_index(drop=True)
     height_avg = (pd_tpr.iloc[:-1] + pd_tpr.iloc[1:].reset_index(drop=True)) / 2
     return (width_diff * height_avg).sum()
+
+
+def auc(
+    x: bigframes.DataFrame,
+    y: bigframes.DataFrame,
+) -> float:
+    """
+    Compute Area Under the Curve (AUC) using the trapezoidal rule.
+
+    Args:
+        x: X coordinates. These must be either monotonic increasing or monotonic decreasing.
+
+        y: Y coordinates.
+
+    Returns: Area Under the Curve.
+    """
+    if len(x.columns) != 1 or len(y.columns) != 1:
+        raise ValueError("Only 1-D data structure is supported")
+
+    # TODO(b/286410053) Support ML exceptions and error handling.
+    auc = sklearn_metrics.auc(x.to_pandas(), y.to_pandas())
+    return auc

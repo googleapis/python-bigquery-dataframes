@@ -97,6 +97,7 @@ requests-toolbelt==0.10.1
 rfc3986==2.0.0
 rich==13.3.3
 rsa==4.9
+scikit-learn==1.2.2
 SecretStorage==3.3.3
 six==1.16.0
 SQLAlchemy==1.4.0

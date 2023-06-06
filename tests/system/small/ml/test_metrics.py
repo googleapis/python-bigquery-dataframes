@@ -328,3 +328,29 @@ def test_roc_auc_score_returns_matches_sklearn(session):
     )
 
     assert score == expected_score
+
+
+def test_auc_invalid_x_size(session):
+    pd_df = pd.DataFrame({"x": [0], "y": [0]})
+    df = session.read_pandas(pd_df)
+    with pytest.raises(ValueError):
+        bigframes.ml.metrics.auc(df[["x"]], df[["y"]])
+
+
+def test_auc_nondecreasing_x(session):
+    pd_df = pd.DataFrame({"x": [0, 0, 0.5, 0.5, 1], "y": [0, 0.5, 0.5, 1, 1]})
+
+    df = session.read_pandas(pd_df)
+    assert bigframes.ml.metrics.auc(df[["x"]], df[["y"]]) == 0.75
+
+
+def test_auc_nonincreasing_x(session):
+    pd_df = pd.DataFrame({"x": [0, 0, -0.5, -0.5, -1], "y": [0, 0.5, 0.5, 1, 1]})
+    df = session.read_pandas(pd_df)
+    assert bigframes.ml.metrics.auc(df[["x"]], df[["y"]]) == 0.75
+
+
+def test_auc_nonincreasing_x_negative(session):
+    pd_df = pd.DataFrame({"x": [0, 0, -0.5, -0.5, -1], "y": [0, -0.5, -0.5, -1, -1]})
+    df = session.read_pandas(pd_df)
+    assert bigframes.ml.metrics.auc(df[["x"]], df[["y"]]) == -0.75

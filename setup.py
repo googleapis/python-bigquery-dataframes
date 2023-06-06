@@ -42,12 +42,12 @@ dependencies = [
     "ibis-framework[bigquery] @ git+https://github.com/ibis-project/ibis.git@4514668afc4745200e6648bdc688f43e0f41cb57#egg=ibis-framework",
     "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
+    "scikit-learn >=1.2.2",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
     "tests": [
         "pandas-gbq >=0.19.0",
-        "scikit-learn >=1.2.2",
     ],
     # Packages required for basic development flow.
     "dev": ["pytest", "pre-commit", "nox", "google-cloud-testutils"],
