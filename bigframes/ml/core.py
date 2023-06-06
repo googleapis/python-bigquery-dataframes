@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, List, Optional, Union
+from typing import Callable, Iterable, Mapping, Optional, Union
 import uuid
 
 from google.cloud import bigquery
@@ -105,7 +105,9 @@ class BqmlModel:
         )
 
     def generate_text(
-        self, input_data: bigframes.dataframe.DataFrame, options: Dict[str, int | float]
+        self,
+        input_data: bigframes.dataframe.DataFrame,
+        options: Mapping[str, int | float],
     ) -> bigframes.dataframe.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
@@ -147,7 +149,7 @@ def create_bqml_model(
     train_X: bigframes.dataframe.DataFrame,
     train_y: Optional[bigframes.dataframe.DataFrame] = None,
     transforms: Optional[Iterable[str]] = None,
-    options: Dict[str, Union[str, int, float, List[str]]] = {},
+    options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
     """Create a session-temporary BQML model with the CREATE MODEL statement
 
@@ -161,6 +163,7 @@ def create_bqml_model(
 
     Returns: a BqmlModel, wrapping a trained model in BigQuery
     """
+    options = dict(options)
     if train_y is None:
         input_data = train_X
     else:
@@ -198,7 +201,7 @@ def create_bqml_model(
 def create_bqml_remote_model(
     session: bigframes.Session,
     connection_name: str,
-    options: Dict[str, Union[str, int, float, List[str]]] = {},
+    options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
     """Create a session-temporary BQML remote model with the CREATE MODEL statement
 

@@ -14,31 +14,22 @@
 
 from unittest import TestCase
 
-from bigframes.ml import llm
 
-
-def test_create_model_and_predict_default_params_success(
-    session, ml_connection, llm_text_df
-):
+def test_create_model(palm2_text_generator_model):
     # Model creation doesn't return error
-    model = llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
-    assert model is not None
+    assert palm2_text_generator_model is not None
 
-    df = model.predict(llm_text_df).compute()
+
+def test_predict_default_params_success(palm2_text_generator_model, llm_text_df):
+    df = palm2_text_generator_model.predict(llm_text_df).compute()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
     assert "ml_generate_text_result" in df.columns
     series = df["ml_generate_text_result"]
     assert all(series.str.contains("predictions"))
 
 
-def test_create_model_and_predict_with_params_success(
-    session, ml_connection, llm_text_df
-):
-    # Model creation doesn't return error
-    model = llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
-    assert model is not None
-
-    df = model.predict(
+def test_predict_with_params_success(palm2_text_generator_model, llm_text_df):
+    df = palm2_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).compute()
     TestCase().assertSequenceEqual(df.shape, (3, 1))

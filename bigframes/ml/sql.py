@@ -16,35 +16,35 @@
 Generates SQL queries needed for BigFrames ML
 """
 
-from typing import List, Optional, Union
+from typing import Iterable, Optional, Union
 
 
-def _encode_value(v: Union[str, int, float, List[str]]) -> str:
+def _encode_value(v: Union[str, int, float, Iterable[str]]) -> str:
     """Encode a parameter value for SQL"""
     if isinstance(v, str):
         return f'"{v}"'
     elif isinstance(v, int) or isinstance(v, float):
         return f"{v}"
-    elif isinstance(v, list):
+    elif isinstance(v, Iterable):
         inner = ", ".join([_encode_value(x) for x in v])
         return f"[{inner}]"
     else:
         raise ValueError("Unexpected value type")
 
 
-def _build_param_list(**kwargs: Union[str, int, float, List[str]]) -> str:
-    """Encode a dict of values into a formatted list of KVPs for SQL"""
+def _build_param_Iterable(**kwargs: Union[str, int, float, Iterable[str]]) -> str:
+    """Encode a dict of values into a formatted Iterable of KVPs for SQL"""
     indent_str = "  "
     param_strs = [f"{k}={_encode_value(v)}" for k, v in kwargs.items()]
     return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
 
 
-def options(**kwargs: Union[str, int, float, List[str]]) -> str:
+def options(**kwargs: Union[str, int, float, Iterable[str]]) -> str:
     """Encode the OPTIONS clause for BQML"""
-    return f"OPTIONS({_build_param_list(**kwargs)})"
+    return f"OPTIONS({_build_param_Iterable(**kwargs)})"
 
 
-def _build_struct_param_list(**kwargs: Union[int, float]) -> str:
+def _build_struct_param_Iterable(**kwargs: Union[int, float]) -> str:
     """Encode a dict of values into a formatted STRUCT items for SQL"""
     indent_str = "  "
     param_strs = [f"{v} AS {k}" for k, v in kwargs.items()]
@@ -53,18 +53,18 @@ def _build_struct_param_list(**kwargs: Union[int, float]) -> str:
 
 def struct_options(**kwargs: Union[int, float]) -> str:
     """Encode a BQ STRUCT as options."""
-    return f"STRUCT({_build_struct_param_list(**kwargs)})"
+    return f"STRUCT({_build_struct_param_Iterable(**kwargs)})"
 
 
-def _build_expr_list(*expr_sqls: str) -> str:
-    """Encode a list of SQL expressions into a formatted list for SQL"""
+def _build_expr_Iterable(*expr_sqls: str) -> str:
+    """Encode a Iterable of SQL expressions into a formatted Iterable for SQL"""
     indent_str = "  "
     return "\n" + indent_str + f",\n{indent_str}".join(expr_sqls)
 
 
 def transform(*expr_sqls: str) -> str:
     """Encode the TRANSFORM clause for BQML"""
-    return f"TRANSFORM({_build_expr_list(*expr_sqls)})"
+    return f"TRANSFORM({_build_expr_Iterable(*expr_sqls)})"
 
 
 def connection(conn_name: str) -> str:

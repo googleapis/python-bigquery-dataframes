@@ -43,6 +43,7 @@ class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
         project_id = self.session.bqclient.project
         options = {
             "remote_service_type": _REMOTE_LLM_MODEL_CODE,
+            # TODO(garrettwu): remove when BQML finishes default endpoint.
             "endpoint": _VERTEX_ENDPOINT_FORMAT_US_CENTRAL1.format(
                 project_id=project_id
             ),

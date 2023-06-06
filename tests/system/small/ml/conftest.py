@@ -20,6 +20,7 @@ import google.cloud.exceptions
 import pandas as pd
 import pytest
 
+from bigframes.ml import core, llm
 import bigframes.ml.cluster
 import bigframes.ml.core
 import bigframes.ml.linear_model
@@ -132,3 +133,21 @@ def llm_text_pandas_df():
 @pytest.fixture(scope="session")
 def llm_text_df(session, llm_text_pandas_df):
     return session.read_pandas(llm_text_pandas_df)
+
+
+@pytest.fixture(scope="session")
+def bqml_palm2_text_generator_model(session, ml_connection) -> core.BqmlModel:
+    project_id = session.bqclient.project
+    options = {
+        "remote_service_type": "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1",
+        # TODO(garrettwu): remove when BQML finishes default endpoint.
+        "endpoint": f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project_id}/locations/us-central1/publishers/google/models/text-bison",
+    }
+    return core.create_bqml_remote_model(
+        session=session, connection_name=ml_connection, options=options
+    )
+
+
+@pytest.fixture(scope="session")
+def palm2_text_generator_model(session, ml_connection) -> llm.PaLM2TextGenerator:
+    return llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
