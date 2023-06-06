@@ -577,9 +577,8 @@ def remote_function(
 
     # A connection is required for BQ remote function
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
-    if not bigquery_connection:
-        if session:
-            bigquery_connection = session._remote_udf_connection
+    if not bigquery_connection and session:
+        bigquery_connection = session._remote_udf_connection  # type: ignore
     if not bigquery_connection:
         raise ValueError(
             "BigQuery connection must be provided, either directly or via session"

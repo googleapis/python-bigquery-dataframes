@@ -91,6 +91,7 @@ def session() -> bigframes.Session:
 def session_tokyo(tokyo_location: str) -> bigframes.Session:
     context = bigframes.BigQueryOptions(
         location=tokyo_location,
+        use_regional_endpoints=True,
     )
     return bigframes.Session(context=context)
 

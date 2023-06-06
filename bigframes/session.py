@@ -35,9 +35,14 @@ from typing import (
 )
 import uuid
 
+import google.api_core.client_info
+import google.api_core.client_options
 import google.api_core.exceptions
+import google.api_core.gapic_v1.client_info
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery_connection_v1
+import google.cloud.bigquery_storage_v1
 import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
@@ -59,6 +64,17 @@ import bigframes.version
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
+# BigQuery is a REST API, which requires the protocol as part of the URL.
+_BIGQUERY_REGIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
+
+# BigQuery Connection and Storage are gRPC APIs, which don't support the
+# https:// protocol in the API endpoint URL.
+_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
+_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
+
+# TODO(swast): Need to connect to regional endpoints when performing remote
+# functions operations (BQ Connection API, Cloud Run / Cloud Functions).
 
 logger = logging.getLogger(__name__)
 
@@ -103,35 +119,46 @@ class Session:
         # We want to initiate auth via a non-local web server which particularly
         # helps in a cloud notebook environment where the machine running the
         # notebook UI and the VM running the notebook runtime are not the same.
-        if context.credentials is None:
+        if context.credentials is not None:
+            credentials = context.credentials
+            credentials_project = None
+        else:
             _ensure_application_default_credentials_in_colab_environment()
             # TODO(shobs, b/278903498): Use BigFrames own client id and secret
-            context.credentials, pydata_default_project = pydata_google_auth.default(
+            credentials, credentials_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
             )
-            if not context.project:
-                context.project = pydata_default_project
+
+        project = context.project
 
         # If there is no project set yet, try to set it from the environment
-        if not context.project:
-            context.project = os.environ.get(_ENV_DEFAULT_PROJECT, context.project)
+        if project is None:
+            # Prefer the project defined by environment variable, but fallback
+            # to the project associated with credentials (if available).
+            project = os.getenv(_ENV_DEFAULT_PROJECT) or typing.cast(
+                Optional[str], credentials_project
+            )
 
-        # TODO(chelsealin): Add the `location` parameter to ibis client.
-        self.ibis_client = typing.cast(
-            ibis_bigquery.Backend,
-            ibis.bigquery.connect(
-                project_id=context.project,
-                credentials=context.credentials,
-                application_name=_APPLICATION_NAME,
-            ),
-        )
-
-        self.bqclient = self.ibis_client.client
         # TODO(swast): Get location from the environment.
         self._location = (
             "US" if context is None or context.location is None else context.location
         )
+        self._create_bq_clients(
+            project=project,
+            location=self._location,
+            use_regional_endpoints=context.use_regional_endpoints,
+            credentials=credentials,
+        )
         self._create_and_bind_bq_session()
+        self.ibis_client = typing.cast(
+            ibis_bigquery.Backend,
+            ibis.bigquery.connect(
+                project_id=context.project,
+                client=self.bqclient,
+                storage_client=self.bqstorageclient,
+            ),
+        )
+
         self._remote_udf_connection = context.remote_udf_connection
 
         # Now that we're starting the session, don't allow the options to be
@@ -144,6 +171,64 @@ class Session:
         This is a workaround for BQML models and remote functions that do not
         yet support session-temporary instances."""
         return self._session_dataset.dataset_id
+
+    def _create_bq_clients(
+        self,
+        *,
+        project: Optional[str],
+        location: str,
+        use_regional_endpoints: bool,
+        credentials: google.auth.credentials.Credentials,
+    ):
+        """Create and initialize BigQuery client objects."""
+
+        if use_regional_endpoints:
+            bq_options = google.api_core.client_options.ClientOptions(
+                api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=location),
+            )
+            bqstorage_options = google.api_core.client_options.ClientOptions(
+                api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
+                    location=location
+                )
+            )
+            bqconnection_options = google.api_core.client_options.ClientOptions(
+                api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
+                    location=location
+                )
+            )
+        else:
+            bq_options = None
+            bqstorage_options = None
+            bqconnection_options = None
+
+        location = location.lower()
+        bq_info = google.api_core.client_info.ClientInfo(user_agent=_APPLICATION_NAME)
+        self.bqclient = bigquery.Client(
+            client_info=bq_info,
+            client_options=bq_options,
+            credentials=credentials,
+            project=project,
+        )
+
+        bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
+            user_agent=_APPLICATION_NAME
+        )
+        self.bqconnectionclient = (
+            google.cloud.bigquery_connection_v1.ConnectionServiceClient(
+                client_info=bqconnection_info,
+                client_options=bqconnection_options,
+                credentials=credentials,
+            )
+        )
+
+        bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
+            user_agent=_APPLICATION_NAME
+        )
+        self.bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
+            client_info=bqstorage_info,
+            client_options=bqstorage_options,
+            credentials=credentials,
+        )
 
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:

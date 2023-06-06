@@ -33,11 +33,13 @@ class BigQueryOptions:
         project: Optional[str] = None,
         location: Optional[str] = None,
         remote_udf_connection: Optional[str] = None,
+        use_regional_endpoints: bool = False,
     ):
         self._credentials = credentials
         self._project = project
         self._location = location
         self._remote_udf_connection = remote_udf_connection
+        self._use_regional_endpoints = use_regional_endpoints
         self._session_started = False
 
     @property
@@ -92,3 +94,21 @@ class BigQueryOptions:
                 SESSION_STARTED_MESSAGE.format(attribute="remote_udf_connection")
             )
         self._remote_udf_connection = value
+
+    @property
+    def use_regional_endpoints(self) -> bool:
+        """In preview. Flag to connect to regional API endpoints.
+
+        Requires ``location`` to also be set. For example, set
+        ``location='asia-northeast1'`` and ``use_regional_endpoints=True`` to
+        connect to asia-northeast1-bigquery.googleapis.com.
+        """
+        return self._use_regional_endpoints
+
+    @use_regional_endpoints.setter
+    def use_regional_endpoints(self, value: bool):
+        if self._session_started:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="use_regional_endpoints")
+            )
+        self._use_regional_endpoints = value
