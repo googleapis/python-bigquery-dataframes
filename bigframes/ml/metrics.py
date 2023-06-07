@@ -22,6 +22,7 @@ import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
 
 import bigframes
+import bigframes.core.blocks as blocks
 
 
 def r2_score(
@@ -265,3 +266,51 @@ def auc(
     # TODO(b/286410053) Support ML exceptions and error handling.
     auc = sklearn_metrics.auc(x.to_pandas(), y.to_pandas())
     return auc
+
+
+def confusion_matrix(
+    y_true: bigframes.DataFrame,
+    y_pred: bigframes.DataFrame,
+) -> pd.DataFrame:
+    """Compute confusion matrix to evaluate the accuracy of a classification.
+
+    Args:
+        y_true: Ground truth target values.
+
+        y_pred: Estimated targets as returned by a classifier.
+
+    Returns: Confusion matrix.
+    """
+    # TODO(ashleyxu): support labels and sample_weight parameters
+    # TODO(ashleyxu): support bigframes.Series as input type
+    if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    y_true_column = typing.cast(blocks.Label, y_true.columns[0])
+    y_pred_series = typing.cast(
+        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+    )
+    confusion_df = y_true.assign(y_pred=y_pred_series)
+    confusion_df = confusion_df.assign(dummy=0)
+    groupby_count = (
+        confusion_df.groupby(by=[y_true_column, "y_pred"], as_index=False)
+        .count()
+        .to_pandas()
+    )
+
+    unique_values = sorted(set(groupby_count.y_true).union(set(groupby_count.y_pred)))
+
+    confusion_matrix = pd.DataFrame(
+        0, index=pd.Index(unique_values), columns=pd.Index(unique_values), dtype=int
+    )
+
+    # Loop through the result by rows and columns
+    for _, row in groupby_count.iterrows():
+        y_true = row["y_true"]
+        y_pred = row["y_pred"]
+        count = row["dummy"]
+        confusion_matrix[y_pred][y_true] = count
+
+    return confusion_matrix

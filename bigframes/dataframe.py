@@ -212,7 +212,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return sql
 
     def __getitem__(
-        self, key: Union[str, Sequence[str], bigframes.series.Series]
+        self, key: Union[blocks.Label, Sequence[str], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
         """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in
@@ -795,7 +795,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def groupby(
         self,
-        by: typing.Union[str, typing.Sequence[str]],
+        by: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
         *,
         as_index: bool = True,
         dropna: bool = True,

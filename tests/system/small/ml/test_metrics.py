@@ -354,3 +354,92 @@ def test_auc_nonincreasing_x_negative(session):
     pd_df = pd.DataFrame({"x": [0, 0, -0.5, -0.5, -1], "y": [0, -0.5, -0.5, -1, -1]})
     df = session.read_pandas(pd_df)
     assert bigframes.ml.metrics.auc(df[["x"]], df[["y"]]) == -0.75
+
+
+def test_confusion_matrix(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 0, 2, 2, 0, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    confusion_matrix = bigframes.ml.metrics.confusion_matrix(
+        df[["y_true"]], df[["y_pred"]]
+    )
+    expected_pd_df = pd.DataFrame(
+        {
+            0: [2, 0, 1],
+            1: [0, 0, 0],
+            2: [0, 1, 2],
+        }
+    ).astype("int64")
+    pd.testing.assert_frame_equal(
+        confusion_matrix, expected_pd_df, check_index_type=False
+    )
+
+
+def test_confusion_matrix_column_index(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 3, 3, 3, 4, 1],
+            "y_pred": [4, 1, 2, 2, 4, 1],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    confusion_matrix = bigframes.ml.metrics.confusion_matrix(
+        df[["y_true"]], df[["y_pred"]]
+    )
+    expected_pd_df = (
+        pd.DataFrame(
+            {1: [1, 0, 1, 0], 2: [0, 0, 2, 0], 3: [0, 0, 0, 0], 4: [0, 1, 0, 1]}
+        )
+        .astype("int64")
+        .set_index([pd.Index([1, 2, 3, 4])])
+    )
+    pd.testing.assert_frame_equal(
+        confusion_matrix, expected_pd_df, check_index_type=False
+    )
+
+
+def test_confusion_matrix_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 3, 3, 3, 4, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    confusion_matrix = bigframes.ml.metrics.confusion_matrix(
+        df[["y_true"]], df[["y_pred"]]
+    )
+    expected_confusion_matrix = sklearn_metrics.confusion_matrix(
+        pd_df[["y_true"]], pd_df[["y_pred"]]
+    )
+    expected_pd_df = pd.DataFrame(expected_confusion_matrix)
+    pd.testing.assert_frame_equal(
+        confusion_matrix, expected_pd_df, check_index_type=False
+    )
+
+
+def test_confusion_matrix_str_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": ["cat", "ant", "cat", "cat", "ant", "bird"],
+            "y_pred": ["ant", "ant", "cat", "cat", "ant", "cat"],
+        }
+    ).astype("str")
+    df = session.read_pandas(pd_df)
+    confusion_matrix = bigframes.ml.metrics.confusion_matrix(
+        df[["y_true"]], df[["y_pred"]]
+    )
+    expected_confusion_matrix = sklearn_metrics.confusion_matrix(
+        pd_df[["y_true"]], pd_df[["y_pred"]]
+    )
+    expected_pd_df = pd.DataFrame(expected_confusion_matrix).set_index(
+        [pd.Index(["ant", "bird", "cat"])]
+    )
+    expected_pd_df.columns = pd.Index(["ant", "bird", "cat"])
+    pd.testing.assert_frame_equal(
+        confusion_matrix, expected_pd_df, check_index_type=False
+    )
