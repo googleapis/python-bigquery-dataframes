@@ -715,6 +715,53 @@ def test_series_binop_axis_index(
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x, y: x.add(y, axis="index")),
+        (lambda x, y: x.radd(y, axis="index")),
+        (lambda x, y: x.sub(y, axis="index")),
+        (lambda x, y: x.rsub(y, axis="index")),
+        (lambda x, y: x.mul(y, axis="index")),
+        (lambda x, y: x.rmul(y, axis="index")),
+        (lambda x, y: x.truediv(y, axis="index")),
+        (lambda x, y: x.rtruediv(y, axis="index")),
+        (lambda x, y: x.floordiv(y, axis="index")),
+        (lambda x, y: x.floordiv(y, axis="index")),
+        (lambda x, y: x.gt(y, axis="index")),
+        (lambda x, y: x.ge(y, axis="index")),
+        (lambda x, y: x.lt(y, axis="index")),
+        (lambda x, y: x.le(y, axis="index")),
+    ],
+    ids=[
+        "add",
+        "radd",
+        "sub",
+        "rsub",
+        "mul",
+        "rmul",
+        "truediv",
+        "rtruediv",
+        "floordiv",
+        "rfloordiv",
+        "gt",
+        "ge",
+        "lt",
+        "le",
+    ],
+)
+def test_dataframe_binop_axis_index_throws_not_implemented(
+    scalars_dfs,
+    op,
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    df_columns = ["int64_col", "float64_col"]
+    other_df_columns = ["int64_too"]
+
+    with pytest.raises(NotImplementedError):
+        op(scalars_df[df_columns], scalars_df[other_df_columns]).compute()
+
+
 # Differnt table will only work for explicit index, since default index orders are arbitrary.
 def test_series_binop_add_different_table(
     scalars_df_index, scalars_pandas_df_index, scalars_df_2_index

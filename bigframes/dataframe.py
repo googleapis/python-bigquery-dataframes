@@ -370,6 +370,9 @@ class DataFrame:
             return self._apply_scalar_binop(other, op)
         elif isinstance(other, bigframes.Series):
             return self._apply_series_binop(other, op, axis=axis)
+        raise NotImplementedError(
+            f"binary operation is not implemented on the second operand of type {type(other).__name__}."
+        )
 
     def _apply_scalar_binop(
         self, other: float | int, op, reverse: bool = False
