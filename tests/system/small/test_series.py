@@ -1570,3 +1570,13 @@ def test_loc_bool_series_default_index(
         bf_result.to_frame(),
         pd_result.to_frame(),
     )
+
+
+def test_getattr_not_implemented(scalars_df_index):
+    with pytest.raises(NotImplementedError):
+        scalars_df_index.string_col.asof()
+
+
+def test_getattr_attribute_error(scalars_df_index):
+    with pytest.raises(AttributeError):
+        scalars_df_index.string_col.not_a_method()

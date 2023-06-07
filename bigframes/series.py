@@ -654,6 +654,16 @@ class Series(bigframes.operations.base.SeriesMethods):
         block.filter(right)
         return Series(block.select_column(left), name=self._name)
 
+    def __getattr__(self, key: str):
+        if hasattr(pandas.Series(), key):
+            raise NotImplementedError(
+                "BigFrames has not yet implemented an equivalent to pandas.Series.{key} . Please check https://github.com/googleapis/bigframes/issues for existing feature requests, or file your own. You may also send feedback to the bigframes team at bigframes-feedback@google.com. You may include information about your use case, as well as code snippets or other feedback.".format(
+                    key=key
+                )
+            )
+        else:
+            raise AttributeError(key)
+
     def _align(self, other: typing.Any, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with other scalar or series object. Returns new left column id, right column id and joined tabled expression."""
         values, block = self._align_n(

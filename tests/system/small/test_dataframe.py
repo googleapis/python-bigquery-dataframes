@@ -1141,3 +1141,13 @@ def test_sample_raises_value_error(scalars_dfs):
         ValueError, match="Only one of 'n' or 'frac' parameter can be specified."
     ):
         scalars_df.sample(frac=0.5, n=4)
+
+
+def test_getattr_not_implemented(scalars_df_index):
+    with pytest.raises(NotImplementedError):
+        scalars_df_index.asof()
+
+
+def test_getattr_attribute_error(scalars_df_index):
+    with pytest.raises(AttributeError):
+        scalars_df_index.not_a_method()

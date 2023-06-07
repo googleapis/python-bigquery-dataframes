@@ -307,9 +307,16 @@ class DataFrame:
         return DataFrame(block)
 
     def __getattr__(self, key: str):
-        if key not in self._block.column_labels:
+        if key in self._block.column_labels:
+            return self.__getitem__(key)
+        elif hasattr(pd.DataFrame(), key):
+            raise NotImplementedError(
+                "BigFrames has not yet implemented an equivalent to pandas.DataFrame.{key} . Please check https://github.com/googleapis/bigframes/issues for existing feature requests, or file your own. You may also send feedback to the bigframes team at bigframes-feedback@google.com. You may include information about your use case, as well as code snippets or other feedback.".format(
+                    key=key
+                )
+            )
+        else:
             raise AttributeError(key)
-        return self.__getitem__(key)
 
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls compute. Only represents the first
