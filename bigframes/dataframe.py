@@ -682,6 +682,33 @@ class DataFrame:
 
         return DataFrame(self._block.order_by(ordering))
 
+    def add_prefix(self, prefix: str, axis: int | str | None = None) -> DataFrame:
+        """
+        Add a prefix to the row/column labels
+
+
+        Arguments:
+            prefix: string prefix to add to each label
+            axis: the axis of the label on which to apply the prefix
+
+        Returns:
+            The modified DataFrame
+        """
+        return DataFrame(self._get_block().add_prefix(prefix, axis))
+
+    def add_suffix(self, suffix: str, axis: int | str | None = None) -> DataFrame:
+        """
+        Add a suffix to the row/column labels
+
+        Arguments:
+            suffix: string suffix to add to each label
+            axis: the axis of the label on which to apply the suffix
+
+        Returns:
+            The modified DataFrame
+        """
+        return DataFrame(self._get_block().add_suffix(suffix, axis))
+
     def dropna(self) -> DataFrame:
         """Remove rows with missing values."""
         block = self._block
@@ -981,9 +1008,7 @@ class DataFrame:
         )
 
         # Apply hash method to sum col and order by it.
-        block, string_sum_col = block.apply_unary_op(
-            sum_col, ops.AsTypeOp(ibis_dtypes.string)
-        )
+        block, string_sum_col = block.apply_unary_op(sum_col, ops.AsTypeOp("string"))
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
         block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
 

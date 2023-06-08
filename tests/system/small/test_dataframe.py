@@ -1143,6 +1143,48 @@ def test_sample_raises_value_error(scalars_dfs):
         scalars_df.sample(frac=0.5, n=4)
 
 
+@pytest.mark.parametrize(
+    ("axis",),
+    [
+        (0,),
+        (1,),
+    ],
+)
+def test_df_add_prefix(scalars_df_index, scalars_pandas_df_index, axis):
+    if pd.__version__.startswith("1."):
+        pytest.skip("add_prefix axis parameter not supported in pandas 1.x.")
+    bf_result = scalars_df_index.add_prefix("prefix_", axis).compute()
+
+    pd_result = scalars_pandas_df_index.add_prefix("prefix_", axis)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("axis",),
+    [
+        (0,),
+        (1,),
+    ],
+)
+def test_df_add_suffix(scalars_df_index, scalars_pandas_df_index, axis):
+    if pd.__version__.startswith("1."):
+        pytest.skip("add_prefix axis parameter not supported in pandas 1.x.")
+    bf_result = scalars_df_index.add_suffix("_suffix", axis).compute()
+
+    pd_result = scalars_pandas_df_index.add_suffix("_suffix", axis)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
 def test_getattr_not_implemented(scalars_df_index):
     with pytest.raises(NotImplementedError):
         scalars_df_index.asof()

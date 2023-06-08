@@ -25,6 +25,7 @@ import ibis.expr.types as ibis_types
 import numpy as np
 
 import bigframes.dtypes
+import bigframes.dtypes as dtypes
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 _INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.inf))
@@ -164,8 +165,8 @@ class YearOp(UnaryOp):
 
 # Parameterized ops
 class AsTypeOp(UnaryOp):
-    def __init__(self, to_type: bigframes.dtypes.IbisDtype):
-        self.to_type = to_type
+    def __init__(self, to_type: dtypes.BigFramesDtypeString | dtypes.BigFramesDtype):
+        self.to_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(to_type)
 
     def _as_ibis(self, x: ibis_types.Value):
         return bigframes.dtypes.cast_ibis_value(x, self.to_type)

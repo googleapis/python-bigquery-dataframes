@@ -162,8 +162,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         ],
     ) -> Series:
         """Casts the series to another compatible dtype."""
-        ibis_dtype = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(dtype)
-        return self._apply_unary_op(bigframes.operations.AsTypeOp(ibis_dtype))
+        return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
@@ -938,6 +937,30 @@ class Series(bigframes.operations.base.SeriesMethods):
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
         return self._apply_unary_op(ops.RemoteFunctionOp(func))
+
+    def add_prefix(self, prefix) -> Series:
+        """
+        Add a prefix to the row labels
+
+        Arguments:
+            prefix: string prefix to add to each label
+
+        Returns:
+            The modified Series
+        """
+        return Series(self._get_block().add_prefix(prefix))
+
+    def add_suffix(self, suffix) -> Series:
+        """
+        Add a suffix to the row labels
+
+        Arguments:
+            suffix: string suffix to add to each label
+
+        Returns:
+            The modified Series
+        """
+        return Series(self._get_block().add_suffix(suffix))
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
         """

@@ -1210,6 +1210,32 @@ def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     )
 
 
+def test_series_add_prefix(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].add_prefix("prefix_").compute()
+
+    pd_result = scalars_pandas_df_index["int64_too"].add_prefix("prefix_")
+
+    # Index will be object type in pandas, string type in bigframes, but same values
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
+def test_series_add_suffix(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].add_suffix("_suffix").compute()
+
+    pd_result = scalars_pandas_df_index["int64_too"].add_suffix("_suffix")
+
+    # Index will be object type in pandas, string type in bigframes, but same values
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
 def test_where_with_series(scalars_df_index, scalars_pandas_df_index):
     bf_result = (
         scalars_df_index["int64_col"]

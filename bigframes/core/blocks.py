@@ -586,3 +586,58 @@ class Block:
             column_labels=[value_col_id, *self.column_labels],
             index_labels=self._index_labels,
         )
+
+    def add_prefix(self, prefix: str, axis: str | int | None = None) -> Block:
+        axis_number = _get_axis_number(axis)
+        if axis_number == 0:
+            expr = self._expr
+            for index_col in self._index_columns:
+                expr = expr.project_unary_op(index_col, ops.AsTypeOp("string"))
+                prefix_op = ops.BinopPartialLeft(ops.add_op, prefix)
+                expr = expr.project_unary_op(index_col, prefix_op)
+            return Block(
+                expr,
+                index_columns=self.index_columns,
+                column_labels=self.column_labels,
+                index_labels=self._index_labels,
+            )
+        if axis_number == 1:
+            expr = self._expr
+            return Block(
+                self._expr,
+                index_columns=self.index_columns,
+                column_labels=[f"{prefix}{label}" for label in self.column_labels],
+                index_labels=self._index_labels,
+            )
+
+    def add_suffix(self, suffix: str, axis: str | int | None = None) -> Block:
+        axis_number = _get_axis_number(axis)
+        if axis_number == 0:
+            expr = self._expr
+            for index_col in self._index_columns:
+                expr = expr.project_unary_op(index_col, ops.AsTypeOp("string"))
+                prefix_op = ops.BinopPartialRight(ops.add_op, suffix)
+                expr = expr.project_unary_op(index_col, prefix_op)
+            return Block(
+                expr,
+                index_columns=self.index_columns,
+                column_labels=self.column_labels,
+                index_labels=self._index_labels,
+            )
+        if axis_number == 1:
+            expr = self._expr
+            return Block(
+                self._expr,
+                index_columns=self.index_columns,
+                column_labels=[f"{label}{suffix}" for label in self.column_labels],
+                index_labels=self._index_labels,
+            )
+
+
+def _get_axis_number(axis: str | int | None) -> typing.Literal[0, 1]:
+    if axis in {0, "index", "rows", None}:
+        return 0
+    elif axis in {1, "columns"}:
+        return 1
+    else:
+        raise ValueError(f"Not a valid axis: {axis}")
