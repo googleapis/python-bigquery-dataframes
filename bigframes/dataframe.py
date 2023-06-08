@@ -49,16 +49,13 @@ import bigframes.guid
 import bigframes.indexers as indexers
 import bigframes.operations as ops
 import bigframes.series
-import third_party.bigframes_vendored.pandas.pandas.io.common as vendored_pandas_io_common
+import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
+import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 
-class DataFrame:
-    """A 2D data structure, representing data and deferred computation.
-
-    .. warning::
-        This constructor is **private**. Use a public method such as
-        ``Session.read_gbq`` to construct a DataFrame.
-    """
+# Inherits from pandas DataFrame so that we can use the same docstrings.
+class DataFrame(vendored_pandas_frame.DataFrame):
+    __doc__ = vendored_pandas_frame.DataFrame.__doc__
 
     def __init__(
         self,
@@ -116,57 +113,42 @@ class DataFrame:
     def index(
         self,
     ) -> indexes.Index:
-        """The index of the dataframe."""
         return indexes.Index(self)
 
     @property
     def loc(self) -> indexers._LocIndexer:
-        """
-        Index the rows of the dataframe using square brackets.
-
-        Currently, only indexing using a boolean Series is supported.
-        """
         return indexers._LocIndexer(self)
 
     @property
     def iloc(self) -> indexers._iLocIndexer:
-        """Get items by slice.
-
-        Only slice type is supported currently for indexing the iloc object.
-        """
         return indexers._iLocIndexer(self)
 
     @property
     def dtypes(self) -> pd.Series:
-        """Returns the dtypes as a Pandas Series object"""
         return pd.Series(data=self._block.dtypes, index=self._block.column_labels)
 
     @property
     def columns(self) -> pd.Index:
-        """Returns the column labels of the dataframe"""
         return self.dtypes.index
 
     @property
     def shape(self) -> Tuple[int, int]:
-        """Return a tuple representing the dimensionality of the DataFrame."""
         block_length, _ = self._block.expr.shape()
         return (block_length, len(self.columns))
 
     @property
     def size(self) -> int:
-        """The size of the dataframe, defined as the number of rows times the number
-        of columns."""
         rows, cols = self.shape
         return rows * cols
 
     @property
     def ndim(self) -> int:
-        """Number of dimensions. Always 2 for dataframe."""
         return 2
 
     @property
     def empty(self) -> bool:
-        """Whether the dataframe is entirely empty with 0 columns and 0 rows"""
+        # TODO(swast): Should also return true if there are columns but no
+        # rows.
         return not bool(self._block.value_columns)
 
     def to_sql_query(
@@ -409,81 +391,17 @@ class DataFrame:
         block = block.with_index_labels([self.index.name])
         return DataFrame(block)
 
-    def add(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Add dataframe and other element-wise."""
-        return self._apply_binop(other, ops.add_op, axis=axis)
-
-    __radd__ = __add__ = radd = add
-
-    def sub(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Subtract other from dataframe element-wise."""
-        return self._apply_binop(other, ops.sub_op, axis=axis)
-
-    __sub__ = sub
-
-    def rsub(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Subtract dataframe from other element-wise."""
-        return self._apply_binop(other, ops.reverse(ops.sub_op), axis=axis)
-
-    __rsub__ = rsub
-
-    def mul(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Multiply dataframe and other element-wise."""
-        return self._apply_binop(other, ops.mul_op, axis=axis)
-
-    __rmul__ = __mul__ = rmul = mul
-
-    def truediv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Divide dataframe by other element-wise."""
-        return self._apply_binop(other, ops.div_op, axis=axis)
-
-    div = __truediv__ = truediv
-
-    def rtruediv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Divide other by dataframe element-wise."""
-        return self._apply_binop(other, ops.reverse(ops.div_op), axis=axis)
-
-    __rtruediv__ = rdiv = rtruediv
-
-    def floordiv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Divide dataframe by other element-wise, rounding down to the next integer."""
-        return self._apply_binop(other, ops.floordiv_op, axis=axis)
-
-    __floordiv__ = floordiv
-
-    def rfloordiv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
-    ) -> DataFrame:
-        """Divide other by dataframe element-wise, rounding down to the next integer."""
-        return self._apply_binop(other, ops.reverse(ops.floordiv_op), axis=axis)
-
-    __rfloordiv__ = rfloordiv
+    def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.le_op, axis=axis)
 
     def lt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.lt_op, axis=axis)
 
-    def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
-        return self._apply_binop(other, ops.le_op, axis=axis)
+    def ge(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.ge_op, axis=axis)
 
     def gt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.gt_op, axis=axis)
-
-    def ge(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
-        return self._apply_binop(other, ops.ge_op, axis=axis)
 
     __lt__ = lt
 
@@ -492,6 +410,64 @@ class DataFrame:
     __gt__ = gt
 
     __ge__ = ge
+
+    def add(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        # TODO(swast): Support fill_value parameter.
+        # TODO(swast): Support level parameter with MultiIndex.
+        return self._apply_binop(other, ops.add_op, axis=axis)
+
+    __radd__ = __add__ = radd = add
+
+    def sub(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.sub_op, axis=axis)
+
+    __sub__ = subtract = sub
+
+    def rsub(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.reverse(ops.sub_op), axis=axis)
+
+    __rsub__ = rsub
+
+    def mul(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.mul_op, axis=axis)
+
+    __rmul__ = __mul__ = rmul = multiply = mul
+
+    def truediv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.div_op, axis=axis)
+
+    div = divide = __truediv__ = truediv
+
+    def rtruediv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.reverse(ops.div_op), axis=axis)
+
+    __rtruediv__ = rdiv = rtruediv
+
+    def floordiv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.floordiv_op, axis=axis)
+
+    __floordiv__ = floordiv
+
+    def rfloordiv(
+        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.reverse(ops.floordiv_op), axis=axis)
+
+    __rfloordiv__ = rfloordiv
 
     def mod(self, other: int | bigframes.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis)
@@ -509,15 +485,12 @@ class DataFrame:
         return df.set_axis(self._block.column_labels, axis=1)
 
     def copy(self) -> DataFrame:
-        """Creates a deep copy of the DataFrame."""
         return DataFrame(self._block)
 
     def head(self, n: int = 5) -> DataFrame:
-        """Limits DataFrame to a specific number of rows."""
         return typing.cast(DataFrame, self.iloc[:n])
 
     def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
-        """Drop specified column(s)."""
         if not _is_list_like(columns):
             columns = [columns]  # type:ignore
         columns = list(columns)
@@ -526,16 +499,10 @@ class DataFrame:
         return DataFrame(block)
 
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
-        """Alter column labels."""
         block = self._block.rename(columns=columns)
         return DataFrame(block)
 
     def assign(self, **kwargs) -> DataFrame:
-        """Assign new columns to a DataFrame.
-
-        Returns a new object with all original columns in addition to new ones.
-        Existing columns that are re-assigned will be overwritten.
-        """
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
 
@@ -596,19 +563,17 @@ class DataFrame:
         return DataFrame(block.with_index_labels([self.index.name]))
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
-        """Reset the index of the DataFrame, and use the default one instead."""
         original_index_ids = self._block.index_columns
         if len(original_index_ids) != 1:
             raise NotImplementedError("reset_index() doesn't yet support MultiIndex.")
         block = self._block.reset_index(drop)
         return DataFrame(block)
 
-    def set_index(self, label: str, *, drop: bool = True) -> DataFrame:
-        """Set the DataFrame index using existing columns."""
+    def set_index(self, keys: str, *, drop: bool = True) -> DataFrame:
         expr = self._block.expr
         prev_index_columns = self._block.index_columns
 
-        matching_col_ids = self._sql_names(label, tolerance=False)
+        matching_col_ids = self._sql_names(keys, tolerance=False)
 
         if len(matching_col_ids) > 1:
             raise ValueError("Index data must be 1-dimensional")
@@ -620,25 +585,24 @@ class DataFrame:
         expr = expr.drop_columns(prev_index_columns)
 
         column_labels = list(self._block.column_labels)
-        index_columns = self._sql_names(label)
+        index_columns = self._sql_names(keys)
         if not drop:
             index_column_id = indexes.INDEX_COLUMN_ID.format(0)
             index_expr = index_expr.name(index_column_id)
             expr = expr.insert_column(0, index_expr)
             index_columns = [index_column_id]
         else:
-            column_labels.remove(label)
+            column_labels.remove(keys)
 
         block = blocks.Block(
             expr,
             index_columns=index_columns,
             column_labels=column_labels,
-            index_labels=[label],
+            index_labels=[keys],
         )
         return DataFrame(block)
 
     def sort_index(self) -> DataFrame:
-        """Sort the DataFrame by index labels."""
         index_columns = self._block.index_columns
         ordering = [order.OrderingColumnReference(column) for column in index_columns]
         return DataFrame(self._block.order_by(ordering))
@@ -650,7 +614,6 @@ class DataFrame:
         ascending: bool | typing.Sequence[bool] = True,
         na_position: typing.Literal["first", "last"] = "last",
     ) -> DataFrame:
-        """Sort dataframe ordering by value column(s)."""
         if na_position not in {"first", "last"}:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
 
@@ -683,34 +646,12 @@ class DataFrame:
         return DataFrame(self._block.order_by(ordering))
 
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> DataFrame:
-        """
-        Add a prefix to the row/column labels
-
-
-        Arguments:
-            prefix: string prefix to add to each label
-            axis: the axis of the label on which to apply the prefix
-
-        Returns:
-            The modified DataFrame
-        """
         return DataFrame(self._get_block().add_prefix(prefix, axis))
 
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> DataFrame:
-        """
-        Add a suffix to the row/column labels
-
-        Arguments:
-            suffix: string suffix to add to each label
-            axis: the axis of the label on which to apply the suffix
-
-        Returns:
-            The modified DataFrame
-        """
         return DataFrame(self._get_block().add_suffix(suffix, axis))
 
     def dropna(self) -> DataFrame:
-        """Remove rows with missing values."""
         block = self._block
         for column in self._block.value_columns:
             block, result_id = block.apply_unary_op(column, ops.notnull_op)
@@ -719,37 +660,37 @@ class DataFrame:
 
         return DataFrame(block)
 
-    def sum(self, *, numeric_only=False) -> bigframes.Series:
+    def sum(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.sum_op)
         return bigframes.Series(block.select_column("values"))
 
-    def mean(self, *, numeric_only=False) -> bigframes.Series:
+    def mean(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.mean_op)
         return bigframes.Series(block.select_column("values"))
 
-    def std(self, *, numeric_only=False) -> bigframes.Series:
+    def std(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.std_op)
         return bigframes.Series(block.select_column("values"))
 
-    def var(self, *, numeric_only=False) -> bigframes.Series:
+    def var(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.var_op)
         return bigframes.Series(block.select_column("values"))
 
-    def min(self, *, numeric_only=False) -> bigframes.Series:
+    def min(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.min_op)
         return bigframes.Series(block.select_column("values"))
 
-    def max(self, *, numeric_only=False) -> bigframes.Series:
+    def max(self, *, numeric_only: bool = False) -> bigframes.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.max_op)
@@ -773,7 +714,6 @@ class DataFrame:
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
-        """Merge DataFrame objects with a database-style join."""
         if not on:
             raise ValueError("Must specify a column to join on.")
 
@@ -842,9 +782,7 @@ class DataFrame:
         ]
         return left_col_labels + right_col_labels
 
-    def join(self, other: DataFrame, how: str) -> DataFrame:
-        """Join columns of another dataframe"""
-
+    def join(self, other: DataFrame, *, how: str = "left") -> DataFrame:
         if not self.columns.intersection(other.columns).empty:
             raise NotImplementedError("Deduping column names is not implemented")
 
@@ -859,18 +797,9 @@ class DataFrame:
         self,
         by: typing.Union[str, typing.Sequence[str]],
         *,
+        as_index: bool = True,
         dropna: bool = True,
-        as_index=True,
     ) -> groupby.DataFrameGroupBy:
-        """Group the dataframe by a given list of column labels.
-
-        Arguments:
-            by: a column label or list of column labels to group on
-            dropna: NA-valued grouping keys will be dropped from result if True
-            as_index: grouping keys will be used as index if True
-        Returns:
-            DataFrameGroupBy
-        """
         if as_index and not isinstance(by, str):
             raise ValueError(
                 "Set as_index=False if grouping by list of values. Mutli-index not"
@@ -885,23 +814,19 @@ class DataFrame:
         )
 
     def abs(self) -> DataFrame:
-        """Calculates the absolute value of elements in the dataframe."""
         return self._apply_to_rows(ops.abs_op)
 
-    def isnull(self) -> DataFrame:
-        """Maps NA values to True and non-NA values to False."""
+    def isna(self) -> DataFrame:
         return self._apply_to_rows(ops.isnull_op)
 
-    isna = isnull
+    isnull = isna
 
-    def notnull(self) -> DataFrame:
-        """Maps NA values to False and non-NA values to True."""
+    def notna(self) -> DataFrame:
         return self._apply_to_rows(ops.notnull_op)
 
-    notna = notnull
+    notnull = notna
 
     def cumsum(self):
-        """Applies cumulative sum over an axis. All values must be numeric."""
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
             for _, dtype in self.dtypes.items()
@@ -914,7 +839,6 @@ class DataFrame:
         )
 
     def cumprod(self) -> DataFrame:
-        """Applies cumulative product over an axis. All values must be numeric."""
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
             for _, dtype in self.dtypes.items()
@@ -927,21 +851,18 @@ class DataFrame:
         )
 
     def cummin(self) -> DataFrame:
-        """Applies cumulative min over an axis."""
         return self._apply_window_op(
             agg_ops.min_op,
             bigframes.core.WindowSpec(following=0),
         )
 
     def cummax(self) -> DataFrame:
-        """Applies cumulative max over an axis."""
         return self._apply_window_op(
             agg_ops.max_op,
             bigframes.core.WindowSpec(following=0),
         )
 
-    def shift(self, periods=1) -> DataFrame:
-        """Shift index by desired number of periods."""
+    def shift(self, periods: int = 1) -> DataFrame:
         window = bigframes.core.WindowSpec(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -964,18 +885,9 @@ class DataFrame:
         self,
         n: Optional[int] = None,
         frac: Optional[float] = None,
+        *,
         random_state: Optional[int] = None,
     ) -> DataFrame:
-        """Return a random sample of rows from the DataFrame.
-
-        Arguments:
-            n: number of rows to return. Defaults to 1 if frac=None.
-            Cannot be used if frac is used.
-            frac: fraction of rows to return. Cannot be used if n is used.
-            random_state: random int used for reproducibility of samples.
-        Returns:
-            DataFrame
-        """
         block = self._block
         sample_size = None
         if n is not None and frac is not None:
@@ -1039,27 +951,13 @@ class DataFrame:
         # TODO(chelsealin): Add to_pandas_batches() API.
         return self.compute()
 
-    def to_csv(self, paths: str, *, index: bool = True) -> None:
-        """Writes DataFrame to comma-separated values (csv) file(s) on GCS.
-
-        Args:
-            paths: a destination URIs of GCS files(s) to store the extracted dataframe
-            in format of
-                ``gs://<bucket_name>/<object_name_or_glob>``.
-                If the data size is more than 1GB, you must use a wildcard to export
-                the data into multiple files and the size of the files varies.
-
-            index: whether write row names (index) or not.
-
-        Returns:
-            None.
-        """
+    def to_csv(self, path_or_buf: str, *, index: bool = True) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        if not paths.startswith("gs://"):
+        if not path_or_buf.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
@@ -1069,44 +967,26 @@ class DataFrame:
             destination_format=bigquery.DestinationFormat.CSV
         )
         extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[paths], job_config=job_config
+            source_table, destination_uris=[path_or_buf], job_config=job_config
         )
         extract_job.result()  # Wait for extract job to finish
 
     def to_json(
         self,
-        paths: str,
-        *,
-        index: bool = True,
+        path_or_buf: str,
         orient: Literal[
             "split", "records", "index", "columns", "values", "table"
         ] = "columns",
+        *,
         lines: bool = False,
+        index: bool = True,
     ) -> None:
-        """Writes DataFrame to newline delimited JSON file(s) on GCS.
-
-        Args:
-            paths: a destination URIs of GCS files(s) to store the extracted dataframe
-            in format of
-                ``gs://<bucket_name>/<object_name_or_glob>``.
-                If the data size is more than 1GB, you must use a wildcard to export
-                the data into multiple files and the size of the files varies.
-
-            index: whether write row names (index) or not.
-
-            orient: indication of expected JSON string format. Possible values: "split",
-                "records", "index", "columns", "values", "table". Default to "columns".
-
-            lines: if ‘orient’ is "records" write out line-delimited json format. Default to False.
-        Returns:
-            None.
-        """
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        if not paths.startswith("gs://"):
+        if not path_or_buf.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
@@ -1128,7 +1008,7 @@ class DataFrame:
             destination_format=bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
         )
         extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[paths], job_config=job_config
+            source_table, destination_uris=[path_or_buf], job_config=job_config
         )
         extract_job.result()  # Wait for extract job to finish
 
@@ -1139,23 +1019,6 @@ class DataFrame:
         if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
         index: bool = True,
     ) -> None:
-        """Writes the BigFrames DataFrame as a BigQuery table.
-
-        Args:
-            destination_table: name of table to be written, in the form
-                `dataset.tablename` or `project.dataset.tablename`.
-
-            if_exists: behavior when the destination table exists. Value can be one of:
-                - `fail`: raise google.api_core.exceptions.Conflict.
-                - `replace`: If table exists, drop it, recreate it, and insert data.
-                - `append`: If table exists, insert data. Create if it does not exist.
-
-            index: whether write row names (index) or not.
-
-        Returns:
-            None.
-        """
-
         if "." not in destination_table:
             raise ValueError(
                 "Invalid Table Name. Should be of the form 'datasetId.tableId' or "
@@ -1180,26 +1043,13 @@ class DataFrame:
 
         self._execute_query(index=index, job_config=job_config)
 
-    def to_parquet(self, paths: str, *, index: bool = True) -> None:
-        """Writes DataFrame to parquet file(s) on GCS.
-
-        Args:
-            paths: a destination URIs of GCS files(s) to store the extracted dataframe
-                in format of ``gs://<bucket_name>/<object_name_or_glob>``.
-                If the data size is more than 1GB, you must use a wildcard to export
-                the data into multiple files and the size of the files varies.
-
-            index: whether write row names (index) or not.
-
-        Returns:
-            None.
-        """
+    def to_parquet(self, path: str, *, index: bool = True) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        if not paths.startswith("gs://"):
+        if not path.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
@@ -1209,7 +1059,7 @@ class DataFrame:
             destination_format=bigquery.DestinationFormat.PARQUET
         )
         extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[paths], job_config=job_config
+            source_table, destination_uris=[path], job_config=job_config
         )
         extract_job.result()  # Wait for extract job to finish
 
@@ -1252,20 +1102,7 @@ class DataFrame:
         query_job.reload()  # Download latest job metadata.
         return query_job.destination
 
-    def applymap(self, func, na_action=None) -> DataFrame:
-        """
-        Returns a dataframe with a user defined function applied elementwise.
-        The user defined function must accept and return a scalar.
-
-        Args:
-            func: callable.
-                A scalar remote function.
-            na_action: {None, 'defult'}, default None.
-                If `ignore`, propagate NA values, without passing them to func.
-
-        Returns:
-            A new DataFrame with `func` applied elementwise.
-        """
+    def map(self, func, na_action: Optional[str] = None) -> DataFrame:
         if not callable(func):
             raise TypeError("the first argument must be callable")
 
@@ -1277,6 +1114,8 @@ class DataFrame:
         return self._apply_to_rows(
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
         )
+
+    applymap = map
 
     def _slice(
         self,
