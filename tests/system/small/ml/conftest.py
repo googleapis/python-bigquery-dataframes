@@ -162,3 +162,11 @@ def bqml_palm2_text_generator_model(session, ml_connection) -> core.BqmlModel:
 @pytest.fixture(scope="session")
 def palm2_text_generator_model(session, ml_connection) -> llm.PaLM2TextGenerator:
     return llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
+
+
+@pytest.fixture(scope="session")
+def time_series_bqml_arima_plus_model(
+    session, time_series_arima_plus_model_name
+) -> core.BqmlModel:
+    model = session.bqclient.get_model(time_series_arima_plus_model_name)
+    return bigframes.ml.core.BqmlModel(session, model)

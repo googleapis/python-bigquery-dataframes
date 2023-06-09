@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import typing
 from unittest import TestCase
 
-import pandas
+import pandas as pd
+import pyarrow as pa
+import pytz
 
 import bigframes
 import bigframes.ml.core
@@ -25,7 +28,7 @@ def test_model_eval(
     penguins_bqml_linear_model,
 ):
     result = penguins_bqml_linear_model.evaluate().compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "mean_absolute_error": [227.01223],
             "mean_squared_error": [81838.159892],
@@ -36,7 +39,7 @@ def test_model_eval(
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         result,
         expected,
         check_exact=False,
@@ -50,7 +53,7 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_in
     result = penguins_bqml_linear_model.evaluate(
         penguins_df_default_index.dropna()
     ).compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "mean_absolute_error": [225.817334],
             "mean_squared_error": [80540.705944],
@@ -61,7 +64,7 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_in
         },
         dtype="Float64",
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         result,
         expected,
         check_exact=False,
@@ -75,12 +78,12 @@ def test_model_predict(
     penguins_bqml_linear_model: bigframes.ml.core.BqmlModel, new_penguins_df
 ):
     predictions = penguins_bqml_linear_model.predict(new_penguins_df).compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
         dtype="Float64",
-        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,
         check_exact=False,
@@ -103,12 +106,12 @@ def test_model_predict_with_unnamed_index(
 
     predictions = penguins_bqml_linear_model.predict(new_penguins_df).compute()
 
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3177.9]},
         dtype="Float64",
-        index=pandas.Index([0, 2], dtype="Int64"),
+        index=pd.Index([0, 2], dtype="Int64"),
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,
         check_exact=False,
@@ -131,3 +134,30 @@ def test_model_generate_text(
     )
     series = df["ml_generate_text_result"]
     assert all(series.str.contains("predictions"))
+
+
+def test_model_forecast(time_series_bqml_arima_plus_model: bigframes.ml.core.BqmlModel):
+    utc = pytz.utc
+    forecast = time_series_bqml_arima_plus_model.forecast().compute()[
+        ["forecast_timestamp", "forecast_value"]
+    ]
+    expected = pd.DataFrame(
+        {
+            "forecast_timestamp": [
+                datetime(2017, 8, 2, tzinfo=utc),
+                datetime(2017, 8, 3, tzinfo=utc),
+                datetime(2017, 8, 4, tzinfo=utc),
+            ],
+            "forecast_value": [2724.472284, 2593.368389, 2353.613034],
+        }
+    )
+    expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
+    expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
+        pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+    )
+    pd.testing.assert_frame_equal(
+        forecast,
+        expected,
+        rtol=1e-2,
+        check_index_type=False,
+    )

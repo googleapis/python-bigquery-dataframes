@@ -138,3 +138,8 @@ def ml_generate_text(model_name: str, source_sql: str, struct_options: str) -> s
     """Encode ML.GENERATE_TEXT for BQML"""
     return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{model_name}`,
   ({source_sql}), {struct_options})"""
+
+
+def ml_forecast(model_name: str) -> str:
+    """Encode ML.FORECAST for BQML"""
+    return f"""SELECT * FROM ML.FORECAST(MODEL `{model_name}`)"""

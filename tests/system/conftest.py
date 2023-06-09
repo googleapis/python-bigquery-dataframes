@@ -191,6 +191,7 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
+        ("time_series", "time_series_schema.json", "time_series.jsonl"),
     ]:
         test_data_hash = hashlib.md5()
         _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
@@ -248,6 +249,11 @@ def scalars_table_tokyo(test_data_tables_tokyo) -> str:
 @pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
+
+
+@pytest.fixture(scope="session")
+def time_series_table_id(test_data_tables) -> str:
+    return test_data_tables["time_series"]
 
 
 @pytest.fixture(scope="session")
@@ -329,6 +335,14 @@ def penguins_df_default_index(
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(penguins_table_id)
+
+
+@pytest.fixture(scope="session")
+def time_series_df_default_index(
+    time_series_table_id: str, session: bigframes.Session
+) -> bigframes.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(time_series_table_id)
 
 
 @pytest.fixture(scope="session")
@@ -470,6 +484,36 @@ WHERE
     except google.cloud.exceptions.NotFound:
         logging.info(
             "penguins_xgbregressor_model fixture was not found in the permanent dataset, regenerating it..."
+        )
+        session.bqclient.query(sql).result()
+    finally:
+        return model_name
+
+
+@pytest.fixture(scope="session")
+def time_series_arima_plus_model_name(
+    session: bigframes.Session, dataset_id_permanent, time_series_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...)"""
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='ARIMA_PLUS',
+    time_series_timestamp_col = 'parsed_date',
+    time_series_data_col = 'total_visits'
+) AS SELECT
+    *
+FROM `{time_series_table_id}`"""
+    # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
+    model_name = f"{dataset_id_permanent}.time_series_arima_plus_{hashlib.md5(sql.encode()).hexdigest()}"
+    sql = sql.replace("$model_name", model_name)
+
+    try:
+        session.bqclient.get_model(model_name)
+    except google.cloud.exceptions.NotFound:
+        logging.info(
+            "time_series_arima_plus_model fixture was not found in the permanent dataset, regenerating it..."
         )
         session.bqclient.query(sql).result()
     finally:

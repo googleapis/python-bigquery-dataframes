@@ -120,6 +120,10 @@ class BqmlModel:
             ),
         )
 
+    def forecast(self) -> bigframes.dataframe.DataFrame:
+        sql = bigframes.ml.sql.ml_forecast(self.model_name)
+        return self._session.read_gbq(sql)
+
     def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
         # TODO: validate input data schema
         # Note: don't need index as evaluate returns a new table

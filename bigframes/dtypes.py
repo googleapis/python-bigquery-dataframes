@@ -23,7 +23,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types
 import numpy as np
 import pandas as pd
-import pyarrow as pa  # type: ignore
+import pyarrow as pa
 
 # Type hints for Pandas dtypes supported by BigFrames
 BigFramesDtype = Union[
