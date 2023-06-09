@@ -330,7 +330,7 @@ class DataFrame:
         return html_string
 
     def _retrieve_repr_request_results(
-        self, max_results: Optional[int]
+        self, max_results: int
     ) -> Tuple[pd.DataFrame, int]:
         """
         Retrieves a pandas dataframe containing only max_results many rows for use
@@ -338,7 +338,9 @@ class DataFrame:
 
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
-        computed_df, count = self._block._compute_and_count(max_results=max_results)
+        head_df = self.head(n=max_results)
+        computed_df = head_df._block.compute(max_results=max_results)
+        count = self.shape[0]
         formatted_df = computed_df.set_axis(self._block.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
