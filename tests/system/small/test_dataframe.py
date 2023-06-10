@@ -21,10 +21,44 @@ import pandas.testing
 import pyarrow as pa  # type: ignore
 import pytest
 
+import bigframes.dataframe as dataframe
 from tests.system.utils import (
     assert_pandas_df_equal_ignore_ordering,
     assert_series_equal_ignoring_order,
 )
+
+
+def test_df_construct_copy(scalars_dfs):
+    columns = ["int64_col", "string_col", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(scalars_df, columns=columns).compute()
+    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_df_construct_pandas(scalars_dfs):
+    columns = ["int64_col", "string_col", "float64_col"]
+    _, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(
+        scalars_pandas_df, columns=columns, dtype="string[pyarrow]"
+    ).compute()
+    pd_result = pd.DataFrame(
+        scalars_pandas_df, columns=columns, dtype="string[pyarrow]"
+    )
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_df_construct_from_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(
+        {"a": scalars_df["int64_col"], "b": scalars_df["string_col"]},
+        dtype="string[pyarrow]",
+    ).compute()
+    pd_result = pd.DataFrame(
+        {"a": scalars_pandas_df["int64_col"], "b": scalars_pandas_df["string_col"]},
+        dtype="string[pyarrow]",
+    )
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_get_column(scalars_dfs):

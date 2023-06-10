@@ -395,6 +395,23 @@ class Block:
             block = block.drop_columns(result_id)
         return block
 
+    def multi_apply_unary_op(
+        self,
+        columns: typing.Sequence[str],
+        op: ops.UnaryOp,
+    ) -> Block:
+        block = self
+        for i, col_id in enumerate(columns):
+            label = self.col_id_to_label[col_id]
+            block, result_id = block.apply_unary_op(
+                col_id,
+                op,
+                result_label=label,
+            )
+            block = block.copy_values(result_id, col_id)
+            block = block.drop_columns(result_id)
+        return block
+
     def apply_window_op(
         self,
         column: str,

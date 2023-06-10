@@ -21,10 +21,33 @@ import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
 
+import bigframes.series as series
 from tests.system.utils import (
     assert_pandas_df_equal_ignore_ordering,
     assert_series_equal_ignoring_order,
 )
+
+
+def test_series_construct_copy(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = series.Series(
+        scalars_df["int64_col"], name="test_series", dtype="Float64"
+    ).compute()
+    pd_result = pd.Series(
+        scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
+    )
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_construct_pandas(scalars_dfs):
+    _, scalars_pandas_df = scalars_dfs
+    bf_result = series.Series(
+        scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
+    ).compute()
+    pd_result = pd.Series(
+        scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
+    )
+    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -1586,6 +1609,7 @@ def test_mask_custom_value(scalars_dfs):
     ("column", "to_type"),
     [
         ("int64_col", "Float64"),
+        ("int64_col", "Int64"),  # No-op
         ("int64_col", pd.Float64Dtype()),
         ("int64_col", "string[pyarrow]"),
         ("int64_col", "boolean"),

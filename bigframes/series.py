@@ -43,12 +43,7 @@ import bigframes.scalar
 
 
 class Series(bigframes.operations.base.SeriesMethods):
-    """A 1D data structure, representing data and deferred computation.
-
-    .. warning::
-        This constructor is **private**. Use a public method such as
-        ``DataFrame[column_name]`` to construct a Series.
-    """
+    """A 1D data structure, representing data and deferred computation."""
 
     @property
     def dt(self) -> dt.DatetimeMethods:
@@ -1208,12 +1203,6 @@ class Series(bigframes.operations.base.SeriesMethods):
             bigframes.operations.strings.StringMethods: Methods that act on a string Series.
         """
         return strings.StringMethods(self._block)
-
-    def _set_block(self, block: blocks.Block):
-        self._block = block
-
-    def _get_block(self):
-        return self._block
 
     def _slice(
         self,

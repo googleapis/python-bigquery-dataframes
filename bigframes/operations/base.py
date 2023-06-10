@@ -14,29 +14,94 @@
 
 from __future__ import annotations
 
+import typing
+
 import ibis.expr.types as ibis_types
+import pandas as pd
 
 import bigframes.core.blocks as blocks
-import bigframes.operations
+import bigframes.dtypes
+import bigframes.operations as ops
 import bigframes.series as series
+import bigframes.session
+import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 
 class SeriesMethods:
-    def __init__(self, block: blocks.Block):
-        assert len(block.value_columns) == 1
-        assert len(block.column_labels) == 1
-        self._block = block
-        self._value_column = self._block.value_columns[0]
-        self._name = self._block.column_labels[0]
+    def __init__(
+        self,
+        data=None,
+        index: vendored_pandas_typing.Axes | None = None,
+        dtype: typing.Optional[
+            bigframes.dtypes.BigFramesDtypeString | bigframes.dtypes.BigFramesDtype
+        ] = None,
+        name: str | None = None,
+        copy: typing.Optional[bool] = None,
+        *,
+        session: typing.Optional[bigframes.session.Session] = None,
+    ):
+        block = None
+        if copy is not None and not copy:
+            raise ValueError("Series constructor only supports copy=True")
+        if isinstance(data, blocks.Block):
+            assert len(data.value_columns) == 1
+            assert len(data.column_labels) == 1
+            block = data
+
+        elif isinstance(data, SeriesMethods):
+            block = data._get_block()
+
+        if block:
+            if name:
+                if not isinstance(name, str):
+                    raise NotImplementedError(
+                        "BigFrames only supports string series names."
+                    )
+                block = block.with_column_labels([name])
+            if index:
+                raise NotImplementedError(
+                    "Series 'index' constructor parameter not supported when passing BigFrames objects"
+                )
+            if dtype:
+                block = block.multi_apply_unary_op(
+                    block.value_columns, ops.AsTypeOp(dtype)
+                )
+            self._block = block
+
+        else:
+            pd_dataframe = pd.Series(
+                data=data, index=index, dtype=dtype, name=name  # type:ignore
+            ).to_frame()
+            if session:
+                self._block = session.read_pandas(pd_dataframe)._get_block()
+            else:
+                import bigframes.pandas
+
+                # Uses default global session
+                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
 
     @property
     def _value(self) -> ibis_types.Value:
         """Private property to get Ibis expression for the value column."""
         return self._block.expr.get_column(self._value_column)
 
+    @property
+    def _value_column(self) -> str:
+        return self._block.value_columns[0]
+
+    @property
+    def _name(self) -> blocks.Label:
+        return self._block.column_labels[0]
+
+    def _set_block(self, block: blocks.Block):
+        self._block = block
+
+    def _get_block(self) -> blocks.Block:
+        return self._block
+
     def _apply_unary_op(
         self,
-        op: bigframes.operations.UnaryOp,
+        op: ops.UnaryOp,
     ) -> series.Series:
         """Applies a unary operator to the series."""
         block, result_id = self._block.apply_unary_op(

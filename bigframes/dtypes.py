@@ -214,6 +214,8 @@ def cast_ibis_value(
 
     Raises:
         TypeError: if the type cast cannot be executed"""
+    if value.type() == to_type:
+        return value
     # casts that just work
     # TODO(bmil): add to this as more casts are verified
     good_casts = {
@@ -223,7 +225,7 @@ def cast_ibis_value(
             ibis_dtypes.float64,
             ibis_dtypes.string,
         ),
-        ibis_dtypes.float64: (),
+        ibis_dtypes.float64: (ibis_dtypes.string,),
         ibis_dtypes.string: (),
         ibis_dtypes.date: (),
         ibis_dtypes.time: (),

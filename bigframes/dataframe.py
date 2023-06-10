@@ -49,8 +49,11 @@ import bigframes.guid
 import bigframes.indexers as indexers
 import bigframes.operations as ops
 import bigframes.series
+import bigframes.series as bf_series
+import bigframes.session
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
+import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -59,9 +62,79 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __init__(
         self,
-        block: blocks.Block,
+        data=None,
+        index: vendored_pandas_typing.Axes | None = None,
+        columns: vendored_pandas_typing.Axes | None = None,
+        dtype: typing.Optional[
+            bigframes.dtypes.BigFramesDtypeString | bigframes.dtypes.BigFramesDtype
+        ] = None,
+        copy: typing.Optional[bool] = None,
+        *,
+        session: typing.Optional[bigframes.session.Session] = None,
     ):
-        self._block = block
+        if copy is not None and not copy:
+            raise ValueError("DataFrame constructor only supports copy=True")
+
+        # Check to see if constructing from BigFrames objects before falling back to pandas constructor
+        block = None
+        if isinstance(data, blocks.Block):
+            block = data
+
+        elif isinstance(data, DataFrame):
+            block = data._get_block()
+
+        # Dict of Series
+        elif (
+            _is_dict_like(data)
+            and len(data) >= 1
+            and any(isinstance(data[key], bf_series.Series) for key in data.keys())
+        ):
+            if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
+                # TODO(tbergeron): Support local list/series data by converting to memtable.
+                raise NotImplementedError(
+                    "Cannot mix BigFrames Series with other types."
+                )
+            keys = list(data.keys())
+            first_label, first_series = keys[0], data[keys[0]]
+            block = (
+                typing.cast(bf_series.Series, first_series)
+                ._get_block()
+                .with_column_labels([first_label])
+            )
+
+            for key in keys[1:]:
+                other = typing.cast(bf_series.Series, data[key])
+                other_block = other._block.with_column_labels([key])
+                # Pandas will keep original sorting if all indices are aligned.
+                # We cannot detect this easily however, and so always sort on index
+                result_index, _ = block.index.join(  # type:ignore
+                    other_block.index, how="outer", sort=True
+                )
+                block = result_index._block
+
+        if block:
+            if index:
+                raise NotImplementedError(
+                    "DataFrame 'index' constructor parameter not supported when passing BigFrames objects"
+                )
+            if columns:
+                block = block.select_columns(list(columns))  # type:ignore
+            if dtype:
+                block = block.multi_apply_unary_op(
+                    block.value_columns, ops.AsTypeOp(dtype)
+                )
+            self._block = block
+
+        else:
+            pd_dataframe = pd.DataFrame(
+                data=data, index=index, columns=columns, dtype=dtype  # type:ignore
+            )
+            if session:
+                self._block = session.read_pandas(pd_dataframe)._get_block()
+            else:
+                import bigframes.pandas
+
+                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
 
     def __dir__(self):
         return dir(type(self)) + self._block.column_labels
@@ -150,6 +223,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): Should also return true if there are columns but no
         # rows.
         return not bool(self._block.value_columns)
+
+    def astype(
+        self,
+        dtype: Union[
+            bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
+        ],
+    ) -> DataFrame:
+        return self._apply_to_rows(ops.AsTypeOp(dtype))
 
     def to_sql_query(
         self, always_include_index: bool
@@ -925,7 +1006,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         # Apply hash method to sum col and order by it.
-        block, string_sum_col = block.apply_unary_op(sum_col, ops.AsTypeOp("string"))
+        block, string_sum_col = block.apply_unary_op(
+            sum_col, ops.AsTypeOp("string[pyarrow]")
+        )
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
         block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
 
@@ -1073,17 +1156,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         extract_job.result()  # Wait for extract job to finish
 
     def _apply_to_rows(self, operation: ops.UnaryOp):
-        block = self._block
-        for column_id, label in zip(
-            self._block.value_columns, self._block.column_labels
-        ):
-            block, _ = block.apply_unary_op(
-                column_id,
-                operation,
-                result_label=label,
-            )
-            block = block.drop_columns([column_id])
-
+        block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
     def _execute_query(
@@ -1138,9 +1211,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _set_block(self, block: blocks.Block):
         self._block = block
 
-    def _get_block(self):
+    def _get_block(self) -> blocks.Block:
         return self._block
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
     return pd.api.types.is_list_like(obj)
+
+
+def _is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]:
+    return pd.api.types.is_dict_like(obj)

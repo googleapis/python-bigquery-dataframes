@@ -45,6 +45,26 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError("abstract method")
 
+    def astype(self, dtype):
+        """
+        Cast a pandas object to a specified dtype ``dtype``.
+
+        Parameters
+        ----------
+        dtype : str, data type, Series or Mapping of column name -> data type
+            Use a str, numpy.dtype, pandas.ExtensionDtype or Python type to
+            cast entire pandas object to the same type. Alternatively, use a
+            mapping, e.g. {col: dtype, ...}, where col is a column label and dtype is
+            a numpy.dtype or Python type to cast one or more of the DataFrame's
+            columns to column-specific types.
+
+        Returns
+        -------
+        same type as caller
+
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # Iteration
 
