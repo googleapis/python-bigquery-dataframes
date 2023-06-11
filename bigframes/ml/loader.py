@@ -35,6 +35,7 @@ def from_bq(
     bigframes.ml.linear_model.LinearRegression,
     bigframes.ml.linear_model.LogisticRegression,
     bigframes.ml.ensemble.XGBRegressor,
+    bigframes.ml.ensemble.XGBClassifier,
 ]:
     """Load a BQML model to BigFrames ML.
 
@@ -53,6 +54,8 @@ def from_bq(
         return bigframes.ml.linear_model.LogisticRegression._from_bq(session, model)
     elif model.model_type == "BOOSTED_TREE_REGRESSOR":
         return bigframes.ml.ensemble.XGBRegressor._from_bq(session, model)
+    elif model.model_type == "BOOSTED_TREE_CLASSIFIER":
+        return bigframes.ml.ensemble.XGBClassifier._from_bq(session, model)
     else:
         raise NotImplementedError(
             f"Model type {model.model_type} is not yet supported by BigFrames"
