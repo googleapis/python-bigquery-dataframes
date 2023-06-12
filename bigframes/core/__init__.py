@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import functools
 import math
 import typing
-from typing import Collection, Dict, Iterable, Optional, Sequence
+from typing import Collection, Dict, Iterable, Optional, Sequence, Tuple
 
 from google.cloud import bigquery
 import ibis
@@ -374,10 +374,9 @@ class BigFramesExpr:
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.columns)
-        length_query = self._session.bqclient.query(
-            self.to_ibis_expr(ordering_mode="unordered").count().compile()
-        )
-        length = next(length_query.result())[0]
+        sql = self.to_ibis_expr(ordering_mode="unordered").count().compile()
+        row_iterator, _ = self._session._start_sql_query(sql)
+        length = next(row_iterator)[0]
         return (length, width)
 
     def concat(self, other: typing.Sequence[BigFramesExpr]) -> BigFramesExpr:
@@ -661,8 +660,10 @@ class BigFramesExpr:
         return table
 
     def start_query(
-        self, job_config: Optional[bigquery.job.QueryJobConfig] = None
-    ) -> bigquery.QueryJob:
+        self,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """Execute a query and return metadata about the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
         # for the results? We'd need a way to invalidate the cache if DataFrame
@@ -676,10 +677,11 @@ class BigFramesExpr:
         # maybe we just print the job metadata that we have so far?
         table = self.to_ibis_expr()
         sql = self._session.ibis_client.compile(table)  # type:ignore
-        if job_config is not None:
-            return self._session.bqclient.query(sql, job_config=job_config)
-        else:
-            return self._session.bqclient.query(sql)
+        return self._session._start_sql_query(
+            sql=sql,
+            job_config=job_config,
+            max_results=max_results,
+        )
 
     def _reproject_to_table(self):
         """

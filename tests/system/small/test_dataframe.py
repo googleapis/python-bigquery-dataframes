@@ -182,9 +182,8 @@ def test_repr_w_all_rows(scalars_dfs):
 def test_repr_html_w_all_rows(scalars_dfs):
     scalars_df, _ = scalars_dfs
     # get a pandas df of the expected format
-    pandas_df = scalars_df._block.compute().set_axis(
-        scalars_df._block.column_labels, axis=1
-    )
+    df, _ = scalars_df._block.compute()
+    pandas_df = df.set_axis(scalars_df._block.column_labels, axis=1)
     pandas_df.index.name = scalars_df.index.name
 
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.

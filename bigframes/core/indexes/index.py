@@ -77,16 +77,8 @@ class IndexValue(implicitjoiner.ImplicitJoiner):
         # Project down to only the index column. So the query can be cached to visualize other data.
         index_column = self._block.index_columns[0]
         expr = self._expr.projection([self._expr.get_any_column(index_column)])
-        df: pd.DataFrame = (
-            expr.start_query()
-            .result()
-            .to_dataframe(
-                bool_dtype=pd.BooleanDtype(),
-                int_dtype=pd.Int64Dtype(),
-                float_dtype=pd.Float64Dtype(),
-                string_dtype=pd.StringDtype(storage="pyarrow"),
-            )
-        )
+        results, _ = expr.start_query()
+        df = expr._session._rows_to_dataframe(results)
         df.set_index(index_column)
         index = df.index
         index.name = self._block._index_labels[0]

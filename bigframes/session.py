@@ -786,6 +786,51 @@ class Session(
             reuse=reuse,
         )
 
+    def _start_sql_query(
+        self,
+        sql: str,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        results_iterator, query_job = self._start_query(
+            sql,
+            job_config=job_config,
+            max_results=max_results,
+        )
+        return results_iterator, query_job
+
+    def _start_query(
+        self,
+        sql: str,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        if job_config is not None:
+            query_job = self.bqclient.query(sql, job_config=job_config)
+        else:
+            query_job = self.bqclient.query(sql)
+        results_iterator = query_job.result(max_results=max_results)
+        return results_iterator, query_job
+
+    def _extract_table(self, source_table, destination_uris, job_config):
+        extract_job = self.bqclient.extract_table(
+            source=source_table,
+            destination_uris=destination_uris,
+            job_config=job_config,
+        )
+        extract_job.result()
+        return extract_job
+
+    def _rows_to_dataframe(
+        self, row_iterator: bigquery.table.RowIterator
+    ) -> pandas.DataFrame:
+        return row_iterator.to_dataframe(
+            bool_dtype=pandas.BooleanDtype(),
+            int_dtype=pandas.Int64Dtype(),
+            float_dtype=pandas.Float64Dtype(),
+            string_dtype=pandas.StringDtype(storage="pyarrow"),
+        )
+
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)

@@ -27,6 +27,7 @@ import typing
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd  # type: ignore
+import google.cloud.bigquery as bigquery
 import ibis.expr.schema as ibis_schema
 import ibis.expr.types as ibis_types
 import numpy
@@ -243,14 +244,16 @@ class Block:
 
     def compute(
         self, value_keys: Optional[Iterable[str]] = None, max_results=None
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
-        df, _ = self._compute_and_count(value_keys=value_keys, max_results=max_results)
-        return df
+        df, _, query_job = self._compute_and_count(
+            value_keys=value_keys, max_results=max_results
+        )
+        return df, query_job
 
     def _compute_and_count(
         self, value_keys: Optional[Iterable[str]] = None, max_results=None
-    ) -> Tuple[pd.DataFrame, int]:
+    ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
@@ -263,7 +266,7 @@ class Block:
             value_columns = (expr.get_column(column_name) for column_name in value_keys)
             expr = expr.projection(itertools.chain(index_columns, value_columns))
 
-        results_iterator = expr.start_query().result(max_results=max_results)
+        results_iterator, query_job = expr.start_query(max_results=max_results)
         df = self._to_dataframe(
             results_iterator,
             expr.to_ibis_expr().schema(),
@@ -275,7 +278,7 @@ class Block:
             # TODO(swast): Set names for all levels with MultiIndex.
             df.index.name = self.index.name
 
-        return df, results_iterator.total_rows
+        return df, results_iterator.total_rows, query_job
 
     def with_column_labels(self, value: typing.Iterable[Label]) -> Block:
         label_list = tuple(value)

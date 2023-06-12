@@ -147,6 +147,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+        self._query_job: Optional[bigquery.QueryJob] = None
 
     def __dir__(self):
         return dir(type(self)) + self._block.column_labels
@@ -308,6 +309,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sql, _ = self.to_sql_query(always_include_index=False)
         return sql
 
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        """BigQuery job metadata for the most recent query."""
+        return self._query_job
+
     def __getitem__(
         self, key: Union[blocks.Label, Sequence[blocks.Label], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
@@ -418,9 +424,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
         head_df = self.head(n=max_results)
-        computed_df = head_df._block.compute(max_results=max_results)
         count = self.shape[0]
+        computed_df, query_job = head_df._block.compute(max_results=max_results)
         formatted_df = computed_df.set_axis(self._block.column_labels, axis=1)
+        # don't update details when the cache is hit
+        if self.query_job is None or not query_job.cache_hit:
+            self._query_job = query_job
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
         return formatted_df, count
@@ -578,7 +587,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def compute(self) -> pd.DataFrame:
         """Executes deferred operations and downloads the results."""
-        df = self._block.compute()
+        # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        df, query_job = self._block.compute()
+        self._query_job = query_job
         return df.set_axis(self._block.column_labels, axis=1)
 
     def copy(self) -> DataFrame:
@@ -1091,10 +1102,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.CSV
         )
-        extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[path_or_buf], job_config=job_config
+        self._block.expr._session._extract_table(
+            source_table,
+            destination_uris=[path_or_buf],
+            job_config=job_config,
         )
-        extract_job.result()  # Wait for extract job to finish
 
     def to_json(
         self,
@@ -1132,10 +1144,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
         )
-        extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[path_or_buf], job_config=job_config
+        self._block.expr._session._extract_table(
+            source_table,
+            destination_uris=[path_or_buf],
+            job_config=job_config,
         )
-        extract_job.result()  # Wait for extract job to finish
 
     def to_gbq(
         self,
@@ -1190,10 +1203,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         job_config = bigquery.ExtractJobConfig(
             destination_format=bigquery.DestinationFormat.PARQUET
         )
-        extract_job = self._block.expr._session.bqclient.extract_table(
-            source_table, destination_uris=[path], job_config=job_config
+
+        self._block.expr._session._extract_table(
+            source_table,
+            destination_uris=[path],
+            job_config=job_config,
         )
-        extract_job.result()  # Wait for extract job to finish
 
     def _apply_to_rows(self, operation: ops.UnaryOp):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
@@ -1231,12 +1246,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col_id, col_label in zip(columns, column_labels)
         ]
         ibis_expr = ibis_expr.select(*renamed_columns)
-        sql = session.ibis_client.compile(ibis_expr)  # type: ignore
-        query_job: bigquery.QueryJob = session.bqclient.query(
-            sql, job_config=job_config  # type: ignore
+        sql = session.ibis_client.compile(ibis_expr)
+        _, query_job = session._start_sql_query(
+            sql=sql, job_config=job_config  # type: ignore
         )
-        query_job.result()  # Wait for query to finish.
-        query_job.reload()  # Download latest job metadata.
         return query_job.destination
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:

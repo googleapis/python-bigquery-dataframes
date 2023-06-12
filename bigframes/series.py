@@ -17,8 +17,9 @@
 from __future__ import annotations
 
 import typing
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
+import google.cloud.bigquery as bigquery
 import ibis.expr.types as ibis_types
 import numpy
 import pandas
@@ -44,6 +45,10 @@ import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_seri
 
 
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
+    def __init__(self, *args, **kwargs):
+        self._query_job: Optional[bigquery.QueryJob] = None
+        super().__init__(*args, **kwargs)
+
     @property
     def dt(self) -> dt.DatetimeMethods:
         return dt.DatetimeMethods(self._block)
@@ -87,6 +92,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def values(self) -> numpy.ndarray:
         return self.to_numpy()
+
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        return self._query_job
 
     def copy(self) -> Series:
         return Series(self._block)
@@ -147,7 +156,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
-        df = self._block.compute((self._value_column,))
+        df, query_job = self._block.compute((self._value_column,))
+        self._query_job = query_job
         series = df[self._value_column]
         series.name = self._name
         return series
@@ -663,13 +673,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 value_ids = [*value_ids, constant_col_id]
         return (value_ids, block)
 
-    def _apply_aggregation(
-        self, op: agg_ops.AggregateOp
-    ) -> bigframes.core.scalar.ImmediateScalar:
+    def _apply_aggregation(self, op: agg_ops.AggregateOp) -> Any:
         aggregation_result = typing.cast(
             ibis_types.Scalar, op._as_ibis(self[self.notnull()]._to_ibis_expr())
         )
-        return bigframes.core.scalar.DeferredScalar(aggregation_result).compute()
+        return bigframes.core.scalar.DeferredScalar(
+            aggregation_result, self._block._expr._session
+        ).compute()
 
     def _apply_window_op(
         self,

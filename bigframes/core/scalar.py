@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-import typing
+from typing import Any
 
 import ibis.expr.types as ibis_types
 
-ImmediateScalar = typing.Union[
-    bool, int, float, str, datetime.date, datetime.date, datetime.datetime
-]
+import bigframes.session as session
 
 
 class DeferredScalar:
     """A deferred scalar object."""
 
-    def __init__(self, value: ibis_types.Scalar):
+    def __init__(self, value: ibis_types.Scalar, session: session.Session):
         self._value = value
+        self._session = session
 
     def __repr__(self) -> str:
         """Converts a Series to a string."""
@@ -34,11 +32,13 @@ class DeferredScalar:
         # maybe we just print the job metadata that we have so far?
         return repr(self.compute())
 
-    def compute(self) -> ImmediateScalar:
+    def compute(self) -> Any:
         """Executes deferred operations and downloads the resulting scalar."""
-        return self._value.execute()
+        result, _ = self._session._start_query(self._value.compile())
+        df = self._session._rows_to_dataframe(result)
+        return df.iloc[0, 0]
 
 
-# All public APIs return ImmediateScalar at present
+# All public APIs return Any at present
 # Later implementation may sometimes return a lazy scalar
-Scalar = ImmediateScalar
+Scalar = Any
