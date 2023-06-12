@@ -994,15 +994,11 @@ class DataFrame:
         if random_state is None:
             random_state = random.randint(-(2**30), 2**30)
 
-        # Add guid to new column names to avoid collisions.
-        ordering_col = bigframes.guid.generate_guid("ordering")
-        row_number_col = bigframes.guid.generate_guid("row_number")
-
         # Create a new column with random_state value.
         block, random_state_col = block.create_constant(random_state)
 
         # Create an ordering col and a new sum col which is ordering+random_state.
-        block = block.promote_offsets(ordering_col)
+        block, ordering_col = block.promote_offsets()
         block, sum_col = block.apply_binary_op(
             ordering_col, random_state_col, ops.add_op
         )
@@ -1013,7 +1009,7 @@ class DataFrame:
         block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
 
         # Create a new row_number column based on ordering by the hashed values.
-        block = block.promote_offsets(row_number_col)
+        block, row_number_col = block.promote_offsets()
 
         # Create a new column with sample_size value and filter rows < sample_size.
         block, sample_size_col = block.create_constant(sample_size)

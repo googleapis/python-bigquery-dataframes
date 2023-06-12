@@ -1612,6 +1612,18 @@ def test_loc_bool_series_default_index(
     )
 
 
+def test_argmin(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.argmin()
+    pd_result = scalars_pandas_df_index.string_col.argmin()
+    assert bf_result == pd_result
+
+
+def test_argmax(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.int64_too.argmax()
+    pd_result = scalars_pandas_df_index.int64_too.argmax()
+    assert bf_result == pd_result
+
+
 def test_getattr_not_implemented(scalars_df_index):
     with pytest.raises(NotImplementedError):
         scalars_df_index.string_col.asof()

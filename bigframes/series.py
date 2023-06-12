@@ -669,6 +669,34 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Clip series values to 'lower' and 'upper' bounds."""
         return self._apply_ternary_op(lower, upper, ops.clip_op)
 
+    def argmax(self) -> bigframes.scalar.Scalar:
+        """Return the row number of the entry with the largest value."""
+        block, row_nums = self._block.promote_offsets()
+        block = block.order_by(
+            [
+                OrderingColumnReference(
+                    self._value_column, direction=OrderingDirection.DESC
+                ),
+                OrderingColumnReference(row_nums),
+            ]
+        )
+        return typing.cast(
+            bigframes.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+        )
+
+    def argmin(self) -> bigframes.scalar.Scalar:
+        """Return the row number of the entry with the smallest value."""
+        block, row_nums = self._block.promote_offsets()
+        block = block.order_by(
+            [
+                OrderingColumnReference(self._value_column),
+                OrderingColumnReference(row_nums),
+            ]
+        )
+        return typing.cast(
+            bigframes.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+        )
+
     def __getitem__(self, indexer: Series):
         """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.

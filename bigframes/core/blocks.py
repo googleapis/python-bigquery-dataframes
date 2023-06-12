@@ -579,12 +579,16 @@ class Block:
         # TODO(swast): Support MultiIndex.
         return block
 
-    def promote_offsets(self, value_col_id: str) -> Block:
-        return Block(
-            self._expr.promote_offsets(value_col_id=value_col_id),
-            index_columns=self.index_columns,
-            column_labels=[value_col_id, *self.column_labels],
-            index_labels=self._index_labels,
+    def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
+        result_id = guid.generate_guid()
+        return (
+            Block(
+                self._expr.promote_offsets(value_col_id=result_id),
+                index_columns=self.index_columns,
+                column_labels=[label, *self.column_labels],
+                index_labels=self._index_labels,
+            ),
+            result_id,
         )
 
     def add_prefix(self, prefix: str, axis: str | int | None = None) -> Block:
