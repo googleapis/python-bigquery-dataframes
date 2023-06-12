@@ -23,7 +23,6 @@ import bigframes.ml.api_primitives
 import bigframes.ml.core
 
 _REMOTE_LLM_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
-_VERTEX_ENDPOINT_FORMAT_US_CENTRAL1 = "https://us-central1-aiplatform.googleapis.com/v1/projects/{project_id}/locations/us-central1/publishers/google/models/text-bison"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_result"
 
 
@@ -40,13 +39,8 @@ class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
         self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
-        project_id = self.session.bqclient.project
         options = {
             "remote_service_type": _REMOTE_LLM_MODEL_CODE,
-            # TODO(garrettwu): remove when BQML finishes default endpoint.
-            "endpoint": _VERTEX_ENDPOINT_FORMAT_US_CENTRAL1.format(
-                project_id=project_id
-            ),
         }
 
         return bigframes.ml.core.create_bqml_remote_model(
