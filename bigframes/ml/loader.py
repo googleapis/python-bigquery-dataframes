@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 import bigframes.ml.cluster
 import bigframes.ml.decomposition
 import bigframes.ml.ensemble
+import bigframes.ml.forecasting
 import bigframes.ml.linear_model
 
 
@@ -36,6 +37,7 @@ def from_bq(
     bigframes.ml.linear_model.LogisticRegression,
     bigframes.ml.ensemble.XGBRegressor,
     bigframes.ml.ensemble.XGBClassifier,
+    bigframes.ml.forecasting.ARIMAPlus,
 ]:
     """Load a BQML model to BigFrames ML.
 
@@ -56,6 +58,8 @@ def from_bq(
         return bigframes.ml.ensemble.XGBRegressor._from_bq(session, model)
     elif model.model_type == "BOOSTED_TREE_CLASSIFIER":
         return bigframes.ml.ensemble.XGBClassifier._from_bq(session, model)
+    elif model.model_type == "ARIMA_PLUS":
+        return bigframes.ml.forecasting.ARIMAPlus._from_bq(session, model)
     else:
         raise NotImplementedError(
             f"Model type {model.model_type} is not yet supported by BigFrames"

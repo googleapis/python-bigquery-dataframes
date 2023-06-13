@@ -173,12 +173,12 @@ def create_bqml_model(
     else:
         # TODO: handle case where train_y columns are renamed in the join
         input_data = train_X.join(train_y, how="outer")
-        options.update({"input_label_cols": train_y.columns.tolist()})
+        options.update({"INPUT_LABEL_COLS": train_y.columns.tolist()})
 
     # pickpocket session object from the dataframe
     session = train_X._block.expr._session
 
-    # TODO(bmil): add wrapper to select the feature columns
+    # TODO(garrettwu): add wrapper to select the feature columns
     # for now, drop index to avoid including the index in feature columns
     input_data = input_data.reset_index(drop=True)
 
@@ -192,6 +192,42 @@ def create_bqml_model(
         model_name=model_name,
         source_sql=source_sql,
         transform_sql=transform_sql,
+        options_sql=options_sql,
+    )
+
+    # fit the model, synchronously
+    session.bqclient.query(sql).result()
+
+    model = session.bqclient.get_model(model_name)
+    return BqmlModel(session, model)
+
+
+def create_bqml_time_series_model(
+    train_X: bigframes.DataFrame,
+    train_y: bigframes.DataFrame,
+    options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+) -> BqmlModel:
+
+    assert (
+        train_X.columns.size == 1
+    ), "Time series timestamp input must only contain 1 column."
+    assert (
+        train_y.columns.size == 1
+    ), "Time stamp data input must only contain 1 column."
+
+    options = dict(options)
+    input_data = train_X.join(train_y, how="outer")
+    options.update({"TIME_SERIES_TIMESTAMP_COL": train_X.columns.tolist()[0]})
+    options.update({"TIME_SERIES_DATA_COL": train_y.columns.tolist()[0]})
+    # pickpocket session object from the dataframe
+    session = train_X._block.expr._session
+
+    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
+    source_sql = input_data.sql
+    options_sql = bigframes.ml.sql.options(**options)
+    sql = bigframes.ml.sql.create_model(
+        model_name=model_name,
+        source_sql=source_sql,
         options_sql=options_sql,
     )
 

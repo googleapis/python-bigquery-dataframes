@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bigframes ML provides a SKLearn-like API for BigFrames."""
+from bigframes.ml import forecasting
 
-__all__ = [
-    "cluster",
-    "compose",
-    "decomposition",
-    "linear_model",
-    "metrics",
-    "model_selection",
-    "pipeline",
-    "preprocessing",
-    "llm",
-    "forecasting",
-]
+
+def test_arima_plus_model(time_series_df_default_index):
+    model = forecasting.ARIMAPlus()
+    train_X = time_series_df_default_index[["parsed_date"]]
+    train_y = time_series_df_default_index[["total_visits"]]
+    model.fit(train_X, train_y)
+
+    # TODO(garrettwu): add tests save/load/eval tests
