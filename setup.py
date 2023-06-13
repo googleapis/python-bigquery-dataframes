@@ -40,9 +40,10 @@ dependencies = [
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-storage >=2.0.0",
     "ibis-framework[bigquery] @ git+https://github.com/ibis-project/ibis.git@053a6d21e87aa009e284f571efa3b29abd10c5fa#egg=ibis-framework",
-    "sqlalchemy >=1.4,<2.0",
     "pandas >=1.5.0",
+    "pydata-google-auth >=1.5.0",
     "scikit-learn >=1.2.2",
+    "sqlalchemy >=1.4,<3.0",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
