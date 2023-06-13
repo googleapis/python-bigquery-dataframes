@@ -234,6 +234,8 @@ def test_to_gbq_saved_xgclassifier_model_scores(
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )
+    assert saved_model.max_depth == 6
+    assert saved_model.max_iterations == 20
 
 
 def test_to_xgclassifier_model_gbq_replace(penguins_xgbclassifier_model, dataset_id):

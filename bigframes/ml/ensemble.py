@@ -27,31 +27,96 @@ if TYPE_CHECKING:
 import bigframes.ml.api_primitives
 import bigframes.ml.core
 
+_BQML_PARAMS_MAPPING = {
+    "booster": "boosterType",
+    "tree_method": "treeMethod",
+    "early_stop": "earlyStop",
+    "data_split_method": "dataSplitMethod",
+    "colsample_bytree": "colsampleBylevel",
+    "colsample_bylevel": "colsampleBytree",
+    "colsample_bynode": "colsampleBynode",
+    "gamma": "minSplitLoss",
+    "subsample": "subsample",
+    "reg_alpha": "l1Regularization",
+    "reg_lambda": "l2Regularization",
+    "learning_rate": "learnRate",
+    "min_rel_progress": "minRelativeProgress",
+    "num_parallel_tree": "numParallelTree",
+    "min_tree_child_weight": "minTreeChildWeight",
+    "max_depth": "maxTreeDepth",
+    "max_iterations": "maxIterations",
+}
+
 
 class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
     """Boosted Tree Regressor model.
 
     Args:
         num_parallel_tree: number of parallel trees constructed during each iteration. Default to 1.
-        booster_type: specify the booster type to use. Default to "GBTREE".
-        early_stop: whether training should stop after the first iteration. Default to True.
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
+        booster: specify the booster type to use. Possible values: "GBTREE", "DART". Default to "GBTREE".
+        dart_normalized_type: type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
+        tree_method: type of tree construction algorithm. Possible values: "AUTO", "EXACT", "APPROX", "HIST". Default value to "AUTO".
+        min_tree_child_weight: minimum sum of instance weight needed in a child for further partitioning. The value should be greater than or equal to 0. Default to 1.
+        colsample_bytree: subsample ratio of columns when constructing each tree. The value should be between 0 and. Default to 1.0.
+        colsample_bylevel: subsample ratio of columns for each level. The value should be between 0 and. Default to 1.0.
+        colsample_bynode: subsample ratio of columns for each node (split). The value should be between 0 and. Default to 1.0.
+        gamma: minimum loss reduction required to make a further partition on a leaf node of the tree. Default to 0.0.
+        max_depth: maximum depth of a tree. Default to 6.
         subsample: subsample ratio of the training instances. Default to 1.0.
+        reg_alpha: the amount of L1 regularization applied. Default to 0.0.
+        reg_lambda: the amount of L2 regularization applied. Default to 1.0.
+        early_stop: whether training should stop after the first iteration. Default to True.
+        learning_rate: step size shrinkage used in update to prevents overfitting. Default to 0.3.
+        max_iterations: maximum number of rounds for boosting. Default to 20.
+        min_rel_progress: minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
+        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
+        enable_global_explain: whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
+        xgboost_version: specifies the Xgboost version for model training. Default to "0.9".
     """
 
     def __init__(
         self,
-        num_parallel_tree=1,
-        booster_type: Literal["GBTREE", "DART"] = "GBTREE",
-        early_stop=True,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
+        num_parallel_tree: int = 1,
+        booster: Literal["gbtree", "dart"] = "gbtree",
+        dart_normalized_type: Literal["TREE", "FOREST"] = "TREE",
+        tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
+        min_tree_child_weight: int = 1,
+        colsample_bytree=1.0,
+        colsample_bylevel=1.0,
+        colsample_bynode=1.0,
+        gamma=0.0,
+        max_depth: int = 6,
         subsample=1.0,
+        reg_alpha=0.0,
+        reg_lambda=1.0,
+        early_stop=True,
+        learning_rate=0.3,
+        max_iterations: int = 20,
+        min_rel_progress=0.01,
+        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
+        enable_global_explain=False,
+        xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
         self.num_parallel_tree = num_parallel_tree
-        self.booster_type = booster_type
-        self.early_stop = early_stop
-        self.data_split_method = data_split_method
+        self.booster = booster
+        self.dart_normalized_type = dart_normalized_type
+        self.tree_method = tree_method
+        self.min_tree_child_weight = min_tree_child_weight
+        self.colsample_bytree = colsample_bytree
+        self.colsample_bylevel = colsample_bylevel
+        self.colsample_bynode = colsample_bynode
+        self.gamma = gamma
+        self.max_depth = max_depth
         self.subsample = subsample
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
+        self.early_stop = early_stop
+        self.learning_rate = learning_rate
+        self.max_iterations = max_iterations
+        self.min_rel_progress = min_rel_progress
+        self.data_split_method = data_split_method
+        self.enable_global_explain = enable_global_explain
+        self.xgboost_version = xgboost_version
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
 
     @staticmethod
@@ -62,16 +127,12 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "boosterType" in last_fitting:
-            kwargs["booster_type"] = last_fitting["boosterType"]
-        if "earlyStop" in last_fitting:
-            kwargs["early_stop"] = last_fitting["earlyStop"]
-        if "dataSplitMethod" in last_fitting:
-            kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
-        if "subsample" in last_fitting:
-            kwargs["subsample"] = float(last_fitting["subsample"])
-        if "numParallelTree" in last_fitting:
-            kwargs["num_parallel_tree"] = int(last_fitting["numParallelTree"])
+
+        dummy_regressor = XGBRegressor()
+        for bf_param, bf_value in dummy_regressor.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param is not None:
+                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
 
         new_xgb_regressor = XGBRegressor(**kwargs)
         new_xgb_regressor._bqml_model = bigframes.ml.core.BqmlModel(session, model)
@@ -83,10 +144,24 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
         return {
             "model_type": "BOOSTED_TREE_REGRESSOR",
             "num_parallel_tree": self.num_parallel_tree,
-            "booster_type": self.booster_type,
-            "early_stop": self.early_stop,
-            "data_split_method": self.data_split_method,
+            "booster_type": self.booster,
+            "tree_method": self.tree_method,
+            "min_tree_child_weight": self.min_tree_child_weight,
+            "colsample_bytree": self.colsample_bytree,
+            "colsample_bylevel": self.colsample_bylevel,
+            "colsample_bynode": self.colsample_bynode,
+            "min_split_loss": self.gamma,
+            "max_tree_depth": self.max_depth,
             "subsample": self.subsample,
+            "l1_reg": self.reg_alpha,
+            "l2_reg": self.reg_lambda,
+            "early_stop": self.early_stop,
+            "learn_rate": self.learning_rate,
+            "max_iterations": self.max_iterations,
+            "min_rel_progress": self.min_rel_progress,
+            "data_split_method": self.data_split_method,
+            "enable_global_explain": self.enable_global_explain,
+            "xgboost_version": self.xgboost_version,
         }
 
     def fit(
@@ -170,25 +245,70 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
 
     Args:
         num_parallel_tree: number of parallel trees constructed during each iteration. Default to 1.
-        booster_type: specify the booster type to use. Default to "GBTREE".
-        early_stop: whether training should stop after the first iteration. Default to True.
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
+        booster: specify the booster type to use. Possible values: "GBTREE", "DART". Default to "GBTREE".
+        dart_normalized_type: type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
+        tree_method: type of tree construction algorithm. Possible values: "AUTO", "EXACT", "APPROX", "HIST". Default value to "AUTO".
+        min_tree_child_weight: minimum sum of instance weight needed in a child for further partitioning. The value should be greater than or equal to 0. Default to 1.
+        colsample_bytree: subsample ratio of columns when constructing each tree. The value should be between 0 and. Default to 1.0.
+        colsample_bylevel: subsample ratio of columns for each level. The value should be between 0 and. Default to 1.0.
+        colsample_bynode: subsample ratio of columns for each node (split). The value should be between 0 and. Default to 1.0.
+        gamma: minimum loss reduction required to make a further partition on a leaf node of the tree. Default to 0.0.
+        max_depth: maximum depth of a tree. Default to 6.
         subsample: subsample ratio of the training instances. Default to 1.0.
+        reg_alpha: the amount of L1 regularization applied. Default to 0.0.
+        reg_lambda: the amount of L2 regularization applied. Default to 1.0.
+        early_stop: whether training should stop after the first iteration. Default to True.
+        learning_rate: step size shrinkage used in update to prevents overfitting. Default to 0.3.
+        max_iterations: maximum number of rounds for boosting. Default to 20.
+        min_rel_progress: minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
+        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
+        enable_global_explain: whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
+        xgboost_version: specifies the Xgboost version for model training. Default to "0.9".
     """
 
     def __init__(
         self,
-        num_parallel_tree=1,
-        booster_type: Literal["GBTREE", "DART"] = "GBTREE",
-        early_stop=True,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
+        num_parallel_tree: int = 1,
+        booster: Literal["gbtree", "dart"] = "gbtree",
+        dart_normalized_type: Literal["TREE", "FOREST"] = "TREE",
+        tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
+        min_tree_child_weight: int = 1,
+        colsample_bytree=1.0,
+        colsample_bylevel=1.0,
+        colsample_bynode=1.0,
+        gamma=0.0,
+        max_depth: int = 6,
         subsample=1.0,
+        reg_alpha=0.0,
+        reg_lambda=1.0,
+        early_stop=True,
+        learning_rate=0.3,
+        max_iterations: int = 20,
+        min_rel_progress=0.01,
+        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
+        enable_global_explain=False,
+        xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
         self.num_parallel_tree = num_parallel_tree
-        self.booster_type = booster_type
-        self.early_stop = early_stop
-        self.data_split_method = data_split_method
+        self.booster = booster
+        self.dart_normalized_type = dart_normalized_type
+        self.tree_method = tree_method
+        self.min_tree_child_weight = min_tree_child_weight
+        self.colsample_bytree = colsample_bytree
+        self.colsample_bylevel = colsample_bylevel
+        self.colsample_bynode = colsample_bynode
+        self.gamma = gamma
+        self.max_depth = max_depth
         self.subsample = subsample
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
+        self.early_stop = early_stop
+        self.learning_rate = learning_rate
+        self.max_iterations = max_iterations
+        self.min_rel_progress = min_rel_progress
+        self.data_split_method = data_split_method
+        self.enable_global_explain = enable_global_explain
+        self.xgboost_version = xgboost_version
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
 
     @staticmethod
@@ -199,16 +319,12 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "boosterType" in last_fitting:
-            kwargs["booster_type"] = last_fitting["boosterType"]
-        if "earlyStop" in last_fitting:
-            kwargs["early_stop"] = last_fitting["earlyStop"]
-        if "dataSplitMethod" in last_fitting:
-            kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
-        if "subsample" in last_fitting:
-            kwargs["subsample"] = float(last_fitting["subsample"])
-        if "numParallelTree" in last_fitting:
-            kwargs["num_parallel_tree"] = int(last_fitting["numParallelTree"])
+
+        dummy_classifier = XGBClassifier()
+        for bf_param, bf_value in dummy_classifier.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param is not None:
+                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
 
         new_xgb_classifier = XGBClassifier(**kwargs)
         new_xgb_classifier._bqml_model = bigframes.ml.core.BqmlModel(session, model)
@@ -220,10 +336,24 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
         return {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
             "num_parallel_tree": self.num_parallel_tree,
-            "booster_type": self.booster_type,
-            "early_stop": self.early_stop,
-            "data_split_method": self.data_split_method,
+            "booster_type": self.booster,
+            "tree_method": self.tree_method,
+            "min_tree_child_weight": self.min_tree_child_weight,
+            "colsample_bytree": self.colsample_bytree,
+            "colsample_bylevel": self.colsample_bylevel,
+            "colsample_bynode": self.colsample_bynode,
+            "min_split_loss": self.gamma,
+            "max_tree_depth": self.max_depth,
             "subsample": self.subsample,
+            "l1_reg": self.reg_alpha,
+            "l2_reg": self.reg_lambda,
+            "early_stop": self.early_stop,
+            "learn_rate": self.learning_rate,
+            "max_iterations": self.max_iterations,
+            "min_rel_progress": self.min_rel_progress,
+            "data_split_method": self.data_split_method,
+            "enable_global_explain": self.enable_global_explain,
+            "xgboost_version": self.xgboost_version,
         }
 
     def fit(

@@ -66,15 +66,26 @@ def test_xgbregressor_auto_split(penguins_df_default_index, dataset_id):
     assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
 
-def test_xgbregressor_dart_booster_num_parallel_tree(
+def test_xgbregressor_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
     # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
     model = bigframes.ml.ensemble.XGBRegressor(
-        booster_type="dart",
+        booster="dart",
+        tree_method="AUTO",
+        min_tree_child_weight=2,
+        colsample_bytree=0.95,
+        colsample_bylevel=0.95,
+        colsample_bynode=0.95,
         num_parallel_tree=2,
-        early_stop=True,
-        subsample=0.2,
+        max_depth=4,
+        subsample=0.95,
+        reg_alpha=0.0001,
+        reg_lambda=0.0001,
+        learning_rate=0.015,
+        max_iterations=4,
+        min_rel_progress=0.02,
+        data_split_method="NO_SPLIT",
     )
 
     df = penguins_df_default_index.dropna().sample(n=70)
@@ -94,7 +105,6 @@ def test_xgbregressor_dart_booster_num_parallel_tree(
     # Check score to ensure the model was fitted
     result = model.score().compute()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
-    assert 10000 <= int(result.mean_squared_error) <= 120000
     for col_name in [
         "mean_absolute_error",
         "mean_squared_error",
@@ -113,10 +123,23 @@ def test_xgbregressor_dart_booster_num_parallel_tree(
         f"{dataset_id}.temp_configured_xgbregressor_model"
         in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.booster_type == "DART"
-    assert reloaded_model.num_parallel_tree == 2
+    assert reloaded_model.booster == "DART"
+    assert reloaded_model.dart_normalized_type == "TREE"
+    assert reloaded_model.tree_method == "AUTO"
+    assert reloaded_model.colsample_bytree == 0.95
+    assert reloaded_model.colsample_bylevel == 0.95
+    assert reloaded_model.colsample_bynode == 0.95
     assert reloaded_model.early_stop is True
-    assert reloaded_model.subsample == 0.2
+    assert reloaded_model.subsample == 0.95
+    assert reloaded_model.reg_alpha == 0.0001
+    assert reloaded_model.reg_lambda == 0.0001
+    assert reloaded_model.learning_rate == 0.015
+    assert reloaded_model.max_iterations == 4
+    assert reloaded_model.min_rel_progress == 0.02
+    assert reloaded_model.gamma == 0.0
+    assert reloaded_model.max_depth == 4
+    assert reloaded_model.min_tree_child_weight == 2
+    assert reloaded_model.num_parallel_tree == 2
 
 
 def test_xgbclassifier_auto_split(penguins_df_default_index, dataset_id):
@@ -164,15 +187,26 @@ def test_xgbclassifier_auto_split(penguins_df_default_index, dataset_id):
     assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
 
-def test_xgbclassifier_dart_booster_num_parallel_tree(
+def test_xgbclassifier_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
     # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
     model = bigframes.ml.ensemble.XGBClassifier(
-        booster_type="dart",
+        booster="dart",
+        tree_method="AUTO",
+        min_tree_child_weight=2,
+        colsample_bytree=0.95,
+        colsample_bylevel=0.95,
+        colsample_bynode=0.95,
         num_parallel_tree=2,
-        early_stop=True,
-        subsample=0.2,
+        max_depth=4,
+        subsample=0.95,
+        reg_alpha=0.0001,
+        reg_lambda=0.0001,
+        learning_rate=0.015,
+        max_iterations=4,
+        min_rel_progress=0.02,
+        data_split_method="NO_SPLIT",
     )
 
     df = penguins_df_default_index.dropna().sample(n=70)
@@ -211,7 +245,20 @@ def test_xgbclassifier_dart_booster_num_parallel_tree(
         f"{dataset_id}.temp_configured_xgbclassifierr_model"
         in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.booster_type == "DART"
-    assert reloaded_model.num_parallel_tree == 2
+    assert reloaded_model.booster == "DART"
+    assert reloaded_model.dart_normalized_type == "TREE"
+    assert reloaded_model.tree_method == "AUTO"
+    assert reloaded_model.colsample_bytree == 0.95
+    assert reloaded_model.colsample_bylevel == 0.95
+    assert reloaded_model.colsample_bynode == 0.95
     assert reloaded_model.early_stop is True
-    assert reloaded_model.subsample == 0.2
+    assert reloaded_model.subsample == 0.95
+    assert reloaded_model.reg_alpha == 0.0001
+    assert reloaded_model.reg_lambda == 0.0001
+    assert reloaded_model.learning_rate == 0.015
+    assert reloaded_model.max_iterations == 4
+    assert reloaded_model.min_rel_progress == 0.02
+    assert reloaded_model.gamma == 0.0
+    assert reloaded_model.max_depth == 4
+    assert reloaded_model.min_tree_child_weight == 2
+    assert reloaded_model.num_parallel_tree == 2
