@@ -21,11 +21,10 @@ This library is an evolving attempt to
     https://arxiv.org/pdf/1309.0238.pdf
 """
 
-import inspect
-from typing import Dict
+import third_party.bigframes_vendored.sklearn.base
 
 
-class BaseEstimator:
+class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
     """
     A BigFrames machine learning component following the SKLearn API design
     Ref: https://github.com/scikit-learn/scikit-learn/blob/7db5b6a98ac6ad0976a3364966e214926ca8098a/sklearn/base.py#L112
@@ -75,20 +74,6 @@ class BaseEstimator:
     By design, implementations of these to inherit from are not provided, as they have no shared logic.
     If models do have shared logic, they should share it with mixin classes.
     """
-
-    @classmethod
-    def __get_param_names(cls):
-        """Inspect the estimator's constructor to retrieve parameter names"""
-        parameters = inspect.signature(cls.__init__).parameters.values()
-        return sorted([p.name for p in parameters if p.name != "self"])
-
-    def get_params(self, deep=True) -> Dict:
-        """Get the parameters for this estimator"""
-
-        if deep:
-            raise NotImplementedError("Deep get_params is not yet implemented")
-
-        return dict([(key, getattr(self, key)) for key in self.__get_param_names()])
 
     def __repr__(self):
         """Print the estimator's constructor with all non-default parameter values"""

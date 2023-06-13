@@ -26,15 +26,17 @@ if TYPE_CHECKING:
 
 import bigframes.ml.api_primitives
 import bigframes.ml.core
+import third_party.bigframes_vendored.sklearn.linear_model._base
+import third_party.bigframes_vendored.sklearn.linear_model._logistic
 
 
-class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
-    """Ordinary least squares Linear Regression.
-
-    Args:
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
-        fit_intercept: whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered). Default to True.
-    """
+class LinearRegression(
+    third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = (
+        third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
+    )
 
     def __init__(
         self,
@@ -78,18 +80,6 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         y: bigframes.DataFrame,
         transforms: Optional[List[str]] = None,
     ):
-        """Fit the model to training data
-
-        Args:
-            X: A dataframe with training data
-
-            y: Target values for training
-
-            transforms: an optional list of SQL expressions to apply over top of
-                the model inputs as preprocessing. This preprocessing will be
-                automatically reapplied to new input data (e.g. in .predict), and
-                may contain steps (like ML.STANDARD_SCALER) that fit to the
-                training data"""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
@@ -98,12 +88,6 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -122,14 +106,7 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         self,
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
-    ) -> bigframes.DataFrame:
-        """Calculate evaluation metrics of the model.
-
-        Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
-
-        Returns: a BigFrames DataFrame as evaluation result."""
+    ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -155,21 +132,20 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         return new_model.session.read_gbq_model(model_name)
 
 
-class LogisticRegression(bigframes.ml.api_primitives.BaseEstimator):
-    """Logistic regression for binary-class or multi-class classification.
-
-    Args:
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
-        fit_intercept: whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered). Default to True.
-        auto_class_weights: whether to balance class labels using weights for each class in inverse proportion to the frequency of that class. Default to False.
-    """
+class LogisticRegression(
+    third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = (
+        third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression.__doc__
+    )
 
     # TODO(ashleyxu) support class_weights in the constructor.
     def __init__(
         self,
         data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
-        fit_intercept=True,
-        auto_class_weights=False,
+        fit_intercept: bool = True,
+        auto_class_weights: bool = False,
     ):
         self.data_split_method = data_split_method
         self.fit_intercept = fit_intercept
@@ -222,18 +198,6 @@ class LogisticRegression(bigframes.ml.api_primitives.BaseEstimator):
         y: bigframes.DataFrame,
         transforms: Optional[List[str]] = None,
     ):
-        """Fit the model to training data.
-
-        Args:
-            X: A dataframe with training data.
-
-            y: Target values for training.
-
-            transforms: an optional list of SQL expressions to apply over top of
-                the model inputs as preprocessing. This preprocessing will be
-                automatically reapplied to new input data (e.g. in .predict), and
-                may contain steps (like ML.STANDARD_SCALER) that fit to the
-                training data"""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
@@ -242,12 +206,6 @@ class LogisticRegression(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -267,13 +225,6 @@ class LogisticRegression(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ) -> bigframes.DataFrame:
-        """Calculate evaluation metrics of the model.
-
-        Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
-
-        Returns: a BigFrames DataFrame as evaluation result."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 

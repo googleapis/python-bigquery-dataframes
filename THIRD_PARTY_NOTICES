@@ -72,10 +72,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: SQLAlchemy
-Version: 1.4.48
+Version: 2.0.16
 License: MIT License
 URL: https://www.sqlalchemy.org
-Requires: greenlet
+Requires: greenlet, typing_extensions
 Required By: bigframes
 License:
 Copyright 2005-2023 SQLAlchemy authors and contributors <see AUTHORS file>.
@@ -1608,7 +1608,7 @@ Version: 2.20.0
 License: Apache Software License
 URL: https://github.com/googleapis/google-auth-library-python
 Requires: cachetools, pyasn1-modules, rsa, six, urllib3
-Required By: bigframes, gcsfs, google-api-core, google-auth-oauthlib, google-cloud-core, google-cloud-storage
+Required By: bigframes, gcsfs, google-api-core, google-auth-oauthlib, google-cloud-core, google-cloud-storage, pydata-google-auth
 License:
                                  Apache License
                            Version 2.0, January 2004
@@ -1819,7 +1819,7 @@ Version: 1.0.0
 License: Apache Software License
 URL: https://github.com/GoogleCloudPlatform/google-auth-library-python-oauthlib
 Requires: google-auth, requests-oauthlib
-Required By: gcsfs
+Required By: gcsfs, pydata-google-auth
 License:
 
                                  Apache License
@@ -8774,6 +8774,45 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ********************************************************************************
 ********************************************************************************
+Name: pydata-google-auth
+Version: 1.8.0
+License: BSD License
+URL: https://github.com/pydata/pydata-google-auth
+Requires: google-auth, google-auth-oauthlib, setuptools
+Required By: bigframes
+License:
+BSD 3-Clause License
+
+Copyright (c) 2008-2012, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+********************************************************************************
+********************************************************************************
 Name: pyproj
 Version: 3.6.0
 License: MIT License
@@ -10182,7 +10221,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: sqlglot
-Version: 16.2.0
+Version: 16.2.1
 License: MIT License
 URL: https://github.com/tobymao/sqlglot
 Required By: ibis-framework
@@ -10284,7 +10323,7 @@ Name: typing_extensions
 Version: 4.6.3
 License: Python Software Foundation License
 URL: https://github.com/python/typing_extensions
-Required By: ibis-framework
+Required By: SQLAlchemy, ibis-framework
 License:
 A. HISTORY OF THE SOFTWARE
 ==========================
