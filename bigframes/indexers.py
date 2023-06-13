@@ -19,7 +19,7 @@ import typing
 import ibis
 import pandas as pd
 
-import bigframes.core.blocks as blocks
+import bigframes.core as core
 import bigframes.core.indexes.index
 import bigframes.series
 
@@ -30,7 +30,7 @@ class LocSeriesIndexer:
 
     def __getitem__(self, key) -> bigframes.Series:
         """
-        Only indexing by a boolean bigframes.Series is currently supported
+        Only indexing by a boolean bigframes.Series or list of index entries is currently supported
         """
         return _loc_getitem_series_or_dataframe(self._series, key)
 
@@ -67,7 +67,7 @@ class LocSeriesIndexer:
 
         # TODO(tbergeron): Use block operators rather than directly building desired ibis expressions.
         self._series._set_block(
-            blocks.Block(
+            core.blocks.Block(
                 new_expr,
                 self._series._block.index_columns,
                 self._series._block.column_labels,
@@ -84,8 +84,10 @@ class IlocSeriesIndexer:
         """
         Index series using integer offsets. Currently supports index by key type:
 
-        slice: i.e. series.iloc[2:5] returns values at index 2, 3, and 4 as a series
-        individual offset: i.e. series.iloc[0] returns value at index 0 as a scalar
+        slice: ex. series.iloc[2:5] returns values at index 2, 3, and 4 as a series
+        individual offset: ex. series.iloc[0] returns value at index 0 as a scalar
+        list: ex. series.iloc[1, 1, 2, 0] returns a series with the index 1 item repeated
+        twice, followed by the index 2 and then and 0 items in that order.
 
         Other key types are not yet supported.
         """
@@ -138,17 +140,49 @@ def _loc_getitem_series_or_dataframe(
 ) -> bigframes.DataFrame | bigframes.Series:
     if isinstance(key, bigframes.Series):
         return series_or_dataframe[key]
-    elif isinstance(key, list):
-        raise NotImplementedError(
-            "loc does not yet support indexing with a list of labels"
+    elif pd.api.types.is_list_like(key):
+        # TODO(henryjsolberg): support MultiIndex
+
+        if len(key) == 0:
+            return typing.cast(
+                typing.Union[bigframes.DataFrame, bigframes.Series],
+                series_or_dataframe.iloc[0:0],
+            )
+
+        # keys_pd_df represents a way to map from new index to old index
+        keys_pd_df = pd.DataFrame({"old_index": key})
+
+        # build a dataframe from the map in memory
+        # ordering_id is made into a hidden ordering column
+        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(keys_pd_df, None)
+        keys_df = bigframes.DataFrame(
+            core.blocks.Block(keys_expr, index_columns=["old_index"])
         )
+
+        # right join based on the old index so that the matching rows from the user's
+        # original dataframe will be duplicated and reordered appropriately
+        original_index_name = series_or_dataframe.index.name
+        if isinstance(series_or_dataframe, bigframes.Series):
+            original_name = series_or_dataframe.name
+            name = (
+                series_or_dataframe.name
+                if series_or_dataframe.name is not None
+                else "0"
+            )
+            result = series_or_dataframe.to_frame().join(keys_df, how="right")[name]
+            result = typing.cast(bigframes.Series, result)
+            result = result.rename(original_name)
+        else:
+            result = series_or_dataframe.join(keys_df, how="right")
+        result = result.rename_axis(original_index_name)
+        return result
     elif isinstance(key, slice):
         raise NotImplementedError("loc does not yet support indexing with a slice")
     elif callable(key):
         raise NotImplementedError("loc does not yet support indexing with a callable")
     else:
         raise TypeError(
-            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series."
+            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series or a list of index entries."
         )
 
 
@@ -181,8 +215,38 @@ def _iloc_getitem_series_or_dataframe(
         return result_pd_df.iloc[0]
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)
-    elif isinstance(key, list):
-        raise NotImplementedError("iloc does not yet support indexing with a list")
+    elif pd.api.types.is_list_like(key):
+        # TODO(henryjsolberg): support MultiIndex
+
+        if len(key) == 0:
+            return typing.cast(
+                typing.Union[bigframes.DataFrame, bigframes.Series],
+                series_or_dataframe.iloc[0:0],
+            )
+        df = series_or_dataframe
+        if isinstance(series_or_dataframe, bigframes.Series):
+            original_series_name = series_or_dataframe.name
+            series_name = (
+                original_series_name if original_series_name is not None else "0"
+            )
+            df = series_or_dataframe.to_frame()
+        original_index_name = df.index.name
+        temporary_index_name = bigframes.guid.generate_guid(prefix="temp_iloc_index_")
+        df = df.rename_axis(temporary_index_name)
+
+        # set to offset index and use regular loc, then restore index
+        df = df.reset_index(drop=False)
+        result = df.loc[key]
+        result = result.set_index(temporary_index_name)
+        result = result.rename_axis(original_index_name)
+
+        if isinstance(series_or_dataframe, bigframes.Series):
+            result = result[series_name]
+            result = typing.cast(bigframes.Series, result)
+            result = result.rename(original_series_name)
+
+        return result
+
     elif isinstance(key, tuple):
         raise NotImplementedError(
             "iloc does not yet support indexing with a (row, column) tuple"

@@ -167,6 +167,21 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+        """
+        Set the name of the axis for the index.
+
+        Note: currently only accepts a single string parameter (the new name of the index)
+
+        Args:
+            mapper : str
+                Value to set the axis name attribute.
+
+        Returns:
+            DataFrame with the new index name
+        """
+        raise NotImplementedError("abstract method")
+
     def set_index(
         self,
         keys,

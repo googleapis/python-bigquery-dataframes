@@ -502,6 +502,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.rename(columns=columns)
         return DataFrame(block)
 
+    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+        if len(kwargs) != 0:
+            raise NotImplementedError(
+                "rename_axis does not currently support any keyword arguments."
+            )
+        # limited implementation: the new index name is simply the 'mapper' parameter
+        block = self._block.with_index_labels([mapper])
+        return DataFrame(block)
+
     def assign(self, **kwargs) -> DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.

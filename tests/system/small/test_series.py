@@ -1632,3 +1632,93 @@ def test_getattr_not_implemented(scalars_df_index):
 def test_getattr_attribute_error(scalars_df_index):
     with pytest.raises(AttributeError):
         scalars_df_index.string_col.not_a_method()
+
+
+def test_rename(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.rename("newname")
+    pd_result = scalars_pandas_df_index.string_col.rename("newname")
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_rename_axis(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.rename_axis("newindexname")
+    pd_result = scalars_pandas_df_index.string_col.rename_axis("newindexname")
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_list_string_index(scalars_df_index, scalars_pandas_df_index):
+    index_list = scalars_pandas_df_index.string_col.iloc[[0, 1, 1, 5]].values
+
+    scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(
+        "string_col", drop=False
+    )
+
+    bf_result = scalars_df_index.string_col.loc[index_list]
+    pd_result = scalars_pandas_df_index.string_col.loc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_list_integer_index(scalars_df_index, scalars_pandas_df_index):
+    index_list = [3, 2, 1, 3, 2, 1]
+
+    bf_result = scalars_df_index.bool_col.loc[index_list]
+    pd_result = scalars_pandas_df_index.bool_col.loc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df_index.string_col.iloc[index_list]
+    pd_result = scalars_pandas_df_index.string_col.iloc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_iloc_list_nameless(scalars_df_index, scalars_pandas_df_index):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_series = scalars_df_index.string_col.rename(None)
+    bf_result = bf_series.iloc[index_list]
+    pd_series = scalars_pandas_df_index.string_col.rename(None)
+    pd_result = pd_series.iloc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_list_nameless(scalars_df_index, scalars_pandas_df_index):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_series = scalars_df_index.string_col.rename(None)
+    bf_result = bf_series.loc[index_list]
+
+    pd_series = scalars_pandas_df_index.string_col.rename(None)
+    pd_result = pd_series.loc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )

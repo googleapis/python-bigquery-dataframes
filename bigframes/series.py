@@ -114,6 +114,32 @@ class Series(bigframes.operations.base.SeriesMethods):
         """Creates a deep copy of the series."""
         return Series(self._block)
 
+    def rename(self, index: Optional[str], **kwargs) -> Series:
+        """
+        Return a copy of the series object with new name given by 'index.'
+
+        Note: Only single string parameter is currently supported.
+        """
+        if len(kwargs) != 0:
+            raise NotImplementedError(
+                "rename does not currently support any keyword arguments."
+            )
+        block = self._block.with_column_labels([index])
+        return Series(block)
+
+    def rename_axis(self, mapper: Optional[str], **kwargs) -> Series:
+        """
+        Return a copy of the series object with new index name given by 'mapper.'
+
+        Note: Only single string parameter is currently supported.
+        """
+        if len(kwargs) != 0:
+            raise NotImplementedError(
+                "rename_axis does not currently support any keyword arguments."
+            )
+        block = self._block.with_index_labels([mapper])
+        return Series(block)
+
     def reset_index(
         self,
         *,

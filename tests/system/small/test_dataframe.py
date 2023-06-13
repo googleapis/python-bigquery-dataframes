@@ -989,6 +989,7 @@ def test__dir__with_rename(scalars_dfs):
 @pytest.mark.parametrize(
     ("start", "stop", "step"),
     [
+        (0, 0, None),
         (None, None, None),
         (1, None, None),
         (None, 4, None),
@@ -1017,6 +1018,11 @@ def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step
         bf_result,
         pd_result,
     )
+
+
+def test_iloc_slice_zero_step(scalars_df_index):
+    with pytest.raises(ValueError):
+        scalars_df_index.iloc[0:0:0]
 
 
 def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
@@ -1193,3 +1199,62 @@ def test_getattr_not_implemented(scalars_df_index):
 def test_getattr_attribute_error(scalars_df_index):
     with pytest.raises(AttributeError):
         scalars_df_index.not_a_method()
+
+
+def test_loc_list_string_index(scalars_df_index, scalars_pandas_df_index):
+    index_list = scalars_pandas_df_index.string_col.iloc[[0, 1, 1, 5]].values
+
+    scalars_df_index = scalars_df_index.set_index("string_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index("string_col")
+
+    bf_result = scalars_df_index.loc[index_list]
+    pd_result = scalars_pandas_df_index.loc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_list_integer_index(scalars_df_index, scalars_pandas_df_index):
+    index_list = [3, 2, 1, 3, 2, 1]
+
+    bf_result = scalars_df_index.loc[index_list]
+    pd_result = scalars_pandas_df_index.loc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df_index.iloc[index_list]
+    pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_iloc_empty_list(scalars_df_index, scalars_pandas_df_index):
+    index_list = []
+
+    bf_result = scalars_df_index.iloc[index_list]
+    pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    bf_result = bf_result.compute()
+    assert bf_result.shape == pd_result.shape  # types are known to be different
+
+
+def test_rename_axis(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.rename_axis("newindexname")
+    pd_result = scalars_pandas_df_index.rename_axis("newindexname")
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )

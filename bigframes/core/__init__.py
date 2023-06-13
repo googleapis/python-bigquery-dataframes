@@ -118,6 +118,25 @@ class BigFramesExpr:
             column.get_name(): column for column in self._hidden_ordering_columns
         }
 
+    @classmethod
+    def mem_expr_from_pandas(
+        cls,
+        pd_df: pandas.DataFrame,
+        session: Optional[Session],
+        **kwargs,
+    ) -> BigFramesExpr:
+        """
+        Builds an in-memory only (SQL only) expr from a pandas dataframe.
+
+        Caution: If session is None, only a subset of expr functionality will be available (null Session is usually not supported).
+        """
+        keys_memtable = ibis.memtable(pd_df)
+        return cls(
+            session,  # type: ignore # Session cannot normally be none, see "caution" above
+            keys_memtable,
+            **kwargs,
+        )
+
     @property
     def table(self) -> ibis_types.Table:
         return self._table
@@ -763,15 +782,18 @@ class BigFramesExpr:
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> BigFramesExpr:
+        if step == 0:
+            raise ValueError("slice step cannot be zero")
+
         expr_with_offsets = self.project_offsets()
         # start with True and reduce with start, stop, and step conditions
         cond_list = [expr_with_offsets.offsets == expr_with_offsets.offsets]
         # TODO(tbergeron): Handle negative indexing
-        if start:
+        if start is not None:
             cond_list.append(expr_with_offsets.offsets >= start)
-        if stop:
+        if stop is not None:
             cond_list.append(expr_with_offsets.offsets < stop)
-        if step:
+        if step is not None:
             # TODO(tbergeron): Reverse the ordering if negative step
             start = start if start else 0
             cond_list.append((expr_with_offsets.offsets - start) % step == 0)
