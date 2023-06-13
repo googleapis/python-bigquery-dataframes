@@ -1053,6 +1053,7 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
         ("min",),
         ("max",),
         ("first",),
+        ("dense",),
     ],
 )
 @pytest.mark.skipif(
@@ -1068,6 +1069,44 @@ def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, m
         .rank(na_option=na_option, method=method)
         .astype(pd.Float64Dtype())
     )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        ("all",),
+    ],
+)
+def test_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
+    col_name = "bool_col"
+    bf_result = scalars_df_index[col_name].nlargest(4, keep=keep).compute()
+    pd_result = scalars_pandas_df_index[col_name].nlargest(4, keep=keep)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        ("all",),
+    ],
+)
+def test_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
+    col_name = "bool_col"
+    bf_result = scalars_df_index[col_name].nsmallest(2, keep=keep).compute()
+    pd_result = scalars_pandas_df_index[col_name].nsmallest(2, keep=keep)
 
     pd.testing.assert_series_equal(
         bf_result,

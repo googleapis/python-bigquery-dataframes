@@ -153,9 +153,21 @@ class Block:
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
 
-    def order_by(self, by: typing.Sequence[ordering.OrderingColumnReference]) -> Block:
+    def order_by(
+        self,
+        by: typing.Sequence[ordering.OrderingColumnReference],
+        stable: bool = False,
+    ) -> Block:
         return Block(
-            self._expr.order_by(by),
+            self._expr.order_by(by, stable=stable),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=[self.index.name],
+        )
+
+    def reversed(self) -> Block:
+        return Block(
+            self._expr.reversed(),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=[self.index.name],

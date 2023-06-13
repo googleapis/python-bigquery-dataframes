@@ -82,11 +82,26 @@ class ExpressionOrdering:
         )
 
     def with_ordering_columns(
-        self, ordering_value_columns: Sequence[OrderingColumnReference] = ()
+        self,
+        ordering_value_columns: Sequence[OrderingColumnReference] = (),
+        stable: bool = False,
     ):
         """Creates a new ordering that preserves ordering id, but replaces ordering value column list."""
+        if stable:
+            col_ids_new = [
+                ordering_ref.column_id for ordering_ref in ordering_value_columns
+            ]
+            # Only reference each column once, so discard old referenc if there is a new reference
+            old_ordering_keep = [
+                ordering_ref
+                for ordering_ref in self.ordering_value_columns
+                if ordering_ref.column_id not in col_ids_new
+            ]
+            new_ordering = (*ordering_value_columns, *old_ordering_keep)
+        else:  # Not stable, so discard old ordering completely
+            new_ordering = tuple(ordering_value_columns)
         return ExpressionOrdering(
-            tuple(ordering_value_columns),
+            new_ordering,
             self.ordering_id_column,
             is_sequential=False,
             ordering_encoding_size=self.ordering_encoding_size,

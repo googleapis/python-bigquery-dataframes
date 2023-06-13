@@ -260,9 +260,16 @@ class BigFramesExpr:
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
-    def order_by(self, by: Sequence[OrderingColumnReference]) -> BigFramesExpr:
+    def order_by(
+        self, by: Sequence[OrderingColumnReference], stable: bool = False
+    ) -> BigFramesExpr:
         expr_builder = self.builder()
-        expr_builder.ordering = self._ordering.with_ordering_columns(by)
+        expr_builder.ordering = self._ordering.with_ordering_columns(by, stable=stable)
+        return expr_builder.build()
+
+    def reversed(self) -> BigFramesExpr:
+        expr_builder = self.builder()
+        expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
 
     @property
@@ -518,7 +525,7 @@ class BigFramesExpr:
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
-        window = self._ibis_window_from_spec(window_spec)
+        window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
 
         window_op = op._as_ibis(column, window)
 
@@ -687,7 +694,7 @@ class BigFramesExpr:
             ordering=self._ordering,
         )
 
-    def _ibis_window_from_spec(self, window_spec: WindowSpec):
+    def _ibis_window_from_spec(self, window_spec: WindowSpec, allow_ties: bool = False):
         group_by: typing.List[ibis_types.Value] = (
             [
                 typing.cast(ibis_types.Column, self.get_column(column))
@@ -699,11 +706,13 @@ class BigFramesExpr:
         if self.reduced_predicate is not None:
             group_by.append(self.reduced_predicate)
         if window_spec.ordering:
-            order_overrides = _convert_ordering_to_table_values(
+            order_by = _convert_ordering_to_table_values(
                 {**self._column_names, **self._hidden_ordering_column_names},
                 window_spec.ordering,
             )
-            order_by = tuple([*order_overrides, *self.ordering])
+            if not allow_ties:
+                # Most operator need an unambiguous ordering, so the table's total ordering is appended
+                order_by = tuple([*order_by, *self.ordering])
         elif (window_spec.following is not None) or (window_spec.preceding is not None):
             # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
             order_by = tuple(self.ordering)

@@ -288,9 +288,6 @@ class Series(bigframes.operations.base.SeriesMethods):
             )
         if na_option not in ["keep", "top", "bottom"]:
             raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
-        if method == "rank":
-            # Dense rank has a somewhat different implementation than all other methods
-            return self._dense_rank(na_option)
         # Step 1: Calculate row numbers for each row
         block = self._block
         # Identify null values to be treated according to na_option param
@@ -304,17 +301,17 @@ class Series(bigframes.operations.base.SeriesMethods):
                 OrderingColumnReference(
                     self._value_column,
                     OrderingDirection.ASC,
-                    na_last=(na_option == "bottom"),
+                    na_last=(na_option in ["bottom", "keep"]),
                 ),
             ),
         )
         # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
         block, rownum_id = block.apply_window_op(
             self._value_column if na_option == "keep" else nullity_col_id,
-            agg_ops.count_op,
+            agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
             window_spec=window,
         )
-        if method == "first":
+        if method in ["first", "dense"]:
             result = Series(
                 block.select_column(rownum_id).assign_label(rownum_id, self.name)
             )
@@ -337,14 +334,10 @@ class Series(bigframes.operations.base.SeriesMethods):
         if na_option == "keep":
             # For na_option "keep", null inputs must produce null outputs
             result = result.mask(self.isnull(), pandas.NA)
-        if method in ["min", "max", "first"]:
+        if method in ["min", "max", "first", "dense"]:
             # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
             result = result.astype(pandas.Float64Dtype())
         return result
-
-    def _dense_rank(self, na_option: str):
-        # TODO(tbergeron)
-        raise NotImplementedError("Dense rank not implemented")
 
     def fillna(self, value) -> "Series":
         """Fills NULL values."""
@@ -353,6 +346,60 @@ class Series(bigframes.operations.base.SeriesMethods):
     def head(self, n: int = 5) -> Series:
         """Limits Series to a specific number of rows."""
         return typing.cast(Series, self.iloc[0:n])
+
+    def nlargest(
+        self, n: int = 5, keep: typing.Literal["first", "last", "all"] = "first"
+    ) -> Series:
+        if keep not in ("first", "last", "all"):
+            raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        block = self._block
+        if keep == "last":
+            block = block.reversed()
+        ordering = (
+            OrderingColumnReference(
+                self._value_column, direction=OrderingDirection.DESC
+            ),
+        )
+        block = block.order_by(ordering, stable=True)
+        if keep in ("first", "last"):
+            return Series(block.slice(0, n))
+        else:  # keep == "all":
+            block, counter = block.apply_window_op(
+                self._value_column,
+                agg_ops.rank_op,
+                window_spec=WindowSpec(ordering=ordering),
+            )
+            block, condition = block.apply_unary_op(
+                counter, ops.partial_right(ops.le_op, n)
+            )
+            block = block.filter(condition)
+            block = block.select_column(self._value_column)
+            return Series(block)
+
+    def nsmallest(
+        self, n: int = 5, keep: typing.Literal["first", "last", "all"] = "first"
+    ) -> Series:
+        if keep not in ("first", "last", "all"):
+            raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        block = self._block
+        if keep == "last":
+            block = block.reversed()
+        ordering = (OrderingColumnReference(self._value_column),)
+        block = block.order_by(ordering, stable=True)
+        if keep in ("first", "last"):
+            return Series(block.slice(0, n))
+        else:  # keep == "all":
+            block, counter = block.apply_window_op(
+                self._value_column,
+                agg_ops.rank_op,
+                window_spec=WindowSpec(ordering=ordering),
+            )
+            block, condition = block.apply_unary_op(
+                counter, ops.partial_right(ops.le_op, n)
+            )
+            block = block.filter(condition)
+            block = block.select_column(self._value_column)
+            return Series(block)
 
     def isnull(self) -> "Series":
         """Returns a boolean same-sized object indicating if the values are NULL/missing."""
@@ -850,7 +897,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             )
         )
 
-    def sort_values(self, axis=0, ascending=True, na_position="last") -> Series:
+    def sort_values(self, *, axis=0, ascending=True, na_position="last") -> Series:
         """Sort series by values in ascending or descending order."""
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
@@ -1271,7 +1318,7 @@ class SeriesGroupBy:
             agg_ops.rank_op,
             bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
             discard_name=True,
-        )
+        )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
 
     def shift(self, periods=1) -> Series:
         """Shift index by desired number of periods."""

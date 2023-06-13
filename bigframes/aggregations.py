@@ -30,6 +30,11 @@ class WindowOp:
         """Whether the window op skips null rows."""
         return True
 
+    @property
+    def handles_ties(self):
+        """Whether the operator can handle ties without nondeterministic output. (eg. rank operator can handle ties but not the count operator)"""
+        return False
+
 
 class AggregateOp(WindowOp):
     def _as_ibis(self, value: ibis_types.Column, window=None):
@@ -152,11 +157,32 @@ class RankOp(WindowOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.IntegerValue:
-        return _apply_window_if_present(column.rank(), window)
+        # Ibis produces 0-based ranks, while pandas creates 1-based ranks
+        return _apply_window_if_present(column.rank(), window) + 1
 
     @property
     def skips_nulls(self):
         return False
+
+    @property
+    def handles_ties(self):
+        return True
+
+
+class DenseRankOp(WindowOp):
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        # Ibis produces 0-based ranks, while pandas creates 1-based ranks
+        return _apply_window_if_present(column.dense_rank(), window) + 1
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    @property
+    def handles_ties(self):
+        return True
 
 
 class FirstOp(WindowOp):
@@ -244,6 +270,7 @@ std_op = StdOp()
 var_op = VarOp()
 count_op = CountOp()
 rank_op = RankOp()
+dense_rank_op = DenseRankOp()
 all_op = AllOp()
 any_op = AnyOp()
 first_op = FirstOp()
