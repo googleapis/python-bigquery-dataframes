@@ -35,9 +35,7 @@ import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, bigquery_connection_v1, functions_v2
 from ibis.backends.bigquery.compiler import compiles
-from ibis.backends.bigquery.datatypes import (
-    dtype_to_bigquery as ibis_type_to_bigquery_type,
-)
+from ibis.backends.bigquery.datatypes import BigQueryType
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
@@ -165,11 +163,11 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = ibis_type_to_bigquery_type(output_type)
+        bq_function_return_type = BigQueryType.from_ibis(output_type)
         # We are expecting the input type annotations to be 1:1 with the input args
         for idx, name in enumerate(input_args):
             bq_function_args.append(
-                f"{name} {ibis_type_to_bigquery_type(input_types[idx])}"
+                f"{name} {BigQueryType.from_ibis(input_types[idx])}"
             )
         create_function_ddl = f"""
     CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
