@@ -174,6 +174,9 @@ class AsTypeOp(UnaryOp):
         self.to_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(to_type)
 
     def _as_ibis(self, x: ibis_types.Value):
+        if isinstance(x, ibis_types.NullScalar):
+            return ibis_types.null().cast(self.to_type)
+
         return bigframes.dtypes.cast_ibis_value(x, self.to_type)
 
 

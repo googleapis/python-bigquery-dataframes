@@ -13,27 +13,34 @@
 # limitations under the License.
 
 """BigFrames top level APIs."""
-from typing import Iterable
 
-from bigframes.core import blocks
+import typing
+
 from bigframes.dataframe import DataFrame
+from bigframes.series import Series
 
 
-def concat(objs: Iterable[DataFrame]) -> DataFrame:
+def concat(
+    objs: typing.Iterable[typing.Union[DataFrame, Series]],
+    *,
+    join: typing.Literal["inner", "outer"] = "outer"
+) -> typing.Union[DataFrame, Series]:
     """Concatenate BigFrames objects along rows.
 
-    Note: currently only supports DataFrames with identical schemas (including index columns) and column names.
+    Note: currently only supports DataFrames with matching types for each column name.
     """
-    # TODO(garrettwu): Figure out how to support DataFrames with different schema, or emit appropriate error message.
-    objs = list(objs)
-    block_0 = objs[0]._block
-    expressions = [obj._block.expr for obj in objs]
-    index_names = list(set([obj._block.index.name for obj in objs]))
-    cat_expr = expressions[0].concat(expressions[1:])
-    block = blocks.Block(
-        cat_expr,
-        index_columns=block_0.index_columns,
-        column_labels=objs[0]._block.column_labels,
-        index_labels=[index_names[0] if len(index_names) == 1 else None],
-    )
+    contains_dataframes = any(isinstance(x, DataFrame) for x in objs)
+    if not contains_dataframes:
+        # Special case, all series, so align everything into single column even if labels dont' match
+        series = typing.cast(typing.Iterable[Series], objs)
+        names = {s.name for s in series}
+        # For series case, labels are stripped if they don't all match
+        if len(names) > 1:
+            blocks = [s._block.with_column_labels([None]) for s in series]
+        else:
+            blocks = [s._block for s in series]
+        block = blocks[0].concat(blocks[1:], how=join)
+        return Series(block)
+    blocks = [obj._block for obj in objs]
+    block = blocks[0].concat(blocks[1:], how=join)
     return DataFrame(block)

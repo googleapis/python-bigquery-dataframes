@@ -389,13 +389,13 @@ class BigFramesExpr:
             # Rename the value columns based on horizontal offset before applying union.
             table = table.select(
                 [
-                    col
+                    table[col].name(f"column_{i}")
                     if col != ORDER_ID_COLUMN
                     else (
                         ordering_prefix
                         + stringify_order_id(table[ORDER_ID_COLUMN], max_encoding_size)
                     ).name(ORDER_ID_COLUMN)
-                    for col in table.columns
+                    for i, col in enumerate(table.columns)
                 ]
             )
             tables.append(table)

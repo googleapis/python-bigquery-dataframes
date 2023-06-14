@@ -277,16 +277,17 @@ class Block:
 
         return df, results_iterator.total_rows
 
-    def with_column_labels(self, value: List[Label]) -> Block:
-        if len(value) != len(self.value_columns):
+    def with_column_labels(self, value: typing.Iterable[Label]) -> Block:
+        label_list = tuple(value)
+        if len(label_list) != len(self.value_columns):
             raise ValueError(
-                f"The column labels size `{len(value)} ` should equal to the value"
+                f"The column labels size `{len(label_list)} ` should equal to the value"
                 + f"columns size: {len(self.value_columns)}."
             )
         return Block(
             self._expr,
             index_columns=self.index_columns,
-            column_labels=tuple(value),
+            column_labels=label_list,
             index_labels=[self.index.name],
         )
 
@@ -648,6 +649,94 @@ class Block:
                 column_labels=[f"{label}{suffix}" for label in self.column_labels],
                 index_labels=self._index_labels,
             )
+
+    def concat(
+        self, other: typing.Iterable[Block], how: typing.Literal["inner", "outer"]
+    ):
+        # Only works if indices are the same type and types match wherever labels match
+        blocks = [self, *other]
+        aligned_schema = _align_schema(blocks, how=how)
+        aligned_blocks = [
+            _align_block_to_schema(block, aligned_schema) for block in blocks
+        ]
+        result_expr = aligned_blocks[0]._expr.concat(
+            [block._expr for block in aligned_blocks[1:]]
+        )
+        return Block(
+            result_expr,
+            index_columns=[list(result_expr.column_names.keys())[0]],
+            column_labels=aligned_blocks[0].column_labels,
+            index_labels=[self.index.name],
+        )
+
+
+def _align_block_to_schema(
+    block: Block, schema: dict[Label, bigframes.dtypes.BigFramesDtype]
+) -> Block:
+    col_ids: typing.Tuple[str, ...] = ()
+    for label, dtype in schema.items():
+        # TODO: Support casting to lcd type - requires mixed type support
+        matching_ids: typing.Sequence[str] = block.label_to_col_id.get(label, ())
+        if len(matching_ids) > 0:
+            col_id = matching_ids[-1]
+            col_ids = (*col_ids, col_id)
+        else:
+            block, precast_null = block.create_constant(None)
+            block, null_column = block.apply_unary_op(precast_null, ops.AsTypeOp(dtype))
+            col_ids = (*col_ids, null_column)
+    return block.select_columns(col_ids).with_column_labels(
+        [item for item in schema.keys()]
+    )
+
+
+def _align_schema(
+    blocks: typing.Iterable[Block], how: typing.Literal["inner", "outer"]
+) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    schemas = [_get_block_schema(block) for block in blocks]
+    reduction = _combine_schema_inner if how == "inner" else _combine_schema_outer
+    return functools.reduce(reduction, schemas)
+
+
+def _combine_schema_inner(
+    left: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
+    right: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
+) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    result = dict()
+    for label, type in left.items():
+        if label in right:
+            if type != right[label]:
+                raise ValueError(
+                    f"Cannot concat rows with label {label} due to mismatched types"
+                )
+            result[label] = type
+    return result
+
+
+def _combine_schema_outer(
+    left: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
+    right: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
+) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    result = dict()
+    for label, type in left.items():
+        if (label in right) and (type != right[label]):
+            raise ValueError(
+                f"Cannot concat rows with label {label} due to mismatched types"
+            )
+        result[label] = type
+    for label, type in right.items():
+        if label not in left:
+            result[label] = type
+    return result
+
+
+def _get_block_schema(
+    block: Block,
+) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    """Extracts the schema from the block. Where duplicate labels exist, take the last matching column."""
+    result = dict()
+    for label, dtype in zip(block.column_labels, block.dtypes):
+        result[label] = typing.cast(bigframes.dtypes.BigFramesDtype, dtype)
+    return result
 
 
 def _get_axis_number(axis: str | int | None) -> typing.Literal[0, 1]:

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 import bigframes as bf
 
@@ -23,8 +24,41 @@ def test_concat_dataframe(scalars_dfs):
     bf_result = bf_result.compute()
     pd_result = pd.concat(11 * [scalars_pandas_df])
 
-    if pd_result.index.name != "rowindex":
-        bf_result = bf_result.sort_values("rowindex", ignore_index=True)
-        pd_result = pd_result.sort_values("rowindex", ignore_index=True)
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_concat_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = bf.concat(
+        [scalars_df.int64_col, scalars_df.int64_too, scalars_df.int64_col]
+    )
+    bf_result = bf_result.compute()
+    pd_result = pd.concat(
+        [
+            scalars_pandas_df.int64_col,
+            scalars_pandas_df.int64_too,
+            scalars_pandas_df.int64_col,
+        ]
+    )
+
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("how",),
+    [
+        ("inner",),
+        ("outer",),
+    ],
+)
+def test_concat_dataframe_mismatched_columns(scalars_dfs, how):
+    cols1 = ["int64_too", "int64_col", "float64_col"]
+    cols2 = ["int64_col", "string_col", "int64_too"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = bf.concat([scalars_df[cols1], scalars_df[cols2]], join=how)
+    bf_result = bf_result.compute()
+    pd_result = pd.concat(
+        [scalars_pandas_df[cols1], scalars_pandas_df[cols2]], join=how
+    )
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
