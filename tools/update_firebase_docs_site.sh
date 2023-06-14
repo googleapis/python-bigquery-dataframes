@@ -50,12 +50,15 @@ versions="${BIGFRAMES_DOCS_VERSION} latest"
 for version in ${versions}; do
     site_name=bigframes-docs-${version}
     if ! firebase hosting:sites:list | grep ${site_name}; then
-        firebase hosting:sites:create bigframes-docs-${version}
+        firebase hosting:sites:create ${site_name}
     fi
 
-    firebase target:apply hosting ${version} bigframes-docs-${version}
+    firebase target:apply hosting ${version} ${site_name}
 done
 
+# Make sure the firebase json config is consistent with ${versions}
+# TODO(shobs): Come up with a better way of updating the config than
+# a hard overwrite
 cat > firebase.json << EOF
 {
   "hosting": [

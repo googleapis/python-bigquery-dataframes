@@ -113,7 +113,7 @@ gcs_docs () {
   docs_gcs_bucket=gs://bigframes-docs
   docs_local_html_folder=docs/_build/html
   if [ ! -d ${docs_local_html_folder} ]; then
-    pythons -m nox -s docs
+    python3 -m nox -s docs
   fi
 
   gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}
