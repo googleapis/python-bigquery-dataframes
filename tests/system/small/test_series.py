@@ -1275,9 +1275,16 @@ def test_iloc_nested(scalars_df_index, scalars_pandas_df_index):
         (3, None, 2),
         (1, 7, 2),
         (1, 7, 50000000000),
+        (-1, -7, -2),
+        (None, -7, -2),
+        (-1, None, -2),
+        (-7, -1, 2),
+        (-7, -1, None),
+        (-7, 7, None),
+        (7, -7, -2),
     ],
 )
-def test_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
+def test_series_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index["string_col"].iloc[start:stop:step].compute()
     pd_result = scalars_pandas_df_index["string_col"].iloc[start:stop:step]
 

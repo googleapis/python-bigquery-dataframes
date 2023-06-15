@@ -246,7 +246,7 @@ class BigFramesExpr:
             )
         return typing.cast(ibis_types.Value, all_columns[key])
 
-    def _get_hidden_ordering_column(self, key: str) -> ibis_types.Value:
+    def _get_hidden_ordering_column(self, key: str) -> ibis_types.Column:
         """Gets the Ibis expression for a given hidden column."""
         if key not in self._hidden_ordering_column_names.keys():
             raise ValueError(
@@ -254,7 +254,7 @@ class BigFramesExpr:
                     key, self._hidden_ordering_column_names.keys()
                 )
             )
-        return self._hidden_ordering_column_names[key]
+        return typing.cast(ibis_types.Column, self._hidden_ordering_column_names[key])
 
     def apply_limit(self, max_results: int) -> BigFramesExpr:
         table = self.to_ibis_expr().limit(max_results)
@@ -331,25 +331,22 @@ class BigFramesExpr:
         expr_builder.ordering = self._ordering.with_ordering_columns(ordering_columns)
         return expr_builder.build()
 
-    def promote_offsets(self, value_col_id: str) -> BigFramesExpr:
+    def promote_offsets(self) -> typing.Tuple[BigFramesExpr, str]:
         """
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
-
-        Args:
-            value_col_id: The id that will be used for the resulting column id. Should not match any existing column ids.
-            is_reverse: If true, will instead generate a value column using offsets in reverse order.
         """
         # Special case: offsets already exist
-        # TODO(tbergeron): Create version that generates reverse offsets (for negative indexing)
         ordering = self._ordering
+
         if (not ordering.is_sequential) or (not ordering.ordering_id):
-            return self.project_offsets().promote_offsets(value_col_id)
+            return self.project_offsets().promote_offsets()
+        col_id = bigframes.core.guid.generate_guid()
         expr_builder = self.builder()
         expr_builder.columns = [
-            self._get_hidden_ordering_column(ordering.ordering_id).name(value_col_id),
+            self._get_hidden_ordering_column(ordering.ordering_id).name(col_id),
             *self.columns,
         ]
-        return expr_builder.build()
+        return expr_builder.build(), col_id
 
     def select_columns(self, column_ids: typing.Sequence[str]):
         return self.projection([self.get_column(col_id) for col_id in column_ids])
@@ -814,21 +811,42 @@ class BigFramesExpr:
             raise ValueError("slice step cannot be zero")
 
         expr_with_offsets = self.project_offsets()
+
         # start with True and reduce with start, stop, and step conditions
         cond_list = [expr_with_offsets.offsets == expr_with_offsets.offsets]
-        # TODO(tbergeron): Handle negative indexing
+
+        if not step:
+            step = 1
+
+        last_offset = expr_with_offsets.offsets.max()
+
+        # Convert negative indexes to positive indexes
+        if start and start < 0:
+            start = last_offset + start + 1
+        if stop and stop < 0:
+            stop = last_offset + stop + 1
+
         if start is not None:
-            cond_list.append(expr_with_offsets.offsets >= start)
+            if step >= 1:
+                cond_list.append(expr_with_offsets.offsets >= start)
+            else:
+                cond_list.append(expr_with_offsets.offsets <= start)
         if stop is not None:
-            cond_list.append(expr_with_offsets.offsets < stop)
-        if step is not None:
-            # TODO(tbergeron): Reverse the ordering if negative step
-            start = start if start else 0
+            if step >= 1:
+                cond_list.append(expr_with_offsets.offsets < stop)
+            else:
+                cond_list.append(expr_with_offsets.offsets > stop)
+        if step > 1:
+            start = start if (start is not None) else 0
             cond_list.append((expr_with_offsets.offsets - start) % step == 0)
+        if step < 0:
+            start = start if (start is not None) else last_offset
+            cond_list.append((start - expr_with_offsets.offsets) % (-step) == 0)
+
         sliced_expr = expr_with_offsets.filter(
             functools.reduce(lambda x, y: x & y, cond_list)
         )
-        return sliced_expr
+        return sliced_expr if step > 0 else sliced_expr.reversed()
 
 
 class BigFramesExprBuilder:

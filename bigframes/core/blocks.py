@@ -72,8 +72,7 @@ class Block:
                 "'index_columns' and 'index_labels' must have equal length"
             )
         if len(list(index_columns)) == 0:
-            new_index_col_id = guid.generate_guid(prefix="index_")
-            expr = expr.promote_offsets(new_index_col_id)
+            expr, new_index_col_id = expr.promote_offsets()
             index_columns = [new_index_col_id]
         if len(list(index_columns)) > 1:
             raise NotImplementedError("MultiIndex not supported")
@@ -185,8 +184,7 @@ class Block:
             from Index classes that point to this block.
         """
         block = self
-        new_index_col_id = guid.generate_guid(prefix="index_")
-        expr = self._expr.promote_offsets(new_index_col_id)
+        expr, new_index_col_id = self._expr.promote_offsets()
         if drop:
             # Even though the index might be part of the ordering, keep that
             # ordering expression as reset_index shouldn't change the row
@@ -614,10 +612,10 @@ class Block:
         return block
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
-        result_id = guid.generate_guid()
+        expr, result_id = self._expr.promote_offsets()
         return (
             Block(
-                self._expr.promote_offsets(value_col_id=result_id),
+                expr,
                 index_columns=self.index_columns,
                 column_labels=[label, *self.column_labels],
                 index_labels=self._index_labels,
