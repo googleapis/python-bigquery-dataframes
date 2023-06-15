@@ -1530,6 +1530,24 @@ def test_to_markdown(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+def test_series_values(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].values
+
+    pd_result = scalars_pandas_df_index["int64_too"].values
+    # Numpy isn't equipped to compare non-numeric objects, so convert back to dataframe
+    pd.testing.assert_series_equal(
+        pd.Series(bf_result), pd.Series(pd_result), check_dtype=False
+    )
+
+
+def test_series___array__(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["float64_col"].__array__()
+
+    pd_result = scalars_pandas_df_index["float64_col"].__array__()
+    # Numpy isn't equipped to compare non-numeric objects, so convert back to dataframe
+    numpy.array_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("ascending", "na_position"),
     [

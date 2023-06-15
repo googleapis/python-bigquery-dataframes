@@ -84,6 +84,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def empty(self) -> bool:
         return self._block.shape()[0] == 0
 
+    @property
+    def values(self) -> numpy.ndarray:
+        return self.to_numpy()
+
     def copy(self) -> Series:
         return Series(self._block)
 
@@ -944,6 +948,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
         return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
+
+    __array__ = to_numpy
 
     def to_pickle(self, path, **kwargs) -> None:
         return self.compute().to_pickle(path, **kwargs)

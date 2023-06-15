@@ -1236,6 +1236,36 @@ def test_df_add_suffix(scalars_df_index, scalars_pandas_df_index, axis):
     )
 
 
+def test_df_values(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.values
+
+    pd_result = scalars_pandas_df_index.values
+    # Numpy isn't equipped to compare non-numeric objects, so convert back to dataframe
+    pd.testing.assert_frame_equal(
+        pd.DataFrame(bf_result), pd.DataFrame(pd_result), check_dtype=False
+    )
+
+
+def test_df_to_numpy(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.to_numpy()
+
+    pd_result = scalars_pandas_df_index.to_numpy()
+    # Numpy isn't equipped to compare non-numeric objects, so convert back to dataframe
+    pd.testing.assert_frame_equal(
+        pd.DataFrame(bf_result), pd.DataFrame(pd_result), check_dtype=False
+    )
+
+
+def test_df___array__(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.__array__()
+
+    pd_result = scalars_pandas_df_index.__array__()
+    # Numpy isn't equipped to compare non-numeric objects, so convert back to dataframe
+    pd.testing.assert_frame_equal(
+        pd.DataFrame(bf_result), pd.DataFrame(pd_result), check_dtype=False
+    )
+
+
 def test_getattr_not_implemented(scalars_df_index):
     with pytest.raises(NotImplementedError):
         scalars_df_index.asof()

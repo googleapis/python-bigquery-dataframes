@@ -34,6 +34,7 @@ from typing import (
 import google.cloud.bigquery as bigquery
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
+import numpy
 import pandas as pd
 import typing_extensions
 
@@ -234,6 +235,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): Should also return true if there are columns but no
         # rows.
         return not bool(self._block.value_columns)
+
+    @property
+    def values(self) -> numpy.ndarray:
+        return self.to_numpy()
 
     def astype(
         self,
@@ -1145,6 +1150,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._execute_query(index=index, job_config=job_config)
+
+    def to_numpy(
+        self, dtype=None, copy=False, na_value=None, **kwargs
+    ) -> numpy.ndarray:
+        return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
+
+    __array__ = to_numpy
 
     def to_parquet(self, path: str, *, index: bool = True) -> None:
         # TODO(swast): Can we support partition columns argument?
