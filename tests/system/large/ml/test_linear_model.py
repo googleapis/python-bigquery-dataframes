@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas
+import pandas as pd
 
 import bigframes.ml.linear_model
 
@@ -41,7 +41,7 @@ def test_linear_regression_auto_split_configure_fit_score(
 
     # Check score to ensure the model was fitted
     result = model.score().compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "mean_absolute_error": [225.735767],
             "mean_squared_error": [80417.461828],
@@ -53,7 +53,7 @@ def test_linear_regression_auto_split_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
@@ -89,7 +89,7 @@ def test_linear_regression_manual_split_configure_fit_score(
 
     # Check score to ensure the model was fitted
     result = model.score().compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "mean_absolute_error": [225.735767],
             "mean_squared_error": [80417.461828],
@@ -101,7 +101,7 @@ def test_linear_regression_manual_split_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
@@ -132,7 +132,7 @@ def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
 
     # Check score to ensure the model was fitted
     result = model.score().compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "precision": [0.58085],
             "recall": [0.582576],
@@ -144,7 +144,7 @@ def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -183,7 +183,7 @@ def test_logistic_regression_manual_split_configure_fit_score(
 
     # Check score to ensure the model was fitted
     result = model.score().compute()
-    expected = pandas.DataFrame(
+    expected = pd.DataFrame(
         {
             "precision": [0.616753],
             "recall": [0.618615],
@@ -195,7 +195,7 @@ def test_logistic_regression_manual_split_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(

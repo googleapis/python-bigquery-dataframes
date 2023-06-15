@@ -122,7 +122,7 @@ class LinearRegression(bigframes.ml.api_primitives.BaseEstimator):
         self,
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
-    ):
+    ) -> bigframes.DataFrame:
         """Calculate evaluation metrics of the model.
 
         Args:
@@ -266,7 +266,7 @@ class LogisticRegression(bigframes.ml.api_primitives.BaseEstimator):
         self,
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
-    ):
+    ) -> bigframes.DataFrame:
         """Calculate evaluation metrics of the model.
 
         Args:

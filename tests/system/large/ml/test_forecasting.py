@@ -12,13 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pandas as pd
+
 from bigframes.ml import forecasting
 
 
-def test_arima_plus_model(time_series_df_default_index):
+def test_arima_plus_model_fit_score(
+    time_series_df_default_index, dataset_id, new_time_series_df
+):
     model = forecasting.ARIMAPlus()
     train_X = time_series_df_default_index[["parsed_date"]]
     train_y = time_series_df_default_index[["total_visits"]]
     model.fit(train_X, train_y)
 
-    # TODO(garrettwu): add tests save/load/eval tests
+    result = model.score(
+        new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
+    ).compute()
+    expected = pd.DataFrame(
+        {
+            "mean_absolute_error": [154.742547],
+            "mean_squared_error": [26844.868855],
+            "root_mean_squared_error": [163.844038],
+            "mean_absolute_percentage_error": [6.189702],
+            "symmetric_mean_absolute_percentage_error": [6.097155],
+        },
+        dtype="Float64",
+    )
+    expected = expected.reindex(index=expected.index.astype("Int64"))
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+
+    # save, load to ensure configuration was kept
+    reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
+    assert (
+        f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
+    )

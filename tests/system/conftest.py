@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import hashlib
 import logging
 import pathlib
@@ -23,6 +24,7 @@ import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
 import pandas as pd
 import pytest
+import pytz
 import test_utils.prefixer
 
 import bigframes
@@ -343,6 +345,27 @@ def time_series_df_default_index(
 ) -> bigframes.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(time_series_table_id)
+
+
+@pytest.fixture(scope="session")
+def new_time_series_pandas_df():
+    """Additional data matching the time series dataset. The values are dummy ones used to basically check the prediction scores."""
+    utc = pytz.utc
+    return pd.DataFrame(
+        {
+            "parsed_date": [
+                datetime(2017, 8, 2, tzinfo=utc),
+                datetime(2017, 8, 3, tzinfo=utc),
+                datetime(2017, 8, 4, tzinfo=utc),
+            ],
+            "total_visits": [2500, 2500, 2500],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def new_time_series_df(session, new_time_series_pandas_df):
+    return session.read_pandas(new_time_series_pandas_df)
 
 
 @pytest.fixture(scope="session")

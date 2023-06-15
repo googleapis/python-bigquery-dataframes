@@ -71,3 +71,36 @@ class ARIMAPlus(bigframes.ml.api_primitives.BaseEstimator):
         return cast(
             bigframes.DataFrame, self._bqml_model.forecast()[_PREDICT_OUTPUT_COLUMNS]
         )
+
+    # Unlike regression models, time series forcasting can only evaluate with unseen data. X and y must be providee.
+    def score(
+        self,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
+    ) -> bigframes.DataFrame:
+        """Calculate evaluation metrics of the model.
+
+        Args:
+            X: a BigFrames DataFrame only contains 1 column as evaluation timestamp. The timestamp must be within the horizon of the model, which by default is 1000 data points.
+            y: a BigFrames DataFrame only contains 1 column as evaluation numeric values.
+
+        Returns: a BigFrames DataFrame as evaluation result."""
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        input_data = X.join(y, how="outer")
+        return self._bqml_model.evaluate(input_data)
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> ARIMAPlus:
+        """Save the model to Google Cloud BigQuey.
+
+        Args:
+            model_name: the name of the model.
+            replace: whether to replace if the model already exists. Default to False.
+
+        Returns: saved model."""
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before it can be saved")
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
