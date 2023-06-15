@@ -44,6 +44,8 @@ dependencies = [
     "pydata-google-auth >=1.5.0",
     "scikit-learn >=1.2.2",
     "sqlalchemy >=1.4,<3.0",
+    "ipywidgets >=7.7.1",
+    "humanize >= 4.6.0",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.

@@ -61,6 +61,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.indexes as indexes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.dataframe as dataframe
+import bigframes.formatting_helpers as formatting_helpers
 import bigframes.ml.loader
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.version
@@ -957,7 +958,14 @@ class Session(
             query_job = self.bqclient.query(sql, job_config=job_config)
         else:
             query_job = self.bqclient.query(sql)
-        results_iterator = query_job.result(max_results=max_results)
+
+        opts = bigframes.options.display
+        if opts.progress_bar is not None:
+            results_iterator = formatting_helpers.wait_for_job(
+                query_job, max_results, opts.progress_bar
+            )
+        else:
+            results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
 
     def _extract_table(self, source_table, destination_uris, job_config):

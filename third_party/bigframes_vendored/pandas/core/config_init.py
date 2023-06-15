@@ -20,4 +20,6 @@ Attributes:
         If max_columns is exceeded, switch to truncate view.
     max_rows (int):
         If max_rows is exceeded, switch to truncate view.
+    progress_bar Optional(str):
+        Determines if progress bars are shown during job runs. Use auto | notebook | terminal. Set to 'None' to remove progress bars
 """

@@ -33,12 +33,18 @@ PACKAGE_NAME_EXTRACTOR = re.compile("^[a-zA-Z0-9._-]+")
 # TODO(swast): We can remove this workaround once these packages bundle the
 # license file.
 #
+# ipython-genutils and recommonmark are both in an archived state with no likely updates in the future
+#
 # Tracking issues:
 # * https://github.com/grpc/grpc/issues/33557
 # * https://github.com/gsnedders/python-webencodings/issues/33
+# * https://github.com/pickleshare/pickleshare/issues/34
 DIRECT_LICENSE_MAPPINGS = {
     "grpcio-status": "https://raw.githubusercontent.com/grpc/grpc/master/LICENSE",
     "webencodings": "https://raw.githubusercontent.com/gsnedders/python-webencodings/master/LICENSE",
+    "ipython-genutils": "https://raw.githubusercontent.com/ipython/ipython_genutils/master/COPYING.md",
+    "pickleshare": "https://raw.githubusercontent.com/pickleshare/pickleshare/master/LICENSE",
+    "recommonmark": "https://raw.githubusercontent.com/readthedocs/recommonmark/master/license.md",
 }
 
 
