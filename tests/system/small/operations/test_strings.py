@@ -197,3 +197,16 @@ def test_repeat(scalars_dfs, repeats):
         pd_result,
         bf_result,
     )
+
+
+def test_capitalize(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.str.capitalize().compute()
+    pd_result = scalars_pandas_df[col_name].str.capitalize()
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )

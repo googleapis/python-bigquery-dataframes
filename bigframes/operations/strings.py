@@ -65,3 +65,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
     def repeat(self, repeats=None) -> series.Series:
         """Duplicate each string in the Series."""
         return self._apply_unary_op(ops.RepeatOp(repeats))
+
+    def capitalize(self) -> series.Series:
+        """Convert strings in the Series to be capitalized."""
+        return self._apply_unary_op(ops.capitalize_op)

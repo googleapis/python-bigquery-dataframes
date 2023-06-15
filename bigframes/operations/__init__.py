@@ -108,6 +108,11 @@ class LstripOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).lstrip()
 
 
+class CapitalizeOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).capitalize()
+
+
 class HashOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.IntegerValue, x).hash()
@@ -259,6 +264,7 @@ quarter_op = QuarterOp()
 second_op = SecondOp()
 time_op = TimeOp()
 year_op = YearOp()
+capitalize_op = CapitalizeOp()
 
 
 ### Binary Ops
