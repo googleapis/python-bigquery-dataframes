@@ -122,18 +122,29 @@ def test_model_predict_with_unnamed_index(
 def test_model_generate_text(
     bqml_palm2_text_generator_model: bigframes.ml.core.BqmlModel, llm_text_df
 ):
-    options = {"temperature": 0.5, "max_output_tokens": 100, "top_k": 20, "top_p": 0.5}
+    options = {
+        "temperature": 0.5,
+        "max_output_tokens": 100,
+        "top_k": 20,
+        "top_p": 0.5,
+        "flatten_json_output": True,
+    }
     df = bqml_palm2_text_generator_model.generate_text(
         llm_text_df, options=options
     ).compute()
 
-    TestCase().assertSequenceEqual(df.shape, (3, 3))
+    TestCase().assertSequenceEqual(df.shape, (3, 4))
     TestCase().assertSequenceEqual(
-        ["ml_generate_text_result", "ml_generate_text_status", "prompt"],
+        [
+            "ml_generate_text_llm_result",
+            "ml_generate_text_rai_result",
+            "ml_generate_text_status",
+            "prompt",
+        ],
         df.columns.to_list(),
     )
-    series = df["ml_generate_text_result"]
-    assert all(series.str.contains("predictions"))
+    series = df["ml_generate_text_llm_result"]
+    assert all(series.str.len() > 20)
 
 
 def test_model_forecast(time_series_bqml_arima_plus_model: bigframes.ml.core.BqmlModel):

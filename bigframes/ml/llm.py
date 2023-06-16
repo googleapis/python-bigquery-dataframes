@@ -23,7 +23,7 @@ import bigframes.ml.api_primitives
 import bigframes.ml.core
 
 _REMOTE_LLM_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
-_TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_result"
+_TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
 
 class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
@@ -100,6 +100,7 @@ class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
             "max_output_tokens": max_output_tokens,
             "top_k": top_k,
             "top_p": top_p,
+            "flatten_json_output": True,
         }
         df = self._bqml_model.generate_text(X, options)
         return cast(

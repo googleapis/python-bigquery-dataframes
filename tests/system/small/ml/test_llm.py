@@ -23,9 +23,9 @@ def test_create_model(palm2_text_generator_model):
 def test_predict_default_params_success(palm2_text_generator_model, llm_text_df):
     df = palm2_text_generator_model.predict(llm_text_df).compute()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
-    assert "ml_generate_text_result" in df.columns
-    series = df["ml_generate_text_result"]
-    assert all(series.str.contains("predictions"))
+    assert "ml_generate_text_llm_result" in df.columns
+    series = df["ml_generate_text_llm_result"]
+    assert all(series.str.len() > 20)
 
 
 def test_predict_with_params_success(palm2_text_generator_model, llm_text_df):
@@ -33,6 +33,6 @@ def test_predict_with_params_success(palm2_text_generator_model, llm_text_df):
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).compute()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
-    assert "ml_generate_text_result" in df.columns
-    series = df["ml_generate_text_result"]
-    assert all(series.str.contains("predictions"))
+    assert "ml_generate_text_llm_result" in df.columns
+    series = df["ml_generate_text_llm_result"]
+    assert all(series.str.len() > 20)
