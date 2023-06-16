@@ -97,13 +97,13 @@ def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
     )
 
 
-def test_pipeline_nomodelscaler_kmeans_fit_predict(
+def test_pipeline_standard_scaler_kmeans_fit_predict(
     session, penguins_pandas_df_default_index
 ):
     """Test an unsupervised model with a non-BQML implementation of StandardScaler"""
     pipeline = bigframes.ml.pipeline.Pipeline(
         [
-            ("scale", bigframes.ml.preprocessing.NoModelStandardScaler()),
+            ("scale", bigframes.ml.preprocessing.StandardScaler()),
             ("kmeans", bigframes.ml.cluster.KMeans(n_clusters=2)),
         ]
     )

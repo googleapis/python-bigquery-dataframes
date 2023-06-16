@@ -55,7 +55,6 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
             transform,
             (
                 bigframes.ml.compose.ColumnTransformer,
-                bigframes.ml.preprocessing.NoModelStandardScaler,
                 bigframes.ml.preprocessing.StandardScaler,
                 bigframes.ml.preprocessing.OneHotEncoder,
             ),

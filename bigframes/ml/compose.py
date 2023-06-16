@@ -31,7 +31,6 @@ import bigframes.ml.preprocessing
 
 CompilablePreprocessorType = Union[
     bigframes.ml.preprocessing.OneHotEncoder,
-    bigframes.ml.preprocessing.NoModelStandardScaler,
     bigframes.ml.preprocessing.StandardScaler,
 ]
 
