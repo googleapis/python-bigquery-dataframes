@@ -4,8 +4,10 @@
 # License: BSD 3 clause
 # Original location: https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/base.py
 
+from __future__ import annotations
+
 import inspect
-from typing import Dict
+from typing import Any, Dict, List
 
 
 class BaseEstimator:
@@ -18,7 +20,7 @@ class BaseEstimator:
     """
 
     @classmethod
-    def _get_param_names(cls):
+    def _get_param_names(cls: type[BaseEstimator]) -> List[str]:
         """Get parameter names for the estimator"""
         # fetch the constructor or the original constructor before
         # deprecation wrapping if any
@@ -48,7 +50,7 @@ class BaseEstimator:
         # Extract and sort argument names excluding 'self'
         return sorted([p.name for p in parameters])
 
-    def get_params(self, deep: bool = True) -> Dict:
+    def get_params(self, deep: bool = True) -> Dict[str, Any]:
         """Get parameters for this estimator.
 
         Args:

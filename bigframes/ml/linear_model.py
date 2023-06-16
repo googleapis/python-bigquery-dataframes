@@ -106,7 +106,7 @@ class LinearRegression(
         self,
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
-    ):
+    ) -> bigframes.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
