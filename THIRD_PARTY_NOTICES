@@ -1,10 +1,7 @@
 ********************************************************************************
 Name: Fiona
-Version: 1.9.4.post1
 License: BSD License
 URL: https://github.com/Toblerity/Fiona
-Requires: attrs, certifi, click, click-plugins, cligj, six
-Required By: geopandas
 License:
 
 Copyright (c) 2007, Sean C. Gillies
@@ -38,10 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: Pygments
-Version: 2.15.1
 License: BSD License
 URL: https://pygments.org
-Required By: rich
 License:
 Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
 All rights reserved.
@@ -72,11 +67,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: SQLAlchemy
-Version: 2.0.16
 License: MIT License
 URL: https://www.sqlalchemy.org
-Requires: greenlet, typing_extensions
-Required By: bigframes
 License:
 Copyright 2005-2023 SQLAlchemy authors and contributors <see AUTHORS file>.
 
@@ -101,11 +93,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: aiohttp
-Version: 3.8.4
 License: Apache Software License
 URL: https://github.com/aio-libs/aiohttp
-Requires: aiosignal, async-timeout, attrs, charset-normalizer, frozenlist, multidict, yarl
-Required By: gcsfs
 License:
    Copyright aio-libs contributors.
 
@@ -124,11 +113,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: aiosignal
-Version: 1.3.1
 License: Apache Software License
 URL: https://github.com/aio-libs/aiosignal
-Requires: frozenlist
-Required By: aiohttp
 License:
 Apache License
                            Version 2.0, January 2004
@@ -335,10 +321,8 @@ Apache License
 ********************************************************************************
 ********************************************************************************
 Name: async-timeout
-Version: 4.0.2
 License: Apache Software License
 URL: https://github.com/aio-libs/async-timeout
-Required By: aiohttp
 License:
 Copyright 2016-2020 aio-libs collaboration.
 
@@ -357,10 +341,8 @@ limitations under the License.
 ********************************************************************************
 ********************************************************************************
 Name: atpublic
-Version: 4.0
 License: Apache Software License
 URL: https://gitlab.com/warsaw/public.git
-Required By: ibis-framework
 License:
 Copyright 2016-2023 Barry Warsaw
 
@@ -379,10 +361,8 @@ the License.
 ********************************************************************************
 ********************************************************************************
 Name: attrs
-Version: 23.1.0
 License: MIT License
 URL: https://www.attrs.org/en/stable/changelog.html
-Required By: Fiona, aiohttp
 License:
 The MIT License (MIT)
 
@@ -409,10 +389,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: bidict
-Version: 0.22.1
 License: Mozilla Public License 2.0 (MPL 2.0)
 URL: https://bidict.readthedocs.io
-Required By: ibis-framework
 License:
 Mozilla Public License Version 2.0
 ==================================
@@ -794,10 +772,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ********************************************************************************
 ********************************************************************************
 Name: cachetools
-Version: 5.3.1
 License: MIT License
 URL: https://github.com/tkem/cachetools/
-Required By: google-auth
 License:
 The MIT License (MIT)
 
@@ -823,10 +799,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: certifi
-Version: 2023.5.7
 License: Mozilla Public License 2.0 (MPL 2.0)
 URL: https://github.com/certifi/python-certifi
-Required By: Fiona, pyproj, requests
 License:
 This package contains a modified version of ca-bundle.crt:
 
@@ -853,10 +827,8 @@ one at http://mozilla.org/MPL/2.0/.
 ********************************************************************************
 ********************************************************************************
 Name: charset-normalizer
-Version: 3.1.0
 License: MIT License
 URL: https://github.com/Ousret/charset_normalizer
-Required By: aiohttp, requests
 License:
 MIT License
 
@@ -882,10 +854,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: click
-Version: 8.1.3
 License: BSD License
 URL: https://palletsprojects.com/p/click/
-Required By: Fiona, click-plugins, cligj
 License:
 Copyright 2014 Pallets
 
@@ -919,11 +889,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: click-plugins
-Version: 1.1.1
 License: BSD License
 URL: https://github.com/click-contrib/click-plugins
-Requires: click
-Required By: Fiona
 License:
 New BSD License
 
@@ -957,11 +924,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: cligj
-Version: 0.7.2
 License: BSD
 URL: https://github.com/mapbox/cligj
-Requires: click
-Required By: Fiona
 License:
 Copyright (c) 2014, Mapbox
 All rights reserved.
@@ -994,10 +958,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: cloudpickle
-Version: 2.2.1
 License: BSD License
 URL: https://github.com/cloudpipe/cloudpickle
-Required By: bigframes
 License:
 This module was extracted from the `cloud` package, developed by
 PiCloud, Inc.
@@ -1035,10 +997,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: decorator
-Version: 5.1.1
 License: BSD License
 URL: https://github.com/micheles/decorator
-Required By: gcsfs
 License:
 Copyright (c) 2005-2018, Michele Simionato
 All rights reserved.
@@ -1070,10 +1030,8 @@ DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: frozenlist
-Version: 1.3.3
 License: Apache Software License
 URL: https://github.com/aio-libs/frozenlist
-Required By: aiohttp, aiosignal
 License:
 Apache License
                            Version 2.0, January 2004
@@ -1280,10 +1238,8 @@ Apache License
 ********************************************************************************
 ********************************************************************************
 Name: fsspec
-Version: 2023.6.0
 License: BSD License
 URL: http://github.com/fsspec/filesystem_spec
-Required By: bigframes, gcsfs
 License:
 BSD 3-Clause License
 
@@ -1318,11 +1274,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: gcsfs
-Version: 2023.6.0
 License: BSD License
 URL: https://github.com/fsspec/gcsfs
-Requires: aiohttp, decorator, fsspec, google-auth, google-auth-oauthlib, google-cloud-storage, requests
-Required By: bigframes
 License:
 BSD 3-Clause License
 
@@ -1357,11 +1310,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: geopandas
-Version: 0.13.2
 License: BSD License
 URL: https://github.com/geopandas/geopandas
-Requires: Fiona, packaging, pandas, pyproj, shapely
-Required By: bigframes
 License:
 Copyright (c) 2013-2022, GeoPandas developers.
 All rights reserved.
@@ -1392,11 +1342,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: google-api-core
-Version: 2.11.1
 License: Apache Software License
 URL: https://github.com/googleapis/python-api-core
-Requires: google-auth, googleapis-common-protos, protobuf, requests
-Required By: google-cloud-bigquery, google-cloud-bigquery-connection, google-cloud-core, google-cloud-functions, google-cloud-storage
 License:
 
                                  Apache License
@@ -1604,11 +1551,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-auth
-Version: 2.20.0
 License: Apache Software License
 URL: https://github.com/googleapis/google-auth-library-python
-Requires: cachetools, pyasn1-modules, rsa, six, urllib3
-Required By: bigframes, gcsfs, google-api-core, google-auth-oauthlib, google-cloud-core, google-cloud-storage, pydata-google-auth
 License:
                                  Apache License
                            Version 2.0, January 2004
@@ -1815,11 +1759,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-auth-oauthlib
-Version: 1.0.0
 License: Apache Software License
 URL: https://github.com/GoogleCloudPlatform/google-auth-library-python-oauthlib
-Requires: google-auth, requests-oauthlib
-Required By: gcsfs, pydata-google-auth
 License:
 
                                  Apache License
@@ -2027,11 +1968,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-cloud-bigquery
-Version: 3.11.1
 License: Apache Software License
 URL: https://github.com/googleapis/python-bigquery
-Requires: google-api-core, google-cloud-core, google-resumable-media, grpcio, packaging, proto-plus, protobuf, python-dateutil, requests
-Required By: bigframes
 License:
 
                                  Apache License
@@ -2239,11 +2177,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-cloud-bigquery-connection
-Version: 1.12.0
 License: Apache Software License
 URL: https://github.com/googleapis/python-bigquery-connection
-Requires: google-api-core, grpc-google-iam-v1, proto-plus, protobuf
-Required By: bigframes
 License:
 
                                  Apache License
@@ -2451,11 +2386,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-cloud-core
-Version: 2.3.2
 License: Apache Software License
 URL: https://github.com/googleapis/python-cloud-core
-Requires: google-api-core, google-auth
-Required By: google-cloud-bigquery, google-cloud-storage
 License:
 
                                  Apache License
@@ -2663,11 +2595,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-cloud-functions
-Version: 1.13.0
 License: Apache Software License
 URL: https://github.com/googleapis/python-functions
-Requires: google-api-core, grpc-google-iam-v1, proto-plus, protobuf
-Required By: bigframes
 License:
 
                                  Apache License
@@ -2875,11 +2804,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-cloud-storage
-Version: 2.9.0
 License: Apache Software License
 URL: https://github.com/googleapis/python-storage
-Requires: google-api-core, google-auth, google-cloud-core, google-resumable-media, requests
-Required By: bigframes, gcsfs
 License:
 
                                  Apache License
@@ -3087,10 +3013,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-crc32c
-Version: 1.5.0
 License: Apache Software License
 URL: https://github.com/googleapis/python-crc32c
-Required By: google-resumable-media
 License:
                                  Apache License
                            Version 2.0, January 2004
@@ -3297,11 +3221,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: google-resumable-media
-Version: 2.5.0
 License: Apache Software License
 URL: https://github.com/googleapis/google-resumable-media-python
-Requires: google-crc32c
-Required By: google-cloud-bigquery, google-cloud-storage
 License:
 
                                  Apache License
@@ -3509,11 +3430,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: googleapis-common-protos
-Version: 1.59.1
 License: Apache Software License
 URL: https://github.com/googleapis/python-api-common-protos
-Requires: protobuf
-Required By: google-api-core, grpc-google-iam-v1
 License:
 
                                  Apache License
@@ -3721,10 +3639,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: greenlet
-Version: 2.0.2
 License: MIT License
 URL: https://greenlet.readthedocs.io/
-Required By: SQLAlchemy
 License:
 The following files are derived from Stackless Python and are subject to the
 same license as Stackless Python:
@@ -3760,11 +3676,8 @@ THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: grpc-google-iam-v1
-Version: 0.12.6
 License: Apache Software License
 URL: https://github.com/googleapis/python-grpc-google-iam-v1
-Requires: googleapis-common-protos, grpcio, protobuf
-Required By: google-cloud-bigquery-connection, google-cloud-functions
 License:
 
                                  Apache License
@@ -3972,10 +3885,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: grpcio
-Version: 1.54.2
 License: Apache Software License
 URL: https://grpc.io
-Required By: google-cloud-bigquery, grpc-google-iam-v1
 License:
 
                                  Apache License
@@ -4591,11 +4502,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ********************************************************************************
 ********************************************************************************
 Name: ibis-framework
-Version: 5.1.1.dev483
 License: Apache Software License
 URL: https://ibis-project.org
-Requires: atpublic, bidict, multipledispatch, numpy, pandas, parsy, pooch, pyarrow, python-dateutil, pytz, rich, sqlglot, toolz, typing_extensions
-Required By: bigframes
 License:
 
                                  Apache License
@@ -4803,10 +4711,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: idna
-Version: 3.4
 License: BSD License
 URL: https://github.com/kjd/idna
-Required By: requests, yarl
 License:
 BSD 3-Clause License
 
@@ -4841,10 +4747,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: joblib
-Version: 1.2.0
 License: BSD License
 URL: https://joblib.readthedocs.io
-Required By: scikit-learn
 License:
 BSD 3-Clause License
 
@@ -4879,11 +4783,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: markdown-it-py
-Version: 3.0.0
 License: MIT License
 URL: https://github.com/executablebooks/markdown-it-py
-Requires: mdurl
-Required By: rich
 License:
 MIT License
 
@@ -4910,10 +4811,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: mdurl
-Version: 0.1.2
 License: MIT License
 URL: https://github.com/executablebooks/mdurl
-Required By: markdown-it-py
 License:
 Copyright (c) 2015 Vitaly Puzrin, Alex Kocharin.
 Copyright (c) 2021 Taneli Hukkinen
@@ -4965,10 +4864,8 @@ IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: multidict
-Version: 6.0.4
 License: Apache Software License
 URL: https://github.com/aio-libs/multidict
-Required By: aiohttp, yarl
 License:
    Copyright 2016-2021 Andrew Svetlov and aio-libs team
 
@@ -4987,18 +4884,13 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: multipledispatch
-Version: 0.6.0
 License: BSD
 URL: http://github.com/mrocklin/multipledispatch/
-Requires: six
-Required By: ibis-framework
 ********************************************************************************
 ********************************************************************************
 Name: numpy
-Version: 1.24.3
 License: BSD License
 URL: https://www.numpy.org
-Required By: ibis-framework, pandas, pyarrow, scikit-learn, scipy, shapely
 License:
 Copyright (c) 2005-2022, NumPy Developers.
 All rights reserved.
@@ -5914,10 +5806,8 @@ Public License instead of this License.  But first, please read
 ********************************************************************************
 ********************************************************************************
 Name: oauthlib
-Version: 3.2.2
 License: BSD License
 URL: https://github.com/oauthlib/oauthlib
-Required By: requests-oauthlib
 License:
 Copyright (c) 2019 The OAuthlib Community
 All rights reserved.
@@ -5950,10 +5840,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: packaging
-Version: 23.1
 License: Apache Software License; BSD License
 URL: https://github.com/pypa/packaging
-Required By: geopandas, google-cloud-bigquery, pooch
 License:
 This software is made available under the terms of *either* of the licenses
 found in LICENSE.APACHE or LICENSE.BSD. Contributions to this software is made
@@ -5962,11 +5850,8 @@ under the terms of *both* these licenses.
 ********************************************************************************
 ********************************************************************************
 Name: pandas
-Version: 2.0.2
 License: BSD License
 URL: https://pandas.pydata.org
-Requires: numpy, python-dateutil, pytz, tzdata
-Required By: bigframes, geopandas, ibis-framework
 License:
 BSD 3-Clause License
 
@@ -6003,10 +5888,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: parsy
-Version: 2.1
 License: MIT License
 URL: https://github.com/python-parsy/parsy
-Required By: ibis-framework
 License:
 # MIT license.  See http://www.opensource.org/licenses/mit-license.php
 
@@ -6033,10 +5916,8 @@ THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: platformdirs
-Version: 3.5.3
 License: MIT License
 URL: https://github.com/platformdirs/platformdirs
-Required By: pooch
 License:
 MIT License
 
@@ -6063,11 +5944,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: pooch
-Version: 1.7.0
 License: BSD License
 URL: https://github.com/fatiando/pooch
-Requires: packaging, platformdirs, requests
-Required By: ibis-framework
 License:
 Copyright (c) 2018 The Pooch Developers
 All rights reserved.
@@ -6098,11 +5976,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: proto-plus
-Version: 1.22.2
 License: Apache Software License
 URL: https://github.com/googleapis/proto-plus-python.git
-Requires: protobuf
-Required By: google-cloud-bigquery, google-cloud-bigquery-connection, google-cloud-functions
 License:
 
                                  Apache License
@@ -6310,10 +6185,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: protobuf
-Version: 4.23.3
 License: 3-Clause BSD License
 URL: https://developers.google.com/protocol-buffers/
-Required By: google-api-core, google-cloud-bigquery, google-cloud-bigquery-connection, google-cloud-functions, googleapis-common-protos, grpc-google-iam-v1, proto-plus
 License:
 
 Copyright (c) 2009-2021, Google LLC
@@ -6345,11 +6218,8 @@ POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: pyarrow
-Version: 12.0.1
 License: Apache Software License
 URL: https://arrow.apache.org/
-Requires: numpy
-Required By: ibis-framework
 License:
 
                                  Apache License
@@ -8708,10 +8578,8 @@ its NOTICE file:
 ********************************************************************************
 ********************************************************************************
 Name: pyasn1
-Version: 0.5.0
 License: BSD License
 URL: https://github.com/pyasn1/pyasn1
-Required By: pyasn1-modules, rsa
 License:
 Copyright (c) 2005-2020, Ilya Etingof <etingof@gmail.com>
 All rights reserved.
@@ -8741,11 +8609,8 @@ POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: pyasn1-modules
-Version: 0.3.0
 License: BSD License
 URL: https://github.com/pyasn1/pyasn1-modules
-Requires: pyasn1
-Required By: google-auth
 License:
 Copyright (c) 2005-2020, Ilya Etingof <etingof@gmail.com>
 All rights reserved.
@@ -8775,11 +8640,8 @@ POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: pydata-google-auth
-Version: 1.8.0
 License: BSD License
 URL: https://github.com/pydata/pydata-google-auth
-Requires: google-auth, google-auth-oauthlib, setuptools
-Required By: bigframes
 License:
 BSD 3-Clause License
 
@@ -8814,11 +8676,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: pyproj
-Version: 3.6.0
 License: MIT License
 URL: https://github.com/pyproj4/pyproj
-Requires: certifi
-Required By: geopandas
 License:
 Copyright (c) 2006-2018, Jeffrey Whitaker.
 Copyright (c) 2019-2023, Open source contributors.
@@ -8843,11 +8702,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: python-dateutil
-Version: 2.8.2
 License: Apache Software License; BSD License
 URL: https://github.com/dateutil/dateutil
-Requires: six
-Required By: google-cloud-bigquery, ibis-framework, pandas
 License:
 Copyright 2017- Paul Ganssle <paul@ganssle.io>
 Copyright 2017- dateutil contributors (see AUTHORS file)
@@ -8906,10 +8762,8 @@ The above BSD License Applies to all code, even that also covered by Apache 2.0.
 ********************************************************************************
 ********************************************************************************
 Name: pytz
-Version: 2023.3
 License: MIT License
 URL: http://pythonhosted.org/pytz
-Required By: ibis-framework, pandas
 License:
 Copyright (c) 2003-2019 Stuart Bishop <stuart@stuartbishop.net>
 
@@ -8934,11 +8788,8 @@ DEALINGS IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: requests
-Version: 2.31.0
 License: Apache Software License
 URL: https://requests.readthedocs.io
-Requires: certifi, charset-normalizer, idna, urllib3
-Required By: gcsfs, google-api-core, google-cloud-bigquery, google-cloud-storage, pooch, requests-oauthlib
 License:
 
                                  Apache License
@@ -9119,11 +8970,8 @@ License:
 ********************************************************************************
 ********************************************************************************
 Name: requests-oauthlib
-Version: 1.3.1
 License: BSD License
 URL: https://github.com/requests/requests-oauthlib
-Requires: oauthlib, requests
-Required By: google-auth-oauthlib
 License:
 ISC License
 
@@ -9144,11 +8992,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: rich
-Version: 13.4.2
 License: MIT License
 URL: https://github.com/Textualize/rich
-Requires: Pygments, markdown-it-py
-Required By: ibis-framework
 License:
 Copyright (c) 2020 Will McGugan
 
@@ -9173,11 +9018,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: rsa
-Version: 4.9
 License: Apache Software License
 URL: https://stuvel.eu/rsa
-Requires: pyasn1
-Required By: google-auth
 License:
 Copyright 2011 Sybren A. Stüvel <sybren@stuvel.eu>
 
@@ -9196,11 +9038,8 @@ limitations under the License.
 ********************************************************************************
 ********************************************************************************
 Name: scikit-learn
-Version: 1.2.2
 License: BSD License
 URL: http://scikit-learn.org
-Requires: joblib, numpy, scipy, threadpoolctl
-Required By: bigframes
 License:
 BSD 3-Clause License
 
@@ -9235,11 +9074,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: scipy
-Version: 1.10.1
 License: BSD License
 URL: https://scipy.org/
-Requires: numpy
-Required By: scikit-learn
 License:
 Copyright (c) 2001-2002 Enthought, Inc. 2003-2022, SciPy Developers.
 All rights reserved.
@@ -10155,11 +9991,8 @@ Public License instead of this License.  But first, please read
 ********************************************************************************
 ********************************************************************************
 Name: shapely
-Version: 2.0.1
 License: BSD License
 URL: https://github.com/shapely/shapely
-Requires: numpy
-Required By: geopandas
 License:
 BSD 3-Clause License
 
@@ -10194,10 +10027,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: six
-Version: 1.16.0
 License: MIT License
 URL: https://github.com/benjaminp/six
-Required By: Fiona, google-auth, multipledispatch, python-dateutil
 License:
 Copyright (c) 2010-2020 Benjamin Peterson
 
@@ -10221,10 +10052,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: sqlglot
-Version: 16.2.1
 License: MIT License
 URL: https://github.com/tobymao/sqlglot
-Required By: ibis-framework
 License:
 MIT License
 
@@ -10251,10 +10080,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: threadpoolctl
-Version: 3.1.0
 License: BSD License
 URL: https://github.com/joblib/threadpoolctl
-Required By: scikit-learn
 License:
 Copyright (c) 2019, threadpoolctl contributors
 
@@ -10283,10 +10110,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: toolz
-Version: 0.12.0
 License: BSD License
 URL: https://github.com/pytoolz/toolz/
-Required By: ibis-framework
 License:
 Copyright (c) 2013 Matthew Rocklin
 
@@ -10320,10 +10145,8 @@ DAMAGE.
 ********************************************************************************
 ********************************************************************************
 Name: typing_extensions
-Version: 4.6.3
 License: Python Software Foundation License
 URL: https://github.com/python/typing_extensions
-Required By: SQLAlchemy, ibis-framework
 License:
 A. HISTORY OF THE SOFTWARE
 ==========================
@@ -10608,10 +10431,8 @@ PERFORMANCE OF THIS SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: tzdata
-Version: 2023.3
 License: Apache Software License
 URL: https://github.com/python/tzdata
-Required By: pandas
 License:
 Apache Software License 2.0
 
@@ -10632,10 +10453,8 @@ limitations under the License.
 ********************************************************************************
 ********************************************************************************
 Name: urllib3
-Version: 1.26.16
 License: MIT License
 URL: https://urllib3.readthedocs.io/
-Required By: google-auth, requests
 License:
 MIT License
 
@@ -10662,11 +10481,8 @@ SOFTWARE.
 ********************************************************************************
 ********************************************************************************
 Name: yarl
-Version: 1.9.2
 License: Apache Software License
 URL: https://github.com/aio-libs/yarl/
-Requires: idna, multidict
-Required By: aiohttp
 License:
 
                                  Apache License

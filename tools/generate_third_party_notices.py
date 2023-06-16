@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import importlib.metadata
 import json
 import os.path
+import sys
 
 # TODO(shobs): pkg_resources is deprecated, see the notice at:
 # https://setuptools.pypa.io/en/latest/pkg_resources.html.
@@ -105,12 +107,12 @@ def get_metadata_and_filename(
     """Get package metadata and corresponsing file name."""
 
     # Check metadata file
-    metadata_filepath_known = metadata_file != "UNKNOWN"
+    metadata_filepath_known = metadata_file != piplicenses.LICENSE_UNKNOWN
     if not metadata_filepath_known and not ignore_missing:
         raise ValueError(f"No {metadata_name} file found for {package_name}")
 
     # Check metadata text
-    if metadata_text != "UNKNOWN":
+    if metadata_text != piplicenses.LICENSE_UNKNOWN:
         output_filename = metadata_name
         if metadata_filepath_known:
             output_filename = os.path.basename(metadata_file)
@@ -147,11 +149,16 @@ def fetch_license_and_notice_metadata(packages: list[str]):
     return metadatas
 
 
-def write_metadata_to_file(file, metadata, requires_packages, packages_required_by):
+def write_metadata_to_file(
+    file, metadata, with_version=False, requires_packages=[], packages_required_by=[]
+):
     """Write package metadata to a file object."""
     file.write(DEPENDENCY_INFO_SEPARATOR)
 
-    info_keys = ["Name", "Version", "License", "URL"]
+    info_keys = ["Name"]
+    if with_version:
+        info_keys.append("Version")
+    info_keys.extend(["License", "URL"])
     file.writelines([f"{key}: {metadata[key]}\n" for key in info_keys])
 
     if requires_packages:
@@ -204,6 +211,29 @@ def write_metadata_to_file(file, metadata, requires_packages, packages_required_
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate third party notices for bigframes dependencies."
+    )
+    parser.add_argument(
+        "--with-version",
+        action="store_true",
+        default=False,
+        help="Include the version information for each package.",
+    )
+    parser.add_argument(
+        "--with-requires",
+        action="store_true",
+        default=False,
+        help="Include for each package the packages it requires.",
+    )
+    parser.add_argument(
+        "--with-required-by",
+        action="store_true",
+        default=False,
+        help="Include for each package the packages that require it.",
+    )
+    args = parser.parse_args(sys.argv[1:])
+
     # Initialize the root package
     roots = {"bigframes"}
 
@@ -218,4 +248,10 @@ if __name__ == "__main__":
     with open(THIRD_PARTY_NOTICES_FILE, "w") as f:
         for metadata in deps_metadata:
             dep = deps[metadata["Name"]]
-            write_metadata_to_file(f, metadata, dep["Requires"], dep["RequiredBy"])
+            write_metadata_to_file(
+                f,
+                metadata,
+                args.with_version,
+                dep["Requires"] if args.with_requires else [],
+                dep["RequiredBy"] if args.with_requires else [],
+            )
