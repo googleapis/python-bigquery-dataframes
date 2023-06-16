@@ -350,10 +350,47 @@ def recall_score(
     for index in confusion.index:
         tp = confusion.at[index, index]
         denominator = fn_plus_tp.at[index]
-        if denominator != 0:
-            recall = tp / denominator
-        else:
-            recall = 0
+        recall = tp / denominator if denominator else 0
         recall_score[index] = recall
 
     return recall_score
+
+
+def precision_score(
+    y_true: bigframes.DataFrame,
+    y_pred: bigframes.DataFrame,
+    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+) -> pd.Series:
+    """Compute precision score.
+
+    Args:
+        y_true: Ground truth target values.
+
+        y_pred: Estimated targets as returned by a classifier.
+
+        average: Type of averaging performed on the data. Possible values:"micro",
+        "macro", "binary", "weighted", "sample", None. Default to "binary".
+
+    Returns: precision score.
+    """
+    # TODO(ashleyxu): support more average type, default to "binary"
+    # TODO(ashleyxu): support bigframes.Series as input type
+    if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    if average is not None:
+        raise NotImplementedError("Only average=None is supported")
+
+    confusion = confusion_matrix(y_true, y_pred)
+    fp_plus_tp = confusion.sum(axis=0)
+    precision_score = pd.Series(0, index=confusion.index)
+
+    for index in confusion.index:
+        tp = confusion.at[index, index]
+        denominator = fp_plus_tp.at[index]
+        precision = tp / denominator if denominator else 0
+        precision_score[index] = precision
+
+    return precision_score

@@ -17,11 +17,7 @@ import math
 import numpy
 import pandas as pd
 import pytest
-
-try:
-    import sklearn.metrics as sklearn_metrics  # type: ignore
-except ImportError:
-    sklearn_metrics = None
+import sklearn.metrics as sklearn_metrics  # type: ignore
 
 import bigframes.ml.metrics
 
@@ -62,7 +58,6 @@ def test_r2_score_force_finite(session):
     assert bigframes.ml.metrics.r2_score(df[["y_true"]], df[["y_pred_2"]]) == 1.0
 
 
-@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
 def test_r2_score_ok_fit_matches_sklearn(session):
     pd_df = pd.DataFrame({"y_true": [1, 2, 3, 4, 5], "y_pred": [2, 3, 4, 3, 6]})
 
@@ -168,7 +163,6 @@ def test_roc_curve_binary_classification_prediction_returns_expected(session):
     )
 
 
-@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
 def test_roc_curve_binary_classification_prediction_matches_sklearn(session):
     pd_df = pd.DataFrame(
         {
@@ -258,7 +252,6 @@ def test_roc_curve_binary_classification_decision_returns_expected(session):
     )
 
 
-@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
 def test_roc_curve_binary_classification_decision_matches_sklearn(session):
     # Instead of operating on probabilities, assume a 70% decision threshold
     # has been applied, and operate on the final output
@@ -312,7 +305,6 @@ def test_roc_auc_score_returns_expected(session):
     assert score == 0.625
 
 
-@pytest.mark.skipif(sklearn_metrics is None, reason="requires sklearn")
 def test_roc_auc_score_returns_matches_sklearn(session):
     pd_df = pd.DataFrame(
         {
@@ -499,3 +491,65 @@ def test_recall_score_str_matches_sklearn(session):
     expexted_index = ["ant", "bird", "cat"]
     expected_recall = pd.Series(expected_values, index=expexted_index)
     pd.testing.assert_series_equal(recall, expected_recall, check_index_type=False)
+
+
+def test_precision_score(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 0, 2, 2, 0, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    precision_score = bigframes.ml.metrics.precision_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = [0.666667, 0.000000, 0.666667]
+    expexted_index = [0, 1, 2]
+    expected_precision = pd.Series(expected_values, index=expexted_index)
+
+    pd.testing.assert_series_equal(
+        precision_score, expected_precision, check_index_type=False
+    )
+
+
+def test_precision_score_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 0, 2, 2, 0, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    precision_score = bigframes.ml.metrics.precision_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = sklearn_metrics.precision_score(
+        pd_df[["y_true"]], pd_df[["y_pred"]], average=None
+    )
+    expexted_index = [0, 1, 2]
+    expected_precision = pd.Series(expected_values, index=expexted_index)
+    pd.testing.assert_series_equal(
+        precision_score, expected_precision, check_index_type=False
+    )
+
+
+def test_precision_score_str_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": ["cat", "ant", "cat", "cat", "ant", "bird"],
+            "y_pred": ["ant", "ant", "cat", "cat", "ant", "cat"],
+        }
+    ).astype("str")
+    df = session.read_pandas(pd_df)
+    precision_score = bigframes.ml.metrics.precision_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = sklearn_metrics.precision_score(
+        pd_df[["y_true"]], pd_df[["y_pred"]], average=None
+    )
+    expexted_index = ["ant", "bird", "cat"]
+    expected_precision = pd.Series(expected_values, index=expexted_index)
+    pd.testing.assert_series_equal(
+        precision_score, expected_precision, check_index_type=False
+    )
