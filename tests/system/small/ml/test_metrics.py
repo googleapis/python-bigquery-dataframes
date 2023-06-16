@@ -443,3 +443,59 @@ def test_confusion_matrix_str_matches_sklearn(session):
     pd.testing.assert_frame_equal(
         confusion_matrix, expected_pd_df, check_index_type=False
     )
+
+
+def test_recall_score(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 0, 2, 2, 0, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    recall = bigframes.ml.metrics.recall_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = [1.000000, 0.000000, 0.666667]
+    expexted_index = [0, 1, 2]
+    expected_recall = pd.Series(expected_values, index=expexted_index)
+
+    pd.testing.assert_series_equal(recall, expected_recall, check_index_type=False)
+
+
+def test_recall_score_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [2, 0, 2, 2, 0, 1],
+            "y_pred": [0, 0, 2, 2, 0, 2],
+        }
+    ).astype("Int64")
+    df = session.read_pandas(pd_df)
+    recall = bigframes.ml.metrics.recall_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = sklearn_metrics.recall_score(
+        pd_df[["y_true"]], pd_df[["y_pred"]], average=None
+    )
+    expexted_index = [0, 1, 2]
+    expected_recall = pd.Series(expected_values, index=expexted_index)
+    pd.testing.assert_series_equal(recall, expected_recall, check_index_type=False)
+
+
+def test_recall_score_str_matches_sklearn(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": ["cat", "ant", "cat", "cat", "ant", "bird"],
+            "y_pred": ["ant", "ant", "cat", "cat", "ant", "cat"],
+        }
+    ).astype("str")
+    df = session.read_pandas(pd_df)
+    recall = bigframes.ml.metrics.recall_score(
+        df[["y_true"]], df[["y_pred"]], average=None
+    )
+    expected_values = sklearn_metrics.recall_score(
+        pd_df[["y_true"]], pd_df[["y_pred"]], average=None
+    )
+    expexted_index = ["ant", "bird", "cat"]
+    expected_recall = pd.Series(expected_values, index=expexted_index)
+    pd.testing.assert_series_equal(recall, expected_recall, check_index_type=False)

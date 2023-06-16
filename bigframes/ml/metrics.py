@@ -16,7 +16,7 @@
 Scikit-Learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html"""
 
 import typing
-from typing import Tuple
+from typing import Literal, Tuple
 
 import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
@@ -314,3 +314,46 @@ def confusion_matrix(
         confusion_matrix[y_pred][y_true] = count
 
     return confusion_matrix
+
+
+def recall_score(
+    y_true: bigframes.DataFrame,
+    y_pred: bigframes.DataFrame,
+    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+) -> pd.Series:
+    """Compute recall score.
+
+    Args:
+        y_true: Ground truth target values.
+
+        y_pred: Estimated targets as returned by a classifier.
+
+        average: Type of averaging performed on the data. Possible values:"micro",
+        "macro", "binary", "weighted", "sample", None. Default to “binary”.
+
+    Returns: recall score.
+    """
+    # TODO(ashleyxu): support more average type, default to "binary"
+    # TODO(ashleyxu): support bigframes.Series as input type
+    if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    if average is not None:
+        raise NotImplementedError("Only average=None is supported")
+
+    confusion = confusion_matrix(y_true, y_pred)
+    fn_plus_tp = confusion.sum(axis=1)
+    recall_score = pd.Series(0, index=confusion.index)
+
+    for index in confusion.index:
+        tp = confusion.at[index, index]
+        denominator = fn_plus_tp.at[index]
+        if denominator != 0:
+            recall = tp / denominator
+        else:
+            recall = 0
+        recall_score[index] = recall
+
+    return recall_score
