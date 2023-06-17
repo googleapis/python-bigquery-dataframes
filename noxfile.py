@@ -572,7 +572,7 @@ def notebook(session):
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def third_party_notices(session):
-    session.install("-e", ".")
+    session.install("-e", ".[all]")
     session.install("pip-licenses")
 
     notices_file = "THIRD_PARTY_NOTICES"
@@ -601,7 +601,7 @@ def third_party_notices(session):
                 )
 
             raise ValueError(
-                f"{notices_file} is not up to date. Run {generator_script} to update it."
+                f"{notices_file} is not up to date. Run 'nox -s {third_party_notices.__name__}' to update it."
             )
     finally:
         # TODO(shobs): Currently we are removing the original file and letting

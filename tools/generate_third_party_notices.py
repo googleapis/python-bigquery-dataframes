@@ -16,16 +16,26 @@ import argparse
 import importlib.metadata
 import json
 import os.path
+import re
 import sys
 
-# TODO(shobs): pkg_resources is deprecated, see the notice at:
-# https://setuptools.pypa.io/en/latest/pkg_resources.html.
-# Figure out how to achieve its functionality through importlib.metadata
-from pip._vendor import pkg_resources
 import piplicenses
 
 THIRD_PARTY_NOTICES_FILE = "THIRD_PARTY_NOTICES"
 DEPENDENCY_INFO_SEPARATOR = "*" * 80 + "\n"
+PACKAGE_NAME_EXTRACTOR = re.compile("^[a-zA-Z0-9._-]+")
+
+
+def get_package_dependencies(pkg_name):
+    """Get all package dependencies for a given package, both required and optional."""
+    packages = set()
+    requirements = importlib.metadata.requires(pkg_name)
+    if requirements:
+        for req in requirements:
+            match = PACKAGE_NAME_EXTRACTOR.match(req)
+            assert match, f"Could not parse {req} for package name"
+            packages.add(match.group(0))
+    return packages
 
 
 # Inspired by third_party/colab/cleanup_filesets.py
@@ -49,9 +59,22 @@ def find_dependencies(
             ...
         }
     """
-    hops = set(roots)  # Avoid mutating caller's list.
+    hops = set()
     visited = set()
     deps: dict[str, dict[str, set[str]]] = dict()
+
+    # Initialize the start of the graph walk
+    for root in roots:
+        # Get the normalized package name
+        try:
+            pkg = importlib.metadata.metadata(root)
+        except importlib.metadata.PackageNotFoundError:
+            if not ignore_missing_metadata:
+                raise
+            continue
+        hops.add(pkg["Name"])
+
+    # Start the graph walk
     while True:
         if not hops:
             break
@@ -59,40 +82,34 @@ def find_dependencies(
         if hop in visited:
             continue
         visited.add(hop)
-        if hop not in pkg_resources.working_set.by_key:  # type: ignore
-            # Missing metadata, can't explore.
-            if not ignore_missing_metadata:
-                raise ValueError(f"Did not find metadata for package '{hop}'")
-            continue
-        pkg = pkg_resources.working_set.by_key[hop]  # type: ignore
 
-        # Let's use the canonical name of the package. In rare occasions the key
-        # in the working set is different from the canonical name, For example:
-        # hop = typing-extensions
-        # importlib.metadata.metadata(hop)["Name"] = typing_extensions
-        pkg_name = importlib.metadata.metadata(hop)["Name"]
-
-        for req in pkg.requires():
-            # Use canonical name for the reason stated above
-            req_name = importlib.metadata.metadata(req.name)["Name"]
+        for dep in get_package_dependencies(hop):
+            # Get the normalized package name
+            try:
+                req_pkg = importlib.metadata.metadata(dep)
+            except importlib.metadata.PackageNotFoundError:
+                if not ignore_missing_metadata:
+                    raise
+                continue
+            dep = req_pkg["Name"]
 
             # Create outgoing edge only for non root packages, for which an
             # entry must have been created in the deps dictionary when we
             # saw the package for the first time during the graph walk
-            if pkg_name in deps:
-                deps[pkg_name]["Requires"].add(req_name)
+            if hop in deps:
+                deps[hop]["Requires"].add(dep)
 
-            if req_name in deps:
+            if dep in deps:
                 # We have already seen this requirement in the graph walk.
                 # Just update the incoming dependency and carry on.
-                deps[req_name]["RequiredBy"].add(pkg_name)
+                deps[dep]["RequiredBy"].add(hop)
             else:
                 # This is the first time we came across this requirement.
                 # Create a new entry with the incoming dependency.
-                deps[req_name] = {"RequiredBy": {pkg_name}, "Requires": set()}
+                deps[dep] = {"RequiredBy": {hop}, "Requires": set()}
 
                 # Put it in the next hops for further graph traversal
-                hops.add(req.name)
+                hops.add(dep)
 
     return deps
 
@@ -238,7 +255,13 @@ if __name__ == "__main__":
     roots = {"bigframes"}
 
     # Find dependencies
-    deps = find_dependencies(roots, ignore_missing_metadata=False)
+    # Let's ignore the packages that are not installed assuming they are
+    # just the optional dependencies that bigframes does not require.
+    # One example is the dependency path bigframes -> SQLAlchemy -> pg8000,
+    # where pg8000 is only an optional dependency for SQLAlchemy which bigframes
+    # is not depending on
+    # https://github.com/sqlalchemy/sqlalchemy/blob/7bc81947e22dc32368b0c49a41c398cd251d94af/setup.cfg#LL62C21-L62C27
+    deps = find_dependencies(roots, ignore_missing_metadata=True)
 
     # Use third party solution to fetch dependency metadata
     deps_metadata = fetch_license_and_notice_metadata(list(deps))
@@ -253,5 +276,5 @@ if __name__ == "__main__":
                 metadata,
                 args.with_version,
                 dep["Requires"] if args.with_requires else [],
-                dep["RequiredBy"] if args.with_requires else [],
+                dep["RequiredBy"] if args.with_required_by else [],
             )
