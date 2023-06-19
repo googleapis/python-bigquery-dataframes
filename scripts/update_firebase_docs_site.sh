@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/bin/bash
-
 set -e -o pipefail
+set -x
 
 # Replace the docs version by the desired commit
 BIGFRAMES_DOCS_VERSION=8ce2a3e

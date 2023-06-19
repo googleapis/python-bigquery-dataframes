@@ -580,7 +580,7 @@ def third_party_notices(session):
     session.install("pip-licenses")
 
     notices_file = "THIRD_PARTY_NOTICES"
-    generator_script = "tools/generate_third_party_notices.py"
+    generator_script = "scripts/generate_third_party_notices.py"
     _, notices_file_backup = tempfile.mkstemp()
 
     try:
