@@ -138,11 +138,30 @@ def _loc_getitem_series_or_dataframe(
 def _loc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
 ) -> bigframes.DataFrame | bigframes.Series:
-    if isinstance(key, bigframes.Series):
+    if isinstance(key, bigframes.Series) and key.dtype == "boolean":
         return series_or_dataframe[key]
+    elif isinstance(key, bigframes.Series):
+        # TODO(henryjsolberg): support MultiIndex
+        temp_name = bigframes.guid.generate_guid(prefix="temp_series_name_")
+        key = key.rename(temp_name)
+        keys_df = key.to_frame()
+        keys_df = keys_df.set_index(temp_name, drop=True)
+        return _perform_loc_list_join(series_or_dataframe, keys_df)
+    elif isinstance(key, bigframes.core.indexes.Index):
+        # TODO(henryjsolberg): support MultiIndex
+        block = key._data._get_block()
+        temp_labels = [
+            label
+            if label
+            else bigframes.guid.generate_guid(prefix="temp_column_label_")
+            for label in block.column_labels
+        ]
+        block = block.with_column_labels(temp_labels)
+        block = block.drop_columns(temp_labels)
+        keys_df = bigframes.DataFrame(block)
+        return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif pd.api.types.is_list_like(key):
         # TODO(henryjsolberg): support MultiIndex
-
         if len(key) == 0:
             return typing.cast(
                 typing.Union[bigframes.DataFrame, bigframes.Series],
@@ -159,23 +178,7 @@ def _loc_getitem_series_or_dataframe(
             core.blocks.Block(keys_expr, index_columns=["old_index"])
         )
 
-        # right join based on the old index so that the matching rows from the user's
-        # original dataframe will be duplicated and reordered appropriately
-        original_index_name = series_or_dataframe.index.name
-        if isinstance(series_or_dataframe, bigframes.Series):
-            original_name = series_or_dataframe.name
-            name = (
-                series_or_dataframe.name
-                if series_or_dataframe.name is not None
-                else "0"
-            )
-            result = series_or_dataframe.to_frame().join(keys_df, how="right")[name]
-            result = typing.cast(bigframes.Series, result)
-            result = result.rename(original_name)
-        else:
-            result = series_or_dataframe.join(keys_df, how="right")
-        result = result.rename_axis(original_index_name)
-        return result
+        return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
         raise NotImplementedError("loc does not yet support indexing with a slice")
     elif callable(key):
@@ -184,6 +187,25 @@ def _loc_getitem_series_or_dataframe(
         raise TypeError(
             "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series or a list of index entries."
         )
+
+
+def _perform_loc_list_join(
+    series_or_dataframe: bigframes.Series | bigframes.DataFrame,
+    keys_df: bigframes.DataFrame,
+) -> bigframes.Series | bigframes.DataFrame:
+    # right join based on the old index so that the matching rows from the user's
+    # original dataframe will be duplicated and reordered appropriately
+    original_index_name = series_or_dataframe.index.name
+    if isinstance(series_or_dataframe, bigframes.Series):
+        original_name = series_or_dataframe.name
+        name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
+        result = series_or_dataframe.to_frame().join(keys_df, how="right")[name]
+        result = typing.cast(bigframes.Series, result)
+        result = result.rename(original_name)
+    else:
+        result = series_or_dataframe.join(keys_df, how="right")
+    result = result.rename_axis(original_index_name)
+    return result
 
 
 @typing.overload

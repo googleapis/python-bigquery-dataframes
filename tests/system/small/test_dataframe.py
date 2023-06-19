@@ -1258,3 +1258,32 @@ def test_rename_axis(scalars_df_index, scalars_pandas_df_index):
         bf_result.compute(),
         pd_result,
     )
+
+
+def test_loc_bf_series_string_index(scalars_df_index, scalars_pandas_df_index):
+    pd_string_series = scalars_pandas_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+    bf_string_series = scalars_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+
+    scalars_df_index = scalars_df_index.set_index("string_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index("string_col")
+
+    bf_result = scalars_df_index.loc[bf_string_series]
+    pd_result = scalars_pandas_df_index.loc[pd_string_series]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_bf_index_integer_index(scalars_df_index, scalars_pandas_df_index):
+    pd_index = scalars_pandas_df_index.iloc[[0, 5, 1, 1, 5]].index
+    bf_index = scalars_df_index.iloc[[0, 5, 1, 1, 5]].index
+
+    bf_result = scalars_df_index.loc[bf_index]
+    pd_result = scalars_pandas_df_index.loc[pd_index]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )
