@@ -274,7 +274,7 @@ def test_to_sql_query_named_index_included(
     assert index_column == "rowindex"
     assert is_named
 
-    roundtrip = session.read_gbq(sql, index_cols=[index_column])
+    roundtrip = session.read_gbq(sql, index_col=[index_column])
     assert_pandas_df_equal_ignore_ordering(
         roundtrip.to_pandas(), scalars_pandas_df_index
     )
@@ -306,7 +306,7 @@ def test_to_sql_query_unnamed_index_always_include(
     assert index_column == "bigframes_index_0"
     assert not is_named
 
-    roundtrip = session.read_gbq(sql, index_cols=[index_column])
+    roundtrip = session.read_gbq(sql, index_col=[index_column])
     roundtrip.index.name = None
     assert_pandas_df_equal_ignore_ordering(
         roundtrip.to_pandas(), scalars_pandas_df_default_index

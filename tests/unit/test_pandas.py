@@ -50,12 +50,14 @@ def test_method_matches_session(method_name: str):
         pytest.skip("Need Python 3.10 to reconcile deferred annotations.")
 
     session_method = getattr(bigframes.session.Session, method_name)
-    assert session_method.__doc__ is not None, "docstrings are required"
+    session_doc = inspect.getdoc(session_method)
+    assert session_doc is not None, "docstrings are required"
 
     pandas_method = getattr(bigframes.pandas, method_name)
-    assert pandas_method.__doc__ is not None, "docstrings are required"
-    assert re.sub(leading_whitespace, "", pandas_method.__doc__) == re.sub(
-        leading_whitespace, "", session_method.__doc__
+    pandas_doc = inspect.getdoc(pandas_method)
+    assert pandas_doc is not None, "docstrings are required"
+    assert re.sub(leading_whitespace, "", pandas_doc) == re.sub(
+        leading_whitespace, "", session_doc
     )
 
     # Add `eval_str = True` so that deferred annotations are turned into their

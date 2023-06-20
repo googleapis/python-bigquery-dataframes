@@ -51,7 +51,7 @@ def test_read_gbq_tokyo(
     scalars_pandas_df_index: pd.DataFrame,
     tokyo_location: str,
 ):
-    df = session_tokyo.read_gbq(scalars_table_tokyo, index_cols=["rowindex"])
+    df = session_tokyo.read_gbq(scalars_table_tokyo, index_col=["rowindex"])
     result = df.sort_index().compute()
     expected = scalars_pandas_df_index
 
@@ -140,12 +140,13 @@ def test_read_gbq_w_max_results(
 
 
 def test_read_gbq_sql(
-    session, scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame]
+    session: bigframes.Session,
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
 ):
     scalars_df, scalars_pandas_df = scalars_dfs
     df_len = len(scalars_pandas_df.index)
 
-    index_cols: Union[Tuple[str], Tuple] = ()
+    index_col: Union[Tuple[str], Tuple] = ()
     if scalars_df.index.name == "rowindex":
         sql = """SELECT
                 t.rowindex AS rowindex,
@@ -156,7 +157,7 @@ def test_read_gbq_sql(
             ORDER BY t.rowindex""".format(
             subquery=scalars_df.sql
         )
-        index_cols = ("rowindex",)
+        index_col = ("rowindex",)
     else:
         sql = """SELECT
                 t.float64_col * 2 AS my_floats,
@@ -166,9 +167,9 @@ def test_read_gbq_sql(
             ORDER BY t.rowindex""".format(
             subquery=scalars_df.sql
         )
-        index_cols = ()
+        index_col = ()
 
-    df = session.read_gbq(sql, index_cols=index_cols)
+    df = session.read_gbq(sql, index_col=index_col)
     result = df.compute()
 
     expected = pd.concat(

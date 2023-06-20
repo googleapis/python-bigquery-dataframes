@@ -18,7 +18,7 @@ from bigframes import Session
 
 
 @pytest.mark.parametrize(
-    ("query_or_table", "index_cols"),
+    ("query_or_table", "index_col"),
     [
         pytest.param(
             "bigquery-public-data.patents_view.ipcr_201708",
@@ -46,7 +46,7 @@ from bigframes import Session
         # ),
     ],
 )
-def test_read_gbq_for_large_tables(session: Session, query_or_table, index_cols):
+def test_read_gbq_for_large_tables(session: Session, query_or_table, index_col):
     """Verify read_gbq() is able to read large tables."""
-    df = session.read_gbq(query_or_table, index_cols=index_cols)
+    df = session.read_gbq(query_or_table, index_col=index_col)
     assert len(df.columns) != 0

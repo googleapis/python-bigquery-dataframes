@@ -74,7 +74,7 @@ class BqmlModel:
 
         index_col_name, is_named_index = tagged_index_cols[0]
         sql = func(source_sql)
-        df = session.read_gbq(sql, index_cols=[index_col_name])
+        df = session.read_gbq(sql, index_col=[index_col_name])
         if not is_named_index:
             df.index.name = None
 

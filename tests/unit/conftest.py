@@ -130,7 +130,7 @@ def scalars_testdata_setup(
 ) -> Tuple[pandas.DataFrame, Callable[[bigframes.Session], bigframes.DataFrame]]:
     return (
         scalars_pandas_df_default_index.set_index("rowindex"),
-        lambda session: session.read_gbq(SCALARS_TABLE_ID, index_cols=["rowindex"]),
+        lambda session: session.read_gbq(SCALARS_TABLE_ID, index_col=["rowindex"]),
     )
 
 
