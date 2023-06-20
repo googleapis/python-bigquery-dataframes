@@ -40,81 +40,54 @@ import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import bigframes.scalar
+import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 
-class Series(bigframes.operations.base.SeriesMethods):
-    """A 1D data structure, representing data and deferred computation."""
-
+class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
     @property
     def dt(self) -> dt.DatetimeMethods:
-        """Methods that act on a datetime Series.
-
-        Returns:
-            bigframes.operations.datetimes.DatetimeMethods: Methods that act on a datetime Series.
-        """
         return dt.DatetimeMethods(self._block)
 
     @property
     def dtype(self):
-        """Returns the dtype of the Series"""
         return self._block.dtypes[0]
 
     @property
     def dtypes(self):
-        """Returns the dtype of the Series"""
         return self._block.dtypes[0]
 
     @property
     def index(self) -> indexes.Index:
-        """The index of the series."""
         return indexes.Index(self)
 
     @property
     def loc(self) -> bigframes.indexers.LocSeriesIndexer:
-        """Set items by index label.
-
-        No get or slice support currently supported.
-        """
         return bigframes.indexers.LocSeriesIndexer(self)
 
     @property
     def iloc(self) -> bigframes.indexers.IlocSeriesIndexer:
-        """Get items by slice.
-
-        No set operations currently supported.
-        """
         return bigframes.indexers.IlocSeriesIndexer(self)
 
     @property
     def name(self) -> Optional[str]:
-        """The name of the series."""
         return self._name
 
     @property
     def shape(self) -> typing.Tuple[int]:
-        """Returns the dimensions of the series as a tuple"""
         return (self._block.shape()[0],)
 
     @property
     def size(self) -> int:
-        """Returns the number of elements in the series"""
         return self._block.shape()[0]
 
     @property
     def empty(self) -> bool:
-        """True if and only if the series has no items"""
         return self._block.shape()[0] == 0
 
     def copy(self) -> Series:
-        """Creates a deep copy of the series."""
         return Series(self._block)
 
     def rename(self, index: Optional[str], **kwargs) -> Series:
-        """
-        Return a copy of the series object with new name given by 'index.'
-
-        Note: Only single string parameter is currently supported.
-        """
         if len(kwargs) != 0:
             raise NotImplementedError(
                 "rename does not currently support any keyword arguments."
@@ -123,11 +96,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return Series(block)
 
     def rename_axis(self, mapper: Optional[str], **kwargs) -> Series:
-        """
-        Return a copy of the series object with new index name given by 'mapper.'
-
-        Note: Only single string parameter is currently supported.
-        """
         if len(kwargs) != 0:
             raise NotImplementedError(
                 "rename_axis does not currently support any keyword arguments."
@@ -140,17 +108,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         *,
         name: typing.Optional[str] = None,
         drop: bool = False,
-    ):
-        """
-        Create a new dataframe/series with the index reset.
-
-        Arguments:
-            name: column label for original series values if drop=False
-            drop: if true, original index is discarded, else it becomes a column
-
-        Returns:
-            Series if drop=True else Dataframe
-        """
+    ) -> bigframes.DataFrame | Series:
         block = self._block.reset_index(drop)
         if drop:
             return Series(block)
@@ -160,7 +118,6 @@ class Series(bigframes.operations.base.SeriesMethods):
             return bigframes.DataFrame(block)
 
     def __repr__(self) -> str:
-        """Converts a Series to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
         # TODO(swast): Avoid downloading the whole series by using job
@@ -182,7 +139,6 @@ class Series(bigframes.operations.base.SeriesMethods):
             bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
         ],
     ) -> Series:
-        """Casts the series to another compatible dtype."""
         return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
 
     def compute(self) -> pandas.Series:
@@ -192,8 +148,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         series.name = self._name
         return series
 
-    def drop(self, labels: str | typing.Sequence[str]):
-        """Drops rows with the given label(s). Note: will never raise KeyError even if labels are not present."""
+    def drop(self, labels: blocks.Label | typing.Sequence[blocks.Label] = None):
         block = self._block
         index_column = block.index_columns[0]
 
@@ -214,7 +169,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return Series(block.select_column(self._value_column))
 
     def between(self, left, right, inclusive="both"):
-        """Returns True for values between 'left' and 'right', else False."""
         if inclusive not in ["both", "neither", "left", "right"]:
             raise ValueError(
                 "Must set 'inclusive' to one of 'both', 'neither', 'left', or 'right'"
@@ -226,25 +180,21 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def cumsum(self) -> Series:
-        """The cumulative sum of values in the series."""
         return self._apply_window_op(
             agg_ops.sum_op, bigframes.core.WindowSpec(following=0)
         )
 
     def cummax(self) -> Series:
-        """The cumulative maximum of values in the series."""
         return self._apply_window_op(
             agg_ops.max_op, bigframes.core.WindowSpec(following=0)
         )
 
     def cummin(self) -> Series:
-        """The cumulative minimum of values in the series."""
         return self._apply_window_op(
             agg_ops.min_op, bigframes.core.WindowSpec(following=0)
         )
 
     def shift(self, periods: int = 1) -> Series:
-        """Shift index by desired number of periods."""
         window = bigframes.core.WindowSpec(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -252,31 +202,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self) -> Series:
-        """Difference between each element and previous element."""
         return self - self.shift(1)
 
-    METHOD = typing.Literal["average", "min", "max", "first", "dense"]
-    NA_OPTION = typing.Literal["keep", "top", "bottom"]
-
-    def rank(
-        self, method: METHOD = "average", *, na_option: NA_OPTION = "keep"
-    ) -> Series:
-        """Calculates the rank of values in the series.
-
-        Arguments:
-            method: How groups of tied elements are handled: either 'average', 'min', 'max', or 'first'
-                * average: mean rank of items in each group is used as rank
-                * min: minimum rank of items in each group is used as rank
-                * max: maximum rank of items in each group is used as rank
-                * first: original ordering is used to break ties in ranking
-            na_option: How NA-values elements are interpreted: either 'keep', 'top', or 'bottom'
-                * keep: NA values result in NA rank
-                * top: NA values will be ranked above other values
-                * bottom: NA values will be ranked below other values
-
-        Returns:
-            Series of numeric ranks.
-        """
+    def rank(self, axis=0, method: str = "average", na_option: str = "keep") -> Series:
         if method not in ["average", "min", "max", "first", "dense"]:
             raise ValueError(
                 "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
@@ -334,17 +262,13 @@ class Series(bigframes.operations.base.SeriesMethods):
             result = result.astype(pandas.Float64Dtype())
         return result
 
-    def fillna(self, value) -> "Series":
-        """Fills NULL values."""
+    def fillna(self, value=None) -> "Series" | None:
         return self._apply_binary_op(value, ops.fillna_op)
 
     def head(self, n: int = 5) -> Series:
-        """Limits Series to a specific number of rows."""
         return typing.cast(Series, self.iloc[0:n])
 
-    def nlargest(
-        self, n: int = 5, keep: typing.Literal["first", "last", "all"] = "first"
-    ) -> Series:
+    def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         block = self._block
@@ -371,9 +295,7 @@ class Series(bigframes.operations.base.SeriesMethods):
             block = block.select_column(self._value_column)
             return Series(block)
 
-    def nsmallest(
-        self, n: int = 5, keep: typing.Literal["first", "last", "all"] = "first"
-    ) -> Series:
+    def nsmallest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         block = self._block
@@ -396,17 +318,15 @@ class Series(bigframes.operations.base.SeriesMethods):
             block = block.select_column(self._value_column)
             return Series(block)
 
-    def isnull(self) -> "Series":
-        """Returns a boolean same-sized object indicating if the values are NULL/missing."""
+    def isna(self) -> "Series":
         return self._apply_unary_op(ops.isnull_op)
 
-    isna = isnull
+    isnull = isna
 
-    def notnull(self) -> "Series":
-        """Returns a boolean same-sized object indicating if the values are not NULL/missing."""
+    def notna(self) -> "Series":
         return self._apply_unary_op(ops.notnull_op)
 
-    notna = notnull
+    notnull = notna
 
     def __and__(self, other: bool | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.and_op)
@@ -425,11 +345,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.radd(other)
 
     def add(self, other: float | int | Series | pandas.Series) -> Series:
-        """Add series to other element-wise."""
         return self._apply_binary_op(other, ops.add_op)
 
     def radd(self, other: float | int | Series | pandas.Series) -> Series:
-        """Add series to other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.add_op))
 
     def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
@@ -439,11 +357,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rsub(other)
 
     def sub(self, other: float | int | Series | pandas.Series) -> Series:
-        """Subtract other from series element-wise."""
         return self._apply_binary_op(other, ops.sub_op)
 
     def rsub(self, other: float | int | Series | pandas.Series) -> Series:
-        """Subtract series from other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
     def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
@@ -453,11 +369,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rmul(other)
 
     def mul(self, other: float | int | Series | pandas.Series) -> Series:
-        """Multiply series and other element-wise."""
         return self._apply_binary_op(other, ops.mul_op)
 
     def rmul(self, other: float | int | Series | pandas.Series) -> Series:
-        """Multiply series and other element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.mul_op))
 
     multiply = mul
@@ -469,11 +383,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rtruediv(other)
 
     def truediv(self, other: float | int | Series | pandas.Series) -> Series:
-        """Divide series by other element-wise."""
         return self._apply_binary_op(other, ops.div_op)
 
     def rtruediv(self, other: float | int | Series | pandas.Series) -> Series:
-        """Divide other by series element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.div_op))
 
     div = truediv
@@ -489,11 +401,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rfloordiv(other)
 
     def floordiv(self, other: float | int | Series | pandas.Series) -> Series:
-        """Divide series by other element-wise, rounding down to the next integer."""
         return self._apply_binary_op(other, ops.floordiv_op)
 
     def rfloordiv(self, other: float | int | Series | pandas.Series) -> Series:
-        """Divide other by series element-wise, rounding down to the next integer."""
         return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
 
     def __lt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
@@ -503,11 +413,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.le(other)
 
     def lt(self, other) -> Series:
-        """Element-wise less than."""
         return self._apply_binary_op(other, ops.lt_op)
 
     def le(self, other) -> Series:
-        """Element-wise less than or equal."""
         return self._apply_binary_op(other, ops.le_op)
 
     def __gt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
@@ -517,11 +425,9 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.ge(other)
 
     def gt(self, other) -> Series:
-        """Element-wise greater than."""
         return self._apply_binary_op(other, ops.gt_op)
 
     def ge(self, other) -> Series:
-        """Element-wise greater than or equal."""
         return self._apply_binary_op(other, ops.ge_op)
 
     def __mod__(self, other) -> Series:  # type: ignore
@@ -531,26 +437,20 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.rmod(other)
 
     def mod(self, other) -> Series:  # type: ignore
-        """Calculate series modulo other element-wise."""
         return self._apply_binary_op(other, ops.mod_op)
 
     def rmod(self, other) -> Series:  # type: ignore
-        """Calculate other modulo series element-wise."""
         return self._apply_binary_op(other, ops.reverse(ops.mod_op))
 
-    def __matmul__(self, other: Series):
-        """Calculate dot product of series and other."""
+    def __matmul__(self, other):
         return (self * other).sum()
 
     dot = __matmul__
 
-    def abs(self) -> "Series":
-        """Calculate absolute value of numbers in the Series."""
+    def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
 
     def round(self, decimals=0) -> "Series":
-        """Round each value in a Series to the given number of decimals."""
-
         def round_op(x: ibis_types.Value, y: ibis_types.Value):
             return typing.cast(ibis_types.NumericValue, x).round(
                 digits=typing.cast(ibis_types.IntegerValue, y)
@@ -559,31 +459,24 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self._apply_binary_op(decimals, round_op)
 
     def all(self) -> bool:
-        """Returns true if and only if all elements are True. Nulls are ignored"""
         return typing.cast(bool, self._apply_aggregation(agg_ops.all_op))
 
     def any(self) -> bool:
-        """Returns true if and only if at least one element is True. Nulls are ignored"""
         return typing.cast(bool, self._apply_aggregation(agg_ops.any_op))
 
     def count(self) -> int:
-        """Counts the number of values in the series. Ignores null/nan."""
         return typing.cast(int, self._apply_aggregation(agg_ops.count_op))
 
     def max(self) -> bigframes.scalar.Scalar:
-        """Return the maximum values over the requested axis."""
         return self._apply_aggregation(agg_ops.max_op)
 
     def min(self) -> bigframes.scalar.Scalar:
-        """Return the maximum values over the requested axis."""
         return self._apply_aggregation(agg_ops.min_op)
 
     def std(self) -> float:
-        """Return the standard deviation of the values in the series."""
         return typing.cast(float, self._apply_aggregation(agg_ops.std_op))
 
     def var(self) -> float:
-        """Return the variance of the values in the series."""
         return typing.cast(float, self._apply_aggregation(agg_ops.var_op))
 
     def _central_moment(self, n: int) -> float:
@@ -599,7 +492,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return delta_power.mean()
 
     def kurt(self) -> float:
-        """Return the kurtosis of the values in the series."""
         # TODO(tbergeron): Cache intermediate count/moment/etc. statistics at block level
         count = self.count()
         moment4 = self._central_moment(4)
@@ -616,11 +508,6 @@ class Series(bigframes.operations.base.SeriesMethods):
     kurtosis = kurt
 
     def mode(self) -> Series:
-        """
-        Return the mode(s) of the values in the series, in sorted value order.
-
-        The mode(s) are the values(s) that occur the most times in the series.
-        """
         block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
         value_count_col_id = self._value_column + "_bf_internal_value_count"
@@ -640,105 +527,52 @@ class Series(bigframes.operations.base.SeriesMethods):
             ops.eq_op,
         )
         block = block.filter(is_mode_col_id)
-        return (
-            Series(
-                block.select_column(self._value_column).assign_label(
-                    self._value_column, self.name
-                )
+        mode_values_series = Series(
+            block.select_column(self._value_column).assign_label(
+                self._value_column, self.name
             )
-            .sort_values()
-            .reset_index(drop=True)
+        )
+        return typing.cast(
+            Series, mode_values_series.sort_values().reset_index(drop=True)
         )
 
     def mean(self) -> float:
-        """Finds the mean of the numeric values in the series. Ignores null/nan.
-
-        Note: pandas and BigFrames may not perform floating point operations in
-        exactly the same order. Expect some floating point wobble. When
-        comparing computed results, use a method such as :func:`math.isclose`
-        or :func:`numpy.isclose` to account for this.
-
-        Returns:
-            A BigFrames Scalar so that this can be used in other expressions.
-            To get the numeric result call
-            :func:`~bigframes.scalar.Scalar.compute()`.
-        """
         return typing.cast(float, self._apply_aggregation(agg_ops.mean_op))
 
     def sum(self) -> float:
-        """Sums the numeric values in the series. Ignores null/nan.
-
-        Note: pandas and BigFrames may not perform floating point operations in
-        exactly the same order. Expect some floating point wobble. When
-        comparing computed results, use a method such as :func:`math.isclose`
-        or :func:`numpy.isclose` to account for this.
-
-        Returns:
-            A BigFrames Scalar so that this can be used in other expressions.
-            To get the numeric result call
-            :func:`~bigframes.scalar.Scalar.compute()`.
-        """
         return typing.cast(float, self._apply_aggregation(agg_ops.sum_op))
 
     def prod(self) -> float:
-        """Finds the product of the numeric values for each group in the series. Ignores null/nan.
-
-        Note: pandas and BigFrames may not perform floating point operations in
-        exactly the same order. Expect some floating point wobble. When
-        comparing computed results, use a method such as :func:`math.isclose`
-        or :func:`numpy.isclose` to account for this.
-
-        Returns:
-            A BigFrames Scalar so that this can be used in other expressions.
-            To get the numeric result call
-            :func:`~bigframes.scalar.Scalar.compute()`.
-        """
         return typing.cast(float, self._apply_aggregation(agg_ops.product_op))
 
     product = prod
 
     def __eq__(self, other: object) -> Series:  # type: ignore
-        """Element-wise equals between the series and another series or literal."""
         return self.eq(other)
 
     def __ne__(self, other: object) -> Series:  # type: ignore
-        """Element-wise not-equals between the series and another series or literal."""
         return self.ne(other)
 
     def __invert__(self) -> Series:
-        """Element-wise logical negation. Does not handle null or nan values."""
         return self._apply_unary_op(ops.invert_op)
 
     def eq(self, other: object) -> Series:
-        """
-        Element-wise equals between the series and another series or literal.
-        None and NaN are not equal to themselves.
-        This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
-        """
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.eq_op)
 
     def ne(self, other: object) -> Series:
-        """
-        Element-wise not-equals between the series and another series or literal.
-        None and NaN are not equal to themselves.
-        This is inconsitent with Pandas eq behavior with None: https://github.com/pandas-dev/pandas/issues/20442
-        """
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.ne_op)
 
     def where(self, cond, other=None):
-        """Keep original values where 'cond' is True, else repacle with values from 'other'"""
         return self._apply_ternary_op(
             cond, other if (other is not None) else pandas.NA, ops.where_op
         )
 
     def clip(self, lower, upper):
-        """Clip series values to 'lower' and 'upper' bounds."""
         return self._apply_ternary_op(lower, upper, ops.clip_op)
 
     def argmax(self) -> bigframes.scalar.Scalar:
-        """Return the row number of the entry with the largest value."""
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -753,7 +587,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def argmin(self) -> bigframes.scalar.Scalar:
-        """Return the row number of the entry with the smallest value."""
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -766,7 +599,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def __getitem__(self, indexer: Series):
-        """Get items using boolean series indexer."""
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
         (left, right, block) = self._align(indexer, "left")
         block = block.filter(right)
@@ -876,7 +708,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return Series(block.select_column(result_id))
 
     def value_counts(self):
-        """Count the number of occurences of each value in the Series. Results are sorted in decreasing order of frequency."""
         counts = self.groupby(self).count()
         block = counts._block
         block = block.order_by(
@@ -893,7 +724,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def sort_values(self, *, axis=0, ascending=True, na_position="last") -> Series:
-        """Sort series by values in ascending or descending order."""
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
@@ -908,8 +738,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
         return Series(block)
 
-    def sort_index(self, axis=0, *, ascending=True, na_position="last") -> Series:
-        """Sort series by index labels in ascending or descending order."""
+    def sort_index(self, *, axis=0, ascending=True, na_position="last") -> Series:
         # TODO(tbergeron): Support level parameter once multi-index introduced.
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
@@ -923,13 +752,7 @@ class Series(bigframes.operations.base.SeriesMethods):
         block = block.order_by(ordering)
         return Series(block)
 
-    def rolling(self, window: int, *, min_periods=None) -> bigframes.core.window.Window:
-        """Create a rolling window over the series
-
-        Arguments:
-            window: the fixed number of observations used for each window
-            min_periods: number of observations needed to produce a non-null result for a row, defaults to window
-        """
+    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = WindowSpec(
             preceding=window - 1, following=0, min_periods=min_periods or window
@@ -939,11 +762,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        """Create a expanding window over the series
-
-        Arguments:
-            min_periods: number of observations needed to produce a non-null result for a row, defaults to 1
-        """
         window_spec = WindowSpec(following=0, min_periods=min_periods)
         return bigframes.core.window.Window(
             self._block, window_spec, self._value_column, self.name
@@ -960,7 +778,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         *,
         dropna: bool = True,
     ):
-        """Group the series by a given list of column labels. Only supports grouping by values from another aligned Series."""
         if (by is not None) and (level is not None):
             raise ValueError("Do not specify both 'by' and 'level'")
         if not as_index:
@@ -1021,50 +838,17 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def apply(self, func) -> Series:
-        """Returns a series with a user defined function applied.
-
-        Args:
-            func: callable.
-                A scalar remote function.
-
-        Returns:
-            A new Series with `func` applied elementwise.
-        """
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
         return self._apply_unary_op(ops.RemoteFunctionOp(func))
 
-    def add_prefix(self, prefix) -> Series:
-        """
-        Add a prefix to the row labels
-
-        Arguments:
-            prefix: string prefix to add to each label
-
-        Returns:
-            The modified Series
-        """
+    def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))
 
-    def add_suffix(self, suffix) -> Series:
-        """
-        Add a suffix to the row labels
-
-        Arguments:
-            suffix: string suffix to add to each label
-
-        Returns:
-            The modified Series
-        """
+    def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
-        """
-        Creates copy of series with any duplicate values removed.
-
-        Args:
-            keep: 'first', 'last' or False. Determines which value is kept for values with duplicates. All instances discarded if set to False
-        """
         if keep not in ["first", "last", False]:
             raise ValueError("keep must be one of 'first', 'last', or False'")
         block = self._block
@@ -1100,7 +884,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         return Series(block.select_column(self._value_column))
 
     def mask(self, cond, other=None) -> Series:
-        """Replace values in a series where the condition is true."""
         if callable(cond):
             cond = self.apply(cond)
 
@@ -1111,55 +894,58 @@ class Series(bigframes.operations.base.SeriesMethods):
         return self.where(~cond, other)
 
     def to_frame(self) -> bigframes.DataFrame:
-        """Convert Series to DataFrame."""
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels([self.name] if self.name else ["0"])
         return bigframes.DataFrame(block)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
-        """Convert series to a excel."""
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
         return self.compute().to_csv(path_or_buf, **kwargs)
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        """Convert series to a dictionary."""
-        return self.compute().to_dict(into)
+        return typing.cast(dict, self.compute().to_dict(into))
 
     def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        """Convert series to a excel."""
         return self.compute().to_excel(excel_writer, sheet_name, **kwargs)
 
-    def to_json(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
-        """Convert series to json."""
+    def to_json(
+        self,
+        path_or_buf=None,
+        orient: typing.Literal[
+            "split", "records", "index", "columns", "values", "table"
+        ] = "columns",
+        **kwargs,
+    ) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
         return self.compute().to_json(path_or_buf, **kwargs)
 
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
     ) -> typing.Optional[str]:
-        """Convert series to a latex."""
         return self.compute().to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
-    def to_list(self) -> list:
-        """Convert series to a list."""
+    def tolist(self) -> list:
         return self.compute().to_list()
 
+    to_list = tolist
+
     def to_markdown(
-        self, buf=None, mode="wt", index=True, **kwargs
+        self,
+        buf: typing.IO[str] | None = None,
+        mode: str = "wt",
+        index: bool = True,
+        **kwargs,
     ) -> typing.Optional[str]:
-        """Convert series to markdown."""
-        return self.compute().to_markdown(buf, mode, index, **kwargs)
+        return self.compute().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
-        """Convert series to a numpy array."""
         return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
 
     def to_pickle(self, path, **kwargs) -> None:
-        """Convert series to a pickle."""
         return self.compute().to_pickle(path, **kwargs)
 
     def to_string(
@@ -1175,7 +961,6 @@ class Series(bigframes.operations.base.SeriesMethods):
         max_rows=None,
         min_rows=None,
     ) -> typing.Optional[str]:
-        """Convert series to string."""
         return self.compute().to_string(
             buf,
             na_rep,
@@ -1190,18 +975,12 @@ class Series(bigframes.operations.base.SeriesMethods):
         )
 
     def to_xarray(self):
-        """Convert series to an xarray."""
         return self.compute().to_xarray()
 
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str
     @property
     def str(self) -> strings.StringMethods:
-        """Methods that act on a string Series.
-
-        Returns:
-            bigframes.operations.strings.StringMethods: Methods that act on a string Series.
-        """
         return strings.StringMethods(self._block)
 
     def _slice(

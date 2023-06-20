@@ -96,7 +96,7 @@ class NDFrame(indexing.IndexingMixin):
         *,
         index: bool = True,
         lines: bool = False,
-    ) -> None:
+    ) -> str | None:
         """Convert the object to a JSON string, written to GCS.
 
         Note NaN's and None will be converted to null and datetime objects
@@ -159,7 +159,7 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError("abstract method")
 
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> None:
+    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
         """Write object to a comma-separated values (csv) file on GCS.
 
         Args:
@@ -344,5 +344,43 @@ class NDFrame(indexing.IndexingMixin):
 
         Returns:
             Copy of input object, shifted.
+        """
+        raise NotImplementedError("abstract method")
+
+    def rank(
+        self,
+        axis=0,
+        method: str = "average",
+        na_option: str = "keep",
+    ):
+        """
+        Compute numerical data ranks (1 through n) along axis.
+
+        By default, equal values are assigned a rank that is the average of the
+        ranks of those values.
+
+        Parameters
+        ----------
+        method : {'average', 'min', 'max', 'first', 'dense'}, default 'average'
+            How to rank the group of records that have the same value (i.e. ties):
+
+            * average: average rank of the group
+            * min: lowest rank in the group
+            * max: highest rank in the group
+            * first: ranks assigned in order they appear in the array
+            * dense: like 'min', but rank always increases by 1 between groups.
+
+
+        na_option : {'keep', 'top', 'bottom'}, default 'keep'
+            How to rank NaN values:
+
+            * keep: assign NaN rank to NaN values
+            * top: assign lowest rank to NaN values
+            * bottom: assign highest rank to NaN values
+
+        Returns
+        -------
+        same type as caller
+            Return a Series or DataFrame with data ranks as values.
         """
         raise NotImplementedError("abstract method")

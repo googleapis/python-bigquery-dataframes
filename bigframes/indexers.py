@@ -32,7 +32,9 @@ class LocSeriesIndexer:
         """
         Only indexing by a boolean bigframes.Series or list of index entries is currently supported
         """
-        return _loc_getitem_series_or_dataframe(self._series, key)
+        return typing.cast(
+            bigframes.Series, _loc_getitem_series_or_dataframe(self._series, key)
+        )
 
     def __setitem__(self, key, value) -> None:
         # TODO(swast): support MultiIndex
@@ -102,7 +104,9 @@ class _LocIndexer:
         """
         Only indexing by a boolean bigframes.Series is currently supported
         """
-        return _loc_getitem_series_or_dataframe(self._dataframe, key)
+        return typing.cast(
+            bigframes.DataFrame, _loc_getitem_series_or_dataframe(self._dataframe, key)
+        )
 
 
 class _iLocIndexer:
@@ -119,20 +123,6 @@ class _iLocIndexer:
         Other key types are not yet supported.
         """
         return _iloc_getitem_series_or_dataframe(self._dataframe, key)
-
-
-@typing.overload
-def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.DataFrame, key
-) -> bigframes.DataFrame:
-    ...
-
-
-@typing.overload
-def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.Series, key
-) -> bigframes.Series:
-    ...
 
 
 def _loc_getitem_series_or_dataframe(
