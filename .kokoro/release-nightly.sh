@@ -30,7 +30,7 @@ rm -rf build dist
 # internal issue b/261050975.
 git config --global --add safe.directory "${PROJECT_ROOT}"
 
-python3 -m pip install --require-hashes -r .kokoro/requirements.txt
+python3.10 -m pip install --require-hashes -r .kokoro/requirements.txt
 
 # Disable buffering, so that the logs stream through.
 export PYTHONUNBUFFERED=1
@@ -41,19 +41,19 @@ pip install -e .[all]
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
 if [[ -n "${NOX_SESSION:-}" ]]; then
-    python3 -m nox -s ${NOX_SESSION:-}
+    python3.10 -m nox -s ${NOX_SESSION:-}
 else
-    python3 -m nox
+    python3.10 -m nox
 fi
 
 # Update version string to include git hash and date
 CURRENT_DATE=$(date '+%Y%m%d')
 GIT_HASH=$(git rev-parse --short HEAD)
-BIGFRAMES_VERSION=$(python3 -c "import bigframes; print(bigframes.__version__)")
+BIGFRAMES_VERSION=$(python3.10 -c "import bigframes; print(bigframes.__version__)")
 RELEASE_VERSION=${BIGFRAMES_VERSION}dev${CURRENT_DATE}+${GIT_HASH}
 sed -i -e "s/$BIGFRAMES_VERSION/$RELEASE_VERSION/g" bigframes/version.py
 
-python3 setup.py sdist bdist_wheel
+python3.10 setup.py sdist bdist_wheel
 
 # Undo the version string edit, in case this script is running on a
 # non-temporary instance of the bigframes repo
@@ -80,7 +80,7 @@ done
 # table, if you want to test this step, point it to a table you have
 # write access to
 COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
-python3 publish_api_coverage.py \
+python3.10 publish_api_coverage.py \
   --bigframes_version=$BIGFRAMES_VERSION \
   --release_version=$RELEASE_VERSION \
   --bigquery_table=$COVERAGE_TABLE
@@ -113,7 +113,7 @@ gcs_docs () {
   docs_gcs_bucket=gs://bigframes-docs
   docs_local_html_folder=docs/_build/html
   if [ ! -d ${docs_local_html_folder} ]; then
-    python3 -m nox -s docs
+    python3.10 -m nox -s docs
   fi
 
   gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}

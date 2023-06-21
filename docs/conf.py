@@ -266,14 +266,12 @@ suppress_warnings = [
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements: Dict[str, Any] = {
-    # The paper size ('letterpaper' or 'a4paper').
-    #'papersize': 'letterpaper',
-    # The font size ('10pt', '11pt' or '12pt').
-    #'pointsize': '10pt',
-    # Additional stuff for the LaTeX preamble.
-    #'preamble': '',
-    # Latex figure (float) alignment
-    #'figure_align': 'htbp',
+    # Avoid "too deeply nested" error by using enumitem package.
+    # See: https://stackoverflow.com/a/28454426/101923
+    "preamble": r"""
+\usepackage{enumitem}
+\setlistdepth{99}
+"""
 }
 
 # Grouping the document tree into LaTeX files. List of tuples

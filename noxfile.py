@@ -30,6 +30,7 @@ import nox
 
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
+SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = ["docs", "bigframes", "tests", "noxfile.py", "setup.py"]
 
 DEFAULT_PYTHON_VERSION = "3.10"
@@ -385,13 +386,13 @@ def cover(session):
     session.run("coverage", "erase")
 
 
-@nox.session(python="3.9")
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def docs(session):
     """Build the docs for this library."""
 
     session.install("-e", ".")
     session.install(
-        "sphinx==4.0.1",
+        SPHINX_VERSION,
         "alabaster",
         "recommonmark",
     )
@@ -411,13 +412,15 @@ def docs(session):
     )
 
 
+# docfx doesn't yet support Python 3.10.
+# https://github.com/googleapis/sphinx-docfx-yaml/issues/305
 @nox.session(python="3.9")
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
     session.install("-e", ".")
     session.install(
-        "sphinx==4.0.1",
+        SPHINX_VERSION,
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml",
