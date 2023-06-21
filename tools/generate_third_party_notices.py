@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import glob
 import importlib.metadata
 import json
 import os.path
@@ -166,6 +167,13 @@ def fetch_license_and_notice_metadata(packages: list[str]):
     return metadatas
 
 
+def write_lines_without_trailing_spaces(file, text: str, key: str):
+    """Write text lines to a file without the trailing spaces.
+    This will stop complaints by the trailing-whitespace pre-commit hook."""
+    text = "\n".join([line.rstrip() for line in text.split("\n")])
+    file.write(f"{key}:\n{text}\n")
+
+
 def write_metadata_to_file(
     file, metadata, with_version=False, requires_packages=[], packages_required_by=[]
 ):
@@ -183,11 +191,6 @@ def write_metadata_to_file(
 
     if packages_required_by:
         file.write(f"Required By: {', '.join(sorted(packages_required_by))}\n")
-
-    # This is to stop complaints by the trailing-whitespace pre-commit hook
-    def write_lines_without_trailing_spaces(text: str, key: str):
-        text = "\n".join([line.rstrip() for line in text.split("\n")])
-        file.write(f"{key}:\n{text}\n")
 
     # Try to generate third party license
 
@@ -210,7 +213,7 @@ def write_metadata_to_file(
     )
 
     if license_info:
-        write_lines_without_trailing_spaces(license_info[0], "License")
+        write_lines_without_trailing_spaces(file, license_info[0], "License")
 
     # Try to generate third party notice
     notice_info = get_metadata_and_filename(
@@ -222,8 +225,17 @@ def write_metadata_to_file(
     )
 
     if notice_info:
-        write_lines_without_trailing_spaces(notice_info[0], "Notice")
+        write_lines_without_trailing_spaces(file, notice_info[0], "Notice")
 
+    file.write(DEPENDENCY_INFO_SEPARATOR)
+
+
+def write_third_party_vendored_license(file, path):
+    """Write license of a vendored third party library to notices file."""
+    file.write(DEPENDENCY_INFO_SEPARATOR)
+    file.write(f"Vendored Code: {os.path.dirname(path)}\n")
+    notice_key = f"Notice ({os.path.basename(path)})"
+    write_lines_without_trailing_spaces(file, open(path).read(), notice_key)
     file.write(DEPENDENCY_INFO_SEPARATOR)
 
 
@@ -267,8 +279,9 @@ if __name__ == "__main__":
     deps_metadata = fetch_license_and_notice_metadata(list(deps))
     deps_metadata = sorted(deps_metadata, key=lambda m: m["Name"])
 
-    # Generate third party metadata for each dependency
+    # Write the file
     with open(THIRD_PARTY_NOTICES_FILE, "w") as f:
+        # Generate third party metadata for each dependency
         for metadata in deps_metadata:
             dep = deps[metadata["Name"]]
             write_metadata_to_file(
@@ -278,3 +291,17 @@ if __name__ == "__main__":
                 dep["Requires"] if args.with_requires else [],
                 dep["RequiredBy"] if args.with_required_by else [],
             )
+
+        # Generate third party vendored notices
+        notices = set()
+        for filename in [
+            "LICENSE",
+            "LICENSE.txt",
+            "NOTICE",
+            "NOTICE.txt",
+            "COPYING",
+            "COPYING.txt",
+        ]:
+            notices.update(glob.glob(f"third_party/bigframes_vendored/*/{filename}"))
+        for path in sorted(notices):
+            write_third_party_vendored_license(f, path)
