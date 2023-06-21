@@ -36,7 +36,7 @@ python3.10 -m pip install --require-hashes -r .kokoro/requirements.txt
 export PYTHONUNBUFFERED=1
 
 # Install dependencies, as the following steps depend on it
-pip install -e .[all]
+python3.10 -m pip install -e .[all]
 
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
