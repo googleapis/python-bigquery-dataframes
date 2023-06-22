@@ -38,7 +38,8 @@ class ReaderIOMixin:
         automatically recycled after the Session is closed.
 
         Note: using `engine="bigquery"` will not guarantee the same ordering as the
-        file in the resulting dataframe.
+        file. Instead, set a serialized index column as the index and sort by
+        that in the resulting DataFrame.
 
         Args:
             filepath_or_buffer: a string path including GCS and local file.

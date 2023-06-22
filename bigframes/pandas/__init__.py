@@ -22,6 +22,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    IO,
     Iterable,
     List,
     Literal,
@@ -95,7 +96,7 @@ def _with_default_session(func, *args, **kwargs):
 
 
 def read_csv(
-    filepath_or_buffer: str,
+    filepath_or_buffer: str | IO["bytes"],
     *,
     sep: Optional[str] = ",",
     header: Optional[int] = 0,
@@ -123,7 +124,6 @@ def read_csv(
     encoding: Optional[str] = None,
     **kwargs,
 ) -> bigframes.dataframe.DataFrame:
-    # NOTE: Please keep this docstring in sync with the one in bigframes.session.
     return _with_default_session(
         bigframes.session.Session.read_csv,
         filepath_or_buffer=filepath_or_buffer,
@@ -149,7 +149,6 @@ def read_gbq(
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
 ) -> bigframes.dataframe.DataFrame:
-    # NOTE: Please keep this docstring in sync with the one in bigframes.session.
     return _with_default_session(
         bigframes.session.Session.read_gbq,
         query,
@@ -163,7 +162,6 @@ read_gbq.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq)
 
 
 def read_gbq_model(model_name: str):
-    # NOTE: Please keep this docstring in sync with the one in bigframes.session.
     return _with_default_session(
         bigframes.session.Session.read_gbq_model,
         model_name,
@@ -174,7 +172,6 @@ read_gbq_model.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_model
 
 
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
-    # NOTE: Please keep this docstring in sync with the one in bigframes.session.
     return _with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
@@ -182,6 +179,16 @@ def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataF
 
 
 read_pandas.__doc__ = inspect.getdoc(bigframes.session.Session.read_pandas)
+
+
+def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
+    return _with_default_session(
+        bigframes.session.Session.read_parquet,
+        path,
+    )
+
+
+read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
 def remote_function(

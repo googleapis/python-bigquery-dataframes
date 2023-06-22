@@ -1615,6 +1615,12 @@ def test_mask_custom_value(scalars_dfs):
         ("int64_col", "boolean"),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
+        # pandas actually doesn't let folks convert to/from naive timestamp and
+        # raises a deprecation warning to use tz_localize/tz_convert instead,
+        # but BigQuery always stores values as UTC and doesn't have to deal
+        # with timezone conversions, so we'll allow it.
+        ("timestamp_col", pd.ArrowDtype(pa.timestamp("us"))),
+        ("datetime_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
         # TODO(bmil): fix Ibis bug: BigQuery backend rounds to nearest int
         # ("float64_col", "Int64"),
         # TODO(bmil): decide whether to fix Ibis bug: BigQuery backend

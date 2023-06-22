@@ -37,10 +37,11 @@ See also:
 Parquet
 -------
 
-TODO: read_parquet
+.. autofunction:: read_parquet
 
 See also:
 
+* :meth:`bigframes.session.Session.read_parquet`
 * :meth:`bigframes.dataframe.DataFrame.to_parquet`
 
 Google BigQuery

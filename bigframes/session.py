@@ -24,6 +24,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    IO,
     Iterable,
     List,
     Literal,
@@ -61,6 +62,7 @@ import bigframes.ml.loader
 from bigframes.remote_function import remote_function as biframes_rf
 import bigframes.version
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
+import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
@@ -111,7 +113,9 @@ def _ensure_application_default_credentials_in_colab_environment():
 
 
 class Session(
-    third_party_pandas_gbq.GBQIOMixin, third_party_pandas_readers.ReaderIOMixin
+    third_party_pandas_gbq.GBQIOMixin,
+    third_party_pandas_parquet.ParquetIOMixin,
+    third_party_pandas_readers.ReaderIOMixin,
 ):
     """Establishes a BigQuery connection to capture a group of job activities related to
     DataFrames."""
@@ -400,6 +404,37 @@ class Session(
             table_expression, index_col, index_col_name, column_keys, ordering=ordering
         )
 
+    def _read_bigquery_load_job(
+        self,
+        filepath_or_buffer: str | IO["bytes"],
+        table: bigquery.Table,
+        *,
+        job_config: bigquery.LoadJobConfig,
+        index_col: Iterable[str] | str = (),
+        col_order: Iterable[str] = (),
+    ) -> dataframe.DataFrame:
+        if isinstance(filepath_or_buffer, str):
+            if filepath_or_buffer.startswith("gs://"):
+                load_job = self.bqclient.load_table_from_uri(
+                    filepath_or_buffer, table, job_config=job_config
+                )
+            else:
+                with open(filepath_or_buffer, "rb") as source_file:
+                    load_job = self.bqclient.load_table_from_file(
+                        source_file, table, job_config=job_config
+                    )
+        else:
+            load_job = self.bqclient.load_table_from_file(
+                filepath_or_buffer, table, job_config=job_config
+            )
+
+        load_job.result()  # Wait for the job to complete
+        return self.read_gbq(
+            f"SELECT * FROM `{table.table_id}`",
+            index_col=index_col,
+            col_order=col_order,
+        )
+
     def _read_ibis(
         self,
         table_expression: ibis_types.Table,
@@ -506,7 +541,7 @@ class Session(
 
     def read_csv(
         self,
-        filepath_or_buffer: str,
+        filepath_or_buffer: str | IO["bytes"],
         *,
         sep: Optional[str] = ",",
         header: Optional[int] = 0,
@@ -566,9 +601,6 @@ class Session(
                         "BigQuery engine only supports an iterable of strings for `usecols`."
                     )
 
-            if not isinstance(filepath_or_buffer, str):
-                raise NotImplementedError("BigQuery engine does not support buffers.")
-
             valid_encodings = {"UTF-8", "ISO-8859-1"}
             if encoding is not None and encoding not in valid_encodings:
                 raise NotImplementedError(
@@ -592,18 +624,10 @@ class Session(
             elif header is None:
                 job_config.skip_leading_rows = 0
 
-            if filepath_or_buffer.startswith("gs://"):
-                load_job = self.bqclient.load_table_from_uri(
-                    filepath_or_buffer, table, job_config=job_config
-                )
-            else:
-                with open(filepath_or_buffer, "rb") as source_file:
-                    load_job = self.bqclient.load_table_from_file(
-                        source_file, table, job_config=job_config
-                    )
-            load_job.result()  # Wait for the job to complete
-            return self.read_gbq(
-                f"SELECT * FROM `{table.table_id}`",
+            return self._read_bigquery_load_job(
+                filepath_or_buffer,
+                table,
+                job_config=job_config,
                 index_col=index_col,
                 col_order=col_order,
             )
@@ -613,7 +637,8 @@ class Session(
                     "'chunksize' and 'iterator' arguments are not supported."
                 )
 
-            self._check_file_size(filepath_or_buffer)
+            if isinstance(filepath_or_buffer, str):
+                self._check_file_size(filepath_or_buffer)
             pandas_df = pandas.read_csv(
                 filepath_or_buffer,
                 sep=sep,
@@ -627,6 +652,22 @@ class Session(
                 **kwargs,
             )
             return self.read_pandas(pandas_df)
+
+    def read_parquet(
+        self,
+        path: str | IO["bytes"],
+    ) -> dataframe.DataFrame:
+        # Note: "engine" is omitted because it is redundant. Loading a table
+        # from a pandas DataFrame will just create another parquet file + load
+        # job anyway.
+        table = bigquery.Table(self._create_session_table())
+
+        job_config = bigquery.LoadJobConfig()
+        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+        job_config.source_format = bigquery.SourceFormat.PARQUET
+        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+
+        return self._read_bigquery_load_job(path, table, job_config=job_config)
 
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes

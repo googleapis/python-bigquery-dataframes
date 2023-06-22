@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from io import StringIO
+import random
 import tempfile
+import typing
 from typing import List, Tuple, Union
 
 import google.api_core.exceptions
@@ -355,6 +356,30 @@ def test_read_csv_local_bq_engine(session, scalars_dfs, sep):
         pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
 
 
+def test_read_csv_localbuffer_bq_engine(session, scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    with tempfile.TemporaryDirectory() as dir:
+        path = dir + "/test_read_csv_local_bq_engine.csv"
+        # Using the pandas to_csv method because the BQ one does not support local write.
+        scalars_pandas_df.to_csv(path, index=False)
+        with open(path, "rb") as buffer:
+            df = session.read_csv(buffer, engine="bigquery")
+
+        # TODO(chelsealin): If we serialize the index, can more easily compare values.
+        pd.testing.assert_index_equal(df.columns, scalars_df.columns)
+
+        # The auto detects of BigQuery load job have restrictions to detect the bytes,
+        # datetime, numeric and geometry types, so they're skipped here.
+        df = df.drop(
+            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        )
+        scalars_df = scalars_df.drop(
+            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        )
+        assert df.shape[0] == scalars_df.shape[0]
+        pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
@@ -428,14 +453,6 @@ def test_read_csv_default_engine_throws_not_implemented_error(
     scalars_df_index.to_csv(path)
     with pytest.raises(NotImplementedError, match=match):
         session.read_csv(path, **kwargs)
-
-
-def test_read_csv_bq_engine_w_buffer_throws_not_implemented_error(session):
-    buffer = StringIO("name,age,gender\nJohn,25,Male\nJane,30,Female\nMark,40,Male")
-    with pytest.raises(
-        NotImplementedError, match="BigQuery engine does not support buffers."
-    ):
-        session.read_csv(buffer, engine="bigquery")
 
 
 def test_read_csv_gcs_default_engine_w_header(session, scalars_df_index, gcs_folder):
@@ -621,6 +638,43 @@ def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index, en
         )
 
         assert df.shape[0] == penguins_pandas_df_default_index.shape[0]
+
+
+def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
+    scalars_df, _ = scalars_dfs
+    # Include wildcard so that multiple files can be written/read if > 1 GB.
+    # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
+    path = gcs_folder + "test_read_parquet_gcs*.parquet"
+    df_in: bigframes.DataFrame = scalars_df.copy()
+    if df_in.index.name is None:
+        # TODO(swast): Support MultiIndex
+        df_in.index.name = "index"
+    # GEOGRAPHY not supported in parquet export.
+    df_in = df_in.drop(columns="geography_col")
+    # Make sure we can also serialize the order.
+    df_write = df_in.reset_index(drop=False)
+    df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
+    df_write.to_parquet(path, index=True)
+
+    df_out = (
+        session.read_parquet(path)
+        # Restore order.
+        .set_index(df_write.index.name).sort_index()
+        # Restore index.
+        .set_index(typing.cast(str, df_in.index.name))
+    )
+
+    # DATETIME gets loaded as TIMESTAMP in parquet. See:
+    # https://cloud.google.com/bigquery/docs/exporting-data#parquet_export_details
+    df_out = df_out.assign(
+        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]")
+    )
+
+    # Make sure we actually have at least some values before comparing.
+    assert df_out.size != 0
+    pd_df_in = df_in.to_pandas()
+    pd_df_out = df_out.to_pandas()
+    pd.testing.assert_frame_equal(pd_df_in, pd_df_out)
 
 
 def test_session_id(session):

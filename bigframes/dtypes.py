@@ -229,8 +229,8 @@ def cast_ibis_value(
         ibis_dtypes.string: (),
         ibis_dtypes.date: (),
         ibis_dtypes.time: (),
-        ibis_dtypes.timestamp: (),
-        ibis_dtypes.Timestamp(timezone="UTC"): (),
+        ibis_dtypes.timestamp: (ibis_dtypes.Timestamp(timezone="UTC"),),
+        ibis_dtypes.Timestamp(timezone="UTC"): (ibis_dtypes.timestamp,),
     }
     if value.type() in good_casts:
         if to_type in good_casts[value.type()]:

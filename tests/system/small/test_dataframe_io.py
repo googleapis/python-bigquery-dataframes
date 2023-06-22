@@ -106,18 +106,26 @@ def test_to_csv_index(
 def test_to_gbq_index(scalars_dfs, dataset_id, index):
     """Test the `to_gbq` API with the `index` parameter."""
     scalars_df, scalars_pandas_df = scalars_dfs
-    index_col = None
-    if scalars_df.index.name is not None:
-        destination_table = f"{dataset_id}.test_index_df_to_gbq_{index}"
-        if index:
-            index_col = scalars_df.index.name
+    destination_table = f"{dataset_id}.test_index_df_to_gbq_{index}"
+    df_in = scalars_df.copy()
+    if index:
+        index_col = "index"
+        df_in.index.name = index_col
     else:
-        destination_table = f"{dataset_id}.test_default_index_df_to_gbq_{index}"
+        index_col = None
 
-    scalars_df.to_gbq(destination_table, if_exists="replace", index=index)
-    gcs_df = pd.read_gbq(destination_table, index_col=index_col)
-    convert_pandas_dtypes(gcs_df, bytes_col=False)
-    assert_pandas_df_equal_ignore_ordering(gcs_df, scalars_pandas_df)
+    df_in.to_gbq(destination_table, if_exists="replace", index=index)
+    df_out = pd.read_gbq(destination_table, index_col=index_col)
+
+    if index:
+        df_out = df_out.sort_index()
+    else:
+        df_out = df_out.sort_values("rowindex_2").reset_index(drop=True)
+
+    convert_pandas_dtypes(df_out, bytes_col=False)
+    expected = scalars_pandas_df.copy()
+    expected.index.name = index_col
+    pd.testing.assert_frame_equal(df_out, expected, check_index_type=False)
 
 
 @pytest.mark.parametrize(

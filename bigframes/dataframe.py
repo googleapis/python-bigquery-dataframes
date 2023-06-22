@@ -1176,21 +1176,36 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         expr = self._block.expr
-        columns = self.columns.tolist()
+        session = expr._session
+        columns = list(self._block.value_columns)
+        column_labels = list(self._block.column_labels)
         # This code drops unnamed indexes to keep consistent with the behavior of
         # most pandas write APIs. The exception is `pandas.to_csv`, which keeps
         # unnamed indexes as `Unnamed: 0`.
         # TODO(chelsealin): check if works for multiple indexes.
         if index and self.index.name is not None:
-            columns.append(self.index.name)
-        # TODO(chelsealin): onboard IO to standardize names to reflect the label
-        # after b/282205091. Add tests when the column name (label) is not equal to
-        # the column ID.
+            columns.extend(self._block.index_columns)
+            # TODO(swast): support MultiIndex
+            column_labels.append(self.index.name)
         # TODO(chelsealin): normalize the file formats if we needs, such as arbitrary
         # unicode for column labels.
         value_columns = (expr.get_column(column_name) for column_name in columns)
         expr = expr.projection(value_columns)
-        query_job: bigquery.QueryJob = expr.start_query(job_config)
+
+        # Make columns in SQL reflect _labels_ not _ids_. Note: This may use
+        # the arbitrary unicode column labels feature in BigQuery, which is
+        # currently (June 2023) in preview.
+        # TODO(swast): Handle duplicate and NULL labels.
+        ibis_expr = expr.to_ibis_expr()
+        renamed_columns = [
+            ibis_expr[col_id].name(col_label)
+            for col_id, col_label in zip(columns, column_labels)
+        ]
+        ibis_expr = ibis_expr.select(*renamed_columns)
+        sql = session.ibis_client.compile(ibis_expr)
+        query_job: bigquery.QueryJob = session.bqclient.query(
+            sql, job_config=job_config  # type: ignore
+        )
         query_job.result()  # Wait for query to finish.
         query_job.reload()  # Download latest job metadata.
         return query_job.destination
