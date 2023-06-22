@@ -422,3 +422,47 @@ def precision_score(
         precision_score.loc[i] = precision.loc[i]
 
     return precision_score
+
+
+def f1_score(
+    y_true: bigframes.DataFrame,
+    y_pred: bigframes.DataFrame,
+    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+) -> pd.Series:
+    """Compute f1 score.
+
+    Args:
+        y_true: Ground truth target values.
+
+        y_pred: Estimated targets as returned by a classifier.
+
+        average: Type of averaging performed on the data. Possible values:"micro",
+        "macro", "binary", "weighted", "sample", None. Default to "binary".
+
+    Returns: f1 score.
+    """
+    # TODO(ashleyxu): support more average type, default to "binary"
+    # TODO(ashleyxu): support bigframes.Series as input type
+    if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
+        raise NotImplementedError(
+            "Only one labels column, one predictions column is supported"
+        )
+
+    if average is not None:
+        raise NotImplementedError("Only average=None is supported")
+
+    recall = recall_score(y_true, y_pred, average=None)
+    precision = precision_score(y_true, y_pred, average=None)
+
+    f1_score = pd.Series(0, index=recall.index)
+    for index in recall.index:
+        if precision[index] + recall[index] != 0:
+            f1_score[index] = (
+                2
+                * (precision[index] * recall[index])
+                / (precision[index] + recall[index])
+            )
+        else:
+            f1_score[index] = 0
+
+    return f1_score
