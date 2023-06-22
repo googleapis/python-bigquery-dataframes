@@ -15,38 +15,23 @@
 """Metrics functions for evaluating models. This module is styled after
 Scikit-Learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html"""
 
+import inspect
 import typing
-from typing import Literal, Tuple
+from typing import Tuple
 
 import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
 
 import bigframes
 import bigframes.core.blocks as blocks
+import third_party.bigframes_vendored.sklearn.metrics._classification as vendored_mertics_classification
+import third_party.bigframes_vendored.sklearn.metrics._ranking as vendored_mertics_ranking
+import third_party.bigframes_vendored.sklearn.metrics._regression as vendored_metrics_regression
 
 
 def r2_score(
     y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, force_finite=True
 ) -> float:
-    """Compute the R^2 (coefficient of determination) regression score.
-
-    Perfect prediction will yield a score of 1.0, always predicting the average
-    will yield 0.0, and worse prediction will get a negative score.
-
-    If all of y_true has the same value, the score would be NaN or -Inf; to avoid
-    this 1.0 or 0.0 respectively will be returned instead. This behavior can be
-    disabled by setting force_finite=False
-
-    Args:
-        y_true: Ground truth (correct) target values.
-
-        y_score: Estimated target values.
-
-        force_finite: Flag indicating if NaN and -Inf scores resulting from constant
-            data should be replaced with real numbers (1.0 if prediction is perfect,
-            0.0 otherwise). Default is True.
-
-    Returns: the R^2 score."""
     # TODO(bmil): support multioutput
     if len(y_true.columns) > 1 or len(y_pred.columns) > 1:
         raise NotImplementedError(
@@ -79,28 +64,12 @@ def r2_score(
     return 1 - (ss_res / ss_total)
 
 
+r2_score.__doc__ = inspect.getdoc(vendored_metrics_regression.r2_score)
+
+
 def accuracy_score(
     y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, normalize=True
 ) -> float:
-    """Compute the accuracy classification score.
-
-    It calculates subset accuracy, where the predicted set of labels for a
-    sample must precisely match the corresponding set of labels in y_true.
-    This is the fraction of correct predictions. If normalize=False, it will
-    instead return the total number of correct predictions.
-
-    Args:
-        y_true: Ground truth (correct) labels.
-
-        y_score: Predicted labels, as returned by a classifier.
-
-        normalize: If False, return the number of correctly classified samples.
-            Otherwise, return the fraction of correctly classified samples.
-
-    Returns: If normalize == True, return the fraction of correctly classified
-            samples, else returns the number of correctly classified samples.
-
-    """
     # TODO(ashleyxu): support sample_weight as the parameter
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
@@ -125,38 +94,14 @@ def accuracy_score(
         return score.sum()
 
 
+accuracy_score.__doc__ = inspect.getdoc(vendored_mertics_classification.accuracy_score)
+
+
 def roc_curve(
     y_true: bigframes.DataFrame,
     y_score: bigframes.DataFrame,
     drop_intermediate: bool = True,
 ) -> Tuple[bigframes.Series, bigframes.Series, bigframes.Series]:
-    """Compute the Receiver Operating Characteristic Curve (ROC Curve) from
-    prediction scores.
-
-    The ROC Curve is the plot of true positive rate versus false positive
-    rate, parameterized by the confidence threshold.
-
-    Args:
-        y_true: Binary indicators.
-
-        y_score: Prediction scores.
-
-            For binary predictions this may be a single column containing
-            either probability estimates, or the decision value.
-
-        drop_intermediate: Whether to exclude some intermediate thresholds to
-            create a lighter curve.
-
-    Returns:
-        fpr: Increasing false positive rates such that element i is the fpr
-            of predictions with score >= thresholds[i]
-
-        tpr: Increasing true positive rates such that element i is the tpr
-            of predictions with score >= thresholds[i]
-
-        thresholds: Decreasing thresholds on the decision function used to
-            compute fpr and tpr
-    """
     # TODO(bmil): Add multi-class support
     # TODO(bmil): Add multi-label support
     if len(y_true.columns) > 1 or len(y_score.columns) > 1:
@@ -210,25 +155,10 @@ def roc_curve(
     return df.fpr, df.tpr, df.thresholds
 
 
+roc_curve.__doc__ = inspect.getdoc(vendored_mertics_ranking.roc_curve)
+
+
 def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> float:
-    """Compute the Receiver Operating Characteristic Area Under Curve
-    (ROC AUC) from prediction scores.
-
-    The ROC Curve is the plot of true positive rate versus false positive
-    rate, parameterized by the confidence threshold. Random guessing
-    should yield an area under the curve of 0.5, and the area will approach
-    1.0 for perfect discrimination.
-
-    Args:
-        y_true: True binary indicators.
-
-        y_score: Prediction scores.
-
-           For binary predictions this may be a single column containing
-           either probability estimates, or the decision value.
-
-    Returns: Area Under the Curve score.
-    """
     # TODO(bmil): Add multi-class support
     # TODO(bmil): Add multi-label support
     if len(y_true.columns) > 1 or len(y_score.columns) > 1:
@@ -246,20 +176,13 @@ def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> 
     return (width_diff * height_avg).sum()
 
 
+roc_auc_score.__doc__ = inspect.getdoc(vendored_mertics_ranking.roc_auc_score)
+
+
 def auc(
     x: bigframes.DataFrame,
     y: bigframes.DataFrame,
 ) -> float:
-    """
-    Compute Area Under the Curve (AUC) using the trapezoidal rule.
-
-    Args:
-        x: X coordinates. These must be either monotonic increasing or monotonic decreasing.
-
-        y: Y coordinates.
-
-    Returns: Area Under the Curve.
-    """
     if len(x.columns) != 1 or len(y.columns) != 1:
         raise ValueError("Only 1-D data structure is supported")
 
@@ -268,19 +191,13 @@ def auc(
     return auc
 
 
+auc.__doc__ = inspect.getdoc(vendored_mertics_ranking.auc)
+
+
 def confusion_matrix(
     y_true: bigframes.DataFrame,
     y_pred: bigframes.DataFrame,
 ) -> pd.DataFrame:
-    """Compute confusion matrix to evaluate the accuracy of a classification.
-
-    Args:
-        y_true: Ground truth target values.
-
-        y_pred: Estimated targets as returned by a classifier.
-
-    Returns: Confusion matrix.
-    """
     # TODO(ashleyxu): support labels and sample_weight parameters
     # TODO(ashleyxu): support bigframes.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
@@ -316,23 +233,16 @@ def confusion_matrix(
     return confusion_matrix
 
 
+confusion_matrix.__doc__ = inspect.getdoc(
+    vendored_mertics_classification.confusion_matrix
+)
+
+
 def recall_score(
     y_true: bigframes.DataFrame,
     y_pred: bigframes.DataFrame,
-    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+    average: str = "binary",
 ) -> pd.Series:
-    """Compute recall score.
-
-    Args:
-        y_true: Ground truth target values.
-
-        y_pred: Estimated targets as returned by a classifier.
-
-        average: Type of averaging performed on the data. Possible values:"micro",
-        "macro", "binary", "weighted", "sample", None. Default to “binary”.
-
-    Returns: recall score.
-    """
     # TODO(ashleyxu): support more average type, default to "binary"
     # TODO(ashleyxu): support bigframes.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
@@ -370,23 +280,14 @@ def recall_score(
     return recall_score
 
 
+recall_score.__doc__ = inspect.getdoc(vendored_mertics_classification.recall_score)
+
+
 def precision_score(
     y_true: bigframes.DataFrame,
     y_pred: bigframes.DataFrame,
-    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+    average: str = "binary",
 ) -> pd.Series:
-    """Compute precision score.
-
-    Args:
-        y_true: Ground truth target values.
-
-        y_pred: Estimated targets as returned by a classifier.
-
-        average: Type of averaging performed on the data. Possible values:"micro",
-        "macro", "binary", "weighted", "sample", None. Default to "binary".
-
-    Returns: precision score.
-    """
     # TODO(ashleyxu): support more average type, default to "binary"
     # TODO(ashleyxu): support bigframes.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
@@ -424,23 +325,16 @@ def precision_score(
     return precision_score
 
 
+precision_score.__doc__ = inspect.getdoc(
+    vendored_mertics_classification.precision_score
+)
+
+
 def f1_score(
     y_true: bigframes.DataFrame,
     y_pred: bigframes.DataFrame,
-    average: Literal["micro", "macro", "binary", "weighted", "sample", None] = "binary",
+    average: str = "binary",
 ) -> pd.Series:
-    """Compute f1 score.
-
-    Args:
-        y_true: Ground truth target values.
-
-        y_pred: Estimated targets as returned by a classifier.
-
-        average: Type of averaging performed on the data. Possible values:"micro",
-        "macro", "binary", "weighted", "sample", None. Default to "binary".
-
-    Returns: f1 score.
-    """
     # TODO(ashleyxu): support more average type, default to "binary"
     # TODO(ashleyxu): support bigframes.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
@@ -466,3 +360,6 @@ def f1_score(
             f1_score[index] = 0
 
     return f1_score
+
+
+f1_score.__doc__ = inspect.getdoc(vendored_mertics_classification.f1_score)
