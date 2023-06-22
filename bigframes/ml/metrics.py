@@ -343,15 +343,29 @@ def recall_score(
     if average is not None:
         raise NotImplementedError("Only average=None is supported")
 
-    confusion = confusion_matrix(y_true, y_pred)
-    fn_plus_tp = confusion.sum(axis=1)
-    recall_score = pd.Series(0, index=confusion.index)
+    y_true_series = typing.cast(
+        bigframes.Series, y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])]
+    )
+    y_pred_series = typing.cast(
+        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+    )
 
-    for index in confusion.index:
-        tp = confusion.at[index, index]
-        denominator = fn_plus_tp.at[index]
-        recall = tp / denominator if denominator else 0
-        recall_score[index] = recall
+    is_accurate = y_true_series == y_pred_series
+    unique_labels = (
+        bigframes.concat([y_true_series, y_pred_series], join="outer")
+        .drop_duplicates()
+        .sort_values()
+    )
+    index = unique_labels.to_list()
+
+    recall = (
+        is_accurate.groupby(y_true_series).sum()
+        / is_accurate.groupby(y_true_series).count()
+    ).compute()
+
+    recall_score = pd.Series(0, index=index)
+    for i in recall_score.index:
+        recall_score.loc[i] = recall.loc[i]
 
     return recall_score
 
@@ -383,14 +397,28 @@ def precision_score(
     if average is not None:
         raise NotImplementedError("Only average=None is supported")
 
-    confusion = confusion_matrix(y_true, y_pred)
-    fp_plus_tp = confusion.sum(axis=0)
-    precision_score = pd.Series(0, index=confusion.index)
+    y_true_series = typing.cast(
+        bigframes.Series, y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])]
+    )
+    y_pred_series = typing.cast(
+        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+    )
 
-    for index in confusion.index:
-        tp = confusion.at[index, index]
-        denominator = fp_plus_tp.at[index]
-        precision = tp / denominator if denominator else 0
-        precision_score[index] = precision
+    is_accurate = y_true_series == y_pred_series
+    unique_labels = (
+        bigframes.concat([y_true_series, y_pred_series], join="outer")
+        .drop_duplicates()
+        .sort_values()
+    )
+    index = unique_labels.to_list()
+
+    precision = (
+        is_accurate.groupby(y_pred_series).sum()
+        / is_accurate.groupby(y_pred_series).count()
+    ).compute()
+
+    precision_score = pd.Series(0, index=index)
+    for i in precision.index:
+        precision_score.loc[i] = precision.loc[i]
 
     return precision_score
