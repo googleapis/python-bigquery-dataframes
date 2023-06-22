@@ -20,7 +20,7 @@ import google.cloud.exceptions
 import pandas as pd
 import pytest
 
-from bigframes.ml import core, forecasting, llm
+from bigframes.ml import core, forecasting, imported, llm
 import bigframes.ml.cluster
 import bigframes.ml.core
 import bigframes.ml.ensemble
@@ -186,4 +186,12 @@ def time_series_arima_plus_model(
     return cast(
         forecasting.ARIMAPlus,
         session.read_gbq_model(time_series_arima_plus_model_name),
+    )
+
+
+@pytest.fixture(scope="session")
+def imported_tensorflow_model(session) -> imported.TensorFlowModel:
+    return imported.TensorFlowModel(
+        session=session,
+        model_path="gs://cloud-training-demos/txtclass/export/exporter/1549825580/*",
     )

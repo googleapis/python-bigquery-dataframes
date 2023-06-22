@@ -265,3 +265,29 @@ def create_bqml_remote_model(
 
     model = session.bqclient.get_model(model_name)
     return BqmlModel(session, model)
+
+
+def create_bqml_imported_model(
+    session: bigframes.Session,
+    options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+) -> BqmlModel:
+    """Create a session-temporary BQML imported model with the CREATE MODEL statement
+
+    Args:
+        options: a dict of options to configure the model. Generates a BQML OPTIONS
+            clause
+
+    Returns: a BqmlModel, wrapping a trained model in BigQuery
+    """
+    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
+    options_sql = bigframes.ml.sql.options(**options)
+    sql = bigframes.ml.sql.create_imported_model(
+        model_name=model_name,
+        options_sql=options_sql,
+    )
+
+    # create the model, synchronously
+    session.bqclient.query(sql).result()
+
+    model = session.bqclient.get_model(model_name)
+    return BqmlModel(session, model)

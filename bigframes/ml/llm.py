@@ -83,7 +83,7 @@ class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
                 Default 0.95.
 
 
-        Returns: Output DataFrame with only 1 column as the JSON output results."""
+        Returns: Output DataFrame with only 1 column as the output text results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         assert (
