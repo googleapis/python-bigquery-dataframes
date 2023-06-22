@@ -55,6 +55,10 @@ import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
+# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
+# TODO(tbergeron): Convert to bytes-based limit
+MAX_INLINE_DF_SIZE = 5000
+
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
 class DataFrame(vendored_pandas_frame.DataFrame):
@@ -126,14 +130,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block = block
 
         else:
+            import bigframes.pandas
+
             pd_dataframe = pd.DataFrame(
-                data=data, index=index, columns=columns, dtype=dtype  # type:ignore
+                data=data,
+                index=index,  # type:ignore
+                columns=columns,  # type:ignore
+                dtype=dtype,  # type:ignore
             )
-            if session:
+            if pd_dataframe.size < MAX_INLINE_DF_SIZE:
+                self._block = blocks.block_from_local(
+                    pd_dataframe, session or bigframes.pandas.get_global_session()
+                )
+            elif session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
-                import bigframes.pandas
-
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
 
     def __dir__(self):

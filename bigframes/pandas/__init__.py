@@ -62,6 +62,20 @@ def reset_session() -> None:
         options.bigquery._session_started = False
 
 
+def get_global_session():
+    """Gets the global session.
+
+    Creates the global session if it does not exist.
+    """
+    global _global_session, _global_session_lock
+
+    with _global_session_lock:
+        if _global_session is None:
+            _global_session = bigframes.session.connect(options.bigquery)
+
+    return _global_session
+
+
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
 #
@@ -77,13 +91,7 @@ def reset_session() -> None:
 
 
 def _with_default_session(func, *args, **kwargs):
-    global _global_session, _global_session_lock
-
-    with _global_session_lock:
-        if _global_session is None:
-            _global_session = bigframes.session.connect(options.bigquery)
-
-    return func(_global_session, *args, **kwargs)
+    return func(get_global_session(), *args, **kwargs)
 
 
 def read_csv(

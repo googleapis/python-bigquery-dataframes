@@ -26,6 +26,10 @@ import bigframes.series as series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
+# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
+# TODO(tbergeron): Convert to bytes-based limit
+MAX_INLINE_SERIES_SIZE = 5000
+
 
 class SeriesMethods:
     def __init__(
@@ -69,14 +73,18 @@ class SeriesMethods:
             self._block = block
 
         else:
+            import bigframes.pandas
+
             pd_dataframe = pd.Series(
                 data=data, index=index, dtype=dtype, name=name  # type:ignore
             ).to_frame()
+            if pd_dataframe.size < MAX_INLINE_SERIES_SIZE:
+                self._block = blocks.block_from_local(
+                    pd_dataframe, session or bigframes.pandas.get_global_session()
+                )
             if session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
-                import bigframes.pandas
-
                 # Uses default global session
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
 

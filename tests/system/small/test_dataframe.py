@@ -37,14 +37,25 @@ def test_df_construct_copy(scalars_dfs):
 
 
 def test_df_construct_pandas(scalars_dfs):
-    columns = ["int64_col", "string_col", "float64_col"]
+    columns = ["int64_too", "int64_col", "float64_col", "bool_col", "string_col"]
+    _, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(scalars_pandas_df, columns=columns).compute()
+    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_df_construct_pandas_set_dtype(scalars_dfs):
+    columns = [
+        "int64_too",
+        "int64_col",
+        "float64_col",
+        "bool_col",
+    ]
     _, scalars_pandas_df = scalars_dfs
     bf_result = dataframe.DataFrame(
-        scalars_pandas_df, columns=columns, dtype="string[pyarrow]"
+        scalars_pandas_df, columns=columns, dtype="Float64"
     ).compute()
-    pd_result = pd.DataFrame(
-        scalars_pandas_df, columns=columns, dtype="string[pyarrow]"
-    )
+    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns, dtype="Float64")
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 

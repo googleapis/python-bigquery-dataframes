@@ -157,17 +157,10 @@ def _loc_getitem_series_or_dataframe(
                 typing.Union[bigframes.DataFrame, bigframes.Series],
                 series_or_dataframe.iloc[0:0],
             )
-
-        # keys_pd_df represents a way to map from new index to old index
-        keys_pd_df = pd.DataFrame({"old_index": key})
-
-        # build a dataframe from the map in memory
-        # ordering_id is made into a hidden ordering column
-        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(keys_pd_df, None)
         keys_df = bigframes.DataFrame(
-            core.blocks.Block(keys_expr, index_columns=["old_index"])
+            {"old_index": key}, session=series_or_dataframe._get_block().expr._session
         )
-
+        keys_df = keys_df.set_index("old_index", drop=True)
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
         raise NotImplementedError("loc does not yet support indexing with a slice")

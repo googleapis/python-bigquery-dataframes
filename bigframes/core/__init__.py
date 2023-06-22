@@ -123,18 +123,29 @@ class BigFramesExpr:
         cls,
         pd_df: pandas.DataFrame,
         session: Optional[Session],
-        **kwargs,
     ) -> BigFramesExpr:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
 
         Caution: If session is None, only a subset of expr functionality will be available (null Session is usually not supported).
         """
+        # must set non-null column labels. these are not the user-facing labels
+        pd_df = pd_df.set_axis(
+            [column or bigframes.guid.generate_guid() for column in pd_df.columns],
+            axis="columns",
+        )
+        pd_df = pd_df.assign(**{ORDER_ID_COLUMN: range(len(pd_df))})
+        # ibis memtable cannot handle NA, must convert to None
+        pd_df = pd_df.astype("object")  # type: ignore
+        pd_df = pd_df.where(pandas.notnull(pd_df), None)
         keys_memtable = ibis.memtable(pd_df)
         return cls(
             session,  # type: ignore # Session cannot normally be none, see "caution" above
             keys_memtable,
-            **kwargs,
+            ordering=ExpressionOrdering(
+                ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN)
+            ),
+            hidden_ordering_columns=(keys_memtable[ORDER_ID_COLUMN],),
         )
 
     @property
@@ -664,7 +675,7 @@ class BigFramesExpr:
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
         table = self.to_ibis_expr()
-        sql = table.compile()
+        sql = self._session.ibis_client.compile(table)  # type:ignore
         if job_config is not None:
             return self._session.bqclient.query(sql, job_config=job_config)
         else:

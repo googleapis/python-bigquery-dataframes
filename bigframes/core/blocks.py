@@ -687,6 +687,36 @@ class Block:
         )
 
 
+def block_from_local(data, session=None, use_index=True) -> Block:
+    # TODO(tbergeron): Handle duplicate column labels
+    pd_data = pd.DataFrame(data)
+
+    column_labels = list(pd_data.columns)
+    if not all((label is None) or isinstance(label, str) for label in column_labels):
+        raise NotImplementedError("Only string column labels supported")
+
+    if use_index:
+        if pd_data.index.nlevels > 1:
+            raise NotImplementedError("multi-indices not supported.")
+        index_label = pd_data.index.name
+        if (index_label is not None) and (not isinstance(index_label, str)):
+            raise NotImplementedError("Only string index names supported")
+
+        index_id = guid.generate_guid()
+        pd_data = pd_data.reset_index(names=index_id)
+        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(pd_data, session)
+        return Block(
+            keys_expr,
+            column_labels=column_labels,
+            index_columns=[index_id],
+            index_labels=[index_label],
+        )
+    else:
+        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(pd_data, session)
+        # Constructor will create default range index
+        return Block(keys_expr, column_labels=column_labels)
+
+
 def _align_block_to_schema(
     block: Block, schema: dict[Label, bigframes.dtypes.BigFramesDtype]
 ) -> Block:

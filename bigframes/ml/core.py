@@ -176,7 +176,7 @@ def create_bqml_model(
         options.update({"INPUT_LABEL_COLS": train_y.columns.tolist()})
 
     # pickpocket session object from the dataframe
-    session = train_X._block.expr._session
+    session = train_X._get_block().expr._session
 
     # TODO(garrettwu): add wrapper to select the feature columns
     # for now, drop index to avoid including the index in feature columns
@@ -220,7 +220,7 @@ def create_bqml_time_series_model(
     options.update({"TIME_SERIES_TIMESTAMP_COL": train_X.columns.tolist()[0]})
     options.update({"TIME_SERIES_DATA_COL": train_y.columns.tolist()[0]})
     # pickpocket session object from the dataframe
-    session = train_X._block.expr._session
+    session = train_X._get_block().expr._session
 
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
