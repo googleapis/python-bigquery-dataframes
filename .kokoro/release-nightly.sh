@@ -17,10 +17,29 @@
 # https://github.com/googleapis/python-bigquery/blob/main/.kokoro/release.sh
 
 set -eo pipefail
+set -x
 
-if [[ -z "${PROJECT_ROOT:-}" ]]; then
+# Parse command line arguments
+DRY_RUN=
+while [ $# -gt 0 ] ; do
+  case "$1" in
+    -d | --dry-run )
+      DRY_RUN=true
+      ;;
+    -h | --help )
+      echo -e "USAGE: `basename $0` [ -d | --dry-run ]"
+      exit
+      ;;
+  esac
+  shift 1;
+done
+
+if [ -z "${PROJECT_ROOT:-}" ]; then
     PROJECT_ROOT="${KOKORO_ARTIFACTS_DIR}/git/bigframes"
 fi
+
+# Move into the package, build the distribution and upload to shared bucket.
+# See internal bug 274624240 for details.
 
 cd "${PROJECT_ROOT}"
 rm -rf build dist
@@ -40,10 +59,12 @@ python3.10 -m pip install -e .[all]
 
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
-if [[ -n "${NOX_SESSION:-}" ]]; then
-    python3.10 -m nox -s ${NOX_SESSION:-}
-else
-    python3.10 -m nox
+if ! [ ${DRY_RUN} ]; then
+    if [ -n "${NOX_SESSION:-}" ]; then
+        python3.10 -m nox -s ${NOX_SESSION:-}
+    else
+        python3.10 -m nox
+    fi
 fi
 
 # Update version string to include git hash and date
@@ -63,63 +84,66 @@ LATEST_WHEEL=dist/bigframes-latest-py2.py3-none-any.whl
 cp dist/bigframes-*.whl $LATEST_WHEEL
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
-# Move into the package, build the distribution and upload to shared bucket.
-# See internal bug 274624240 for details.
+if ! [ ${DRY_RUN} ]; then
+    for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
+                    gs://dl-platform-colab/bigframes/ \
+                    gs://bigframes-wheels/;
+    do
+      gsutil cp -v dist/* ${gcs_path}
+      gsutil cp -v LICENSE ${gcs_path}
+      gsutil cp -v "notebooks/00 - Summary.ipynb" ${gcs_path}notebooks/
+    done
 
-for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                gs://dl-platform-colab/bigframes/ \
-                gs://bigframes-wheels/;
-do
-  gsutil cp -v dist/* ${gcs_path}
-  gsutil cp -v LICENSE ${gcs_path}
-  gsutil cp -v "notebooks/00 - Summary.ipynb" ${gcs_path}notebooks/
-done
-
-# publish API coverage information to BigQuery
-# Note: only the kokoro service account has permission to write to this
-# table, if you want to test this step, point it to a table you have
-# write access to
-COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
-python3.10 publish_api_coverage.py \
-  --bigframes_version=$BIGFRAMES_VERSION \
-  --release_version=$RELEASE_VERSION \
-  --bigquery_table=$COVERAGE_TABLE
+    # publish API coverage information to BigQuery
+    # Note: only the kokoro service account has permission to write to this
+    # table, if you want to test this step, point it to a table you have
+    # write access to
+    COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
+    python3.10 publish_api_coverage.py \
+      --bigframes_version=$BIGFRAMES_VERSION \
+      --release_version=$RELEASE_VERSION \
+      --bigquery_table=$COVERAGE_TABLE
+fi
 
 # Keep this last so as not to block the release on PDF docs build.
 pdf_docs () {
-  apt update
-  apt install -y texlive texlive-latex-extra latexmk
+    sudo apt update
+    sudo apt install -y texlive texlive-latex-extra latexmk
 
-  pushd "${PROJECT_ROOT}/docs"
-  make latexpdf
+    pushd "${PROJECT_ROOT}/docs"
+    make latexpdf
 
-  cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-${RELEASE_VERSION}.pdf"
-  cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-latest.pdf"
+    cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-${RELEASE_VERSION}.pdf"
+    cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-latest.pdf"
 
-  for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                  gs://dl-platform-colab/bigframes/ \
-                  gs://bigframes-wheels/;
-  do
-    gsutil cp -v "_build/latex/bigframes-*.pdf" ${gcs_path}
-  done
+    if ! [ ${DRY_RUN} ]; then
+        for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
+                        gs://dl-platform-colab/bigframes/ \
+                        gs://bigframes-wheels/;
+        do
+          gsutil cp -v "_build/latex/bigframes-*.pdf" ${gcs_path}
+        done
+    fi
 
-  popd
+    popd
 }
 
 pdf_docs
 
 # Copy html docs to GCS from where it can be deployed to anywhere else
 gcs_docs () {
-  docs_gcs_bucket=gs://bigframes-docs
-  docs_local_html_folder=docs/_build/html
-  if [ ! -d ${docs_local_html_folder} ]; then
-    python3.10 -m nox -s docs
-  fi
+    docs_gcs_bucket=gs://bigframes-docs
+    docs_local_html_folder=docs/_build/html
+    if [ ! -d ${docs_local_html_folder} ]; then
+      python3.10 -m nox -s docs
+    fi
 
-  gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}
+    if ! [ ${DRY_RUN} ]; then
+        gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}
 
-  # Copy the script to refresh firebase docs website from GCS to GCS itself
-  gsutil -m cp -v tools/update_firebase_docs_site.sh ${docs_gcs_bucket}
+        # Copy the script to refresh firebase docs website from GCS to GCS itself
+        gsutil -m cp -v tools/update_firebase_docs_site.sh ${docs_gcs_bucket}
+    fi
 }
 
 gcs_docs

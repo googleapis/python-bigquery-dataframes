@@ -89,6 +89,7 @@ nox.options.sessions = [
     "system_prerelease",
     "cover",
     "third_party_notices",
+    "release_dry_run",
 ]
 
 # Error if a python version is missing
@@ -613,3 +614,17 @@ def third_party_notices(session):
         # other sessions, such as 'lint' which simply fails if any modifications
         # are needed but doesn't actually make the modification.
         os.remove(notices_file_backup)
+
+
+@nox.session(python="3.10")
+def release_dry_run(session):
+    env = {}
+
+    # If the project root is not set, then take current directory as the project
+    # root. See the release script for how the project root is set/used. This is
+    # specially useful when the developer runs the nox session on local machine.
+    if not os.environ.get("PROJECT_ROOT") and not os.environ.get(
+        "KOKORO_ARTIFACTS_DIR"
+    ):
+        env["PROJECT_ROOT"] = "."
+    session.run(".kokoro/release-nightly.sh", "--dry-run", env=env)
