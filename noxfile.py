@@ -569,6 +569,7 @@ def notebook(session):
         "04 - Using ML - SKLearn linear regression.ipynb",
         "05 - Using ML - Easy linear regression.ipynb",
         "06 - Using ML - Large Language Models.ipynb",
+        "50 - Remote Function.ipynb",
     ]
     notebooks = [os.path.join("notebooks", nb) for nb in notebooks]
 

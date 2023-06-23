@@ -98,6 +98,7 @@ if ! [ ${DRY_RUN} ]; then
                       "notebooks/04 - Using ML - SKLearn linear regression.ipynb" \
                       "notebooks/05 - Using ML - Easy linear regression.ipynb" \
                       "notebooks/06 - Using ML - Large Language Models.ipynb" \
+                      "notebooks/50 - Remote Function.ipynb" \
                       ${gcs_path}notebooks/
     done
 
