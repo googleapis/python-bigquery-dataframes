@@ -557,12 +557,18 @@ def system_prerelease(session):
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def notebook(session):
-    session.install("-e", ".")
+    session.install("-e", ".[all]")
     session.install("pytest", "pytest-xdist", "nbmake")
 
     # TODO(shobs, b/281857892): Have all the notebooks working
     notebooks = [
         "00 - Summary.ipynb",
+        "01 - Getting Started.ipynb",
+        "02 - DataFrame.ipynb",
+        "03 - Using ML - ML fundamentals.ipynb",
+        "04 - Using ML - SKLearn linear regression.ipynb",
+        "05 - Using ML - Easy linear regression.ipynb",
+        "06 - Using ML - Large Language Models.ipynb",
     ]
     notebooks = [os.path.join("notebooks", nb) for nb in notebooks]
 
