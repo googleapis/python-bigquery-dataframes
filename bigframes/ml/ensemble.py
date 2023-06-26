@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 import bigframes.ml.api_primitives
 import bigframes.ml.core
+import third_party.bigframes_vendored.xgboost.sklearn
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
@@ -48,31 +49,11 @@ _BQML_PARAMS_MAPPING = {
 }
 
 
-class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
-    """Boosted Tree Regressor model.
-
-    Args:
-        num_parallel_tree: number of parallel trees constructed during each iteration. Default to 1.
-        booster: specify the booster type to use. Possible values: "GBTREE", "DART". Default to "GBTREE".
-        dart_normalized_type: type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
-        tree_method: type of tree construction algorithm. Possible values: "AUTO", "EXACT", "APPROX", "HIST". Default value to "AUTO".
-        min_tree_child_weight: minimum sum of instance weight needed in a child for further partitioning. The value should be greater than or equal to 0. Default to 1.
-        colsample_bytree: subsample ratio of columns when constructing each tree. The value should be between 0 and. Default to 1.0.
-        colsample_bylevel: subsample ratio of columns for each level. The value should be between 0 and. Default to 1.0.
-        colsample_bynode: subsample ratio of columns for each node (split). The value should be between 0 and. Default to 1.0.
-        gamma: minimum loss reduction required to make a further partition on a leaf node of the tree. Default to 0.0.
-        max_depth: maximum depth of a tree. Default to 6.
-        subsample: subsample ratio of the training instances. Default to 1.0.
-        reg_alpha: the amount of L1 regularization applied. Default to 0.0.
-        reg_lambda: the amount of L2 regularization applied. Default to 1.0.
-        early_stop: whether training should stop after the first iteration. Default to True.
-        learning_rate: step size shrinkage used in update to prevents overfitting. Default to 0.3.
-        max_iterations: maximum number of rounds for boosting. Default to 20.
-        min_rel_progress: minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
-        enable_global_explain: whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
-        xgboost_version: specifies the Xgboost version for model training. Default to "0.9".
-    """
+class XGBRegressor(
+    third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
     def __init__(
         self,
@@ -169,13 +150,6 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
         X: bigframes.DataFrame,
         y: bigframes.DataFrame,
     ):
-        """Fit the model to training data
-
-        Args:
-            X: A dataframe with training data
-
-            y: Target values for training
-        """
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
@@ -183,12 +157,6 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -208,13 +176,6 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
-        """Calculate evaluation metrics of the model.
-
-        Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
-
-        Returns: a BigFrames DataFrame as evaluation result."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -240,31 +201,12 @@ class XGBRegressor(bigframes.ml.api_primitives.BaseEstimator):
         return new_model.session.read_gbq_model(model_name)
 
 
-class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
-    """Boosted Tree Classifier model.
+class XGBClassifier(
+    third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
 
-    Args:
-        num_parallel_tree: number of parallel trees constructed during each iteration. Default to 1.
-        booster: specify the booster type to use. Possible values: "GBTREE", "DART". Default to "GBTREE".
-        dart_normalized_type: type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
-        tree_method: type of tree construction algorithm. Possible values: "AUTO", "EXACT", "APPROX", "HIST". Default value to "AUTO".
-        min_tree_child_weight: minimum sum of instance weight needed in a child for further partitioning. The value should be greater than or equal to 0. Default to 1.
-        colsample_bytree: subsample ratio of columns when constructing each tree. The value should be between 0 and. Default to 1.0.
-        colsample_bylevel: subsample ratio of columns for each level. The value should be between 0 and. Default to 1.0.
-        colsample_bynode: subsample ratio of columns for each node (split). The value should be between 0 and. Default to 1.0.
-        gamma: minimum loss reduction required to make a further partition on a leaf node of the tree. Default to 0.0.
-        max_depth: maximum depth of a tree. Default to 6.
-        subsample: subsample ratio of the training instances. Default to 1.0.
-        reg_alpha: the amount of L1 regularization applied. Default to 0.0.
-        reg_lambda: the amount of L2 regularization applied. Default to 1.0.
-        early_stop: whether training should stop after the first iteration. Default to True.
-        learning_rate: step size shrinkage used in update to prevents overfitting. Default to 0.3.
-        max_iterations: maximum number of rounds for boosting. Default to 20.
-        min_rel_progress: minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
-        data_split_method: whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
-        enable_global_explain: whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
-        xgboost_version: specifies the Xgboost version for model training. Default to "0.9".
-    """
+    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
 
     def __init__(
         self,
@@ -361,13 +303,6 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
         X: bigframes.DataFrame,
         y: bigframes.DataFrame,
     ):
-        """Fit the model to training data
-
-        Args:
-            X: A dataframe with training data
-
-            y: Target values for training
-        """
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
@@ -375,12 +310,6 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Returns: predicted BigFrames DataFrame."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -400,13 +329,6 @@ class XGBClassifier(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
-        """Calculate evaluation metrics of the model.
-
-        Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
-
-        Returns: a BigFrames DataFrame as evaluation result."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
