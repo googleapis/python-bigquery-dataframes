@@ -19,13 +19,14 @@ import typing
 import bigframes.aggregations as agg_ops
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import third_party.bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
 
 if typing.TYPE_CHECKING:
     from bigframes.series import Series
 
 
-class Window:
-    """Represents a window applied over a dataframe."""
+class Window(vendored_pandas_rolling.Window):
+    __doc__ = vendored_pandas_rolling.Window.__doc__
 
     # TODO(tbergeron): Windows with groupings should create multi-indexed results
 
@@ -41,33 +42,26 @@ class Window:
         self._value_column_id = value_column_id
         self._label = label
 
-    def min(self) -> Series:
-        """Calculate the windowed min of values in the dataset."""
-        return self._apply_aggregate(agg_ops.min_op)
-
-    def max(self) -> Series:
-        """Calculate the windowed max of values in the dataset."""
-        return self._apply_aggregate(agg_ops.max_op)
-
-    def sum(self) -> Series:
-        """Calculate the windowed sum of values in the dataset."""
-        return self._apply_aggregate(agg_ops.sum_op)
-
     def count(self) -> Series:
-        """Calculate the windowed count of values in the dataset."""
         return self._apply_aggregate(agg_ops.count_op)
 
+    def sum(self) -> Series:
+        return self._apply_aggregate(agg_ops.sum_op)
+
     def mean(self) -> Series:
-        """Calculate the windowed mean of values in the dataset."""
         return self._apply_aggregate(agg_ops.mean_op)
 
+    def var(self) -> Series:
+        return self._apply_aggregate(agg_ops.var_op)
+
     def std(self) -> Series:
-        """Calculate the windowed standard deviation of values in the dataset."""
         return self._apply_aggregate(agg_ops.std_op)
 
-    def var(self) -> Series:
-        """Calculate the windowed variance of values in the dataset."""
-        return self._apply_aggregate(agg_ops.var_op)
+    def max(self) -> Series:
+        return self._apply_aggregate(agg_ops.max_op)
+
+    def min(self) -> Series:
+        return self._apply_aggregate(agg_ops.min_op)
 
     def _apply_aggregate(
         self,

@@ -24,15 +24,17 @@ import pandas as pd
 import bigframes.core.blocks as blocks
 import bigframes.core.indexes.implicitjoiner as implicitjoiner
 import bigframes.core.joins as joins
+import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
 
-class Index:
+class Index(vendored_pandas_index.Index):
+    __doc__ = vendored_pandas_index.Index.__doc__
+
     def __init__(self, data: blocks.BlockHolder):
         self._data = data
 
     @property
     def name(self) -> typing.Optional[str]:
-        """Get the name of the Index."""
         # This introduces a level of indirection over Ibis to allow for more
         # accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL generation.
@@ -40,14 +42,16 @@ class Index:
 
     @name.setter
     def name(self, value: blocks.Label) -> typing.Optional[str]:
-        """Set the name of the Index."""
         # This introduces a level of indirection over Ibis to allow for more
         # accurate pandas behavior (such as allowing for unnamed or
         # non-uniquely named objects) without breaking SQL generation.
         return self._data._set_block(self._data._get_block().with_index_labels([value]))
 
-    def compute(self) -> pd.Index:
+    def to_pandas(self) -> pd.Index:
+        """Get the Index as a pandas Index."""
         return IndexValue(self._data._get_block()).compute()
+
+    compute = to_pandas
 
 
 class IndexValue(implicitjoiner.ImplicitJoiner):
