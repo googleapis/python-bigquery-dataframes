@@ -144,12 +144,7 @@ def _loc_getitem_series_or_dataframe(
     elif isinstance(key, bigframes.core.indexes.Index):
         # TODO(henryjsolberg): support MultiIndex
         block = key._data._get_block()
-        temp_labels = [
-            label if label else guid.generate_guid(prefix="temp_column_label_")
-            for label in block.column_labels
-        ]
-        block = block.with_column_labels(temp_labels)
-        block = block.drop_columns(temp_labels)
+        block = block.select_columns(())
         keys_df = bigframes.DataFrame(block)
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif pd.api.types.is_list_like(key):

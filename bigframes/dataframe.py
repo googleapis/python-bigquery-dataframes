@@ -994,19 +994,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         random_state: Optional[int] = None,
     ) -> DataFrame:
-        block = self._block
-        sample_size = None
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
-        elif n is not None:
-            sample_size = n
-        elif frac is not None:
+
+        ns = (n,) if n is not None else ()
+        fracs = (frac,) if frac is not None else ()
+
+        return self._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+
+    def _split(
+        self,
+        ns: Iterable[int] = (),
+        fracs: Iterable[float] = (),
+        *,
+        random_state: Optional[int] = None,
+    ) -> List[DataFrame]:
+        """Internal function to support splitting DF to multiple parts along index axis.
+
+        At most one of ns and fracs can be passed in. If neither, default to ns = (1,).
+        Return a list of sampled DataFrames.
+        """
+        if ns and fracs:
+            raise ValueError("Only one of 'ns' or 'fracs' parameter must be specified.")
+
+        block = self._block
+        if not ns and not fracs:
+            ns = (1,)
+
+        if ns:
+            sample_sizes = ns
+        else:
             total_rows = block.shape()[0]
             # Round to nearest integer. "round half to even" rule applies.
-            sample_size = round(frac * total_rows)
-        else:
-            # To match pandas behavior, sample_size should be 1 by default if frac and n are None.
-            sample_size = 1
+            # At least to be 1.
+            sample_sizes = [round(frac * total_rows) or 1 for frac in fracs]
 
         # Set random_state if it is not provided
         if random_state is None:
@@ -1028,30 +1049,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
         block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
 
-        # Create a new row_number column based on ordering by the hashed values.
-        block, row_number_col = block.promote_offsets()
-
-        # Create a new column with sample_size value and filter rows < sample_size.
-        block, sample_size_col = block.create_constant(sample_size)
-        block, less_than_col = block.apply_binary_op(
-            row_number_col, sample_size_col, ops.lt_op
-        )
-        block = block.filter(less_than_col)
-
-        # Drop temporary columns from result.
         drop_cols = [
             random_state_col,
             ordering_col,
             sum_col,
             string_sum_col,
             hash_string_sum_col,
-            row_number_col,
-            sample_size_col,
-            less_than_col,
         ]
         block = block.drop_columns(drop_cols)
+        df = DataFrame(block)
 
-        return DataFrame(block)
+        intervals = []
+        cur = 0
+        for sample_size in sample_sizes:
+            intervals.append((cur, cur + sample_size))
+            cur += sample_size
+
+        # DF.iloc[slice] always returns DF.
+        return [
+            typing.cast(DataFrame, df.iloc[lower:upper]) for lower, upper in intervals
+        ]
 
     def to_pandas(self) -> pd.DataFrame:
         """Writes DataFrame to Pandas DataFrame."""

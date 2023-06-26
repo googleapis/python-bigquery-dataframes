@@ -1362,3 +1362,23 @@ def test_loc_bf_index_integer_index(scalars_df_index, scalars_pandas_df_index):
         bf_result.compute(),
         pd_result,
     )
+
+
+def test_loc_bf_index_integer_index_renamed_col(
+    scalars_df_index, scalars_pandas_df_index
+):
+    scalars_df_index = scalars_df_index.rename(columns={"int64_col": "rename"})
+    scalars_pandas_df_index = scalars_pandas_df_index.rename(
+        columns={"int64_col": "rename"}
+    )
+
+    pd_index = scalars_pandas_df_index.iloc[[0, 5, 1, 1, 5]].index
+    bf_index = scalars_df_index.iloc[[0, 5, 1, 1, 5]].index
+
+    bf_result = scalars_df_index.loc[bf_index]
+    pd_result = scalars_pandas_df_index.loc[pd_index]
+
+    pd.testing.assert_frame_equal(
+        bf_result.compute(),
+        pd_result,
+    )

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 import bigframes.ml.model_selection
 
@@ -114,33 +115,32 @@ def test_train_test_split_seeded_correct_rows(
         X, y, random_state=42
     )
 
-    X_train = X_train.to_pandas()
-    X_test = X_test.to_pandas()
-    y_train = y_train.to_pandas()
-    y_test = y_test.to_pandas()
+    X_train = X_train.to_pandas().sort_index()
+    X_test = X_test.to_pandas().sort_index()
+    y_train = y_train.to_pandas().sort_index()
+    y_test = y_test.to_pandas().sort_index()
 
-    # note: these will change when bigframes.DataFrame.sample is implemented
     train_index = pd.Index(
         [
+            144,
             146,
             148,
-            161,
             168,
             183,
             186,
             217,
+            225,
             226,
             237,
             244,
             245,
-            257,
             260,
+            262,
             263,
-            264,
             266,
             268,
             269,
-            278,
+            289,
             290,
             291,
         ],
@@ -148,7 +148,7 @@ def test_train_test_split_seeded_correct_rows(
         name="rowindex",
     )
     test_index = pd.Index(
-        [225, 289, 221, 267, 144, 240, 262], dtype="Int64", name="rowindex"
+        [161, 221, 240, 257, 264, 267, 278], dtype="Int64", name="rowindex"
     )
 
     all_data.index.name = "_"
@@ -188,3 +188,27 @@ def test_train_test_split_seeded_correct_rows(
             ]
         ].loc[test_index],
     )
+
+
+@pytest.mark.parametrize(
+    ("train_size", "test_size"),
+    [
+        (0.0, 0.5),
+        (-0.5, 0.7),
+        (0.5, 1.2),
+        (0.6, 0.6),
+    ],
+)
+def test_train_test_split_value_error(penguins_df_default_index, train_size, test_size):
+    X = penguins_df_default_index[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+        ]
+    ]
+    y = penguins_df_default_index[["body_mass_g"]]
+    with pytest.raises(ValueError):
+        bigframes.ml.model_selection.train_test_split(
+            X, y, train_size=train_size, test_size=test_size
+        )
