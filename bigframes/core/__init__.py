@@ -25,15 +25,15 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
-import bigframes.aggregations as agg_ops
+import bigframes.core.guid
 from bigframes.core.ordering import (
     ExpressionOrdering,
     OrderingColumnReference,
     stringify_order_id,
 )
 import bigframes.dtypes
-import bigframes.guid
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
@@ -131,7 +131,7 @@ class BigFramesExpr:
         """
         # must set non-null column labels. these are not the user-facing labels
         pd_df = pd_df.set_axis(
-            [column or bigframes.guid.generate_guid() for column in pd_df.columns],
+            [column or bigframes.core.guid.generate_guid() for column in pd_df.columns],
             axis="columns",
         )
         pd_df = pd_df.assign(**{ORDER_ID_COLUMN: range(len(pd_df))})
@@ -317,7 +317,7 @@ class BigFramesExpr:
         expr_builder = self.builder()
         # Need to rename column as caller might be creating a new row with the same name but different values.
         # Can avoid this if don't allow callers to determine ids and instead generate unique ones in this class.
-        new_name = bigframes.guid.generate_guid(prefix="bigframes_hidden_")
+        new_name = bigframes.core.guid.generate_guid(prefix="bigframes_hidden_")
         expr_builder.hidden_ordering_columns = [
             *self._hidden_ordering_columns,
             self.get_column(column_id).name(new_name),

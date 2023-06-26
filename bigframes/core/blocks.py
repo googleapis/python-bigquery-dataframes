@@ -33,13 +33,13 @@ import numpy
 import pandas as pd
 import pyarrow as pa  # type: ignore
 
-import bigframes.aggregations as agg_ops
 import bigframes.core as core
+import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as ordering
 import bigframes.dtypes
-import bigframes.guid as guid
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 
 # Type constraint for wherever column labels are used
 Label = typing.Optional[str]

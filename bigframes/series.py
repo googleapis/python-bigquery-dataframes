@@ -25,21 +25,21 @@ import pandas
 import pandas.core.dtypes.common
 import typing_extensions
 
-import bigframes.aggregations as agg_ops
 import bigframes.core
 from bigframes.core import WindowSpec
 import bigframes.core.blocks as blocks
+import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.indexes.implicitjoiner
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
+import bigframes.core.scalar
 import bigframes.core.window
 import bigframes.dtypes
-import bigframes.indexers
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
-import bigframes.scalar
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 
@@ -61,12 +61,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return indexes.Index(self)
 
     @property
-    def loc(self) -> bigframes.indexers.LocSeriesIndexer:
-        return bigframes.indexers.LocSeriesIndexer(self)
+    def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
+        return bigframes.core.indexers.LocSeriesIndexer(self)
 
     @property
-    def iloc(self) -> bigframes.indexers.IlocSeriesIndexer:
-        return bigframes.indexers.IlocSeriesIndexer(self)
+    def iloc(self) -> bigframes.core.indexers.IlocSeriesIndexer:
+        return bigframes.core.indexers.IlocSeriesIndexer(self)
 
     @property
     def name(self) -> Optional[str]:
@@ -471,10 +471,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def count(self) -> int:
         return typing.cast(int, self._apply_aggregation(agg_ops.count_op))
 
-    def max(self) -> bigframes.scalar.Scalar:
+    def max(self) -> bigframes.core.scalar.Scalar:
         return self._apply_aggregation(agg_ops.max_op)
 
-    def min(self) -> bigframes.scalar.Scalar:
+    def min(self) -> bigframes.core.scalar.Scalar:
         return self._apply_aggregation(agg_ops.min_op)
 
     def std(self) -> float:
@@ -576,7 +576,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def clip(self, lower, upper):
         return self._apply_ternary_op(lower, upper, ops.clip_op)
 
-    def argmax(self) -> bigframes.scalar.Scalar:
+    def argmax(self) -> bigframes.core.scalar.Scalar:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -587,10 +587,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         return typing.cast(
-            bigframes.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+            bigframes.core.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    def argmin(self) -> bigframes.scalar.Scalar:
+    def argmin(self) -> bigframes.core.scalar.Scalar:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -599,7 +599,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         return typing.cast(
-            bigframes.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+            bigframes.core.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
     def __getitem__(self, indexer: Series):
@@ -650,7 +650,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     get_column_right(other._value_column),
                 ]
                 block = combined_index._block
-            elif isinstance(other, bigframes.scalar.DeferredScalar):
+            elif isinstance(other, bigframes.core.scalar.DeferredScalar):
                 # TODO(tbereron): support deferred scalars.
                 raise ValueError("Deferred scalar not supported as operand.")
             elif isinstance(other, pandas.Series):
@@ -665,11 +665,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def _apply_aggregation(
         self, op: agg_ops.AggregateOp
-    ) -> bigframes.scalar.ImmediateScalar:
+    ) -> bigframes.core.scalar.ImmediateScalar:
         aggregation_result = typing.cast(
             ibis_types.Scalar, op._as_ibis(self[self.notnull()]._to_ibis_expr())
         )
-        return bigframes.scalar.DeferredScalar(aggregation_result).compute()
+        return bigframes.core.scalar.DeferredScalar(aggregation_result).compute()
 
     def _apply_window_op(
         self,

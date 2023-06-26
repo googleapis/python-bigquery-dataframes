@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import typing
 
-import bigframes.aggregations as agg_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.window
 import bigframes.dataframe as df
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 

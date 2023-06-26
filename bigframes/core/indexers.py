@@ -20,7 +20,9 @@ import ibis
 import pandas as pd
 
 import bigframes.core as core
+import bigframes.core.guid as guid
 import bigframes.core.indexes.index
+import bigframes.core.scalar
 import bigframes.series
 
 
@@ -82,7 +84,9 @@ class IlocSeriesIndexer:
     def __init__(self, series: bigframes.series.Series):
         self._series = series
 
-    def __getitem__(self, key) -> bigframes.scalar.Scalar | bigframes.series.Series:
+    def __getitem__(
+        self, key
+    ) -> bigframes.core.scalar.Scalar | bigframes.series.Series:
         """
         Index series using integer offsets. Currently supports index by key type:
 
@@ -132,7 +136,7 @@ def _loc_getitem_series_or_dataframe(
         return series_or_dataframe[key]
     elif isinstance(key, bigframes.Series):
         # TODO(henryjsolberg): support MultiIndex
-        temp_name = bigframes.guid.generate_guid(prefix="temp_series_name_")
+        temp_name = guid.generate_guid(prefix="temp_series_name_")
         key = key.rename(temp_name)
         keys_df = key.to_frame()
         keys_df = keys_df.set_index(temp_name, drop=True)
@@ -141,9 +145,7 @@ def _loc_getitem_series_or_dataframe(
         # TODO(henryjsolberg): support MultiIndex
         block = key._data._get_block()
         temp_labels = [
-            label
-            if label
-            else bigframes.guid.generate_guid(prefix="temp_column_label_")
+            label if label else guid.generate_guid(prefix="temp_column_label_")
             for label in block.column_labels
         ]
         block = block.with_column_labels(temp_labels)
@@ -194,7 +196,7 @@ def _perform_loc_list_join(
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.Series, key
-) -> bigframes.Series | bigframes.scalar.Scalar:
+) -> bigframes.Series | bigframes.core.scalar.Scalar:
     ...
 
 
@@ -207,7 +209,7 @@ def _iloc_getitem_series_or_dataframe(
 
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
-) -> bigframes.DataFrame | bigframes.Series | bigframes.scalar.Scalar | pd.Series:
+) -> bigframes.DataFrame | bigframes.Series | bigframes.core.scalar.Scalar | pd.Series:
     if isinstance(key, int):
         if key < 0:
             raise NotImplementedError(
@@ -236,7 +238,7 @@ def _iloc_getitem_series_or_dataframe(
             )
             df = series_or_dataframe.to_frame()
         original_index_name = df.index.name
-        temporary_index_name = bigframes.guid.generate_guid(prefix="temp_iloc_index_")
+        temporary_index_name = guid.generate_guid(prefix="temp_iloc_index_")
         df = df.rename_axis(temporary_index_name)
 
         # set to offset index and use regular loc, then restore index

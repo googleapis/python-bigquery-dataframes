@@ -38,17 +38,17 @@ import numpy
 import pandas as pd
 import typing_extensions
 
-import bigframes.aggregations as agg_ops
 import bigframes.core
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
+import bigframes.core.guid
+import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.dtypes
-import bigframes.guid
-import bigframes.indexers as indexers
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session

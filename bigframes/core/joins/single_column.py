@@ -22,9 +22,9 @@ import ibis
 import ibis.expr.types as ibis_types
 
 import bigframes.core as core
+import bigframes.core.guid
 import bigframes.core.joins.row_identity
 import bigframes.core.ordering
-import bigframes.guid
 
 
 def join_by_column(
@@ -163,7 +163,7 @@ def join_by_column(
         )
         # Use a random name in case the left index and the right index have the
         # same name. In such a case, _x and _y suffixes will already be used.
-        .name(bigframes.guid.generate_guid(prefix="index_"))
+        .name(bigframes.core.guid.generate_guid(prefix="index_"))
     )
 
     # We could filter out the original join columns, but predicates/ordering
@@ -214,4 +214,4 @@ def _merge_order_ids(
             bigframes.core.ordering.stringify_order_id(left_id, left_encoding_size)
             + bigframes.core.ordering.stringify_order_id(right_id, right_encoding_size)
         )
-    ).name(bigframes.guid.generate_guid(prefix="bigframes_ordering_id_"))
+    ).name(bigframes.core.guid.generate_guid(prefix="bigframes_ordering_id_"))

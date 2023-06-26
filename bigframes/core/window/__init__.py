@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import typing
 
-import bigframes.aggregations as agg_ops
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.operations.aggregations as agg_ops
 import third_party.bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
 
 if typing.TYPE_CHECKING:
