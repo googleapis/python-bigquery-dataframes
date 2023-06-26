@@ -21,10 +21,13 @@ import bigframes.core.blocks as blocks
 import bigframes.core.window
 import bigframes.dataframe as df
 import bigframes.dtypes
+import bigframes.operations as ops
+import bigframes.series as series
+import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 
-class DataFrameGroupBy:
-    """Represents a deferred dataframe with a grouping expression."""
+class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
+    __doc__ = vendored_pandas_groupby.GroupBy.__doc__
 
     def __init__(
         self,
@@ -50,107 +53,72 @@ class DataFrameGroupBy:
         self._dropna = dropna  # Applies to aggregations but not windowing
         self._as_index = as_index
 
-    def sum(
-        self,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Sums the numeric values for each group in the dataframe. Only supports 'numeric_only'=True."""
+    def sum(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.sum_op, numeric_only=True)
 
-    def mean(
-        self,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculates the mean of non-null values in each group. Only supports 'numeric_only'=True."""
+    def mean(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.mean_op, numeric_only=True)
 
-    def min(
-        self,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculates the minimum value in each group. Only supports 'numeric_only'=True."""
+    def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.min_op, numeric_only=True)
 
-    def max(
-        self,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculates the maximum value in each group. Only supports 'numeric_only'=True."""
+    def max(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.max_op, numeric_only=True)
 
     def std(
         self,
+        *,
         numeric_only: bool = False,
     ) -> df.DataFrame:
-        """Calculates the standard deviation of values in each group. Only supports 'numeric_only'=True."""
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.std_op, numeric_only=True)
 
     def var(
         self,
+        *,
         numeric_only: bool = False,
     ) -> df.DataFrame:
-        """Calculates the variance of values in each group. Only supports 'numeric_only'=True."""
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         return self._aggregate(agg_ops.var_op, numeric_only=True)
 
     def all(self) -> df.DataFrame:
-        """Returns true if any non-null value evalutes to true for each group."""
         return self._aggregate(agg_ops.all_op)
 
     def any(self) -> df.DataFrame:
-        """Returns true if all non-null values evaluate to true for each group."""
         return self._aggregate(agg_ops.any_op)
 
     def count(self) -> df.DataFrame:
-        """Counts the non-null values in each group."""
         return self._aggregate(agg_ops.count_op)
 
-    def cumsum(
-        self,
-        *,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculate the cumulative sum of values in each grouping. Only supports 'numeric_only'=True."""
+    def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.sum_op, window, numeric_only=True)
 
-    def cummin(
-        self,
-        *,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculate the cumulative minimum of values in each grouping. Only supports 'numeric_only'=True."""
+    def cummin(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.min_op, window, numeric_only=True)
 
-    def cummax(
-        self,
-        *,
-        numeric_only: bool = False,
-    ) -> df.DataFrame:
-        """Calculate the cumulative maximum of values in each grouping. Only supports 'numeric_only'=True."""
+    def cummax(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.max_op, window, numeric_only=True)
 
-    def cumprod(self) -> df.DataFrame:
-        """Calculate the cumulative product of values in each grouping. Drops non-numeric columns always."""
+    def cumprod(self, *args, **kwargs) -> df.DataFrame:
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.product_op, window, numeric_only=True)
 
@@ -196,3 +164,130 @@ class DataFrameGroupBy:
         )
         block = block.select_columns(columns)
         return df.DataFrame(block)
+
+
+class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
+    __doc__ = vendored_pandas_groupby.GroupBy.__doc__
+
+    def __init__(
+        self,
+        block: blocks.Block,
+        value_column: str,
+        by: str,
+        value_name: typing.Optional[str] = None,
+        key_name: typing.Optional[str] = None,
+        dropna=True,
+    ):
+        # TODO(tbergeron): Support more group-by expression types
+        self._block = block
+        self._value_column = value_column
+        self._by = by
+        self._value_name = value_name
+        self._key_name = key_name
+        self._dropna = dropna  # Applies to aggregations but not windowing
+
+    @property
+    def value(self):
+        return self._block.expr.get_column(self._value_column)
+
+    def all(self) -> series.Series:
+        return self._aggregate(agg_ops.all_op)
+
+    def any(self) -> series.Series:
+        return self._aggregate(agg_ops.any_op)
+
+    def count(self) -> series.Series:
+        return self._aggregate(agg_ops.count_op)
+
+    def sum(self, *args) -> series.Series:
+        """Sums the numeric values for each group in the series. Ignores null/nan."""
+        return self._aggregate(agg_ops.sum_op)
+
+    def mean(self, *args) -> series.Series:
+        return self._aggregate(agg_ops.mean_op)
+
+    def std(self, *args, **kwargs) -> series.Series:
+        return self._aggregate(agg_ops.std_op)
+
+    def var(self, *args, **kwargs) -> series.Series:
+        return self._aggregate(agg_ops.var_op)
+
+    def prod(self, *args) -> series.Series:
+        return self._aggregate(agg_ops.product_op)
+
+    def cumsum(self, *args, **kwargs) -> series.Series:
+        return self._apply_window_op(
+            agg_ops.sum_op,
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+        )
+
+    def cumprod(self, *args, **kwargs) -> series.Series:
+        return self._apply_window_op(
+            agg_ops.product_op,
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+        )
+
+    def cummax(self, *args, **kwargs) -> series.Series:
+        return self._apply_window_op(
+            agg_ops.max_op,
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+        )
+
+    def cummin(self, *args, **kwargs) -> series.Series:
+        return self._apply_window_op(
+            agg_ops.min_op,
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+        )
+
+    def cumcount(self, *args, **kwargs) -> series.Series:
+        return self._apply_window_op(
+            agg_ops.rank_op,
+            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            discard_name=True,
+        )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
+
+    def shift(self, periods=1) -> series.Series:
+        """Shift index by desired number of periods."""
+        window = bigframes.core.WindowSpec(
+            grouping_keys=(self._by,),
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+
+    def diff(self) -> series.Series:
+        """Difference between each element and previous element."""
+        return self._ungroup() - self.shift(1)
+
+    def _ungroup(self) -> series.Series:
+        return series.Series(self._block.select_column(self._value_column))
+
+    def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> series.Series:
+        aggregate_col_id = self._value_column + "_bf_aggregated"
+        result_block = self._block.aggregate(
+            [self._by],
+            ((self._value_column, aggregate_op, aggregate_col_id),),
+            dropna=self._dropna,
+        )
+
+        return series.Series(
+            result_block.select_column(aggregate_col_id).assign_label(
+                aggregate_col_id, self._value_name
+            )
+        )
+
+    def _apply_window_op(
+        self,
+        op: agg_ops.WindowOp,
+        window_spec: bigframes.core.WindowSpec,
+        discard_name=False,
+    ):
+        label = self._value_name if not discard_name else None
+        block, result_id = self._block.apply_window_op(
+            self._value_column,
+            op,
+            result_label=label,
+            window_spec=window_spec,
+            skip_null_groups=self._dropna,
+        )
+        return series.Series(block.select_column(result_id))
