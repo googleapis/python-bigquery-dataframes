@@ -558,7 +558,7 @@ def system_prerelease(session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def notebook(session):
     session.install("-e", ".[all]")
-    session.install("pytest", "pytest-xdist", "nbmake")
+    session.install("pytest", "pytest-xdist", "pytest-retry", "nbmake")
 
     # TODO(shobs, b/281857892): Have all the notebooks working
     notebooks = [
@@ -578,7 +578,18 @@ def notebook(session):
     # each path exists
     for nb in notebooks:
         assert os.path.exists(nb), nb
-    session.run("py.test", "-nauto", "--nbmake", "--nbmake-timeout=600", *notebooks)
+
+    # Use retries because sometimes parallel runs of the same notebook can try
+    # to create the same artifacts and may run into resoure conflict at the GCP
+    # level.
+    session.run(
+        "py.test",
+        "-nauto",
+        "--nbmake",
+        "--nbmake-timeout=600",
+        "--retries=3",
+        *notebooks,
+    )
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
