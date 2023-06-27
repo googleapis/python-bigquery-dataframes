@@ -26,13 +26,14 @@ if TYPE_CHECKING:
 
 import bigframes.ml.api_primitives
 import bigframes.ml.core
+import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 
-class PCA(bigframes.ml.api_primitives.BaseEstimator):
-    """Principal component analysis (PCA).
-
-    Args:
-        n_components: Number of components to keep. if n_components is not set all components are kept."""
+class PCA(
+    third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
     def __init__(self, n_components=3):
         self.n_components = n_components
@@ -54,10 +55,6 @@ class PCA(bigframes.ml.api_primitives.BaseEstimator):
         return new_pca
 
     def fit(self, X: bigframes.DataFrame):
-        """Fit the model with X.
-
-        Args:
-            X: training BigFrames DataFrame."""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
             options={
