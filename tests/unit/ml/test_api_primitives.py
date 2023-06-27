@@ -29,13 +29,8 @@ def test_base_estimator_repr():
     estimator = bigframes.ml.linear_model.LinearRegression()
     assert estimator.__repr__() == "LinearRegression()"
 
-    estimator = bigframes.ml.linear_model.LinearRegression(
-        fit_intercept=False, data_split_method="AUTO_SPLIT"
-    )
-    assert (
-        estimator.__repr__()
-        == "LinearRegression(data_split_method='AUTO_SPLIT', fit_intercept=False)"
-    )
+    estimator = bigframes.ml.linear_model.LinearRegression(fit_intercept=False)
+    assert estimator.__repr__() == "LinearRegression(fit_intercept=False)"
 
     estimator = bigframes.ml.linear_model.LinearRegression(fit_intercept=True)
     assert estimator.__repr__() == "LinearRegression()"

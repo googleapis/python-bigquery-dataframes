@@ -89,8 +89,6 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
             Maximum number of rounds for boosting. Default to 20.
         min_rel_progress: Optional[float]
             Minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
-        data_split_method: Optional[str]
-            Whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
         enable_global_explain: Optional[bool]
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version: Optional[str]
@@ -139,8 +137,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Maximum number of rounds for boosting. Default to 20.
         min_rel_progress: Optional[float]
             Minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
-        data_split_method: Optional[str]
-            Whether to auto split data. Possible values: "NO_SPLIT", "AUTO_SPLIT". Default to "NO_SPLIT".
         enable_global_explain: Optional[bool]
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version: Optional[str]

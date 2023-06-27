@@ -422,9 +422,11 @@ def penguins_linear_model_name(
     This lets us run system tests without having to wait for a model.fit(...)"""
     sql = f"""
 CREATE OR REPLACE MODEL `$model_name`
-OPTIONS
-  (model_type='linear_reg',
-  input_label_cols=['body_mass_g']) AS
+OPTIONS (
+    model_type='linear_reg',
+    input_label_cols=['body_mass_g'],
+    data_split_method='NO_SPLIT'
+) AS
 SELECT
   *
 FROM
@@ -456,7 +458,8 @@ def penguins_logistic_model_name(
 CREATE OR REPLACE MODEL `$model_name`
 OPTIONS (
     model_type='logistic_reg',
-    input_label_cols=['sex']
+    input_label_cols=['sex'],
+    data_split_method='NO_SPLIT'
 ) AS SELECT
     *
 FROM `{penguins_table_id}`
@@ -556,7 +559,7 @@ OPTIONS (
     num_parallel_tree=1,
     booster_type='GBTREE',
     early_stop=True,
-    data_split_method='AUTO_SPLIT',
+    data_split_method='NO_SPLIT',
     subsample=1.0,
     input_label_cols=['sex']
 ) AS SELECT

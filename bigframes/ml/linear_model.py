@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/linear_model.html"""
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Literal, Optional, TYPE_CHECKING
+from typing import cast, Dict, List, Optional, TYPE_CHECKING
 
 from google.cloud import bigquery
 
@@ -40,10 +40,8 @@ class LinearRegression(
 
     def __init__(
         self,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
         fit_intercept=True,
     ):
-        self.data_split_method = data_split_method
         self.fit_intercept = fit_intercept
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
 
@@ -56,8 +54,6 @@ class LinearRegression(
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "dataSplitMethod" in last_fitting:
-            kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
         if "fitIntercept" in last_fitting:
             kwargs["fit_intercept"] = last_fitting["fitIntercept"]
 
@@ -70,7 +66,7 @@ class LinearRegression(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "LINEAR_REG",
-            "data_split_method": self.data_split_method,
+            "data_split_method": "NO_SPLIT",
             "fit_intercept": self.fit_intercept,
         }
 
@@ -143,11 +139,9 @@ class LogisticRegression(
     # TODO(ashleyxu) support class_weights in the constructor.
     def __init__(
         self,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
         fit_intercept: bool = True,
         auto_class_weights: bool = False,
     ):
-        self.data_split_method = data_split_method
         self.fit_intercept = fit_intercept
         self.auto_class_weights = auto_class_weights
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
@@ -162,8 +156,6 @@ class LogisticRegression(
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "dataSplitMethod" in last_fitting:
-            kwargs["data_split_method"] = last_fitting["dataSplitMethod"]
         if "fitIntercept" in last_fitting:
             kwargs["fit_intercept"] = last_fitting["fitIntercept"]
         # TODO(ashleyxu): b/285162045 support auto_class_weights once the API is
@@ -185,7 +177,7 @@ class LogisticRegression(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "LOGISTIC_REG",
-            "data_split_method": self.data_split_method,
+            "data_split_method": "NO_SPLIT",
             "fit_intercept": self.fit_intercept,
             "auto_class_weights": self.auto_class_weights,
             # TODO(ashleyxu): support class_weights (struct array)

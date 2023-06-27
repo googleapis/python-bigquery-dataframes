@@ -19,11 +19,8 @@ import pandas
 import bigframes.ml.ensemble
 
 
-def test_xgbregressor_auto_split(penguins_df_default_index, dataset_id):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
-    model = bigframes.ml.ensemble.XGBRegressor(
-        data_split_method="AUTO_SPLIT",
-    )
+def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
+    model = bigframes.ml.ensemble.XGBRegressor()
 
     df = penguins_df_default_index.dropna()
     train_X = df[
@@ -63,13 +60,11 @@ def test_xgbregressor_auto_split(penguins_df_default_index, dataset_id):
         f"{dataset_id}.temp_configured_xgbregressor_model"
         in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
 
 def test_xgbregressor_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
     model = bigframes.ml.ensemble.XGBRegressor(
         booster="dart",
         tree_method="AUTO",
@@ -85,7 +80,6 @@ def test_xgbregressor_dart_booster_multiple_params(
         learning_rate=0.015,
         max_iterations=4,
         min_rel_progress=0.02,
-        data_split_method="NO_SPLIT",
     )
 
     df = penguins_df_default_index.dropna().sample(n=70)
@@ -142,11 +136,8 @@ def test_xgbregressor_dart_booster_multiple_params(
     assert reloaded_model.num_parallel_tree == 2
 
 
-def test_xgbclassifier_auto_split(penguins_df_default_index, dataset_id):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
-    model = bigframes.ml.ensemble.XGBClassifier(
-        data_split_method="AUTO_SPLIT",
-    )
+def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
+    model = bigframes.ml.ensemble.XGBClassifier()
 
     df = penguins_df_default_index.dropna().sample(n=70)
     train_X = df[
@@ -184,13 +175,11 @@ def test_xgbclassifier_auto_split(penguins_df_default_index, dataset_id):
         f"{dataset_id}.temp_configured_xgbclassifierr_model"
         in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
 
 def test_xgbclassifier_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
     model = bigframes.ml.ensemble.XGBClassifier(
         booster="dart",
         tree_method="AUTO",
@@ -206,7 +195,6 @@ def test_xgbclassifier_dart_booster_multiple_params(
         learning_rate=0.015,
         max_iterations=4,
         min_rel_progress=0.02,
-        data_split_method="NO_SPLIT",
     )
 
     df = penguins_df_default_index.dropna().sample(n=70)

@@ -21,9 +21,6 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
     """Logistic Regression (aka logit, MaxEnt) classifier.
 
     Args:
-        data_split_method:
-            Default to "NO_SPLIT". Whether to auto split data. Possible values
-            are "NO_SPLIT", "AUTO_SPLIT".
         fit_intercept:
             Default True. Specifies if a constant (a.k.a. bias or intercept)
             should be added to the decision function.

@@ -17,13 +17,8 @@ import pandas as pd
 import bigframes.ml.linear_model
 
 
-def test_linear_regression_auto_split_configure_fit_score(
-    penguins_df_default_index, dataset_id
-):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
-    model = bigframes.ml.linear_model.LinearRegression(
-        data_split_method="AUTO_SPLIT", fit_intercept=False
-    )
+def test_linear_regression_configure_fit_score(penguins_df_default_index, dataset_id):
+    model = bigframes.ml.linear_model.LinearRegression(fit_intercept=False)
 
     df = penguins_df_default_index.dropna()
     train_X = df[
@@ -60,7 +55,6 @@ def test_linear_regression_auto_split_configure_fit_score(
     assert (
         f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.data_split_method == "AUTO_SPLIT"
 
     # TODO(yunmengxie): enable this once b/277242951 (fit_intercept missing from API) is fixed
     # assert reloaded_model.fit_intercept == False
@@ -69,9 +63,7 @@ def test_linear_regression_auto_split_configure_fit_score(
 def test_linear_regression_manual_split_configure_fit_score(
     penguins_df_default_index, dataset_id
 ):
-    model = bigframes.ml.linear_model.LinearRegression(
-        data_split_method="NO_SPLIT", fit_intercept=True
-    )
+    model = bigframes.ml.linear_model.LinearRegression(fit_intercept=True)
 
     df = penguins_df_default_index.dropna()
     train_X = df[
@@ -109,14 +101,12 @@ def test_linear_regression_manual_split_configure_fit_score(
         f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
     )
     assert reloaded_model.fit_intercept is True
-    assert reloaded_model.data_split_method == "NO_SPLIT"
 
 
-def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
+def test_logistic_regression_auto_class_weights_configure_fit_score(
     penguins_df_default_index, dataset_id
 ):
-    # Note: with <500 data points, AUTO_SPLIT will behave equivalently to NO_SPLIT
-    model = bigframes.ml.linear_model.LogisticRegression(data_split_method="AUTO_SPLIT")
+    model = bigframes.ml.linear_model.LogisticRegression()
     df = penguins_df_default_index.dropna()
     train_X = df[
         [
@@ -155,7 +145,6 @@ def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
         in reloaded_model._bqml_model.model_name
     )
     assert reloaded_model.fit_intercept is True
-    assert reloaded_model.data_split_method == "AUTO_SPLIT"
     # TODO(gaotianxiang): enable this once (auto_class_weights missing from API) is fixed
     # assert reloaded_model.auto_class_weights is True
 
@@ -163,9 +152,7 @@ def test_logistic_regression_auto_split_auto_class_weights_configure_fit_score(
 def test_logistic_regression_manual_split_configure_fit_score(
     penguins_df_default_index, dataset_id
 ):
-    model = bigframes.ml.linear_model.LogisticRegression(
-        data_split_method="NO_SPLIT", fit_intercept=True
-    )
+    model = bigframes.ml.linear_model.LogisticRegression(fit_intercept=True)
 
     df = penguins_df_default_index.dropna()
     train_X = df[
@@ -206,5 +193,4 @@ def test_logistic_regression_manual_split_configure_fit_score(
         in reloaded_model._bqml_model.model_name
     )
     assert reloaded_model.fit_intercept is True
-    assert reloaded_model.data_split_method == "NO_SPLIT"
     assert reloaded_model.auto_class_weights is False

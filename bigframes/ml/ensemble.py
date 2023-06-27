@@ -32,7 +32,6 @@ _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
     "tree_method": "treeMethod",
     "early_stop": "earlyStop",
-    "data_split_method": "dataSplitMethod",
     "colsample_bytree": "colsampleBylevel",
     "colsample_bylevel": "colsampleBytree",
     "colsample_bynode": "colsampleBynode",
@@ -74,7 +73,6 @@ class XGBRegressor(
         learning_rate=0.3,
         max_iterations: int = 20,
         min_rel_progress=0.01,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
         enable_global_explain=False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
@@ -95,7 +93,6 @@ class XGBRegressor(
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
         self.min_rel_progress = min_rel_progress
-        self.data_split_method = data_split_method
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
@@ -124,6 +121,7 @@ class XGBRegressor(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "BOOSTED_TREE_REGRESSOR",
+            "data_split_method": "NO_SPLIT",
             "num_parallel_tree": self.num_parallel_tree,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
@@ -140,7 +138,6 @@ class XGBRegressor(
             "learn_rate": self.learning_rate,
             "max_iterations": self.max_iterations,
             "min_rel_progress": self.min_rel_progress,
-            "data_split_method": self.data_split_method,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
@@ -227,7 +224,6 @@ class XGBClassifier(
         learning_rate=0.3,
         max_iterations: int = 20,
         min_rel_progress=0.01,
-        data_split_method: Literal["NO_SPLIT", "AUTO_SPLIT"] = "NO_SPLIT",
         enable_global_explain=False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
@@ -248,7 +244,6 @@ class XGBClassifier(
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
         self.min_rel_progress = min_rel_progress
-        self.data_split_method = data_split_method
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
@@ -277,6 +272,7 @@ class XGBClassifier(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
+            "data_split_method": "NO_SPLIT",
             "num_parallel_tree": self.num_parallel_tree,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
@@ -293,7 +289,6 @@ class XGBClassifier(
             "learn_rate": self.learning_rate,
             "max_iterations": self.max_iterations,
             "min_rel_progress": self.min_rel_progress,
-            "data_split_method": self.data_split_method,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }

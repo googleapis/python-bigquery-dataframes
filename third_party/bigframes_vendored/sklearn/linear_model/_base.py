@@ -59,9 +59,6 @@ class LinearRegression(RegressorMixin, LinearModel):
     the dataset, and the targets predicted by the linear approximation.
 
     Args:
-        data_split_method:
-            Default to "NO_SPLIT". Whether to auto split data. Possible values
-            are "NO_SPLIT", "AUTO_SPLIT".
         fit_intercept:
             Default ``True``. Whether to calculate the intercept for this
             model. If set to False, no intercept will be used in calculations
