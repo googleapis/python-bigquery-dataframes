@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pandas
-
 import publish_api_coverage
 
 

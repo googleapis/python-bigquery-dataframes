@@ -107,7 +107,7 @@ if ! [ ${DRY_RUN} ]; then
     # table, if you want to test this step, point it to a table you have
     # write access to
     COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
-    python3.10 publish_api_coverage.py \
+    python3.10 scripts/publish_api_coverage.py \
       --bigframes_version=$BIGFRAMES_VERSION \
       --release_version=$RELEASE_VERSION \
       --bigquery_table=$COVERAGE_TABLE
@@ -150,7 +150,7 @@ gcs_docs () {
         gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}
 
         # Copy the script to refresh firebase docs website from GCS to GCS itself
-        gsutil -m cp -v tools/update_firebase_docs_site.sh ${docs_gcs_bucket}
+        gsutil -m cp -v scripts/update_firebase_docs_site.sh ${docs_gcs_bucket}
     fi
 }
 
