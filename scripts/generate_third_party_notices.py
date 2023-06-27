@@ -21,6 +21,7 @@ import re
 import sys
 
 import piplicenses
+import requests
 
 THIRD_PARTY_NOTICES_FILE = "THIRD_PARTY_NOTICES"
 DEPENDENCY_INFO_SEPARATOR = "*" * 80 + "\n"
@@ -194,26 +195,37 @@ def write_metadata_to_file(
 
     # Try to generate third party license
 
-    # TODO(shobs): There can be packages like 'multipledispatch' which
-    # do have a license file
-    # https://github.com/mrocklin/multipledispatch/blob/master/LICENSE.txt
-    # But it is not available with the package metadata when installed,
-    # in other words, it is not found in the installation path such as
-    # lib/python3.10/site-packages/multipledispatch-0.6.0.dist-info/.
-    # Figure out if we still need to care about including such third
-    # party licenses with bigframes.
-    # For now ignore such missing licenses via ignore_missing=True
-
     license_info = get_metadata_and_filename(
         metadata["Name"],
         "LICENSE",
         metadata["LicenseFile"],
         metadata["LicenseText"],
-        ignore_missing=True,
+        # These packages don't have LICENSE files distributed in their packages,
+        # but we have manually confirmed they have a compatible license and
+        # included it manually in our `third_party` directory.
+        #
+        # Tracking issues:
+        # * https://github.com/grpc/grpc/issues/33557
+        ignore_missing=metadata["Name"]
+        in {
+            "grpcio-status",
+        },
     )
 
     if license_info:
         write_lines_without_trailing_spaces(file, license_info[0], "License")
+
+    # TODO(swast): We can remove this workaround once grpcio-status bundles the
+    # license file.
+    #
+    # Tracking issues:
+    # * https://github.com/grpc/grpc/issues/33557
+    if not license_info and metadata["Name"] == "grpcio-status":
+        license_text_response = requests.get(
+            "https://raw.githubusercontent.com/grpc/grpc/master/LICENSE"
+        )
+        license_text = license_text_response.text
+        write_lines_without_trailing_spaces(file, license_text, "License")
 
     # Try to generate third party notice
     notice_info = get_metadata_and_filename(
