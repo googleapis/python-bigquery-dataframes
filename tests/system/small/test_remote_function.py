@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes
-from bigframes import remote_function
+from bigframes.remote_function import remote_function
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 

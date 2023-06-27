@@ -481,28 +481,31 @@ def remote_function(
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
+    .. deprecated:: 0.0.1
+       Use :func:`bigframes.pandas.remote_function` instead.
+
     Args:
-        input_types : list(type)
+        input_types : list(type).
             List of input data types in the user defined function.
-        output_type : type
+        output_type : type.
             Data type of the output in the user defined function.
         session : bigframes.Session, Optional
             BigFrames session to use for getting default project, dataset and
             bigquery connection.
-        bigquery_client : google.cloud.bigquery.Client, Optional
+        bigquery_client : google.cloud.bigquery.Client, Optional.
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
-        dataset : str, Optional
+        dataset : str, Optional.
             Dataset to use to create a BigQuery function. It should be in
             `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
             param is not provided then session dataset id would be used.
-        bigquery_connection : str, Optional
+        bigquery_connection : str, Optional.
             Name of the BigQuery connection. If it is pre created in the same
             location as the `bigquery_client.location` then it would be used,
             otherwise it would be created dynamically assuming the user has
             necessary priviliges. If this param is not provided then the
             bigquery connection from the session would be used.
-        reuse : bool, Optional
+        reuse : bool, Optional.
             Reuse the remote function if already exists.
             `True` by default, which will result in reusing an existing remote
             function (if any) that was previously created for the same udf.
@@ -510,7 +513,7 @@ def remote_function(
             If the required remote function does not exist then it would be
             created irrespective of this param.
 
-    **Prerequisites:**
+    Notes:
         Please make sure following is setup before using this API:
 
         1. Have the below APIs enabled for your project:

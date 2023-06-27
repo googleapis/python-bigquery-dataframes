@@ -1231,7 +1231,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col_id, col_label in zip(columns, column_labels)
         ]
         ibis_expr = ibis_expr.select(*renamed_columns)
-        sql = session.ibis_client.compile(ibis_expr)
+        sql = session.ibis_client.compile(ibis_expr)  # type: ignore
         query_job: bigquery.QueryJob = session.bqclient.query(
             sql, job_config=job_config  # type: ignore
         )

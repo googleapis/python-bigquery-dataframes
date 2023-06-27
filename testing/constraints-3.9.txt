@@ -16,6 +16,7 @@ colorlog==6.7.0
 coverage==7.2.2
 cryptography==40.0.1
 distlib==0.3.6
+docstring-inheritance==2.0.0
 docutils==0.19
 exceptiongroup==1.1.1
 execnet==1.9.0
