@@ -28,17 +28,14 @@ import bigframes.ml.core
 import bigframes.ml.linear_model
 import bigframes.ml.preprocessing
 import bigframes.ml.sql
+import third_party.bigframes_vendored.sklearn.pipeline
 
 
-class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
-    """A pipeline of transforms with a final estimator
-
-    This allows chaining preprocessing steps onto an estimator to produce
-    a single component. This simplifies code, and allows deploying an estimator
-    and peprocessing together, e.g. with Pipeline.to_gbq(...)
-
-    Currently in bigframes.ml only two step pipelines are supported. The first
-    step should be preprocessing, and the second step should be the model."""
+class Pipeline(
+    third_party.bigframes_vendored.sklearn.pipeline.Pipeline,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = third_party.bigframes_vendored.sklearn.pipeline.Pipeline.__doc__
 
     def __init__(
         self, steps: List[Tuple[str, bigframes.ml.api_primitives.BaseEstimator]]
@@ -79,15 +76,6 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
         self._estimator = estimator
 
     def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
-        """Fit each estimator in the pipeline to the transformed output of the
-        previous one. In bigframes.ml this will compile the pipeline to a single
-        BQML model with a TRANSFORM clause
-
-        Args:
-            X: training data. Must match the input requirements of the first step of
-                the pipeline
-            y: training targets, if applicable"""
-
         compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
@@ -104,13 +92,6 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
                 raise TypeError("Fitting this pipeline requires training targets `y`")
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the pipeline result for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Return: a BigFrames Dataframe representing predicted result.
-        """
         return self._estimator.predict(X)
 
     def score(
@@ -118,13 +99,6 @@ class Pipeline(bigframes.ml.api_primitives.BaseEstimator):
         X: Optional[bigframes.DataFrame] = None,
         y: Optional[bigframes.DataFrame] = None,
     ):
-        """Calculate evaluation metrics of the model.
-
-        Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
-
-        Returns: a BigFrames DataFrame as evaluation result."""
         if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
             return self._estimator.score(X=X, y=y)
 
