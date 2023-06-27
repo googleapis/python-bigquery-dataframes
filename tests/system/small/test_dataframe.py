@@ -1381,3 +1381,50 @@ def test_loc_bf_index_integer_index_renamed_col(
         bf_result.compute(),
         pd_result,
     )
+
+
+@pytest.mark.parametrize(
+    ("subset"),
+    [
+        None,
+        ["bool_col", "int64_too"],
+    ],
+)
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        (False,),
+    ],
+)
+def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, subset):
+    columns = ["bool_col", "int64_too", "int64_col"]
+    bf_series = scalars_df_index[columns].drop_duplicates(subset, keep=keep).compute()
+    pd_series = scalars_pandas_df_index[columns].drop_duplicates(subset, keep=keep)
+    pd.testing.assert_frame_equal(
+        pd_series,
+        bf_series,
+    )
+
+
+@pytest.mark.parametrize(
+    ("subset"),
+    [
+        None,
+        ["bool_col"],
+    ],
+)
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        (False,),
+    ],
+)
+def test_df_duplicated(scalars_df_index, scalars_pandas_df_index, keep, subset):
+    columns = ["bool_col", "int64_too", "int64_col"]
+    bf_series = scalars_df_index[columns].duplicated(subset, keep=keep).compute()
+    pd_series = scalars_pandas_df_index[columns].duplicated(subset, keep=keep)
+    pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)

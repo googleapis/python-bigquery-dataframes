@@ -39,6 +39,7 @@ import pandas as pd
 import typing_extensions
 
 import bigframes.core
+import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
 import bigframes.core.guid
@@ -1258,6 +1259,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return self._apply_to_rows(
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
+        )
+
+    def drop_duplicates(self, subset=None, *, keep: str = "first") -> DataFrame:
+        if subset is None:
+            column_ids = self._block.value_columns
+        else:
+            column_ids = [
+                id for label in subset for id in self._block.label_to_col_id[label]
+            ]
+        block = block_ops.drop_duplicates(self._block, column_ids, keep)
+        return DataFrame(block)
+
+    def duplicated(self, subset=None, keep: str = "first") -> bigframes.series.Series:
+        if subset is None:
+            column_ids = self._block.value_columns
+        else:
+            column_ids = [
+                id for label in subset for id in self._block.label_to_col_id[label]
+            ]
+        block, indicator = block_ops.indicate_duplicates(self._block, column_ids, keep)
+        return bigframes.series.Series(
+            block.select_column(
+                indicator,
+            )
         )
 
     applymap = map

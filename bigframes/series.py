@@ -28,6 +28,7 @@ import typing_extensions
 
 import bigframes.core
 from bigframes.core import WindowSpec
+import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
@@ -874,39 +875,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(self._get_block().add_suffix(suffix))
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
-        if keep not in ["first", "last", False]:
-            raise ValueError("keep must be one of 'first', 'last', or False'")
-        block = self._block
-        val_count_col_id = self._value_column + "_bf_internal_counter_before"
-        if keep == "first":
-            # Count how many copies occur up to current copy of value
-            # Discard this value if there are copies BEFORE
-            window_spec = WindowSpec(
-                grouping_keys=(self._value_column,),
-                following=0,
-            )
-        elif keep == "last":
-            # Count how many copies occur up to current copy of values
-            # Discard this value if there are copies AFTER
-            window_spec = WindowSpec(
-                grouping_keys=(self._value_column,),
-                preceding=0,
-            )
-        else:  # keep == False
-            # Count how many copies of the value occur in entire series.
-            # Discard this value if there are copies ANYWHERE
-            window_spec = WindowSpec(grouping_keys=(self._value_column,))
-        block, val_count_col_id = block.apply_window_op(
-            self._value_column,
-            agg_ops.count_op,
-            window_spec=window_spec,
+        block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
+        return Series(block)
+
+    def duplicated(self, keep: str = "first") -> Series:
+        block, indicator = block_ops.indicate_duplicates(
+            self._block, (self._value_column,), keep
         )
-        block, keep_condition_col_id = block.apply_unary_op(
-            val_count_col_id,
-            ops.partial_right(ops.le_op, 1),
+        return Series(
+            block.select_column(
+                indicator,
+            ).with_column_labels([self.name])
         )
-        block = block.filter(keep_condition_col_id)
-        return Series(block.select_column(self._value_column))
 
     def mask(self, cond, other=None) -> Series:
         if callable(cond):

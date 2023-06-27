@@ -927,6 +927,27 @@ def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_na
     )
 
 
+@pytest.mark.parametrize(
+    ("col_name",),
+    [
+        ("bool_col",),
+        ("int64_too",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        (False,),
+    ],
+)
+def test_duplicated(scalars_df_index, scalars_pandas_df_index, keep, col_name):
+    bf_series = scalars_df_index[col_name].duplicated(keep=keep).compute()
+    pd_series = scalars_pandas_df_index[col_name].duplicated(keep=keep)
+    pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)
+
+
 def test_shape(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

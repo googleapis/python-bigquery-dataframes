@@ -790,7 +790,8 @@ class BigFramesExpr:
             raise NotImplementedError(
                 f"Type not supported as scalar value {type(value)}"
             )
-        return self._set_or_replace_by_id(destination_id, ibis_value)
+        expr = self._set_or_replace_by_id(destination_id, ibis_value)
+        return expr._reproject_to_table()
 
     def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value):
         builder = self.builder()

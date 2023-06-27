@@ -452,19 +452,40 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return Series with duplicate values removed.
 
-        Parameters
-        ----------
-        keep : {'first', 'last', ``False``}, default 'first'
-            Method to handle dropping duplicates:
+        Args:
+            keep : {'first', 'last', ``False``}, default 'first'
+                Method to handle dropping duplicates:
 
-            - 'first' : Drop duplicates except for the first occurrence.
-            - 'last' : Drop duplicates except for the last occurrence.
-            - ``False`` : Drop all duplicates.
+                - 'first' : Drop duplicates except for the first occurrence.
+                - 'last' : Drop duplicates except for the last occurrence.
+                - ``False`` : Drop all duplicates.
 
-        Returns
-        -------
-        Series or None
+        Returns:
             Series with duplicates dropped or None if ``inplace=True``.
+        """
+        raise NotImplementedError("abstract method")
+
+    def duplicated(self, keep="first") -> Series:
+        """
+        Indicate duplicate Series values.
+
+        Duplicated values are indicated as ``True`` values in the resulting
+        Series. Either all duplicates, all except the first or all except the
+        last occurrence of duplicates can be indicated.
+
+        Args:
+            keep : {'first', 'last', False}, default 'first'
+                Method to handle dropping duplicates:
+
+                - 'first' : Mark duplicates as ``True`` except for the first
+                occurrence.
+                - 'last' : Mark duplicates as ``True`` except for the last
+                occurrence.
+                - ``False`` : Mark all duplicates as ``True``.
+
+        Returns:
+            Series indicating whether each value has occurred in the
+            preceding values.
         """
         raise NotImplementedError("abstract method")
 

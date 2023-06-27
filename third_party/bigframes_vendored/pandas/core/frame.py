@@ -225,6 +225,55 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def drop_duplicates(
+        self,
+        *,
+        keep="first",
+    ) -> DataFrame:
+        """
+        Return DataFrame with duplicate rows removed.
+
+        Considering certain columns is optional. Indexes, including time indexes
+        are ignored.
+
+        Args:
+            subset : column label or sequence of labels, optional
+                Only consider certain columns for identifying duplicates, by
+                default use all of the columns.
+            keep : {'first', 'last', ``False``}, default 'first'
+                Determines which duplicates (if any) to keep.
+
+                - 'first' : Drop duplicates except for the first occurrence.
+                - 'last' : Drop duplicates except for the last occurrence.
+                - ``False`` : Drop all duplicates.
+
+        Returns:
+            DataFrame with duplicates removed
+        """
+        raise NotImplementedError("abstract method")
+
+    def duplicated(self, subset=None, keep="first"):
+        """
+        Return boolean Series denoting duplicate rows.
+
+        Considering certain columns is optional.
+
+        Args:
+            subset : column label or sequence of labels, optional
+                Only consider certain columns for identifying duplicates, by
+                default use all of the columns.
+            keep : {'first', 'last', False}, default 'first'
+                Determines which duplicates (if any) to mark.
+
+                - ``first`` : Mark duplicates as ``True`` except for the first occurrence.
+                - ``last`` : Mark duplicates as ``True`` except for the last occurrence.
+                - False : Mark all duplicates as ``True``.
+
+        Returns:
+            Boolean series for each duplicated rows.
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # Reindex-based selection methods
 
