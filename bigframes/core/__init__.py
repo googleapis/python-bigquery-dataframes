@@ -778,9 +778,14 @@ class BigFramesExpr:
     def assign(self, source_id: str, destination_id: str) -> BigFramesExpr:
         return self._set_or_replace_by_id(destination_id, self.get_column(source_id))
 
-    def assign_constant(self, destination_id: str, value: typing.Any) -> BigFramesExpr:
+    def assign_constant(
+        self,
+        destination_id: str,
+        value: typing.Any,
+        dtype: typing.Optional[bigframes.dtypes.BigFramesDtype],
+    ) -> BigFramesExpr:
         # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
-        ibis_value = _interpret_as_ibis_literal(value)
+        ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
         if ibis_value is None:
             raise NotImplementedError(
                 f"Type not supported as scalar value {type(value)}"
@@ -902,10 +907,3 @@ def _numeric_to_float(value: ibis_types.Value):
         return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
     else:
         return value.cast(ibis_dtypes.float64)
-
-
-def _interpret_as_ibis_literal(value: typing.Any) -> typing.Optional[ibis_types.Value]:
-    if pandas.isna(value):
-        # TODO(tbergeron): Ensure correct handling of NaN - maybe not map to Null
-        return ibis_types.null()
-    return bigframes.dtypes.literal_to_ibis_scalar(value)

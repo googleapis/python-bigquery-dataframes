@@ -449,18 +449,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(self, other: float | int, op: ops.BinaryOp) -> DataFrame:
-        block, constant_col_id = self._block.create_constant(other)
+        block = self._block
+        partial_op = ops.BinopPartialRight(op, other)
         for column_id, label in zip(
             self._block.value_columns, self._block.column_labels
         ):
-            block, _ = block.apply_binary_op(
-                column_id,
-                constant_col_id,
-                op,
-                result_label=label,
-            )
+            block, _ = block.apply_unary_op(column_id, partial_op, result_label=label)
             block = block.drop_columns([column_id])
-        block = block.drop_columns([constant_col_id])
         return DataFrame(block)
 
     def _apply_series_binop(
@@ -1246,7 +1241,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col_id, col_label in zip(columns, column_labels)
         ]
         ibis_expr = ibis_expr.select(*renamed_columns)
-        sql = session.ibis_client.compile(ibis_expr)
+        sql = session.ibis_client.compile(ibis_expr)  # type: ignore
         _, query_job = session._start_sql_query(
             sql=sql, job_config=job_config  # type: ignore
         )

@@ -33,7 +33,7 @@ import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.indexes.implicitjoiner
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
-import bigframes.core.scalar
+import bigframes.core.scalar as scalars
 import bigframes.core.window
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -481,10 +481,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def count(self) -> int:
         return typing.cast(int, self._apply_aggregation(agg_ops.count_op))
 
-    def max(self) -> bigframes.core.scalar.Scalar:
+    def max(self) -> scalars.Scalar:
         return self._apply_aggregation(agg_ops.max_op)
 
-    def min(self) -> bigframes.core.scalar.Scalar:
+    def min(self) -> scalars.Scalar:
         return self._apply_aggregation(agg_ops.min_op)
 
     def std(self) -> float:
@@ -579,14 +579,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.ne_op)
 
     def where(self, cond, other=None):
-        return self._apply_ternary_op(
-            cond, other if (other is not None) else pandas.NA, ops.where_op
+        value_id, cond_id, other_id, block = self._align3(cond, other)
+        block, result_id = block.apply_ternary_op(
+            value_id, cond_id, other_id, ops.where_op
         )
+        return Series(block.select_column(result_id).with_column_labels([self.name]))
 
     def clip(self, lower, upper):
-        return self._apply_ternary_op(lower, upper, ops.clip_op)
+        if lower is None and upper is None:
+            return self
+        if lower is None:
+            return self._apply_binary_op(upper, ops.clip_upper, alignment="left")
+        if upper is None:
+            return self._apply_binary_op(lower, ops.clip_lower, alignment="left")
+        value_id, lower_id, upper_id, block = self._align3(lower, upper)
+        block, result_id = block.apply_ternary_op(
+            value_id, lower_id, upper_id, ops.clip_op
+        )
+        return Series(block.select_column(result_id).with_column_labels([self.name]))
 
-    def argmax(self) -> bigframes.core.scalar.Scalar:
+    def argmax(self) -> scalars.Scalar:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -597,10 +609,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         return typing.cast(
-            bigframes.core.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+            scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    def argmin(self) -> bigframes.core.scalar.Scalar:
+    def argmin(self) -> scalars.Scalar:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -609,7 +621,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         return typing.cast(
-            bigframes.core.scalar.Scalar, Series(block.select_column(row_nums)).iloc[0]
+            scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
     def __getitem__(self, indexer: Series):
@@ -629,8 +641,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise AttributeError(key)
 
-    def _align(self, other: typing.Any, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
-        """Aligns the series value with other scalar or series object. Returns new left column id, right column id and joined tabled expression."""
+    def _align(self, other: Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
+        """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
         values, block = self._align_n(
             [
                 other,
@@ -639,13 +651,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return (values[0], values[1], block)
 
-    def _align3(self, other1: typing.Any, other2: typing.Any, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
+    def _align3(self, other1: Series | scalars.Scalar, other2: Series | scalars.Scalar, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
         values, index = self._align_n([other1, other2], how)
         return (values[0], values[1], values[2], index)
 
     def _align_n(
-        self, others: typing.Sequence[typing.Any], how="outer"
+        self,
+        others: typing.Sequence[typing.Union[Series, scalars.Scalar]],
+        how="outer",
     ) -> tuple[typing.Sequence[str], blocks.Block]:
         value_ids = [self._value_column]
         block = self._block
@@ -660,16 +674,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     get_column_right(other._value_column),
                 ]
                 block = combined_index._block
-            elif isinstance(other, bigframes.core.scalar.DeferredScalar):
-                # TODO(tbereron): support deferred scalars.
-                raise ValueError("Deferred scalar not supported as operand.")
-            elif isinstance(other, pandas.Series):
-                raise NotImplementedError(
-                    "Pandas series not supported supported as operand."
-                )
             else:
                 # Will throw if can't interpret as scalar.
-                block, constant_col_id = block.create_constant(other)
+                dtype = typing.cast(bigframes.dtypes.BigFramesDtype, self.dtype)
+                block, constant_col_id = block.create_constant(other, dtype=dtype)
                 value_ids = [*value_ids, constant_col_id]
         return (value_ids, block)
 
@@ -696,30 +704,33 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self,
         other: typing.Any,
         op: ops.BinaryOp,
+        alignment: typing.Literal["outer", "left"] = "outer",
     ) -> Series:
         """Applies a binary operator to the series and other."""
-        (left, right, block) = self._align(other)
+        if isinstance(other, pandas.Series):
+            # TODO: Convert to BigFrames series
+            raise NotImplementedError(
+                "Pandas series not supported supported as operand."
+            )
+        if isinstance(other, Series):
+            (left, right, block) = self._align(other, how=alignment)
 
-        block, result_id = block.apply_binary_op(left, right, op, self._value_column)
+            block, result_id = block.apply_binary_op(
+                left, right, op, self._value_column
+            )
 
-        name = self._name
-        if isinstance(other, Series) and other.name != self.name:
-            name = None
+            name = self._name
+            if (
+                isinstance(other, Series)
+                and other.name != self.name
+                and alignment == "outer"
+            ):
+                name = None
 
-        return Series(block.select_column(result_id).assign_label(result_id, name))
-
-    def _apply_ternary_op(
-        self,
-        other: typing.Any,
-        other2: typing.Any,
-        op: ops.TernaryOp,
-    ) -> Series:
-        """Applies a ternary operator to the series, other, and other2."""
-        (x, y, z, block) = self._align3(other, other2)
-
-        block, result_id = block.apply_ternary_op(x, y, z, op, result_label=self.name)
-
-        return Series(block.select_column(result_id))
+            return Series(block.select_column(result_id).assign_label(result_id, name))
+        else:
+            partial_op = ops.BinopPartialRight(op, other)
+            return self._apply_unary_op(partial_op)
 
     def value_counts(self):
         counts = self.groupby(self).count()

@@ -172,12 +172,16 @@ def bigframes_dtype_to_ibis_dtype(
     return BIGFRAMES_TO_IBIS[bigframes_dtype]
 
 
-def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:
+def literal_to_ibis_scalar(
+    literal, force_dtype: typing.Optional[BigFramesDtype] = None, validate: bool = True
+):
     """Accept any literal and, if possible, return an Ibis Scalar
     expression with a BigFrames compatible data type
 
     Args:
         literal: any value accepted by Ibis
+        force_dtype: force the value to a specific dtype
+        validate: if true, will raise ValueError if type cannot be stored in a BigFrame object. If used as a subexpression, this should be disabled.
 
     Returns:
         An ibis Scalar supported by BigFrames
@@ -186,14 +190,29 @@ def literal_to_ibis_scalar(literal) -> ibis.expr.types.Scalar:
         ValueError: if passed literal cannot be coerced to a
         BigFrames compatible scalar
     """
+    ibis_dtype = BIGFRAMES_TO_IBIS[force_dtype] if force_dtype else None
+
+    if pd.api.types.is_list_like(literal):
+        if validate:
+            raise ValueError("List types can't be stored in BigFrames")
+        # "correct" way would be to use ibis.array, but this produces invalid BQ SQL syntax
+        return tuple(literal)
+    if not pd.api.types.is_list_like(literal) and pd.isna(literal):
+        if ibis_dtype:
+            return ibis.null().cast(ibis_dtype)
+        else:
+            return ibis.null()
+
     scalar_expr = ibis.literal(literal)
-    if scalar_expr.type().is_floating():
+    if ibis_dtype:
+        scalar_expr = ibis.literal(literal, ibis_dtype)
+    elif scalar_expr.type().is_floating():
         scalar_expr = ibis.literal(literal, ibis_dtypes.float64)
     elif scalar_expr.type().is_integer():
         scalar_expr = ibis.literal(literal, ibis_dtypes.int64)
 
     # TODO(bmil): support other literals that can be coerced to compatible types
-    if scalar_expr.type() not in BIGFRAMES_TO_IBIS.values():
+    if validate and (scalar_expr.type() not in BIGFRAMES_TO_IBIS.values()):
         raise ValueError(f"Literal did not coerce to a supported data type: {literal}")
 
     return scalar_expr

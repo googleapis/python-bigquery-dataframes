@@ -170,7 +170,6 @@ def test_literal_to_ibis_scalar_converts(literal, ibis_scalar):
 def test_literal_to_ibis_scalar_throws_on_incompatible_literal():
     with pytest.raises(
         ValueError,
-        match="Literal did not coerce to a supported data type: {'mykey': 'myval'}",
     ):
         bigframes.dtypes.literal_to_ibis_scalar({"mykey": "myval"})
 

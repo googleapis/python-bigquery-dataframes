@@ -455,9 +455,10 @@ class Block:
         self,
         scalar_constant: typing.Any,
         label: Label = None,
+        dtype: typing.Optional[bigframes.dtypes.BigFramesDtype] = None,
     ) -> typing.Tuple[Block, str]:
         result_id = guid.generate_guid()
-        expr = self.expr.assign_constant(result_id, scalar_constant)
+        expr = self.expr.assign_constant(result_id, scalar_constant, dtype=dtype)
         labels = [*self.column_labels, label]
         return (
             Block(
@@ -731,7 +732,7 @@ def _align_block_to_schema(
             col_id = matching_ids[-1]
             col_ids = (*col_ids, col_id)
         else:
-            block, precast_null = block.create_constant(None)
+            block, precast_null = block.create_constant(None, dtype=dtype)
             block, null_column = block.apply_unary_op(precast_null, ops.AsTypeOp(dtype))
             col_ids = (*col_ids, null_column)
     return block.select_columns(col_ids).with_column_labels(

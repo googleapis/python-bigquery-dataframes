@@ -204,7 +204,7 @@ class SliceOp(UnaryOp):
 class BinopPartialRight(UnaryOp):
     def __init__(self, binop: BinaryOp, right_scalar: typing.Any):
         self._binop = binop
-        self._right = right_scalar
+        self._right = dtypes.literal_to_ibis_scalar(right_scalar, validate=False)
 
     def _as_ibis(self, x):
         return self._binop(x, self._right)
@@ -213,7 +213,7 @@ class BinopPartialRight(UnaryOp):
 class BinopPartialLeft(UnaryOp):
     def __init__(self, binop: BinaryOp, left_scalar: typing.Any):
         self._binop = binop
-        self._left = left_scalar
+        self._left = dtypes.literal_to_ibis_scalar(left_scalar, validate=False)
 
     def _as_ibis(self, x):
         return self._binop(self._left, x)
@@ -460,6 +460,20 @@ def fillna_op(
     y: ibis_types.Value,
 ):
     return x.fillna(typing.cast(ibis_types.Scalar, y))
+
+
+def clip_lower(
+    value: ibis_types.Value,
+    lower: ibis_types.Value,
+):
+    return ibis.case().when(lower.isnull() | (value < lower), lower).else_(value).end()
+
+
+def clip_upper(
+    value: ibis_types.Value,
+    upper: ibis_types.Value,
+):
+    return ibis.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
 
 
 def reverse(op: BinaryOp) -> BinaryOp:
