@@ -31,19 +31,23 @@ def train_test_split(
     """Splits dataframes into random train and test subsets
 
     Args:
-        *dataframes: a sequence of BigFrames dataframes that can be joined on their indexes
-
-        test_size: the proportion of the dataset to include in the test split. If None,
-            this will default to the complement of train_size. If both are none, it will
-            be set to 0.25
-
-        train_size: the proportion of the dataset to include in the train split. If None,
-            this will default to the complement of test_size.
-
-        random_state: a seed to use for randomly choosing the rows of the split. If not
+        *dataframes:
+            A sequence of BigQuery DataFrames that can be joined on
+            their indexes
+        test_size:
+            The proportion of the dataset to include in the test split. If
+            None, this will default to the complement of train_size. If both
+            are none, it will be set to 0.25.
+        train_size:
+            The proportion of the dataset to include in the train split. If
+            None, this will default to the complement of test_size.
+        random_state:
+            A seed to use for randomly choosing the rows of the split. If not
             set, a random split will be generated each time.
 
-    Returns: a list of BigFrames DataFrame."""
+    Returns:
+        A list of BigQuery DataFrames.
+    """
 
     # TODO(garrettwu): Scikit-Learn throws an error when the dataframes don't have the same
     # number of rows. We probably want to do something similar. Now the implementation is based

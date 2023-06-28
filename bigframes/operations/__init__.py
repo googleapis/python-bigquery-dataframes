@@ -170,7 +170,7 @@ class YearOp(UnaryOp):
 
 # Parameterized ops
 class AsTypeOp(UnaryOp):
-    def __init__(self, to_type: dtypes.BigFramesDtypeString | dtypes.BigFramesDtype):
+    def __init__(self, to_type: dtypes.DtypeString | dtypes.Dtype):
         self.to_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(to_type)
 
     def _as_ibis(self, x: ibis_types.Value):

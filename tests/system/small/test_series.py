@@ -393,7 +393,7 @@ def test_reset_index_drop(scalars_df_index, scalars_pandas_df_index):
         .reset_index(drop=True)
     ).iloc[::2]
 
-    # BigFrames default indices use nullable Int64 always
+    # BigQuery DataFrame default indices use nullable Int64 always
     pd_result.index = pd_result.index.astype("Int64")
 
     pd.testing.assert_series_equal(bf_result.compute(), pd_result)
@@ -420,7 +420,7 @@ def test_reset_index_no_drop(scalars_df_index, scalars_pandas_df_index, name):
         .reset_index(drop=False, **kw_args)
     )
 
-    # BigFrames default indices use nullable Int64 always
+    # BigQuery DataFrame default indices use nullable Int64 always
     pd_result.index = pd_result.index.astype("Int64")
 
     pd.testing.assert_frame_equal(bf_result.compute(), pd_result)

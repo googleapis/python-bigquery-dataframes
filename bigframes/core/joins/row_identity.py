@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join BigFramesExpr objects."""
+"""Helpers to join ArrayValue objects."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ SUPPORTED_ROW_IDENTITY_HOW = {"outer", "left", "inner"}
 
 
 def join_by_row_identity(
-    left: core.BigFramesExpr, right: core.BigFramesExpr, *, how: str
-) -> Tuple[core.BigFramesExpr, Tuple[Callable[[str], str], Callable[[str], str]],]:
+    left: core.ArrayValue, right: core.ArrayValue, *, how: str
+) -> Tuple[core.ArrayValue, Tuple[Callable[[str], str], Callable[[str], str]],]:
     """Compute join when we are joining by row identity not a specific column."""
     if how not in SUPPORTED_ROW_IDENTITY_HOW:
         raise NotImplementedError("Only how='outer','left','inner' currently supported")
@@ -70,7 +70,7 @@ def join_by_row_identity(
     hidden_ordering_columns = []
     new_ordering = core.ExpressionOrdering()
     if left._ordering and right._ordering:
-        # These ordering columns will be present in the BigFramesExpr, as we
+        # These ordering columns will be present in the ArrayValue, as we
         # haven't hidden any value / index column(s). Code that is aware of
         # which columns are index columns / value columns columns will need to
         # add the previous columns to hidden columns.
@@ -109,7 +109,7 @@ def join_by_row_identity(
                     )
                 )
 
-    joined_expr = core.BigFramesExpr(
+    joined_expr = core.ArrayValue(
         left._session,
         left.table,
         columns=joined_columns,

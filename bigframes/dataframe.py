@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import random
 import re
+import textwrap
 import typing
 from typing import (
     Dict,
@@ -72,7 +73,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: vendored_pandas_typing.Axes | None = None,
         columns: vendored_pandas_typing.Axes | None = None,
         dtype: typing.Optional[
-            bigframes.dtypes.BigFramesDtypeString | bigframes.dtypes.BigFramesDtype
+            bigframes.dtypes.DtypeString | bigframes.dtypes.Dtype
         ] = None,
         copy: typing.Optional[bool] = None,
         *,
@@ -81,7 +82,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if copy is not None and not copy:
             raise ValueError("DataFrame constructor only supports copy=True")
 
-        # Check to see if constructing from BigFrames objects before falling back to pandas constructor
+        # Check to see if constructing from BigQuery-backed objects before
+        # falling back to pandas constructor
         block = None
         if isinstance(data, blocks.Block):
             block = data
@@ -97,9 +99,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ):
             if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
-                raise NotImplementedError(
-                    "Cannot mix BigFrames Series with other types."
-                )
+                raise NotImplementedError("Cannot mix Series with other types.")
             keys = list(data.keys())
             first_label, first_series = keys[0], data[keys[0]]
             block = (
@@ -121,7 +121,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if block:
             if index:
                 raise NotImplementedError(
-                    "DataFrame 'index' constructor parameter not supported when passing BigFrames objects"
+                    "DataFrame 'index' constructor parameter not supported when passing BigQuery-backed objects"
                 )
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
@@ -244,9 +244,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def astype(
         self,
-        dtype: Union[
-            bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
-        ],
+        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
         return self._apply_to_rows(ops.AsTypeOp(dtype))
 
@@ -373,8 +371,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self.__getitem__(key)
         elif hasattr(pd.DataFrame(), key):
             raise NotImplementedError(
-                "BigFrames has not yet implemented an equivalent to pandas.DataFrame.{key} . Please check https://github.com/googleapis/bigframes/issues for existing feature requests, or file your own. You may also send feedback to the bigframes team at bigframes-feedback@google.com. You may include information about your use case, as well as code snippets or other feedback.".format(
-                    key=key
+                textwrap.dedent(
+                    f"""
+                BigQuery DataFrame has not yet implemented an equivalent to
+                'pandas.DataFrame.{key}'. Please check
+                https://github.com/googleapis/bigquery-dataframe/issues for
+                existing feature requests, or file your own.
+                Please include information about your use case, as well as
+                relevant code snippets.
+                """
                 )
             )
         else:

@@ -1,9 +1,8 @@
-BigFrames ML
-============
+BigQuery DataFrame ML
+=====================
 
-As BigFrames implements the Pandas API over top of BigQuery,
-BigFrames ML implements the SKLearn API over top of BigQuery
-Machine Learning.
+As BigQuery DataFrame implements the Pandas API over top of BigQuery, BigQuery
+DataFrame ML implements the SKLearn API over top of BigQuery Machine Learning.
 
 Tutorial
 --------
@@ -12,10 +11,9 @@ Start a session and initialize a dataframe for a BigQuery table
 
 .. code-block:: python
 
-    import bigframes
-    session = bigframes.connect()
+    import bigframes.pandas
 
-    df = session.read_gbq("bigquery-public-data.ml_datasets.penguins")
+    df = bigframes.pandas.read_gbq("bigquery-public-data.ml_datasets.penguins")
     df
 
 Clean and prepare the data
@@ -89,7 +87,7 @@ Make predictions on new data
 
     import pandas
 
-    new_penguins = session.read_pandas(
+    new_penguins = bigframes.pandas.read_pandas(
         pandas.DataFrame(
             {
                 "tag_number": [1633, 1672, 1690],

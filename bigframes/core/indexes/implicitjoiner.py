@@ -31,7 +31,7 @@ class ImplicitJoiner:
         self._block = block
 
     @property
-    def _expr(self) -> core.BigFramesExpr:
+    def _expr(self) -> core.ArrayValue:
         return self._block.expr
 
     @property

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join BigFramesExpr objects."""
+"""Helpers to join ArrayValue objects."""
 
 from bigframes.core.joins.row_identity import join_by_row_identity
 from bigframes.core.joins.single_column import join_by_column

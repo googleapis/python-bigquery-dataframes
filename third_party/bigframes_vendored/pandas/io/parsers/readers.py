@@ -105,6 +105,6 @@ class ReaderIOMixin:
 
 
         Returns:
-            A BigFrame DataFrame.
+            A BigQuery DataFrame.
         """
         raise NotImplementedError("abstract method")

@@ -65,8 +65,8 @@ BaseEstimator.__repr__ for pretty-printing estimators"""
 # - long sequences (lists, tuples, dict items) with more than N elements are
 #   shortened using ellipsis (', ...') at the end.
 #
-# Additional changes to adapt this to BigFrames:
-# - slkearn BaseEstimator replaced with BigFrames BaseEstimator
+# Additional changes to adapt this to BigQuery DataFrame:
+# - sklearn BaseEstimator replaced with BigQuery DataFrame BaseEstimator
 # - removed global get_config, set _changed_only=True
 # - replace is_scalar_nan with isinstance(x, numbers.Real) and math.isnan
 

@@ -85,8 +85,9 @@ def test_to_csv_index(
     # DATETIME/TIMESTAMP column export is the same format as pandas by default.
     scalars_df.to_csv(path, index=index)
 
-    # Pandas dataframes dtypes from read_csv are not fully compatible with BigFrames
-    # dataframes, so manually convert the dtypes specifically here.
+    # Pandas dataframes dtypes from read_csv are not fully compatible with
+    # BigQuery-backed dataframes, so manually convert the dtypes specifically
+    # here.
     dtype = scalars_df.reset_index().dtypes.to_dict()
     dtype.pop("timestamp_col")
     dtype.pop("geography_col")

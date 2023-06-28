@@ -132,7 +132,7 @@ class Session(
             credentials_project = None
         else:
             _ensure_application_default_credentials_in_colab_environment()
-            # TODO(shobs, b/278903498): Use BigFrames own client id and secret
+            # TODO(shobs, b/278903498): Use BigQuery DataFrame's own client id and secret
             credentials, credentials_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
             )
@@ -388,7 +388,7 @@ class Session(
             index_col_name = None
             # Make sure we have a separate "copy" of the ordering ID to use as
             # the index, because we assume the ordering ID is a hidden column
-            # in BigFramesExpr, but the index column appears as a "column".
+            # in ArrayValue, but the index column appears as a "column".
             index_id = indexes.INDEX_COLUMN_ID.format(0)
             index_col = table_expression[default_ordering_name].name(index_id)
             table_expression = table_expression.mutate(**{index_id: index_col})
@@ -455,7 +455,7 @@ class Session(
             columns.append(table_expression[key])
 
         block = blocks.Block(
-            core.BigFramesExpr(
+            core.ArrayValue(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
             [index_col.get_name()],
@@ -491,7 +491,7 @@ class Session(
             pandas_dataframe: a Pandas DataFrame object to be loaded.
 
         Returns:
-            A BigFrame DataFrame.
+            A BigQuery DataFrame.
         """
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"

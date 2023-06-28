@@ -27,8 +27,11 @@ import bigframes.session
 
 
 class BqmlModel:
-    """Represents an existing BQML model in BigQuery
-    Wraps the BQML API and SQL interface to expose the functionality needed for BigFrames ML"""
+    """Represents an existing BQML model in BigQuery.
+
+    Wraps the BQML API and SQL interface to expose the functionality needed for
+    BigQuery DataFrame ML.
+    """
 
     def __init__(self, session: bigframes.session.Session, model: bigquery.Model):
         self._session = session
@@ -36,7 +39,7 @@ class BqmlModel:
 
     @property
     def session(self) -> bigframes.Session:
-        """Get the BigFrames session that this BQML model wrapper is tied to"""
+        """Get the BigQuery DataFrame session that this BQML model wrapper is tied to"""
         return self._session
 
     @property
@@ -64,7 +67,8 @@ class BqmlModel:
 
             func: a function that will accept a SQL string and produce a new SQL
                 string from which to construct the output dataframe. It must
-                include the index columns of the input SQL."""
+                include the index columns of the input SQL.
+        """
         source_sql, tagged_index_cols = input_data.to_sql_query(
             always_include_index=True
         )

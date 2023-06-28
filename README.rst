@@ -1,7 +1,8 @@
-BigFrames
-=========
+BigQuery DataFrame
+==================
 
-BigFrames implements the Pandas dataframe API over top of a BigQuery session.
+BigQuery DataFrame provides a Pythonic DataFrame and machine learning (ML) API
+powered by the BigQuery engine.
 
-BigFrames also provides ``bigframes.ml``, which implements the Scikit-Learn API
-over top of BigQuery Machine Learning.
+* ``bigframes.pandas`` provides a pandas-like API for analytics.
+* ``bigframes.ml`` provides a Scikit-Learn-like API for ML.

@@ -51,15 +51,15 @@ def tokyo_location() -> str:
 
 @pytest.fixture(scope="session")
 def gcs_client() -> storage.Client:
-    # TODO(swast): Ensure same credentials and project are used as in the
-    # BigFrames Session.
+    # TODO(swast): Ensure same credentials and project are used as in the rest
+    # of our tests.
     return storage.Client()
 
 
 @pytest.fixture(scope="session")
 def gcs_folder(gcs_client: storage.Client):
     # TODO(swast): Allow bucket name from environment variable for testing by
-    # non-BigFrames team.
+    # non-Googlers.
     bucket = "bigframes-dev-testing"
     prefix = prefixer.create_prefix()
     path = f"gs://{bucket}/{prefix}/"

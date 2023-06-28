@@ -156,7 +156,11 @@ def llm_text_pandas_df():
     """Additional data matching the penguins dataset, with a new index"""
     return pd.DataFrame(
         {
-            "prompt": ["What is BigQuery?", "What is BQML?", "What is BigFrames?"],
+            "prompt": [
+                "What is BigQuery?",
+                "What is BQML?",
+                "What is BigQuery DataFrame?",
+            ],
         }
     )
 

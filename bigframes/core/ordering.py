@@ -63,7 +63,7 @@ class OrderingColumnReference:
 
 @dataclass(frozen=True)
 class ExpressionOrdering:
-    """Immutable object that holds information about the ordering of rows in a BigFrames expression."""
+    """Immutable object that holds information about the ordering of rows in a ArrayValue object."""
 
     ordering_value_columns: Sequence[OrderingColumnReference] = ()
     ordering_id_column: Optional[OrderingColumnReference] = None
@@ -73,7 +73,10 @@ class ExpressionOrdering:
     ordering_encoding_size: int = DEFAULT_ORDERING_ID_LENGTH
 
     def with_is_sequential(self, is_sequential: bool):
-        """Create a copy that is marked as non-sequential, this is useful when filtering, but not sorting, an expression."""
+        """Create a copy that is marked as non-sequential.
+
+        This is useful when filtering, but not sorting, an expression.
+        """
         return ExpressionOrdering(
             self.ordering_value_columns,
             self.ordering_id_column,
@@ -108,7 +111,10 @@ class ExpressionOrdering:
         )
 
     def with_ordering_id(self, ordering_id: str):
-        """Creates a new ordering that preserves other properties, but with a different ordering id. Useful when reprojecting ordering for implicit joins."""
+        """Creates a new ordering that preserves other properties, but with a different ordering id.
+
+        Useful when reprojecting ordering for implicit joins.
+        """
         return ExpressionOrdering(
             self.ordering_value_columns,
             OrderingColumnReference(ordering_id),

@@ -64,7 +64,10 @@ class ARIMAPlus(bigframes.ml.base.BaseEstimator):
     def predict(self) -> bigframes.DataFrame:
         """Predict the closest cluster for each sample in X.
 
-        Returns: predicted BigFrames DataFrame. Which contains 2 columns "forecast_timestamp" and "forecast_value"."""
+        Returns:
+            The predicted BigQuery DataFrame. Which contains 2 columns
+            "forecast_timestamp" and "forecast_value".
+        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -81,10 +84,17 @@ class ARIMAPlus(bigframes.ml.base.BaseEstimator):
         """Calculate evaluation metrics of the model.
 
         Args:
-            X: a BigFrames DataFrame only contains 1 column as evaluation timestamp. The timestamp must be within the horizon of the model, which by default is 1000 data points.
-            y: a BigFrames DataFrame only contains 1 column as evaluation numeric values.
+            X:
+                A BigQuery DataFrame only contains 1 column as
+                evaluation timestamp. The timestamp must be within the horizon
+                of the model, which by default is 1000 data points.
+            y:
+                A BigQuery DataFrame only contains 1 column as
+                evaluation numeric values.
 
-        Returns: a BigFrames DataFrame as evaluation result."""
+        Returns:
+            A BigQuery DataFrame as evaluation result.
+        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 

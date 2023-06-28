@@ -37,7 +37,7 @@ class SeriesMethods:
         data=None,
         index: vendored_pandas_typing.Axes | None = None,
         dtype: typing.Optional[
-            bigframes.dtypes.BigFramesDtypeString | bigframes.dtypes.BigFramesDtype
+            bigframes.dtypes.DtypeString | bigframes.dtypes.Dtype
         ] = None,
         name: str | None = None,
         copy: typing.Optional[bool] = None,
@@ -59,12 +59,12 @@ class SeriesMethods:
             if name:
                 if not isinstance(name, str):
                     raise NotImplementedError(
-                        "BigFrames only supports string series names."
+                        "BigQuery DataFrame only supports string series names."
                     )
                 block = block.with_column_labels([name])
             if index:
                 raise NotImplementedError(
-                    "Series 'index' constructor parameter not supported when passing BigFrames objects"
+                    "Series 'index' constructor parameter not supported when passing BigQuery-backed objects"
                 )
             if dtype:
                 block = block.multi_apply_unary_op(

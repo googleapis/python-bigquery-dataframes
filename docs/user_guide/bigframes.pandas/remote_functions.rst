@@ -2,9 +2,10 @@
 Using the Remote Functions
 ==========================
 
-BigFrames gives you the ability to turn your custom scalar functions into a BigQuery remote function.
-It requires the GCP project to be set up appropriately and the user having sufficient privileges to use them.
-One can find more details on it via `help` command.
+BigQuery DataFrame gives you the ability to turn your custom scalar functions
+into a BigQuery remote function. It requires the GCP project to be set up
+appropriately and the user having sufficient privileges to use them. One can
+find more details on it via `help` command.
 
 .. code-block:: python
 
@@ -18,9 +19,10 @@ Read a table and inspect the column of interest.
     df = pd.read_gbq("bigquery-public-data.ml_datasets.penguins")
     df["body_mass_g"].head(10)
 
-Define a custom function, and specify the intent to turn it into a remote function.
-It requires a BigQuery connection. If the connection is not already created, BigFrames will
-attempt to create one assuming the necessary APIs and IAM permissions are setup in the project.
+Define a custom function, and specify the intent to turn it into a remote
+function. It requires a BigQuery connection. If the connection is not already
+created, BigQuery DataFrame will attempt to create one assuming the necessary
+APIs and IAM permissions are setup in the project.
 
 .. code-block:: python
 

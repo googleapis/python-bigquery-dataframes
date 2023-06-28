@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join BigFramesExpr objects."""
+"""Helpers to join ArrayValue objects."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ import bigframes.core.ordering
 
 
 def join_by_column(
-    left: core.BigFramesExpr,
+    left: core.ArrayValue,
     left_column_id: str,
-    right: core.BigFramesExpr,
+    right: core.ArrayValue,
     right_column_id: str,
     *,
     how: Literal[
@@ -40,7 +40,7 @@ def join_by_column(
         "right",
     ],
     sort: bool = False,
-) -> Tuple[core.BigFramesExpr, str, Tuple[Callable[[str], str], Callable[[str], str]],]:
+) -> Tuple[core.ArrayValue, str, Tuple[Callable[[str], str], Callable[[str], str]],]:
     """Join two expressions by column equality.
 
     Arguments:
@@ -53,7 +53,7 @@ def join_by_column(
     Returns:
         The joined expression and the objects needed to interpret it.
 
-        * BigFramesExpr: Joined table with all columns from left and right.
+        * ArrayValue: Joined table with all columns from left and right.
         * str: Column ID of the coalesced join column. Sometimes either the
           left/right table will have missing rows. This column pulls the
           non-NULL value from either left/right.
@@ -147,7 +147,7 @@ def join_by_column(
             ordering_encoding_size=left_ordering_encoding_size
             + right_ordering_encoding_size,
         )
-        combined_expr = core.BigFramesExpr(
+        combined_expr = core.ArrayValue(
             left._session,
             combined_table,
             hidden_ordering_columns=hidden_columns,

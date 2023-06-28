@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigFrames provides a DataFrame API for BigQuery."""
+"""BigQuery DataFrame provides a DataFrame API backed by the BigQuery engine."""
 
 from __future__ import annotations
 

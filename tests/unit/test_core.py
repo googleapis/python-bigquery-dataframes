@@ -23,7 +23,7 @@ from bigframes import core
 def test_constructor_from_ibis_table_adds_all_columns(
     session, scalars_ibis_table: Table
 ):
-    actual = core.BigFramesExpr(session=session, table=scalars_ibis_table)
+    actual = core.ArrayValue(session=session, table=scalars_ibis_table)
     assert actual._table is scalars_ibis_table
     assert len(actual._columns) == len(scalars_ibis_table.columns)
 
@@ -31,9 +31,7 @@ def test_constructor_from_ibis_table_adds_all_columns(
 def test_builder_doesnt_change_original(session):
     mock_table = mock.create_autospec(Table)
     mock_column = mock.create_autospec(Column)
-    original = core.BigFramesExpr(
-        session=session, table=mock_table, columns=[mock_column]
-    )
+    original = core.ArrayValue(session=session, table=mock_table, columns=[mock_column])
     assert original._table is mock_table
     assert len(original._columns) == 1
     assert original._columns[0] is mock_column
@@ -62,9 +60,7 @@ def test_builder_doesnt_change_original(session):
 def test_projection_doesnt_change_original(session):
     mock_table = mock.create_autospec(Table)
     mock_column = mock.create_autospec(Column)
-    original = core.BigFramesExpr(
-        session=session, table=mock_table, columns=[mock_column]
-    )
+    original = core.ArrayValue(session=session, table=mock_table, columns=[mock_column])
     assert original._table is mock_table
     assert len(original._columns) == 1
     assert original._columns[0] is mock_column
@@ -89,7 +85,7 @@ def test_projection_doesnt_change_original(session):
 
 
 def test_to_ibis_expr_with_projection(session, scalars_ibis_table: Table):
-    expr = core.BigFramesExpr(session=session, table=scalars_ibis_table).projection(
+    expr = core.ArrayValue(session=session, table=scalars_ibis_table).projection(
         [
             scalars_ibis_table["int64_col"],
             ibis.literal(123456789).name("literals"),

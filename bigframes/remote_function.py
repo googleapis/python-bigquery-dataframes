@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
 
-# Input and output python types supported by BigFrames remote functions.
+# Input and output python types supported by BigQuery DataFrame remote functions.
 # TODO(shobs): Extend the support to all types supported by BQ remote functions
 # https://cloud.google.com/bigquery/docs/remote-functions#limitations
 _supported_io_types = set((bool, float, int, str))
@@ -374,8 +374,9 @@ class RemoteFunctionClient:
             # 'projects/my_project/locations/us-central1/services/python-foo-http' (or resource may not exist)
             # But when --no-allow-unauthenticated is omitted then it goes through.
             # It suggests that in the second invocation the command is trying to set
-            # the IAM policy of the service, and the user running BigFrames may not
-            # have privilege to do so, so better avoid this if we can.
+            # the IAM policy of the service, and the user running BigQuery
+            # DataFrame may not have privilege to do so, so better avoid this
+            # if we can.
             if self.get_cloud_function_endpoint(cf_name):
                 logger.info(f"Updating existing cloud function: {command}")
             else:
@@ -490,9 +491,9 @@ def remote_function(
         output_type : type.
             Data type of the output in the user defined function.
         session : bigframes.Session, Optional
-            BigFrames session to use for getting default project, dataset and
-            bigquery connection.
-        bigquery_client : google.cloud.bigquery.Client, Optional.
+            BigQuery DataFrame session to use for getting default project,
+            dataset and BigQuery connection.
+        bigquery_client : google.cloud.bigquery.Client, Optional
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
         dataset : str, Optional.

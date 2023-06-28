@@ -47,7 +47,7 @@ def test_linear_reg_model_score(penguins_linear_model, penguins_df_default_index
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -102,7 +102,7 @@ def test_to_gbq_saved_linear_reg_model_scores(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -143,7 +143,7 @@ def test_logistic_model_score(penguins_logistic_model, penguins_df_default_index
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -198,7 +198,7 @@ def test_to_gbq_saved_logsitic_model_score(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 

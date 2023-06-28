@@ -60,16 +60,19 @@ class WindowSpec:
 
 
 # TODO(swast): We might want to move this to it's own sub-module.
-class BigFramesExpr:
-    """Immutable BigFrames expression tree.
+class ArrayValue:
+    """Immutable BigQuery DataFrame expression tree.
+
     Note: Usage of this class is considered to be private and subject to change
     at any time.
+
     This class is a wrapper around Ibis expressions. Its purpose is to defer
     Ibis projection operations to keep generated SQL small and correct when
     mixing and matching columns from different versions of a DataFrame.
+
     Args:
         session:
-            A BigFrames session to allow more flexibility in running
+            A BigQuery DataFrame session to allow more flexibility in running
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.
@@ -123,7 +126,7 @@ class BigFramesExpr:
         cls,
         pd_df: pandas.DataFrame,
         session: Optional[Session],
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
 
@@ -191,12 +194,12 @@ class BigFramesExpr:
                 self._ordering.all_ordering_columns,
             )
 
-    def builder(self) -> BigFramesExprBuilder:
+    def builder(self) -> ArrayValueBuilder:
         """Creates a mutable builder for expressions."""
-        # Since BigFramesExpr is intended to be immutable (immutability offers
+        # Since ArrayValue is intended to be immutable (immutability offers
         # potential opportunities for caching, though we might need to introduce
         # more node types for that to be useful), we create a builder class.
-        return BigFramesExprBuilder(
+        return ArrayValueBuilder(
             self._session,
             self._table,
             self._columns,
@@ -205,12 +208,12 @@ class BigFramesExpr:
             predicates=self._predicates,
         )
 
-    def insert_column(self, index: int, column: ibis_types.Value) -> BigFramesExpr:
+    def insert_column(self, index: int, column: ibis_types.Value) -> ArrayValue:
         expr = self.builder()
         expr.columns.insert(index, column)
         return expr.build()
 
-    def drop_columns(self, columns: Iterable[str]) -> BigFramesExpr:
+    def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         # Must generate offsets if we are dropping a column that ordering depends on
         expr = self
         for ordering_column in set(columns).intersection(
@@ -256,14 +259,14 @@ class BigFramesExpr:
             )
         return typing.cast(ibis_types.Column, self._hidden_ordering_column_names[key])
 
-    def apply_limit(self, max_results: int) -> BigFramesExpr:
+    def apply_limit(self, max_results: int) -> ArrayValue:
         table = self.to_ibis_expr().limit(max_results)
         # Since we make a new table expression, the old column references now
-        # point to the wrong table. Use the BigFramesExpr constructor to make
+        # point to the wrong table. Use the ArrayValue constructor to make
         # sure we have the correct references.
-        return BigFramesExpr(self._session, table)
+        return ArrayValue(self._session, table)
 
-    def filter(self, predicate: ibis_types.BooleanValue) -> BigFramesExpr:
+    def filter(self, predicate: ibis_types.BooleanValue) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
         expr = self.builder()
         if expr.ordering:
@@ -273,12 +276,12 @@ class BigFramesExpr:
 
     def order_by(
         self, by: Sequence[OrderingColumnReference], stable: bool = False
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         expr_builder = self.builder()
         expr_builder.ordering = self._ordering.with_ordering_columns(by, stable=stable)
         return expr_builder.build()
 
-    def reversed(self) -> BigFramesExpr:
+    def reversed(self) -> ArrayValue:
         expr_builder = self.builder()
         expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
@@ -291,7 +294,7 @@ class BigFramesExpr:
             )
         return self._get_hidden_ordering_column(self._ordering.ordering_id)
 
-    def project_offsets(self) -> BigFramesExpr:
+    def project_offsets(self) -> ArrayValue:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
         if self._ordering.is_sequential:
             return self
@@ -304,7 +307,7 @@ class BigFramesExpr:
             ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
             is_sequential=True,
         )
-        return BigFramesExpr(
+        return ArrayValue(
             self._session,
             table,
             columns=columns,
@@ -312,7 +315,7 @@ class BigFramesExpr:
             ordering=ordering,
         )
 
-    def _hide_column(self, column_id) -> BigFramesExpr:
+    def _hide_column(self, column_id) -> ArrayValue:
         """Pushes columns to hidden columns list. Used to hide ordering columns that have been dropped or destructively mutated."""
         expr_builder = self.builder()
         # Need to rename column as caller might be creating a new row with the same name but different values.
@@ -331,7 +334,7 @@ class BigFramesExpr:
         expr_builder.ordering = self._ordering.with_ordering_columns(ordering_columns)
         return expr_builder.build()
 
-    def promote_offsets(self) -> typing.Tuple[BigFramesExpr, str]:
+    def promote_offsets(self) -> typing.Tuple[ArrayValue, str]:
         """
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
         """
@@ -351,7 +354,7 @@ class BigFramesExpr:
     def select_columns(self, column_ids: typing.Sequence[str]):
         return self.projection([self.get_column(col_id) for col_id in column_ids])
 
-    def projection(self, columns: Iterable[ibis_types.Value]) -> BigFramesExpr:
+    def projection(self, columns: Iterable[ibis_types.Value]) -> ArrayValue:
         """Creates a new expression based on this expression with new columns."""
         # TODO(swast): We might want to do validation here that columns derive
         # from the same table expression instead of (in addition to?) at
@@ -376,8 +379,8 @@ class BigFramesExpr:
         length = next(row_iterator)[0]
         return (length, width)
 
-    def concat(self, other: typing.Sequence[BigFramesExpr]) -> BigFramesExpr:
-        """Append together multiple BigFramesExpressions."""
+    def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
+        """Append together multiple ArrayValue objects."""
         if len(other) == 0:
             return self
         tables = []
@@ -411,7 +414,7 @@ class BigFramesExpr:
             ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
             ordering_encoding_size=prefix_size + max_encoding_size,
         )
-        return BigFramesExpr(
+        return ArrayValue(
             self._session,
             combined_table,
             columns=[
@@ -425,7 +428,7 @@ class BigFramesExpr:
 
     def project_unary_op(
         self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """Creates a new expression based on this expression with unary operation applied to one column."""
         value = op._as_ibis(self.get_column(column_name)).name(
             output_name or column_name
@@ -438,7 +441,7 @@ class BigFramesExpr:
         right_column_id: str,
         op: ops.BinaryOp,
         output_column_id: str,
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """Creates a new expression based on this expression with binary operation applied to two columns."""
         value = op(
             self.get_column(left_column_id), self.get_column(right_column_id)
@@ -452,7 +455,7 @@ class BigFramesExpr:
         col_id_3: str,
         op: ops.TernaryOp,
         output_column_id: str,
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """Creates a new expression based on this expression with ternary operation applied to three columns."""
         value = op(
             self.get_column(col_id_1),
@@ -466,7 +469,7 @@ class BigFramesExpr:
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """
         Apply aggregations to the expression.
         Arguments:
@@ -488,7 +491,7 @@ class BigFramesExpr:
                     for column_id in by_column_ids
                 ]
             )
-            expr = BigFramesExpr(self._session, result, ordering=ordering)
+            expr = ArrayValue(self._session, result, ordering=ordering)
             if dropna:
                 for column_id in by_column_ids:
                     expr = expr.filter(
@@ -504,7 +507,7 @@ class BigFramesExpr:
                 ordering_id_column=OrderingColumnReference(column_id=ORDER_ID_COLUMN),
                 is_sequential=True,
             )
-            return BigFramesExpr(
+            return ArrayValue(
                 self._session,
                 result,
                 columns=[result[col_id] for col_id in [*stats.keys()]],
@@ -521,7 +524,7 @@ class BigFramesExpr:
         *,
         skip_null_groups=False,
         skip_reproject_unsafe: bool = False,
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
         column_name: the id of the input column present in the expression
@@ -570,21 +573,29 @@ class BigFramesExpr:
         """
         Creates an Ibis table expression representing the DataFrame.
 
-        BigFrames expression are sorted, so three options are available to reflect this in the ibis expression.
-        The default is that the expression will be ordered by an order_by clause.
-        "order_by": The output table will not have an ordering column, however there will be an order_by clause applied to the ouput.
-        "offset_col": Zero-based offsets are generated as a column, this will not sort the rows however.
-        "ordered_col": An ordered column is provided in output table, without guarantee that the values are sequential
-        "expose_hidden_cols": All columns projected in table expression, including hidden columns. Output is not otherwise ordered
-        "unordered": No ordering information will be provided in output. Only value columns are projected.
-        For offset or ordered column, order_col_name can be used to assign the output label for the ordering column.
-        If none is specified, the default column name will be 'bigframes_ordering_id'
+        ArrayValue objects are sorted, so the following options are available
+        to reflect this in the ibis expression.
+
+        * "order_by" (Default): The output table will not have an ordering
+          column, however there will be an order_by clause applied to the ouput.
+        * "offset_col": Zero-based offsets are generated as a column, this will
+          not sort the rows however.
+        * "ordered_col": An ordered column is provided in output table, without
+          guarantee that the values are sequential
+        * "expose_hidden_cols": All columns projected in table expression,
+          including hidden columns. Output is not otherwise ordered
+        * "unordered": No ordering information will be provided in output. Only
+          value columns are projected.
+
+        For offset or ordered column, order_col_name can be used to assign the
+        output label for the ordering column. If none is specified, the default
+        column name will be 'bigframes_ordering_id'
 
         Args:
             with_offsets: Output will include 0-based offsets as a column if set to True
             ordering_mode: One of "order_by", "ordered_col", or "offset_col"
         Returns:
-            An ibis expression representing the data help by the BigFramesExpression.
+            An ibis expression representing the data help by the ArrayValue object.
         """
         assert ordering_mode in (
             "order_by",
@@ -696,7 +707,7 @@ class BigFramesExpr:
         hidden_ordering_columns = [
             table[column_name] for column_name in self._hidden_ordering_column_names
         ]
-        return BigFramesExpr(
+        return ArrayValue(
             self._session,
             table,
             columns=columns,
@@ -738,7 +749,7 @@ class BigFramesExpr:
 
     def transpose_single_row(
         self, labels, *, index_col_id: str = "index", value_col_id: str = "values"
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         """Pivot a single row into a 3 column expression with index, values and offsets. Only works if all values can be cast to float."""
         table = self.to_ibis_expr(ordering_mode="unordered")
         sub_expressions = []
@@ -750,7 +761,7 @@ class BigFramesExpr:
             )
             sub_expressions.append(sub_expr)
         rotated_table = ibis.union(*sub_expressions)
-        return BigFramesExpr(
+        return ArrayValue(
             session=self._session,
             table=rotated_table,
             columns=[rotated_table[index_col_id], rotated_table[value_col_id]],
@@ -761,7 +772,7 @@ class BigFramesExpr:
         )
 
     # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
-    def deprecated_rename_column(self, old_id, new_id) -> BigFramesExpr:
+    def deprecated_rename_column(self, old_id, new_id) -> ArrayValue:
         """
         Don't use this, temporary measure until dataframe supports sqlid!=dataframe col id.
         In future, caller shouldn't need to control internal column id strings.
@@ -772,15 +783,15 @@ class BigFramesExpr:
             [old_id]
         )
 
-    def assign(self, source_id: str, destination_id: str) -> BigFramesExpr:
+    def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         return self._set_or_replace_by_id(destination_id, self.get_column(source_id))
 
     def assign_constant(
         self,
         destination_id: str,
         value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.BigFramesDtype],
-    ) -> BigFramesExpr:
+        dtype: typing.Optional[bigframes.dtypes.Dtype],
+    ) -> ArrayValue:
         # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
         ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
         if ibis_value is None:
@@ -806,7 +817,7 @@ class BigFramesExpr:
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
-    ) -> BigFramesExpr:
+    ) -> ArrayValue:
         if step == 0:
             raise ValueError("slice step cannot be zero")
 
@@ -849,9 +860,9 @@ class BigFramesExpr:
         return sliced_expr if step > 0 else sliced_expr.reversed()
 
 
-class BigFramesExprBuilder:
+class ArrayValueBuilder:
     """Mutable expression class.
-    Use BigFramesExpr.builder() to create from a BigFramesExpr object.
+    Use ArrayValue.builder() to create from a ArrayValue object.
     """
 
     def __init__(
@@ -870,8 +881,8 @@ class BigFramesExprBuilder:
         self.ordering = ordering
         self.predicates = list(predicates) if predicates is not None else None
 
-    def build(self) -> BigFramesExpr:
-        return BigFramesExpr(
+    def build(self) -> ArrayValue:
+        return ArrayValue(
             session=self.session,
             table=self.table,
             columns=self.columns,

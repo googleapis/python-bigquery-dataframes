@@ -16,7 +16,7 @@
 Wraps primitives for machine learning with BQML
 
 This library is an evolving attempt to
-- implement BigFrames API for BQML
+- implement BigQuery DataFrame API for BQML
 - follow as close as possible the API design of SKLearn
     https://arxiv.org/pdf/1309.0238.pdf
 """
@@ -26,8 +26,8 @@ import third_party.bigframes_vendored.sklearn.base
 
 class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
     """
-    A BigFrames machine learning component following the SKLearn API design
-    Ref: https://github.com/scikit-learn/scikit-learn/blob/7db5b6a98ac6ad0976a3364966e214926ca8098a/sklearn/base.py#L112
+    A BigQuery DataFrame machine learning component following the SKLearn API
+    design Ref: https://bit.ly/3NyhKjN
 
     The estimator is the fundamental abstraction for all learning components. This includes learning
     algorithms, and also some preprocessing routines.

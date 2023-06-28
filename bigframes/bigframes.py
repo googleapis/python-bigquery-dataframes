@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigFrames top level APIs."""
+"""BigQuery DataFrame top level APIs."""
 
 import typing
 
@@ -25,7 +25,7 @@ def concat(
     *,
     join: typing.Literal["inner", "outer"] = "outer"
 ) -> typing.Union[DataFrame, Series]:
-    """Concatenate BigFrames objects along rows.
+    """Concatenate DataFrame or Series objects along rows.
 
     Note: currently only supports DataFrames with matching types for each column name.
     """

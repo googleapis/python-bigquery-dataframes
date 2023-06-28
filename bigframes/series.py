@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import textwrap
 import typing
 from typing import Any, Optional, Union
 
@@ -149,9 +150,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def astype(
         self,
-        dtype: Union[
-            bigframes.dtypes.BigFramesDtypeString, bigframes.dtypes.BigFramesDtype
-        ],
+        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> Series:
         return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
 
@@ -635,8 +634,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __getattr__(self, key: str):
         if hasattr(pandas.Series(), key):
             raise NotImplementedError(
-                "BigFrames has not yet implemented an equivalent to pandas.Series.{key} . Please check https://github.com/googleapis/bigframes/issues for existing feature requests, or file your own. You may also send feedback to the bigframes team at bigframes-feedback@google.com. You may include information about your use case, as well as code snippets or other feedback.".format(
-                    key=key
+                textwrap.dedent(
+                    f"""
+                    BigQuery DataFrame has not yet implemented an equivalent to
+                    'pandas.Series.{key}'. Please check
+                    https://github.com/googleapis/bigquery-dataframe/issues for
+                    existing feature requests, or file your own.
+                    Please include information about your use case, as well as
+                    relevant code snippets.
+                    """
                 )
             )
         else:
@@ -677,7 +683,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 block = combined_index._block
             else:
                 # Will throw if can't interpret as scalar.
-                dtype = typing.cast(bigframes.dtypes.BigFramesDtype, self.dtype)
+                dtype = typing.cast(bigframes.dtypes.Dtype, self.dtype)
                 block, constant_col_id = block.create_constant(other, dtype=dtype)
                 value_ids = [*value_ids, constant_col_id]
         return (value_ids, block)
@@ -709,7 +715,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         """Applies a binary operator to the series and other."""
         if isinstance(other, pandas.Series):
-            # TODO: Convert to BigFrames series
+            # TODO: Convert to BigQuery DataFrame series
             raise NotImplementedError(
                 "Pandas series not supported supported as operand."
             )

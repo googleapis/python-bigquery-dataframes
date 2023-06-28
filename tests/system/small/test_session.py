@@ -179,7 +179,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     dtype.pop("geography_col")
     df = session.read_csv(
         path,
-        # Convert default pandas dtypes to match BigFrames dtypes.
+        # Convert default pandas dtypes to match BigQuery DataFrame dtypes.
         dtype=dtype,
     )
     assert df._block._expr._ordering is not None
@@ -235,7 +235,7 @@ def test_read_csv_local_default_engine(session, scalars_dfs, sep):
         df = session.read_csv(
             path,
             sep=sep,
-            # Convert default pandas dtypes to match BigFrames dtypes.
+            # Convert default pandas dtypes to match BigQuery DataFrame dtypes.
             dtype=dtype,
         )
         assert df._block._expr._ordering is not None

@@ -40,5 +40,5 @@ def test_model_predict(imported_tensorflow_model, llm_text_df):
         result,
         expected,
         check_exact=False,
-        rtol=0.1,
+        atol=0.1,
     )

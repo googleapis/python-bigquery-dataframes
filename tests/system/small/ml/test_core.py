@@ -44,7 +44,7 @@ def test_model_eval(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -69,7 +69,7 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_in
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 

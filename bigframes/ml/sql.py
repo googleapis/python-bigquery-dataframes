@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Generates SQL queries needed for BigFrames ML
+Generates SQL queries needed for BigQuery DataFrame ML
 """
 
 from typing import Iterable, Optional, Union

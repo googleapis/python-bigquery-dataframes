@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Mappings for Pandas dtypes supported by BigFrames"""
+"""Mappings for Pandas dtypes supported by BigQuery DataFrame package"""
 
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
@@ -25,8 +25,8 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-# Type hints for Pandas dtypes supported by BigFrames
-BigFramesDtype = Union[
+# Type hints for Pandas dtypes supported by BigQuery DataFrame
+Dtype = Union[
     pd.BooleanDtype,
     pd.Float64Dtype,
     pd.Int64Dtype,
@@ -37,8 +37,8 @@ BigFramesDtype = Union[
 # Corresponds to the pandas concept of numeric type (such as when 'numeric_only' is specified in an operation)
 NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
 
-# Type hints for dtype strings supported by BigFrames
-BigFramesDtypeString = Literal[
+# Type hints for dtype strings supported by BigQuery DataFrame
+DtypeString = Literal[
     "boolean",
     "Float64",
     "Int64",
@@ -50,7 +50,7 @@ BigFramesDtypeString = Literal[
     "time64[us][pyarrow]",
 ]
 
-# Type hints for Ibis data types supported by BigFrames
+# Type hints for Ibis data types supported by BigQuery DataFrame
 IbisDtype = Union[
     ibis_dtypes.Boolean,
     ibis_dtypes.Float64,
@@ -64,7 +64,7 @@ IbisDtype = Union[
 # Several operations are restricted to these types.
 NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
 
-# Type hints for Ibis data types that can be read to Python objects by BigFrames
+# Type hints for Ibis data types that can be read to Python objects by BigQuery DataFrame
 ReadOnlyIbisDtype = Union[
     ibis_dtypes.Binary,
     ibis_dtypes.JSON,
@@ -74,7 +74,7 @@ ReadOnlyIbisDtype = Union[
     ibis_dtypes.Struct,
 ]
 
-BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
+BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
     (ibis_dtypes.float64, pd.Float64Dtype()),
     (ibis_dtypes.int64, pd.Int64Dtype()),
@@ -88,12 +88,12 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, BigFramesDtype]] = (
     ),
 )
 
-BIGFRAMES_TO_IBIS: Dict[BigFramesDtype, IbisDtype] = {
+BIGFRAMES_TO_IBIS: Dict[Dtype, IbisDtype] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
 
 IBIS_TO_BIGFRAMES: Dict[
-    Union[IbisDtype, ReadOnlyIbisDtype], Union[BigFramesDtype, np.dtype[Any]]
+    Union[IbisDtype, ReadOnlyIbisDtype], Union[Dtype, np.dtype[Any]]
 ] = {ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
 IBIS_TO_BIGFRAMES.update(
     {
@@ -108,9 +108,8 @@ IBIS_TO_BIGFRAMES.update(
     }
 )
 
-BIGFRAMES_STRING_TO_BIGFRAMES: Dict[BigFramesDtypeString, BigFramesDtype] = {
-    typing.cast(BigFramesDtypeString, dtype.name): dtype
-    for dtype in BIGFRAMES_TO_IBIS.keys()
+BIGFRAMES_STRING_TO_BIGFRAMES: Dict[DtypeString, Dtype] = {
+    typing.cast(DtypeString, dtype.name): dtype for dtype in BIGFRAMES_TO_IBIS.keys()
 }
 
 # special case - string[pyarrow] doesn't include the storage in its name, and both
@@ -120,16 +119,16 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarr
 
 def ibis_dtype_to_bigframes_dtype(
     ibis_dtype: Union[IbisDtype, ReadOnlyIbisDtype]
-) -> Union[BigFramesDtype, np.dtype[Any]]:
-    """Converts an Ibis dtype to a BigFrames dtype
+) -> Union[Dtype, np.dtype[Any]]:
+    """Converts an Ibis dtype to a BigQuery DataFrame dtype
 
     Args:
         ibis_dtype: The ibis dtype used to represent this type, which
         should in turn correspond to an underlying BigQuery type
 
     Returns:
-        The supported BigFrames dtype, which may be provided by pandas,
-        numpy, or db_types
+        The supported BigQuery DataFrame dtype, which may be provided by
+        pandas, numpy, or db_types
 
     Raises:
         ValueError: if passed an unexpected type
@@ -149,22 +148,24 @@ def ibis_dtype_to_bigframes_dtype(
 
 
 def bigframes_dtype_to_ibis_dtype(
-    bigframes_dtype: Union[BigFramesDtypeString, BigFramesDtype]
+    bigframes_dtype: Union[DtypeString, Dtype]
 ) -> IbisDtype:
-    """Converts a BigFrames supported dtype to an Ibis dtype
+    """Converts a BigQuery DataFrame supported dtype to an Ibis dtype.
 
     Args:
-        bigframes_dtype: A dtype supported by BigFrames
+        bigframes_dtype: A dtype supported by BigQuery DataFrame
 
     Returns:
         The corresponding Ibis type
 
     Raises:
-        ValueError: if passed a dtype not supported by BigFrames"""
+        ValueError:
+            If passed a dtype not supported by BigQuery DataFrame.
+    """
     type_string = str(bigframes_dtype)
     if type_string in BIGFRAMES_STRING_TO_BIGFRAMES:
         bigframes_dtype = BIGFRAMES_STRING_TO_BIGFRAMES[
-            typing.cast(BigFramesDtypeString, type_string)
+            typing.cast(DtypeString, type_string)
         ]
     else:
         raise ValueError(f"Unexpected data type {bigframes_dtype}")
@@ -173,28 +174,31 @@ def bigframes_dtype_to_ibis_dtype(
 
 
 def literal_to_ibis_scalar(
-    literal, force_dtype: typing.Optional[BigFramesDtype] = None, validate: bool = True
+    literal, force_dtype: typing.Optional[Dtype] = None, validate: bool = True
 ):
     """Accept any literal and, if possible, return an Ibis Scalar
-    expression with a BigFrames compatible data type
+    expression with a BigQuery DataFrame compatible data type
 
     Args:
         literal: any value accepted by Ibis
         force_dtype: force the value to a specific dtype
-        validate: if true, will raise ValueError if type cannot be stored in a BigFrame object. If used as a subexpression, this should be disabled.
+        validate:
+            If true, will raise ValueError if type cannot be stored in a
+            BigQuery DataFrame object. If used as a subexpression, this should
+            be disabled.
 
     Returns:
-        An ibis Scalar supported by BigFrames
+        An ibis Scalar supported by BigQuery DataFrame
 
     Raises:
         ValueError: if passed literal cannot be coerced to a
-        BigFrames compatible scalar
+        BigQuery DataFrame compatible scalar
     """
     ibis_dtype = BIGFRAMES_TO_IBIS[force_dtype] if force_dtype else None
 
     if pd.api.types.is_list_like(literal):
         if validate:
-            raise ValueError("List types can't be stored in BigFrames")
+            raise ValueError("List types can't be stored in BigQuery DataFrame")
         # "correct" way would be to use ibis.array, but this produces invalid BQ SQL syntax
         return tuple(literal)
     if not pd.api.types.is_list_like(literal) and pd.isna(literal):

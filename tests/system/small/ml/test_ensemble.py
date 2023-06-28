@@ -53,7 +53,7 @@ def test_xgbregressor_model_score(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -111,7 +111,7 @@ def test_to_gbq_saved_xgbregressor_model_scores(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
 
@@ -205,7 +205,7 @@ def test_to_gbq_saved_xgclassifier_model_scores(
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
     assert saved_model.max_depth == 6

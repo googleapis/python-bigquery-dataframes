@@ -31,7 +31,7 @@ REQ_PYTHON_VERSION=3.9
 # Create a temporary directory
 tempdir=`mktemp --directory --tmpdir bigframes.XXXXXXXXXX`
 
-# Clone BigFrames
+# Clone the repository
 git clone sso://team/bigquery-query-swe/bigframes ${tempdir}
 
 # Enter the temporary bigframes directory

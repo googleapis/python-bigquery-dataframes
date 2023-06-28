@@ -61,7 +61,7 @@ class Block:
 
     def __init__(
         self,
-        expr: core.BigFramesExpr,
+        expr: core.ArrayValue,
         index_columns: Iterable[str] = (),
         column_labels: Optional[Sequence[Label]] = None,
         index_labels: Optional[Sequence[Label]] = None,
@@ -116,14 +116,14 @@ class Block:
         return list(self._column_labels)
 
     @property
-    def expr(self) -> core.BigFramesExpr:
+    def expr(self) -> core.ArrayValue:
         """Expression representing all columns, including index columns."""
         return self._expr
 
     @property
     def dtypes(
         self,
-    ) -> Sequence[Union[bigframes.dtypes.BigFramesDtype, numpy.dtype[typing.Any]]]:
+    ) -> Sequence[Union[bigframes.dtypes.Dtype, numpy.dtype[typing.Any]]]:
         """Returns the dtypes as a Pandas Series object"""
         ibis_dtypes = [
             dtype
@@ -453,7 +453,7 @@ class Block:
         self,
         scalar_constant: typing.Any,
         label: Label = None,
-        dtype: typing.Optional[bigframes.dtypes.BigFramesDtype] = None,
+        dtype: typing.Optional[bigframes.dtypes.Dtype] = None,
     ) -> typing.Tuple[Block, str]:
         result_id = guid.generate_guid()
         expr = self.expr.assign_constant(result_id, scalar_constant, dtype=dtype)
@@ -580,7 +580,7 @@ class Block:
 
     def _normalize_expression(
         self,
-        expr: core.BigFramesExpr,
+        expr: core.ArrayValue,
         index_columns: typing.Sequence[str],
         assert_value_size: typing.Optional[int] = None,
     ):
@@ -706,7 +706,7 @@ def block_from_local(data, session=None, use_index=True) -> Block:
 
         index_id = guid.generate_guid()
         pd_data = pd_data.reset_index(names=index_id)
-        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(pd_data, session)
+        keys_expr = core.ArrayValue.mem_expr_from_pandas(pd_data, session)
         return Block(
             keys_expr,
             column_labels=column_labels,
@@ -714,13 +714,13 @@ def block_from_local(data, session=None, use_index=True) -> Block:
             index_labels=[index_label],
         )
     else:
-        keys_expr = core.BigFramesExpr.mem_expr_from_pandas(pd_data, session)
+        keys_expr = core.ArrayValue.mem_expr_from_pandas(pd_data, session)
         # Constructor will create default range index
         return Block(keys_expr, column_labels=column_labels)
 
 
 def _align_block_to_schema(
-    block: Block, schema: dict[Label, bigframes.dtypes.BigFramesDtype]
+    block: Block, schema: dict[Label, bigframes.dtypes.Dtype]
 ) -> Block:
     col_ids: typing.Tuple[str, ...] = ()
     for label, dtype in schema.items():
@@ -740,16 +740,16 @@ def _align_block_to_schema(
 
 def _align_schema(
     blocks: typing.Iterable[Block], how: typing.Literal["inner", "outer"]
-) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     schemas = [_get_block_schema(block) for block in blocks]
     reduction = _combine_schema_inner if how == "inner" else _combine_schema_outer
     return functools.reduce(reduction, schemas)
 
 
 def _combine_schema_inner(
-    left: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
-    right: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
-) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    left: typing.Dict[Label, bigframes.dtypes.Dtype],
+    right: typing.Dict[Label, bigframes.dtypes.Dtype],
+) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
     for label, type in left.items():
         if label in right:
@@ -762,9 +762,9 @@ def _combine_schema_inner(
 
 
 def _combine_schema_outer(
-    left: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
-    right: typing.Dict[Label, bigframes.dtypes.BigFramesDtype],
-) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+    left: typing.Dict[Label, bigframes.dtypes.Dtype],
+    right: typing.Dict[Label, bigframes.dtypes.Dtype],
+) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
     for label, type in left.items():
         if (label in right) and (type != right[label]):
@@ -780,11 +780,11 @@ def _combine_schema_outer(
 
 def _get_block_schema(
     block: Block,
-) -> typing.Dict[Label, bigframes.dtypes.BigFramesDtype]:
+) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     """Extracts the schema from the block. Where duplicate labels exist, take the last matching column."""
     result = dict()
     for label, dtype in zip(block.column_labels, block.dtypes):
-        result[label] = typing.cast(bigframes.dtypes.BigFramesDtype, dtype)
+        result[label] = typing.cast(bigframes.dtypes.Dtype, dtype)
     return result
 
 

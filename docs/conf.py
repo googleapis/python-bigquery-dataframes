@@ -155,7 +155,7 @@ html_theme = "alabaster"
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "description": "BigFrames supports scalable DataFrame APIs on top of BigQuery",
+    "description": "BigQuery DataFrame provides DataFrame APIs on the BigQuery engine.",
     # "github_user": "googleapis",
     # "github_repo": "python-bigquery-storage",
     # "github_banner": True,

@@ -241,7 +241,7 @@ def test_assign_new_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigFrames dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -254,7 +254,7 @@ def test_assign_existing_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigFrames dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -289,7 +289,7 @@ def test_assign_sequential(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigFrames dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
     pd_result["new_col2"] = pd_result["new_col2"].astype("Int64")

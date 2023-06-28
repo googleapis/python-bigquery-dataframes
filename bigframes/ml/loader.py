@@ -40,13 +40,15 @@ def from_bq(
     bigframes.ml.forecasting.ARIMAPlus,
     bigframes.ml.ensemble.RandomForestRegressor,
 ]:
-    """Load a BQML model to BigFrames ML.
+    """Load a BQML model to BigQuery DataFrame ML.
 
     Args:
-        session: a BigFrames session.
+        session: a BigQuery DataFrame session.
         model: a BigQuery model.
 
-    Returns: a BigFrames ML model object."""
+    Returns:
+        A BigQuery DataFrame ML model object.
+    """
     if model.model_type == "LINEAR_REGRESSION":
         return bigframes.ml.linear_model.LinearRegression._from_bq(session, model)
     elif model.model_type == "KMEANS":
@@ -65,5 +67,5 @@ def from_bq(
         return bigframes.ml.ensemble.RandomForestRegressor._from_bq(session, model)
     else:
         raise NotImplementedError(
-            f"Model type {model.model_type} is not yet supported by BigFrames"
+            f"Model type {model.model_type} is not yet supported by BigQuery DataFrame."
         )
