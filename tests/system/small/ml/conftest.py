@@ -15,6 +15,7 @@
 import hashlib
 import logging
 from typing import cast
+import uuid
 
 import google.cloud.exceptions
 import pandas as pd
@@ -38,6 +39,16 @@ def penguins_bqml_linear_model(
 ) -> bigframes.ml.core.BqmlModel:
     model = session.bqclient.get_model(penguins_linear_model_name)
     return bigframes.ml.core.BqmlModel(session, model)
+
+
+@pytest.fixture(scope="function")
+def ephemera_penguins_bqml_linear_model(
+    penguins_bqml_linear_model,
+) -> bigframes.ml.linear_model.LinearRegression:
+    model = penguins_bqml_linear_model
+    return model.copy(
+        f"{model._model.project}.{model._model.dataset_id}.{uuid.uuid4().hex}"
+    )
 
 
 @pytest.fixture(scope="session")

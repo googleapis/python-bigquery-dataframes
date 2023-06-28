@@ -93,6 +93,18 @@ my_options_sql"""
     )
 
 
+def test_alter_model_correct_sql():
+    sql = ml_sql.alter_model(
+        model_name="my_dataset.my_model",
+        options_sql="my_options_sql",
+    )
+    assert (
+        sql
+        == """ALTER MODEL `my_dataset.my_model`
+SET my_options_sql"""
+    )
+
+
 def test_ml_predict_produces_correct_sql():
     sql = ml_sql.ml_predict(
         model_name="my_dataset.my_model", source_sql="SELECT * FROM my_table"

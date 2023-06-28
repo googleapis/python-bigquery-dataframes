@@ -172,3 +172,21 @@ def test_model_forecast(time_series_bqml_arima_plus_model: bigframes.ml.core.Bqm
         rtol=0.1,
         check_index_type=False,
     )
+
+
+def test_model_register(ephemera_penguins_bqml_linear_model):
+    model = ephemera_penguins_bqml_linear_model
+    model.register()
+
+    model_name = "bigframes_" + model.model.model_id
+    # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
+    assert model_name in model.model.training_runs[-1]["vertexAiModelId"]
+
+
+def test_model_register_with_params(ephemera_penguins_bqml_linear_model):
+    model_name = "bigframes_system_test_model"
+    model = ephemera_penguins_bqml_linear_model
+    model.register(model_name)
+
+    # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
+    assert model_name in model.model.training_runs[-1]["vertexAiModelId"]

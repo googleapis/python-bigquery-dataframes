@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Iterable, Mapping, Optional, Union
+from typing import Callable, cast, Iterable, Mapping, Optional, Union
 import uuid
 
 from google.cloud import bigquery
@@ -43,7 +43,7 @@ class BqmlModel:
         return self._session
 
     @property
-    def model_name(self):
+    def model_name(self) -> str:
         """Get the fully qualified name of the model, i.e. project_id.dataset_id.model_id"""
         return f"{self._model.project}.{self._model.dataset_id}.{self._model.model_id}"
 
@@ -151,6 +151,21 @@ class BqmlModel:
 
         new_model = self._session.bqclient.get_model(new_model_name)
         return BqmlModel(self._session, new_model)
+
+    def register(self, vertex_ai_model_id: Optional[str] = None) -> BqmlModel:
+        if vertex_ai_model_id is None:
+            # vertex id needs to start with letters. https://cloud.google.com/vertex-ai/docs/general/resource-naming
+            vertex_ai_model_id = "bigframes_" + cast(str, self._model.model_id)
+
+        options_sql = bigframes.ml.sql.options(
+            **{"vertex_ai_model_id": vertex_ai_model_id}
+        )
+        sql = bigframes.ml.sql.alter_model(self.model_name, options_sql=options_sql)
+        # Register the model and wait it to finish
+        self._session.bqclient.query(sql).result()
+
+        self._model = self._session.bqclient.get_model(self.model_name)
+        return self
 
 
 def create_bqml_model(

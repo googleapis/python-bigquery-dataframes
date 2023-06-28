@@ -125,6 +125,16 @@ def create_imported_model(
     return "\n".join(parts)
 
 
+def alter_model(
+    model_name: str,
+    options_sql: str,
+) -> str:
+    """Encode the ALTER MODEL statement for BQML"""
+    parts = [f"ALTER MODEL `{model_name}`"]
+    parts.append(f"SET {options_sql}")
+    return "\n".join(parts)
+
+
 def ml_evaluate(model_name: str, source_sql: Union[str, None] = None) -> str:
     """Encode ML.EVALUATE for BQML"""
     if source_sql is None:
