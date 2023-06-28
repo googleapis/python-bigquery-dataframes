@@ -76,7 +76,7 @@ class ClassifierMixin:
 
     _estimator_type = "classifier"
 
-    def score(self, X=None, y=None):
+    def score(self, X, y):
         """Return the mean accuracy on the given test data and labels.
 
         In multi-label classification, this is the subset accuracy
@@ -102,7 +102,7 @@ class RegressorMixin:
 
     _estimator_type = "regressor"
 
-    def score(self, X=None, y=None):
+    def score(self, X, y):
         """Return the evaluation metrics of the model.
 
         Args:

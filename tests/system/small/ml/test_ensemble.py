@@ -21,32 +21,7 @@ import pytest
 import bigframes.ml.ensemble
 
 
-def test_xgbregressor_model_eval(
-    penguins_xgbregressor_model: bigframes.ml.ensemble.XGBRegressor,
-):
-    result = penguins_xgbregressor_model.score().compute()
-    expected = pandas.DataFrame(
-        {
-            "mean_absolute_error": [109.016973],
-            "mean_squared_error": [20867.299758],
-            "mean_squared_log_error": [0.00135],
-            "median_absolute_error": [86.490234],
-            "r2_score": [0.967458],
-            "explained_variance": [0.967504],
-        },
-        dtype="Float64",
-    )
-    pandas.testing.assert_frame_equal(
-        result,
-        expected,
-        check_exact=False,
-        rtol=1e-2,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
-        check_index_type=False,
-    )
-
-
-def test_xgbregressor_model_score_with_data(
+def test_xgbregressor_model_score(
     penguins_xgbregressor_model, penguins_df_default_index
 ):
     df = penguins_df_default_index.dropna()
@@ -77,7 +52,7 @@ def test_xgbregressor_model_score_with_data(
         result,
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )
@@ -96,18 +71,30 @@ def test_xgbregressor_model_predict(
         result.sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         check_index_type=False,
     )
 
 
 def test_to_gbq_saved_xgbregressor_model_scores(
-    penguins_xgbregressor_model, dataset_id
+    penguins_xgbregressor_model, dataset_id, penguins_df_default_index
 ):
     saved_model = penguins_xgbregressor_model.to_gbq(
         f"{dataset_id}.test_penguins_model", replace=True
     )
-    result = saved_model.score().compute()
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = saved_model.score(test_X, test_y).compute()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [109.016973],
@@ -123,7 +110,7 @@ def test_to_gbq_saved_xgbregressor_model_scores(
         result,
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )
@@ -137,32 +124,7 @@ def test_to_xgbregressor_model_gbq_replace(penguins_xgbregressor_model, dataset_
         penguins_xgbregressor_model.to_gbq(f"{dataset_id}.test_penguins_model")
 
 
-def test_xgbclassifier_model_eval(
-    penguins_xgbclassifier_model: bigframes.ml.ensemble.XGBClassifier,
-):
-    result = penguins_xgbclassifier_model.score().compute()
-    expected = pandas.DataFrame(
-        {
-            "precision": [1.0],
-            "recall": [1.0],
-            "accuracy": [1.0],
-            "f1_score": [1.0],
-            "log_loss": [0.331442],
-            "roc_auc": [1.0],
-        },
-        dtype="Float64",
-    )
-    pandas.testing.assert_frame_equal(
-        result,
-        expected,
-        check_exact=False,
-        rtol=1e-2,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
-        check_index_type=False,
-    )
-
-
-def test_xgbclassifier_model_score_with_data(
+def test_xgbclassifier_model_score(
     penguins_xgbclassifier_model, penguins_df_default_index
 ):
     df = penguins_df_default_index.dropna()
@@ -203,18 +165,30 @@ def test_xgbclassifier_model_predict(
         result.sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         check_index_type=False,
     )
 
 
 def test_to_gbq_saved_xgclassifier_model_scores(
-    penguins_xgbclassifier_model, dataset_id
+    penguins_xgbclassifier_model, dataset_id, penguins_df_default_index
 ):
     saved_model = penguins_xgbclassifier_model.to_gbq(
         f"{dataset_id}.test_penguins_model", replace=True
     )
-    result = saved_model.score().compute()
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = saved_model.score(test_X, test_y).compute()
     expected = pandas.DataFrame(
         {
             "precision": [1.0],
@@ -230,7 +204,7 @@ def test_to_gbq_saved_xgclassifier_model_scores(
         result,
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )

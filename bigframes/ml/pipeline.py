@@ -94,8 +94,8 @@ class Pipeline(
 
     def score(
         self,
-        X: Optional[bigframes.DataFrame] = None,
-        y: Optional[bigframes.DataFrame] = None,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
     ):
         if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
             return self._estimator.score(X=X, y=y)

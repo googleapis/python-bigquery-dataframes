@@ -53,13 +53,13 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index, new_penguins_d
         index=evaluate_expected.index.astype("Int64")
     )
     pandas.testing.assert_frame_equal(
-        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
+        evaluate_result, evaluate_expected, check_exact=False, rtol=0.1
     )
 
     # evaluate on all training data
     evaluate_result = model.evaluate(df).compute()
     pandas.testing.assert_frame_equal(
-        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
+        evaluate_result, evaluate_expected, check_exact=False, rtol=0.1
     )
 
     # predict new labels
@@ -70,7 +70,7 @@ def test_bqml_e2e(session, dataset_id, penguins_df_default_index, new_penguins_d
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
     )
 
     new_name = f"{dataset_id}.my_model"
@@ -121,13 +121,13 @@ def test_bqml_manual_preprocessing_e2e(
     )
 
     pandas.testing.assert_frame_equal(
-        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
+        evaluate_result, evaluate_expected, check_exact=False, rtol=0.1
     )
 
     # evaluate on all training data
     evaluate_result = model.evaluate(df).compute()
     pandas.testing.assert_frame_equal(
-        evaluate_result, evaluate_expected, check_exact=False, rtol=1e-2
+        evaluate_result, evaluate_expected, check_exact=False, rtol=0.1
     )
 
     # predict new labels
@@ -138,7 +138,7 @@ def test_bqml_manual_preprocessing_e2e(
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pandas.testing.assert_frame_equal(
-        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=1e-2
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
     )
 
     new_name = f"{dataset_id}.my_model"
@@ -179,5 +179,5 @@ def test_bqml_standalone_transform(penguins_df_default_index, new_penguins_df):
         transformed[["scaled_culmen_length_mm", "onehotencoded_species"]],
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
     )

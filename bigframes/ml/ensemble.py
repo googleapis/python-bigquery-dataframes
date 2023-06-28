@@ -170,16 +170,12 @@ class XGBRegressor(
 
     def score(
         self,
-        X: Optional[bigframes.DataFrame] = None,
-        y: Optional[bigframes.DataFrame] = None,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        if (X is None) != (y is None):
-            raise ValueError(
-                "Either both or neither of test_X and test_y must be specified"
-            )
         input_data = X.join(y, how="outer") if X and y else None
         return self._bqml_model.evaluate(input_data)
 
@@ -321,16 +317,12 @@ class XGBClassifier(
 
     def score(
         self,
-        X: Optional[bigframes.DataFrame] = None,
-        y: Optional[bigframes.DataFrame] = None,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        if (X is None) != (y is None):
-            raise ValueError(
-                "Either both or neither of test_X and test_y must be specified"
-            )
         input_data = X.join(y, how="outer") if X and y else None
         return self._bqml_model.evaluate(input_data)
 

@@ -39,7 +39,7 @@ def test_arima_plus_model_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)

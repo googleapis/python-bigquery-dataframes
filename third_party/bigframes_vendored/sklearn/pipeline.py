@@ -51,7 +51,7 @@ class Pipeline(BaseEstimator, metaclass=ABCMeta):
         raise NotImplementedError("abstract method")
 
 
-def score(self, X, y=None):
+def score(self, X, y):
     """Transform the data, and apply `score` with the final estimator.
 
     Call `transform` of each transformer in the pipeline. The transformed

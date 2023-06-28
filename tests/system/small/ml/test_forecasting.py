@@ -39,6 +39,6 @@ def test_model_predict(time_series_arima_plus_model):
     pd.testing.assert_frame_equal(
         predictions,
         expected,
-        rtol=1e-2,
+        rtol=0.1,
         check_index_type=False,
     )

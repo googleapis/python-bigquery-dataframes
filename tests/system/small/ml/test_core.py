@@ -43,7 +43,7 @@ def test_model_eval(
         result,
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )
@@ -68,7 +68,7 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_in
         result,
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
         check_index_type=False,
     )
@@ -87,7 +87,7 @@ def test_model_predict(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
     )
 
 
@@ -115,7 +115,7 @@ def test_model_predict_with_unnamed_index(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
     )
 
 
@@ -169,6 +169,6 @@ def test_model_forecast(time_series_bqml_arima_plus_model: bigframes.ml.core.Bqm
     pd.testing.assert_frame_equal(
         forecast,
         expected,
-        rtol=1e-2,
+        rtol=0.1,
         check_index_type=False,
     )

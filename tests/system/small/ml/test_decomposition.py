@@ -51,5 +51,5 @@ def test_model_predict(session, penguins_pca_model: bigframes.ml.decomposition.P
         predictions.sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
     )

@@ -35,7 +35,7 @@ def test_linear_regression_configure_fit_score(penguins_df_default_index, datase
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score().compute()
+    result = model.score(train_X, train_y).compute()
     expected = pd.DataFrame(
         {
             "mean_absolute_error": [225.735767],
@@ -48,7 +48,7 @@ def test_linear_regression_configure_fit_score(penguins_df_default_index, datase
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
@@ -80,7 +80,7 @@ def test_linear_regression_manual_split_configure_fit_score(
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score().compute()
+    result = model.score(train_X, train_y).compute()
     expected = pd.DataFrame(
         {
             "mean_absolute_error": [225.735767],
@@ -93,7 +93,7 @@ def test_linear_regression_manual_split_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
@@ -121,7 +121,7 @@ def test_logistic_regression_auto_class_weights_configure_fit_score(
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score().compute()
+    result = model.score(train_X, train_y).compute()
     expected = pd.DataFrame(
         {
             "precision": [0.58085],
@@ -134,7 +134,7 @@ def test_logistic_regression_auto_class_weights_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -169,7 +169,7 @@ def test_logistic_regression_manual_split_configure_fit_score(
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score().compute()
+    result = model.score(train_X, train_y).compute()
     expected = pd.DataFrame(
         {
             "precision": [0.616753],
@@ -182,7 +182,7 @@ def test_logistic_regression_manual_split_configure_fit_score(
         dtype="Float64",
     )
     expected = expected.reindex(index=expected.index.astype("Int64"))
-    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-2)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(

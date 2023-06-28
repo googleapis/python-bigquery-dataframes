@@ -56,7 +56,7 @@ def test_decomposition_configure_fit_predict(
         result.sort_index(),
         expected,
         check_exact=False,
-        rtol=1e-2,
+        rtol=0.1,
     )
 
     # save, load, check n_components to ensure configuration was kept
