@@ -26,14 +26,15 @@ if TYPE_CHECKING:
 
 import bigframes.ml.api_primitives
 import bigframes.ml.core
+import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 
-class KMeans(bigframes.ml.api_primitives.BaseEstimator):
-    """K-Means clustering.
+class KMeans(
+    third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
 
-    Args:
-        n_clusters: int, default=8. The number of clusters to form as well as the number of centroids to generate.
-    """
+    __doc__ = third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans.__doc__
 
     def __init__(self, n_clusters=8):
         self.n_clusters = n_clusters
@@ -60,16 +61,6 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         return {"model_type": "KMEANS", "num_clusters": self.n_clusters}
 
     def fit(self, X: bigframes.DataFrame, transforms: Optional[List[str]] = None):
-        """Fit the model to training data
-
-        Args:
-            X: a BigFrames Dataframe with training data
-
-            transforms: an optional list of SQL expressions to apply over top of
-                the model inputs as preprocessing. This preprocessing will be
-                automatically reapplied to new input data (e.g. in .predict), and
-                may contain steps (like ML.STANDARD_SCALER) that fit to the
-                training data"""
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
             transforms=transforms,
@@ -77,13 +68,6 @@ class KMeans(bigframes.ml.api_primitives.BaseEstimator):
         )
 
     def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigFrames DataFrame to predict.
-
-        Returns: a BigFrames Dataframe representing predicted result.
-        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
