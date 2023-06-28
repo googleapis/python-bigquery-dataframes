@@ -14,7 +14,10 @@ Logistic Regression
 
 from typing import List, Optional
 
-from ._base import BaseEstimator, LinearClassifierMixin
+from third_party.bigframes_vendored.sklearn.linear_model._base import (
+    BaseEstimator,
+    LinearClassifierMixin,
+)
 
 
 class LogisticRegression(LinearClassifierMixin, BaseEstimator):

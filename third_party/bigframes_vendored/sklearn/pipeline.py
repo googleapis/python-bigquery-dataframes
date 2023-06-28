@@ -11,7 +11,7 @@ estimator, as a chain of transforms and estimators.
 
 from abc import ABCMeta
 
-from .base import BaseEstimator
+from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class Pipeline(BaseEstimator, metaclass=ABCMeta):

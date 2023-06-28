@@ -18,7 +18,11 @@ Generalized Linear Models.
 from abc import ABCMeta
 from typing import List, Optional
 
-from ..base import BaseEstimator, ClassifierMixin, RegressorMixin
+from third_party.bigframes_vendored.sklearn.base import (
+    BaseEstimator,
+    ClassifierMixin,
+    RegressorMixin,
+)
 
 
 class LinearModel(BaseEstimator, metaclass=ABCMeta):

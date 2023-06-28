@@ -11,9 +11,8 @@
 # License: BSD 3 clause
 
 from abc import ABCMeta
-from typing import List, Optional
 
-from ..base import BaseEstimator
+from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class PCA(BaseEstimator, metaclass=ABCMeta):

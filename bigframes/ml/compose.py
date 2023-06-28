@@ -28,6 +28,7 @@ import bigframes.ml.api_primitives
 import bigframes.ml.compose
 import bigframes.ml.core
 import bigframes.ml.preprocessing
+import third_party.bigframes_vendored.sklearn.compose._column_transformer
 
 CompilablePreprocessorType = Union[
     bigframes.ml.preprocessing.OneHotEncoder,
@@ -35,13 +36,13 @@ CompilablePreprocessorType = Union[
 ]
 
 
-class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
-    """
-    Applies transformers to columns of BigFrames DataFrame.
-
-    Args:
-        transformers: List of (name, transformer, columns) tuples specifying the transformer objects to be applied to subsets of the data.
-    """
+class ColumnTransformer(
+    third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer,
+    bigframes.ml.api_primitives.BaseEstimator,
+):
+    __doc__ = (
+        third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer.__doc__
+    )
 
     def __init__(
         self,
@@ -97,10 +98,6 @@ class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
         self,
         X: bigframes.DataFrame,
     ):
-        """Fit the transform to training data
-
-        Args:
-            X: a BigFrames Dataframe with training data"""
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
@@ -114,12 +111,6 @@ class ColumnTransformer(bigframes.ml.api_primitives.BaseEstimator):
         self._output_names = [name for _, name in compiled_transforms]
 
     def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
-        """Transform X separately by each transformer, concatenate results.
-
-        Args:
-            X: The DataFrame to be transformed by subset.
-
-        Returns: Transformed result."""
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
