@@ -13,16 +13,11 @@
 # limitations under the License.
 
 import pytest
+import sklearn.compose as sklearn_compose  # type: ignore
+import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
 
 import bigframes.ml.compose
 import bigframes.ml.preprocessing
-
-try:
-    import sklearn.compose as sklearn_compose  # type: ignore
-    import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
-except ImportError:
-    sklearn_compose = None
-    sklearn_preprocessing = None
 
 
 def test_columntransformer_init_expectedtransforms():

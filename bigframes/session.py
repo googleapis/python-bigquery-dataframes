@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import textwrap
 import typing
 from typing import (
     Any,
@@ -35,6 +36,7 @@ from typing import (
     Union,
 )
 import uuid
+import warnings
 
 import google.api_core.client_info
 import google.api_core.client_options
@@ -47,6 +49,7 @@ import google.cloud.bigquery_storage_v1
 import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas
@@ -292,6 +295,7 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
+        # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if _is_query(query):
@@ -302,6 +306,9 @@ class Session(
                 max_results=max_results,
             )
         else:
+            # TODO(swast): Query the snapshot table but mark it as a
+            # deterministic query so we can avoid serializing if we have a
+            # unique index.
             return self.read_gbq_table(
                 query,
                 index_col=index_col,
@@ -372,6 +379,8 @@ class Session(
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
+
+        # TODO(swast): Read from a table snapshot so that reads are consistent.
         table_expression = self.ibis_client.table(
             table_ref.table_id,
             database=f"{table_ref.project}.{table_ref.dataset_id}",
@@ -384,14 +393,55 @@ class Session(
                 )
 
         if isinstance(index_col, str):
-            index_cols: Iterable[str] = [index_col]
+            index_cols: List[str] = [index_col]
         else:
-            index_cols = index_col
+            index_cols = list(index_col)
 
         for key in index_cols:
             if key not in table_expression.columns:
                 raise ValueError(
                     f"Column `{key}` of `index_col` not found in this table."
+                )
+
+        # If the index is unique and sortable, then we don't need to generate
+        # an ordering column.
+        ordering = None
+        is_total_ordering = False
+
+        if len(index_cols) != 0:
+            distinct_table = table_expression.select(*index_cols).distinct()
+            is_unique_sql = f"""WITH full_table AS (
+                {self.ibis_client.compile(table_expression)}
+            ),
+            distinct_table AS (
+                {self.ibis_client.compile(distinct_table)}
+            )
+
+            SELECT (SELECT COUNT(*) FROM full_table) AS total_count,
+            (SELECT COUNT(*) FROM distinct_table) AS distinct_count
+            """
+            results, _ = self._start_query(is_unique_sql)
+            row = next(iter(results))
+
+            total_count = row["total_count"]
+            distinct_count = row["distinct_count"]
+            is_total_ordering = total_count == distinct_count
+            if is_total_ordering:
+                ordering = core.ExpressionOrdering(
+                    ordering_value_columns=[
+                        core.OrderingColumnReference(column_id)
+                        for column_id in index_cols
+                    ],
+                )
+            else:
+                warnings.warn(
+                    textwrap.dedent(
+                        f"""
+                        Got a non-unique index. A consistent ordering is not
+                        guaranteed. DataFrame has {total_count} rows,
+                        but only {distinct_count} distinct index values.
+                        """,
+                    )
                 )
 
         if max_results is not None:
@@ -403,6 +453,8 @@ class Session(
             table_expression=table_expression,
             col_order=col_order,
             index_cols=index_cols,
+            ordering=ordering,
+            is_total_ordering=is_total_ordering,
         )
 
     def _read_gbq_with_ordering(
@@ -412,6 +464,7 @@ class Session(
         col_order: Iterable[str] = (),
         index_cols: Union[Iterable[str], Tuple] = (),
         ordering: Optional[core.ExpressionOrdering] = None,
+        is_total_ordering: bool = False,
     ) -> dataframe.DataFrame:
         """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
 
@@ -424,22 +477,24 @@ class Session(
         Returns:
             A DataFrame representing results of the query or table.
         """
+        if ordering is None and is_total_ordering:
+            raise ValueError("Can't have a total ordering without an ordering.")
+
         index_keys = list(index_cols)
-        if len(index_keys) > 1:
-            raise NotImplementedError("MultiIndex not supported.")
-
         # Logic:
-        # no ordering, no index -> create sequential order, use for both ordering and index
-        # no ordering, index -> create sequential order, ordered by index, use for both ordering and index
-        # sequential ordering, no index -> use ordering as default index
-        # non-sequential ordering, no index -> NotImplementedException
-        # sequential ordering, index -> use ordering as ordering, index as index
+        # no total ordering, no index -> create sequential order, use for both ordering and index
+        # no total ordering, index -> create sequential order, ordered by index, use for both ordering and index
+        # sequential total ordering, no index -> use ordering as default index
+        # non-sequential total ordering, no index -> NotImplementedException
+        # total ordering, index -> use ordering as ordering, index as index
 
-        # This code block ensures the existence of a sequential ordering column
-        if ordering is None:
+        # This code block ensures the existence of a total ordering.
+        if not is_total_ordering:
             # Rows are not ordered, we need to generate a default ordering and materialize it
             default_ordering_name = core.ORDER_ID_COLUMN
-            default_ordering_col = ibis.row_number().name(default_ordering_name)
+            default_ordering_col = (
+                ibis.row_number().name(default_ordering_name).cast(ibis_dtypes.int64)
+            )
             table_expression = table_expression.mutate(
                 **{default_ordering_name: default_ordering_col}
             )
@@ -448,35 +503,48 @@ class Session(
             ordering = core.ExpressionOrdering(
                 ordering_id_column=ordering_reference, is_sequential=True
             )
-        elif not ordering.order_id_defined or not ordering.is_sequential:
-            raise NotImplementedError(
-                "Only sequential order by id column is supported for read_gbq"
-            )
-        else:
+        elif (
+            ordering is not None
+            and ordering.ordering_id_column
+            and ordering.is_sequential
+        ):
             default_ordering_name = typing.cast(str, ordering.ordering_id)
+        else:
+            # Have a total ordering, but not a sequential ordering.
+            default_ordering_name = None
 
         if index_keys:
-            # TODO(swast): Support MultiIndex.
-            index_col_name = index_id = index_keys[0]
-            index_col = table_expression[index_id]
-        else:
-            index_col_name = None
+            index_col_labels = index_keys
+            index_col_values = [
+                table_expression[index_id] for index_id in index_col_labels
+            ]
+        elif default_ordering_name is not None:
+            index_col_labels = [None]
             # Make sure we have a separate "copy" of the ordering ID to use as
             # the index, because we assume the ordering ID is a hidden column
             # in ArrayValue, but the index column appears as a "column".
             index_id = indexes.INDEX_COLUMN_ID.format(0)
-            index_col = table_expression[default_ordering_name].name(index_id)
-            table_expression = table_expression.mutate(**{index_id: index_col})
+            index_col_values = [table_expression[default_ordering_name].name(index_id)]
+            table_expression = table_expression.mutate(*index_col_values)
+        else:
+            raise NotImplementedError(
+                "non-sequential total ordering without an index not yet supported"
+            )
 
         column_keys = list(col_order)
         if len(column_keys) == 0:
+            non_columns = set(index_keys)
+            if ordering is not None and ordering.ordering_id is not None:
+                non_columns.add(ordering.ordering_id)
             column_keys = [
-                key
-                for key in table_expression.columns
-                if key not in {index_id, ordering.ordering_id}
+                key for key in table_expression.columns if key not in non_columns
             ]
         return self._read_ibis(
-            table_expression, index_col, index_col_name, column_keys, ordering=ordering
+            table_expression,
+            index_col_values,
+            index_col_labels,
+            column_keys,
+            ordering=ordering,
         )
 
     def _read_bigquery_load_job(
@@ -518,17 +586,17 @@ class Session(
     def _read_ibis(
         self,
         table_expression: ibis_types.Table,
-        index_col: ibis_types.Value,
-        index_name: Optional[str],
+        index_cols: List[ibis_types.Value],
+        index_labels: List[Optional[str]],
         column_keys: List[str],
         ordering: Optional[core.ExpressionOrdering] = None,
     ):
         """Turns a table expression (plus index column) into a DataFrame."""
         hidden_ordering_columns = None
-        if ordering is not None:
+        if ordering is not None and ordering.ordering_id is not None:
             hidden_ordering_columns = (table_expression[ordering.ordering_id],)
 
-        columns = [index_col]
+        columns = list(index_cols)
         for key in column_keys:
             if key not in table_expression.columns:
                 raise ValueError(f"Column '{key}' not found in this table.")
@@ -538,8 +606,8 @@ class Session(
             core.ArrayValue(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
-            [index_col.get_name()],
-            index_labels=[index_name],
+            [index_col.get_name() for index_col in index_cols],
+            index_labels=index_labels,
         )
 
         return dataframe.DataFrame(block)
@@ -617,6 +685,7 @@ class Session(
             table_expression=table_expression,
             index_cols=index_cols,
             ordering=ordering,
+            is_total_ordering=True,
         )
 
     def read_csv(

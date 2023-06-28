@@ -29,6 +29,7 @@ except ImportError:
     pandas_gbq = None
 
 import bigframes
+import bigframes.dataframe
 
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
@@ -305,7 +306,9 @@ def test_to_sql_query_unnamed_index_excluded(
 
 
 def test_to_sql_query_unnamed_index_always_include(
-    session, scalars_df_default_index, scalars_pandas_df_default_index
+    session,
+    scalars_df_default_index: bigframes.dataframe.DataFrame,
+    scalars_pandas_df_default_index,
 ):
     sql, index_columns = scalars_df_default_index.to_sql_query(
         always_include_index=True

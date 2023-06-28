@@ -101,6 +101,11 @@ class Block:
         return self._index_columns
 
     @property
+    def index_labels(self) -> Sequence[Label]:
+        """Name of column(s) to use as row labels."""
+        return self._index_labels
+
+    @property
     def value_columns(self) -> Sequence[str]:
         """All value columns, mutually exclusive with index columns."""
         return [

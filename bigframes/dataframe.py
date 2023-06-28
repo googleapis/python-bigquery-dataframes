@@ -172,7 +172,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _sql_names(
         self,
-        columns: Union[blocks.Label, Sequence[blocks.Label]],
+        columns: Union[blocks.Label, Sequence[blocks.Label], pd.Index],
         tolerance: bool = False,
     ) -> Sequence[str]:
         """Retrieve sql name (column name in BQ schema) of column(s)."""
@@ -259,14 +259,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # the index or not.
         index_has_names = all([name is not None for name in self.index.names])
         if index_has_names:
-            column_labels = column_labels + [typing.cast(str, self.index.name)]
+            column_labels = column_labels + list(self.index.names)
         elif always_include_index:
             # In this mode include the index even if it is a nameless generated
             # column like 'bigframes_index_0'
-            index_ids_as_labels = [
-                typing.cast(blocks.Label, id) for id in self._block.index_columns
-            ]
-            column_labels = column_labels + index_ids_as_labels
+            index_labels = []
+            unnamed_index_count = 0
+            for index_label in self._block.index_labels:
+                if index_label is None:
+                    index_labels.append(
+                        indexes.INDEX_COLUMN_ID.format(unnamed_index_count),
+                    )
+                    unnamed_index_count += 1
+                else:
+                    index_labels.append(index_label)
+
+            column_labels = column_labels + typing.cast(
+                List[Optional[str]], index_labels
+            )
 
         column_labels_deduped = typing.cast(
             List[str],
@@ -317,11 +327,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ...
 
     @typing.overload
-    def __getitem__(self, key: blocks.Label) -> bigframes.series.Series:
+    def __getitem__(self, key: pd.Index) -> DataFrame:  # type:ignore
+        ...
+
+    @typing.overload
+    def __getitem__(self, key: blocks.Label) -> bigframes.series.Series:  # type:ignore
         ...
 
     def __getitem__(
-        self, key: Union[blocks.Label, Sequence[blocks.Label], bigframes.series.Series]
+        self,
+        key: Union[
+            blocks.Label,
+            Sequence[blocks.Label],
+            # Index of column labels can be treated the same as a sequence of column labels.
+            pd.Index,
+            bigframes.series.Series,
+        ],
     ) -> Union[bigframes.series.Series, "DataFrame"]:
         """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in

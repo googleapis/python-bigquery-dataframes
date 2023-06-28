@@ -84,6 +84,40 @@ def test_read_gbq_w_col_order(
 
 
 @pytest.mark.parametrize(
+    ("query_or_table", "index_col"),
+    [
+        pytest.param("{scalars_table_id}", ["bool_col", "int64_col"], id="multiindex"),
+        pytest.param(
+            """SELECT
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools,
+            FROM `{scalars_table_id}` AS t
+            """,
+            ["my_strings"],
+            id="string_index",
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            ["bool_col"],
+            id="non_unique_index",
+        ),
+    ],
+)
+def test_read_gbq_w_index_col(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    index_col: List[str],
+):
+    df = session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id),
+        index_col=index_col,
+    )
+    assert list(df.index.names) == index_col
+
+
+@pytest.mark.parametrize(
     ("query_or_table", "max_results"),
     [
         pytest.param("{scalars_table_id}", 2, id="two_rows_in_table"),
@@ -153,9 +187,10 @@ def test_read_pandas(session, scalars_dfs):
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_read_pandas_multi_index_throws_error(session, scalars_pandas_df_multi_index):
-    with pytest.raises(NotImplementedError, match="MultiIndex not supported."):
-        session.read_pandas(scalars_pandas_df_multi_index)
+def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
+    df = session.read_pandas(scalars_pandas_df_multi_index)
+    result = df.compute()
+    pd.testing.assert_frame_equal(result, scalars_pandas_df_multi_index)
 
 
 def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default_index):
@@ -364,11 +399,6 @@ def test_read_csv_bq_engine_throws_not_implemented_error(session, kwargs, match)
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        pytest.param(
-            {"index_col": [0, 1]},
-            "MultiIndex not supported.",
-            id="with_multiindex",
-        ),
         pytest.param(
             {"chunksize": 5},
             "'chunksize' and 'iterator' arguments are not supported.",
@@ -587,9 +617,6 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
     path = gcs_folder + "test_read_parquet_gcs*.parquet"
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
-    if df_in.index.name is None:
-        # TODO(swast): Support MultiIndex
-        df_in.index.name = "index"
     # GEOGRAPHY not supported in parquet export.
     df_in = df_in.drop(columns="geography_col")
     # Make sure we can also serialize the order.

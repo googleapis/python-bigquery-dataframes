@@ -13,22 +13,15 @@
 # limitations under the License.
 
 import pytest
+import sklearn.compose as sklearn_compose  # type: ignore
+import sklearn.linear_model as sklearn_linear_model  # type: ignore
+import sklearn.pipeline as sklearn_pipeline  # type: ignore
+import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
 
 import bigframes.ml.compose
 import bigframes.ml.linear_model
 import bigframes.ml.pipeline
 import bigframes.ml.preprocessing
-
-try:
-    import sklearn.compose as sklearn_compose  # type: ignore
-    import sklearn.linear_model as sklearn_linear_model  # type: ignore
-    import sklearn.pipeline as sklearn_pipeline  # type: ignore
-    import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
-except ImportError:
-    sklearn_compose = None
-    sklearn_linear_model = None
-    sklearn_pipeline = None
-    sklearn_preprocessing = None
 
 
 def test_pipeline_repr():

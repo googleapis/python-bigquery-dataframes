@@ -382,11 +382,21 @@ def samples(session):
 def cover(session):
     """Run the final coverage report.
 
-    This outputs the coverage report aggregating coverage from the unit
-    test runs (not system test runs), and then erases coverage data.
+    This outputs the coverage report aggregating coverage from the test runs
+    (including system test runs), and then erases coverage data.
     """
     session.install("coverage", "pytest-cov")
     session.run("coverage", "report", "--show-missing", "--fail-under=90")
+
+    # Make sure there is no dead code in our test directories.
+    # TODO(swast): Cleanup dead code in the system tests directory.
+    session.run(
+        "coverage",
+        "report",
+        "--show-missing",
+        "--include=tests/unit/*",
+        "--fail-under=100",
+    )
 
     session.run("coverage", "erase")
 

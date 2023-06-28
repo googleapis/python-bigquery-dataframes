@@ -126,7 +126,9 @@ class ExpressionOrdering:
         """Reverses the ordering."""
         return ExpressionOrdering(
             tuple([col.with_reverse() for col in self.ordering_value_columns]),
-            self.ordering_id_column.with_reverse(),
+            self.ordering_id_column.with_reverse()
+            if self.ordering_id_column is not None
+            else None,
             is_sequential=False,
             ordering_encoding_size=self.ordering_encoding_size,
         )

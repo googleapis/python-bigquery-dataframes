@@ -16,7 +16,8 @@ from datetime import datetime
 import hashlib
 import logging
 import pathlib
-from typing import cast, Dict, Optional
+import typing
+from typing import Dict, Optional
 
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -66,7 +67,7 @@ def gcs_folder(gcs_client: storage.Client):
     path = f"gs://{bucket}/{prefix}/"
     yield path
     for blob in gcs_client.list_blobs(bucket, prefix=prefix):
-        blob = cast(storage.Blob, blob)
+        blob = typing.cast(storage.Blob, blob)
         blob.delete()
 
 
@@ -185,7 +186,7 @@ def load_test_data(
             location=location,
         )
     # No cleanup necessary, as the surrounding dataset will delete contents.
-    return cast(bigquery.LoadJob, job.result())
+    return typing.cast(bigquery.LoadJob, job.result())
 
 
 def load_test_data_tables(
@@ -268,39 +269,45 @@ def time_series_table_id(test_data_tables) -> str:
 
 @pytest.fixture(scope="session")
 def scalars_df_default_index(
-    scalars_table_id: str, session: bigframes.Session
+    scalars_df_index: bigframes.dataframe.DataFrame,
+    scalars_pandas_df_default_index: pd.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(scalars_table_id)
+    df = scalars_df_index.reset_index(drop=False)
+    # Ensure the order of the columns is the same.
+    df = typing.cast(
+        bigframes.dataframe.DataFrame, df[scalars_pandas_df_default_index.columns]
+    )
+    return df
 
 
 @pytest.fixture(scope="session")
 def scalars_df_index(
-    scalars_df_default_index: bigframes.dataframe.DataFrame,
+    scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return scalars_df_default_index.set_index("rowindex").sort_index()
+    return session.read_gbq(scalars_table_id, index_col="rowindex")
 
 
 @pytest.fixture(scope="session")
 def scalars_df_2_default_index(
-    scalars_table_id_2: str, session: bigframes.Session
+    scalars_df_2_index: bigframes.dataframe.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(scalars_table_id_2)
+    return scalars_df_2_index.reset_index(drop=False)
 
 
 @pytest.fixture(scope="session")
 def scalars_df_2_index(
-    scalars_df_2_default_index: bigframes.dataframe.DataFrame,
+    scalars_table_id_2: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return scalars_df_2_default_index.set_index("rowindex").sort_index()
+    return session.read_gbq(scalars_table_id_2, index_col="rowindex")
 
 
 @pytest.fixture(scope="session")
 def scalars_pandas_df_default_index() -> pd.DataFrame:
-    """pandas.DataFrame pointing at test data."""
+    """pd.DataFrame pointing at test data."""
 
     df = pd.read_json(
         DATA_DIR / "scalars.jsonl",
@@ -317,7 +324,7 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
 def scalars_pandas_df_index(
     scalars_pandas_df_default_index: pd.DataFrame,
 ) -> pd.DataFrame:
-    """pandas.DataFrame pointing at test data."""
+    """pd.DataFrame pointing at test data."""
     return scalars_pandas_df_default_index.set_index("rowindex").sort_index()
 
 
@@ -325,9 +332,9 @@ def scalars_pandas_df_index(
 def scalars_pandas_df_multi_index(
     scalars_pandas_df_default_index: pd.DataFrame,
 ) -> pd.DataFrame:
-    """pandas.DataFrame pointing at test data."""
+    """pd.DataFrame pointing at test data."""
     return scalars_pandas_df_default_index.set_index(
-        ["rowindex", "datetime_col"]
+        ["rowindex", "timestamp_col"]
     ).sort_index()
 
 

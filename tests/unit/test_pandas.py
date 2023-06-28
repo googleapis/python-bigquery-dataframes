@@ -35,7 +35,7 @@ def all_session_methods():
     for attribute in sorted(session_attributes):
         session_method = getattr(bigframes.session.Session, attribute)
         if not callable(session_method):
-            continue
+            continue  # pragma: no cover
         yield attribute
 
 
@@ -47,7 +47,9 @@ def all_session_methods():
 )
 def test_method_matches_session(method_name: str):
     if sys.version_info <= (3, 10):
-        pytest.skip("Need Python 3.10 to reconcile deferred annotations.")
+        pytest.skip(
+            "Need Python 3.10 to reconcile deferred annotations."
+        )  # pragma: no cover
 
     session_method = getattr(bigframes.session.Session, method_name)
     session_doc = inspect.getdoc(session_method)

@@ -166,13 +166,7 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
             },
         ]
 
-        if table_name == "project.dataset.table":
-            schema += [
-                {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
-            ]
-        elif table_name == "default-project.dataset.table":
-            pass
-        elif table_name == SCALARS_TABLE_ID:
+        if table_name == SCALARS_TABLE_ID:
             schema += [
                 {"mode": "NULLABLE", "name": "bool_col", "type": "BOOL"},
                 {"mode": "NULLABLE", "name": "int64_col", "type": "INTEGER"},
@@ -185,7 +179,7 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
         most_recent_table = bigquery.Table(table_name, schema)  # type: ignore
         return most_recent_table  # type: ignore
 
-    def mock_bigquery_client_query(
+    def mock_query(
         sql: str,
         job_config: Optional[bigquery.QueryJobConfig] = None,
         location: str = "US",
@@ -203,18 +197,12 @@ def mock_bigquery_client(monkeypatch, scalars_testdata_setup) -> bigquery.Client
             mock_rows.to_dataframe.return_value = scalars_pandas_df.head(n=max_results)
             return mock_rows
 
-        def mock_schema():
-            global most_recent_table
-            return most_recent_table.schema
-
         mock_job = mock.create_autospec(bigquery.QueryJob)
-        mock_pages = mock.PropertyMock(side_effect=mock_schema)
-        type(mock_job).schema = mock_pages
         mock_job.result = mock_result
         return mock_job
 
     mock_client.get_table = mock_bigquery_client_get_table
-    mock_client.query = mock_bigquery_client_query
+    mock_client.query.side_effect = mock_query
     monkeypatch.setattr(bigquery, "Client", mock_client)
     mock_client.reset_mock()
     return mock_client
@@ -228,18 +216,6 @@ def session() -> bigframes.Session:
             project="unit-test-project",
         )
     )
-
-
-@pytest.fixture
-def scalars_pandas_df(scalars_testdata_setup) -> pandas.DataFrame:
-    pandas_df, _ = scalars_testdata_setup
-    return pandas_df
-
-
-@pytest.fixture
-def scalars_df(session, scalars_testdata_setup) -> bigframes.dataframe.DataFrame:
-    _, get_scalars_df = scalars_testdata_setup
-    return get_scalars_df(session)
 
 
 @pytest.fixture

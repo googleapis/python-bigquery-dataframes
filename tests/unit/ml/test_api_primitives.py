@@ -13,16 +13,11 @@
 # limitations under the License.
 
 import pytest
+import sklearn.decomposition as sklearn_decomposition  # type: ignore
+import sklearn.linear_model as sklearn_linear_model  # type: ignore
 
 import bigframes.ml.decomposition
 import bigframes.ml.linear_model
-
-try:
-    import sklearn.decomposition as sklearn_decomposition  # type: ignore
-    import sklearn.linear_model as sklearn_linear_model  # type: ignore
-except ImportError:
-    sklearn_linear_model = None
-    sklearn_decomposition = None
 
 
 def test_base_estimator_repr():

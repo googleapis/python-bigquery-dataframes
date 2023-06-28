@@ -20,7 +20,7 @@ from typing import Any, Dict, Iterable, Literal, Tuple, Union
 import geopandas as gpd  # type: ignore
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types
+import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -95,6 +95,10 @@ BIGFRAMES_TO_IBIS: Dict[Dtype, IbisDtype] = {
 IBIS_TO_BIGFRAMES: Dict[
     Union[IbisDtype, ReadOnlyIbisDtype], Union[Dtype, np.dtype[Any]]
 ] = {ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
+# Allow REQUIRED fields to map correctly.
+IBIS_TO_BIGFRAMES.update(
+    {ibis.copy(nullable=False): pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
+)
 IBIS_TO_BIGFRAMES.update(
     {
         ibis_dtypes.binary: np.dtype("O"),
@@ -145,6 +149,29 @@ def ibis_dtype_to_bigframes_dtype(
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     else:
         raise ValueError(f"Unexpected Ibis data type {type(ibis_dtype)}")
+
+
+def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
+    """Converts an Ibis expression to canonical type.
+
+    This is useful in cases where multiple types correspond to the same BigFrames dtype.
+    """
+    ibis_type = value.type()
+    # Allow REQUIRED fields to be joined with NULLABLE fields.
+    nullable_type = ibis_type.copy(nullable=True)
+    return value.cast(nullable_type).name(value.get_name())
+
+
+def ibis_table_to_canonical_types(table: ibis_types.Table) -> ibis_types.Table:
+    """Converts an Ibis table expression to canonical types.
+
+    This is useful in cases where multiple types correspond to the same BigFrames dtype.
+    """
+    casted_columns = []
+    for column_name in table.columns:
+        column = typing.cast(ibis_types.Value, table[column_name])
+        casted_columns.append(ibis_value_to_canonical_type(column))
+    return table.select(*casted_columns)
 
 
 def bigframes_dtype_to_ibis_dtype(
@@ -222,9 +249,7 @@ def literal_to_ibis_scalar(
     return scalar_expr
 
 
-def cast_ibis_value(
-    value: ibis.expr.types.Value, to_type: IbisDtype
-) -> ibis.expr.types.Value:
+def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.Value:
     """Perform compatible type casts of ibis values
 
     Args:
@@ -255,6 +280,8 @@ def cast_ibis_value(
         ibis_dtypes.timestamp: (ibis_dtypes.Timestamp(timezone="UTC"),),
         ibis_dtypes.Timestamp(timezone="UTC"): (ibis_dtypes.timestamp,),
     }
+
+    value = ibis_value_to_canonical_type(value)
     if value.type() in good_casts:
         if to_type in good_casts[value.type()]:
             return value.cast(to_type)
@@ -267,8 +294,6 @@ def cast_ibis_value(
     # BigQuery casts bools to lower case strings. Capitalize the result to match Pandas
     # TODO(bmil): remove this workaround after fixing Ibis
     if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.string:
-        return typing.cast(
-            ibis.expr.types.StringValue, value.cast(to_type)
-        ).capitalize()
+        return typing.cast(ibis_types.StringValue, value.cast(to_type)).capitalize()
 
     raise TypeError(f"Unsupported cast {value.type()} to {to_type}")

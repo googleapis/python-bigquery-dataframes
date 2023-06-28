@@ -672,6 +672,10 @@ class ArrayValue:
             )
             if not (ordering_mode == "expose_hidden_cols"):
                 table = table.drop(*hidden_ordering_columns)
+
+        # Make sure all dtypes are the "canonical" ones for BigFrames. This is
+        # important for operations like UNION where the schema must match.
+        table = bigframes.dtypes.ibis_table_to_canonical_types(table)
         return table
 
     def start_query(
