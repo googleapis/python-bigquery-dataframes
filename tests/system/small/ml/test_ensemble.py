@@ -218,3 +218,111 @@ def test_to_xgclassifier_model_gbq_replace(penguins_xgbclassifier_model, dataset
     )
     with pytest.raises(google.api_core.exceptions.Conflict):
         penguins_xgbclassifier_model.to_gbq(f"{dataset_id}.test_penguins_model")
+
+
+def test_randomforestregressor_model_score(
+    penguins_randomforest_regressor_model, penguins_df_default_index
+):
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = penguins_randomforest_regressor_model.score(test_X, test_y).compute()
+    expected = pandas.DataFrame(
+        {
+            "mean_absolute_error": [317.031042],
+            "mean_squared_error": [159713.053504],
+            "mean_squared_log_error": [0.008449],
+            "median_absolute_error": [258.385742],
+            "r2_score": [0.752698],
+            "explained_variance": [0.756173],
+        },
+        dtype="Float64",
+    )
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=0.1,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
+
+
+def test_randomforestregressor_model_predict(
+    penguins_randomforest_regressor_model: bigframes.ml.ensemble.RandomForestRegressor,
+    new_penguins_df,
+):
+    result = penguins_randomforest_regressor_model.predict(new_penguins_df).compute()
+    expected = pandas.DataFrame(
+        {"predicted_body_mass_g": ["3897.341797", "3458.385742", "3458.385742"]},
+        dtype="Float64",
+        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pandas.testing.assert_frame_equal(
+        result.sort_index(),
+        expected,
+        check_exact=False,
+        rtol=0.1,
+        check_index_type=False,
+    )
+
+
+def test_to_gbq_saved_randomforestregressor_model_scores(
+    penguins_randomforest_regressor_model, dataset_id, penguins_df_default_index
+):
+    saved_model = penguins_randomforest_regressor_model.to_gbq(
+        f"{dataset_id}.test_penguins_model", replace=True
+    )
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = saved_model.score(test_X, test_y).compute()
+    expected = pandas.DataFrame(
+        {
+            "mean_absolute_error": [319.239235],
+            "mean_squared_error": [161913.126651],
+            "mean_squared_log_error": [0.008611],
+            "median_absolute_error": [266.614258],
+            "r2_score": [0.747504],
+            "explained_variance": [0.750358],
+        },
+        dtype="Float64",
+    )
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=0.1,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigFramese
+        check_index_type=False,
+    )
+
+
+def test_to_randomforestregressor_model_gbq_replace(
+    penguins_randomforest_regressor_model, dataset_id
+):
+    penguins_randomforest_regressor_model.to_gbq(
+        f"{dataset_id}.test_penguins_model", replace=True
+    )
+    with pytest.raises(google.api_core.exceptions.Conflict):
+        penguins_randomforest_regressor_model.to_gbq(
+            f"{dataset_id}.test_penguins_model"
+        )

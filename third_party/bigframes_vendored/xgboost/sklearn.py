@@ -109,7 +109,8 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
         tree_method: Optional[str]
             Specify which tree method to use.  Default to "auto". If this parameter is set to
-            default, XGBoost will choose the most conservative option available.
+            default, XGBoost will choose the most conservative option available. Possible values: ""exact", "approx",
+            "hist".
         min_child_weight : Optional[float]
             Minimum sum of instance weight(hessian) needed in a child. Default to 1.
         colsample_bytree : Optional[float]
@@ -140,5 +141,5 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
         enable_global_explain: Optional[bool]
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version: Optional[str]
-            Specifies the Xgboost version for model training. Default to "0.9".
+            Specifies the Xgboost version for model training. Default to "0.9". Possible values: "0.9", "1.1".
     """

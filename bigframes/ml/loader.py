@@ -38,6 +38,7 @@ def from_bq(
     bigframes.ml.ensemble.XGBRegressor,
     bigframes.ml.ensemble.XGBClassifier,
     bigframes.ml.forecasting.ARIMAPlus,
+    bigframes.ml.ensemble.RandomForestRegressor,
 ]:
     """Load a BQML model to BigFrames ML.
 
@@ -60,6 +61,8 @@ def from_bq(
         return bigframes.ml.ensemble.XGBClassifier._from_bq(session, model)
     elif model.model_type == "ARIMA_PLUS":
         return bigframes.ml.forecasting.ARIMAPlus._from_bq(session, model)
+    elif model.model_type == "RANDOM_FOREST_REGRESSOR":
+        return bigframes.ml.ensemble.RandomForestRegressor._from_bq(session, model)
     else:
         raise NotImplementedError(
             f"Model type {model.model_type} is not yet supported by BigFrames"

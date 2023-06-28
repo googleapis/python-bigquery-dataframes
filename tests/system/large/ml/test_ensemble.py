@@ -246,3 +246,109 @@ def test_xgbclassifier_dart_booster_multiple_params(
     assert reloaded_model.max_depth == 4
     assert reloaded_model.min_tree_child_weight == 2
     assert reloaded_model.num_parallel_tree == 2
+
+
+def test_randomforestregressor_default_params(penguins_df_default_index, dataset_id):
+    model = bigframes.ml.ensemble.RandomForestRegressor()
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "sex",
+        ]
+    ]
+    train_y = df[["body_mass_g"]]
+    model.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    result = model.score(train_X, train_y).compute()
+    TestCase().assertSequenceEqual(result.shape, (1, 6))
+    for col_name in [
+        "mean_absolute_error",
+        "mean_squared_error",
+        "mean_squared_log_error",
+        "median_absolute_error",
+        "r2_score",
+        "explained_variance",
+    ]:
+        assert col_name in result.columns
+
+    # save, load, check parameters to ensure configuration was kept
+    reloaded_model = model.to_gbq(
+        f"{dataset_id}.temp_configured_randomforestregressor_model", replace=True
+    )
+    assert (
+        f"{dataset_id}.temp_configured_randomforestregressor_model"
+        in reloaded_model._bqml_model.model_name
+    )
+
+
+def test_randomforestregressor_multiple_params(penguins_df_default_index, dataset_id):
+    model = bigframes.ml.ensemble.RandomForestRegressor(
+        tree_method="AUTO",
+        min_tree_child_weight=2,
+        colsample_bytree=0.95,
+        colsample_bylevel=0.95,
+        colsample_bynode=0.95,
+        num_parallel_tree=90,
+        max_depth=14,
+        subsample=0.95,
+        reg_alpha=0.0001,
+        reg_lambda=0.0001,
+        min_rel_progress=0.02,
+    )
+
+    df = penguins_df_default_index.dropna().sample(n=70)
+    train_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "sex",
+        ]
+    ]
+    train_y = df[["body_mass_g"]]
+    model.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    result = model.score(train_X, train_y).compute()
+    TestCase().assertSequenceEqual(result.shape, (1, 6))
+    for col_name in [
+        "mean_absolute_error",
+        "mean_squared_error",
+        "mean_squared_log_error",
+        "median_absolute_error",
+        "r2_score",
+        "explained_variance",
+    ]:
+        assert col_name in result.columns
+
+    # save, load, check parameters to ensure configuration was kept
+    reloaded_model = model.to_gbq(
+        f"{dataset_id}.temp_configured_xgbregressor_model", replace=True
+    )
+    assert (
+        f"{dataset_id}.temp_configured_xgbregressor_model"
+        in reloaded_model._bqml_model.model_name
+    )
+    assert reloaded_model.tree_method == "AUTO"
+    assert reloaded_model.colsample_bytree == 0.95
+    assert reloaded_model.colsample_bylevel == 0.95
+    assert reloaded_model.colsample_bynode == 0.95
+    assert reloaded_model.early_stop is True
+    assert reloaded_model.subsample == 0.95
+    assert reloaded_model.reg_alpha == 0.0001
+    assert reloaded_model.reg_lambda == 0.0001
+    assert reloaded_model.min_rel_progress == 0.02
+    assert reloaded_model.gamma == 0.0
+    assert reloaded_model.max_depth == 14
+    assert reloaded_model.min_tree_child_weight == 2
+    assert reloaded_model.num_parallel_tree == 90
+    assert reloaded_model.enable_global_explain is False

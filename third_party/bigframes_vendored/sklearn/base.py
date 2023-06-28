@@ -121,3 +121,15 @@ class RegressorMixin:
             A DataFrame of the evaluation result.
         """
         raise NotImplementedError("abstract method")
+
+
+class MultiOutputMixin:
+    """Mixin to mark estimators that support multioutput."""
+
+    def _more_tags(self):
+        return {"multioutput": True}
+
+
+class MetaEstimatorMixin:
+    _required_parameters = ["estimator"]
+    """Mixin class for all meta estimators in scikit-learn."""

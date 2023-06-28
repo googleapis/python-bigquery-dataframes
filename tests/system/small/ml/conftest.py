@@ -81,6 +81,16 @@ def penguins_xgbclassifier_model(
 
 
 @pytest.fixture(scope="session")
+def penguins_randomforest_regressor_model(
+    session, penguins_randomforest_regressor_model_name
+) -> bigframes.ml.ensemble.RandomForestRegressor:
+    return cast(
+        bigframes.ml.ensemble.RandomForestRegressor,
+        session.read_gbq_model(penguins_randomforest_regressor_model_name),
+    )
+
+
+@pytest.fixture(scope="session")
 def penguins_kmeans_model(
     session: bigframes.Session, dataset_id_permanent, penguins_table_id
 ) -> bigframes.ml.cluster.KMeans:

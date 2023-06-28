@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 import bigframes.ml.base
 import bigframes.ml.core
+import third_party.bigframes_vendored.sklearn.ensemble._forest
 import third_party.bigframes_vendored.xgboost.sklearn
 
 _BQML_PARAMS_MAPPING = {
@@ -327,6 +328,159 @@ class XGBClassifier(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> XGBClassifier:
+        """Save the model to Google Cloud BigQuey.
+
+        Args:
+            model_name: the name of the model.
+            replace: whether to replace if the model already exists. Default to False.
+
+        Returns: saved model."""
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before it can be saved")
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
+
+class RandomForestRegressor(
+    third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
+    bigframes.ml.base.BaseEstimator,
+):
+
+    __doc__ = (
+        third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor.__doc__
+    )
+
+    def __init__(
+        self,
+        num_parallel_tree: int = 100,
+        tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
+        min_tree_child_weight: int = 1,
+        colsample_bytree=1.0,
+        colsample_bylevel=1.0,
+        colsample_bynode=0.8,
+        gamma=0.00,
+        max_depth: int = 15,
+        subsample=0.8,
+        reg_alpha=0.0,
+        reg_lambda=1.0,
+        early_stop=True,
+        min_rel_progress=0.01,
+        enable_global_explain=False,
+        xgboost_version: Literal["0.9", "1.1"] = "0.9",
+    ):
+        self.num_parallel_tree = num_parallel_tree
+        self.tree_method = tree_method
+        self.min_tree_child_weight = min_tree_child_weight
+        self.colsample_bytree = colsample_bytree
+        self.colsample_bylevel = colsample_bylevel
+        self.colsample_bynode = colsample_bynode
+        self.gamma = gamma
+        self.max_depth = max_depth
+        self.subsample = subsample
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
+        self.early_stop = early_stop
+        self.min_rel_progress = min_rel_progress
+        self.enable_global_explain = enable_global_explain
+        self.xgboost_version = xgboost_version
+        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+
+    @staticmethod
+    def _from_bq(
+        session: bigframes.Session, model: bigquery.Model
+    ) -> RandomForestRegressor:
+        assert model.model_type == "RANDOM_FOREST_REGRESSOR"
+
+        kwargs = {}
+
+        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
+        last_fitting = model.training_runs[-1]["trainingOptions"]
+
+        dummy_model = RandomForestRegressor()
+        for bf_param, bf_value in dummy_model.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param is not None:
+                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
+
+        new_random_forest_regressor = RandomForestRegressor(**kwargs)
+        new_random_forest_regressor._bqml_model = bigframes.ml.core.BqmlModel(
+            session, model
+        )
+        return new_random_forest_regressor
+
+    @property
+    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+        """The model options as they will be set for BQML"""
+        return {
+            "model_type": "RANDOM_FOREST_REGRESSOR",
+            "num_parallel_tree": self.num_parallel_tree,
+            "tree_method": self.tree_method,
+            "min_tree_child_weight": self.min_tree_child_weight,
+            "colsample_bytree": self.colsample_bytree,
+            "colsample_bylevel": self.colsample_bylevel,
+            "colsample_bynode": self.colsample_bynode,
+            "min_split_loss": self.gamma,
+            "max_tree_depth": self.max_depth,
+            "subsample": self.subsample,
+            "l1_reg": self.reg_alpha,
+            "l2_reg": self.reg_lambda,
+            "early_stop": self.early_stop,
+            "min_rel_progress": self.min_rel_progress,
+            "data_split_method": "NO_SPLIT",
+            "enable_global_explain": self.enable_global_explain,
+            "xgboost_version": self.xgboost_version,
+        }
+
+    def fit(
+        self,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
+    ):
+        self._bqml_model = bigframes.ml.core.create_bqml_model(
+            X,
+            y,
+            options=self._bqml_options,
+        )
+
+    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        df = self._bqml_model.predict(X)
+        return cast(
+            bigframes.dataframe.DataFrame,
+            df[
+                [
+                    cast(str, field.name)
+                    for field in self._bqml_model.model.label_columns
+                ]
+            ],
+        )
+
+    def score(
+        self,
+        X: bigframes.DataFrame,
+        y: bigframes.DataFrame,
+    ):
+        """Calculate evaluation metrics of the model.
+
+        Args:
+            X: a BigFrames DataFrame as evaluation data.
+            y: a BigFrames DataFrame as evaluation labels.
+
+        Returns: a BigFrames DataFrame as evaluation result."""
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        if (X is None) != (y is None):
+            raise ValueError(
+                "Either both or neither of test_X and test_y must be specified"
+            )
+        input_data = X.join(y, how="outer") if X and y else None
+        return self._bqml_model.evaluate(input_data)
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> RandomForestRegressor:
         """Save the model to Google Cloud BigQuey.
 
         Args:
