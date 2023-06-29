@@ -76,7 +76,7 @@ import math
 import numbers
 import pprint
 
-from bigframes.ml.api_primitives import BaseEstimator
+from bigframes.ml.base import BaseEstimator
 
 
 class KeyValTuple(tuple):

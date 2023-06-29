@@ -19,14 +19,14 @@ from typing import cast, TYPE_CHECKING
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 
 _REMOTE_LLM_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
 
-class PaLM2TextGenerator(bigframes.ml.api_primitives.BaseEstimator):
+class PaLM2TextGenerator(bigframes.ml.base.BaseEstimator):
     """PaLM2 text generator LLM model.
 
     Args:

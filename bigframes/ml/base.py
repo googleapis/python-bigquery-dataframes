@@ -37,17 +37,15 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
     assumed to be the list of hyperparameters.
 
     All descendents of this class should implement:
-
         def __init__(self, hyperparameter_1=default_1, hyperparameter_2=default_2, hyperparameter3, ...):
             '''Set hyperparameters'''
             self.hyperparameter_1 = hyperparameter_1
             self.hyperparameter_2 = hyperparameter_2
             self.hyperparameter3 = hyperparameter3
             ...
+    Note: the object variable names must be exactly the same with parameter names. In order to utilize __repr__.
 
-        def fit(self, x_train: Union[DataFrame, Series], y_train: Union[DataFrame, Series]):
-            '''Train the model to predict y_train from x_train'''
-            ...
+    fit(X, y) method is optional.
 
     The types of decendents of this class should be:
 
@@ -70,9 +68,6 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
             def fit_transform(self, x_train: Union[DataFrame, Series], y_train: Union[DataFrame, Series]):
                 '''Perform both fit() and transform()'''
                 ...
-
-    By design, implementations of these to inherit from are not provided, as they have no shared logic.
-    If models do have shared logic, they should share it with mixin classes.
     """
 
     def __repr__(self):

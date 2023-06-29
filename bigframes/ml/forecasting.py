@@ -21,13 +21,13 @@ from google.cloud import bigquery
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 
 _PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
 
-class ARIMAPlus(bigframes.ml.api_primitives.BaseEstimator):
+class ARIMAPlus(bigframes.ml.base.BaseEstimator):
     """Time Series ARIMA Plus model."""
 
     def __init__(self):

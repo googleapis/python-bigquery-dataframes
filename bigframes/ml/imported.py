@@ -19,11 +19,11 @@ from typing import cast, TYPE_CHECKING
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 
 
-class TensorFlowModel(bigframes.ml.api_primitives.BaseEstimator):
+class TensorFlowModel(bigframes.ml.base.BaseEstimator):
     """Imported TensorFlow model.
 
     Args:

@@ -24,7 +24,7 @@ from google.cloud import bigquery
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 import third_party.bigframes_vendored.xgboost.sklearn
 
@@ -50,7 +50,7 @@ _BQML_PARAMS_MAPPING = {
 
 class XGBRegressor(
     third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
@@ -200,7 +200,7 @@ class XGBRegressor(
 
 class XGBClassifier(
     third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
 
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__

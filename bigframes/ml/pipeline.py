@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import bigframes
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.cluster
 import bigframes.ml.compose
 import bigframes.ml.core
@@ -33,13 +33,11 @@ import third_party.bigframes_vendored.sklearn.pipeline
 
 class Pipeline(
     third_party.bigframes_vendored.sklearn.pipeline.Pipeline,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.pipeline.Pipeline.__doc__
 
-    def __init__(
-        self, steps: List[Tuple[str, bigframes.ml.api_primitives.BaseEstimator]]
-    ):
+    def __init__(self, steps: List[Tuple[str, bigframes.ml.base.BaseEstimator]]):
         self.steps = steps
 
         if len(steps) != 2:

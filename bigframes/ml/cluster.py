@@ -24,14 +24,14 @@ from google.cloud import bigquery
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 
 class KMeans(
     third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
 
     __doc__ = third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans.__doc__

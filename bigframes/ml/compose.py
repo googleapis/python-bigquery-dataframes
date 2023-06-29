@@ -24,7 +24,7 @@ from typing import List, Optional, Tuple, TYPE_CHECKING, Union
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.compose
 import bigframes.ml.core
 import bigframes.ml.preprocessing
@@ -38,7 +38,7 @@ CompilablePreprocessorType = Union[
 
 class ColumnTransformer(
     third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer.__doc__

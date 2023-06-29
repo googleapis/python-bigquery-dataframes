@@ -28,7 +28,7 @@ import third_party.bigframes_vendored.sklearn.preprocessing._encoder
 
 class StandardScaler(
     third_party.bigframes_vendored.sklearn.preprocessing._data.StandardScaler,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.preprocessing._data.StandardScaler.__doc__
@@ -82,7 +82,7 @@ class StandardScaler(
 
 class OneHotEncoder(
     third_party.bigframes_vendored.sklearn.preprocessing._encoder.OneHotEncoder,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.preprocessing._encoder.OneHotEncoder.__doc__

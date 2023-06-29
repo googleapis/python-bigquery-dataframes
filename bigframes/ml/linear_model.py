@@ -24,7 +24,7 @@ from google.cloud import bigquery
 if TYPE_CHECKING:
     import bigframes
 
-import bigframes.ml.api_primitives
+import bigframes.ml.base
 import bigframes.ml.core
 import third_party.bigframes_vendored.sklearn.linear_model._base
 import third_party.bigframes_vendored.sklearn.linear_model._logistic
@@ -32,7 +32,7 @@ import third_party.bigframes_vendored.sklearn.linear_model._logistic
 
 class LinearRegression(
     third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
@@ -130,7 +130,7 @@ class LinearRegression(
 
 class LogisticRegression(
     third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
-    bigframes.ml.api_primitives.BaseEstimator,
+    bigframes.ml.base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression.__doc__
