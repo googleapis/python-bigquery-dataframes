@@ -21,10 +21,14 @@ import pytest
     [
         (lambda x: x.expanding()),
         (lambda x: x.rolling(3, min_periods=3)),
+        (lambda x: x.groupby(x % 2).rolling(3, min_periods=3)),
+        (lambda x: x.groupby(x % 3).expanding(min_periods=2)),
     ],
     ids=[
         "expanding",
         "rolling",
+        "rollinggroupby",
+        "expandinggroupby",
     ],
 )
 @pytest.mark.parametrize(

@@ -282,6 +282,33 @@ class GroupBy:
         """
         raise NotImplementedError("abstract property")
 
+    def rolling(self, *args, **kwargs):
+        """
+        Return a rolling grouper, providing rolling functionality per group.
+
+        Args:
+            min_periods : int, default None
+                Minimum number of observations in window required to have a value;
+                otherwise, result is ``np.nan``.
+
+                For a window that is specified by an offset,
+                ``min_periods`` will default to 1.
+
+                For a window that is specified by an integer, ``min_periods`` will default
+                to the size of the window.
+
+        Returns:
+            Return a new grouper with our rolling appended.
+        """
+        raise NotImplementedError("abstract property")
+
+    def expanding(self, *args, **kwargs):
+        """
+        Return an expanding grouper, providing expanding
+        functionality per group.
+        """
+        raise NotImplementedError("abstract property")
+
 
 class SeriesGroupBy(GroupBy):
     pass

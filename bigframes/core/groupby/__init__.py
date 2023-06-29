@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import typing
 
+import bigframes.core as core
 import bigframes.core.blocks as blocks
-import bigframes.core.window
+import bigframes.core.ordering as order
+import bigframes.core.window as windows
 import bigframes.dataframe as df
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -258,6 +260,28 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def diff(self) -> series.Series:
         """Difference between each element and previous element."""
         return self._ungroup() - self.shift(1)
+
+    def rolling(self, window: int, min_periods=None) -> windows.Window:
+        # To get n size window, need current row and n-1 preceding rows.
+        window_spec = core.WindowSpec(
+            grouping_keys=[self._by],
+            preceding=window - 1,
+            following=0,
+            min_periods=min_periods or window,
+        )
+        block = self._block.order_by(
+            (order.OrderingColumnReference(self._by),), stable=True
+        )
+        return windows.Window(block, window_spec, self._value_column)
+
+    def expanding(self, min_periods: int = 1) -> windows.Window:
+        window_spec = core.WindowSpec(
+            grouping_keys=[self._by], following=0, min_periods=min_periods
+        )
+        block = self._block.order_by(
+            (order.OrderingColumnReference(self._by),), stable=True
+        )
+        return windows.Window(block, window_spec, self._value_column)
 
     def _ungroup(self) -> series.Series:
         return series.Series(self._block.select_column(self._value_column))

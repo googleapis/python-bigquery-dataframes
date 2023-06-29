@@ -35,12 +35,10 @@ class Window(vendored_pandas_rolling.Window):
         block: blocks.Block,
         window_spec: core.WindowSpec,
         value_column_id: str,
-        label: typing.Optional[str] = None,
     ):
         self._block = block
         self._window_spec = window_spec
         self._value_column_id = value_column_id
-        self._label = label
 
     def count(self) -> Series:
         return self._apply_aggregate(agg_ops.count_op)
@@ -68,11 +66,20 @@ class Window(vendored_pandas_rolling.Window):
         op: agg_ops.AggregateOp,
     ) -> Series:
         block = self._block
+        label = block.col_id_to_label[self._value_column_id]
         block, result_id = block.apply_window_op(
-            self._value_column_id, op, self._window_spec
+            self._value_column_id, op, self._window_spec, result_label=label
         )
+
+        if self._window_spec.grouping_keys:
+            original_index_ids = block.index_columns
+            block = block.reset_index(drop=False)
+            index_ids = (
+                *[col for col in self._window_spec.grouping_keys],
+                *original_index_ids,
+            )
+            block = block.set_index(col_ids=index_ids)
+
         from bigframes.series import Series
 
-        return Series(
-            block.select_column(result_id).assign_label(result_id, self._label)
-        )
+        return Series(block.select_column(result_id))
