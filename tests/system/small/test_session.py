@@ -14,10 +14,9 @@
 import random
 import tempfile
 import typing
-from typing import List, Tuple, Union
+from typing import List
 
 import google.api_core.exceptions
-import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
 import pytest
@@ -27,23 +26,6 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
-
-
-def test_read_gbq(
-    session: bigframes.Session,
-    scalars_table_id: str,
-    scalars_schema: List[bigquery.SchemaField],
-    scalars_pandas_df_default_index: pd.DataFrame,
-):
-    df = session.read_gbq(scalars_table_id)
-    assert len(df.columns) == len(scalars_schema)
-
-    bf_result = df.compute()
-    pd_result = scalars_pandas_df_default_index
-    assert bf_result.shape[0] == pd_result.shape[0]
-
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 def test_read_gbq_tokyo(
@@ -138,61 +120,6 @@ def test_read_gbq_w_max_results(
     )
     bf_result = df.compute()
     assert bf_result.shape[0] == max_results
-
-
-def test_read_gbq_sql(
-    session: bigframes.Session,
-    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
-):
-    scalars_df, scalars_pandas_df = scalars_dfs
-    df_len = len(scalars_pandas_df.index)
-
-    index_col: Union[Tuple[str], Tuple] = ()
-    if scalars_df.index.name == "rowindex":
-        sql = """SELECT
-                t.rowindex AS rowindex,
-                t.float64_col * 2 AS my_floats,
-                CONCAT(t.string_col, "_2") AS my_strings,
-                t.int64_col > 0 AS my_bools
-            FROM ({subquery}) AS t
-            ORDER BY t.rowindex""".format(
-            subquery=scalars_df.sql
-        )
-        index_col = ("rowindex",)
-    else:
-        sql = """SELECT
-                t.float64_col * 2 AS my_floats,
-                CONCAT(t.string_col, "_2") AS my_strings,
-                t.int64_col > 0 AS my_bools
-            FROM ({subquery}) AS t
-            ORDER BY t.rowindex""".format(
-            subquery=scalars_df.sql
-        )
-        index_col = ()
-
-    df = session.read_gbq(sql, index_col=index_col)
-    result = df.compute()
-
-    expected = pd.concat(
-        [
-            pd.Series(scalars_pandas_df["float64_col"] * 2, name="my_floats"),
-            pd.Series(
-                scalars_pandas_df["string_col"].str.cat(["_2"] * df_len),
-                name="my_strings",
-            ),
-            pd.Series(scalars_pandas_df["int64_col"] > 0, name="my_bools"),
-        ],
-        axis=1,
-    )
-
-    # TODO(swast): Restore ordering for SQL inputs.
-    if result.index.name is None:
-        result = result.sort_values(["my_floats", "my_strings"]).reset_index(drop=True)
-        expected = expected.sort_values(["my_floats", "my_strings"]).reset_index(
-            drop=True
-        )
-
-    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):

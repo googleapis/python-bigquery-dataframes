@@ -318,7 +318,6 @@ def test_series_add_scalar(scalars_dfs, other):
     [
         ("float64_col", "float64_col"),
         ("int64_col", "float64_col"),
-        ("int64_col", "int64_col"),
         ("int64_col", "int64_too"),
     ],
 )

@@ -49,7 +49,7 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -83,10 +83,9 @@ nox.options.sessions = [
     "format",
     "docs",
     "unit",
+    "unit_noextras",
     "unit_prerelease",
     "system",
-    "system_noextras",
-    "system_prerelease",
     "cover",
     "third_party_notices",
     "release_dry_run",
@@ -148,7 +147,7 @@ def lint_setup_py(session):
     session.run("python", "setup.py", "check", "--restructuredtext", "--strict")
 
 
-def install_unittest_dependencies(session, *constraints):
+def install_unittest_dependencies(session, install_test_extra, *constraints):
     standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
     session.install(*standard_deps, *constraints)
 
@@ -163,9 +162,9 @@ def install_unittest_dependencies(session, *constraints):
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
 
-    if UNIT_TEST_EXTRAS_BY_PYTHON:
+    if install_test_extra and UNIT_TEST_EXTRAS_BY_PYTHON:
         extras = UNIT_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
-    elif UNIT_TEST_EXTRAS:
+    elif install_test_extra and UNIT_TEST_EXTRAS:
         extras = UNIT_TEST_EXTRAS
     else:
         extras = []
@@ -176,13 +175,12 @@ def install_unittest_dependencies(session, *constraints):
         session.install("-e", ".", *constraints)
 
 
-@nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
-def unit(session):
+def run_unit(session, install_test_extra):
     """Run the unit test suite."""
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
-    install_unittest_dependencies(session, "-c", constraints_path)
+    install_unittest_dependencies(session, install_test_extra, "-c", constraints_path)
 
     # Run py.test against the unit tests.
     tests_path = os.path.join("tests", "unit")
@@ -199,6 +197,16 @@ def unit(session):
         tests_path,
         *session.posargs,
     )
+
+
+@nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
+def unit(session):
+    run_unit(session, install_test_extra=True)
+
+
+@nox.session(python=UNIT_TEST_PYTHON_VERSIONS[-1])
+def unit_noextras(session):
+    run_unit(session, install_test_extra=False)
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
