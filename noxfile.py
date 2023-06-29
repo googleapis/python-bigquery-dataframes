@@ -16,13 +16,10 @@
 
 from __future__ import absolute_import
 
-import difflib
-import filecmp
 import os
 import pathlib
 import re
 import shutil
-import tempfile
 from typing import Dict, List
 import warnings
 
@@ -87,7 +84,6 @@ nox.options.sessions = [
     "unit_prerelease",
     "system",
     "cover",
-    "third_party_notices",
     "release_dry_run",
 ]
 
@@ -598,48 +594,6 @@ def notebook(session):
         "--retries=3",
         *notebooks,
     )
-
-
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
-def third_party_notices(session):
-    session.install("-e", ".[all]")
-    session.install("pip-licenses")
-
-    notices_file = "THIRD_PARTY_NOTICES"
-    generator_script = "scripts/generate_third_party_notices.py"
-    _, notices_file_backup = tempfile.mkstemp()
-
-    try:
-        shutil.copy(notices_file, notices_file_backup)
-
-        # Generate the latest notices
-        session.run("python3", generator_script)
-
-        # Assert that it is unchanged
-        if not filecmp.cmp(notices_file_backup, notices_file):
-            # Print the diff and fail the test
-            with open(notices_file_backup) as f_orig, open(notices_file) as f_new:
-                print(
-                    "".join(
-                        difflib.unified_diff(
-                            f_orig.readlines(),
-                            f_new.readlines(),
-                            fromfile=notices_file_backup,
-                            tofile=notices_file,
-                        )
-                    )
-                )
-
-            raise ValueError(
-                f"{notices_file} is not up to date. Run 'nox -s {third_party_notices.__name__}' to update it."
-            )
-    finally:
-        # TODO(shobs): Currently we are removing the original file and letting
-        # file be modified in place, so that developer can easily  review and
-        # commit the change. However, reconsider this to be more consistent with
-        # other sessions, such as 'lint' which simply fails if any modifications
-        # are needed but doesn't actually make the modification.
-        os.remove(notices_file_backup)
 
 
 @nox.session(python="3.10")

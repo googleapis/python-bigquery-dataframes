@@ -23,9 +23,23 @@ import sys
 import piplicenses
 import requests
 
-THIRD_PARTY_NOTICES_FILE = "THIRD_PARTY_NOTICES"
 DEPENDENCY_INFO_SEPARATOR = "*" * 80 + "\n"
 PACKAGE_NAME_EXTRACTOR = re.compile("^[a-zA-Z0-9._-]+")
+
+# These packages don't have LICENSE files distributed in their packages,
+# but we have manually confirmed they have a compatible license and
+# included it manually in our `third_party` directory.
+#
+# TODO(swast): We can remove this workaround once these packages bundle the
+# license file.
+#
+# Tracking issues:
+# * https://github.com/grpc/grpc/issues/33557
+# * https://github.com/gsnedders/python-webencodings/issues/33
+DIRECT_LICENSE_MAPPINGS = {
+    "grpcio-status": "https://raw.githubusercontent.com/grpc/grpc/master/LICENSE",
+    "webencodings": "https://raw.githubusercontent.com/gsnedders/python-webencodings/master/LICENSE",
+}
 
 
 def get_package_dependencies(pkg_name):
@@ -200,32 +214,17 @@ def write_metadata_to_file(
         "LICENSE",
         metadata["LicenseFile"],
         metadata["LicenseText"],
-        # These packages don't have LICENSE files distributed in their packages,
-        # but we have manually confirmed they have a compatible license and
-        # included it manually in our `third_party` directory.
-        #
-        # Tracking issues:
-        # * https://github.com/grpc/grpc/issues/33557
-        ignore_missing=metadata["Name"]
-        in {
-            "grpcio-status",
-        },
+        ignore_missing=metadata["Name"] in DIRECT_LICENSE_MAPPINGS,
     )
 
+    license_text = ""
     if license_info:
-        write_lines_without_trailing_spaces(file, license_info[0], "License")
-
-    # TODO(swast): We can remove this workaround once grpcio-status bundles the
-    # license file.
-    #
-    # Tracking issues:
-    # * https://github.com/grpc/grpc/issues/33557
-    if not license_info and metadata["Name"] == "grpcio-status":
-        license_text_response = requests.get(
-            "https://raw.githubusercontent.com/grpc/grpc/master/LICENSE"
-        )
+        license_text = license_info[0]
+    else:
+        license_text_response = requests.get(DIRECT_LICENSE_MAPPINGS[metadata["Name"]])
         license_text = license_text_response.text
-        write_lines_without_trailing_spaces(file, license_text, "License")
+
+    write_lines_without_trailing_spaces(file, license_text, "License")
 
     # Try to generate third party notice
     notice_info = get_metadata_and_filename(
@@ -273,6 +272,12 @@ if __name__ == "__main__":
         default=False,
         help="Include for each package the packages that require it.",
     )
+    parser.add_argument(
+        "--output-file",
+        action="store",
+        default="THIRD_PARTY_NOTICES",
+        help="The output file to write third party notices in.",
+    )
     args = parser.parse_args(sys.argv[1:])
 
     # Initialize the root package
@@ -292,7 +297,7 @@ if __name__ == "__main__":
     deps_metadata = sorted(deps_metadata, key=lambda m: m["Name"])
 
     # Write the file
-    with open(THIRD_PARTY_NOTICES_FILE, "w") as f:
+    with open(args.output_file, "w") as f:
         # Generate third party metadata for each dependency
         for metadata in deps_metadata:
             dep = deps[metadata["Name"]]
@@ -307,6 +312,8 @@ if __name__ == "__main__":
         # Generate third party vendored notices
         notices = set()
         for filename in [
+            "LICENCE",
+            "LICENCE.txt",
             "LICENSE",
             "LICENSE.txt",
             "NOTICE",

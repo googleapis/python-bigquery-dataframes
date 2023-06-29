@@ -67,6 +67,26 @@ if ! [ ${DRY_RUN} ]; then
     fi
 fi
 
+# Generate third party notices and include it in the licenses in setup.cfg
+# TODO(shobs): Don't include it in the package once vertex colab can pick it
+# from elsewhere
+THIRD_PARTY_NOTICES_FILE=THIRD_PARTY_NOTICES
+python3.10 -m pip install pip-licenses
+python3.10 scripts/generate_third_party_notices.py --output-file ${THIRD_PARTY_NOTICES_FILE}
+if ! [ -s ${THIRD_PARTY_NOTICES_FILE} ]; then
+    echo "${THIRD_PARTY_NOTICES_FILE} was generated with zero size"
+    exit -1
+fi
+SETUP_CFG_BKP=`mktemp`
+cp -f setup.cfg ${SETUP_CFG_BKP}
+cat >> setup.cfg << EOF
+
+[metadata]
+license_files =
+    LICENSE
+    ${THIRD_PARTY_NOTICES_FILE}
+EOF
+
 # Update version string to include git hash and date
 CURRENT_DATE=$(date '+%Y%m%d')
 GIT_HASH=$(git rev-parse --short HEAD)
@@ -74,14 +94,40 @@ BIGFRAMES_VERSION=$(python3.10 -c "import bigframes; print(bigframes.__version__
 RELEASE_VERSION=${BIGFRAMES_VERSION}dev${CURRENT_DATE}+${GIT_HASH}
 sed -i -e "s/$BIGFRAMES_VERSION/$RELEASE_VERSION/g" bigframes/version.py
 
+# Generate the package wheel
 python3.10 setup.py sdist bdist_wheel
 
-# Undo the version string edit, in case this script is running on a
-# non-temporary instance of the bigframes repo
-sed -i -e "s/$RELEASE_VERSION/$BIGFRAMES_VERSION/g" bigframes/version.py
+# Make sure that the wheel file is generated
+VERSION_WHEEL=`ls dist/bigframes-*.whl`
+num_wheel_files=`echo $VERSION_WHEEL | wc -w`
+if [ $num_wheel_files -ne 1 ] ; then
+    echo "Exactly one wheel file should have been generated, found $num_wheel_files: $VERSION_WHEEL"
+    exit -1
+fi
 
+# Make sure the wheel file has the third party notices included
+# TODO(shobs): An utimate validation would be to create a virtual environment
+# and install the wheel file, then verify that
+# site-packages/bigframes-*.dist-info/ includes third party notices
+python3.10 -c "
+from zipfile import ZipFile
+with ZipFile('$VERSION_WHEEL') as myzip:
+    third_party_licenses_info = [
+        info
+        for info in myzip.infolist()
+        if info.filename.endswith('.dist-info/${THIRD_PARTY_NOTICES_FILE}')
+    ]
+    assert (
+        len(third_party_licenses_info) == 1
+    ), f'Found {len(third_party_licenses_info)} third party licenses'
+    assert (
+        third_party_licenses_info[0].file_size > 0
+    ), 'Package contains third party license of size 0'
+"
+
+# Create a copy of the wheel with a well known, version agnostic name
 LATEST_WHEEL=dist/bigframes-latest-py2.py3-none-any.whl
-cp dist/bigframes-*.whl $LATEST_WHEEL
+cp $VERSION_WHEEL $LATEST_WHEEL
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
 if ! [ ${DRY_RUN} ]; then
@@ -91,6 +137,7 @@ if ! [ ${DRY_RUN} ]; then
     do
       gsutil cp -v dist/* ${gcs_path}
       gsutil cp -v LICENSE ${gcs_path}
+      gsutil cp -v ${THIRD_PARTY_NOTICES_FILE} ${gcs_path}
       gsutil -m cp -v "notebooks/00 - Summary.ipynb" \
                       "notebooks/01 - Getting Started.ipynb" \
                       "notebooks/02 - DataFrame.ipynb" \
@@ -112,6 +159,15 @@ if ! [ ${DRY_RUN} ]; then
       --release_version=$RELEASE_VERSION \
       --bigquery_table=$COVERAGE_TABLE
 fi
+
+# Undo the file changes, in case this script is running on a
+# non-temporary instance of the bigframes repo
+# TODO: This doesn't work with (set -eo pipefail) if the failure happened after
+# the changes were made but before this cleanup, because the script would
+# terminate with the failure itself. See if we can ensure the cleanup.
+sed -i -e "s/$RELEASE_VERSION/$BIGFRAMES_VERSION/g" bigframes/version.py
+mv -f ${SETUP_CFG_BKP} setup.cfg
+rm -f ${THIRD_PARTY_NOTICES_FILE}
 
 # Keep this last so as not to block the release on PDF docs build.
 pdf_docs () {
