@@ -34,7 +34,6 @@ import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
-import bigframes.core.indexes.implicitjoiner
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.core.scalar as scalars
 import bigframes.core.window
@@ -111,13 +110,21 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = self._block.with_column_labels([index])
         return Series(block)
 
-    def rename_axis(self, mapper: Optional[str], **kwargs) -> Series:
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        **kwargs,
+    ) -> Series:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 "rename_axis does not currently support any keyword arguments."
             )
-        block = self._block.with_index_labels([mapper])
-        return Series(block)
+        # limited implementation: the new index name is simply the 'mapper' parameter
+        if _is_list_like(mapper):
+            labels = mapper
+        else:
+            labels = [mapper]
+        return Series(self._block.with_index_labels(labels))
 
     def reset_index(
         self,

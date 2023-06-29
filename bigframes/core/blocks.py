@@ -24,7 +24,7 @@ from __future__ import annotations
 import functools
 import itertools
 import typing
-from typing import Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -74,8 +74,6 @@ class Block:
         if len(list(index_columns)) == 0:
             expr, new_index_col_id = expr.promote_offsets()
             index_columns = [new_index_col_id]
-        if len(list(index_columns)) > 1:
-            raise NotImplementedError("MultiIndex not supported")
         self._index_columns = tuple(index_columns)
         self._index_labels = (
             tuple(index_labels)
@@ -89,7 +87,7 @@ class Block:
         )
         if len(self.value_columns) != len(self._column_labels):
             raise ValueError(
-                "'index_columns' and 'index_labels' must have equal length"
+                f"'value_columns' (size {len(self.value_columns)}) and 'column_labels' (size {len(self._column_labels)}) must have equal length"
             )
 
     @property
@@ -123,19 +121,16 @@ class Block:
     @property
     def dtypes(
         self,
-    ) -> Sequence[Union[bigframes.dtypes.Dtype, numpy.dtype[typing.Any]]]:
-        """Returns the dtypes as a Pandas Series object"""
-        ibis_dtypes = [
-            dtype
-            for col, dtype in self.expr.to_ibis_expr(ordering_mode="unordered")
-            .schema()
-            .items()
-            if col not in self.index_columns
-        ]
-        return [
-            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_dtype)
-            for ibis_dtype in ibis_dtypes
-        ]
+    ) -> Sequence[bigframes.dtypes.Dtype]:
+        """Returns the dtypes of the value columns."""
+        return [self.expr.get_column_type(col) for col in self.value_columns]
+
+    @property
+    def index_dtypes(
+        self,
+    ) -> Sequence[bigframes.dtypes.Dtype]:
+        """Returns the dtypes of the index columns."""
+        return [self.expr.get_column_type(col) for col in self.index_columns]
 
     @functools.cached_property
     def col_id_to_label(self) -> typing.Mapping[str, Label]:
@@ -153,6 +148,22 @@ class Block:
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
 
+    @functools.cached_property
+    def col_id_to_index_name(self) -> typing.Mapping[str, Label]:
+        """Get column label for value columns, or index name for index columns"""
+        return {
+            col_id: label
+            for col_id, label in zip(self.index_columns, self._index_labels)
+        }
+
+    @functools.cached_property
+    def index_name_to_col_id(self) -> typing.Mapping[Label, typing.Sequence[str]]:
+        """Get column label for value columns, or index name for index columns"""
+        mapping: typing.Dict[Label, typing.Sequence[str]] = {}
+        for id, label in self.col_id_to_index_name.items():
+            mapping[label] = (*mapping.get(label, ()), id)
+        return mapping
+
     def order_by(
         self,
         by: typing.Sequence[ordering.OrderingColumnReference],
@@ -162,7 +173,7 @@ class Block:
             self._expr.order_by(by, stable=stable),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
 
     def reversed(self) -> Block:
@@ -170,7 +181,7 @@ class Block:
             self._expr.reversed(),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
 
     def reset_index(self, drop: bool = True) -> Block:
@@ -197,23 +208,65 @@ class Block:
                 index_labels=[None],
             )
         else:
-            # TODO(swast): Support MultiIndex
-            index_label = self.index.name
-            if index_label is None:
-                if "index" not in self.column_labels:
-                    index_label = "index"
-                else:
-                    index_label = "level_0"
+            index_labels = self.index.names
+            index_labels_rewritten = []
+            for level, label in enumerate(index_labels):
+                if label is None:
+                    if "index" not in self.column_labels:
+                        label = "index"
+                    else:
+                        label = f"level_{level}"
 
-            if index_label in self.column_labels:
-                raise ValueError(f"cannot insert {index_label}, already exists")
+                if label in self.column_labels:
+                    raise ValueError(f"cannot insert {label}, already exists")
+                index_labels_rewritten.append(label)
 
             block = Block(
                 expr,
                 index_columns=[new_index_col_id],
-                column_labels=[index_label, *self.column_labels],
+                column_labels=[*index_labels_rewritten, *self.column_labels],
                 index_labels=[None],
             )
+        return block
+
+    def set_index(
+        self, col_ids: typing.Sequence[str], drop: bool = True, append: bool = False
+    ) -> Block:
+        """Set the index of the block to
+
+        Arguments:
+            ids: columns to be converted to index columns
+            drop: whether to drop the new index columns as value columns
+            append: whether to discard the existing index or add on to it
+
+        Returns:
+            Block with new index
+        """
+        expr = self._expr
+
+        new_index_columns = []
+        new_index_labels = []
+        for col_id in col_ids:
+            col_copy_id = guid.generate_guid()
+            expr = expr.assign(col_id, col_copy_id)
+            new_index_columns.append(col_copy_id)
+            new_index_labels.append(self.col_id_to_label[col_id])
+
+        if append:
+            new_index_columns = [*self.index_columns, *new_index_columns]
+            new_index_labels = [*self._index_labels, *new_index_labels]
+        else:
+            expr = expr.drop_columns(self.index_columns)
+
+        block = Block(
+            expr,
+            index_columns=new_index_columns,
+            column_labels=self.column_labels,
+            index_labels=new_index_labels,
+        )
+        if drop:
+            # These are the value columns, new index uses the copies, so this is safe
+            block = block.drop_columns(col_ids)
         return block
 
     def _to_dataframe(self, result, schema: ibis_schema.Schema) -> pd.DataFrame:
@@ -273,8 +326,7 @@ class Block:
         df = df.loc[:, [*self.index_columns, *value_column_names]]
         if self.index_columns:
             df = df.set_index(list(self.index_columns))
-            # TODO(swast): Set names for all levels with MultiIndex.
-            df.index.name = self.index.name
+            df.index.names = self.index.names  # type: ignore
 
         return df, results_iterator.total_rows, query_job
 
@@ -289,10 +341,10 @@ class Block:
             self._expr,
             index_columns=self.index_columns,
             column_labels=label_list,
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
 
-    def with_index_labels(self, value: List[Label]) -> Block:
+    def with_index_labels(self, value: typing.Sequence[Label]) -> Block:
         if len(value) != len(self.index_columns):
             raise ValueError(
                 f"The index labels size `{len(value)} ` should equal to the index"
@@ -330,7 +382,7 @@ class Block:
             expr,
             index_columns=self.index_columns,
             column_labels=[*self.column_labels, result_label],
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
         return (block, result_id)
 
@@ -349,7 +401,7 @@ class Block:
             expr,
             index_columns=self.index_columns,
             column_labels=[*self.column_labels, result_label],
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
         return (block, result_id)
 
@@ -369,7 +421,7 @@ class Block:
             expr,
             index_columns=self.index_columns,
             column_labels=[*self.column_labels, result_label],
-            index_labels=[self.index.name],
+            index_labels=self.index.names,
         )
         return (block, result_id)
 
@@ -393,7 +445,7 @@ class Block:
                 skip_null_groups=skip_null_groups,
             )
             block = block.copy_values(result_id, col_id)
-            block = block.drop_columns(result_id)
+            block = block.drop_columns([result_id])
         return block
 
     def multi_apply_unary_op(
@@ -410,7 +462,7 @@ class Block:
                 result_label=label,
             )
             block = block.copy_values(result_id, col_id)
-            block = block.drop_columns(result_id)
+            block = block.drop_columns([result_id])
         return block
 
     def apply_window_op(
@@ -463,7 +515,7 @@ class Block:
                 expr,
                 index_columns=self.index_columns,
                 column_labels=labels,
-                index_labels=self._index_labels,
+                index_labels=self.index.names,
             ),
             result_id,
         )
@@ -483,7 +535,7 @@ class Block:
             filtered_expr,
             index_columns=self.index_columns,
             column_labels=self.column_labels,
-            index_labels=self._index_labels,
+            index_labels=self.index.names,
         )
 
     def aggregate_all_and_pivot(
@@ -511,7 +563,7 @@ class Block:
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
         expr = self._expr.select_columns([*self.index_columns, *ids])
         col_labels = self._get_labels_for_columns(ids)
-        return Block(expr, self.index_columns, col_labels, [self.index.name])
+        return Block(expr, self.index_columns, col_labels, self.index.names)
 
     def drop_columns(self, ids_to_drop: typing.Sequence[str]) -> Block:
         """Drops columns by id. Can drop index"""
@@ -524,7 +576,7 @@ class Block:
             col_id for col_id in self.value_columns if (col_id not in ids_to_drop)
         ]
         labels = self._get_labels_for_columns(remaining_value_col_ids)
-        return Block(expr, self.index_columns, labels, [self.index.name])
+        return Block(expr, self.index_columns, labels, self.index.names)
 
     def rename(self, *, columns: typing.Mapping[Label, Label]):
         # TODO(tbergeron) Support function(Callable) as columns parameter.
@@ -606,9 +658,8 @@ class Block:
             sliced_expr,
             index_columns=self.index_columns,
             column_labels=self.column_labels,
-            index_labels=[self.index.name],
+            index_labels=self._index_labels,
         )
-        # TODO(swast): Support MultiIndex.
         return block
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
@@ -635,7 +686,7 @@ class Block:
                 expr,
                 index_columns=self.index_columns,
                 column_labels=self.column_labels,
-                index_labels=self._index_labels,
+                index_labels=self.index.names,
             )
         if axis_number == 1:
             expr = self._expr
@@ -643,7 +694,7 @@ class Block:
                 self._expr,
                 index_columns=self.index_columns,
                 column_labels=[f"{prefix}{label}" for label in self.column_labels],
-                index_labels=self._index_labels,
+                index_labels=self.index.names,
             )
 
     def add_suffix(self, suffix: str, axis: str | int | None = None) -> Block:
@@ -658,7 +709,7 @@ class Block:
                 expr,
                 index_columns=self.index_columns,
                 column_labels=self.column_labels,
-                index_labels=self._index_labels,
+                index_labels=self.index.names,
             )
         if axis_number == 1:
             expr = self._expr
@@ -666,14 +717,23 @@ class Block:
                 self._expr,
                 index_columns=self.index_columns,
                 column_labels=[f"{label}{suffix}" for label in self.column_labels],
-                index_labels=self._index_labels,
+                index_labels=self.index.names,
             )
 
     def concat(
-        self, other: typing.Iterable[Block], how: typing.Literal["inner", "outer"]
+        self,
+        other: typing.Iterable[Block],
+        how: typing.Literal["inner", "outer"],
+        ignore_index=False,
     ):
-        # Only works if indices are the same type and types match wherever labels match
-        blocks = [self, *other]
+        blocks: typing.List[Block] = [self, *other]
+        if ignore_index:
+            blocks = [block.reset_index() for block in blocks]
+
+        result_labels = _align_indices(blocks)
+
+        index_nlevels = blocks[0].index.nlevels
+
         aligned_schema = _align_schema(blocks, how=how)
         aligned_blocks = [
             _align_block_to_schema(block, aligned_schema) for block in blocks
@@ -681,12 +741,15 @@ class Block:
         result_expr = aligned_blocks[0]._expr.concat(
             [block._expr for block in aligned_blocks[1:]]
         )
-        return Block(
+        result_block = Block(
             result_expr,
-            index_columns=[list(result_expr.column_names.keys())[0]],
+            index_columns=list(result_expr.column_names.keys())[:index_nlevels],
             column_labels=aligned_blocks[0].column_labels,
-            index_labels=[self.index.name],
+            index_labels=result_labels,
         )
+        if ignore_index:
+            result_block = result_block.reset_index()
+        return result_block
 
 
 def block_from_local(data, session=None, use_index=True) -> Block:
@@ -722,6 +785,7 @@ def block_from_local(data, session=None, use_index=True) -> Block:
 def _align_block_to_schema(
     block: Block, schema: dict[Label, bigframes.dtypes.Dtype]
 ) -> Block:
+    """For a given schema, remap block to schema by reordering columns and inserting nulls."""
     col_ids: typing.Tuple[str, ...] = ()
     for label, dtype in schema.items():
         # TODO: Support casting to lcd type - requires mixed type support
@@ -730,8 +794,7 @@ def _align_block_to_schema(
             col_id = matching_ids[-1]
             col_ids = (*col_ids, col_id)
         else:
-            block, precast_null = block.create_constant(None, dtype=dtype)
-            block, null_column = block.apply_unary_op(precast_null, ops.AsTypeOp(dtype))
+            block, null_column = block.create_constant(None, dtype=dtype)
             col_ids = (*col_ids, null_column)
     return block.select_columns(col_ids).with_column_labels(
         [item for item in schema.keys()]
@@ -744,6 +807,26 @@ def _align_schema(
     schemas = [_get_block_schema(block) for block in blocks]
     reduction = _combine_schema_inner if how == "inner" else _combine_schema_outer
     return functools.reduce(reduction, schemas)
+
+
+def _align_indices(blocks: typing.Sequence[Block]) -> typing.Sequence[Label]:
+    """Validates that the blocks have compatible indices and returns the resulting label names."""
+    names = blocks[0].index.names
+    types = blocks[0].index.dtypes
+    for block in blocks[1:]:
+        if len(names) != block.index.nlevels:
+            raise NotImplementedError(
+                "Cannot combine indices with different number of levels. Use 'ignore_index'=True."
+            )
+        if block.index.dtypes != types:
+            raise NotImplementedError(
+                "Cannot combine different index dtypes. Use 'ignore_index'=True."
+            )
+        names = [
+            lname if lname == rname else None
+            for lname, rname in zip(names, block.index.names)
+        ]
+    return names
 
 
 def _combine_schema_inner(

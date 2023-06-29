@@ -23,7 +23,8 @@ from bigframes.series import Series
 def concat(
     objs: typing.Iterable[typing.Union[DataFrame, Series]],
     *,
-    join: typing.Literal["inner", "outer"] = "outer"
+    join: typing.Literal["inner", "outer"] = "outer",
+    ignore_index: bool = False
 ) -> typing.Union[DataFrame, Series]:
     """Concatenate DataFrame or Series objects along rows.
 
@@ -31,7 +32,7 @@ def concat(
     """
     contains_dataframes = any(isinstance(x, DataFrame) for x in objs)
     if not contains_dataframes:
-        # Special case, all series, so align everything into single column even if labels dont' match
+        # Special case, all series, so align everything into single column even if labels don't match
         series = typing.cast(typing.Iterable[Series], objs)
         names = {s.name for s in series}
         # For series case, labels are stripped if they don't all match
@@ -39,8 +40,8 @@ def concat(
             blocks = [s._block.with_column_labels([None]) for s in series]
         else:
             blocks = [s._block for s in series]
-        block = blocks[0].concat(blocks[1:], how=join)
+        block = blocks[0].concat(blocks[1:], how=join, ignore_index=ignore_index)
         return Series(block)
     blocks = [obj._block for obj in objs]
-    block = blocks[0].concat(blocks[1:], how=join)
+    block = blocks[0].concat(blocks[1:], how=join, ignore_index=ignore_index)
     return DataFrame(block)

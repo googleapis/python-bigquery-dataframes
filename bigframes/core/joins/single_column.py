@@ -16,9 +16,11 @@
 
 from __future__ import annotations
 
+import typing
 from typing import Callable, Literal, Tuple
 
 import ibis
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes.core as core
@@ -29,9 +31,9 @@ import bigframes.core.ordering
 
 def join_by_column(
     left: core.ArrayValue,
-    left_column_id: str,
+    left_column_ids: typing.Sequence[str],
     right: core.ArrayValue,
-    right_column_id: str,
+    right_column_ids: typing.Sequence[str],
     *,
     how: Literal[
         "inner",
@@ -40,21 +42,25 @@ def join_by_column(
         "right",
     ],
     sort: bool = False,
-) -> Tuple[core.ArrayValue, str, Tuple[Callable[[str], str], Callable[[str], str]],]:
+) -> Tuple[
+    core.ArrayValue,
+    typing.Sequence[str],
+    Tuple[Callable[[str], str], Callable[[str], str]],
+]:
     """Join two expressions by column equality.
 
     Arguments:
         left: Expression for left table to join.
-        left_column_id: Column ID (not label) to join by.
+        left_column_ids: Column IDs (not label) to join by.
         right: Expression for right table to join.
-        right_column_id: Column ID (not label) to join by.
+        right_column_ids: Column IDs (not label) to join by.
         how: The type of join to perform.
 
     Returns:
         The joined expression and the objects needed to interpret it.
 
         * ArrayValue: Joined table with all columns from left and right.
-        * str: Column ID of the coalesced join column. Sometimes either the
+        * Sequence[str]: Column IDs of the coalesced join columns. Sometimes either the
           left/right table will have missing rows. This column pulls the
           non-NULL value from either left/right.
         * Tuple[Callable, Callable]: For a given column ID from left or right,
@@ -64,10 +70,11 @@ def join_by_column(
     if (
         how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
         and left.table.equals(right.table)
-        # Compare ibis expressions for left/right column because its possible that
-        # they both have the same name but were modified in different ways.
-        and left.get_any_column(left_column_id).equals(
-            right.get_any_column(right_column_id)
+        # Compare ibis expressions for left/right columns because its possible that
+        # they both have the same names but were modified in different ways.
+        and all(
+            left.get_any_column(lcol).equals(right.get_any_column(rcol))
+            for lcol, rcol in zip(left_column_ids, right_column_ids)
         )
     ):
         combined_expr, (
@@ -81,24 +88,26 @@ def join_by_column(
         left_table = left.to_ibis_expr(
             ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
         )
-        left_index = left_table[left_column_id]
         right_table = right.to_ibis_expr(
             ordering_mode="ordered_col", order_col_name=core.ORDER_ID_COLUMN
         )
-        right_index = right_table[right_column_id]
-        join_condition = left_index == right_index
+        join_conditions = [
+            value_to_join_key(left_table[left_index])
+            == value_to_join_key(right_table[right_index])
+            for left_index, right_index in zip(left_column_ids, right_column_ids)
+        ]
 
         combined_table = ibis.join(
             left_table,
             right_table,
-            predicates=join_condition,
+            predicates=join_conditions,
             how=how,
             lname="{name}_x",
             rname="{name}_y",
         )
 
         def get_column_left(key: str) -> str:
-            if how == "inner" and key == left_column_id:
+            if how == "inner" and key in left_column_ids:
                 # Don't rename the column if it's the index on an inner
                 # join.
                 pass
@@ -108,7 +117,7 @@ def join_by_column(
             return key
 
         def get_column_right(key: str) -> str:
-            if how == "inner" and key == right_column_id:
+            if how == "inner" and key in right_column_ids:
                 # Don't rename the column if it's the index on an inner
                 # join.
                 pass
@@ -153,23 +162,24 @@ def join_by_column(
             hidden_ordering_columns=hidden_columns,
         )
 
-    join_key_col = (
+    join_key_cols = list(
         # The left index and the right index might contain null values, for
         # example due to an outer join with different numbers of rows. Coalesce
         # these to take the index value from either column.
         ibis.coalesce(
-            combined_expr.get_column(get_column_left(left_column_id)),
-            combined_expr.get_column(get_column_right(right_column_id)),
+            combined_expr.get_column(get_column_left(lcol)),
+            combined_expr.get_column(get_column_right(rcol)),
         )
         # Use a random name in case the left index and the right index have the
         # same name. In such a case, _x and _y suffixes will already be used.
         .name(bigframes.core.guid.generate_guid(prefix="index_"))
+        for lcol, rcol in zip(left_column_ids, right_column_ids)
     )
 
     # We could filter out the original join columns, but predicates/ordering
     # might still reference them in implicit joins.
     columns = (
-        [join_key_col]
+        join_key_cols
         + [
             combined_expr.get_column(get_column_left(key))
             for key in left.column_names.keys()
@@ -182,7 +192,10 @@ def join_by_column(
 
     if sort:
         ordering = original_ordering.with_ordering_columns(
-            [core.OrderingColumnReference(join_key_col.get_name())]
+            [
+                core.OrderingColumnReference(join_key_col.get_name())
+                for join_key_col in join_key_cols
+            ]
         )
     else:
         ordering = original_ordering
@@ -193,9 +206,16 @@ def join_by_column(
     combined_expr = combined_expr_builder.build()
     return (
         combined_expr,
-        join_key_col.get_name(),
+        [key.get_name() for key in join_key_cols],
         (get_column_left, get_column_right),
     )
+
+
+def value_to_join_key(value: ibis_types.Value):
+    """Converts nullable values to non-null string SQL will not match null keys together - but pandas does."""
+    if not value.type().is_string():
+        value = value.cast(ibis_dtypes.str)
+    return value.fillna(ibis_types.literal("$NULL_SENTINEL$"))
 
 
 def _merge_order_ids(

@@ -75,7 +75,7 @@ class LocSeriesIndexer:
                 new_expr,
                 self._series._block.index_columns,
                 self._series._block.column_labels,
-                [self._series._block.index.name],
+                self._series._block.index.names,
             )
         )
 
@@ -154,10 +154,11 @@ def _loc_getitem_series_or_dataframe(
                 typing.Union[bigframes.DataFrame, bigframes.Series],
                 series_or_dataframe.iloc[0:0],
             )
+        index_name = series_or_dataframe.index.name
         keys_df = bigframes.DataFrame(
-            {"old_index": key}, session=series_or_dataframe._get_block().expr._session
+            {index_name: key}, session=series_or_dataframe._get_block().expr._session
         )
-        keys_df = keys_df.set_index("old_index", drop=True)
+        keys_df = keys_df.set_index(index_name, drop=True)
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
         raise NotImplementedError("loc does not yet support indexing with a slice")
@@ -175,7 +176,7 @@ def _perform_loc_list_join(
 ) -> bigframes.Series | bigframes.DataFrame:
     # right join based on the old index so that the matching rows from the user's
     # original dataframe will be duplicated and reordered appropriately
-    original_index_name = series_or_dataframe.index.name
+    original_index_names = series_or_dataframe.index.names
     if isinstance(series_or_dataframe, bigframes.Series):
         original_name = series_or_dataframe.name
         name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
@@ -184,7 +185,7 @@ def _perform_loc_list_join(
         result = result.rename(original_name)
     else:
         result = series_or_dataframe.join(keys_df, how="right")
-    result = result.rename_axis(original_index_name)
+    result = result.rename_axis(original_index_names)
     return result
 
 

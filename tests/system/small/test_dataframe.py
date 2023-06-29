@@ -598,14 +598,21 @@ def test_reset_index_with_unnamed_index_and_index_column(
     ),
 )
 @pytest.mark.parametrize(
+    ("append",),
+    (
+        (True,),
+        (False,),
+    ),
+)
+@pytest.mark.parametrize(
     ("index_column",),
     (("int64_too",), ("string_col",), ("timestamp_col",)),
 )
-def test_set_index(scalars_dfs, index_column, drop):
+def test_set_index(scalars_dfs, index_column, drop, append):
     scalars_df, scalars_pandas_df = scalars_dfs
-    df = scalars_df.set_index(index_column, drop=drop)
+    df = scalars_df.set_index(index_column, append=append, drop=drop)
     bf_result = df.compute()
-    pd_result = scalars_pandas_df.set_index(index_column, drop=drop)
+    pd_result = scalars_pandas_df.set_index(index_column, append=append, drop=drop)
 
     # Sort to disambiguate when there are duplicate index labels.
     # Note: Doesn't use assert_pandas_df_equal_ignore_ordering because we get

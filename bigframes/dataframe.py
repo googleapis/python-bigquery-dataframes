@@ -20,21 +20,10 @@ import random
 import re
 import textwrap
 import typing
-from typing import (
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import google.cloud.bigquery as bigquery
 import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types as ibis_types
 import numpy
 import pandas as pd
 import typing_extensions
@@ -169,22 +158,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             tolerance: True to pass through columns not found. False to raise
                 ValueError.
         """
-        columns = columns if _is_list_like(columns) else [columns]  # type:ignore
+        col_ids = self._sql_names(columns, tolerance)
+        return [self._block.value_columns.index(col_id) for col_id in col_ids]
 
-        # Dict of {col_label -> [indices]}
-        col_indices_dict: Dict[blocks.Label, List[int]] = {}
-        for i, col_label in enumerate(self._block.column_labels):
-            col_indices_dict[col_label] = col_indices_dict.get(col_label, [])
-            col_indices_dict[col_label].append(i)
-
-        indices = []
-        for n in columns:
-            if n not in col_indices_dict:
-                if not tolerance:
-                    raise ValueError(f"Column name {n} doesn't exist")
-            else:
-                indices += col_indices_dict[n]
-        return indices
+    def _resolve_label_exact(self, label) -> str:
+        matches = self._block.label_to_col_id.get(label, [])
+        if len(matches) != 1:
+            raise ValueError("Index data must be 1-dimensional")
+        return matches[0]
 
     def _sql_names(
         self,
@@ -192,9 +173,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         tolerance: bool = False,
     ) -> Sequence[str]:
         """Retrieve sql name (column name in BQ schema) of column(s)."""
-        indices = self._find_indices(columns, tolerance)
-
-        return [self._block.value_columns[i] for i in indices]
+        labels = columns if _is_list_like(columns) else [columns]  # type:ignore
+        results: Sequence[str] = []
+        for label in labels:
+            col_ids = self._block.label_to_col_id.get(label, [])
+            if not tolerance and len(col_ids) == 0:
+                raise ValueError(f"Column name {label} doesn't exist")
+            results = (*results, *col_ids)
+        return results
 
     @property
     def index(
@@ -268,13 +254,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # TODO(swast): Need to have a better way of controlling when to include
         # the index or not.
-        index_has_name = self.index.name is not None
-        if index_has_name:
+        index_has_names = all([name is not None for name in self.index.names])
+        if index_has_names:
             column_labels = column_labels + [typing.cast(str, self.index.name)]
         elif always_include_index:
             # In this mode include the index even if it is a nameless generated
             # column like 'bigframes_index_0'
-            column_labels = column_labels + [self._block.index_columns[0]]
+            index_ids_as_labels = [
+                typing.cast(blocks.Label, id) for id in self._block.index_columns
+            ]
+            column_labels = column_labels + index_ids_as_labels
 
         column_labels_deduped = typing.cast(
             List[str],
@@ -290,14 +279,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             substitutions[column_id] = column_label
 
         index_cols: List[Tuple[str, bool]] = []
-        if index_has_name or always_include_index:
-            if len(self._block.index_columns) != 1:
-                raise NotImplementedError("Only exactly 1 index column is supported")
-
-            substitutions[self._block.index_columns[0]] = column_labels_deduped[-1]
-            index_cols = [(column_labels_deduped[-1], index_has_name)]
+        first_index_offset = len(self._block.column_labels)
+        if index_has_names or always_include_index:
+            for i, index_col in enumerate(self._block.index_columns):
+                offset = first_index_offset + i
+                substitutions[index_col] = column_labels_deduped[offset]
+            index_cols = [
+                (label, index_has_names)
+                for label in column_labels_deduped[first_index_offset:]
+            ]
         else:
-            ibis_expr = ibis_expr.drop(self._block.index_columns[0])
+            ibis_expr = ibis_expr.drop(*self._block.index_columns)
 
         ibis_expr = ibis_expr.relabel(substitutions)
         return typing.cast(str, ibis_expr.compile()), index_cols
@@ -495,7 +487,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.drop_columns([get_column_left(column_id)])
 
         block = block.drop_columns([series_col])
-        block = block.with_index_labels([self.index.name])
+        block = block.with_index_labels(self.index.names)
         return DataFrame(block)
 
     def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
@@ -614,14 +606,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.rename(columns=columns)
         return DataFrame(block)
 
-    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        **kwargs,
+    ) -> DataFrame:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 "rename_axis does not currently support any keyword arguments."
             )
         # limited implementation: the new index name is simply the 'mapper' parameter
-        block = self._block.with_index_labels([mapper])
-        return DataFrame(block)
+        if _is_list_like(mapper):
+            labels = mapper
+        else:
+            labels = [mapper]
+        return DataFrame(self._block.with_index_labels(labels))
 
     def assign(self, **kwargs) -> DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
@@ -684,44 +683,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block.with_index_labels([self.index.name]))
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
-        original_index_ids = self._block.index_columns
-        if len(original_index_ids) != 1:
-            raise NotImplementedError("reset_index() doesn't yet support MultiIndex.")
         block = self._block.reset_index(drop)
         return DataFrame(block)
 
-    def set_index(self, keys: str, *, drop: bool = True) -> DataFrame:
-        expr = self._block.expr
-        prev_index_columns = self._block.index_columns
-
-        matching_col_ids = self._sql_names(keys, tolerance=False)
-
-        if len(matching_col_ids) > 1:
-            raise ValueError("Index data must be 1-dimensional")
-
-        key = matching_col_ids[0]
-
-        index_expr = typing.cast(ibis_types.Column, expr.get_column(key))
-
-        expr = expr.drop_columns(prev_index_columns)
-
-        column_labels = list(self._block.column_labels)
-        index_columns = self._sql_names(keys)
-        if not drop:
-            index_column_id = indexes.INDEX_COLUMN_ID.format(0)
-            index_expr = index_expr.name(index_column_id)
-            expr = expr.insert_column(0, index_expr)
-            index_columns = [index_column_id]
+    def set_index(
+        self,
+        keys: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        append: bool = False,
+        drop: bool = True,
+    ) -> DataFrame:
+        if not _is_list_like(keys):
+            keys = typing.cast(typing.Sequence[blocks.Label], (keys,))
         else:
-            column_labels.remove(keys)
-
-        block = blocks.Block(
-            expr,
-            index_columns=index_columns,
-            column_labels=column_labels,
-            index_labels=[keys],
-        )
-        return DataFrame(block)
+            keys = typing.cast(typing.Sequence[blocks.Label], tuple(keys))
+        col_ids = [self._resolve_label_exact(key) for key in keys]
+        return DataFrame(self._block.set_index(col_ids, append=append, drop=drop))
 
     def sort_index(self) -> DataFrame:
         index_columns = self._block.index_columns
@@ -852,13 +828,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         (
             joined_expr,
-            join_key_id,
+            join_key_ids,
             (get_column_left, get_column_right),
         ) = joins.join_by_column(
             left._block.expr,
-            left_on_sql,
+            [left_on_sql],
             right._block.expr,
-            right_on_sql,
+            [right_on_sql],
             how=how,
             sort=sort,
         )
@@ -866,7 +842,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # column IDs as the new labels.
         # Drop the index column(s) to be consistent with pandas.
         left_columns = [
-            join_key_id if col_id == left_on_sql else get_column_left(col_id)
+            join_key_ids[0] if (col_id == left_on_sql) else get_column_left(col_id)
             for col_id in left._block.value_columns
         ]
         right_columns = [
@@ -1233,8 +1209,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(chelsealin): check if works for multiple indexes.
         if index and self.index.name is not None:
             columns.extend(self._block.index_columns)
-            # TODO(swast): support MultiIndex
-            column_labels.append(self.index.name)
+            column_labels.extend(self.index.names)
         # TODO(chelsealin): normalize the file formats if we needs, such as arbitrary
         # unicode for column labels.
         value_columns = (expr.get_column(column_name) for column_name in columns)

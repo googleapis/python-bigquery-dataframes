@@ -228,6 +228,13 @@ class ArrayValue:
         expr_builder.columns = remain_cols
         return expr_builder.build()
 
+    def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
+        ibis_type = typing.cast(bigframes.dtypes.IbisDtype, self.get_column(key).type())
+        return typing.cast(
+            bigframes.dtypes.Dtype,
+            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_type),
+        )
+
     def get_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         if key not in self._column_names.keys():
