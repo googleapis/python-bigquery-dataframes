@@ -14,7 +14,7 @@
 
 import math
 
-import numpy
+import numpy as np
 import pandas as pd
 import pytest
 import sklearn.metrics as sklearn_metrics  # type: ignore
@@ -123,13 +123,14 @@ def test_roc_curve_binary_classification_prediction_returns_expected(session):
     pd_thresholds = thresholds.compute()
 
     pd.testing.assert_series_equal(
-        pd_thresholds,
+        # skip testing the first value, as it is redundant and inconsistent across sklearn versions
+        pd_thresholds[1:],
         pd.Series(
-            [1.9, 0.9, 0.8, 0.65, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.1],
+            [0.9, 0.8, 0.65, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.1],
             dtype="Float64",
             name="thresholds",
         ),
-        check_index_type=False,
+        check_index=False,
     )
     pd.testing.assert_series_equal(
         pd_fpr,
@@ -179,20 +180,21 @@ def test_roc_curve_binary_classification_prediction_matches_sklearn(session):
         pd_df[["y_true"]], pd_df[["y_score"]], drop_intermediate=False
     )
 
-    # sklearn returns float64 numpy arrays
+    # sklearn returns float64 np arrays
     np_fpr = fpr.compute().astype("float64").array
     np_tpr = tpr.compute().astype("float64").array
     np_thresholds = thresholds.compute().astype("float64").array
 
-    numpy.testing.assert_array_equal(
-        np_thresholds,
-        expected_thresholds,
+    np.testing.assert_array_equal(
+        # skip testing the first value, as it is redundant and inconsistent across sklearn versions
+        np_thresholds[1:],
+        expected_thresholds[1:],
     )
-    numpy.testing.assert_array_equal(
+    np.testing.assert_array_equal(
         np_fpr,
         expected_fpr,
     )
-    numpy.testing.assert_array_equal(
+    np.testing.assert_array_equal(
         np_tpr,
         expected_tpr,
     )
@@ -220,13 +222,14 @@ def test_roc_curve_binary_classification_decision_returns_expected(session):
     pd_thresholds = thresholds.compute()
 
     pd.testing.assert_series_equal(
-        pd_thresholds,
+        # skip testing the first value, as it is redundant and inconsistent across sklearn versions
+        pd_thresholds[1:],
         pd.Series(
-            [2.0, 1.0, 0.0],
-            dtype="Int64",
+            [1.0, 0.0],
+            dtype="Float64",
             name="thresholds",
         ),
-        check_index_type=False,
+        check_index=False,
     )
     pd.testing.assert_series_equal(
         pd_fpr,
@@ -272,20 +275,21 @@ def test_roc_curve_binary_classification_decision_matches_sklearn(session):
         pd_df[["y_true"]], pd_df[["y_score"]], drop_intermediate=False
     )
 
-    # sklearn returns float64 numpy arrays
+    # sklearn returns float64 np arrays
     np_fpr = fpr.compute().astype("float64").array
     np_tpr = tpr.compute().astype("float64").array
     np_thresholds = thresholds.compute().astype("float64").array
 
-    numpy.testing.assert_array_equal(
-        np_thresholds,
-        expected_thresholds,
+    np.testing.assert_array_equal(
+        # skip testing the first value, as it is redundant and inconsistent across sklearn versions
+        np_thresholds[1:],
+        expected_thresholds[1:],
     )
-    numpy.testing.assert_array_equal(
+    np.testing.assert_array_equal(
         np_fpr,
         expected_fpr,
     )
-    numpy.testing.assert_array_equal(
+    np.testing.assert_array_equal(
         np_tpr,
         expected_tpr,
     )

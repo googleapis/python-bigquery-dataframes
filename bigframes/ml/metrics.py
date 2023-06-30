@@ -19,6 +19,7 @@ import inspect
 import typing
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
 
@@ -143,12 +144,8 @@ def roc_curve(
     pd_df["fpr"] = pd_df.cum_fp / total_negatives
     pd_df["thresholds"] = pd_df.y_score
 
-    # sklearn includes an extra datapoint for the origin with threshold max(y_score) + 1
-    # TODO(bmil): is there a way to do this in BigFrames that doesn't violate SINGLE_QUERY
-    # and isn't terribly inefficient?
-    pd_origin = pd.DataFrame(
-        {"tpr": [0.0], "fpr": [0.0], "thresholds": [pd_df["y_score"].max() + 1]}
-    )
+    # sklearn includes an extra datapoint for the origin with threshold np.inf
+    pd_origin = pd.DataFrame({"tpr": [0.0], "fpr": [0.0], "thresholds": np.inf})
     pd_df = pd.concat([pd_origin, pd_df])
 
     df = session.read_pandas(pd_df)
