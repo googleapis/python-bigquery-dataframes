@@ -375,7 +375,7 @@ class ArrayValue:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.columns)
         sql = self.to_ibis_expr(ordering_mode="unordered").count().compile()
-        row_iterator, _ = self._session._start_sql_query(sql)
+        row_iterator, _ = self._session._start_query(sql)
         length = next(row_iterator)[0]
         return (length, width)
 
@@ -685,7 +685,7 @@ class ArrayValue:
         # maybe we just print the job metadata that we have so far?
         table = self.to_ibis_expr()
         sql = self._session.ibis_client.compile(table)  # type:ignore
-        return self._session._start_sql_query(
+        return self._session._start_query(
             sql=sql,
             job_config=job_config,
             max_results=max_results,

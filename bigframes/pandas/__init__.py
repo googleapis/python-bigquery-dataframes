@@ -171,6 +171,44 @@ def read_gbq_model(model_name: str):
 read_gbq_model.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_model)
 
 
+def read_gbq_query(
+    query: str,
+    *,
+    index_col: Iterable[str] | str = (),
+    col_order: Iterable[str] = (),
+    max_results: Optional[int] = None,
+) -> bigframes.dataframe.DataFrame:
+    return _with_default_session(
+        bigframes.session.Session.read_gbq_query,
+        query,
+        index_col=index_col,
+        col_order=col_order,
+        max_results=max_results,
+    )
+
+
+read_gbq_query.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_query)
+
+
+def read_gbq_table(
+    query: str,
+    *,
+    index_col: Iterable[str] | str = (),
+    col_order: Iterable[str] = (),
+    max_results: Optional[int] = None,
+) -> bigframes.dataframe.DataFrame:
+    return _with_default_session(
+        bigframes.session.Session.read_gbq_table,
+        query,
+        index_col=index_col,
+        col_order=col_order,
+        max_results=max_results,
+    )
+
+
+read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
+
+
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
     return _with_default_session(
         bigframes.session.Session.read_pandas,

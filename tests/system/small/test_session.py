@@ -122,6 +122,20 @@ def test_read_gbq_w_max_results(
     assert bf_result.shape[0] == max_results
 
 
+def test_read_gbq_w_script(session, dataset_id: str):
+    ddl = f"""
+    CREATE TABLE `{dataset_id}.test_read_gbq_w_ddl` (
+        `col_a` INT64,
+        `col_b` STRING
+    );
+
+    INSERT INTO `{dataset_id}.test_read_gbq_w_ddl`
+    VALUES (123, 'hello world');
+    """
+    df = session.read_gbq(ddl).to_pandas()
+    assert df["statement_type"][0] == "SCRIPT"
+
+
 def test_read_gbq_model(session, penguins_linear_model_name):
     model = session.read_gbq_model(penguins_linear_model_name)
     assert isinstance(model, bigframes.ml.linear_model.LinearRegression)

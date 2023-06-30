@@ -1248,7 +1248,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ]
         ibis_expr = ibis_expr.select(*renamed_columns)
         sql = session.ibis_client.compile(ibis_expr)  # type: ignore
-        _, query_job = session._start_sql_query(
+        _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
         )
         return query_job.destination

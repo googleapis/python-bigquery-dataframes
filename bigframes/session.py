@@ -290,17 +290,87 @@ class Session(
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if _is_query(query):
-            table_expression = self.ibis_client.sql(query)
+            return self.read_gbq_query(
+                query,
+                index_col=index_col,
+                col_order=col_order,
+                max_results=max_results,
+            )
         else:
-            # TODO(swast): Can we re-use the temp table from other reads in the
-            # session, if the original table wasn't modified?
-            table_ref = bigquery.table.TableReference.from_string(
-                query, default_project=self.bqclient.project
+            return self.read_gbq_table(
+                query,
+                index_col=index_col,
+                col_order=col_order,
+                max_results=max_results,
             )
-            table_expression = self.ibis_client.table(
-                table_ref.table_id,
-                database=f"{table_ref.project}.{table_ref.dataset_id}",
+
+    def read_gbq_query(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str = (),
+        col_order: Iterable[str] = (),
+        max_results: Optional[int] = None,
+    ) -> dataframe.DataFrame:
+        """Turn a SQL query into a DataFrame.
+
+        Note: Because the results are written to a temporary table, ordering by
+        ``ORDER BY`` is not preserved. A unique `index_col` is recommended. Use
+        ``row_number() over ()`` if there is no natural unique index or you
+        want to preserve ordering.
+
+        See also: :meth:`Session.read_gbq`.
+        """
+        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
+        # these docstrings are inline.
+        _, query_job = self._start_query(query)
+        query_job.result()  # Wait for job to finish.
+        destination = query_job.destination
+
+        # If there was no destination table, that means the query must have
+        # been DDL or DML. Return some job metadata, instead.
+        if not destination:
+            return dataframe.DataFrame(
+                data=pandas.DataFrame(
+                    {
+                        "statement_type": [query_job.statement_type],
+                        "job_id": [query_job.job_id],
+                        "location": [query_job.location],
+                    }
+                ),
+                session=self,
             )
+
+        return self.read_gbq_table(
+            f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
+            index_col=index_col,
+            col_order=col_order,
+            max_results=max_results,
+        )
+
+    def read_gbq_table(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str = (),
+        col_order: Iterable[str] = (),
+        max_results: Optional[int] = None,
+    ) -> dataframe.DataFrame:
+        """Turn a BigQuery table into a DataFrame.
+
+        See also: :meth:`Session.read_gbq`.
+        """
+        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
+        # these docstrings are inline.
+        # TODO(swast): Can we re-use the temp table from other reads in the
+        # session, if the original table wasn't modified?
+        table_ref = bigquery.table.TableReference.from_string(
+            query, default_project=self.bqclient.project
+        )
+        table_expression = self.ibis_client.table(
+            table_ref.table_id,
+            database=f"{table_ref.project}.{table_ref.dataset_id}",
+        )
 
         for key in col_order:
             if key not in table_expression.columns:
@@ -429,7 +499,12 @@ class Session(
             )
 
         load_job.result()  # Wait for the job to complete
-        return self.read_gbq(
+
+        # The BigQuery REST API for tables.get doesn't take a session ID, so we
+        # can't get the schema for a temp table that way.
+        # TODO(b/288312620): This results in a second job. If we have a unique
+        # index, we should be able to call _read_ibis() instead.
+        return self.read_gbq_query(
             f"SELECT * FROM `{table.table_id}`",
             index_col=index_col,
             col_order=col_order,
@@ -785,19 +860,6 @@ class Session(
             bigquery_connection=bigquery_connection,
             reuse=reuse,
         )
-
-    def _start_sql_query(
-        self,
-        sql: str,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
-    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        results_iterator, query_job = self._start_query(
-            sql,
-            job_config=job_config,
-            max_results=max_results,
-        )
-        return results_iterator, query_job
 
     def _start_query(
         self,
