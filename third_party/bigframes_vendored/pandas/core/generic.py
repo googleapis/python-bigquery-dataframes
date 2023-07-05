@@ -184,6 +184,23 @@ class NDFrame(indexing.IndexingMixin):
     # ----------------------------------------------------------------------
     # Unsorted
 
+    def get(self, key, default=None):
+        """
+        Get item from object for given key (ex: DataFrame column).
+
+        Returns default value if not found.
+
+        Args:
+            key: object
+
+        Returns:
+            same type as items contained in object
+        """
+        try:
+            return self[key]
+        except (KeyError, ValueError, IndexError):
+            return default
+
     def add_prefix(self, prefix: str, axis: int | str | None = None):
         """Prefix labels with string `prefix`.
 

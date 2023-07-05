@@ -77,6 +77,12 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
     assert series_pandas.shape[0] == scalars_pandas_df.shape[0]
 
 
+def test_series_get_column_default(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    result = scalars_df.get(123123123123123, "default_val")
+    assert result == "default_val"
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     (

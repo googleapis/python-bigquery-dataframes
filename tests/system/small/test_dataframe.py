@@ -121,11 +121,18 @@ def test_get_column_by_attr(scalars_dfs):
 def test_get_columns(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = ["bool_col", "float64_col", "int64_col"]
-    df_subset = scalars_df[col_names]
+    df_subset = scalars_df.get(col_names)
     df_pandas = df_subset.compute()
     pd.testing.assert_index_equal(
         df_pandas.columns, scalars_pandas_df[col_names].columns
     )
+
+
+def test_get_columns_default(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    col_names = ["not", "column", "names"]
+    result = scalars_df.get(col_names, "default_val")
+    assert result == "default_val"
 
 
 def test_drop_column(scalars_dfs):
