@@ -1,3 +1,4 @@
+.. _bigframes_ml:
 .. include:: README.rst
 
 API Reference

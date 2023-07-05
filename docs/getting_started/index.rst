@@ -23,4 +23,5 @@ Code sample
 Learn more
 ----------
 
-See :ref:`user_guide` for more samples.
+* See :ref:`user_guide` for more samples.
+* See :ref:`bigframes_ml` for more ML samples.
