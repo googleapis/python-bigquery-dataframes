@@ -57,11 +57,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @property
     def dtype(self):
-        return self._block.dtypes[0]
+        return self._dtype
 
     @property
     def dtypes(self):
-        return self._block.dtypes[0]
+        return self._dtype
 
     @property
     def index(self) -> indexes.Index:
@@ -659,45 +659,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise AttributeError(key)
 
-    def _align(self, other: Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
-        """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
-        values, block = self._align_n(
-            [
-                other,
-            ],
-            how,
-        )
-        return (values[0], values[1], block)
-
     def _align3(self, other1: Series | scalars.Scalar, other2: Series | scalars.Scalar, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
         values, index = self._align_n([other1, other2], how)
         return (values[0], values[1], values[2], index)
-
-    def _align_n(
-        self,
-        others: typing.Sequence[typing.Union[Series, scalars.Scalar]],
-        how="outer",
-    ) -> tuple[typing.Sequence[str], blocks.Block]:
-        value_ids = [self._value_column]
-        block = self._block
-        for other in others:
-            if isinstance(other, Series):
-                combined_index, (
-                    get_column_left,
-                    get_column_right,
-                ) = block.index.join(other._block.index, how=how)
-                value_ids = [
-                    *[get_column_left(value) for value in value_ids],
-                    get_column_right(other._value_column),
-                ]
-                block = combined_index._block
-            else:
-                # Will throw if can't interpret as scalar.
-                dtype = typing.cast(bigframes.dtypes.Dtype, self.dtype)
-                block, constant_col_id = block.create_constant(other, dtype=dtype)
-                value_ids = [*value_ids, constant_col_id]
-        return (value_ids, block)
 
     def _apply_aggregation(self, op: agg_ops.AggregateOp) -> Any:
         aggregation_result = typing.cast(
@@ -717,38 +682,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._value_column, op, window_spec=window_spec, result_label=self.name
         )
         return Series(block.select_column(result_id))
-
-    def _apply_binary_op(
-        self,
-        other: typing.Any,
-        op: ops.BinaryOp,
-        alignment: typing.Literal["outer", "left"] = "outer",
-    ) -> Series:
-        """Applies a binary operator to the series and other."""
-        if isinstance(other, pandas.Series):
-            # TODO: Convert to BigQuery DataFrame series
-            raise NotImplementedError(
-                "Pandas series not supported supported as operand."
-            )
-        if isinstance(other, Series):
-            (left, right, block) = self._align(other, how=alignment)
-
-            block, result_id = block.apply_binary_op(
-                left, right, op, self._value_column
-            )
-
-            name = self._name
-            if (
-                isinstance(other, Series)
-                and other.name != self.name
-                and alignment == "outer"
-            ):
-                name = None
-
-            return Series(block.select_column(result_id).assign_label(result_id, name))
-        else:
-            partial_op = ops.BinopPartialRight(op, other)
-            return self._apply_unary_op(partial_op)
 
     def value_counts(self):
         counts = self.groupby(self).count()

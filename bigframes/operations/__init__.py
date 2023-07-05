@@ -289,6 +289,15 @@ def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = N
     return short_circuit_nulls_inner
 
 
+def concat_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    x_string = typing.cast(ibis_types.StringValue, x)
+    y_string = typing.cast(ibis_types.StringValue, y)
+    return x_string.concat(y_string)
+
+
 def eq_op(
     x: ibis_types.Value,
     y: ibis_types.Value,

@@ -210,3 +210,21 @@ def test_capitalize(scalars_dfs):
         pd_result,
         bf_result,
     )
+
+
+def test_cat_with_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_filter: bigframes.series.Series = scalars_df["bool_col"]
+    bf_left: bigframes.series.Series = scalars_df[col_name][bf_filter]
+    bf_right: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_left.str.cat(others=bf_right).compute()
+    pd_filter = scalars_pandas_df["bool_col"]
+    pd_left = scalars_pandas_df[col_name][pd_filter]
+    pd_right = scalars_pandas_df[col_name]
+    pd_result = pd_left.str.cat(others=pd_right)
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )

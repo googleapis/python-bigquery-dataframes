@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, Union
+
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
@@ -69,3 +71,12 @@ class StringMethods(bigframes.operations.base.SeriesMethods):
     def capitalize(self) -> series.Series:
         """Convert strings in the Series to be capitalized."""
         return self._apply_unary_op(ops.capitalize_op)
+
+    def cat(
+        self,
+        others: Union[str, series.Series],
+        *,
+        join: Literal["outer", "left"] = "left",
+    ) -> series.Series:
+        """Concatenate strings in the Series with given separator."""
+        return self._apply_binary_op(others, ops.concat_op, alignment=join)

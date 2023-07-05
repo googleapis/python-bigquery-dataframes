@@ -20,6 +20,7 @@ import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.core.blocks as blocks
+import bigframes.core.scalar as scalars
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series as series
@@ -101,6 +102,10 @@ class SeriesMethods:
     def _name(self) -> blocks.Label:
         return self._block.column_labels[0]
 
+    @property
+    def _dtype(self):
+        return self._block.dtypes[0]
+
     def _set_block(self, block: blocks.Block):
         self._block = block
 
@@ -116,3 +121,72 @@ class SeriesMethods:
             self._value_column, op, result_label=self._name
         )
         return series.Series(block.select_column(result_id))
+
+    def _apply_binary_op(
+        self,
+        other: typing.Any,
+        op: ops.BinaryOp,
+        alignment: typing.Literal["outer", "left"] = "outer",
+    ) -> series.Series:
+        """Applies a binary operator to the series and other."""
+        if isinstance(other, pd.Series):
+            # TODO: Convert to BigQuery DataFrame series
+            raise NotImplementedError(
+                "Pandas series not supported supported as operand."
+            )
+        if isinstance(other, series.Series):
+            (left, right, block) = self._align(other, how=alignment)
+
+            block, result_id = block.apply_binary_op(
+                left, right, op, self._value_column
+            )
+
+            name = self._name
+            if (
+                isinstance(other, series.Series)
+                and other.name != self._name
+                and alignment == "outer"
+            ):
+                name = None
+
+            return series.Series(
+                block.select_column(result_id).assign_label(result_id, name)
+            )
+        else:
+            partial_op = ops.BinopPartialRight(op, other)
+            return self._apply_unary_op(partial_op)
+
+    def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
+        """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
+        values, block = self._align_n(
+            [
+                other,
+            ],
+            how,
+        )
+        return (values[0], values[1], block)
+
+    def _align_n(
+        self,
+        others: typing.Sequence[typing.Union[series.Series, scalars.Scalar]],
+        how="outer",
+    ) -> tuple[typing.Sequence[str], blocks.Block]:
+        value_ids = [self._value_column]
+        block = self._block
+        for other in others:
+            if isinstance(other, series.Series):
+                combined_index, (
+                    get_column_left,
+                    get_column_right,
+                ) = block.index.join(other._block.index, how=how)
+                value_ids = [
+                    *[get_column_left(value) for value in value_ids],
+                    get_column_right(other._value_column),
+                ]
+                block = combined_index._block
+            else:
+                # Will throw if can't interpret as scalar.
+                dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)
+                block, constant_col_id = block.create_constant(other, dtype=dtype)
+                value_ids = [*value_ids, constant_col_id]
+        return (value_ids, block)
