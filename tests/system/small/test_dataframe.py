@@ -99,6 +99,17 @@ def test_head_with_custom_column_labels(scalars_df_index, scalars_pandas_df_inde
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_index):
+    rename_mapping = {
+        "int64_col": "Integer Column",
+        "string_col": "言語列",
+    }
+    bf_df = scalars_df_index.rename(columns=rename_mapping).tail(3)
+    bf_result = bf_df.compute()
+    pd_result = scalars_pandas_df_index.rename(columns=rename_mapping).tail(3)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_get_column_by_attr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     series = scalars_df.int64_col

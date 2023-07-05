@@ -1020,6 +1020,21 @@ def test_head(scalars_dfs):
     )
 
 
+def test_tail(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    if scalars_df.index.name is None:
+        pytest.skip("Require explicit index for offset ops.")
+
+    bf_result = scalars_df["string_col"].tail(2).compute()
+    pd_result = scalars_pandas_df["string_col"].tail(2)
+
+    assert_series_equal_ignoring_order(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_head_then_scalar_operation(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

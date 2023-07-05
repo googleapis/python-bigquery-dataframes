@@ -599,6 +599,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def head(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[:n])
 
+    def tail(self, n: int = 5) -> DataFrame:
+        return typing.cast(DataFrame, self.iloc[-n:])
+
     def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
         if not _is_list_like(columns):
             columns = [columns]  # type:ignore

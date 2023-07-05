@@ -241,6 +241,26 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError("abstract method")
 
+    def tail(self, n: int = 5):
+        """Return the last `n` rows.
+
+        This function returns last `n` rows from the object based on
+        position. It is useful for quickly verifying data, for example,
+        after sorting or appending rows.
+
+        For negative values of `n`, this function returns all rows except
+        the first `|n|` rows, equivalent to ``df[|n|:]``.
+
+        If n is larger than the number of rows, this function returns all rows.
+
+        Args:
+            n: int, default 5.  Number of rows to select.
+
+        Returns:
+            The last `n` rows of the caller object.
+        """
+        raise NotImplementedError("abstract method")
+
     def sample(
         self,
         n: Optional[int] = None,

@@ -283,6 +283,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def head(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[0:n])
 
+    def tail(self, n: int = 5) -> Series:
+        return typing.cast(Series, self.iloc[-n:])
+
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
