@@ -14,7 +14,7 @@ DataFrameGroupBy
 SeriesGroupBy
 -------------
 
-.. autoclass:: bigframes.series.SeriesGroupBy
+.. autoclass:: bigframes.core.groupby.SeriesGroupBy
     :members:
     :inherited-members:
     :undoc-members:

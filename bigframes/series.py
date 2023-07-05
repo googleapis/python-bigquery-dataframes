@@ -31,6 +31,7 @@ import bigframes.core
 from bigframes.core import WindowSpec
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.indexes.implicitjoiner
@@ -845,7 +846,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         # If all validations passed, must be grouping on the single-level index
         group_key = self._block.index_columns[0]
-        return SeriesGroupBy(
+        return groupby.SeriesGroupBy(
             self._block,
             self._value_column,
             group_key,
@@ -860,7 +861,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         dropna: bool = True,
     ):
         (value, key, block) = self._align(by, "inner" if dropna else "left")
-        return SeriesGroupBy(
+        return groupby.SeriesGroupBy(
             block,
             value,
             key,
@@ -1007,146 +1008,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 self._value_column
             ),
         )
-
-
-class SeriesGroupBy:
-    """Represents a deferred series with a grouping expression."""
-
-    def __init__(
-        self,
-        block: blocks.Block,
-        value_column: str,
-        by: str,
-        value_name: typing.Optional[str] = None,
-        key_name: typing.Optional[str] = None,
-        dropna=True,
-    ):
-        # TODO(tbergeron): Support more group-by expression types
-        self._block = block
-        self._value_column = value_column
-        self._by = by
-        self._value_name = value_name
-        self._key_name = key_name
-        self._dropna = dropna  # Applies to aggregations but not windowing
-
-    @property
-    def value(self):
-        return self._block.expr.get_column(self._value_column)
-
-    def all(self) -> Series:
-        """Returns true if and only if all elements are True. Nulls are ignored"""
-        return self._aggregate(agg_ops.all_op)
-
-    def any(self) -> Series:
-        """Returns true if and only if at least one element is True. Nulls are ignored"""
-        return self._aggregate(agg_ops.any_op)
-
-    def count(self) -> Series:
-        """Counts the number of elements in each group. Ignores null/nan."""
-        return self._aggregate(agg_ops.count_op)
-
-    def sum(self) -> Series:
-        """Sums the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(agg_ops.sum_op)
-
-    def mean(self) -> Series:
-        """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(agg_ops.mean_op)
-
-    def std(self) -> Series:
-        """Return the standard deviation of the values in each group in the series."""
-        return self._aggregate(agg_ops.std_op)
-
-    def var(self) -> Series:
-        """Return the variance of the values in each group in the series."""
-        return self._aggregate(agg_ops.var_op)
-
-    def prod(self) -> Series:
-        """Finds the mean of the numeric values for each group in the series. Ignores null/nan."""
-        return self._aggregate(agg_ops.product_op)
-
-    def cumsum(self) -> Series:
-        """Calculate the cumulative sum of values in each grouping."""
-        return self._apply_window_op(
-            agg_ops.sum_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
-        )
-
-    def cumprod(self) -> Series:
-        """Calculate the cumulative product of values in each grouping."""
-        return self._apply_window_op(
-            agg_ops.product_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
-        )
-
-    def cummax(self) -> Series:
-        """Calculate the cumulative maximum of values in each grouping."""
-        return self._apply_window_op(
-            agg_ops.max_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
-        )
-
-    def cummin(self) -> Series:
-        """Calculate the cumulative minimum of values in each grouping."""
-        return self._apply_window_op(
-            agg_ops.min_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
-        )
-
-    def cumcount(self) -> Series:
-        """Calculate the cumulative count of values within each grouping."""
-        return self._apply_window_op(
-            agg_ops.rank_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
-            discard_name=True,
-        )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
-
-    def shift(self, periods=1) -> Series:
-        """Shift index by desired number of periods."""
-        window = bigframes.core.WindowSpec(
-            grouping_keys=(self._by,),
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
-
-    def diff(self) -> Series:
-        """Difference between each element and previous element."""
-        return self._ungroup() - self.shift(1)
-
-    def _ungroup(self) -> Series:
-        """Convert back to regular series, without aggregating."""
-        return Series(self._block.select_column(self._value_column))
-
-    def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> Series:
-        aggregate_col_id = self._value_column + "_bf_aggregated"
-        result_block = self._block.aggregate(
-            [self._by],
-            ((self._value_column, aggregate_op, aggregate_col_id),),
-            dropna=self._dropna,
-        )
-
-        return Series(
-            result_block.select_column(aggregate_col_id).assign_label(
-                aggregate_col_id, self._value_name
-            )
-        )
-
-    def _apply_window_op(
-        self,
-        op: agg_ops.WindowOp,
-        window_spec: bigframes.core.WindowSpec,
-        discard_name=False,
-    ):
-        label = self._value_name if not discard_name else None
-        block, result_id = self._block.apply_window_op(
-            self._value_column,
-            op,
-            result_label=label,
-            window_spec=window_spec,
-            skip_null_groups=self._dropna,
-        )
-        return Series(block.select_column(result_id))
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
