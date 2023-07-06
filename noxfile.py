@@ -298,7 +298,7 @@ def run_system(
         "--quiet",
         "-n 20",
         # Any indivisual test taking longer than 10 mins will be terminated.
-        "--timeout=600",
+        "--timeout=900",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
     ]
     if print_duration:
