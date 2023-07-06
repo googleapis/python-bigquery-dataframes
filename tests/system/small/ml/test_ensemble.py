@@ -170,7 +170,7 @@ def test_xgbclassifier_model_predict(
     )
 
 
-def test_to_gbq_saved_xgclassifier_model_scores(
+def test_to_gbq_saved_xgbclassifier_model_scores(
     penguins_xgbclassifier_model, dataset_id, penguins_df_default_index
 ):
     saved_model = penguins_xgbclassifier_model.to_gbq(
@@ -212,7 +212,7 @@ def test_to_gbq_saved_xgclassifier_model_scores(
     assert saved_model.max_iterations == 20
 
 
-def test_to_xgclassifier_model_gbq_replace(penguins_xgbclassifier_model, dataset_id):
+def test_to_xgbclassifier_model_gbq_replace(penguins_xgbclassifier_model, dataset_id):
     penguins_xgbclassifier_model.to_gbq(
         f"{dataset_id}.test_penguins_model", replace=True
     )
@@ -324,5 +324,104 @@ def test_to_randomforestregressor_model_gbq_replace(
     )
     with pytest.raises(google.api_core.exceptions.Conflict):
         penguins_randomforest_regressor_model.to_gbq(
+            f"{dataset_id}.test_penguins_model"
+        )
+
+
+def test_randomforestclassifier_model_score(
+    penguins_randomforest_classifier_model, penguins_df_default_index
+):
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = penguins_randomforest_classifier_model.score(test_X, test_y).compute()
+    TestCase().assertSequenceEqual(result.shape, (1, 6))
+    for col_name in [
+        "precision",
+        "recall",
+        "accuracy",
+        "f1_score",
+        "log_loss",
+        "roc_auc",
+    ]:
+        assert col_name in result.columns
+
+
+def test_randomforestclassifier_model_predict(
+    penguins_randomforest_classifier_model: bigframes.ml.ensemble.RandomForestClassifier,
+    new_penguins_df,
+):
+    result = penguins_randomforest_classifier_model.predict(new_penguins_df).compute()
+    expected = pandas.DataFrame(
+        {"predicted_sex": ["MALE", "MALE", "FEMALE"]},
+        dtype="string[pyarrow]",
+        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pandas.testing.assert_frame_equal(
+        result.sort_index(),
+        expected,
+        check_exact=False,
+        rtol=0.1,
+        check_index_type=False,
+    )
+
+
+def test_to_gbq_saved_randomforestclassifier_model_scores(
+    penguins_randomforest_classifier_model, dataset_id, penguins_df_default_index
+):
+    saved_model = penguins_randomforest_classifier_model.to_gbq(
+        f"{dataset_id}.test_penguins_model", replace=True
+    )
+    df = penguins_df_default_index.dropna()
+    test_X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "body_mass_g",
+        ]
+    ]
+    test_y = df[["sex"]]
+    result = saved_model.score(test_X, test_y).compute()
+    expected = pandas.DataFrame(
+        {
+            "precision": [0.636746],
+            "recall": [0.638636],
+            "accuracy": [0.95509],
+            "f1_score": [0.637688],
+            "log_loss": [0.886307],
+            "roc_auc": [0.966543],
+        },
+        dtype="Float64",
+    )
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+        rtol=0.1,
+        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
+        check_index_type=False,
+    )
+
+
+def test_to_randomforestclassifier_model_gbq_replace(
+    penguins_randomforest_classifier_model, dataset_id
+):
+    penguins_randomforest_classifier_model.to_gbq(
+        f"{dataset_id}.test_penguins_model", replace=True
+    )
+    with pytest.raises(google.api_core.exceptions.Conflict):
+        penguins_randomforest_classifier_model.to_gbq(
             f"{dataset_id}.test_penguins_model"
         )

@@ -39,6 +39,7 @@ def from_bq(
     bigframes.ml.ensemble.XGBClassifier,
     bigframes.ml.forecasting.ARIMAPlus,
     bigframes.ml.ensemble.RandomForestRegressor,
+    bigframes.ml.ensemble.RandomForestClassifier,
 ]:
     """Load a BQML model to BigQuery DataFrame ML.
 
@@ -65,6 +66,8 @@ def from_bq(
         return bigframes.ml.forecasting.ARIMAPlus._from_bq(session, model)
     elif model.model_type == "RANDOM_FOREST_REGRESSOR":
         return bigframes.ml.ensemble.RandomForestRegressor._from_bq(session, model)
+    elif model.model_type == "RANDOM_FOREST_CLASSIFIER":
+        return bigframes.ml.ensemble.RandomForestClassifier._from_bq(session, model)
     else:
         raise NotImplementedError(
             f"Model type {model.model_type} is not yet supported by BigQuery DataFrame."
