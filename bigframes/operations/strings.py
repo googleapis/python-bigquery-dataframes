@@ -14,22 +14,26 @@
 
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
+import third_party.bigframes_vendored.pandas.core.strings.accessor as vendorstr
 
 
-class StringMethods(bigframes.operations.base.SeriesMethods):
-    """Methods that act on a string Series."""
+class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMethods):
+    __doc__ = vendorstr.StringMethods.__doc__
 
-    def find(self, sub, start=None, end=None) -> series.Series:
-        """Return the position of the first occurence of substring."""
+    def find(
+        self,
+        sub: str,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
+    ) -> series.Series:
         return self._apply_unary_op(ops.FindOp(sub, start, end))
 
     def len(self) -> series.Series:
-        """Compute the length of each string."""
         return self._apply_unary_op(ops.len_op)
 
     def lower(self) -> series.Series:
