@@ -17,6 +17,7 @@ import typing
 
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.ordering as ordering
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -75,3 +76,40 @@ def drop_duplicates(
     return block.filter(keep_indicator_id).drop_columns(
         (dupe_indicator_id, keep_indicator_id)
     )
+
+
+def value_counts(
+    block: blocks.Block,
+    columns: typing.Sequence[str],
+    normalize: bool = False,
+    sort: bool = True,
+    ascending: bool = False,
+    dropna: bool = True,
+):
+    block, dummy = block.create_constant(1)
+    block, agg_ids = block.aggregate(
+        by_column_ids=columns,
+        aggregations=[(dummy, agg_ops.count_op)],
+        dropna=dropna,
+        as_index=True,
+    )
+    count_id = agg_ids[0]
+    if normalize:
+        unbound_window = core.WindowSpec()
+        block, total_count_id = block.apply_window_op(
+            count_id, agg_ops.sum_op, unbound_window
+        )
+        block, count_id = block.apply_binary_op(count_id, total_count_id, ops.div_op)
+
+    if sort:
+        block = block.order_by(
+            [
+                ordering.OrderingColumnReference(
+                    count_id,
+                    direction=ordering.OrderingDirection.ASC
+                    if ascending
+                    else ordering.OrderingDirection.DESC,
+                )
+            ]
+        )
+    return block.select_column(count_id).with_column_labels(["count"])

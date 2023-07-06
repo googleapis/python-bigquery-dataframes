@@ -1446,3 +1446,32 @@ def test_df_duplicated(scalars_df_index, scalars_pandas_df_index, keep, subset):
     bf_series = scalars_df_index[columns].duplicated(subset, keep=keep).compute()
     pd_series = scalars_pandas_df_index[columns].duplicated(subset, keep=keep)
     pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("subset", "normalize", "ascending", "dropna"),
+    [
+        (None, False, False, False),
+        (None, True, True, True),
+        ("bool_col", True, False, True),
+    ],
+)
+def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (
+        scalars_df[["string_col", "bool_col"]]
+        .value_counts(subset, normalize=normalize, ascending=ascending, dropna=dropna)
+        .compute()
+    )
+    pd_result = scalars_pandas_df[["string_col", "bool_col"]].value_counts(
+        subset, normalize=normalize, ascending=ascending, dropna=dropna
+    )
+
+    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
+    pd_result.name = "count"
+    pd_result.index.names = bf_result.index.names
+
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )

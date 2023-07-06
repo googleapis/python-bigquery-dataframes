@@ -742,6 +742,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return DataFrame(self._block.order_by(ordering))
 
+    def value_counts(
+        self,
+        subset: typing.Union[blocks.Label, typing.Sequence[blocks.Label]] = None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        # 'sort'=False allows arbitrary sorting, so we will sort anyways and ignore the param
+        columns = self._sql_names(subset) if subset else self._block.value_columns
+        block = block_ops.value_counts(
+            self._block,
+            columns,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            dropna=dropna,
+        )
+        return bigframes.series.Series(block)
+
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> DataFrame:
         return DataFrame(self._get_block().add_prefix(prefix, axis))
 

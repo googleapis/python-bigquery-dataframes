@@ -981,3 +981,31 @@ class DataFrame(NDFrame):
     def columns(self):
         "The column labels of the DataFrame."
         raise NotImplementedError("abstract method")
+
+    def value_counts(
+        self,
+        subset=None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        """
+        Return a Series containing counts of unique rows in the DataFrame.
+
+        Args:
+            subset : label or list of labels, optional
+                Columns to use when counting unique combinations.
+            normalize : bool, default False
+                Return proportions rather than frequencies.
+            sort : bool, default True
+                Sort by frequencies.
+            ascending : bool, default False
+                Sort in ascending order.
+            dropna : bool, default True
+                Don’t include counts of rows that contain NA values.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")

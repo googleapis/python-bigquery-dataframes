@@ -1472,6 +1472,37 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        *,
+        dropna: bool = True,
+    ) -> Series:
+        """
+        Return a Series containing counts of unique values.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently-occurring element.
+        Excludes NA values by default.
+
+        Args:
+            normalize : bool, default False
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool, default True
+                Sort by frequencies.
+            ascending : bool, default False
+                Sort in ascending order.
+            dropna : bool, default True
+                Don't include counts of NaN.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
     @property
     def str(self):
         """

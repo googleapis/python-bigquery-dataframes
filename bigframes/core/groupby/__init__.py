@@ -139,11 +139,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         self, aggregate_op: agg_ops.AggregateOp, numeric_only: bool = False
     ) -> df.DataFrame:
         aggregated_col_ids = self._aggregated_columns(numeric_only=numeric_only)
-        aggregations = [
-            (col_id, aggregate_op, col_id + "_bf_aggregated")
-            for col_id in aggregated_col_ids
-        ]
-        result_block = self._block.aggregate(
+        aggregations = [(col_id, aggregate_op) for col_id in aggregated_col_ids]
+        result_block, _ = self._block.aggregate(
             self._by_col_ids,
             aggregations,
             as_index=self._as_index,
@@ -287,18 +284,13 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return series.Series(self._block.select_column(self._value_column))
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> series.Series:
-        aggregate_col_id = self._value_column + "_bf_aggregated"
-        result_block = self._block.aggregate(
+        result_block, _ = self._block.aggregate(
             [self._by],
-            ((self._value_column, aggregate_op, aggregate_col_id),),
+            ((self._value_column, aggregate_op),),
             dropna=self._dropna,
         )
 
-        return series.Series(
-            result_block.select_column(aggregate_col_id).assign_label(
-                aggregate_col_id, self._value_name
-            )
-        )
+        return series.Series(result_block.with_column_labels([self._value_name]))
 
     def _apply_window_op(
         self,

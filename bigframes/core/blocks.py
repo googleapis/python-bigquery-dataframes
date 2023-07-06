@@ -588,42 +588,52 @@ class Block:
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str],
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]],
         *,
         as_index: bool = True,
         dropna: bool = True,
-    ) -> Block:
+    ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
         Apply aggregations to the block. Callers responsible for setting index column(s) after.
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index
-            aggregations: input_column_id, operation, output_column_id tuples
+            aggregations: input_column_id, operation tuples
             as_index: if True, grouping keys will be index columns in result, otherwise they will be non-index columns.
             dropna: whether null keys should be dropped
         """
-        result_expr = self.expr.aggregate(aggregations, by_column_ids, dropna=dropna)
+        agg_specs = [
+            (input_id, operation, guid.generate_guid())
+            for input_id, operation in aggregations
+        ]
+        output_col_ids = [agg_spec[2] for agg_spec in agg_specs]
+        result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
 
         aggregate_labels = self._get_labels_for_columns(
             [agg[0] for agg in aggregations]
         )
         if as_index:
             # TODO: Generalize to multi-index
-            by_col_id = by_column_ids[0]
-            if by_col_id in self.index_columns:
-                # Groupby level 0 case, keep index name
-                index_name = self.index.name
-            else:
-                index_name = self.col_id_to_label[by_col_id]
-            return Block(
-                result_expr,
-                index_columns=by_column_ids,
-                column_labels=aggregate_labels,
-                index_labels=[index_name],
+            names: typing.List[Label] = []
+            for by_col_id in by_column_ids:
+                if by_col_id in self.index_columns:
+                    # Groupby level 0 case, keep index name
+                    index_name = self.col_id_to_index_name[by_col_id]
+                else:
+                    index_name = self.col_id_to_label[by_col_id]
+                names.append(index_name)
+            return (
+                Block(
+                    result_expr,
+                    index_columns=by_column_ids,
+                    column_labels=aggregate_labels,
+                    index_labels=names,
+                ),
+                output_col_ids,
             )
         else:
             by_column_labels = self._get_labels_for_columns(by_column_ids)
             labels = (*by_column_labels, *aggregate_labels)
-            return Block(result_expr, column_labels=labels)
+            return Block(result_expr, column_labels=labels), output_col_ids
 
     def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
         """Get column label for value columns, or index name for index columns"""

@@ -535,12 +535,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def mode(self) -> Series:
         block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
-        value_count_col_id = self._value_column + "_bf_internal_value_count"
-        block = block.aggregate(
+        block, agg_ids = block.aggregate(
             [self._value_column],
-            ((self._value_column, agg_ops.count_op, value_count_col_id),),
+            ((self._value_column, agg_ops.count_op),),
             as_index=False,
         )
+        value_count_col_id = agg_ids[0]
         block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
@@ -683,21 +683,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block.select_column(result_id))
 
-    def value_counts(self):
-        counts = self.groupby(self).count()
-        block = counts._block
-        block = block.order_by(
-            [
-                OrderingColumnReference(
-                    counts._value_column, direction=OrderingDirection.DESC
-                )
-            ]
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        *,
+        dropna: bool = True,
+    ):
+        block = block_ops.value_counts(
+            self._block,
+            [self._value_column],
+            normalize=normalize,
+            ascending=ascending,
+            dropna=dropna,
         )
-        return Series(
-            block.select_column(counts._value_column).assign_label(
-                counts._value_column, "count"
-            )
-        )
+        return Series(block)
 
     def sort_values(self, *, axis=0, ascending=True, na_position="last") -> Series:
         if na_position not in ["first", "last"]:
