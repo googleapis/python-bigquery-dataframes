@@ -113,6 +113,7 @@ class RemoteFunctionClient:
         bq_location,
         bq_dataset,
         bq_client,
+        bq_connection_client,
         bq_connection_id,
     ):
         self._gcp_project_id = gcp_project_id
@@ -120,6 +121,7 @@ class RemoteFunctionClient:
         self._bq_location = bq_location
         self._bq_dataset = bq_dataset
         self._bq_client = bq_client
+        self._bq_connection_client = bq_connection_client
         self._bq_connection_id = bq_connection_id
 
     def create_bq_remote_function(
@@ -204,7 +206,7 @@ class RemoteFunctionClient:
 
     def create_bq_connection(self):
         """Create the BigQuery Connection and returns corresponding service account id."""
-        client = bigquery_connection_v1.ConnectionServiceClient()
+        client = self._bq_connection_client
         connection = bigquery_connection_v1.Connection(
             cloud_resource=bigquery_connection_v1.CloudResourceProperties()
         )
@@ -218,7 +220,7 @@ class RemoteFunctionClient:
 
     def check_bq_connection_exists(self):
         """Check if the BigQuery Connection exists."""
-        client = bigquery_connection_v1.ConnectionServiceClient()
+        client = self._bq_connection_client
         request = bigquery_connection_v1.GetConnectionRequest(
             name=client.connection_path(
                 self._gcp_project_id, self._bq_location, self._bq_connection_id
@@ -476,6 +478,9 @@ def remote_function(
     output_type: type,
     session: typing.Optional[Session] = None,
     bigquery_client: typing.Optional[bigquery.Client] = None,
+    bigquery_connection_client: typing.Optional[
+        bigquery_connection_v1.ConnectionServiceClient
+    ] = None,
     dataset: typing.Optional[str] = None,
     bigquery_connection: typing.Optional[str] = None,
     reuse: bool = True,
@@ -496,16 +501,21 @@ def remote_function(
         bigquery_client : google.cloud.bigquery.Client, Optional
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
+        bigquery_connection_client : google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional
+            Client to use for BigQuery connection operations. If this param is
+            not provided then bigquery connection client from the session would
+            be used.
         dataset : str, Optional.
             Dataset to use to create a BigQuery function. It should be in
             `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
             param is not provided then session dataset id would be used.
         bigquery_connection : str, Optional.
-            Name of the BigQuery connection. If it is pre created in the same
-            location as the `bigquery_client.location` then it would be used,
-            otherwise it would be created dynamically assuming the user has
-            necessary priviliges. If this param is not provided then the
-            bigquery connection from the session would be used.
+            Name of the BigQuery connection. If this param is not provided then
+            the bigquery connection from the session would be used. If it is pre
+            created in the same location as the `bigquery_client.location` then
+            it would be used, otherwise it would be created dynamically using
+            the `bigquery_connection_client` assuming the user has necessary
+            priviliges.
         reuse : bool, Optional.
             Reuse the remote function if already exists.
             `True` by default, which will result in reusing an existing remote
@@ -554,6 +564,15 @@ def remote_function(
     if not bigquery_client:
         raise ValueError(
             "A bigquery client must be provided, either directly or via session"
+        )
+
+    # A BigQuery connection client is required to perform BQ connection operations
+    if not bigquery_connection_client:
+        if session:
+            bigquery_connection_client = session.bqconnectionclient
+    if not bigquery_connection_client:
+        raise ValueError(
+            "A bigquery connection client must be provided, either directly or via session"
         )
 
     # BQ remote function must be persisted, for which we need a dataset
@@ -634,6 +653,7 @@ def remote_function(
             bq_location,
             bq_dataset,
             bigquery_client,
+            bigquery_connection_client,
             bigquery_connection,
         )
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(

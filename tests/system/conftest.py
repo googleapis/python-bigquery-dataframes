@@ -19,6 +19,7 @@ import pathlib
 from typing import cast, Dict, Optional
 
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
 import google.cloud.exceptions
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
@@ -82,6 +83,13 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 @pytest.fixture(scope="session")
 def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
     return session.ibis_client
+
+
+@pytest.fixture(scope="session")
+def bigqueryconnection_client(
+    session: bigframes.Session,
+) -> bigquery_connection_v1.ConnectionServiceClient:
+    return session.bqconnectionclient
 
 
 @pytest.fixture(scope="session")

@@ -37,12 +37,17 @@ def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
-    bigquery_client, scalars_dfs, dataset_id_permanent, bq_cf_connection
+    bigquery_client,
+    bigqueryconnection_client,
+    scalars_dfs,
+    dataset_id_permanent,
+    bq_cf_connection,
 ):
     @remote_function(
         [int],
         int,
         bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.
