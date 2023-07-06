@@ -21,10 +21,14 @@ This library is an evolving attempt to
     https://arxiv.org/pdf/1309.0238.pdf
 """
 
+import abc
+from typing import Optional, TypeVar
+
+from bigframes.ml.core import BqmlModel
 import third_party.bigframes_vendored.sklearn.base
 
 
-class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
+class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
     A BigQuery DataFrame machine learning component following the SKLearn API
     design Ref: https://bit.ly/3NyhKjN
@@ -82,3 +86,30 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator):
         )
 
         return prettyprinter.pformat(self)
+
+
+class Predictor(BaseEstimator):
+    """A BigQuery DataFrame ML Model base class that can be used to predict outputs."""
+
+    def __init__(self):
+        self._bqml_model: Optional[BqmlModel] = None
+
+    @abc.abstractmethod
+    def predict(self, X):
+        pass
+
+    _T = TypeVar("_T", bound="Predictor")
+
+    def register(self: _T, vertex_ai_model_id: Optional[str] = None) -> _T:
+        """Register the model to Vertex AI.
+        Args:
+            vertex_ai_model_id: optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
+
+        Returns:
+            BigQuery DataFrame Model after register.
+        """
+        if not self._bqml_model:
+            raise RuntimeError("A model must be trained before register.")
+
+        self._bqml_model.register(vertex_ai_model_id)
+        return self

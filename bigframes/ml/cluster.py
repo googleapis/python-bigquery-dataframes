@@ -31,7 +31,7 @@ import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 class KMeans(
     third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
 
     __doc__ = third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans.__doc__

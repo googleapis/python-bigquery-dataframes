@@ -31,7 +31,7 @@ import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 class PCA(
     third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 

@@ -27,7 +27,7 @@ import bigframes.ml.core
 _PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
 
-class ARIMAPlus(bigframes.ml.base.BaseEstimator):
+class ARIMAPlus(bigframes.ml.base.Predictor):
     """Time Series ARIMA Plus model."""
 
     def __init__(self):
@@ -61,9 +61,11 @@ class ARIMAPlus(bigframes.ml.base.BaseEstimator):
             options=self._bqml_options,
         )
 
-    def predict(self) -> bigframes.DataFrame:
+    def predict(self, X=None) -> bigframes.DataFrame:
         """Predict the closest cluster for each sample in X.
 
+        Args:
+            X: ignored, to be compatible with other APIs.
         Returns:
             The predicted BigQuery DataFrame. Which contains 2 columns
             "forecast_timestamp" and "forecast_value".

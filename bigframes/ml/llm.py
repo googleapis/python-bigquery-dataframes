@@ -26,7 +26,7 @@ _REMOTE_LLM_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
 
-class PaLM2TextGenerator(bigframes.ml.base.BaseEstimator):
+class PaLM2TextGenerator(bigframes.ml.base.Predictor):
     """PaLM2 text generator LLM model.
 
     Args:

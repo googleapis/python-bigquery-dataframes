@@ -53,12 +53,21 @@ def ephemera_penguins_bqml_linear_model(
 
 @pytest.fixture(scope="session")
 def penguins_linear_model(
-    session, penguins_linear_model_name
+    session, penguins_linear_model_name: str
 ) -> bigframes.ml.linear_model.LinearRegression:
     return cast(
         bigframes.ml.linear_model.LinearRegression,
         session.read_gbq_model(penguins_linear_model_name),
     )
+
+
+@pytest.fixture(scope="function")
+def ephemera_penguins_linear_model(
+    ephemera_penguins_bqml_linear_model: bigframes.ml.core.BqmlModel,
+) -> bigframes.ml.linear_model.LinearRegression:
+    bf_model = bigframes.ml.linear_model.LinearRegression()
+    bf_model._bqml_model = ephemera_penguins_bqml_linear_model
+    return bf_model
 
 
 @pytest.fixture(scope="session")
@@ -206,6 +215,13 @@ def palm2_text_generator_model(session, ml_connection) -> llm.PaLM2TextGenerator
     return llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
 
 
+@pytest.fixture(scope="function")
+def ephemera_palm2_text_generator_model(
+    session, ml_connection
+) -> llm.PaLM2TextGenerator:
+    return llm.PaLM2TextGenerator(session=session, connection_name=ml_connection)
+
+
 @pytest.fixture(scope="session")
 def time_series_bqml_arima_plus_model(
     session, time_series_arima_plus_model_name
@@ -226,6 +242,14 @@ def time_series_arima_plus_model(
 
 @pytest.fixture(scope="session")
 def imported_tensorflow_model(session) -> imported.TensorFlowModel:
+    return imported.TensorFlowModel(
+        session=session,
+        model_path="gs://cloud-training-demos/txtclass/export/exporter/1549825580/*",
+    )
+
+
+@pytest.fixture(scope="function")
+def ephemera_imported_tensorflow_model(session) -> imported.TensorFlowModel:
     return imported.TensorFlowModel(
         session=session,
         model_path="gs://cloud-training-demos/txtclass/export/exporter/1549825580/*",

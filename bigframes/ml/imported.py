@@ -23,7 +23,7 @@ import bigframes.ml.base
 import bigframes.ml.core
 
 
-class TensorFlowModel(bigframes.ml.base.BaseEstimator):
+class TensorFlowModel(bigframes.ml.base.Predictor):
     """Imported TensorFlow model.
 
     Args:

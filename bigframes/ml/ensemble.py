@@ -51,7 +51,7 @@ _BQML_PARAMS_MAPPING = {
 
 class XGBRegressor(
     third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
@@ -197,7 +197,7 @@ class XGBRegressor(
 
 class XGBClassifier(
     third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
 
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
@@ -344,7 +344,7 @@ class XGBClassifier(
 
 class RandomForestRegressor(
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
 
     __doc__ = (
@@ -497,7 +497,7 @@ class RandomForestRegressor(
 
 class RandomForestClassifier(
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
-    bigframes.ml.base.BaseEstimator,
+    bigframes.ml.base.Predictor,
 ):
 
     __doc__ = (
