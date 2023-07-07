@@ -89,7 +89,8 @@ def _is_query(query_or_table: str) -> bool:
 
 
 # TODO(shobs): Remove it after the same is available via pydata-google-auth
-# after https://github.com/pydata/pydata-google-auth/pull/68 is merged
+# after https://github.com/pydata/pydata-google-auth/pull/71 is merged, released
+# and upgraded in the google colab image.
 def _ensure_application_default_credentials_in_colab_environment():
     # This is a special handling for google colab environment where we want to
     # use the colab specific authentication flow
@@ -112,6 +113,11 @@ def _ensure_application_default_credentials_in_colab_environment():
         pass
 
 
+pydata_google_auth.auth._ensure_application_default_credentials_in_colab_environment = (
+    _ensure_application_default_credentials_in_colab_environment
+)
+
+
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -131,7 +137,6 @@ class Session(
             credentials = context.credentials
             credentials_project = None
         else:
-            _ensure_application_default_credentials_in_colab_environment()
             # TODO(shobs, b/278903498): Use BigQuery DataFrame's own client id and secret
             credentials, credentials_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
