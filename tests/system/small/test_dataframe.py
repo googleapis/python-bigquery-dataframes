@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import operator
+import tempfile
 import typing
 from typing import Tuple
 
@@ -2310,6 +2311,93 @@ def test_df_duplicated(scalars_df_index, scalars_pandas_df_index, keep, subset):
     bf_series = scalars_df_index[columns].duplicated(subset, keep=keep).to_pandas()
     pd_series = scalars_pandas_df_index[columns].duplicated(subset, keep=keep)
     pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)
+
+
+def test_df_to_dict(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]  # formatted differently
+    bf_result = scalars_df_index.drop(columns=unsupported).to_dict()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_dict()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_excel(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["timestamp_col"]
+    with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
+        scalars_df_index.drop(columns=unsupported).to_excel(bf_result_file)
+        scalars_pandas_df_index.drop(columns=unsupported).to_excel(pd_result_file)
+        bf_result = bf_result_file.read()
+        pd_result = bf_result_file.read()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_latex(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]  # formatted differently
+    bf_result = scalars_df_index.drop(columns=unsupported).to_latex()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_latex()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_records(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]
+    bf_result = scalars_df_index.drop(columns=unsupported).to_records()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_records()
+
+    for bfi, pdi in zip(bf_result, pd_result):
+        for bfj, pdj in zip(bfi, pdi):
+            assert pd.isna(bfj) and pd.isna(pdj) or bfj == pdj
+
+
+def test_df_to_string(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]  # formatted differently
+
+    bf_result = scalars_df_index.drop(columns=unsupported).to_string()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_string()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_markdown(scalars_df_index, scalars_pandas_df_index):
+    # Nulls have bug from tabulate https://github.com/astanin/python-tabulate/issues/231
+    bf_result = scalars_df_index.dropna().to_markdown()
+    pd_result = scalars_pandas_df_index.dropna().to_markdown()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_pickle(scalars_df_index, scalars_pandas_df_index):
+    with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
+        scalars_df_index.to_pickle(bf_result_file)
+        scalars_pandas_df_index.to_pickle(pd_result_file)
+        bf_result = bf_result_file.read()
+        pd_result = bf_result_file.read()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
+    unsupported = [
+        "numeric_col",
+        "bytes_col",
+        "date_col",
+        "datetime_col",
+        "time_col",
+        "timestamp_col",
+        "geography_col",
+    ]
+
+    bf_result_file = tempfile.TemporaryFile()
+    pd_result_file = tempfile.TemporaryFile()
+    scalars_df_index.drop(columns=unsupported).to_orc(bf_result_file)
+    scalars_pandas_df_index.drop(columns=unsupported).reset_index().to_orc(
+        pd_result_file
+    )
+    bf_result = bf_result_file.read()
+    pd_result = bf_result_file.read()
+
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(

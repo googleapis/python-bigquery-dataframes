@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Iterable, Literal, Mapping, Optional, Sequence, Union
 
-import numpy
+import numpy as np
 
 from bigframes import constants
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
@@ -56,7 +56,7 @@ class DataFrame(NDFrame):
         return [self.index, self.columns]
 
     @property
-    def values(self) -> numpy.ndarray:
+    def values(self) -> np.ndarray:
         """Return the values of DataFrame in the form of a NumPy array.
 
         Args:
@@ -72,9 +72,7 @@ class DataFrame(NDFrame):
 
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
-    def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
-    ) -> numpy.ndarray:
+    def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
 
@@ -151,6 +149,250 @@ class DataFrame(NDFrame):
 
         Returns:
             None.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_dict(
+        self,
+        orient: Literal[
+            "dict", "list", "series", "split", "tight", "records", "index"
+        ] = "dict",
+        into: type[dict] = dict,
+        **kwargs,
+    ) -> dict | list[dict]:
+        """
+        Convert the DataFrame to a dictionary.
+
+        The type of the key-value pairs can be customized with the parameters
+        (see below).
+
+        Args:
+            orient (str {'dict', 'list', 'series', 'split', 'tight', 'records', 'index'}):
+                Determines the type of the values of the dictionary.
+                'dict' (default) : dict like {column -> {index -> value}}.
+                'list' : dict like {column -> [values]}.
+                'series' : dict like {column -> Series(values)}.
+                split' : dict like {'index' -> [index], 'columns' -> [columns], 'data' -> [values]}.
+                'tight' : dict like {'index' -> [index], 'columns' -> [columns], 'data' -> [values],
+                'index_names' -> [index.names], 'column_names' -> [column.names]}.
+                'records' : list like [{column -> value}, ... , {column -> value}].
+                'index' : dict like {index -> {column -> value}}.
+            into (class, default dict):
+                The collections.abc.Mapping subclass used for all Mappings
+                in the return value.  Can be the actual class or an empty
+                instance of the mapping type you want.  If you want a
+                collections.defaultdict, you must pass it initialized.
+
+            index (bool, default True):
+                Whether to include the index item (and index_names item if `orient`
+                is 'tight') in the returned dictionary. Can only be ``False``
+                when `orient` is 'split' or 'tight'.
+
+        Returns:
+            dict or list of dict: Return a collections.abc.Mapping object representing the DataFrame.
+            The resulting transformation depends on the `orient` parameter.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
+        """
+        Write DataFrame to an Excel sheet.
+
+        To write a single DataFrame to an Excel .xlsx file it is only necessary to
+        specify a target file name. To write to multiple sheets it is necessary to
+        create an `ExcelWriter` object with a target file name, and specify a sheet
+        in the file to write to.
+
+        Multiple sheets may be written to by specifying unique `sheet_name`.
+        With all data written to the file it is necessary to save the changes.
+        Note that creating an `ExcelWriter` object with a file name that already
+        exists will result in the contents of the existing file being erased.
+
+        Args:
+            excel_writer (path-like, file-like, or ExcelWriter object):
+                File path or existing ExcelWriter.
+            sheet_name (str, default 'Sheet1'):
+                Name of sheet which will contain DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_latex(
+        self, buf=None, columns=None, header=True, index=True, **kwargs
+    ) -> str | None:
+        r"""
+        Render object to a LaTeX tabular, longtable, or nested table.
+
+        Requires ``\usepackage{{booktabs}}``.  The output can be copy/pasted
+        into a main LaTeX document or read from an external file
+        with ``\input{{table.tex}}``.
+
+        Args:
+            buf (str, Path or StringIO-like, optional, default None):
+                Buffer to write to. If None, the output is returned as a string.
+            columns (list of label, optional):
+                The subset of columns to write. Writes all columns by default.
+            header (bool or list of str, default True):
+                Write out the column names. If a list of strings is given,
+                it is assumed to be aliases for the column names.
+            index (bool, default True):
+                Write row names (index).
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_records(
+        self, index: bool = True, column_dtypes=None, index_dtypes=None
+    ) -> np.recarray:
+        """
+        Convert DataFrame to a NumPy record array.
+
+        Index will be included as the first field of the record array if
+        requested.
+
+        Args:
+            index (bool, default True):
+                Include index in resulting record array, stored in 'index'
+                field or using the index label, if set.
+            column_dtypes (str, type, dict, default None):
+                If a string or type, the data type to store all columns. If
+                a dictionary, a mapping of column names and indices (zero-indexed)
+                to specific data types.
+            index_dtypes (str, type, dict, default None):
+                If a string or type, the data type to store all index levels. If
+                a dictionary, a mapping of index level names and indices
+                (zero-indexed) to specific data types.
+
+                This mapping is applied only if `index=True`.
+
+        Returns:
+            np.recarray: NumPy ndarray with the DataFrame labels as fields and each row
+            of the DataFrame as entries.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_string(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool | Sequence[str] = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        line_width: int | None = None,
+        min_rows: int | None = None,
+        max_colwidth: int | None = None,
+        encoding: str | None = None,
+    ):
+        """Render a DataFrame to a console-friendly tabular output.
+
+        Args:
+            buf (str, Path or StringIO-like, optional, default None):
+                Buffer to write to. If None, the output is returned as a string.
+            columns (sequence, optional, default None):
+                The subset of columns to write. Writes all columns by default.
+            col_space (int, list or dict of int, optional):
+                The minimum width of each column.
+            header (bool or sequence, optional):
+                Write out the column names. If a list of strings is given, it is assumed to be aliases for the column names.
+            index (bool, optional, default True):
+                Whether to print index (row) labels.
+            na_rep (str, optional, default 'NaN'):
+                String representation of NAN to use.
+            formatters (list, tuple or dict of one-param. functions, optional):
+                Formatter functions to apply to columns' elements by position or
+                name.
+                The result of each function must be a unicode string.
+                List/tuple must be of length equal to the number of columns.
+            float_format (one-parameter function, optional, default None):
+                Formatter function to apply to columns' elements if they are
+                floats. The result of this function must be a unicode string.
+            sparsify (bool, optional, default True):
+                Set to False for a DataFrame with a hierarchical index to print
+                every multiindex key at each row.
+            index_names (bool, optional, default True):
+                Prints the names of the indexes.
+            justify (str, default None):
+                How to justify the column labels. If None uses the option from
+                the print configuration (controlled by set_option), 'right' out
+                of the box. Valid values are, 'left', 'right', 'center', 'justify',
+                'justify-all', 'start', 'end', 'inherit', 'match-parent', 'initial',
+                'unset'.
+            max_rows (int, optional):
+                Maximum number of rows to display in the console.
+            min_rows (int, optional):
+                The number of rows to display in the console in a truncated repr
+                (when number of rows is above `max_rows`).
+            max_cols (int, optional):
+                Maximum number of columns to display in the console.
+            show_dimensions (bool, default False):
+                Display DataFrame dimensions (number of rows by number of columns).
+            decimal (str, default '.'):
+                Character recognized as decimal separator, e.g. ',' in Europe.
+            line_width (int, optional):
+                Width to wrap a line in characters.
+            max_colwidth (int, optional):
+                Max width to truncate each column in characters. By default, no limit.
+            encoding (str, default "utf-8"):
+                Set character encoding.
+
+        Returns:
+            str or None: If buf is None, returns the result as a string. Otherwise returns
+            None.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_markdown(
+        self,
+        buf=None,
+        mode: str = "wt",
+        index: bool = True,
+        **kwargs,
+    ):
+        """Print DataFrame in Markdown-friendly format.
+
+        Args:
+            buf (str, Path or StringIO-like, optional, default None):
+                Buffer to write to. If None, the output is returned as a string.
+            mode (str, optional):
+                Mode in which file is opened.
+            index (bool, optional, default True):
+                Add index (row) labels.
+            **kwargs
+                These parameters will be passed to `tabulate                 <https://pypi.org/project/tabulate>`_.
+
+        Returns:
+            DataFrame in Markdown-friendly format.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_pickle(self, path, **kwargs) -> None:
+        """Pickle (serialize) object to file.
+
+        Args:
+            path (str):
+                File path where the pickled object will be stored.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_orc(self, path=None, **kwargs) -> bytes | None:
+        """
+        Write a DataFrame to the ORC format.
+
+        Args:
+            path (str, file-like object or None, default None):
+                If a string, it will be used as Root Directory path
+                when writing a partitioned dataset. By file-like object,
+                we refer to objects with a write() method, such as a file handle
+                (e.g. via builtin open function). If path is None,
+                a bytes object is returned.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

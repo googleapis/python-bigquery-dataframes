@@ -455,7 +455,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise AttributeError(key)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string. Calls compute.
+        """Converts a DataFrame to a string. Calls to_pandas.
 
         Only represents the first `bigframes.options.display.max_rows`.
         """
@@ -2116,6 +2116,98 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
+
+    def to_dict(
+        self,
+        orient: Literal[
+            "dict", "list", "series", "split", "tight", "records", "index"
+        ] = "dict",
+        into: type[dict] = dict,
+        **kwargs,
+    ) -> dict | list[dict]:
+        return self.to_pandas().to_dict(orient, into, **kwargs)  # type: ignore
+
+    def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
+        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+
+    def to_latex(
+        self,
+        buf=None,
+        columns: Sequence | None = None,
+        header: bool | Sequence[str] = True,
+        index: bool = True,
+        **kwargs,
+    ) -> str | None:
+        return self.to_pandas().to_latex(
+            buf, columns=columns, header=header, index=index, **kwargs  # type: ignore
+        )
+
+    def to_records(
+        self, index: bool = True, column_dtypes=None, index_dtypes=None
+    ) -> numpy.recarray:
+        return self.to_pandas().to_records(index, column_dtypes, index_dtypes)
+
+    def to_string(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool | Sequence[str] = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        line_width: int | None = None,
+        min_rows: int | None = None,
+        max_colwidth: int | None = None,
+        encoding: str | None = None,
+    ) -> str | None:
+        return self.to_pandas().to_string(
+            buf,
+            columns,  # type: ignore
+            col_space,
+            header,  # type: ignore
+            index,
+            na_rep,
+            formatters,
+            float_format,
+            sparsify,
+            index_names,
+            justify,
+            max_rows,
+            max_cols,
+            show_dimensions,
+            decimal,
+            line_width,
+            min_rows,
+            max_colwidth,
+            encoding,
+        )
+
+    def to_markdown(
+        self,
+        buf=None,
+        mode: str = "wt",
+        index: bool = True,
+        **kwargs,
+    ) -> str | None:
+        return self.to_pandas().to_markdown(buf, mode, index, **kwargs)  # type: ignore
+
+    def to_pickle(self, path, **kwargs) -> None:
+        return self.to_pandas().to_pickle(path, **kwargs)
+
+    def to_orc(self, path=None, **kwargs) -> bytes | None:
+        as_pandas = self.to_pandas()
+        # to_orc only works with default index
+        as_pandas_default_index = as_pandas.reset_index()
+        return as_pandas_default_index.to_orc(path, **kwargs)
 
     def _apply_unary_op(self, operation: ops.UnaryOp) -> DataFrame:
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
