@@ -1047,13 +1047,16 @@ class Session(
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """
+        Starts query job and waits for results
+        """
         if job_config is not None:
             query_job = self.bqclient.query(sql, job_config=job_config)
         else:
             query_job = self.bqclient.query(sql)
 
         opts = bigframes.options.display
-        if opts.progress_bar is not None:
+        if opts.progress_bar is not None and not query_job.configuration.dry_run:
             results_iterator = formatting_helpers.wait_for_query_job(
                 query_job, max_results, opts.progress_bar
             )

@@ -1899,3 +1899,14 @@ def test_df_rank_with_nulls(
 def test_df_bool_interpretation_error(scalars_df_index):
     with pytest.raises(ValueError):
         True if scalars_df_index else False
+
+
+def test_query_job_setters(scalars_df_default_index: dataframe.DataFrame):
+    job_ids = set()
+    repr(scalars_df_default_index)
+    assert scalars_df_default_index.query_job is not None
+    job_ids.add(scalars_df_default_index.query_job.job_id)
+    scalars_df_default_index.to_pandas()
+    job_ids.add(scalars_df_default_index.query_job.job_id)
+
+    assert len(job_ids) == 2

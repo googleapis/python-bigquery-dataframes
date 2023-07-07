@@ -24,4 +24,13 @@ Attributes:
         Determines if progress bars are shown during job runs.
         Valid values are `auto`, `notebook`, and `terminal`. Set
         to `None` to remove progress bars.
+    repr_mode (Literal[`head`, `deferred`]):
+        `head`:
+            Execute, download, and display results (limited to head) from
+            dataframe and series objects during repr.
+        `deferred`:
+            Prevent executions from repr statements in dataframe and series objects.
+            Instead estimated bytes processed will be shown. Dataframe and Series
+            objects can still be computed with methods that explicitly execute and
+            download results.
 """

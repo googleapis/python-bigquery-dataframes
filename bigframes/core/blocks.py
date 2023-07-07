@@ -354,10 +354,7 @@ class Block:
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
-        expr = self._expr
-
-        if value_keys is not None:
-            expr = expr.select_columns(itertools.chain(self._index_columns, value_keys))
+        expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
         results_iterator, query_job = expr.start_query(
             max_results=max_results, expose_extra_columns=True
@@ -378,6 +375,20 @@ class Block:
         )
 
         return df, results_iterator.total_rows, query_job
+
+    def _compute_dry_run(
+        self, value_keys: Optional[Iterable[str]] = None
+    ) -> bigquery.QueryJob:
+        expr = self._apply_value_keys_to_expr(value_keys=value_keys)
+        job_config = bigquery.QueryJobConfig(dry_run=True)
+        _, query_job = expr.start_query(job_config=job_config)
+        return query_job
+
+    def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
+        expr = self._expr
+        if value_keys is not None:
+            expr = expr.select_columns(itertools.chain(self._index_columns, value_keys))
+        return expr
 
     def with_column_labels(self, value: typing.Iterable[Label]) -> Block:
         label_list = tuple(value)

@@ -105,13 +105,13 @@ def test_progress_bar_load_jobs(
         assert html_check in line and open_job_check in line
 
 
-def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
+def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
     bf.options.display.progress_bar = "notebook"
     penguins_df_default_index._block._expr._session.bqclient.default_query_job_config.use_query_cache = (
         False
     )
     penguins_df_default_index.to_pandas()
-    query_job_repr = formatting_helpers.repr_query_job(
+    query_job_repr = formatting_helpers.repr_query_job_html(
         penguins_df_default_index.query_job
     ).value
     string_checks = [
@@ -123,3 +123,32 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
     ]
     for string in string_checks:
         assert string in query_job_repr
+
+
+def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
+    penguins_df_default_index._block._expr._session.bqclient.default_query_job_config.use_query_cache = (
+        False
+    )
+    penguins_df_default_index.to_pandas()
+    query_job_repr = formatting_helpers.repr_query_job(
+        penguins_df_default_index.query_job
+    )
+    string_checks = [
+        "Job",
+        "Destination Table",
+        "Slot Time",
+        "Bytes Processed",
+        "Cache hit",
+    ]
+    for string in string_checks:
+        assert string in query_job_repr
+
+
+def test_query_job_dry_run(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
+    bf.options.display.repr_mode = "deferred"
+    repr(penguins_df_default_index)
+    repr(penguins_df_default_index["body_mass_g"])
+    lines = capsys.readouterr().out.split("\n")
+    lines = filter(None, lines)
+    for line in lines:
+        assert "Computation deferred. Computation will process" in line

@@ -2344,3 +2344,15 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
 def test_series_bool_interpretation_error(scalars_df_index):
     with pytest.raises(ValueError):
         True if scalars_df_index["string_col"] else False
+
+
+def test_query_job_setters(scalars_dfs):
+    job_ids = set()
+    df, _ = scalars_dfs
+    series = df["int64_col"]
+    assert series.query_job is not None
+    repr(series)
+    job_ids.add(series.query_job.job_id)
+    series.to_pandas()
+    job_ids.add(series.query_job.job_id)
+    assert len(job_ids) == 2

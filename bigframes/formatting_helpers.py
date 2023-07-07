@@ -33,7 +33,7 @@ query_job_prop_pairs = {
     "Job Id": "job_id",
     "Destination Table": "destination",
     "Slot Time": "slot_millis",
-    "Bytes Processed": "estimated_bytes_processed",
+    "Bytes Processed": "total_bytes_processed",
     "Cache hit": "cache_hit",
 }
 
@@ -46,7 +46,7 @@ def add_feedback_link(
     exception.message = exception.message + f" {constants.FEEDBACK_LINK}"
 
 
-def repr_query_job(query_job: Optional[bigquery.QueryJob]):
+def repr_query_job_html(query_job: Optional[bigquery.QueryJob]):
     """Return query job in html format.
     Args:
         query_job:
@@ -56,6 +56,10 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
     """
     if query_job is None:
         return widgets.HTML("No job information available")
+    if query_job.dry_run:
+        return widgets.HTML(
+            f"Computation deferred. Computation will process {get_formatted_bytes(query_job.total_bytes_processed)}"
+        )
     table_html = "<style> td {text-align: left;}</style>"
     table_html += "<table>"
     for key, value in query_job_prop_pairs.items():
@@ -73,6 +77,34 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
                 table_html += f"""<tr><td>{key}</td><td>{job_val}</td></tr>"""
     table_html += "</table>"
     return widgets.HTML(table_html)
+
+
+def repr_query_job(query_job: Optional[bigquery.QueryJob]):
+    """Return query job as a formatted string.
+    Args:
+        query_job:
+            The job representing the execution of the query on the server.
+    Returns:
+        Pywidget html table.
+    """
+    if query_job is None:
+        return "No job information available"
+    if query_job.dry_run:
+        return f"Computation deferred. Computation will process {get_formatted_bytes(query_job.total_bytes_processed)}"
+    res = "Query Job Info"
+    for key, value in query_job_prop_pairs.items():
+        job_val = getattr(query_job, value)
+        if job_val is not None:
+            res += "\n"
+            if key == "Job Id":  # add link to job
+                res += f"""Job url: {get_job_url(query_job)}"""
+            elif key == "Slot Time":
+                res += f"""{key}: {get_formatted_time(job_val)}"""
+            elif key == "Bytes Processed":
+                res += f"""{key}: {get_formatted_bytes(job_val)}"""
+            else:
+                res += f"""{key}: {job_val}"""
+    return res
 
 
 def wait_for_query_job(
@@ -232,12 +264,14 @@ def get_formatted_time(val):
 def get_formatted_bytes(val):
     """Try to format bytes
     Args:
-        val (float | str):
+        val (Any):
             Bytes to format
     Returns:
         Duration string
     """
-    return humanize.naturalsize(val)
+    if isinstance(val, int):
+        return humanize.naturalsize(val)
+    return "N/A"
 
 
 def get_bytes_processed_string(val: Any):

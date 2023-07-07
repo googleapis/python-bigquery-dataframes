@@ -45,6 +45,7 @@ import bigframes.core.scalar as scalars
 import bigframes.core.window
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
@@ -113,7 +114,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             The most recent `QueryJob
             <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
+        if self._query_job is None:
+            self._set_internal_query_job(self._compute_dry_run())
         return self._query_job
+
+    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+        self._query_job = query_job
 
     def __len__(self):
         return self.shape[0]
@@ -202,10 +208,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
+        if opts.repr_mode == "deferred":
+            return formatter.repr_query_job(self.query_job)
+
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
-        # don't update details when the cache is hit
-        if self.query_job is None or not query_job.cache_hit:
-            self._query_job = query_job
+        self._set_internal_query_job(query_job)
 
         return repr(pandas_df.iloc[:, 0])
 
@@ -231,10 +238,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 A pandas Series with all of the rows from this Series.
         """
         df, query_job = self._block.to_pandas((self._value_column,))
-        self._query_job = query_job
+        self._set_internal_query_job(query_job)
         series = df[self._value_column]
         series.name = self._name
         return series
+
+    def _compute_dry_run(self) -> bigquery.QueryJob:
+        return self._block._compute_dry_run((self._value_column,))
 
     def drop(
         self,

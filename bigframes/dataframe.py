@@ -52,6 +52,7 @@ import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series
@@ -358,7 +359,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             The most recent `QueryJob
             <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
+        if self._query_job is None:
+            self._set_internal_query_job(self._compute_dry_run())
         return self._query_job
+
+    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+        self._query_job = query_job
 
     @typing.overload
     def __getitem__(self, key: bigframes.series.Series) -> DataFrame:
@@ -460,6 +466,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         opts = bigframes.options.display
         max_results = opts.max_rows
+        if opts.repr_mode == "deferred":
+            return formatter.repr_query_job(self.query_job)
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -467,9 +475,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_results
         )
 
-        # don't update details when the cache is hit
-        if self.query_job is None or not query_job.cache_hit:
-            self._query_job = query_job
+        self._set_internal_query_job(query_job)
+
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -496,6 +503,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         opts = bigframes.options.display
         max_results = bigframes.options.display.max_rows
+        if opts.repr_mode == "deferred":
+            return formatter.repr_query_job_html(self.query_job)
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -503,9 +512,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_results
         )
 
-        # don't update details when the cache is hit
-        if self.query_job is None or not query_job.cache_hit:
-            self._query_job = query_job
+        self._set_internal_query_job(query_job)
+
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -693,8 +701,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
         df, query_job = self._block.to_pandas()
-        self._query_job = query_job
+        self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
+
+    def _compute_dry_run(self) -> bigquery.QueryJob:
+        return self._block._compute_dry_run()
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
@@ -1567,8 +1578,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             source_query, uri=path_or_buf, field_delimiter=sep, header=header
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
-        # Wait for job to finish
-        query_job.result()
+        self._set_internal_query_job(query_job)
 
     def to_json(
         self,
@@ -1608,8 +1618,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options={},
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
-        # Wait for job to finish
-        query_job.result()
+        self._set_internal_query_job(query_job)
 
     def to_gbq(
         self,
@@ -1669,8 +1678,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options={},
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
-        # Wait for job to finish
-        query_job.result()
+        self._set_internal_query_job(query_job)
 
     def _apply_to_rows(self, operation: ops.UnaryOp):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
@@ -1724,6 +1732,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
         )
+        self._set_internal_query_job(query_job)
         return query_job.destination
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
