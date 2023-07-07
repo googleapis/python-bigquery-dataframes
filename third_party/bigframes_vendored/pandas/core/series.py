@@ -788,6 +788,36 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def reorder_levels(self, order: Sequence) -> Series:
+        """
+        Rearrange index levels using input order.
+
+        May not drop or duplicate levels.
+
+        Args:
+            order: list of int representing new level order
+                Reference level by number or key.
+
+        Returns:
+            type of caller (new object)
+        """
+        raise NotImplementedError("abstract method")
+
+    def droplevel(self, level):
+        """
+        Return Series with requested index / column level(s) removed.
+
+        Args:
+            level: int, str, or list-like
+                If a string is given, must be the name of a level
+                If list-like, elements must be names or positional indexes
+                of levels.
+
+        Returns:
+            Series with requested index / column level(s) removed.
+        """
+        raise NotImplementedError("abstract method")
+
     def fillna(
         self,
         value=None,

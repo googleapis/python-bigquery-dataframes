@@ -143,3 +143,46 @@ def test_multi_index_getitem_bool(scalars_df_index, scalars_pandas_df_index):
     pd_result = pd_frame[pd_frame["int64_col"] > 0]
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("level"),
+    [
+        (1),
+        ("int64_too"),
+        ([0, 2]),
+        ([2, "bool_col"]),
+    ],
+    ids=["level_num", "level_name", "list", "mixed_list"],
+)
+def test_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index, level):
+    bf_frame = scalars_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+    pd_frame = scalars_pandas_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+
+    bf_result = bf_frame.droplevel(level).compute()
+    pd_result = pd_frame.droplevel(level)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("order"),
+    [
+        (1, 0, 2),
+        (["int64_col", "bool_col", "int64_too"]),
+        (["int64_col", "bool_col", 0]),
+    ],
+    ids=[
+        "level_nums",
+        "level_names",
+        "num_names_mixed",
+    ],
+)
+def test_multi_index_reorder_levels(scalars_df_index, scalars_pandas_df_index, order):
+    bf_frame = scalars_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+    pd_frame = scalars_pandas_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+
+    bf_result = bf_frame.reorder_levels(order).compute()
+    pd_result = pd_frame.reorder_levels(order)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)

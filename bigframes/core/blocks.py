@@ -274,6 +274,27 @@ class Block:
             block = block.drop_columns(col_ids)
         return block
 
+    def drop_levels(self, ids: typing.Sequence[str]):
+        for id in ids:
+            if id not in self.index_columns:
+                raise ValueError(f"{id} is not an index column")
+        expr = self._expr.drop_columns(ids)
+        remaining_index_col_ids = [
+            col_id for col_id in self.index_columns if col_id not in ids
+        ]
+        if len(remaining_index_col_ids) == 0:
+            raise ValueError("Cannot drop all index levels, at least 1 must remain.")
+        level_names = [
+            self.col_id_to_index_name[index_id] for index_id in remaining_index_col_ids
+        ]
+        return Block(expr, remaining_index_col_ids, self.column_labels, level_names)
+
+    def reorder_levels(self, ids: typing.Sequence[str]):
+        if sorted(self.index_columns) != sorted(ids):
+            raise ValueError("Cannot drop or duplicate levels using reorder_levels.")
+        level_names = [self.col_id_to_index_name[index_id] for index_id in ids]
+        return Block(self.expr, ids, self.column_labels, level_names)
+
     def _to_dataframe(self, result, schema: ibis_schema.Schema) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         df = result.to_dataframe(
