@@ -675,6 +675,51 @@ def test_copy(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_series_equal(bf_copy.to_pandas(), pd_copy)
 
 
+def test_isin_raise_error(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_too"
+    with pytest.raises(TypeError):
+        scalars_df_index[col_name].isin("whatever").to_pandas()
+
+
+@pytest.mark.parametrize(
+    (
+        "col_name",
+        "test_set",
+    ),
+    [
+        (
+            "int64_col",
+            [314159, 2.0, 3, pd.NA],
+        ),
+        (
+            "int64_col",
+            [2, 55555, 4],
+        ),
+        (
+            "float64_col",
+            [-123.456, 1.25, pd.NA],
+        ),
+        (
+            "int64_too",
+            [1, 2, pd.NA],
+        ),
+        (
+            "string_col",
+            ["Hello, World!", "Hi", "こんにちは"],
+        ),
+    ],
+)
+def test_isin(scalars_dfs, col_name, test_set):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    print(type(scalars_pandas_df["datetime_col"].iloc[0]))
+    bf_result = scalars_df[col_name].isin(test_set).to_pandas()
+    pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_isnull(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"

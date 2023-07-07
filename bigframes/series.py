@@ -440,6 +440,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block = block.select_column(self._value_column)
             return Series(block)
 
+    def isin(self, values) -> "Series" | None:
+        if not _is_list_like(values):
+            raise TypeError(
+                "only list-like objects are allowed to be passed to "
+                f"isin(), you passed a [{type(values).__name__}]"
+            )
+
+        return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
+            value=False
+        )
+
     def isna(self) -> "Series":
         return self._apply_unary_op(ops.isnull_op)
 
