@@ -124,6 +124,22 @@ class BqmlModel:
             ),
         )
 
+    def embed_text(
+        self,
+        input_data: bigframes.dataframe.DataFrame,
+        options: Mapping[str, int | float],
+    ) -> bigframes.dataframe.DataFrame:
+        # TODO: validate input data schema
+        return self._apply_sql(
+            self._session,
+            input_data,
+            lambda source_sql: bigframes.ml.sql.ml_embed_text(
+                model_name=self.model_name,
+                source_sql=source_sql,
+                struct_options=bigframes.ml.sql.struct_options(**options),
+            ),
+        )
+
     def forecast(self) -> bigframes.dataframe.DataFrame:
         sql = bigframes.ml.sql.ml_forecast(self.model_name)
         return self._session.read_gbq(sql)

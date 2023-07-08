@@ -162,6 +162,12 @@ def ml_generate_text(model_name: str, source_sql: str, struct_options: str) -> s
   ({source_sql}), {struct_options})"""
 
 
+def ml_embed_text(model_name: str, source_sql: str, struct_options: str) -> str:
+    """Encode ML.EMBED_TEXT for BQML"""
+    return f"""SELECT * FROM ML.EMBED_TEXT(MODEL `{model_name}`,
+  ({source_sql}), {struct_options})"""
+
+
 def ml_forecast(model_name: str) -> str:
     """Encode ML.FORECAST for BQML"""
     return f"""SELECT * FROM ML.FORECAST(MODEL `{model_name}`)"""
