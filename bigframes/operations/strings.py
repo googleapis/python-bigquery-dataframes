@@ -37,43 +37,39 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         return self._apply_unary_op(ops.len_op)
 
     def lower(self) -> series.Series:
-        """Convert strings in the Series to lowercase."""
         return self._apply_unary_op(ops.lower_op)
 
     def reverse(self) -> series.Series:
         """Reverse strings in the Series."""
+        # reverse method is in ibis, not pandas.
         return self._apply_unary_op(ops.reverse_op)
 
-    def slice(self, start=None, stop=None) -> series.Series:
-        """Slice substrings from each element in the Series."""
+    def slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+    ) -> series.Series:
         return self._apply_unary_op(ops.SliceOp(start, stop))
 
     def strip(self) -> series.Series:
-        """Removes whitespace characters from the beginning and end of each string in the Series."""
         return self._apply_unary_op(ops.strip_op)
 
     def upper(self) -> series.Series:
-        """Convert strings in the Series to uppercase."""
         return self._apply_unary_op(ops.upper_op)
 
     def isnumeric(self) -> series.Series:
-        """Check whether all characters in each string are numeric."""
         return self._apply_unary_op(ops.isnumeric_op)
 
     def rstrip(self) -> series.Series:
-        """Remove whitespace from the right side of string in the Series."""
         return self._apply_unary_op(ops.rstrip_op)
 
     def lstrip(self) -> series.Series:
-        """Remove whitespace from the left side of a string in the Series."""
         return self._apply_unary_op(ops.lstrip_op)
 
-    def repeat(self, repeats=None) -> series.Series:
-        """Duplicate each string in the Series."""
+    def repeat(self, repeats: int) -> series.Series:
         return self._apply_unary_op(ops.RepeatOp(repeats))
 
     def capitalize(self) -> series.Series:
-        """Convert strings in the Series to be capitalized."""
         return self._apply_unary_op(ops.capitalize_op)
 
     def cat(
@@ -82,5 +78,4 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         *,
         join: Literal["outer", "left"] = "left",
     ) -> series.Series:
-        """Concatenate strings in the Series with given separator."""
         return self._apply_binary_op(others, ops.concat_op, alignment=join)
