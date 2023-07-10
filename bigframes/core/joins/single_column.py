@@ -107,9 +107,15 @@ def join_by_column(
         )
 
         def get_column_left(key: str) -> str:
-            if how == "inner" and key in left_column_ids:
-                # Don't rename the column if it's the index on an inner
-                # join.
+            if (
+                how == "inner"
+                and key in left_column_ids
+                and key in combined_table.columns
+            ):
+                # Ibis doesn't rename the column if the values are guaranteed
+                # to be equal on left and right (because they're part of an
+                # inner join condition). See:
+                # https://github.com/ibis-project/ibis/pull/4651
                 pass
             elif key in right_table.columns:
                 key = f"{key}_x"
@@ -117,9 +123,15 @@ def join_by_column(
             return key
 
         def get_column_right(key: str) -> str:
-            if how == "inner" and key in right_column_ids:
-                # Don't rename the column if it's the index on an inner
-                # join.
+            if (
+                how == "inner"
+                and key in right_column_ids
+                and key in combined_table.columns
+            ):
+                # Ibis doesn't rename the column if the values are guaranteed
+                # to be equal on left and right (because they're part of an
+                # inner join condition). See:
+                # https://github.com/ibis-project/ibis/pull/4651
                 pass
             elif key in left_table.columns:
                 key = f"{key}_y"
