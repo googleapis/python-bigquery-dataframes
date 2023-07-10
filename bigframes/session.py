@@ -156,9 +156,15 @@ class Session(
             )
 
         # TODO(swast): Get location from the environment.
-        self._location = (
-            "US" if context is None or context.location is None else context.location
-        )
+        if context is None or context.location is None:
+            self._location = "US"
+            warnings.warn(
+                f"No explicit location is set, so using location {self._location} for the session.",
+                stacklevel=2,
+            )
+        else:
+            self._location = context.location
+
         self._create_bq_clients(
             project=project,
             location=self._location,
