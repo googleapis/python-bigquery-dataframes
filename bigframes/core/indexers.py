@@ -129,6 +129,20 @@ class _iLocIndexer:
         return _iloc_getitem_series_or_dataframe(self._dataframe, key)
 
 
+@typing.overload
+def _loc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.Series, key
+) -> bigframes.Series:
+    ...
+
+
+@typing.overload
+def _loc_getitem_series_or_dataframe(
+    series_or_dataframe: bigframes.DataFrame, key
+) -> bigframes.DataFrame:
+    ...
+
+
 def _loc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
 ) -> bigframes.DataFrame | bigframes.Series:
@@ -170,8 +184,24 @@ def _loc_getitem_series_or_dataframe(
         )
 
 
+@typing.overload
 def _perform_loc_list_join(
-    series_or_dataframe: bigframes.Series | bigframes.DataFrame,
+    series_or_dataframe: bigframes.Series,
+    keys_df: bigframes.DataFrame,
+) -> bigframes.Series:
+    ...
+
+
+@typing.overload
+def _perform_loc_list_join(
+    series_or_dataframe: bigframes.DataFrame,
+    keys_df: bigframes.DataFrame,
+) -> bigframes.DataFrame:
+    ...
+
+
+def _perform_loc_list_join(
+    series_or_dataframe: bigframes.DataFrame | bigframes.Series,
     keys_df: bigframes.DataFrame,
 ) -> bigframes.Series | bigframes.DataFrame:
     # right join based on the old index so that the matching rows from the user's
@@ -180,11 +210,13 @@ def _perform_loc_list_join(
     if isinstance(series_or_dataframe, bigframes.Series):
         original_name = series_or_dataframe.name
         name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
-        result = series_or_dataframe.to_frame().join(keys_df, how="right")[name]
-        result = typing.cast(bigframes.Series, result)
+        result = typing.cast(
+            bigframes.Series,
+            series_or_dataframe.to_frame().join(keys_df, how="right")[name],
+        )
         result = result.rename(original_name)
     else:
-        result = series_or_dataframe.join(keys_df, how="right")
+        result = series_or_dataframe.join(keys_df, how="right")  # type: ignore
     result = result.rename_axis(original_index_names)
     return result
 

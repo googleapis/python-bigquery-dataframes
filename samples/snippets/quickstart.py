@@ -60,14 +60,10 @@ def run_quickstart(project_id: str):
     average_body_mass = df_session["body_mass_g"].mean()
     print(f"average_body_mass (df_session): {average_body_mass}")
 
-    import typing
-
     from bigframes.ml.linear_model import LinearRegression
 
     # filter down to the data we want to analyze
-    adelie_data = typing.cast(
-        bigframes.DataFrame, df[df.species == "Adelie Penguin (Pygoscelis adeliae)"]
-    )
+    adelie_data = df[df.species == "Adelie Penguin (Pygoscelis adeliae)"]
 
     # drop the columns we don't care about
     adelie_data = adelie_data.drop(columns=["species"])
@@ -76,19 +72,16 @@ def run_quickstart(project_id: str):
     training_data = adelie_data.dropna()
 
     # pick feature columns and label column
-    X = typing.cast(
-        bigframes.DataFrame,
-        training_data[
-            [
-                "island",
-                "culmen_length_mm",
-                "culmen_depth_mm",
-                "flipper_length_mm",
-                "sex",
-            ]
-        ],
-    )
-    y = typing.cast(bigframes.DataFrame, training_data[["body_mass_g"]])
+    X = training_data[
+        [
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "sex",
+        ]
+    ]
+    y = training_data[["body_mass_g"]]
 
     model = LinearRegression(fit_intercept=False)
     model.fit(X, y)

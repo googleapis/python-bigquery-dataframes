@@ -305,6 +305,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query."""
         return self._query_job
 
+    @typing.overload
+    def __getitem__(self, key: bigframes.series.Series) -> DataFrame:
+        ...
+
+    @typing.overload
+    def __getitem__(self, key: Sequence[blocks.Label]) -> DataFrame:  # type:ignore
+        ...
+
+    @typing.overload
+    def __getitem__(self, key: blocks.Label) -> bigframes.series.Series:
+        ...
+
     def __getitem__(
         self, key: Union[blocks.Label, Sequence[blocks.Label], bigframes.series.Series]
     ) -> Union[bigframes.series.Series, "DataFrame"]:
