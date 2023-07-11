@@ -59,7 +59,7 @@ def test_create_model_produces_correct_sql():
     )
     assert (
         sql
-        == """CREATE MODEL `my_dataset.my_model`
+        == """CREATE TEMP MODEL `my_dataset.my_model`
 my_options_sql
 AS my_source_sql"""
     )
@@ -67,14 +67,14 @@ AS my_source_sql"""
 
 def test_create_model_transform_produces_correct_sql():
     sql = ml_sql.create_model(
-        model_name="my_dataset.my_model",
+        model_name="my_model",
         source_sql="my_source_sql",
         options_sql="my_options_sql",
         transform_sql="my_transform_sql",
     )
     assert (
         sql
-        == """CREATE MODEL `my_dataset.my_model`
+        == """CREATE TEMP MODEL `my_model`
 my_transform_sql
 my_options_sql
 AS my_source_sql"""
@@ -83,14 +83,26 @@ AS my_source_sql"""
 
 def test_create_remote_model_produces_correct_sql():
     sql = ml_sql.create_remote_model(
-        model_name="my_dataset.my_model",
+        model_name="my_model",
         connection_name="my_project.us.my_connection",
         options_sql="my_options_sql",
     )
     assert (
         sql
-        == """CREATE MODEL `my_dataset.my_model`
+        == """CREATE TEMP MODEL `my_model`
 REMOTE WITH CONNECTION `my_project.us.my_connection`
+my_options_sql"""
+    )
+
+
+def test_create_imported_model_produces_correct_sql():
+    sql = ml_sql.create_imported_model(
+        model_name="my_model",
+        options_sql="my_options_sql",
+    )
+    assert (
+        sql
+        == """CREATE TEMP MODEL `my_model`
 my_options_sql"""
     )
 

@@ -173,6 +173,9 @@ class BqmlModel:
             # vertex id needs to start with letters. https://cloud.google.com/vertex-ai/docs/general/resource-naming
             vertex_ai_model_id = "bigframes_" + cast(str, self._model.model_id)
 
+        # truncate as Vertex ID only accepts 63 characters, easily exceeding the limit for temp models.
+        # The possibility of conflicts should be low.
+        vertex_ai_model_id = vertex_ai_model_id[:63]
         options_sql = ml_sql.options(**{"vertex_ai_model_id": vertex_ai_model_id})
         sql = ml_sql.alter_model(self.model_name, options_sql=options_sql)
         # Register the model and wait it to finish
@@ -215,22 +218,17 @@ def create_bqml_model(
     # for now, drop index to avoid including the index in feature columns
     input_data = input_data.reset_index(drop=True)
 
-    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
     options_sql = ml_sql.options(**options)
     transform_sql = ml_sql.transform(*transforms) if transforms is not None else None
     sql = ml_sql.create_model(
-        model_name=model_name,
+        model_name=_create_temp_model_name(),
         source_sql=source_sql,
         transform_sql=transform_sql,
         options_sql=options_sql,
     )
 
-    # fit the model, synchronously
-    session.bqclient.query(sql).result()
-
-    model = session.bqclient.get_model(model_name)
-    return BqmlModel(session, model)
+    return _create_bqml_model_with_sql(session=session, sql=sql)
 
 
 def create_bqml_time_series_model(
@@ -254,23 +252,18 @@ def create_bqml_time_series_model(
     # pickpocket session object from the dataframe
     session = train_X._get_block().expr._session
 
-    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
     options_sql = ml_sql.options(**options)
 
     transform_sql = ml_sql.transform(*transforms) if transforms is not None else None
     sql = ml_sql.create_model(
-        model_name=model_name,
+        model_name=_create_temp_model_name(),
         source_sql=source_sql,
         transform_sql=transform_sql,
         options_sql=options_sql,
     )
 
-    # fit the model, synchronously
-    session.bqclient.query(sql).result()
-
-    model = session.bqclient.get_model(model_name)
-    return BqmlModel(session, model)
+    return _create_bqml_model_with_sql(session=session, sql=sql)
 
 
 def create_bqml_remote_model(
@@ -289,19 +282,14 @@ def create_bqml_remote_model(
     Returns:
         BqmlModel: a BqmlModel wrapping a trained model in BigQuery
     """
-    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     options_sql = ml_sql.options(**options)
     sql = ml_sql.create_remote_model(
-        model_name=model_name,
+        model_name=_create_temp_model_name(),
         connection_name=connection_name,
         options_sql=options_sql,
     )
 
-    # create the model, synchronously
-    session.bqclient.query(sql).result()
-
-    model = session.bqclient.get_model(model_name)
-    return BqmlModel(session, model)
+    return _create_bqml_model_with_sql(session=session, sql=sql)
 
 
 def create_bqml_imported_model(
@@ -316,15 +304,25 @@ def create_bqml_imported_model(
 
     Returns: a BqmlModel, wrapping a trained model in BigQuery
     """
-    model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     options_sql = ml_sql.options(**options)
     sql = ml_sql.create_imported_model(
-        model_name=model_name,
+        model_name=_create_temp_model_name(),
         options_sql=options_sql,
     )
 
-    # create the model, synchronously
-    session.bqclient.query(sql).result()
+    return _create_bqml_model_with_sql(session=session, sql=sql)
 
-    model = session.bqclient.get_model(model_name)
+
+def _create_temp_model_name() -> str:
+    return uuid.uuid4().hex
+
+
+def _create_bqml_model_with_sql(session: bigframes.Session, sql: str) -> BqmlModel:
+    # fit the model, synchronously
+    job = session.bqclient.query(sql)
+    job.result()
+
+    # real model path in the session specific hidden dataset and table prefix
+    model_name_full = f"{job.destination.dataset_id}.{job.destination.table_id}"
+    model = session.bqclient.get_model(model_name_full)
     return BqmlModel(session, model)
