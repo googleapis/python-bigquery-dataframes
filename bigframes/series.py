@@ -509,11 +509,31 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             delta_power = delta_power * mean_deltas
         return delta_power.mean()
 
+    def agg(self, func: str | typing.Sequence[str]) -> scalars.Scalar | Series:
+        if _is_list_like(func):
+            if self.dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES:
+                raise NotImplementedError(
+                    "Multiple aggregations only supported on numeric series."
+                )
+            aggregations = [agg_ops.AGGREGATIONS_LOOKUP[f] for f in func]
+            return Series(
+                self._block.summarize(
+                    self._value_column,
+                    aggregations,
+                ).with_column_labels([self.name])
+            )
+        else:
+
+            return self._apply_aggregation(
+                agg_ops.AGGREGATIONS_LOOKUP[typing.cast(str, func)]
+            )
+
     def kurt(self) -> float:
         # TODO(tbergeron): Cache intermediate count/moment/etc. statistics at block level
         count = self.count()
+
         moment4 = self._central_moment(4)
-        moment2 = self._central_moment(2)  # AKA: Population Variance
+        moment2 = self.var() * (count - 1) / count  # Convert sample var to pop var
 
         # Kurtosis is often defined as the second standardize moment: moment(4)/moment(2)**2
         # Pandas however uses Fisher’s estimator, implemented below
@@ -658,12 +678,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (values[0], values[1], values[2], index)
 
     def _apply_aggregation(self, op: agg_ops.AggregateOp) -> Any:
-        aggregation_result = typing.cast(
-            ibis_types.Scalar, op._as_ibis(self[self.notnull()]._to_ibis_expr())
-        )
-        return bigframes.core.scalar.DeferredScalar(
-            aggregation_result, self._block._expr._session
-        ).compute()
+        return self._block.get_stat(self._value_column, op)
 
     def _apply_window_op(
         self,

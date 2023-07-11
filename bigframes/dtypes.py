@@ -37,6 +37,9 @@ Dtype = Union[
 # Corresponds to the pandas concept of numeric type (such as when 'numeric_only' is specified in an operation)
 NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
 
+# On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
+UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
+
 # Type hints for dtype strings supported by BigQuery DataFrame
 DtypeString = Literal[
     "boolean",

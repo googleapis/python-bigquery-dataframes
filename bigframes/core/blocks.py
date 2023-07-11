@@ -89,6 +89,11 @@ class Block:
             raise ValueError(
                 f"'value_columns' (size {len(self.value_columns)}) and 'column_labels' (size {len(self._column_labels)}) must have equal length"
             )
+        # col_id -> [stat_name -> scalar]
+        # TODO: Preserve cache under safe transforms (eg. drop column, reorder)
+        self._stats_cache: dict[str, dict[str, typing.Any]] = {
+            col_id: {} for col_id in self.value_columns
+        }
 
     @property
     def index(self) -> indexes.IndexValue:
@@ -661,6 +666,63 @@ class Block:
             by_column_labels = self._get_labels_for_columns(by_column_ids)
             labels = (*by_column_labels, *aggregate_labels)
             return Block(result_expr, column_labels=labels), output_col_ids
+
+    def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
+        """Gets aggregates immediately, and caches it"""
+        if stat.name in self._stats_cache[column_id]:
+            return self._stats_cache[column_id][stat.name]
+
+        # TODO: Convert nonstandard stats into standard stats where possible (popvar, etc.)
+        # if getting a standard stat, just go get the rest of them
+        standard_stats = self._standard_stats(column_id)
+        stats_to_fetch = standard_stats if stat in standard_stats else [stat]
+
+        aggregations = [(column_id, stat, stat.name) for stat in stats_to_fetch]
+        expr = self.expr.aggregate(aggregations)
+        block = Block(expr, column_labels=[s.name for s in stats_to_fetch])
+        df, _ = block.compute()
+
+        # Carefully extract stats such that they aren't coerced to a common type
+        stats_map = {stat_name: df.loc[0, stat_name] for stat_name in df.columns}
+        self._stats_cache[column_id].update(stats_map)
+        return stats_map[stat.name]
+
+    def summarize(self, column_id: str, stats: typing.Sequence[agg_ops.AggregateOp]):
+        """Get a list of stats as a deferred block object."""
+        label_col_id = guid.generate_guid()
+        labels = [stat.name for stat in stats]
+        aggregations = [(column_id, stat, stat.name) for stat in stats]
+        expr = self.expr.aggregate(aggregations).transpose_single_row(
+            labels, index_col_id=label_col_id, value_col_id=column_id
+        )
+        return Block(expr, column_labels=[None], index_columns=[label_col_id])
+
+    def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.AggregateOp]:
+        """
+        Gets a standard set of stats to preemptively fetch for a column if
+        any other stat is fetched.
+        Helps prevent repeat scanning of the same column to fetch statistics.
+        Standard stats should be:
+            - commonly used
+            - efficiently computable.
+        """
+        # TODO: annotate aggregations themself with this information
+        dtype = self.expr.get_column_type(column_id)
+        stats: list[agg_ops.AggregateOp] = [agg_ops.count_op]
+        if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
+            stats += [agg_ops.min_op, agg_ops.max_op]
+        if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES:
+            # Notable exclusions:
+            # prod op tends to cause overflows
+            # Also, var_op is redundant as can be derived from std
+            stats += [
+                agg_ops.std_op,
+                agg_ops.mean_op,
+                agg_ops.var_op,
+                agg_ops.sum_op,
+            ]
+
+        return stats
 
     def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
         """Get column label for value columns, or index name for index columns"""

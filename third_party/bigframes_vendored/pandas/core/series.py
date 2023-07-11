@@ -417,6 +417,24 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def agg(self, func):
+        """
+        Aggregate using one or more operations over the specified axis.
+
+        Args:
+            func:
+                Function to use for aggregating the data.
+
+                Accepted combinations are:
+
+                - string function name
+                - list of function names, e.g. ``['sum', 'mean']``
+
+        Returns:
+            scalar or Series
+        """
+        raise NotImplementedError("abstract method")
+
     def count(self):
         """
         Return number of non-NA/null observations in the Series.

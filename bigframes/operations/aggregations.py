@@ -37,6 +37,8 @@ class WindowOp:
 
 
 class AggregateOp(WindowOp):
+    name = "abstract_aggregate"
+
     def _as_ibis(self, value: ibis_types.Column, window=None):
         raise NotImplementedError("Base class AggregateOp has no implementaiton.")
 
@@ -58,6 +60,8 @@ def numeric_op(operation):
 
 
 class SumOp(AggregateOp):
+    name = "sum"
+
     @numeric_op
     def _as_ibis(
         self, column: ibis_types.NumericColumn, window=None
@@ -70,6 +74,8 @@ class SumOp(AggregateOp):
 
 
 class MeanOp(AggregateOp):
+    name = "mean"
+
     @numeric_op
     def _as_ibis(
         self, column: ibis_types.NumericColumn, window=None
@@ -78,6 +84,8 @@ class MeanOp(AggregateOp):
 
 
 class ProductOp(AggregateOp):
+    name = "product"
+
     @numeric_op
     def _as_ibis(
         self, column: ibis_types.NumericColumn, window=None
@@ -117,16 +125,22 @@ class ProductOp(AggregateOp):
 
 
 class MaxOp(AggregateOp):
+    name = "max"
+
     def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(column.max(), window)
 
 
 class MinOp(AggregateOp):
+    name = "min"
+
     def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(column.min(), window)
 
 
 class StdOp(AggregateOp):
+    name = "std"
+
     @numeric_op
     def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(
@@ -135,6 +149,8 @@ class StdOp(AggregateOp):
 
 
 class VarOp(AggregateOp):
+    name = "var"
+
     @numeric_op
     def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
         return _apply_window_if_present(
@@ -143,6 +159,8 @@ class VarOp(AggregateOp):
 
 
 class CountOp(AggregateOp):
+    name = "count"
+
     def _as_ibis(
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.IntegerValue:
@@ -177,6 +195,8 @@ class CutOp(WindowOp):
 
 
 class NuniqueOp(AggregateOp):
+    name = "nunique"
+
     def _as_ibis(
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.IntegerValue:
@@ -188,6 +208,8 @@ class NuniqueOp(AggregateOp):
 
 
 class RankOp(WindowOp):
+    name = "rank"
+
     def _as_ibis(
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.IntegerValue:
@@ -253,6 +275,8 @@ class AllOp(AggregateOp):
 
 
 class AnyOp(AggregateOp):
+    name = "any"
+
     def _as_ibis(
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.BooleanValue:
@@ -309,3 +333,22 @@ dense_rank_op = DenseRankOp()
 all_op = AllOp()
 any_op = AnyOp()
 first_op = FirstOp()
+
+
+# TODO: Alternative names and lookup from numpy function objects
+AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
+    op.name: op
+    for op in [
+        sum_op,
+        mean_op,
+        product_op,
+        max_op,
+        min_op,
+        std_op,
+        var_op,
+        count_op,
+        all_op,
+        any_op,
+        nunique_op,
+    ]
+}

@@ -121,6 +121,25 @@ def test_fillna(scalars_dfs):
     )
 
 
+def test_series_agg_single_string(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_col"].agg("sum")
+    pd_result = scalars_pandas_df["int64_col"].agg("sum")
+    assert math.isclose(pd_result, bf_result)
+
+
+def test_series_agg_multi_string(scalars_dfs):
+    aggregations = ["sum", "mean", "std", "var", "min", "max", "nunique", "count"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_col"].agg(aggregations).compute()
+    pd_result = scalars_pandas_df["int64_col"].agg(aggregations)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     (
