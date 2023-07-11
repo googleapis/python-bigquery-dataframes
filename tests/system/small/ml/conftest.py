@@ -224,12 +224,6 @@ def llm_text_df(session, llm_text_pandas_df):
 
 
 @pytest.fixture(scope="session")
-def llm_embedding_df(session, llm_text_pandas_df):
-    df = llm_text_pandas_df.rename(columns={"prompt": "content"})
-    return session.read_pandas(df)
-
-
-@pytest.fixture(scope="session")
 def bqml_palm2_text_generator_model(session, ml_connection) -> core.BqmlModel:
     options = {
         "remote_service_type": "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1",

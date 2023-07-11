@@ -14,11 +14,10 @@
 
 from __future__ import annotations
 
-from typing import cast, TYPE_CHECKING
+from typing import cast
 
-if TYPE_CHECKING:
-    import bigframes
-
+import bigframes
+from bigframes.core import blocks
 import bigframes.ml.base
 import bigframes.ml.core
 
@@ -89,14 +88,22 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
         Returns: Output DataFrame with only 1 column as the output text results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        assert (
-            temperature >= 0.0 and temperature <= 1.0
-        ), "temperature must be [0.0, 1.0]."
-        assert max_output_tokens in range(
-            1, 1025
-        ), "max_output_token must be [1, 1024]."
-        assert top_k in range(1, 41), "top_k must be [1, 40]."
-        assert top_p >= 0.0 and top_p <= 1.0, "top_p must be [0.0, 1.0]."
+        if temperature < 0.0 or temperature > 1.0:
+            raise ValueError(f"temperature must be [0.0, 1.0], but is {temperature}.")
+        if max_output_tokens not in range(1, 1025):
+            raise ValueError(
+                f"max_output_token must be [1, 1024], but is {max_output_tokens}."
+            )
+        if top_k not in range(1, 41):
+            raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
+        if top_p < 0.0 or top_p > 1.0:
+            raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
+        if len(X.columns) != 1:
+            raise ValueError("Only support one column as input.")
+
+        # BQML identified the column by name
+        col_label = cast(blocks.Label, X.columns[0])
+        X = X.rename(columns={col_label: "prompt"})
 
         options = {
             "temperature": temperature,
@@ -144,6 +151,12 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
         Returns: Output DataFrame with only 1 column as the output embedding results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
+        if len(X.columns) != 1:
+            raise ValueError("Only support one column as input.")
+
+        # BQML identified the column by name
+        col_label = cast(blocks.Label, X.columns[0])
+        X = X.rename(columns={col_label: "content"})
 
         options = {
             "flatten_json_output": True,

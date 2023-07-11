@@ -32,6 +32,17 @@ def test_text_generator_predict_default_params_success(
     assert all(series.str.len() > 20)
 
 
+def test_text_generator_predict_arbitrary_col_label_success(
+    palm2_text_generator_model, llm_text_df
+):
+    llm_text_df = llm_text_df.rename(columns={"prompt": "arbitrary"})
+    df = palm2_text_generator_model.predict(llm_text_df).compute()
+    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert "ml_generate_text_llm_result" in df.columns
+    series = df["ml_generate_text_llm_result"]
+    assert all(series.str.len() > 20)
+
+
 def test_text_generator_predict_with_params_success(
     palm2_text_generator_model, llm_text_df
 ):
@@ -50,9 +61,9 @@ def test_create_embedding_generator_model(palm2_embedding_generator_model):
 
 
 def test_embedding_generator_predict_success(
-    palm2_embedding_generator_model, llm_embedding_df
+    palm2_embedding_generator_model, llm_text_df
 ):
-    df = palm2_embedding_generator_model.predict(llm_embedding_df).compute()
+    df = palm2_embedding_generator_model.predict(llm_text_df).compute()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
     assert "ml_embed_text_embedding" in df.columns
     series = df["ml_embed_text_embedding"]
