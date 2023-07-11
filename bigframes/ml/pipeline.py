@@ -73,7 +73,11 @@ class Pipeline(
         self._transform = transform
         self._estimator = estimator
 
-    def fit(self, X: bigframes.DataFrame, y: Optional[bigframes.DataFrame] = None):
+    def fit(
+        self,
+        X: bigframes.dataframe.DataFrame,
+        y: Optional[bigframes.dataframe.DataFrame] = None,
+    ):
         compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
@@ -89,13 +93,15 @@ class Pipeline(
             else:
                 raise TypeError("Fitting this pipeline requires training targets `y`")
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         return self._estimator.predict(X)
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
             return self._estimator.score(X=X, y=y)

@@ -23,6 +23,7 @@ import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes.index
 import bigframes.core.scalar
+import bigframes.dataframe
 import bigframes.series
 
 
@@ -30,12 +31,12 @@ class LocSeriesIndexer:
     def __init__(self, series: bigframes.series.Series):
         self._series = series
 
-    def __getitem__(self, key) -> bigframes.Series:
+    def __getitem__(self, key) -> bigframes.series.Series:
         """
-        Only indexing by a boolean bigframes.Series or list of index entries is currently supported
+        Only indexing by a boolean bigframes.series.Series or list of index entries is currently supported
         """
         return typing.cast(
-            bigframes.Series, _loc_getitem_series_or_dataframe(self._series, key)
+            bigframes.series.Series, _loc_getitem_series_or_dataframe(self._series, key)
         )
 
     def __setitem__(self, key, value) -> None:
@@ -101,23 +102,24 @@ class IlocSeriesIndexer:
 
 
 class _LocIndexer:
-    def __init__(self, dataframe: bigframes.DataFrame):
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> bigframes.DataFrame:
+    def __getitem__(self, key) -> bigframes.dataframe.DataFrame:
         """
-        Only indexing by a boolean bigframes.Series is currently supported
+        Only indexing by a boolean bigframes.series.Series is currently supported
         """
         return typing.cast(
-            bigframes.DataFrame, _loc_getitem_series_or_dataframe(self._dataframe, key)
+            bigframes.dataframe.DataFrame,
+            _loc_getitem_series_or_dataframe(self._dataframe, key),
         )
 
 
 class _iLocIndexer:
-    def __init__(self, dataframe: bigframes.DataFrame):
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> bigframes.DataFrame | pd.Series:
+    def __getitem__(self, key) -> bigframes.dataframe.DataFrame | pd.Series:
         """
         Index dataframe using integer offsets. Currently supports index by key type:
 
@@ -131,24 +133,24 @@ class _iLocIndexer:
 
 @typing.overload
 def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.Series, key
-) -> bigframes.Series:
+    series_or_dataframe: bigframes.series.Series, key
+) -> bigframes.series.Series:
     ...
 
 
 @typing.overload
 def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.DataFrame, key
-) -> bigframes.DataFrame:
+    series_or_dataframe: bigframes.dataframe.DataFrame, key
+) -> bigframes.dataframe.DataFrame:
     ...
 
 
 def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
-) -> bigframes.DataFrame | bigframes.Series:
-    if isinstance(key, bigframes.Series) and key.dtype == "boolean":
+    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series, key
+) -> bigframes.dataframe.DataFrame | bigframes.series.Series:
+    if isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
         return series_or_dataframe[key]
-    elif isinstance(key, bigframes.Series):
+    elif isinstance(key, bigframes.series.Series):
         # TODO(henryjsolberg): support MultiIndex
         temp_name = guid.generate_guid(prefix="temp_series_name_")
         key = key.rename(temp_name)
@@ -159,17 +161,17 @@ def _loc_getitem_series_or_dataframe(
         # TODO(henryjsolberg): support MultiIndex
         block = key._data._get_block()
         block = block.select_columns(())
-        keys_df = bigframes.DataFrame(block)
+        keys_df = bigframes.dataframe.DataFrame(block)
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif pd.api.types.is_list_like(key):
         # TODO(henryjsolberg): support MultiIndex
         if len(key) == 0:
             return typing.cast(
-                typing.Union[bigframes.DataFrame, bigframes.Series],
+                typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
         index_name = series_or_dataframe.index.name
-        keys_df = bigframes.DataFrame(
+        keys_df = bigframes.dataframe.DataFrame(
             {index_name: key}, session=series_or_dataframe._get_block().expr._session
         )
         keys_df = keys_df.set_index(index_name, drop=True)
@@ -186,32 +188,32 @@ def _loc_getitem_series_or_dataframe(
 
 @typing.overload
 def _perform_loc_list_join(
-    series_or_dataframe: bigframes.Series,
-    keys_df: bigframes.DataFrame,
-) -> bigframes.Series:
+    series_or_dataframe: bigframes.series.Series,
+    keys_df: bigframes.dataframe.DataFrame,
+) -> bigframes.series.Series:
     ...
 
 
 @typing.overload
 def _perform_loc_list_join(
-    series_or_dataframe: bigframes.DataFrame,
-    keys_df: bigframes.DataFrame,
-) -> bigframes.DataFrame:
+    series_or_dataframe: bigframes.dataframe.DataFrame,
+    keys_df: bigframes.dataframe.DataFrame,
+) -> bigframes.dataframe.DataFrame:
     ...
 
 
 def _perform_loc_list_join(
-    series_or_dataframe: bigframes.DataFrame | bigframes.Series,
-    keys_df: bigframes.DataFrame,
-) -> bigframes.Series | bigframes.DataFrame:
+    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series,
+    keys_df: bigframes.dataframe.DataFrame,
+) -> bigframes.series.Series | bigframes.dataframe.DataFrame:
     # right join based on the old index so that the matching rows from the user's
     # original dataframe will be duplicated and reordered appropriately
     original_index_names = series_or_dataframe.index.names
-    if isinstance(series_or_dataframe, bigframes.Series):
+    if isinstance(series_or_dataframe, bigframes.series.Series):
         original_name = series_or_dataframe.name
         name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
         result = typing.cast(
-            bigframes.Series,
+            bigframes.series.Series,
             series_or_dataframe.to_frame().join(keys_df, how="right")[name],
         )
         result = result.rename(original_name)
@@ -223,21 +225,21 @@ def _perform_loc_list_join(
 
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.Series, key
-) -> bigframes.Series | bigframes.core.scalar.Scalar:
+    series_or_dataframe: bigframes.series.Series, key
+) -> bigframes.series.Series | bigframes.core.scalar.Scalar:
     ...
 
 
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.DataFrame, key
-) -> bigframes.DataFrame | pd.Series:
+    series_or_dataframe: bigframes.dataframe.DataFrame, key
+) -> bigframes.dataframe.DataFrame | pd.Series:
     ...
 
 
 def _iloc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.DataFrame | bigframes.Series, key
-) -> bigframes.DataFrame | bigframes.Series | bigframes.core.scalar.Scalar | pd.Series:
+    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series, key
+) -> bigframes.dataframe.DataFrame | bigframes.series.Series | bigframes.core.scalar.Scalar | pd.Series:
     if isinstance(key, int):
         if key < 0:
             raise NotImplementedError(
@@ -255,11 +257,11 @@ def _iloc_getitem_series_or_dataframe(
 
         if len(key) == 0:
             return typing.cast(
-                typing.Union[bigframes.DataFrame, bigframes.Series],
+                typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
         df = series_or_dataframe
-        if isinstance(series_or_dataframe, bigframes.Series):
+        if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
                 original_series_name if original_series_name is not None else "0"
@@ -275,9 +277,9 @@ def _iloc_getitem_series_or_dataframe(
         result = result.set_index(temporary_index_name)
         result = result.rename_axis(original_index_name)
 
-        if isinstance(series_or_dataframe, bigframes.Series):
+        if isinstance(series_or_dataframe, bigframes.series.Series):
             result = result[series_name]
-            result = typing.cast(bigframes.Series, result)
+            result = typing.cast(bigframes.series.Series, result)
             result = result.rename(original_series_name)
 
         return result

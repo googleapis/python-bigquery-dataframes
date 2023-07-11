@@ -48,7 +48,7 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
         """The model options as they will be set for BQML."""
         return {"model_type": "ARIMA_PLUS"}
 
-    def fit(self, X: bigframes.DataFrame, y: bigframes.DataFrame):
+    def fit(self, X: bigframes.dataframe.DataFrame, y: bigframes.dataframe.DataFrame):
         """Fit the model to training data
 
         Args:
@@ -61,7 +61,7 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
             options=self._bqml_options,
         )
 
-    def predict(self, X=None) -> bigframes.DataFrame:
+    def predict(self, X=None) -> bigframes.dataframe.DataFrame:
         """Predict the closest cluster for each sample in X.
 
         Args:
@@ -74,15 +74,16 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
             raise RuntimeError("A model must be fitted before predict")
 
         return cast(
-            bigframes.DataFrame, self._bqml_model.forecast()[_PREDICT_OUTPUT_COLUMNS]
+            bigframes.dataframe.DataFrame,
+            self._bqml_model.forecast()[_PREDICT_OUTPUT_COLUMNS],
         )
 
     # Unlike regression models, time series forcasting can only evaluate with unseen data. X and y must be providee.
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
-    ) -> bigframes.DataFrame:
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
+    ) -> bigframes.dataframe.DataFrame:
         """Calculate evaluation metrics of the model.
 
         Args:

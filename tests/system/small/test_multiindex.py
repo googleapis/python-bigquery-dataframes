@@ -15,7 +15,7 @@
 import pandas
 import pytest
 
-import bigframes as bf
+import bigframes.pandas as bpd
 
 
 def test_set_multi_index(scalars_df_index, scalars_pandas_df_index):
@@ -105,7 +105,7 @@ def test_concat_compatible_multi_indices(scalars_df_index, scalars_pandas_df_ind
     pd_left = scalars_pandas_df_index.set_index(["bool_col", "int64_col"])
     pd_right = scalars_pandas_df_index.set_index(["bool_col", "int64_too"])
 
-    bf_result = bf.concat([bf_left, bf_right])
+    bf_result = bpd.concat([bf_left, bf_right])
     pd_result = pandas.concat([pd_left, pd_right])
 
     pandas.testing.assert_frame_equal(bf_result.compute(), pd_result)
@@ -117,7 +117,7 @@ def test_concat_multi_indices_ignore_index(scalars_df_index, scalars_pandas_df_i
     pd_left = scalars_pandas_df_index.set_index(["bool_col", "int64_too"])
     pd_right = scalars_pandas_df_index.set_index(["bool_col", "int64_col"])
 
-    bf_result = bf.concat([bf_left, bf_right], ignore_index=True)
+    bf_result = bpd.concat([bf_left, bf_right], ignore_index=True)
     pd_result = pandas.concat([pd_left, pd_right], ignore_index=True)
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.

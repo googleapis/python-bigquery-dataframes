@@ -38,7 +38,9 @@ import pandas
 
 import bigframes._config as config
 import bigframes.bigframes
+import bigframes.core.indexes
 import bigframes.dataframe
+import bigframes.series
 import bigframes.session
 
 concat = bigframes.bigframes.concat
@@ -249,13 +251,20 @@ def remote_function(
 remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_function)
 
 
+# Other aliases
+DataFrame = bigframes.dataframe.DataFrame
+Index = bigframes.core.indexes.Index
+Series = bigframes.series.Series
+
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
     "concat",
+    "DataFrame",
     "options",
     "read_csv",
     "read_gbq",
     "read_gbq_model",
     "read_pandas",
     "remote_function",
+    "Series",
 ]

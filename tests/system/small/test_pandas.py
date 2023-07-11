@@ -15,12 +15,12 @@
 import pandas as pd
 import pytest
 
-import bigframes as bf
+import bigframes.pandas as bpd
 
 
 def test_concat_dataframe(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = bf.concat(11 * [scalars_df])
+    bf_result = bpd.concat(11 * [scalars_df])
     bf_result = bf_result.compute()
     pd_result = pd.concat(11 * [scalars_pandas_df])
 
@@ -29,7 +29,7 @@ def test_concat_dataframe(scalars_dfs):
 
 def test_concat_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = bf.concat(
+    bf_result = bpd.concat(
         [scalars_df.int64_col, scalars_df.int64_too, scalars_df.int64_col]
     )
     bf_result = bf_result.compute()
@@ -55,7 +55,7 @@ def test_concat_dataframe_mismatched_columns(scalars_dfs, how):
     cols1 = ["int64_too", "int64_col", "float64_col"]
     cols2 = ["int64_col", "string_col", "int64_too"]
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = bf.concat([scalars_df[cols1], scalars_df[cols2]], join=how)
+    bf_result = bpd.concat([scalars_df[cols1], scalars_df[cols2]], join=how)
     bf_result = bf_result.compute()
     pd_result = pd.concat(
         [scalars_pandas_df[cols1], scalars_pandas_df[cols2]], join=how

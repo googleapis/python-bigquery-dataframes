@@ -67,7 +67,7 @@ def test_to_pandas_array_struct_correct_result(session):
     [True, False],
 )
 def test_to_csv_index(
-    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,
     index: bool,
 ):
@@ -183,7 +183,7 @@ def test_to_gbq_w_invalid_destination_table(scalars_df_index):
     [True, False],
 )
 def test_to_json_index_invalid_orient(
-    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,
     index: bool,
 ):
@@ -201,7 +201,7 @@ def test_to_json_index_invalid_orient(
     [True, False],
 )
 def test_to_json_index_invalid_lines(
-    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,
     index: bool,
 ):
@@ -219,7 +219,7 @@ def test_to_json_index_invalid_lines(
     [True, False],
 )
 def test_to_json_index_records_orient(
-    scalars_dfs: Tuple[bigframes.DataFrame, pd.DataFrame],
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,
     index: bool,
 ):

@@ -101,7 +101,8 @@ def test_model_predict_with_unnamed_index(
 
     # remove the middle tag number to ensure we're really keeping the unnamed index
     new_penguins_df = typing.cast(
-        bigframes.DataFrame, new_penguins_df[new_penguins_df.tag_number != 1672]
+        bigframes.dataframe.DataFrame,
+        new_penguins_df[new_penguins_df.tag_number != 1672],
     )
 
     predictions = penguins_bqml_linear_model.predict(new_penguins_df).compute()

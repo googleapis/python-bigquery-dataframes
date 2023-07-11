@@ -52,12 +52,12 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
 
     def predict(
         self,
-        X: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
         temperature: float = 0.0,
         max_output_tokens: int = 128,
         top_k: int = 40,
         top_p: float = 0.95,
-    ) -> bigframes.DataFrame:
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -107,7 +107,7 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
         }
         df = self._bqml_model.generate_text(X, options)
         return cast(
-            bigframes.DataFrame,
+            bigframes.dataframe.DataFrame,
             df[[_TEXT_GENERATE_RESULT_COLUMN]],
         )
 
@@ -133,7 +133,9 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -148,6 +150,6 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
         }
         df = self._bqml_model.embed_text(X, options)
         return cast(
-            bigframes.DataFrame,
+            bigframes.dataframe.DataFrame,
             df[[_EMBED_TEXT_RESULT_COLUMN]],
         )

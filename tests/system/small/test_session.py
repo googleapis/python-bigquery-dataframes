@@ -586,7 +586,7 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
     path = gcs_folder + "test_read_parquet_gcs*.parquet"
-    df_in: bigframes.DataFrame = scalars_df.copy()
+    df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     if df_in.index.name is None:
         # TODO(swast): Support MultiIndex
         df_in.index.name = "index"

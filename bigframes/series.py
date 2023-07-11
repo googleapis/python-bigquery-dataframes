@@ -37,6 +37,7 @@ import bigframes.core.indexes as indexes
 from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.core.scalar as scalars
 import bigframes.core.window
+import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -131,14 +132,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         name: typing.Optional[str] = None,
         drop: bool = False,
-    ) -> bigframes.DataFrame | Series:
+    ) -> bigframes.dataframe.DataFrame | Series:
         block = self._block.reset_index(drop)
         if drop:
             return Series(block)
         else:
             if name:
                 block = block.assign_label(self._value_column, name)
-            return bigframes.DataFrame(block)
+            return bigframes.dataframe.DataFrame(block)
 
     def __repr__(self) -> str:
         # TODO(swast): Add a timeout here? If the query is taking a long time,
@@ -849,10 +850,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         return self.where(~cond, other)
 
-    def to_frame(self) -> bigframes.DataFrame:
+    def to_frame(self) -> bigframes.dataframe.DataFrame:
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels([self.name] if self.name else ["0"])
-        return bigframes.DataFrame(block)
+        return bigframes.dataframe.DataFrame(block)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
@@ -946,8 +947,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
-    ) -> bigframes.Series:
-        return bigframes.Series(
+    ) -> bigframes.series.Series:
+        return bigframes.series.Series(
             self._block.slice(start=start, stop=stop, step=step).select_column(
                 self._value_column
             ),

@@ -145,8 +145,8 @@ class XGBRegressor(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
@@ -154,7 +154,9 @@ class XGBRegressor(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -171,8 +173,8 @@ class XGBRegressor(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -292,8 +294,8 @@ class XGBClassifier(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
@@ -301,7 +303,9 @@ class XGBClassifier(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -318,8 +322,8 @@ class XGBClassifier(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -434,8 +438,8 @@ class RandomForestRegressor(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
@@ -443,7 +447,9 @@ class RandomForestRegressor(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -460,8 +466,8 @@ class RandomForestRegressor(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         """Calculate evaluation metrics of the model.
 
@@ -587,8 +593,8 @@ class RandomForestClassifier(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
@@ -596,7 +602,9 @@ class RandomForestClassifier(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -613,8 +621,8 @@ class RandomForestClassifier(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
     ):
         """Calculate evaluation metrics of the model.
 

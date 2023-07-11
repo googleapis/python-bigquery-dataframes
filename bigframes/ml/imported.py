@@ -41,7 +41,9 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
             session=self.session, options=options
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -50,7 +52,7 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
         Returns: Output DataFrame, schema is defined by the model."""
         df = self._bqml_model.predict(X)
         return cast(
-            bigframes.DataFrame,
+            bigframes.dataframe.DataFrame,
             df[
                 [
                     cast(str, field.name)
@@ -78,7 +80,9 @@ class OnnxModel(bigframes.ml.base.BaseEstimator):
             session=self.session, options=options
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -87,7 +91,7 @@ class OnnxModel(bigframes.ml.base.BaseEstimator):
         Returns: Output DataFrame, schema is defined by the model."""
         df = self._bqml_model.predict(X)
         return cast(
-            bigframes.DataFrame,
+            bigframes.dataframe.DataFrame,
             df[
                 [
                     cast(str, field.name)

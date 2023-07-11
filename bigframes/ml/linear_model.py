@@ -72,8 +72,8 @@ class LinearRegression(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
         transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
@@ -83,7 +83,9 @@ class LinearRegression(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -100,9 +102,9 @@ class LinearRegression(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
-    ) -> bigframes.DataFrame:
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -182,8 +184,8 @@ class LogisticRegression(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
         transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
@@ -193,7 +195,9 @@ class LogisticRegression(
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -210,9 +214,9 @@ class LogisticRegression(
 
     def score(
         self,
-        X: bigframes.DataFrame,
-        y: bigframes.DataFrame,
-    ) -> bigframes.DataFrame:
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 

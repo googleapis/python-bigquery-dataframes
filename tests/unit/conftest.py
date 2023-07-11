@@ -27,6 +27,7 @@ import pytest
 
 import bigframes
 import bigframes.core
+import bigframes.dataframe
 
 SCALARS_TABLE_ID = "project.dataset.scalars_table"
 
@@ -127,7 +128,9 @@ def scalars_pandas_df_default_index() -> pandas.DataFrame:
 @pytest.fixture
 def scalars_testdata_setup(
     scalars_pandas_df_default_index,
-) -> Tuple[pandas.DataFrame, Callable[[bigframes.Session], bigframes.DataFrame]]:
+) -> Tuple[
+    pandas.DataFrame, Callable[[bigframes.Session], bigframes.dataframe.DataFrame]
+]:
     return (
         scalars_pandas_df_default_index.set_index("rowindex"),
         lambda session: session.read_gbq(SCALARS_TABLE_ID, index_col=["rowindex"]),
@@ -234,7 +237,7 @@ def scalars_pandas_df(scalars_testdata_setup) -> pandas.DataFrame:
 
 
 @pytest.fixture
-def scalars_df(session, scalars_testdata_setup) -> bigframes.DataFrame:
+def scalars_df(session, scalars_testdata_setup) -> bigframes.dataframe.DataFrame:
     _, get_scalars_df = scalars_testdata_setup
     return get_scalars_df(session)
 

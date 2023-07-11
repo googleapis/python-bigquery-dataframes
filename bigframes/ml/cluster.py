@@ -60,14 +60,18 @@ class KMeans(
         """The model options as they will be set for BQML"""
         return {"model_type": "KMEANS", "num_clusters": self.n_clusters}
 
-    def fit(self, X: bigframes.DataFrame, transforms: Optional[List[str]] = None):
+    def fit(
+        self, X: bigframes.dataframe.DataFrame, transforms: Optional[List[str]] = None
+    ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
             transforms=transforms,
             options=self._bqml_options,
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 

@@ -20,7 +20,7 @@ import inspect
 
 import pandas as pd
 
-import bigframes as bf
+import bigframes.pandas as bpd
 
 
 def generate_pandas_api_coverage():
@@ -30,10 +30,10 @@ def generate_pandas_api_coverage():
     header = ["api", "pattern", "kind", "is_in_bigframes"]
     api_patterns = []
     targets = [
-        ("pandas", pd, bf),
-        ("dataframe", pd.DataFrame, bf.DataFrame),
-        ("series", pd.Series, bf.Series),
-        ("index", pd.Index, None),
+        ("pandas", pd, bpd),
+        ("dataframe", pd.DataFrame, bpd.DataFrame),
+        ("series", pd.Series, bpd.Series),
+        ("index", pd.Index, bpd.Index),
     ]
     indexers = ["loc", "iloc", "iat", "ix", "at"]
     for name, pandas_obj, bigframes_obj in targets:
@@ -60,13 +60,6 @@ def generate_pandas_api_coverage():
                 token_type = "property"
 
             is_in_bigframes = hasattr(bigframes_obj, member)
-
-            # Special case: bigframes also implements some top level APIs on 'session'
-            if name == "pandas" and not is_in_bigframes:
-                try:
-                    is_in_bigframes = hasattr(bf.Session, member)
-                except NameError:
-                    pass
 
             api_patterns.append(
                 [f"{name}.{member}", token, token_type, is_in_bigframes]

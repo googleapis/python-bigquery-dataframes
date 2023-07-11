@@ -12,17 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+import typing
 from typing import Any
 
 import ibis.expr.types as ibis_types
 
-import bigframes.session as session
+if typing.TYPE_CHECKING:
+    import bigframes.session
 
 
 class DeferredScalar:
     """A deferred scalar object."""
 
-    def __init__(self, value: ibis_types.Scalar, session: session.Session):
+    def __init__(self, value: ibis_types.Scalar, session: bigframes.session.Session):
         self._value = value
         self._session = session
 

@@ -55,7 +55,7 @@ class StandardScaler(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
     ):
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
@@ -69,7 +69,9 @@ class StandardScaler(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def transform(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -111,7 +113,7 @@ class OneHotEncoder(
 
     def fit(
         self,
-        X: bigframes.DataFrame,
+        X: bigframes.dataframe.DataFrame,
     ):
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
@@ -125,7 +127,9 @@ class OneHotEncoder(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def transform(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

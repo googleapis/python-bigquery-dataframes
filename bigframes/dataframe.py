@@ -42,10 +42,13 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
-import bigframes.session
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
+
+if typing.TYPE_CHECKING:
+    import bigframes.session
+
 
 # BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
 # TODO(tbergeron): Convert to bytes-based limit
@@ -446,13 +449,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_binop(
         self,
-        other: float | int | bigframes.Series,
+        other: float | int | bigframes.series.Series,
         op,
         axis: str | int = "columns",
     ):
         if isinstance(other, (float, int)):
             return self._apply_scalar_binop(other, op)
-        elif isinstance(other, bigframes.Series):
+        elif isinstance(other, bigframes.series.Series):
             return self._apply_series_binop(other, op, axis=axis)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
@@ -470,7 +473,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_series_binop(
         self,
-        other: bigframes.Series,
+        other: bigframes.series.Series,
         op: ops.BinaryOp,
         axis: str | int = "columns",
     ) -> DataFrame:
@@ -523,7 +526,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __ge__ = ge
 
     def add(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         # TODO(swast): Support fill_value parameter.
         # TODO(swast): Support level parameter with MultiIndex.
@@ -532,58 +535,58 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __radd__ = __add__ = radd = add
 
     def sub(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.sub_op, axis=axis)
 
     __sub__ = subtract = sub
 
     def rsub(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.sub_op), axis=axis)
 
     __rsub__ = rsub
 
     def mul(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.mul_op, axis=axis)
 
     __rmul__ = __mul__ = rmul = multiply = mul
 
     def truediv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.div_op, axis=axis)
 
     div = divide = __truediv__ = truediv
 
     def rtruediv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.div_op), axis=axis)
 
     __rtruediv__ = rdiv = rtruediv
 
     def floordiv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.floordiv_op, axis=axis)
 
     __floordiv__ = floordiv
 
     def rfloordiv(
-        self, other: float | int | bigframes.Series, axis: str | int = "columns"
+        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.floordiv_op), axis=axis)
 
     __rfloordiv__ = rfloordiv
 
-    def mod(self, other: int | bigframes.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+    def mod(self, other: int | bigframes.series.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis)
 
-    def rmod(self, other: int | bigframes.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+    def rmod(self, other: int | bigframes.series.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.reverse(ops.mod_op), axis=axis)
 
     __mod__ = mod
@@ -789,41 +792,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return DataFrame(block)
 
-    def sum(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def sum(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.sum_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
-    def mean(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def mean(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.mean_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
-    def std(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def std(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.std_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
-    def var(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def var(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.var_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
-    def min(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def min(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.min_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
-    def max(self, *, numeric_only: bool = False) -> bigframes.Series:
+    def max(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             raise NotImplementedError("Operation only supports 'numeric_only'=True")
         block = self._block.aggregate_all_and_pivot(agg_ops.max_op)
-        return bigframes.Series(block.select_column("values"))
+        return bigframes.series.Series(block.select_column("values"))
 
     def merge(
         self,
@@ -1307,9 +1310,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
-    ) -> bigframes.DataFrame:
+    ) -> DataFrame:
         block = self._block.slice(start=start, stop=stop, step=step)
-        return bigframes.DataFrame(block)
+        return DataFrame(block)
 
     def _set_block(self, block: blocks.Block):
         self._block = block

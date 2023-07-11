@@ -23,15 +23,17 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
 
-import bigframes
 import bigframes.core.blocks as blocks
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.metrics._classification as vendored_mertics_classification
 import third_party.bigframes_vendored.sklearn.metrics._ranking as vendored_mertics_ranking
 import third_party.bigframes_vendored.sklearn.metrics._regression as vendored_metrics_regression
 
 
 def r2_score(
-    y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, force_finite=True
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
+    force_finite=True,
 ) -> float:
     # TODO(bmil): support multioutput
     if len(y_true.columns) > 1 or len(y_pred.columns) > 1:
@@ -40,10 +42,10 @@ def r2_score(
         )
 
     y_true_series = typing.cast(
-        bigframes.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
+        bpd.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
     )
     y_pred_series = typing.cast(
-        bigframes.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
+        bpd.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
     )
 
     # total sum of squares
@@ -69,7 +71,9 @@ r2_score.__doc__ = inspect.getdoc(vendored_metrics_regression.r2_score)
 
 
 def accuracy_score(
-    y_true: bigframes.DataFrame, y_pred: bigframes.DataFrame, normalize=True
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
+    normalize=True,
 ) -> float:
     # TODO(ashleyxu): support sample_weight as the parameter
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
@@ -78,10 +82,10 @@ def accuracy_score(
         )
 
     y_true_series = typing.cast(
-        bigframes.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
+        bpd.Series, y_true[typing.cast(str, y_true.columns.tolist()[0])]
     )
     y_pred_series = typing.cast(
-        bigframes.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
+        bpd.Series, y_pred[typing.cast(str, y_pred.columns.tolist()[0])]
     )
 
     # Compute accuracy for each possible representation
@@ -99,10 +103,10 @@ accuracy_score.__doc__ = inspect.getdoc(vendored_mertics_classification.accuracy
 
 
 def roc_curve(
-    y_true: bigframes.DataFrame,
-    y_score: bigframes.DataFrame,
+    y_true: bpd.DataFrame,
+    y_score: bpd.DataFrame,
     drop_intermediate: bool = True,
-) -> Tuple[bigframes.Series, bigframes.Series, bigframes.Series]:
+) -> Tuple[bpd.Series, bpd.Series, bpd.Series]:
     # TODO(bmil): Add multi-class support
     # TODO(bmil): Add multi-label support
     if len(y_true.columns) > 1 or len(y_score.columns) > 1:
@@ -155,7 +159,7 @@ def roc_curve(
 roc_curve.__doc__ = inspect.getdoc(vendored_mertics_ranking.roc_curve)
 
 
-def roc_auc_score(y_true: bigframes.DataFrame, y_score: bigframes.DataFrame) -> float:
+def roc_auc_score(y_true: bpd.DataFrame, y_score: bpd.DataFrame) -> float:
     # TODO(bmil): Add multi-class support
     # TODO(bmil): Add multi-label support
     if len(y_true.columns) > 1 or len(y_score.columns) > 1:
@@ -177,8 +181,8 @@ roc_auc_score.__doc__ = inspect.getdoc(vendored_mertics_ranking.roc_auc_score)
 
 
 def auc(
-    x: bigframes.DataFrame,
-    y: bigframes.DataFrame,
+    x: bpd.DataFrame,
+    y: bpd.DataFrame,
 ) -> float:
     if len(x.columns) != 1 or len(y.columns) != 1:
         raise ValueError("Only 1-D data structure is supported")
@@ -192,11 +196,11 @@ auc.__doc__ = inspect.getdoc(vendored_mertics_ranking.auc)
 
 
 def confusion_matrix(
-    y_true: bigframes.DataFrame,
-    y_pred: bigframes.DataFrame,
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
 ) -> pd.DataFrame:
     # TODO(ashleyxu): support labels and sample_weight parameters
-    # TODO(ashleyxu): support bigframes.Series as input type
+    # TODO(ashleyxu): support bpd.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
             "Only one labels column, one predictions column is supported"
@@ -204,7 +208,8 @@ def confusion_matrix(
 
     y_true_column = typing.cast(blocks.Label, y_true.columns[0])
     y_pred_series = typing.cast(
-        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+        bpd.Series,
+        y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])],
     )
     confusion_df = y_true.assign(y_pred=y_pred_series)
     confusion_df = confusion_df.assign(dummy=0)
@@ -236,12 +241,12 @@ confusion_matrix.__doc__ = inspect.getdoc(
 
 
 def recall_score(
-    y_true: bigframes.DataFrame,
-    y_pred: bigframes.DataFrame,
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
     average: str = "binary",
 ) -> pd.Series:
     # TODO(ashleyxu): support more average type, default to "binary"
-    # TODO(ashleyxu): support bigframes.Series as input type
+    # TODO(ashleyxu): support bpd.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
             "Only one labels column, one predictions column is supported"
@@ -251,15 +256,17 @@ def recall_score(
         raise NotImplementedError("Only average=None is supported")
 
     y_true_series = typing.cast(
-        bigframes.Series, y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])]
+        bpd.Series,
+        y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])],
     )
     y_pred_series = typing.cast(
-        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+        bpd.Series,
+        y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])],
     )
 
     is_accurate = y_true_series == y_pred_series
     unique_labels = (
-        bigframes.concat([y_true_series, y_pred_series], join="outer")
+        bpd.concat([y_true_series, y_pred_series], join="outer")
         .drop_duplicates()
         .sort_values()
     )
@@ -281,12 +288,12 @@ recall_score.__doc__ = inspect.getdoc(vendored_mertics_classification.recall_sco
 
 
 def precision_score(
-    y_true: bigframes.DataFrame,
-    y_pred: bigframes.DataFrame,
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
     average: str = "binary",
 ) -> pd.Series:
     # TODO(ashleyxu): support more average type, default to "binary"
-    # TODO(ashleyxu): support bigframes.Series as input type
+    # TODO(ashleyxu): support bpd.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
             "Only one labels column, one predictions column is supported"
@@ -296,15 +303,17 @@ def precision_score(
         raise NotImplementedError("Only average=None is supported")
 
     y_true_series = typing.cast(
-        bigframes.Series, y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])]
+        bpd.Series,
+        y_true[typing.cast(blocks.Label, y_true.columns.tolist()[0])],
     )
     y_pred_series = typing.cast(
-        bigframes.Series, y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])]
+        bpd.Series,
+        y_pred[typing.cast(blocks.Label, y_pred.columns.tolist()[0])],
     )
 
     is_accurate = y_true_series == y_pred_series
     unique_labels = (
-        bigframes.concat([y_true_series, y_pred_series], join="outer")
+        bpd.concat([y_true_series, y_pred_series], join="outer")
         .drop_duplicates()
         .sort_values()
     )
@@ -328,12 +337,12 @@ precision_score.__doc__ = inspect.getdoc(
 
 
 def f1_score(
-    y_true: bigframes.DataFrame,
-    y_pred: bigframes.DataFrame,
+    y_true: bpd.DataFrame,
+    y_pred: bpd.DataFrame,
     average: str = "binary",
 ) -> pd.Series:
     # TODO(ashleyxu): support more average type, default to "binary"
-    # TODO(ashleyxu): support bigframes.Series as input type
+    # TODO(ashleyxu): support bpd.Series as input type
     if len(y_true.columns) != 1 or len(y_pred.columns) != 1:
         raise NotImplementedError(
             "Only one labels column, one predictions column is supported"

@@ -55,9 +55,9 @@ class BqmlModel:
     @staticmethod
     def _apply_sql(
         session: bigframes.Session,
-        input_data: bigframes.DataFrame,
+        input_data: bigframes.dataframe.DataFrame,
         func: Callable[[str], str],
-    ) -> bigframes.DataFrame:
+    ) -> bigframes.dataframe.DataFrame:
         """Helper to wrap a dataframe in a SQL query, keeping the index intact.
 
         Args:
@@ -238,8 +238,8 @@ def create_bqml_model(
 
 
 def create_bqml_time_series_model(
-    train_X: bigframes.DataFrame,
-    train_y: bigframes.DataFrame,
+    train_X: bigframes.dataframe.DataFrame,
+    train_y: bigframes.dataframe.DataFrame,
     options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
 

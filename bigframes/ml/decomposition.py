@@ -54,7 +54,7 @@ class PCA(
         new_pca._bqml_model = bigframes.ml.core.BqmlModel(session, model)
         return new_pca
 
-    def fit(self, X: bigframes.DataFrame):
+    def fit(self, X: bigframes.dataframe.DataFrame):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
             options={
@@ -63,7 +63,9 @@ class PCA(
             },
         )
 
-    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+    def predict(
+        self, X: bigframes.dataframe.DataFrame
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the closest cluster for each sample in X.
 
         Args:

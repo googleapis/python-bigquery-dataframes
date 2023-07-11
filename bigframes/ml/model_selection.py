@@ -23,11 +23,11 @@ import bigframes
 
 
 def train_test_split(
-    *dataframes: bigframes.DataFrame,
+    *dataframes: bigframes.dataframe.DataFrame,
     test_size: Union[float, None] = None,
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
-) -> List[bigframes.DataFrame]:
+) -> List[bigframes.dataframe.DataFrame]:
     """Splits dataframes into random train and test subsets
 
     Args:

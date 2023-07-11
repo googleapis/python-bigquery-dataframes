@@ -269,15 +269,15 @@ def time_series_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def scalars_df_default_index(
     scalars_table_id: str, session: bigframes.Session
-) -> bigframes.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(scalars_table_id)
 
 
 @pytest.fixture(scope="session")
 def scalars_df_index(
-    scalars_df_default_index: bigframes.DataFrame,
-) -> bigframes.DataFrame:
+    scalars_df_default_index: bigframes.dataframe.DataFrame,
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return scalars_df_default_index.set_index("rowindex").sort_index()
 
@@ -285,15 +285,15 @@ def scalars_df_index(
 @pytest.fixture(scope="session")
 def scalars_df_2_default_index(
     scalars_table_id_2: str, session: bigframes.Session
-) -> bigframes.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(scalars_table_id_2)
 
 
 @pytest.fixture(scope="session")
 def scalars_df_2_index(
-    scalars_df_2_default_index: bigframes.DataFrame,
-) -> bigframes.DataFrame:
+    scalars_df_2_default_index: bigframes.dataframe.DataFrame,
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return scalars_df_2_default_index.set_index("rowindex").sort_index()
 
@@ -342,7 +342,7 @@ def scalars_dfs(
 @pytest.fixture(scope="session")
 def penguins_df_default_index(
     penguins_table_id: str, session: bigframes.Session
-) -> bigframes.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(penguins_table_id)
 
@@ -350,7 +350,7 @@ def penguins_df_default_index(
 @pytest.fixture(scope="session")
 def time_series_df_default_index(
     time_series_table_id: str, session: bigframes.Session
-) -> bigframes.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(time_series_table_id)
 
