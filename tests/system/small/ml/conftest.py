@@ -196,6 +196,29 @@ def llm_text_pandas_df():
 
 
 @pytest.fixture(scope="session")
+def onnx_iris_pandas_df():
+    """Data matching the iris dataset."""
+    return pd.DataFrame(
+        {
+            "sepal_length": [4.9, 5.1, 34.7],
+            "sepal_width": [3.0, 5.1, 24.7],
+            "petal_length": [1.4, 1.5, 13.3],
+            "petal_width": [0.4, 0.2, 18.3],
+            "species": [
+                "setosa",
+                "setosa",
+                "virginica",
+            ],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def onnx_iris_df(session, onnx_iris_pandas_df):
+    return session.read_pandas(onnx_iris_pandas_df)
+
+
+@pytest.fixture(scope="session")
 def llm_text_df(session, llm_text_pandas_df):
     return session.read_pandas(llm_text_pandas_df)
 
@@ -266,4 +289,12 @@ def ephemera_imported_tensorflow_model(session) -> imported.TensorFlowModel:
     return imported.TensorFlowModel(
         session=session,
         model_path="gs://cloud-training-demos/txtclass/export/exporter/1549825580/*",
+    )
+
+
+@pytest.fixture(scope="session")
+def imported_onnx_model(session) -> imported.OnnxModel:
+    return imported.OnnxModel(
+        session=session,
+        model_path="gs://cloud-samples-data/bigquery/ml/onnx/pipeline_rf.onnx",
     )

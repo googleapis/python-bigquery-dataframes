@@ -58,3 +58,40 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
                 ]
             ],
         )
+
+
+class OnnxModel(bigframes.ml.base.BaseEstimator):
+    """Imported Open Neural Network Exchange (ONNX) model.
+
+    Args:
+        session: BQ session to create the model
+        model_path: GCS path that holds the model files."""
+
+    def __init__(self, session: bigframes.Session, model_path: str):
+        self.session = session
+        self.model_path = model_path
+        self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
+
+    def _create_bqml_model(self):
+        options = {"model_type": "ONNX", "model_path": self.model_path}
+        return bigframes.ml.core.create_bqml_imported_model(
+            session=self.session, options=options
+        )
+
+    def predict(self, X: bigframes.DataFrame) -> bigframes.DataFrame:
+        """Predict the result from input DataFrame.
+
+        Args:
+            X: Input DataFrame, schema is defined by the model.
+
+        Returns: Output DataFrame, schema is defined by the model."""
+        df = self._bqml_model.predict(X)
+        return cast(
+            bigframes.DataFrame,
+            df[
+                [
+                    cast(str, field.name)
+                    for field in self._bqml_model.model.label_columns
+                ]
+            ],
+        )
