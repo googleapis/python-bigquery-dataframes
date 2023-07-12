@@ -457,9 +457,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
-        head_df = self.head(n=max_results)
         count = self.shape[0]
-        computed_df, query_job = head_df._block.compute(max_results=max_results)
+        if count > max_results:
+            head_df = self.head(n=max_results)
+            computed_df, query_job = head_df._block.compute(max_results=max_results)
+        else:
+            head_df = self
+            computed_df, query_job = head_df._block.compute()
+
         formatted_df = computed_df.set_axis(self._block.column_labels, axis=1)
         # don't update details when the cache is hit
         if self.query_job is None or not query_job.cache_hit:
