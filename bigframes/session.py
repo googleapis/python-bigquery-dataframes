@@ -121,6 +121,62 @@ pydata_google_auth.auth._ensure_application_default_credentials_in_colab_environ
 )
 
 
+def _create_bq_clients(
+    project: Optional[str],
+    location: Optional[str],
+    use_regional_endpoints: Optional[bool],
+    credentials: Optional[google.auth.credentials.Credentials],
+) -> typing.Tuple[
+    bigquery.Client,
+    google.cloud.bigquery_connection_v1.ConnectionServiceClient,
+    google.cloud.bigquery_storage_v1.BigQueryReadClient,
+]:
+    """Create and initialize BigQuery client objects."""
+
+    if use_regional_endpoints:
+        bq_options = google.api_core.client_options.ClientOptions(
+            api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=location),
+        )
+        bqstorage_options = google.api_core.client_options.ClientOptions(
+            api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(location=location)
+        )
+        bqconnection_options = google.api_core.client_options.ClientOptions(
+            api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(location=location)
+        )
+    else:
+        bq_options = None
+        bqstorage_options = None
+        bqconnection_options = None
+
+    bq_info = google.api_core.client_info.ClientInfo(user_agent=_APPLICATION_NAME)
+    bqclient = bigquery.Client(
+        client_info=bq_info,
+        client_options=bq_options,
+        credentials=credentials,
+        project=project,
+    )
+
+    bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
+        user_agent=_APPLICATION_NAME
+    )
+    bqconnectionclient = google.cloud.bigquery_connection_v1.ConnectionServiceClient(
+        client_info=bqconnection_info,
+        client_options=bqconnection_options,
+        credentials=credentials,
+    )
+
+    bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
+        user_agent=_APPLICATION_NAME
+    )
+    bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
+        client_info=bqstorage_info,
+        client_options=bqstorage_options,
+        credentials=credentials,
+    )
+
+    return bqclient, bqconnectionclient, bqstorageclient
+
+
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -165,12 +221,17 @@ class Session(
         else:
             self._location = context.location
 
-        self._create_bq_clients(
+        (
+            self.bqclient,
+            self.bqconnectionclient,
+            self.bqstorageclient,
+        ) = _create_bq_clients(
             project=project,
             location=self._location,
             use_regional_endpoints=context.use_regional_endpoints,
             credentials=credentials,
         )
+
         self._create_and_bind_bq_session()
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
@@ -193,64 +254,6 @@ class Session(
         This is a workaround for BQML models and remote functions that do not
         yet support session-temporary instances."""
         return self._session_dataset.dataset_id
-
-    def _create_bq_clients(
-        self,
-        *,
-        project: Optional[str],
-        location: str,
-        use_regional_endpoints: bool,
-        credentials: google.auth.credentials.Credentials,
-    ):
-        """Create and initialize BigQuery client objects."""
-
-        if use_regional_endpoints:
-            bq_options = google.api_core.client_options.ClientOptions(
-                api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=location),
-            )
-            bqstorage_options = google.api_core.client_options.ClientOptions(
-                api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
-                    location=location
-                )
-            )
-            bqconnection_options = google.api_core.client_options.ClientOptions(
-                api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
-                    location=location
-                )
-            )
-        else:
-            bq_options = None
-            bqstorage_options = None
-            bqconnection_options = None
-
-        location = location.lower()
-        bq_info = google.api_core.client_info.ClientInfo(user_agent=_APPLICATION_NAME)
-        self.bqclient = bigquery.Client(
-            client_info=bq_info,
-            client_options=bq_options,
-            credentials=credentials,
-            project=project,
-        )
-
-        bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
-            user_agent=_APPLICATION_NAME
-        )
-        self.bqconnectionclient = (
-            google.cloud.bigquery_connection_v1.ConnectionServiceClient(
-                client_info=bqconnection_info,
-                client_options=bqconnection_options,
-                credentials=credentials,
-            )
-        )
-
-        bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
-            user_agent=_APPLICATION_NAME
-        )
-        self.bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
-            client_info=bqstorage_info,
-            client_options=bqstorage_options,
-            credentials=credentials,
-        )
 
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:

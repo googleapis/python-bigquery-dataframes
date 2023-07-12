@@ -30,9 +30,11 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     Union,
 )
 
+from google.cloud import bigquery
 import numpy
 import pandas
 
@@ -79,6 +81,37 @@ def get_global_session():
     return _global_session
 
 
+_T = TypeVar("_T")
+
+
+def _with_default_session(func: Callable[..., _T], *args, **kwargs) -> _T:
+    return func(get_global_session(), *args, **kwargs)
+
+
+def _set_default_session_location_if_possible(query):
+    # If the default session has not started yet and this is the first API user
+    # is calling, then set the default location as per the query.
+    # If query is a table name, then it would be the location of the table.
+    # If query is a SQL with a table, then it would be table's location.
+    # If query is a SQL with no table, then it would be the BQ default location.
+    if options.bigquery._session_started or options.bigquery.use_regional_endpoints:
+        return
+
+    bqclient, _, _ = bigframes.session._create_bq_clients(
+        project=options.bigquery.project,
+        location=options.bigquery.location,
+        use_regional_endpoints=options.bigquery.use_regional_endpoints,
+        credentials=options.bigquery.credentials,
+    )
+
+    if bigframes.session._is_query(query):
+        job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
+        options.bigquery.location = job.location
+    else:
+        table = bqclient.get_table(query)
+        options.bigquery.location = table.location
+
+
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
 #
@@ -91,10 +124,8 @@ def get_global_session():
 # 3. Positional arguments function as expected. If we were to pull in the
 #    methods directly from Session, a Session object would need to be the first
 #    argument, even if we allow a default value.
-
-
-def _with_default_session(func, *args, **kwargs):
-    return func(get_global_session(), *args, **kwargs)
+# 4. Allows to set BigQuery options for the BigFrames session based on the
+#    method and its arguments.
 
 
 def read_csv(
@@ -151,6 +182,7 @@ def read_gbq(
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
 ) -> bigframes.dataframe.DataFrame:
+    _set_default_session_location_if_possible(query)
     return _with_default_session(
         bigframes.session.Session.read_gbq,
         query,
@@ -180,6 +212,7 @@ def read_gbq_query(
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
 ) -> bigframes.dataframe.DataFrame:
+    _set_default_session_location_if_possible(query)
     return _with_default_session(
         bigframes.session.Session.read_gbq_query,
         query,
@@ -199,6 +232,7 @@ def read_gbq_table(
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
 ) -> bigframes.dataframe.DataFrame:
+    _set_default_session_location_if_possible(query)
     return _with_default_session(
         bigframes.session.Session.read_gbq_table,
         query,
