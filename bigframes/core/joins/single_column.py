@@ -174,19 +174,34 @@ def join_by_column(
             hidden_ordering_columns=hidden_columns,
         )
 
-    join_key_cols = list(
-        # The left index and the right index might contain null values, for
-        # example due to an outer join with different numbers of rows. Coalesce
-        # these to take the index value from either column.
-        ibis.coalesce(
-            combined_expr.get_column(get_column_left(lcol)),
-            combined_expr.get_column(get_column_right(rcol)),
-        )
-        # Use a random name in case the left index and the right index have the
-        # same name. In such a case, _x and _y suffixes will already be used.
-        .name(bigframes.core.guid.generate_guid(prefix="index_"))
-        for lcol, rcol in zip(left_column_ids, right_column_ids)
-    )
+    join_key_cols: list[ibis_types.Value] = []
+    for lcol, rcol in zip(left_column_ids, right_column_ids):
+        if how == "left" or how == "inner":
+            join_key_cols.append(
+                combined_expr.get_column(get_column_left(lcol)).name(
+                    bigframes.core.guid.generate_guid(prefix="index_")
+                )
+            )
+        elif how == "right":
+            join_key_cols.append(
+                combined_expr.get_column(get_column_right(rcol)).name(
+                    bigframes.core.guid.generate_guid(prefix="index_")
+                )
+            )
+        elif how == "outer":
+            # The left index and the right index might contain null values, for
+            # example due to an outer join with different numbers of rows. Coalesce
+            # these to take the index value from either column.
+            # Use a random name in case the left index and the right index have the
+            # same name. In such a case, _x and _y suffixes will already be used.
+            join_key_cols.append(
+                ibis.coalesce(
+                    combined_expr.get_column(get_column_left(lcol)),
+                    combined_expr.get_column(get_column_right(rcol)),
+                ).name(bigframes.core.guid.generate_guid(prefix="index_"))
+            )
+        else:
+            raise ValueError(f"Unexpected join type: {how}")
 
     # We could filter out the original join columns, but predicates/ordering
     # might still reference them in implicit joins.
