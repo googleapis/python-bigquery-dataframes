@@ -20,6 +20,33 @@ import bigframes._config.bigquery_options as bigquery_options
 
 
 @pytest.mark.parametrize(
+    ["attribute", "original_value", "new_value"],
+    [
+        # For credentials, the match is by reference.
+        ("credentials", object(), object()),
+        ("location", "us-east1", "us-central1"),
+        ("project", "my-project", "my-other-project"),
+        ("remote_udf_connection", "path/to/connection/1", "path/to/connection/2"),
+    ],
+)
+def test_setter_raises_if_session_started(attribute, original_value, new_value):
+    options = bigquery_options.BigQueryOptions()
+    setattr(options, attribute, original_value)
+    assert getattr(options, attribute) is original_value
+    assert getattr(options, attribute) is not new_value
+
+    options._session_started = True
+    expected_message = re.escape(
+        bigquery_options.SESSION_STARTED_MESSAGE.format(attribute=attribute)
+    )
+    with pytest.raises(ValueError, match=expected_message):
+        setattr(options, attribute, new_value)
+
+    assert getattr(options, attribute) is original_value
+    assert getattr(options, attribute) is not new_value
+
+
+@pytest.mark.parametrize(
     [
         "attribute",
     ],
@@ -33,20 +60,14 @@ import bigframes._config.bigquery_options as bigquery_options
         ]
     ],
 )
-def test_setter_raises_if_session_started(attribute):
+def test_setter_if_session_started_but_setting_the_same_value(attribute):
     options = bigquery_options.BigQueryOptions()
     original_object = object()
     setattr(options, attribute, original_object)
-    second_object = object()
     assert getattr(options, attribute) is original_object
-    assert getattr(options, attribute) is not second_object
 
+    # This should work fine since we're setting the same value as before.
     options._session_started = True
-    expected_message = re.escape(
-        bigquery_options.SESSION_STARTED_MESSAGE.format(attribute=attribute)
-    )
-    with pytest.raises(ValueError, match=expected_message):
-        setattr(options, attribute, original_object)
+    setattr(options, attribute, original_object)
 
     assert getattr(options, attribute) is original_object
-    assert getattr(options, attribute) is not second_object

@@ -49,7 +49,7 @@ class BigQueryOptions:
 
     @credentials.setter
     def credentials(self, value: Optional[google.auth.credentials.Credentials]):
-        if self._session_started:
+        if self._session_started and self._credentials is not value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="credentials"))
         self._credentials = value
 
@@ -63,7 +63,7 @@ class BigQueryOptions:
 
     @location.setter
     def location(self, value: Optional[str]):
-        if self._session_started:
+        if self._session_started and self._location != value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="location"))
         self._location = value
 
@@ -74,7 +74,7 @@ class BigQueryOptions:
 
     @project.setter
     def project(self, value: Optional[str]):
-        if self._session_started:
+        if self._session_started and self._project != value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="project"))
         self._project = value
 
@@ -89,7 +89,7 @@ class BigQueryOptions:
 
     @remote_udf_connection.setter
     def remote_udf_connection(self, value: Optional[str]):
-        if self._session_started:
+        if self._session_started and self._remote_udf_connection != value:
             raise ValueError(
                 SESSION_STARTED_MESSAGE.format(attribute="remote_udf_connection")
             )
@@ -107,7 +107,7 @@ class BigQueryOptions:
 
     @use_regional_endpoints.setter
     def use_regional_endpoints(self, value: bool):
-        if self._session_started:
+        if self._session_started and self._use_regional_endpoints != value:
             raise ValueError(
                 SESSION_STARTED_MESSAGE.format(attribute="use_regional_endpoints")
             )
