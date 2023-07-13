@@ -429,6 +429,18 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def nunique(self) -> int:
+        """
+        Return number of unique elements in the object.
+
+        Excludes NA values by default.
+
+        Returns
+        -------
+        int
+        """
+        raise NotImplementedError("abstract method")
+
     def mode(self) -> Series:
         """
         Return the mode(s) of the Series.

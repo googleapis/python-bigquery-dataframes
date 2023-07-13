@@ -948,6 +948,34 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def count(self, *, numeric_only: bool = False):
+        """
+        Count non-NA cells for each column or row.
+
+        The values `None`, `NaN`, `NaT`, and optionally `numpy.inf` (depending
+        on `pandas.options.mode.use_inf_as_na`) are considered NA.
+
+        Args:
+            numeric_only : bool, default False
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            For each column/row the number of non-NA/null entries.
+            If `level` is specified returns a `DataFrame`.
+        """
+        raise NotImplementedError("abstract method")
+
+    def nunique(self):
+        """
+        Count number of distinct elements in specified axis.
+
+        Return Series with number of distinct elements.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
     def cummin(self) -> DataFrame:
         """Return cumulative minimum over a DataFrame axis.
 

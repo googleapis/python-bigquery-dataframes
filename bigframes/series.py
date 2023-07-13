@@ -521,6 +521,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def count(self) -> int:
         return typing.cast(int, self._apply_aggregation(agg_ops.count_op))
 
+    def nunique(self) -> int:
+        return typing.cast(int, self._apply_aggregation(agg_ops.nunique_op))
+
     def max(self) -> scalars.Scalar:
         return self._apply_aggregation(agg_ops.max_op)
 

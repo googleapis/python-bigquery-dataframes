@@ -153,6 +153,17 @@ class CountOp(AggregateOp):
         return False
 
 
+class NuniqueOp(AggregateOp):
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        return _apply_window_if_present(column.nunique(), window)
+
+    @property
+    def skips_nulls(self):
+        return False
+
+
 class RankOp(WindowOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None
@@ -269,6 +280,7 @@ min_op = MinOp()
 std_op = StdOp()
 var_op = VarOp()
 count_op = CountOp()
+nunique_op = NuniqueOp()
 rank_op = RankOp()
 dense_rank_op = DenseRankOp()
 all_op = AllOp()

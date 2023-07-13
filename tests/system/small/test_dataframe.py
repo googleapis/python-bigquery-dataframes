@@ -1173,15 +1173,10 @@ def test_loc_bool_series_default_index(
         (lambda x: x.max(numeric_only=True)),
         (lambda x: x.std(numeric_only=True)),
         (lambda x: x.var(numeric_only=True)),
+        (lambda x: x.count(numeric_only=False)),
+        (lambda x: x.nunique()),
     ],
-    ids=[
-        "sum",
-        "mean",
-        "min",
-        "max",
-        "std",
-        "var",
-    ],
+    ids=["sum", "mean", "min", "max", "std", "var", "count", "nunique"],
 )
 def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]

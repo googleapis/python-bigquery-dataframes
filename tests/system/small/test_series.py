@@ -719,6 +719,14 @@ def test_count(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_nunique(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = (scalars_df[col_name] % 3).nunique()
+    pd_result = (scalars_pandas_df[col_name] % 3).nunique()
+    assert pd_result == bf_result
+
+
 def test_all(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"

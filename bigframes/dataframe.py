@@ -901,6 +901,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.aggregate_all_and_pivot(agg_ops.max_op)
         return bigframes.series.Series(block.select_column("values"))
 
+    def count(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+        block = self._block.aggregate_all_and_pivot(
+            agg_ops.count_op, numeric_only=numeric_only
+        )
+        return bigframes.series.Series(block.select_column("values"))
+
+    def nunique(self) -> bigframes.series.Series:
+        block = self._block.aggregate_all_and_pivot(
+            agg_ops.nunique_op, numeric_only=False
+        )
+        return bigframes.series.Series(block.select_column("values"))
+
     def merge(
         self,
         right: DataFrame,
