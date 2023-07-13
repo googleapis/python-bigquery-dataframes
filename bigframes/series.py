@@ -644,7 +644,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(block)
 
     def __getattr__(self, key: str):
-        if hasattr(pandas.Series(), key):
+        if hasattr(pandas.Series, key):
             raise NotImplementedError(
                 textwrap.dedent(
                     f"""

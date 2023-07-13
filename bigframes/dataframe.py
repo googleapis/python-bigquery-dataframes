@@ -397,7 +397,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __getattr__(self, key: str):
         if key in self._block.column_labels:
             return self.__getitem__(key)
-        elif hasattr(pd.DataFrame(), key):
+        elif hasattr(pd.DataFrame, key):
             raise NotImplementedError(
                 textwrap.dedent(
                     f"""
