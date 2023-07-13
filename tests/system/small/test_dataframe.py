@@ -278,6 +278,36 @@ def test_assign_new_column(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_assign_new_column_w_loc(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.loc[:, "new_col"] = 2
+    pd_df.loc[:, "new_col"] = 2
+    bf_result = bf_df.compute()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_assign_new_column_w_setitem(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df["new_col"] = 2
+    pd_df["new_col"] = 2
+    bf_result = bf_df.compute()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_assign_existing_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     kwargs = {"int64_col": 2}
@@ -360,6 +390,44 @@ def test_assign_different_df(
     )
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+def test_assign_different_df_w_loc(
+    scalars_df_index, scalars_df_2_index, scalars_pandas_df_index
+):
+    bf_df = scalars_df_index.copy()
+    bf_df2 = scalars_df_2_index.copy()
+    pd_df = scalars_pandas_df_index.copy()
+    assert "int64_col" in bf_df.columns
+    assert "int64_col" in pd_df.columns
+    bf_df.loc[:, "int64_col"] = bf_df2.loc[:, "int64_col"] + 1
+    pd_df.loc[:, "int64_col"] = pd_df.loc[:, "int64_col"] + 1
+    bf_result = bf_df.compute()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_assign_different_df_w_setitem(
+    scalars_df_index, scalars_df_2_index, scalars_pandas_df_index
+):
+    bf_df = scalars_df_index.copy()
+    bf_df2 = scalars_df_2_index.copy()
+    pd_df = scalars_pandas_df_index.copy()
+    assert "int64_col" in bf_df.columns
+    assert "int64_col" in pd_df.columns
+    bf_df["int64_col"] = bf_df2["int64_col"] + 1
+    pd_df["int64_col"] = pd_df["int64_col"] + 1
+    bf_result = bf_df.compute()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_dropna(scalars_dfs):
@@ -1138,7 +1206,7 @@ def test_iloc_single_integer_out_of_bound_error(
         scalars_df_index.iloc[99]
 
 
-def test_loc_bool_series_explicit_index(scalars_df_index, scalars_pandas_df_index):
+def test_loc_bool_series(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.loc[scalars_df_index.bool_col].compute()
     pd_result = scalars_pandas_df_index.loc[scalars_pandas_df_index.bool_col]
 
@@ -1148,17 +1216,10 @@ def test_loc_bool_series_explicit_index(scalars_df_index, scalars_pandas_df_inde
     )
 
 
-def test_loc_bool_series_default_index(
-    scalars_df_default_index, scalars_pandas_df_default_index
-):
-    bf_result = scalars_df_default_index.loc[
-        scalars_df_default_index.bool_col
-    ].compute()
-    pd_result = scalars_pandas_df_default_index.loc[
-        scalars_pandas_df_default_index.bool_col
-    ]
-
-    assert_pandas_df_equal_ignore_ordering(
+def test_loc_select_column(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.loc[:, "int64_col"].compute()
+    pd_result = scalars_pandas_df_index.loc[:, "int64_col"]
+    pd.testing.assert_series_equal(
         bf_result,
         pd_result,
     )

@@ -15,16 +15,20 @@
 from __future__ import annotations
 
 import typing
+from typing import Tuple
 
 import ibis
 import pandas as pd
 
 import bigframes.core as core
 import bigframes.core.guid as guid
-import bigframes.core.indexes.index
+import bigframes.core.indexes as indexes
 import bigframes.core.scalar
 import bigframes.dataframe
 import bigframes.series
+
+if typing.TYPE_CHECKING:
+    LocSingleKey = bigframes.series.Series | indexes.Index | slice
 
 
 class LocSeriesIndexer:
@@ -101,21 +105,59 @@ class IlocSeriesIndexer:
         return _iloc_getitem_series_or_dataframe(self._series, key)
 
 
-class _LocIndexer:
+class LocDataFrameIndexer:
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> bigframes.dataframe.DataFrame:
-        """
-        Only indexing by a boolean bigframes.series.Series is currently supported
-        """
+    @typing.overload
+    def __getitem__(self, key: LocSingleKey) -> bigframes.dataframe.DataFrame:
+        ...
+
+    # Technically this is wrong since we can have duplicate column labels, but
+    # this is expected to be rare.
+    @typing.overload
+    def __getitem__(self, key: Tuple[LocSingleKey, str]) -> bigframes.series.Series:
+        ...
+
+    def __getitem__(self, key):
+        # TODO(swast): If the DataFrame has a MultiIndex, we'll need to
+        # disambiguate this from a single row selection.
+        if isinstance(key, tuple) and len(key) == 2:
+            df = typing.cast(
+                bigframes.dataframe.DataFrame,
+                _loc_getitem_series_or_dataframe(self._dataframe, key[0]),
+            )
+            return df[key[1]]
+
         return typing.cast(
             bigframes.dataframe.DataFrame,
             _loc_getitem_series_or_dataframe(self._dataframe, key),
         )
 
+    def __setitem__(
+        self,
+        key: Tuple[slice, str],
+        value: bigframes.dataframe.SingleItemValue,
+    ):
+        if (
+            not isinstance(key, tuple)
+            or len(key) != 2
+            or not isinstance(key[0], slice)
+            or (key[0].start is not None and key[0].start != 0)
+            or (key[0].step is not None and key[0].step != 1)
+            or key[0].stop is not None
+        ):
+            raise NotImplementedError(
+                "Only setting a column by DataFrame.loc[:, 'column'] is supported."
+            )
 
-class _iLocIndexer:
+        # TODO(swast): Support setting multiple columns with key[1] as a list
+        # of labels and value as a DataFrame.
+        df = self._dataframe.assign(**{key[1]: value})
+        self._dataframe._set_block(df._get_block())
+
+
+class ILocDataFrameIndexer:
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
@@ -146,7 +188,8 @@ def _loc_getitem_series_or_dataframe(
 
 
 def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series, key
+    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series,
+    key: LocSingleKey,
 ) -> bigframes.dataframe.DataFrame | bigframes.series.Series:
     if isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
         return series_or_dataframe[key]
@@ -165,7 +208,7 @@ def _loc_getitem_series_or_dataframe(
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif pd.api.types.is_list_like(key):
         # TODO(henryjsolberg): support MultiIndex
-        if len(key) == 0:
+        if len(key) == 0:  # type: ignore
             return typing.cast(
                 typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
@@ -177,7 +220,7 @@ def _loc_getitem_series_or_dataframe(
         keys_df = keys_df.set_index(index_name, drop=True)
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
-        raise NotImplementedError("loc does not yet support indexing with a slice")
+        return series_or_dataframe._slice(key.start, key.stop, key.step)
     elif callable(key):
         raise NotImplementedError("loc does not yet support indexing with a callable")
     else:

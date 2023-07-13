@@ -57,6 +57,7 @@ if typing.TYPE_CHECKING:
 MAX_INLINE_DF_SIZE = 5000
 
 LevelsType = typing.Union[str, int, typing.Sequence[typing.Union[str, int]]]
+SingleItemValue = Union[bigframes.series.Series, int, float]
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -196,12 +197,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexes.Index(self)
 
     @property
-    def loc(self) -> indexers._LocIndexer:
-        return indexers._LocIndexer(self)
+    def loc(self) -> indexers.LocDataFrameIndexer:
+        return indexers.LocDataFrameIndexer(self)
 
     @property
-    def iloc(self) -> indexers._iLocIndexer:
-        return indexers._iLocIndexer(self)
+    def iloc(self) -> indexers.ILocDataFrameIndexer:
+        return indexers.ILocDataFrameIndexer(self)
 
     @property
     def dtypes(self) -> pd.Series:
@@ -494,6 +495,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         formatted_df.index.name = self.index.name
         return formatted_df, count
 
+    def __setitem__(self, key: str, value: SingleItemValue):
+        """Modify or insert a column into the DataFrame.
+
+        Note: This does **not** modify the original table the DataFrame was
+        derived from.
+        """
+        df = self._assign_single_item(key, value)
+        self._set_block(df._get_block())
+
     def _apply_binop(
         self,
         other: float | int | bigframes.series.Series,
@@ -721,7 +731,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return cur
 
     def _assign_single_item(
-        self, k: str, v: Union[bigframes.series.Series, int, float]
+        self,
+        k: str,
+        v: SingleItemValue,
     ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)

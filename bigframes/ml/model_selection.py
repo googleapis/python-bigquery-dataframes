@@ -20,6 +20,7 @@ https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_select
 from typing import List, Union
 
 import bigframes
+import bigframes.dataframe
 
 
 def train_test_split(
