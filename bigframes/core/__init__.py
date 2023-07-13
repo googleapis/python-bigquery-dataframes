@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import functools
 import math
 import typing
-from typing import Collection, Dict, Iterable, Optional, Sequence, Tuple
+from typing import Collection, Dict, Iterable, Literal, Optional, Sequence, Tuple
 
 from google.cloud import bigquery
 import ibis
@@ -267,11 +267,21 @@ class ArrayValue:
         return typing.cast(ibis_types.Column, self._hidden_ordering_column_names[key])
 
     def apply_limit(self, max_results: int) -> ArrayValue:
-        table = self.to_ibis_expr().limit(max_results)
-        # Since we make a new table expression, the old column references now
-        # point to the wrong table. Use the ArrayValue constructor to make
-        # sure we have the correct references.
-        return ArrayValue(self._session, table)
+        table = self.to_ibis_expr(
+            ordering_mode="order_by",
+            expose_hidden_cols=True,
+        ).limit(max_results)
+        columns = [table[column_name] for column_name in self._column_names]
+        hidden_ordering_columns = [
+            table[column_name] for column_name in self._hidden_ordering_column_names
+        ]
+        return ArrayValue(
+            self._session,
+            table,
+            columns=columns,
+            hidden_ordering_columns=hidden_ordering_columns,
+            ordering=self._ordering,
+        )
 
     def filter(self, predicate: ibis_types.BooleanValue) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
@@ -574,8 +584,11 @@ class ArrayValue:
 
     def to_ibis_expr(
         self,
-        ordering_mode: str = "order_by",
-        order_col_name=ORDER_ID_COLUMN,
+        ordering_mode: Literal[
+            "order_by", "ordered_col", "offset_col", "unordered"
+        ] = "order_by",
+        order_col_name: Optional[str] = ORDER_ID_COLUMN,
+        expose_hidden_cols: bool = False,
     ):
         """
         Creates an Ibis table expression representing the DataFrame.
@@ -589,8 +602,6 @@ class ArrayValue:
           not sort the rows however.
         * "ordered_col": An ordered column is provided in output table, without
           guarantee that the values are sequential
-        * "expose_hidden_cols": All columns projected in table expression,
-          including hidden columns. Output is not otherwise ordered
         * "unordered": No ordering information will be provided in output. Only
           value columns are projected.
 
@@ -599,8 +610,16 @@ class ArrayValue:
         column name will be 'bigframes_ordering_id'
 
         Args:
-            with_offsets: Output will include 0-based offsets as a column if set to True
-            ordering_mode: One of "order_by", "ordered_col", or "offset_col"
+            ordering_mode:
+                How to construct the Ibis expression from the ArrayValue. See
+                above for details.
+            order_col_name:
+                If the ordering mode outputs a single ordering or offsets
+                column, use this as the column name.
+            expose_hidden_cols:
+                If True, include the hidden ordering columns in the results.
+                Only compatible with `order_by` and `unordered`
+                ``ordering_mode``.
         Returns:
             An ibis expression representing the data help by the ArrayValue object.
         """
@@ -608,9 +627,12 @@ class ArrayValue:
             "order_by",
             "ordered_col",
             "offset_col",
-            "expose_hidden_cols",
             "unordered",
         )
+        if expose_hidden_cols and ordering_mode in ("ordered_col", "offset_col"):
+            raise ValueError(
+                f"Cannot expose hidden ordering columns with ordering_mode {ordering_mode}"
+            )
 
         table = self._table
         columns = list(self._columns)
@@ -649,7 +671,10 @@ class ArrayValue:
                     for name in hidden_ordering_columns
                 ]
             )
-        elif ordering_mode == "expose_hidden_cols":
+
+        # We already need to add the hidden ordering columns for "order_by" so
+        # we can order by them.
+        if expose_hidden_cols and ordering_mode != "order_by":
             columns.extend(self._hidden_ordering_columns)
 
         # Special case for empty tables, since we can't create an empty
@@ -657,6 +682,10 @@ class ArrayValue:
         if not columns:
             return ibis.memtable([])
         table = table.select(columns)
+        # Make sure all dtypes are the "canonical" ones for BigFrames. This is
+        # important for operations like UNION where the schema must match.
+        table = bigframes.dtypes.ibis_table_to_canonical_types(table)
+
         if self.reduced_predicate is not None:
             table = table.filter(table[PREDICATE_COLUMN])
             # Drop predicate as it is will be all TRUE after filtering
@@ -670,12 +699,11 @@ class ArrayValue:
                     self._ordering.all_ordering_columns,
                 )  # type: ignore
             )
-            if not (ordering_mode == "expose_hidden_cols"):
+            # TODO(swast): We should be able to avoid this subquery by ordering
+            # by columns that don't have to be in the SELECT clause.
+            if not expose_hidden_cols:
                 table = table.drop(*hidden_ordering_columns)
 
-        # Make sure all dtypes are the "canonical" ones for BigFrames. This is
-        # important for operations like UNION where the schema must match.
-        table = bigframes.dtypes.ibis_table_to_canonical_types(table)
         return table
 
     def start_query(
@@ -702,7 +730,7 @@ class ArrayValue:
             max_results=max_results,
         )
 
-    def _reproject_to_table(self):
+    def _reproject_to_table(self) -> ArrayValue:
         """
         Internal operators that projects the internal representation into a
         new ibis table expression where each value column is a direct
@@ -711,8 +739,9 @@ class ArrayValue:
         recursively in projections.
         """
         table = self.to_ibis_expr(
-            ordering_mode="expose_hidden_cols",
+            ordering_mode="unordered",
             order_col_name=self._ordering.ordering_id,
+            expose_hidden_cols=True,
         )
         columns = [table[column_name] for column_name in self._column_names]
         hidden_ordering_columns = [
@@ -832,13 +861,27 @@ class ArrayValue:
         if step == 0:
             raise ValueError("slice step cannot be zero")
 
+        if not step:
+            step = 1
+
+        # Special cases for head() and tail(), where we don't need to project
+        # offsets. LIMIT clause is much more efficient in BigQuery than a
+        # filter on row_number().
+        if (
+            (start is None or start == 0)
+            and step == 1
+            and stop is not None
+            and stop > 0
+        ):
+            return self.apply_limit(stop)
+
+        if start is not None and start < 0 and step == 1 and stop is None:
+            return self.reversed().apply_limit(abs(start)).reversed()
+
         expr_with_offsets = self.project_offsets()
 
         # start with True and reduce with start, stop, and step conditions
         cond_list = [expr_with_offsets.offsets == expr_with_offsets.offsets]
-
-        if not step:
-            step = 1
 
         last_offset = expr_with_offsets.offsets.max()
 
