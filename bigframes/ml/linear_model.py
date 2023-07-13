@@ -108,7 +108,9 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        input_data = X.join(y, how="outer") if X and y else None
+        input_data = (
+            X.join(y, how="outer") if (X is not None) and (y is not None) else None
+        )
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LinearRegression:
@@ -220,7 +222,9 @@ class LogisticRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        input_data = X.join(y, how="outer") if X and y else None
+        input_data = (
+            X.join(y, how="outer") if (X is not None) and (y is not None) else None
+        )
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LogisticRegression:

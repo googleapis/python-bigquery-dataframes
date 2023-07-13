@@ -1495,3 +1495,8 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+def test_df_bool_interpretation_error(scalars_df_index):
+    with pytest.raises(ValueError):
+        True if scalars_df_index else False

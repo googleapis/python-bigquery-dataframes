@@ -1886,3 +1886,8 @@ def test_loc_bf_index_integer_index(scalars_df_index, scalars_pandas_df_index):
         bf_result.compute(),
         pd_result,
     )
+
+
+def test_series_bool_interpretation_error(scalars_df_index):
+    with pytest.raises(ValueError):
+        True if scalars_df_index["string_col"] else False

@@ -149,7 +149,7 @@ class BqmlModel:
         # Note: don't need index as evaluate returns a new table
         source_sql, _ = (
             input_data.to_sql_query(always_include_index=False)
-            if input_data
+            if (input_data is not None)
             else (None, None)
         )
         sql = bigframes.ml.sql.ml_evaluate(self.model_name, source_sql)
