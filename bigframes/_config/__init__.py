@@ -18,6 +18,7 @@ DataFrame from this package.
 """
 
 import bigframes._config.bigquery_options as bigquery_options
+import bigframes._config.display_options as display_options
 
 
 class Options:
@@ -25,11 +26,17 @@ class Options:
 
     def __init__(self):
         self._bigquery_options = bigquery_options.BigQueryOptions()
+        self._display_options = display_options.DisplayOptions()
 
     @property
     def bigquery(self) -> bigquery_options.BigQueryOptions:
         """Options to use with the BigQuery engine."""
         return self._bigquery_options
+
+    @property
+    def display(self) -> display_options.DisplayOptions:
+        """Options controlling object representation."""
+        return self._display_options
 
 
 options = Options()

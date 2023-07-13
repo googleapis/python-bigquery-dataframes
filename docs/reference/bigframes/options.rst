@@ -8,3 +8,5 @@ Options and settings
 .. autoclass:: bigframes._config.Options
 
 .. autoclass:: bigframes._config.bigquery_options.BigQueryOptions
+
+.. autoclass:: bigframes._config.display_options.DisplayOptions

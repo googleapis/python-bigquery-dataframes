@@ -28,6 +28,8 @@ import numpy
 import pandas as pd
 import typing_extensions
 
+import bigframes
+import bigframes._config.display_options as display_options
 import bigframes.core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
@@ -414,14 +416,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise AttributeError(key)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string. Calls compute. Only represents the first
-        25 results."""
-        max_results = 25
+        """Converts a DataFrame to a string. Calls compute.
+
+        Only represents the first ``bigframes.options.display.max_rows``.
+        """
+        opts = bigframes.options.display
+        max_results = opts.max_rows
+        # TODO(swast): pass max_columns and get the true column count back. Maybe
+        # get 1 more column than we have requested so that pandas can add the
+        # ... for us?
         pandas_df, row_count = self._retrieve_repr_request_results(max_results)
         column_count = len(pandas_df.columns)
 
+        with display_options.pandas_repr(opts):
+            repr_string = repr(pandas_df)
+
         # Modify the end of the string to reflect count.
-        repr_string = repr(pandas_df)
         lines = repr_string.split("\n")
         pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
         if pattern.match(lines[-1]):
@@ -440,11 +450,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         a representation of the DataFrame. Displays 20 rows by default since
         many notebooks are not configured for large tables.
         """
-        max_results = 20
+        opts = bigframes.options.display
+        max_results = bigframes.options.display.max_rows
+        # TODO(swast): pass max_columns and get the true column count back. Maybe
+        # get 1 more column than we have requested so that pandas can add the
+        # ... for us?
         pandas_df, row_count = self._retrieve_repr_request_results(max_results)
         column_count = len(pandas_df.columns)
-        # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
-        html_string = pandas_df._repr_html_()  # type:ignore
+
+        with display_options.pandas_repr(opts):
+            # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
+            html_string = pandas_df._repr_html_()  # type:ignore
+
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
 
@@ -457,6 +474,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
+        # TODO(swast): Select a subset of columns if max_columns is less than the
+        # number of columns in the schema.
         count = self.shape[0]
         if count > max_results:
             head_df = self.head(n=max_results)

@@ -21,6 +21,8 @@ import pandas.testing
 import pyarrow as pa  # type: ignore
 import pytest
 
+import bigframes
+import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
 from tests.system.utils import (
     assert_pandas_df_equal_ignore_ordering,
@@ -182,7 +184,12 @@ def test_rename(scalars_dfs):
 
 def test_repr_w_all_rows(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    scalars_df = scalars_df.copy()
+
+    # Remove columns with flaky formatting, like NUMERIC columns (which use the
+    # object dtype). Also makes a copy so that mutating the index name doesn't
+    # break other tests.
+    scalars_df = scalars_df.drop(columns=["numeric_col"])
+    scalars_pandas_df = scalars_pandas_df.drop(columns=["numeric_col"])
 
     if scalars_pandas_df.index.name is None:
         # Note: Not quite the same as no index / default index, but hopefully
@@ -193,7 +200,10 @@ def test_repr_w_all_rows(scalars_dfs):
 
     # When there are 10 or fewer rows, the outputs should be identical.
     actual = repr(scalars_df.head(10))
-    expected = repr(scalars_pandas_df.head(10))
+
+    with display_options.pandas_repr(bigframes.options.display):
+        expected = repr(scalars_pandas_df.head(10))
+
     assert actual == expected
 
 
@@ -206,8 +216,11 @@ def test_repr_html_w_all_rows(scalars_dfs):
 
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
     actual = scalars_df.head(10)._repr_html_()
+    with display_options.pandas_repr(bigframes.options.display):
+        pandas_repr = pandas_df.head(10)._repr_html_()
+
     expected = (
-        pandas_df.head(10)._repr_html_()
+        pandas_repr
         + f"[{len(pandas_df.index)} rows x {len(pandas_df.columns)} columns in total]"
     )
     assert actual == expected
