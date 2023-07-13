@@ -186,3 +186,30 @@ def test_multi_index_reorder_levels(scalars_df_index, scalars_pandas_df_index, o
     pd_result = pd_frame.reorder_levels(order)
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("level"),
+    [
+        (1),
+        ([0]),
+        (["bool_col"]),
+        (["bool_col", "int64_too"]),
+    ],
+)
+def test_multi_index_series_groupby_level(
+    scalars_df_index, scalars_pandas_df_index, level
+):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level)
+        .mean()
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level)
+        .mean()
+    )
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)

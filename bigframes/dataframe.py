@@ -693,10 +693,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(self._block.reorder_levels(resolved_level_ids))
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        if not _is_list_like(level):
-            levels = [level]
-        else:
+        if _is_list_like(level):
             levels = list(level)
+        else:
+            levels = [level]
         resolved_level_ids = []
         for level_ref in levels:
             if isinstance(level_ref, int):
@@ -1043,11 +1043,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         as_index: bool = True,
         dropna: bool = True,
     ) -> groupby.DataFrameGroupBy:
-        if as_index and not isinstance(by, str):
-            raise ValueError(
-                "Set as_index=False if grouping by list of values. Mutli-index not"
-                + "yet supported"
-            )
         by_col_ids = self._sql_names(by)
         return groupby.DataFrameGroupBy(
             self._block,

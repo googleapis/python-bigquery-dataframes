@@ -70,22 +70,32 @@ def test_dataframe_groupby_aggregate(
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
-def test_dataframe_groupby_multi_sum(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("as_index"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_dataframe_groupby_multi_sum(
+    scalars_df_index, scalars_pandas_df_index, as_index
+):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
     bf_series = (
         scalars_df_index[col_names]
-        .groupby(["bool_col", "int64_col"], as_index=False)
+        .groupby(["bool_col", "int64_col"], as_index=as_index)
         .sum(numeric_only=True)
     )
     pd_series = (
         scalars_pandas_df_index[col_names]
-        .groupby(["bool_col", "int64_col"], as_index=False)
+        .groupby(["bool_col", "int64_col"], as_index=as_index)
         .sum(numeric_only=True)
     )
     bf_result = bf_series.compute()
 
-    # BigQuery DataFrame default indices use nullable Int64 always
-    pd_series.index = pd_series.index.astype("Int64")
+    if not as_index:
+        # BigQuery DataFrame default indices use nullable Int64 always
+        pd_series.index = pd_series.index.astype("Int64")
 
     pd.testing.assert_frame_equal(
         pd_series,

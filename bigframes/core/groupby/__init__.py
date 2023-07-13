@@ -39,10 +39,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         dropna: bool = True,
         as_index: bool = True,
     ):
-        if len(by_col_ids) > 1 and as_index:
-            raise ValueError(
-                "Set as_index=False if grouping by multiple values. Mutli-index not yet supported"
-            )
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
         self._col_id_labels = {
@@ -172,7 +168,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self,
         block: blocks.Block,
         value_column: str,
-        by: str,
+        by_col_ids: typing.Sequence[str],
         value_name: typing.Optional[str] = None,
         key_name: typing.Optional[str] = None,
         dropna=True,
@@ -180,7 +176,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
         self._value_column = value_column
-        self._by = by
+        self._by_col_ids = by_col_ids
         self._value_name = value_name
         self._key_name = key_name
         self._dropna = dropna  # Applies to aggregations but not windowing
@@ -217,38 +213,38 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def cumsum(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.sum_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0),
         )
 
     def cumprod(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.product_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0),
         )
 
     def cummax(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.max_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0),
         )
 
     def cummin(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.min_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0),
         )
 
     def cumcount(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.rank_op,
-            bigframes.core.WindowSpec(grouping_keys=(self._by,), following=0),
+            bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0),
             discard_name=True,
         )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
 
     def shift(self, periods=1) -> series.Series:
         """Shift index by desired number of periods."""
         window = bigframes.core.WindowSpec(
-            grouping_keys=(self._by,),
+            grouping_keys=self._by_col_ids,
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
@@ -261,22 +257,24 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = core.WindowSpec(
-            grouping_keys=[self._by],
+            grouping_keys=self._by_col_ids,
             preceding=window - 1,
             following=0,
             min_periods=min_periods or window,
         )
         block = self._block.order_by(
-            (order.OrderingColumnReference(self._by),), stable=True
+            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            stable=True,
         )
         return windows.Window(block, window_spec, self._value_column)
 
     def expanding(self, min_periods: int = 1) -> windows.Window:
         window_spec = core.WindowSpec(
-            grouping_keys=[self._by], following=0, min_periods=min_periods
+            grouping_keys=self._by_col_ids, following=0, min_periods=min_periods
         )
         block = self._block.order_by(
-            (order.OrderingColumnReference(self._by),), stable=True
+            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            stable=True,
         )
         return windows.Window(block, window_spec, self._value_column)
 
@@ -285,7 +283,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> series.Series:
         result_block, _ = self._block.aggregate(
-            [self._by],
+            self._by_col_ids,
             ((self._value_column, aggregate_op),),
             dropna=self._dropna,
         )

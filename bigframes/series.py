@@ -805,27 +805,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         level: int | str | typing.Sequence[int] | typing.Sequence[str],
         dropna: bool = True,
     ):
-        # TODO(tbergeron): Add multi-index groupby when that feature is implemented.
-        if isinstance(level, int) and (level > 0 or level < -1):
-            raise ValueError("level > 0 or level < -1 only valid with MultiIndex")
-        if isinstance(level, str) and level != self.index.name:
-            raise ValueError("level name {} is not the name of the index".format(level))
-        if _is_list_like(level):
-            if len(level) > 1:
-                raise ValueError("multiple levels only valid with MultiIndex")
-            if len(level) == 0:
-                raise ValueError("No group keys passed!")
-            return self._groupby_level(level[0], dropna)
-        if level and not self._block.index_columns:
-            raise ValueError(
-                "groupby level requires and explicit index on the dataframe"
-            )
-        # If all validations passed, must be grouping on the single-level index
-        group_key = self._block.index_columns[0]
         return groupby.SeriesGroupBy(
             self._block,
             self._value_column,
-            group_key,
+            self._resolve_levels(level),
             value_name=self.name,
             key_name=self.index.name,
             dropna=dropna,
@@ -840,7 +823,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return groupby.SeriesGroupBy(
             block,
             value,
-            key,
+            [key],
             value_name=self.name,
             key_name=by.name,
             dropna=dropna,
