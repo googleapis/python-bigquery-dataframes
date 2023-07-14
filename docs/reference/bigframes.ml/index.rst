@@ -13,7 +13,13 @@ API Reference
 
     decomposition
 
+    forecasting
+
+    imported
+
     linear_model
+
+    llm
 
     metrics
 
