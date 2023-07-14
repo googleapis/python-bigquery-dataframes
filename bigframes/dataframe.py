@@ -20,7 +20,17 @@ import random
 import re
 import textwrap
 import typing
-from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import google.cloud.bigquery as bigquery
 import ibis.expr.datatypes as ibis_dtypes
@@ -57,7 +67,7 @@ if typing.TYPE_CHECKING:
 MAX_INLINE_DF_SIZE = 5000
 
 LevelsType = typing.Union[str, int, typing.Sequence[typing.Union[str, int]]]
-SingleItemValue = Union[bigframes.series.Series, int, float]
+SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -737,6 +747,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)
+        elif callable(v):
+            copy = self.copy()
+            copy[k] = v(copy)
+            return copy
         else:
             return self._assign_scalar(k, v)
 
