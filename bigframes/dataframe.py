@@ -954,22 +954,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # column must be provided
         on: Optional[str] = None,
         *,
+        left_on: Optional[str] = None,
+        right_on: Optional[str] = None,
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
-        if not on:
-            raise ValueError("Must specify a column to join on.")
+        if on is None:
+            if left_on is None or right_on is None:
+                raise ValueError("Must specify either on or left_on + right_on.")
+        else:
+            if left_on is not None or right_on is not None:
+                raise ValueError("Can not pass both on and left_on + right_on params.")
+            left_on, right_on = on, on
 
         left = self
-        left_on_sql = self._sql_names(on)
-        # 0 elements alreasy throws an exception
+        left_on_sql = self._sql_names(left_on)
+        # 0 elements already throws an exception
         if len(left_on_sql) > 1:
-            raise ValueError(f"The column label {on} is not unique.")
+            raise ValueError(f"The column label {left_on} is not unique.")
         left_on_sql = left_on_sql[0]
 
-        right_on_sql = right._sql_names(on)
+        right_on_sql = right._sql_names(right_on)
         if len(right_on_sql) > 1:
-            raise ValueError(f"The column label {on} is not unique.")
+            raise ValueError(f"The column label {right_on} is not unique.")
         right_on_sql = right_on_sql[0]
 
         (
@@ -983,6 +990,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             [right_on_sql],
             how=how,
             sort=sort,
+            # In merging on the same column, it only returns 1 key column from coalesced both.
+            # While if 2 different columns, both will be presented in the result.
+            get_both_join_key_cols=(left_on != right_on),
         )
         # TODO(swast): Add suffixes to the column labels instead of reusing the
         # column IDs as the new labels.
@@ -991,38 +1001,58 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             join_key_ids[0] if (col_id == left_on_sql) else get_column_left(col_id)
             for col_id in left._block.value_columns
         ]
-        right_columns = [
-            get_column_right(col_id)
-            for col_id in right._block.value_columns
-            if col_id != right_on_sql
-        ]
+
+        right_columns = []
+        for col_id in right._block.value_columns:
+            if col_id == right_on_sql:
+                # When left_on == right_on
+                if len(join_key_ids) > 1:
+                    right_columns.append(join_key_ids[1])
+            else:
+                right_columns.append(get_column_right(col_id))
+
         expr = joined_expr.select_columns([*left_columns, *right_columns])
-        labels = self._get_merged_col_labels(right, on=on, suffixes=suffixes)
+        labels = self._get_merged_col_labels(
+            right, left_on=left_on, right_on=right_on, suffixes=suffixes
+        )
 
         # Constructs default index
         block = blocks.Block(expr, column_labels=labels)
         return DataFrame(block)
 
     def _get_merged_col_labels(
-        self, right: DataFrame, on: str, suffixes: tuple[str, str] = ("_x", "_y")
+        self,
+        right: DataFrame,
+        left_on: str,
+        right_on: str,
+        suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> List[blocks.Label]:
-        left_col_labels = [
-            (
-                ("{name}" + suffixes[0]).format(name=col_label)
-                if col_label in right._block.column_labels and col_label != on
-                else col_label
-            )
-            for col_label in self._block.column_labels
-        ]
-        right_col_labels = [
-            (
-                ("{name}" + suffixes[1]).format(name=col_label)
-                if col_label in self._block.column_labels and col_label != on
-                else col_label
-            )
-            for col_label in right._block.column_labels
-            if col_label != on
-        ]
+        on_col_equal = left_on == right_on
+
+        left_col_labels: list[blocks.Label] = []
+        for col_label in self._block.column_labels:
+            if col_label in right._block.column_labels:
+                if on_col_equal and col_label == left_on:
+                    # Merging on the same column only returns 1 key column from coalesce both.
+                    # Take the left key column.
+                    left_col_labels.append(col_label)
+                else:
+                    left_col_labels.append(str(col_label) + suffixes[0])
+            else:
+                left_col_labels.append(col_label)
+
+        right_col_labels: list[blocks.Label] = []
+        for col_label in right._block.column_labels:
+            if col_label in self._block.column_labels:
+                if on_col_equal and col_label == left_on:
+                    # Merging on the same column only returns 1 key column from coalesce both.
+                    # Pass the right key column.
+                    pass
+                else:
+                    right_col_labels.append(str(col_label) + suffixes[1])
+            else:
+                right_col_labels.append(col_label)
+
         return left_col_labels + right_col_labels
 
     def join(self, other: DataFrame, *, how: str = "left") -> DataFrame:

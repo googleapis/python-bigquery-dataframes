@@ -42,6 +42,7 @@ def join_by_column(
         "right",
     ],
     sort: bool = False,
+    get_both_join_key_cols: bool = False,
 ) -> Tuple[
     core.ArrayValue,
     typing.Sequence[str],
@@ -55,6 +56,8 @@ def join_by_column(
         right: Expression for right table to join.
         right_column_ids: Column IDs (not label) to join by.
         how: The type of join to perform.
+        get_both_join_key_cols: if set to True, returned column ids will contain
+            both left and right join key columns.
 
     Returns:
         The joined expression and the objects needed to interpret it.
@@ -63,6 +66,8 @@ def join_by_column(
         * Sequence[str]: Column IDs of the coalesced join columns. Sometimes either the
           left/right table will have missing rows. This column pulls the
           non-NULL value from either left/right.
+          If get_both_join_key_cols is True, will return uncombined left and
+          right key columns.
         * Tuple[Callable, Callable]: For a given column ID from left or right,
           respectively, return the new column id from the combined expression.
     """
@@ -176,32 +181,44 @@ def join_by_column(
 
     join_key_cols: list[ibis_types.Value] = []
     for lcol, rcol in zip(left_column_ids, right_column_ids):
-        if how == "left" or how == "inner":
+        if get_both_join_key_cols:
             join_key_cols.append(
                 combined_expr.get_column(get_column_left(lcol)).name(
                     bigframes.core.guid.generate_guid(prefix="index_")
                 )
             )
-        elif how == "right":
             join_key_cols.append(
                 combined_expr.get_column(get_column_right(rcol)).name(
                     bigframes.core.guid.generate_guid(prefix="index_")
                 )
             )
-        elif how == "outer":
-            # The left index and the right index might contain null values, for
-            # example due to an outer join with different numbers of rows. Coalesce
-            # these to take the index value from either column.
-            # Use a random name in case the left index and the right index have the
-            # same name. In such a case, _x and _y suffixes will already be used.
-            join_key_cols.append(
-                ibis.coalesce(
-                    combined_expr.get_column(get_column_left(lcol)),
-                    combined_expr.get_column(get_column_right(rcol)),
-                ).name(bigframes.core.guid.generate_guid(prefix="index_"))
-            )
         else:
-            raise ValueError(f"Unexpected join type: {how}")
+            if how == "left" or how == "inner":
+                join_key_cols.append(
+                    combined_expr.get_column(get_column_left(lcol)).name(
+                        bigframes.core.guid.generate_guid(prefix="index_")
+                    )
+                )
+            elif how == "right":
+                join_key_cols.append(
+                    combined_expr.get_column(get_column_right(rcol)).name(
+                        bigframes.core.guid.generate_guid(prefix="index_")
+                    )
+                )
+            elif how == "outer":
+                # The left index and the right index might contain null values, for
+                # example due to an outer join with different numbers of rows. Coalesce
+                # these to take the index value from either column.
+                # Use a random name in case the left index and the right index have the
+                # same name. In such a case, _x and _y suffixes will already be used.
+                join_key_cols.append(
+                    ibis.coalesce(
+                        combined_expr.get_column(get_column_left(lcol)),
+                        combined_expr.get_column(get_column_right(rcol)),
+                    ).name(bigframes.core.guid.generate_guid(prefix="index_"))
+                )
+            else:
+                raise ValueError(f"Unexpected join type: {how}")
 
     # We could filter out the original join columns, but predicates/ordering
     # might still reference them in implicit joins.

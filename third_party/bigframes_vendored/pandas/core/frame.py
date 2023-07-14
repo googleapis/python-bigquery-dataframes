@@ -806,6 +806,8 @@ class DataFrame(NDFrame):
         ] = "inner",
         on: Optional[str] = None,
         *,
+        left_on: Optional[str] = None,
+        right_on: Optional[str] = None,
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
@@ -840,10 +842,14 @@ class DataFrame(NDFrame):
                   join; preserve the order of the left keys.
 
             on:
-                Column or index level names to join on. These must be found in
-                both DataFrames. If `on` is None and not merging on indexes
-                then this defaults to the intersection of the columns in both
-                DataFrames.
+                Column join on. It must be found in both DataFrames. Either on or left_on + right_on
+                must be passed in.
+            left_on:
+                Column join on in the left DataFrame. Either on or left_on + right_on
+                must be passed in.
+            right_on:
+                Column join on in the right DataFrame. Either on or left_on + right_on
+                must be passed in.
             sort:
                 Default False. Sort the join keys lexicographically in the
                 result DataFrame. If False, the order of the join keys depends

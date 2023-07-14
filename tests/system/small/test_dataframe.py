@@ -516,6 +516,39 @@ def test_merge_custom_col_name(scalars_dfs, merge_how):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("merge_how",),
+    [
+        ("inner",),
+        ("outer",),
+        ("left",),
+        ("right",),
+    ],
+)
+def test_merge_left_on_right_on(scalars_dfs, merge_how):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    left_columns = ["int64_col", "float64_col", "int64_too"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
+
+    left = scalars_df[left_columns]
+    right = scalars_df[right_columns]
+
+    df = left.merge(
+        right, merge_how, left_on="int64_too", right_on="rowindex_2", sort=True
+    )
+    bf_result = df.compute()
+
+    pd_result = scalars_pandas_df[left_columns].merge(
+        scalars_pandas_df[right_columns],
+        merge_how,
+        left_on="int64_too",
+        right_on="rowindex_2",
+        sort=True,
+    )
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 def test_get_dtypes(scalars_df_default_index):
     dtypes = scalars_df_default_index.dtypes
     pd.testing.assert_series_equal(
