@@ -388,7 +388,9 @@ class NDFrame(indexing.IndexingMixin):
         self,
         axis=0,
         method: str = "average",
+        numeric_only: bool = False,
         na_option: str = "keep",
+        ascending: bool = True,
     ):
         """
         Compute numerical data ranks (1 through n) along axis.
@@ -407,6 +409,8 @@ class NDFrame(indexing.IndexingMixin):
             * first: ranks assigned in order they appear in the array
             * dense: like 'min', but rank always increases by 1 between groups.
 
+        numeric_only : bool, default False
+            For DataFrame objects, rank only numeric columns if set to True.
 
         na_option : {'keep', 'top', 'bottom'}, default 'keep'
             How to rank NaN values:
@@ -414,6 +418,9 @@ class NDFrame(indexing.IndexingMixin):
             * keep: assign NaN rank to NaN values
             * top: assign lowest rank to NaN values
             * bottom: assign highest rank to NaN values
+
+        ascending : bool, default True
+            Whether or not the elements should be ranked in ascending order.
 
         Returns
         -------

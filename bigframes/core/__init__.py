@@ -767,7 +767,7 @@ class ArrayValue:
     def _ibis_window_from_spec(self, window_spec: WindowSpec, allow_ties: bool = False):
         group_by: typing.List[ibis_types.Value] = (
             [
-                typing.cast(ibis_types.Column, self.get_column(column))
+                typing.cast(ibis_types.Column, _as_identity(self.get_column(column)))
                 for column in window_spec.grouping_keys
             ]
             if window_spec.grouping_keys
@@ -991,6 +991,13 @@ def _convert_ordering_to_table_values(
             ordering_values.append(ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
+
+
+def _as_identity(value: ibis_types.Value):
+    # Some types need to be converted to string to enable groupby
+    if value.type().is_float64() or value.type().is_geospatial():
+        return value.cast(ibis_dtypes.str)
+    return value
 
 
 def _numeric_to_float(value: ibis_types.Value):

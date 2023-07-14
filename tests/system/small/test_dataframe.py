@@ -1607,6 +1607,55 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
     )
 
 
+@pytest.mark.parametrize(
+    ("na_option", "method", "ascending", "numeric_only"),
+    [
+        ("keep", "average", True, True),
+        ("top", "min", False, False),
+        ("bottom", "max", False, False),
+        ("top", "first", False, False),
+        ("bottom", "dense", False, False),
+    ],
+)
+@pytest.mark.skipif(
+    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
+)
+def test_df_rank_with_nulls(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    na_option,
+    method,
+    ascending,
+    numeric_only,
+):
+    unsupported_columns = ["geography_col"]
+    bf_result = (
+        scalars_df_index.drop(columns=unsupported_columns)
+        .rank(
+            na_option=na_option,
+            method=method,
+            ascending=ascending,
+            numeric_only=numeric_only,
+        )
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.drop(columns=unsupported_columns)
+        .rank(
+            na_option=na_option,
+            method=method,
+            ascending=ascending,
+            numeric_only=numeric_only,
+        )
+        .astype(pd.Float64Dtype())
+    )
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_bool_interpretation_error(scalars_df_index):
     with pytest.raises(ValueError):
         True if scalars_df_index else False

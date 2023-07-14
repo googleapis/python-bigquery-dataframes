@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import typing
 
+import pandas as pd
+
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as ordering
@@ -113,3 +115,85 @@ def value_counts(
             ]
         )
     return block.select_column(count_id).with_column_labels(["count"])
+
+
+def rank(
+    block: blocks.Block,
+    method: str = "average",
+    na_option: str = "keep",
+    ascending: bool = True,
+):
+    if method not in ["average", "min", "max", "first", "dense"]:
+        raise ValueError(
+            "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
+        )
+    if na_option not in ["keep", "top", "bottom"]:
+        raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
+
+    columns = block.value_columns
+    labels = block.column_labels
+    # Step 1: Calculate row numbers for each row
+    # Identify null values to be treated according to na_option param
+    rownum_col_ids = []
+    nullity_col_ids = []
+    for col in columns:
+        block, nullity_col_id = block.apply_unary_op(
+            col,
+            ops.isnull_op,
+        )
+        nullity_col_ids.append(nullity_col_id)
+        window = core.WindowSpec(
+            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
+            ordering=(
+                ordering.OrderingColumnReference(
+                    col,
+                    ordering.OrderingDirection.ASC
+                    if ascending
+                    else ordering.OrderingDirection.DESC,
+                    na_last=(na_option in ["bottom", "keep"]),
+                ),
+            ),
+        )
+        # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
+        block, rownum_id = block.apply_window_op(
+            col if na_option == "keep" else nullity_col_id,
+            agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
+            window_spec=window,
+            skip_reproject_unsafe=(col != columns[-1]),
+        )
+        rownum_col_ids.append(rownum_id)
+
+    # Step 2: Apply aggregate to groups of like input values.
+    # This step is skipped for method=='first' or 'dense'
+    if method in ["average", "min", "max"]:
+        agg_op = {
+            "average": agg_ops.mean_op,
+            "min": agg_ops.min_op,
+            "max": agg_ops.max_op,
+        }[method]
+        post_agg_rownum_col_ids = []
+        for i in range(len(columns)):
+            block, result_id = block.apply_window_op(
+                rownum_col_ids[i],
+                agg_op,
+                window_spec=core.WindowSpec(grouping_keys=[columns[i]]),
+                skip_reproject_unsafe=(i < (len(columns) - 1)),
+            )
+            post_agg_rownum_col_ids.append(result_id)
+        rownum_col_ids = post_agg_rownum_col_ids
+
+    # Step 3: post processing: mask null values and cast to float
+    if method in ["min", "max", "first", "dense"]:
+        # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
+        block = block.multi_apply_unary_op(
+            rownum_col_ids, ops.AsTypeOp(pd.Float64Dtype())
+        )
+    if na_option == "keep":
+        # For na_option "keep", null inputs must produce null outputs
+        for i in range(len(columns)):
+            block, null_const = block.create_constant(pd.NA, dtype=pd.Float64Dtype())
+            block, rownum_col_ids[i] = block.apply_ternary_op(
+                null_const, nullity_col_ids[i], rownum_col_ids[i], ops.where_op
+            )
+
+    return block.select_columns(rownum_col_ids).with_column_labels(labels)

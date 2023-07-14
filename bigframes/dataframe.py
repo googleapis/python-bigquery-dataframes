@@ -1537,7 +1537,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         )
 
+    def rank(
+        self,
+        axis=0,
+        method: str = "average",
+        numeric_only=False,
+        na_option: str = "keep",
+        ascending=True,
+    ) -> DataFrame:
+        df = self._drop_non_numeric() if numeric_only else self
+        return DataFrame(block_ops.rank(df._block, method, na_option, ascending))
+
     applymap = map
+
+    def _drop_non_numeric(self) -> DataFrame:
+        numeric_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+        ]
+        return DataFrame(self._block.select_columns(numeric_cols))
 
     def _slice(
         self,

@@ -258,63 +258,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def diff(self) -> Series:
         return self - self.shift(1)
 
-    def rank(self, axis=0, method: str = "average", na_option: str = "keep") -> Series:
-        if method not in ["average", "min", "max", "first", "dense"]:
-            raise ValueError(
-                "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
-            )
-        if na_option not in ["keep", "top", "bottom"]:
-            raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
-        # Step 1: Calculate row numbers for each row
-        block = self._block
-        # Identify null values to be treated according to na_option param
-        block, nullity_col_id = block.apply_unary_op(
-            self._value_column,
-            ops.isnull_op,
-        )
-        window = WindowSpec(
-            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
-            ordering=(
-                OrderingColumnReference(
-                    self._value_column,
-                    OrderingDirection.ASC,
-                    na_last=(na_option in ["bottom", "keep"]),
-                ),
-            ),
-        )
-        # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
-        block, rownum_id = block.apply_window_op(
-            self._value_column if na_option == "keep" else nullity_col_id,
-            agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=window,
-        )
-        if method in ["first", "dense"]:
-            result = Series(
-                block.select_column(rownum_id).assign_label(rownum_id, self.name)
-            )
-        else:
-            # Step 2: Apply aggregate to groups of like input values.
-            # This step is skipped for method=='first'
-            agg_op = {
-                "average": agg_ops.mean_op,
-                "min": agg_ops.min_op,
-                "max": agg_ops.max_op,
-            }[method]
-            block, rank_id = block.apply_window_op(
-                rownum_id,
-                agg_op,
-                window_spec=WindowSpec(grouping_keys=(self._value_column,)),
-            )
-            result = Series(
-                block.select_column(rank_id).assign_label(rank_id, self.name)
-            )
-        if na_option == "keep":
-            # For na_option "keep", null inputs must produce null outputs
-            result = result.mask(self.isnull(), pandas.NA)
-        if method in ["min", "max", "first", "dense"]:
-            # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
-            result = result.astype(pandas.Float64Dtype())
-        return result
+    def rank(
+        self,
+        axis=0,
+        method: str = "average",
+        numeric_only=False,
+        na_option: str = "keep",
+        ascending: bool = True,
+    ) -> Series:
+        return Series(block_ops.rank(self._block, method, na_option, ascending))
 
     def fillna(self, value=None) -> "Series" | None:
         return self._apply_binary_op(value, ops.fillna_op)
