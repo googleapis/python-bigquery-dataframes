@@ -44,10 +44,10 @@ Use train_test_split to create train and test datasets
 
     from bigframes.ml.model_selection import train_test_split
 
-    train_X, test_X, train_y, test_y = train_test_split(
-        feature_columns, label_columns, test_size=0.2)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2)
 
-Train and evaluate a linear regression model using the ML API
+Define the model training pipeline
 
 .. code-block:: python
 
@@ -71,15 +71,21 @@ Train and evaluate a linear regression model using the ML API
     # view the pipeline
     pipeline
 
+Train the pipeline
+
+.. code-block:: python
+
+    pipeline.fit(X_train, y_train)
+
 Evaluate the model's performance on the test data
 
 .. code-block:: python
 
     from bigframes.ml.metrics import r2_score
 
-    pred_y = pipeline.predict(test_X)
+    y_pred = pipeline.predict(X_test)
 
-    r2_score(test_y, pred_y)
+    r2_score(y_test, y_pred)
 
 Make predictions on new data
 
