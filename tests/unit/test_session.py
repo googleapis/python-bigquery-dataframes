@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from unittest import mock
+
 import google.api_core.exceptions
 import pytest
+
+import bigframes
 
 
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
@@ -29,3 +34,13 @@ def test_read_gbq_missing_parts(session, missing_parts_table_id):
 def test_read_gdb_not_found_tables(session, not_found_table_id):
     with pytest.raises(google.api_core.exceptions.NotFound):
         session.read_gbq(not_found_table_id)
+
+
+@mock.patch.dict(os.environ, {}, clear=True)
+def test_session_init_fails_with_no_project():
+    with pytest.raises(ValueError, match="Project must be set to start the session."):
+        bigframes.Session(
+            bigframes.BigQueryOptions(
+                credentials=mock.Mock(spec=google.auth.credentials.Credentials)
+            )
+        )

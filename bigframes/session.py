@@ -211,6 +211,9 @@ class Session(
                 Optional[str], credentials_project
             )
 
+        if not project:
+            raise ValueError("Project must be set to start the session.")
+
         # TODO(swast): Get location from the environment.
         if context is None or context.location is None:
             self._location = "US"
