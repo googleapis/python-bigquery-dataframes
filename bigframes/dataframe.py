@@ -224,8 +224,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def shape(self) -> Tuple[int, int]:
-        block_length, _ = self._block.expr.shape()
-        return (block_length, len(self.columns))
+        return self._block.shape
 
     @property
     def size(self) -> int:
@@ -238,13 +237,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def empty(self) -> bool:
-        # TODO(swast): Should also return true if there are columns but no
-        # rows.
-        return not bool(self._block.value_columns)
+        return self.size == 0
 
     @property
     def values(self) -> numpy.ndarray:
         return self.to_numpy()
+
+    def __len__(self):
+        rows, _ = self.shape
+        return rows
 
     def astype(
         self,
@@ -1186,7 +1187,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if ns:
             sample_sizes = ns
         else:
-            total_rows = block.shape()[0]
+            total_rows = block.shape[0]
             # Round to nearest integer. "round half to even" rule applies.
             # At least to be 1.
             sample_sizes = [round(frac * total_rows) or 1 for frac in fracs]

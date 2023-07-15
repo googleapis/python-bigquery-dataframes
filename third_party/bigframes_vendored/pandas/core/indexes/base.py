@@ -11,3 +11,10 @@ class Index:
     def name(self):
         """Return Index name."""
         raise NotImplementedError("abstract method")
+
+    @property
+    def shape(self):
+        """
+        Return a tuple of the shape of the underlying data.
+        """
+        raise NotImplementedError("abstract method")

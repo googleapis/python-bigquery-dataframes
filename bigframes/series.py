@@ -84,15 +84,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @property
     def shape(self) -> typing.Tuple[int]:
-        return (self._block.shape()[0],)
+        return (self._block.shape[0],)
 
     @property
     def size(self) -> int:
-        return self._block.shape()[0]
+        return self.shape[0]
 
     @property
     def empty(self) -> bool:
-        return self._block.shape()[0] == 0
+        return self.shape[0] == 0
 
     @property
     def values(self) -> numpy.ndarray:
@@ -101,6 +101,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
         return self._query_job
+
+    def __len__(self):
+        return self.shape[0]
 
     def copy(self) -> Series:
         return Series(self._block)
@@ -202,10 +205,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(self._block.reorder_levels(resolved_level_ids))
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        if not _is_list_like(level):
-            levels = [level]
-        else:
+        if _is_list_like(level):
             levels = list(level)
+        else:
+            levels = [level]
         resolved_level_ids = []
         for level_ref in levels:
             if isinstance(level_ref, int):

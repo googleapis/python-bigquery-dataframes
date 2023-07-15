@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy
+
 from tests.system.utils import assert_pandas_index_equal_ignore_index_type
 
 
@@ -21,3 +23,24 @@ def test_get_index(scalars_df_index, scalars_pandas_df_index):
     pd_result = scalars_pandas_df_index.index
 
     assert_pandas_index_equal_ignore_index_type(bf_result, pd_result)
+
+
+def test_index_shape(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.index.shape
+    pd_result = scalars_pandas_df_index.index.shape
+
+    assert bf_result == pd_result
+
+
+def test_index_len(scalars_df_index, scalars_pandas_df_index):
+    bf_result = len(scalars_df_index.index)
+    pd_result = len(scalars_pandas_df_index.index)
+
+    assert bf_result == pd_result
+
+
+def test_index_array(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.__array__()
+    pd_result = scalars_pandas_df_index.__array__()
+
+    numpy.array_equal(bf_result, pd_result)

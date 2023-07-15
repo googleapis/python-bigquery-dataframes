@@ -970,6 +970,15 @@ def test_shape(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_len(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = len(scalars_df["string_col"])
+    pd_result = len(scalars_pandas_df["string_col"])
+
+    assert pd_result == bf_result
+
+
 def test_size(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

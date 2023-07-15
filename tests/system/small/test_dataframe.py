@@ -600,6 +600,14 @@ def test_shape(scalars_dfs):
     assert bf_result == pd_result
 
 
+def test_len(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = len(scalars_df)
+    pd_result = len(scalars_pandas_df)
+
+    assert bf_result == pd_result
+
+
 def test_size(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df.size
