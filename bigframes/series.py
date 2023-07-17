@@ -682,9 +682,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise NotImplementedError(
                 textwrap.dedent(
                     f"""
-                    BigQuery DataFrame has not yet implemented an equivalent to
+                    BigQuery DataFrames has not yet implemented an equivalent to
                     'pandas.Series.{key}'. Please check
-                    https://github.com/googleapis/bigquery-dataframe/issues for
+                    https://github.com/googleapis/python-bigquery-dataframes/issues for
                     existing feature requests, or file your own.
                     Please include information about your use case, as well as
                     relevant code snippets.

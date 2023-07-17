@@ -19,6 +19,10 @@
             {%- endif %}
           {% endblock %}
 
+          <div class="body" role="main">
+            {% block body %} {% endblock %}
+          </div>
+
           {%- block relbar_bottom %}
             {%- if theme_show_relbar_bottom|tobool %}
               <div class="related bottom">

@@ -16,7 +16,7 @@
 Wraps primitives for machine learning with BQML
 
 This library is an evolving attempt to
-- implement BigQuery DataFrame API for BQML
+- implement BigQuery DataFrames API for BQML
 - follow as close as possible the API design of SKLearn
     https://arxiv.org/pdf/1309.0238.pdf
 """
@@ -30,7 +30,7 @@ import third_party.bigframes_vendored.sklearn.base
 
 class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
-    A BigQuery DataFrame machine learning component following the SKLearn API
+    A BigQuery DataFrames machine learning component following the SKLearn API
     design Ref: https://bit.ly/3NyhKjN
 
     The estimator is the fundamental abstraction for all learning components. This includes learning
@@ -89,7 +89,7 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, a
 
 
 class Predictor(BaseEstimator):
-    """A BigQuery DataFrame ML Model base class that can be used to predict outputs."""
+    """A BigQuery DataFrames ML Model base class that can be used to predict outputs."""
 
     def __init__(self):
         self._bqml_model: Optional[BqmlModel] = None
@@ -106,7 +106,7 @@ class Predictor(BaseEstimator):
             vertex_ai_model_id: optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
 
         Returns:
-            BigQuery DataFrame Model after register.
+            BigQuery DataFrames Model after register.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be trained before register.")

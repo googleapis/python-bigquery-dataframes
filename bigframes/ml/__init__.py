@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigQuery DataFrame ML provides a SKLearn-like API on the BigQuery engine."""
+"""BigQuery DataFrames ML provides a SKLearn-like API on the BigQuery engine."""
 
 __all__ = [
     "cluster",

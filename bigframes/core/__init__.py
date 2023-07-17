@@ -61,7 +61,7 @@ class WindowSpec:
 
 # TODO(swast): We might want to move this to it's own sub-module.
 class ArrayValue:
-    """Immutable BigQuery DataFrame expression tree.
+    """Immutable BigQuery DataFrames expression tree.
 
     Note: Usage of this class is considered to be private and subject to change
     at any time.
@@ -72,7 +72,7 @@ class ArrayValue:
 
     Args:
         session:
-            A BigQuery DataFrame session to allow more flexibility in running
+            A BigQuery DataFrames session to allow more flexibility in running
             queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Mappings for Pandas dtypes supported by BigQuery DataFrame package"""
+"""Mappings for Pandas dtypes supported by BigQuery DataFrames package"""
 
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
@@ -124,14 +124,14 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarr
 def ibis_dtype_to_bigframes_dtype(
     ibis_dtype: Union[IbisDtype, ReadOnlyIbisDtype]
 ) -> Union[Dtype, np.dtype[Any]]:
-    """Converts an Ibis dtype to a BigQuery DataFrame dtype
+    """Converts an Ibis dtype to a BigQuery DataFrames dtype
 
     Args:
         ibis_dtype: The ibis dtype used to represent this type, which
         should in turn correspond to an underlying BigQuery type
 
     Returns:
-        The supported BigQuery DataFrame dtype, which may be provided by
+        The supported BigQuery DataFrames dtype, which may be provided by
         pandas, numpy, or db_types
 
     Raises:
@@ -177,7 +177,7 @@ def ibis_table_to_canonical_types(table: ibis_types.Table) -> ibis_types.Table:
 def bigframes_dtype_to_ibis_dtype(
     bigframes_dtype: Union[DtypeString, Dtype]
 ) -> IbisDtype:
-    """Converts a BigQuery DataFrame supported dtype to an Ibis dtype.
+    """Converts a BigQuery DataFrames supported dtype to an Ibis dtype.
 
     Args:
         bigframes_dtype: A dtype supported by BigQuery DataFrame
@@ -187,7 +187,7 @@ def bigframes_dtype_to_ibis_dtype(
 
     Raises:
         ValueError:
-            If passed a dtype not supported by BigQuery DataFrame.
+            If passed a dtype not supported by BigQuery DataFrames.
     """
     type_string = str(bigframes_dtype)
     if type_string in BIGFRAMES_STRING_TO_BIGFRAMES:
@@ -204,14 +204,14 @@ def literal_to_ibis_scalar(
     literal, force_dtype: typing.Optional[Dtype] = None, validate: bool = True
 ):
     """Accept any literal and, if possible, return an Ibis Scalar
-    expression with a BigQuery DataFrame compatible data type
+    expression with a BigQuery DataFrames compatible data type
 
     Args:
         literal: any value accepted by Ibis
         force_dtype: force the value to a specific dtype
         validate:
             If true, will raise ValueError if type cannot be stored in a
-            BigQuery DataFrame object. If used as a subexpression, this should
+            BigQuery DataFrames object. If used as a subexpression, this should
             be disabled.
 
     Returns:
@@ -219,13 +219,13 @@ def literal_to_ibis_scalar(
 
     Raises:
         ValueError: if passed literal cannot be coerced to a
-        BigQuery DataFrame compatible scalar
+        BigQuery DataFrames compatible scalar
     """
     ibis_dtype = BIGFRAMES_TO_IBIS[force_dtype] if force_dtype else None
 
     if pd.api.types.is_list_like(literal):
         if validate:
-            raise ValueError("List types can't be stored in BigQuery DataFrame")
+            raise ValueError("List types can't be stored in BigQuery DataFrames")
         # "correct" way would be to use ibis.array, but this produces invalid BQ SQL syntax
         return tuple(literal)
     if not pd.api.types.is_list_like(literal) and pd.isna(literal):

@@ -30,7 +30,7 @@ class BqmlModel:
     """Represents an existing BQML model in BigQuery.
 
     Wraps the BQML API and SQL interface to expose the functionality needed for
-    BigQuery DataFrame ML.
+    BigQuery DataFrames ML.
     """
 
     def __init__(self, session: bigframes.session.Session, model: bigquery.Model):
@@ -39,7 +39,7 @@ class BqmlModel:
 
     @property
     def session(self) -> bigframes.Session:
-        """Get the BigQuery DataFrame session that this BQML model wrapper is tied to"""
+        """Get the BigQuery DataFrames session that this BQML model wrapper is tied to"""
         return self._session
 
     @property

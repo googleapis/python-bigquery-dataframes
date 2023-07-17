@@ -67,7 +67,7 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
         Args:
             X: ignored, to be compatible with other APIs.
         Returns:
-            The predicted BigQuery DataFrame. Which contains 2 columns
+            The predicted BigQuery DataFrames. Which contains 2 columns
             "forecast_timestamp" and "forecast_value".
         """
         if not self._bqml_model:
@@ -88,15 +88,15 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
 
         Args:
             X:
-                A BigQuery DataFrame only contains 1 column as
+                A BigQuery DataFrames only contains 1 column as
                 evaluation timestamp. The timestamp must be within the horizon
                 of the model, which by default is 1000 data points.
             y:
-                A BigQuery DataFrame only contains 1 column as
+                A BigQuery DataFrames only contains 1 column as
                 evaluation numeric values.
 
         Returns:
-            A BigQuery DataFrame as evaluation result.
+            A BigQuery DataFrames as evaluation result.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")

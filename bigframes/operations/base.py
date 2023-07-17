@@ -60,7 +60,7 @@ class SeriesMethods:
             if name:
                 if not isinstance(name, str):
                     raise NotImplementedError(
-                        "BigQuery DataFrame only supports string series names."
+                        "BigQuery DataFrames only supports string series names."
                     )
                 block = block.with_column_labels([name])
             if index:
@@ -130,7 +130,7 @@ class SeriesMethods:
     ) -> series.Series:
         """Applies a binary operator to the series and other."""
         if isinstance(other, pd.Series):
-            # TODO: Convert to BigQuery DataFrame series
+            # TODO: Convert to BigQuery DataFrames series
             raise NotImplementedError(
                 "Pandas series not supported supported as operand."
             )

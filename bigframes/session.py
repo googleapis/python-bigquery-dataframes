@@ -197,7 +197,7 @@ class Session(
             credentials = context.credentials
             credentials_project = None
         else:
-            # TODO(shobs, b/278903498): Use BigQuery DataFrame's own client id and secret
+            # TODO(shobs, b/278903498): Use BigQuery DataFrames's own client id and secret
             credentials, credentials_project = pydata_google_auth.default(
                 _SCOPES, use_local_webserver=False
             )
@@ -652,7 +652,7 @@ class Session(
             pandas_dataframe: a Pandas DataFrame object to be loaded.
 
         Returns:
-            A BigQuery DataFrame.
+            A BigQuery DataFrames.
         """
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"

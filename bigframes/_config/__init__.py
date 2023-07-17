@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """
-Configuration for BigQuery DataFrame. Do not depend on other parts of BigQuery
-DataFrame from this package.
+Configuration for BigQuery DataFrames. Do not depend on other parts of BigQuery
+DataFrames from this package.
 """
 
 import bigframes._config.bigquery_options as bigquery_options
@@ -22,7 +22,7 @@ import bigframes._config.display_options as display_options
 
 
 class Options:
-    """Global options affecting BigQuery DataFrame behavior."""
+    """Global options affecting BigQuery DataFrames behavior."""
 
     def __init__(self):
         self._bigquery_options = bigquery_options.BigQueryOptions()

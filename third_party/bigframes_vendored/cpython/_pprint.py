@@ -66,7 +66,7 @@ BaseEstimator.__repr__ for pretty-printing estimators"""
 #   shortened using ellipsis (', ...') at the end.
 #
 # Additional changes to adapt this to BigQuery DataFrame:
-# - sklearn BaseEstimator replaced with BigQuery DataFrame BaseEstimator
+# - sklearn BaseEstimator replaced with BigQuery DataFrames BaseEstimator
 # - removed global get_config, set _changed_only=True
 # - replace is_scalar_nan with isinstance(x, numbers.Real) and math.isnan
 

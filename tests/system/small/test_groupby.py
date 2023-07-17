@@ -94,7 +94,7 @@ def test_dataframe_groupby_multi_sum(
     bf_result = bf_series.compute()
 
     if not as_index:
-        # BigQuery DataFrame default indices use nullable Int64 always
+        # BigQuery DataFrames default indices use nullable Int64 always
         pd_series.index = pd_series.index.astype("Int64")
 
     pd.testing.assert_frame_equal(

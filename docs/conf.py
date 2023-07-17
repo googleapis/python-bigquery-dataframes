@@ -25,7 +25,6 @@
 # serve to show the default.
 
 import os
-import shlex
 import sys
 from typing import Any, Dict
 
@@ -81,8 +80,8 @@ source_suffix = [".rst", ".md"]
 root_doc = "index"
 
 # General information about the project.
-project = "bigframes"
-copyright = "2022, Google"
+project = "BigQuery DataFrames"
+copyright = "2022-2023 Google LLC"
 author = "Google APIs"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -155,7 +154,7 @@ html_theme = "alabaster"
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "description": "BigQuery DataFrame provides DataFrame APIs on the BigQuery engine.",
+    "description": "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine.",
     # "github_user": "googleapis",
     # "github_repo": "python-bigquery-storage",
     # "github_banner": True,

@@ -41,14 +41,14 @@ def from_bq(
     bigframes.ml.ensemble.RandomForestRegressor,
     bigframes.ml.ensemble.RandomForestClassifier,
 ]:
-    """Load a BQML model to BigQuery DataFrame ML.
+    """Load a BQML model to BigQuery DataFrames ML.
 
     Args:
-        session: a BigQuery DataFrame session.
+        session: a BigQuery DataFrames session.
         model: a BigQuery model.
 
     Returns:
-        A BigQuery DataFrame ML model object.
+        A BigQuery DataFrames ML model object.
     """
     if model.model_type == "LINEAR_REGRESSION":
         return bigframes.ml.linear_model.LinearRegression._from_bq(session, model)
@@ -70,5 +70,5 @@ def from_bq(
         return bigframes.ml.ensemble.RandomForestClassifier._from_bq(session, model)
     else:
         raise NotImplementedError(
-            f"Model type {model.model_type} is not yet supported by BigQuery DataFrame."
+            f"Model type {model.model_type} is not yet supported by BigQuery DataFrames."
         )

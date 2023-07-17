@@ -272,7 +272,7 @@ def test_assign_new_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -287,7 +287,7 @@ def test_assign_new_column_w_loc(scalars_dfs):
     bf_result = bf_df.compute()
     pd_result = pd_df
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
@@ -302,7 +302,7 @@ def test_assign_new_column_w_setitem(scalars_dfs):
     bf_result = bf_df.compute()
     pd_result = pd_df
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
@@ -315,7 +315,7 @@ def test_assign_existing_column(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
@@ -350,7 +350,7 @@ def test_assign_sequential(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
     pd_result["new_col2"] = pd_result["new_col2"].astype("Int64")
@@ -405,7 +405,7 @@ def test_assign_different_df_w_loc(
     bf_result = bf_df.compute()
     pd_result = pd_df
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
@@ -424,7 +424,7 @@ def test_assign_different_df_w_setitem(
     bf_result = bf_df.compute()
     pd_result = pd_df
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
@@ -437,7 +437,7 @@ def test_assign_callable_lambda(scalars_dfs):
     bf_result = df.compute()
     pd_result = scalars_pandas_df.assign(**kwargs)
 
-    # Convert default pandas dtypes `int64` to match BigQuery DataFrame dtypes.
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)

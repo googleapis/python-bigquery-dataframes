@@ -69,9 +69,9 @@ class PCA(
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X: a BigQuery DataFrame to predict.
+            X: a BigQuery DataFrames to predict.
 
-        Returns: predicted BigQuery DataFrame."""
+        Returns: predicted BigQuery DataFrames."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 

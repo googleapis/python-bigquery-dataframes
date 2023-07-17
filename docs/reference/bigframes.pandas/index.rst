@@ -1,7 +1,7 @@
 
-===========================
-BigQuery DataFrame (pandas)
-===========================
+============================
+BigQuery DataFrames (pandas)
+============================
 
 .. toctree::
     :maxdepth: 2

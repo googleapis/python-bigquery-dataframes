@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigQuery DataFrame provides a DataFrame API scaled by the BigQuery engine."""
+"""BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
 
 from bigframes._config import options
 from bigframes._config.bigquery_options import BigQueryOptions

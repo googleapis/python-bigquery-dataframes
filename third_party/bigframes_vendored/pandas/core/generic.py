@@ -149,7 +149,7 @@ class NDFrame(indexing.IndexingMixin):
 
                 .. note::
 
-                   BigQuery DataFrame only supports ``lines=True`` so far.
+                   BigQuery DataFrames only supports ``lines=True`` so far.
 
             index:
                 If True, write row names (index).
@@ -313,7 +313,7 @@ class NDFrame(indexing.IndexingMixin):
 
         This returns a Series with the data type of each column.
         The result's index is the original DataFrame's columns. Columns
-        with mixed types aren't supported yet in BigQuery DataFrame.
+        with mixed types aren't supported yet in BigQuery DataFrames.
 
         Returns:
             A *pandas* Series with the data type of each column.

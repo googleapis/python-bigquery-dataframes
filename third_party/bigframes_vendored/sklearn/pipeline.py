@@ -39,10 +39,10 @@ class Pipeline(BaseEstimator, metaclass=ABCMeta):
 
         Args:
             X:
-                A BigQuery DataFrame representing training data. Must match the
+                A BigQuery DataFrames representing training data. Must match the
                 input requirements of the first step of the pipeline.
             y:
-                A BigQuery DataFrame representing training targets, if applicable.
+                A BigQuery DataFrames representing training targets, if applicable.
 
         Returns:
             Pipeline with fitted steps.
@@ -59,12 +59,12 @@ def score(self, X, y):
 
     Args:
         X:
-            A BigQuery DataFrame as evaluation data.
+            A BigQuery DataFrames as evaluation data.
         y:
-            A BigQuery DataFrame as evaluation labels.
+            A BigQuery DataFrames as evaluation labels.
 
     Returns:
-        A BigQuery DataFrame representing the result of calling
+        A BigQuery DataFrames representing the result of calling
         `score` on the final estimator.
     """
     raise NotImplementedError("abstract method")
@@ -75,9 +75,9 @@ def predict(self, X):
 
     Args:
         X:
-            A BigQuery DataFrame to predict.
+            A BigQuery DataFrames to predict.
 
     Returns:
-        A BigQuery DataFrame Dataframe representing predicted result.
+        A BigQuery DataFrames Dataframe representing predicted result.
     """
     raise NotImplementedError("abstract method")

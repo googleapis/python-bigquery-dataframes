@@ -1,7 +1,7 @@
-BigQuery DataFrame ML
-=====================
+BigQuery DataFrames ML
+======================
 
-As BigQuery DataFrame implements the Pandas API over top of BigQuery, BigQuery
+As BigQuery DataFrames implements the Pandas API over top of BigQuery, BigQuery
 DataFrame ML implements the SKLearn API over top of BigQuery Machine Learning.
 
 Tutorial

@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
 
-# Input and output python types supported by BigQuery DataFrame remote functions.
+# Input and output python types supported by BigQuery DataFrames remote functions.
 # TODO(shobs): Extend the support to all types supported by BQ remote functions
 # https://cloud.google.com/bigquery/docs/remote-functions#limitations
 _supported_io_types = set((bool, float, int, str))
@@ -496,7 +496,7 @@ def remote_function(
         output_type : type.
             Data type of the output in the user defined function.
         session : bigframes.Session, Optional
-            BigQuery DataFrame session to use for getting default project,
+            BigQuery DataFrames session to use for getting default project,
             dataset and BigQuery connection.
         bigquery_client : google.cloud.bigquery.Client, Optional
             Client to use for BigQuery operations. If this param is not provided
