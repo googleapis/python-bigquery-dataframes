@@ -446,7 +446,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
-        pandas_df, row_count = self._retrieve_repr_request_results(max_results)
+        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
+            max_results
+        )
+
+        # don't update details when the cache is hit
+        if self.query_job is None or not query_job.cache_hit:
+            self._query_job = query_job
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -476,7 +482,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
-        pandas_df, row_count = self._retrieve_repr_request_results(max_results)
+        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
+            max_results
+        )
+
+        # don't update details when the cache is hit
+        if self.query_job is None or not query_job.cache_hit:
+            self._query_job = query_job
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -485,33 +497,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
-
-    def _retrieve_repr_request_results(
-        self, max_results: int
-    ) -> Tuple[pd.DataFrame, int]:
-        """
-        Retrieves a pandas dataframe containing only max_results many rows for use
-        with printing methods.
-
-        Returns a tuple of the dataframe and the overall number of rows of the query.
-        """
-        # TODO(swast): Select a subset of columns if max_columns is less than the
-        # number of columns in the schema.
-        count = self.shape[0]
-        if count > max_results:
-            head_df = self.head(n=max_results)
-            computed_df, query_job = head_df._block.compute(max_results=max_results)
-        else:
-            head_df = self
-            computed_df, query_job = head_df._block.compute()
-
-        formatted_df = computed_df.set_axis(self._block.column_labels, axis=1)
-        # don't update details when the cache is hit
-        if self.query_job is None or not query_job.cache_hit:
-            self._query_job = query_job
-        # we reset the axis and substitute the bf index name for the default
-        formatted_df.index.name = self.index.name
-        return formatted_df, count
 
     def __setitem__(self, key: str, value: SingleItemValue):
         """Modify or insert a column into the DataFrame.

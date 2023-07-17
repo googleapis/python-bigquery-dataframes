@@ -161,8 +161,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # maybe we just print the job metadata that we have so far?
         # TODO(swast): Avoid downloading the whole series by using job
         # metadata, like we do with DataFrame.
-        preview = self.compute()
-        return repr(preview)
+        opts = bigframes.options.display
+        max_results = opts.max_rows
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
+        # don't update details when the cache is hit
+        if self.query_job is None or not query_job.cache_hit:
+            self._query_job = query_job
+
+        return repr(pandas_df.iloc[:, 0])
 
     def _to_ibis_expr(self):
         """Creates an Ibis table expression representing the Series."""

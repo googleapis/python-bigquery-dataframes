@@ -761,6 +761,29 @@ class Block:
         )
         return block
 
+    def retrieve_repr_request_results(
+        self, max_results: int
+    ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
+        """
+        Retrieves a pandas dataframe containing only max_results many rows for use
+        with printing methods.
+
+        Returns a tuple of the dataframe and the overall number of rows of the query.
+        """
+        # TODO(swast): Select a subset of columns if max_columns is less than the
+        # number of columns in the schema.
+        count = self.shape()[0]
+        if count > max_results:
+            head_block = self.slice(0, max_results)
+            computed_df, query_job = head_block.compute(max_results=max_results)
+        else:
+            head_block = self
+            computed_df, query_job = head_block.compute()
+        formatted_df = computed_df.set_axis(self.column_labels, axis=1)
+        # we reset the axis and substitute the bf index name for the default
+        formatted_df.index.name = self.index.name
+        return formatted_df, count, query_job
+
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
         return (
