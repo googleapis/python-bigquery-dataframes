@@ -490,9 +490,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 Method to handle dropping duplicates:
 
                 - 'first' : Mark duplicates as ``True`` except for the first
-                occurrence.
+                  occurrence.
                 - 'last' : Mark duplicates as ``True`` except for the last
-                occurrence.
+                  occurrence.
                 - ``False`` : Mark all duplicates as ``True``.
 
         Returns:
@@ -1420,8 +1420,6 @@ class Series(NDFrame):  # type: ignore[misc]
         error.
 
         Alternatively, change ``Series.name`` with a scalar value.
-
-        See the :ref:`user guide <basics.rename>` for more.
 
         Parameters
         ----------

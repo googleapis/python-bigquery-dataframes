@@ -11,7 +11,7 @@ Series
 Series
 ------
 
-.. automodule:: bigframes.series.Series
+.. autoclass:: bigframes.series.Series
     :members:
     :inherited-members:
     :undoc-members:
