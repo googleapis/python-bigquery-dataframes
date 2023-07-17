@@ -17,75 +17,50 @@ from __future__ import annotations
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
+import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 
-class DatetimeMethods(bigframes.operations.base.SeriesMethods):
-    """Methods that act on a Datetime Series."""
+class DatetimeMethods(
+    bigframes.operations.base.SeriesMethods, vendordt.DatetimeProperties
+):
+    __doc__ = vendordt.DatetimeProperties.__doc__
 
     @property
     def day(self) -> series.Series:
-        """Returns the day of the datetime"""
         return self._apply_unary_op(ops.day_op)
 
     @property
     def dayofweek(self) -> series.Series:
-        """Return the day of the week.
-        It is assumed the week starts on Monday,
-        which is denoted by 0 and ends on Sunday which is denoted by 6.
-        This method is available on both Series with datetime values (using the dt accessor)"""
         return self._apply_unary_op(ops.dayofweek_op)
 
     @property
     def date(self) -> series.Series:
-        """Extracts date from a datetime/timestamp series,
-
-        warning:
-            This method returns a Series whereas pandas returns
-            a numpy array.
-        """
         return self._apply_unary_op(ops.date_op)
 
     @property
     def hour(self) -> series.Series:
-        """Extracts the hours of the datetime."""
         return self._apply_unary_op(ops.hour_op)
 
     @property
     def minute(self) -> series.Series:
-        """Extracts the minutes of the datetime."""
         return self._apply_unary_op(ops.minute_op)
 
     @property
     def month(self) -> series.Series:
-        """Extracts month from a timestamp series"""
         return self._apply_unary_op(ops.month_op)
 
     @property
     def second(self) -> series.Series:
-        """Extracts second from a timestamp series"""
         return self._apply_unary_op(ops.second_op)
 
     @property
     def time(self) -> series.Series:
-        """Extracts time from a datetime/timestamp series,
-
-        warning:
-            This method returns a Series whereas pandas returns
-            a numpy array.
-        """
         return self._apply_unary_op(ops.time_op)
 
     @property
     def quarter(self) -> series.Series:
-        """The quarter of the date.
-
-        warning:
-           This method returns a Series whereas pandas returns
-           a numpy array.
-        """
         return self._apply_unary_op(ops.quarter_op)
 
     @property
     def year(self) -> series.Series:
-        """Returns the year of the datetime"""
         return self._apply_unary_op(ops.year_op)
