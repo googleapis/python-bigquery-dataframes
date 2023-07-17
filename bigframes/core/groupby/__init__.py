@@ -180,7 +180,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         value_column: str,
         by_col_ids: typing.Sequence[str],
         value_name: typing.Optional[str] = None,
-        key_name: typing.Optional[str] = None,
         dropna=True,
     ):
         # TODO(tbergeron): Support more group-by expression types
@@ -188,7 +187,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._value_column = value_column
         self._by_col_ids = by_col_ids
         self._value_name = value_name
-        self._key_name = key_name
         self._dropna = dropna  # Applies to aggregations but not windowing
 
     @property

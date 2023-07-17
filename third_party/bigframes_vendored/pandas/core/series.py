@@ -13,9 +13,8 @@ import pandas.io.formats.format as fmt
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 if TYPE_CHECKING:
-    from pandas.core.groupby.generic import SeriesGroupBy
-
     from third_party.bigframes_vendored.pandas.core.frame import DataFrame
+    from third_party.bigframes_vendored.pandas.core.groupby import SeriesGroupBy
 
 
 class Series(NDFrame):  # type: ignore[misc]

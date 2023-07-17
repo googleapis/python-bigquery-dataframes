@@ -707,6 +707,7 @@ class DataFrame(NDFrame):
         self,
         by: Union[str, Sequence[str]],
         *,
+        level=None,
         as_index: bool = True,
         dropna: bool = True,
     ):
@@ -722,6 +723,9 @@ class DataFrame(NDFrame):
                 A label or list of labels may be passed to group by the columns
                 in ``self``. Notice that a tuple is interpreted as a (single)
                 key.
+            level : int, level name, or sequence of such, default None
+                If the axis is a MultiIndex (hierarchical), group by a particular
+                level or levels. Do not specify both ``by`` and ``level``.
             as_index:
                 Default True. Return object with group labels as the index.
                 Only relevant for DataFrame input. ``as_index=False`` is

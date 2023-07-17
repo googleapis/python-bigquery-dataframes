@@ -781,15 +781,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def groupby(
         self,
-        by: typing.Optional[Series] = None,
-        axis=None,
+        by: typing.Union[
+            blocks.Label, Series, typing.Sequence[typing.Union[blocks.Label, Series]]
+        ] = None,
+        axis=0,
         level: typing.Optional[
             int | str | typing.Sequence[int] | typing.Sequence[str]
         ] = None,
-        as_index=True,
+        as_index: bool = True,
         *,
         dropna: bool = True,
-    ):
+    ) -> bigframes.core.groupby.SeriesGroupBy:
         if (by is not None) and (level is not None):
             raise ValueError("Do not specify both 'by' and 'level'")
         if not as_index:
@@ -797,7 +799,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if axis:
             raise ValueError("No axis named {} for object type Series".format(level))
         if by is not None:
-            return self._groupby_series(by, dropna)
+            return self._groupby_values(by, dropna)
         if level is not None:
             return self._groupby_level(level, dropna)
         else:
@@ -807,28 +809,59 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self,
         level: int | str | typing.Sequence[int] | typing.Sequence[str],
         dropna: bool = True,
-    ):
+    ) -> bigframes.core.groupby.SeriesGroupBy:
         return groupby.SeriesGroupBy(
             self._block,
             self._value_column,
             self._resolve_levels(level),
             value_name=self.name,
-            key_name=self.index.name,
             dropna=dropna,
         )
 
-    def _groupby_series(
+    def _groupby_values(
         self,
-        by: Series,
+        by: typing.Union[
+            blocks.Label, Series, typing.Sequence[typing.Union[blocks.Label, Series]]
+        ],
         dropna: bool = True,
-    ):
-        (value, key, block) = self._align(by, "inner" if dropna else "left")
+    ) -> bigframes.core.groupby.SeriesGroupBy:
+        if not isinstance(by, Series) and _is_list_like(by):
+            by = list(by)
+        else:
+            by = [typing.cast(typing.Union[blocks.Label, Series], by)]
+
+        block = self._block
+        grouping_cols: typing.Sequence[str] = []
+        value_col = self._value_column
+        for key in by:
+            if isinstance(key, Series):
+                combined_index, (
+                    get_column_left,
+                    get_column_right,
+                ) = block.index.join(
+                    key._block.index, how="inner" if dropna else "left"
+                )
+
+                value_col = get_column_left(self._value_column)
+                grouping_cols = [
+                    *[get_column_left(value) for value in grouping_cols],
+                    get_column_right(key._value_column),
+                ]
+                block = combined_index._block
+            else:
+                # Interpret as index level
+                matches = block.index_name_to_col_id.get(key, [])
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"GroupBy key {key} does not map to unambiguous index level"
+                    )
+                grouping_cols = [*grouping_cols, matches[0]]
+
         return groupby.SeriesGroupBy(
             block,
-            value,
-            [key],
+            value_col,
+            grouping_cols,
             value_name=self.name,
-            key_name=by.name,
             dropna=dropna,
         )
 

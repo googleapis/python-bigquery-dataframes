@@ -1099,17 +1099,84 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def groupby(
         self,
-        by: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        by: typing.Union[
+            blocks.Label,
+            bigframes.series.Series,
+            typing.Sequence[typing.Union[blocks.Label, bigframes.series.Series]],
+        ] = None,
         *,
+        level: typing.Optional[LevelsType] = None,
         as_index: bool = True,
         dropna: bool = True,
     ) -> groupby.DataFrameGroupBy:
-        by_col_ids = self._sql_names(by)
+        if (by is not None) and (level is not None):
+            raise ValueError("Do not specify both 'by' and 'level'")
+        if by is not None:
+            return self._groupby_series(by, as_index=as_index, dropna=dropna)
+        if level is not None:
+            return self._groupby_level(level, as_index=as_index, dropna=dropna)
+        else:
+            raise TypeError("You have to supply one of 'by' and 'level'")
+
+    def _groupby_level(
+        self,
+        level: LevelsType,
+        as_index: bool = True,
+        dropna: bool = True,
+    ):
         return groupby.DataFrameGroupBy(
             self._block,
-            by_col_ids,
-            dropna=dropna,
+            self._resolve_levels(level),
             as_index=as_index,
+            dropna=dropna,
+        )
+
+    def _groupby_series(
+        self,
+        by: typing.Union[
+            blocks.Label,
+            bigframes.series.Series,
+            typing.Sequence[typing.Union[blocks.Label, bigframes.series.Series]],
+        ],
+        as_index: bool = True,
+        dropna: bool = True,
+    ):
+        if not isinstance(by, bigframes.series.Series) and _is_list_like(by):
+            by = list(by)
+        else:
+            by = [typing.cast(typing.Union[blocks.Label, bigframes.series.Series], by)]
+
+        block = self._block
+        col_ids: typing.Sequence[str] = []
+        for key in by:
+            if isinstance(key, bigframes.series.Series):
+                combined_index, (
+                    get_column_left,
+                    get_column_right,
+                ) = block.index.join(
+                    key._block.index, how="inner" if dropna else "left"
+                )
+                col_ids = [
+                    *[get_column_left(value) for value in col_ids],
+                    get_column_right(key._value_column),
+                ]
+                block = combined_index._block
+            else:
+                # Interpret as index level or column name
+                col_matches = block.label_to_col_id.get(key, [])
+                level_matches = block.index_name_to_col_id.get(key, [])
+                matches = [*col_matches, *level_matches]
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"GroupBy key {key} does not map to unambiguous column or index level"
+                    )
+                col_ids = [*col_ids, matches[0]]
+
+        return groupby.DataFrameGroupBy(
+            block,
+            col_ids,
+            as_index=as_index,
+            dropna=dropna,
         )
 
     def abs(self) -> DataFrame:

@@ -188,6 +188,22 @@ def test_multi_index_reorder_levels(scalars_df_index, scalars_pandas_df_index, o
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_multi_index_series_groupby(scalars_df_index, scalars_pandas_df_index):
+    bf_frame = scalars_df_index.set_index(["int64_too", "bool_col"])
+    bf_result = (
+        bf_frame["float64_col"]
+        .groupby([bf_frame.int64_col % 2, "bool_col"])
+        .mean()
+        .compute()
+    )
+    pd_frame = scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+    pd_result = (
+        pd_frame["float64_col"].groupby([pd_frame.int64_col % 2, "bool_col"]).mean()
+    )
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("level"),
     [
@@ -213,3 +229,45 @@ def test_multi_index_series_groupby_level(
     )
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_multi_index_dataframe_groupby(scalars_df_index, scalars_pandas_df_index):
+    bf_frame = scalars_df_index.set_index(["int64_too", "bool_col"])
+    bf_result = (
+        bf_frame.groupby([bf_frame.int64_col % 2, "bool_col"])
+        .mean(numeric_only=True)
+        .compute()
+    )
+    pd_frame = scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+    pd_result = pd_frame.groupby([pd_frame.int64_col % 2, "bool_col"]).mean(
+        numeric_only=True
+    )
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("level"),
+    [
+        (1),
+        ([0]),
+        (["bool_col"]),
+        (["bool_col", "int64_too"]),
+    ],
+)
+def test_multi_index_dataframe_groupby_level(
+    scalars_df_index, scalars_pandas_df_index, level
+):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "bool_col"])
+        .groupby(level=level)
+        .mean(numeric_only=True)
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+        .groupby(level=level)
+        .mean(numeric_only=True)
+    )
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
