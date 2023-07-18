@@ -331,7 +331,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
-        """BigQuery job metadata for the most recent query."""
+        """
+        Bigquery job metadata for the most recent query.
+
+        Returns: The most recent `QueryJob <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+        """
         return self._query_job
 
     @typing.overload

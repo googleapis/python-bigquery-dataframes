@@ -100,6 +100,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
+        """
+        Bigquery job metadata for the most recent query.
+
+        Returns:
+            The most recent `QueryJob <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+        """
         return self._query_job
 
     def __len__(self):
