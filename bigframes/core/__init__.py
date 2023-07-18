@@ -391,8 +391,12 @@ class ArrayValue:
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.columns)
-        sql = self.to_ibis_expr(ordering_mode="unordered").count().compile()
-        row_iterator, _ = self._session._start_query(sql)
+        count_expr = self.to_ibis_expr(ordering_mode="unordered").count()
+        sql = self._session.ibis_client.compile(count_expr)
+        row_iterator, _ = self._session._start_query(
+            sql=sql,
+            max_results=1,
+        )
         length = next(row_iterator)[0]
         return (length, width)
 

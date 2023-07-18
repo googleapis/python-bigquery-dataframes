@@ -43,11 +43,12 @@ def test_series_construct_pandas(scalars_dfs):
     _, scalars_pandas_df = scalars_dfs
     bf_result = series.Series(
         scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
-    ).compute()
+    )
     pd_result = pd.Series(
         scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
     )
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    assert bf_result.shape == pd_result.shape
+    pd.testing.assert_series_equal(bf_result.compute(), pd_result)
 
 
 @pytest.mark.parametrize(
