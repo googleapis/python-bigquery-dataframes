@@ -51,6 +51,16 @@ def test_series_construct_pandas(scalars_dfs):
     pd.testing.assert_series_equal(bf_result.compute(), pd_result)
 
 
+def test_series_construct_from_list():
+    bf_result = series.Series([1, 1, 2, 3, 5, 8, 13], dtype="Int64").compute()
+    pd_result = pd.Series([1, 1, 2, 3, 5, 8, 13], dtype="Int64")
+
+    # BigQuery DataFrame default indices use nullable Int64 always
+    pd_result.index = pd_result.index.astype("Int64")
+
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ["col_name", "expected_dtype"],
     [

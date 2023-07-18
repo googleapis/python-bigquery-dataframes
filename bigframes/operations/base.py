@@ -76,18 +76,24 @@ class SeriesMethods:
         else:
             import bigframes.pandas
 
-            pd_dataframe = pd.Series(
+            pd_series = pd.Series(
                 data=data, index=index, dtype=dtype, name=name  # type:ignore
-            ).to_frame()
+            )
+            pd_dataframe = pd_series.to_frame()
+            if pd_series.name is None:
+                # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
+                pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
             if pd_dataframe.size < MAX_INLINE_SERIES_SIZE:
                 self._block = blocks.block_from_local(
                     pd_dataframe, session or bigframes.pandas.get_global_session()
                 )
-            if session:
+            elif session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 # Uses default global session
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+            if pd_series.name is None:
+                self._block = self._block.with_column_labels([None])
 
     @property
     def _value(self) -> ibis_types.Value:
