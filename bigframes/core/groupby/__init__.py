@@ -53,22 +53,22 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def sum(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("sum")
         return self._aggregate(agg_ops.sum_op, numeric_only=True)
 
     def mean(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("mean")
         return self._aggregate(agg_ops.mean_op, numeric_only=True)
 
     def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("min")
         return self._aggregate(agg_ops.min_op, numeric_only=True)
 
     def max(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("max")
         return self._aggregate(agg_ops.max_op, numeric_only=True)
 
     def std(
@@ -77,7 +77,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         numeric_only: bool = False,
     ) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("std")
         return self._aggregate(agg_ops.std_op, numeric_only=True)
 
     def var(
@@ -86,7 +86,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         numeric_only: bool = False,
     ) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("var")
         return self._aggregate(agg_ops.var_op, numeric_only=True)
 
     def all(self) -> df.DataFrame:
@@ -100,25 +100,35 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("cumsum")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.sum_op, window, numeric_only=True)
 
     def cummin(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("cummin")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.min_op, window, numeric_only=True)
 
     def cummax(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
+            self._raise_on_non_numeric("cummax")
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.max_op, window, numeric_only=True)
 
     def cumprod(self, *args, **kwargs) -> df.DataFrame:
         window = bigframes.core.WindowSpec(grouping_keys=self._by_col_ids, following=0)
         return self._apply_window_op(agg_ops.product_op, window, numeric_only=True)
+
+    def _raise_on_non_numeric(self, op: str):
+        if not all(
+            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            for dtype in self._block.dtypes
+        ):
+            raise NotImplementedError(
+                f"'{op}' does not support non-numeric columns. Set 'numeric_only'=True to ignore non-numeric columns"
+            )
+        return self
 
     def _aggregated_columns(self, numeric_only: bool = False):
         return [

@@ -570,14 +570,9 @@ class Block:
         operation: agg_ops.AggregateOp,
         *,
         value_col_id: str = "values",
-        numeric_only: bool = True,
         dropna: bool = True,
     ) -> Block:
-        aggregations = [
-            (col_id, operation, col_id)
-            for col_id, dtype in zip(self.value_columns, self.dtypes)
-            if (not numeric_only) or (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
-        ]
+        aggregations = [(col_id, operation, col_id) for col_id in self.value_columns]
         result_expr = self.expr.aggregate(
             aggregations, dropna=dropna
         ).transpose_single_row(

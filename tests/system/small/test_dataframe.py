@@ -1294,7 +1294,7 @@ def test_loc_select_column(scalars_df_index, scalars_pandas_df_index):
     ids=["sum", "mean", "min", "max", "std", "var", "count", "nunique"],
 )
 def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
-    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    col_names = ["int64_too", "float64_col", "string_col", "int64_col", "bool_col"]
     bf_series = op(scalars_df_index[col_names])
     pd_series = op(scalars_pandas_df_index[col_names])
     bf_result = bf_series.compute()

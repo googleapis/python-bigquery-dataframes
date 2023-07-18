@@ -894,51 +894,81 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def sum(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.sum_op)
+            frame = self._raise_on_non_numeric("sum")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.sum_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def mean(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.mean_op)
+            frame = self._raise_on_non_numeric("mean")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.mean_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def std(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.std_op)
+            frame = self._raise_on_non_numeric("std")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.std_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def var(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.var_op)
+            frame = self._raise_on_non_numeric("var")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.var_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def min(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.min_op)
+            frame = self._raise_on_non_numeric("min")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.min_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def max(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
-            raise NotImplementedError("Operation only supports 'numeric_only'=True")
-        block = self._block.aggregate_all_and_pivot(agg_ops.max_op)
+            frame = self._raise_on_non_numeric("max")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.max_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def count(self, *, numeric_only: bool = False) -> bigframes.series.Series:
-        block = self._block.aggregate_all_and_pivot(
-            agg_ops.count_op, numeric_only=numeric_only
-        )
+        if not numeric_only:
+            frame = self
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.count_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def nunique(self) -> bigframes.series.Series:
-        block = self._block.aggregate_all_and_pivot(
-            agg_ops.nunique_op, numeric_only=False
-        )
+        block = self._block.aggregate_all_and_pivot(agg_ops.nunique_op)
         return bigframes.series.Series(block.select_column("values"))
+
+    def _drop_non_numeric(self) -> DataFrame:
+        non_numeric_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+        ]
+        return DataFrame(self._block.drop_columns(non_numeric_cols))
+
+    def _raise_on_non_numeric(self, op: str):
+        if not all(
+            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            for dtype in self._block.dtypes
+        ):
+            raise NotImplementedError(
+                f"'{op}' does not support non-numeric columns. Set 'numeric_only'=True to ignore non-numeric columns"
+            )
+        return self
 
     def merge(
         self,
