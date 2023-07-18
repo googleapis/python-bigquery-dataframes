@@ -84,6 +84,11 @@ _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 # TODO(swast): Need to connect to regional endpoints when performing remote
 # functions operations (BQ Connection API, Cloud Run / Cloud Functions).
 
+# pydata-google-auth credentials in case auth credentials are not available
+# otherwise
+_pydata_google_auth_credentials: Optional[google.auth.credentials.Credentials] = None
+_pydata_google_auth_project: Optional[str] = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,6 +127,22 @@ pydata_google_auth.auth._ensure_application_default_credentials_in_colab_environ
 )
 
 
+def _get_default_credentials_with_project():
+    global _pydata_google_auth_credentials, _pydata_google_auth_project
+    if not _pydata_google_auth_credentials or not _pydata_google_auth_credentials.valid:
+        # We want to initiate auth via a non-local web server which
+        # particularly helps in a cloud notebook environment where the
+        # machine running the notebook UI and the VM running the notebook
+        # runtime are not the same.
+        # TODO(shobs, b/278903498): Use BigQuery DataFrames's own client id
+        # and secret
+        (
+            _pydata_google_auth_credentials,
+            _pydata_google_auth_project,
+        ) = pydata_google_auth.default(_SCOPES, use_local_webserver=False)
+    return _pydata_google_auth_credentials, _pydata_google_auth_project
+
+
 def _create_bq_clients(
     project: Optional[str],
     location: Optional[str],
@@ -133,6 +154,23 @@ def _create_bq_clients(
     google.cloud.bigquery_storage_v1.BigQueryReadClient,
 ]:
     """Create and initialize BigQuery client objects."""
+
+    credentials_project = None
+    if credentials is None:
+        credentials, credentials_project = _get_default_credentials_with_project()
+
+    # Prefer the project in this order:
+    # 1. Project explicitly specified by the user
+    # 2. Project set in the environment
+    # 3. Project associated with the default credentials
+    project = (
+        project
+        or os.getenv(_ENV_DEFAULT_PROJECT)
+        or typing.cast(Optional[str], credentials_project)
+    )
+
+    if not project:
+        raise ValueError("Project must be set to initialize BigQuery client.")
 
     if use_regional_endpoints:
         bq_options = google.api_core.client_options.ClientOptions(
@@ -190,31 +228,6 @@ class Session(
         if context is None:
             context = bigquery_options.BigQueryOptions()
 
-        # We want to initiate auth via a non-local web server which particularly
-        # helps in a cloud notebook environment where the machine running the
-        # notebook UI and the VM running the notebook runtime are not the same.
-        if context.credentials is not None:
-            credentials = context.credentials
-            credentials_project = None
-        else:
-            # TODO(shobs, b/278903498): Use BigQuery DataFrames's own client id and secret
-            credentials, credentials_project = pydata_google_auth.default(
-                _SCOPES, use_local_webserver=False
-            )
-
-        project = context.project
-
-        # If there is no project set yet, try to set it from the environment
-        if project is None:
-            # Prefer the project defined by environment variable, but fallback
-            # to the project associated with credentials (if available).
-            project = os.getenv(_ENV_DEFAULT_PROJECT) or typing.cast(
-                Optional[str], credentials_project
-            )
-
-        if not project:
-            raise ValueError("Project must be set to start the session.")
-
         # TODO(swast): Get location from the environment.
         if context is None or context.location is None:
             self._location = "US"
@@ -230,10 +243,10 @@ class Session(
             self.bqconnectionclient,
             self.bqstorageclient,
         ) = _create_bq_clients(
-            project=project,
+            project=context.project,
             location=self._location,
             use_regional_endpoints=context.use_regional_endpoints,
-            credentials=credentials,
+            credentials=context.credentials,
         )
 
         self._create_and_bind_bq_session()

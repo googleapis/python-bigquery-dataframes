@@ -38,7 +38,9 @@ def test_read_gdb_not_found_tables(session, not_found_table_id):
 
 @mock.patch.dict(os.environ, {}, clear=True)
 def test_session_init_fails_with_no_project():
-    with pytest.raises(ValueError, match="Project must be set to start the session."):
+    with pytest.raises(
+        ValueError, match="Project must be set to initialize BigQuery client."
+    ):
         bigframes.Session(
             bigframes.BigQueryOptions(
                 credentials=mock.Mock(spec=google.auth.credentials.Credentials)
