@@ -51,7 +51,7 @@ _BQML_PARAMS_MAPPING = {
 
 class XGBRegressor(
     third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
@@ -147,10 +147,12 @@ class XGBRegressor(
         self,
         X: bigframes.dataframe.DataFrame,
         y: bigframes.dataframe.DataFrame,
+        transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 
@@ -201,7 +203,7 @@ class XGBRegressor(
 
 class XGBClassifier(
     third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
 
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
@@ -298,10 +300,12 @@ class XGBClassifier(
         self,
         X: bigframes.dataframe.DataFrame,
         y: bigframes.dataframe.DataFrame,
+        transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 
@@ -352,7 +356,7 @@ class XGBClassifier(
 
 class RandomForestRegressor(
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
 
     __doc__ = (
@@ -444,10 +448,12 @@ class RandomForestRegressor(
         self,
         X: bigframes.dataframe.DataFrame,
         y: bigframes.dataframe.DataFrame,
+        transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 
@@ -509,7 +515,7 @@ class RandomForestRegressor(
 
 class RandomForestClassifier(
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
 
     __doc__ = (
@@ -601,10 +607,12 @@ class RandomForestClassifier(
         self,
         X: bigframes.dataframe.DataFrame,
         y: bigframes.dataframe.DataFrame,
+        transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 

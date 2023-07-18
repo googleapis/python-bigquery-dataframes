@@ -27,7 +27,7 @@ import bigframes.ml.core
 _PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
 
-class ARIMAPlus(bigframes.ml.base.Predictor):
+class ARIMAPlus(bigframes.ml.base.TrainablePredictor):
     """Time Series ARIMA Plus model."""
 
     def __init__(self):
@@ -48,7 +48,12 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
         """The model options as they will be set for BQML."""
         return {"model_type": "ARIMA_PLUS"}
 
-    def fit(self, X: bigframes.dataframe.DataFrame, y: bigframes.dataframe.DataFrame):
+    def fit(
+        self,
+        X: bigframes.dataframe.DataFrame,
+        y: bigframes.dataframe.DataFrame,
+        transforms: Optional[List[str]] = None,
+    ):
         """Fit the model to training data
 
         Args:
@@ -58,6 +63,7 @@ class ARIMAPlus(bigframes.ml.base.Predictor):
         self._bqml_model = bigframes.ml.core.create_bqml_time_series_model(
             X,
             y,
+            transforms=transforms,
             options=self._bqml_options,
         )
 

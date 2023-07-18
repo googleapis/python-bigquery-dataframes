@@ -47,6 +47,7 @@ class KMeans(_BaseKMeans):
     def fit(
         self,
         X,
+        y=None,
         transforms: Optional[List[str]] = None,
     ):
         """Compute k-means clustering.
@@ -54,6 +55,8 @@ class KMeans(_BaseKMeans):
         Args:
             X:
                 DataFrame of shape (n_samples, n_features). Training data.
+            y:  Ignored
+                Not used, present here for API consistency by convention.
 
             transforms:
                 An optional list of SQL expressions to apply over top of the

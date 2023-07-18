@@ -21,23 +21,17 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import bigframes
-import bigframes.ml.base
-import bigframes.ml.cluster
-import bigframes.ml.compose
-import bigframes.ml.core
-import bigframes.ml.linear_model
-import bigframes.ml.preprocessing
-import bigframes.ml.sql
+from bigframes.ml import base, cluster, compose, decomposition, preprocessing
 import third_party.bigframes_vendored.sklearn.pipeline
 
 
 class Pipeline(
     third_party.bigframes_vendored.sklearn.pipeline.Pipeline,
-    bigframes.ml.base.BaseEstimator,
+    base.BaseEstimator,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.pipeline.Pipeline.__doc__
 
-    def __init__(self, steps: List[Tuple[str, bigframes.ml.base.BaseEstimator]]):
+    def __init__(self, steps: List[Tuple[str, base.BaseEstimator]]):
         self.steps = steps
 
         if len(steps) != 2:
@@ -49,9 +43,9 @@ class Pipeline(
         if isinstance(
             transform,
             (
-                bigframes.ml.compose.ColumnTransformer,
-                bigframes.ml.preprocessing.StandardScaler,
-                bigframes.ml.preprocessing.OneHotEncoder,
+                compose.ColumnTransformer,
+                preprocessing.StandardScaler,
+                preprocessing.OneHotEncoder,
             ),
         ):
             self._transform = transform
@@ -60,14 +54,12 @@ class Pipeline(
                 f"Transform {transform} is not yet supported by Pipeline"
             )
 
-        if isinstance(
+        if not isinstance(
             estimator,
-            (bigframes.ml.linear_model.LinearRegression, bigframes.ml.cluster.KMeans),
+            base.TrainablePredictor,
         ):
-            self._estimator = estimator
-        else:
             raise NotImplementedError(
-                f"Estimator {estimator} is not yet supported by Pipeline"
+                f"Estimator {estimator} is not supported by Pipeline"
             )
 
         self._transform = transform
@@ -81,17 +73,11 @@ class Pipeline(
         compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
-        # TODO(bmil): need a more elegant way to address this. Perhaps a mixin for supervised vs
-        # unsupervised models? Or just lists of classes?
-        if isinstance(self._estimator, bigframes.ml.cluster.KMeans):
-            self._estimator.fit(X=X, transforms=transform_sqls)
-        else:
-            if y is not None:
-                # If labels columns are present, they should pass through un-transformed
-                transform_sqls.extend(y.columns.tolist())
-                self._estimator.fit(X=X, y=y, transforms=transform_sqls)
-            else:
-                raise TypeError("Fitting this pipeline requires training targets `y`")
+        if y is not None:
+            # If labels columns are present, they should pass through un-transformed
+            transform_sqls.extend(y.columns.tolist())
+
+        self._estimator.fit(X=X, y=y, transforms=transform_sqls)
 
     def predict(
         self, X: bigframes.dataframe.DataFrame
@@ -103,8 +89,11 @@ class Pipeline(
         X: bigframes.dataframe.DataFrame,
         y: bigframes.dataframe.DataFrame,
     ):
-        if isinstance(self._estimator, bigframes.ml.linear_model.LinearRegression):
-            return self._estimator.score(X=X, y=y)
+        if isinstance(self._estimator, (cluster.KMeans, decomposition.PCA)):
+            raise NotImplementedError("KMeans/PCA haven't supported score method.")
+
+        # TODO(b/289280565): remove type ignore after updating KMeans and PCA
+        return self._estimator.score(X=X, y=y)  # type: ignore
 
     def to_gbq(self, model_name: str, replace: bool = False):
         self._estimator.to_gbq(model_name, replace)

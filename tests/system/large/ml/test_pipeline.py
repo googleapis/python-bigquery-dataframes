@@ -12,22 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas
+import pandas as pd
 
-import bigframes.ml.cluster
-import bigframes.ml.compose
-import bigframes.ml.linear_model
-import bigframes.ml.pipeline
-import bigframes.ml.preprocessing
+from bigframes.ml import (
+    cluster,
+    compose,
+    decomposition,
+    ensemble,
+    linear_model,
+    pipeline,
+    preprocessing,
+)
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
-def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
+def test_pipeline_linear_regression_fit_score_predict(
+    session, penguins_df_default_index
+):
     """Test a supervised model with a minimal preprocessing step"""
-    pipeline = bigframes.ml.pipeline.Pipeline(
+    pl = pipeline.Pipeline(
         [
-            ("scale", bigframes.ml.preprocessing.StandardScaler()),
-            ("linreg", bigframes.ml.linear_model.LinearRegression()),
+            ("scale", preprocessing.StandardScaler()),
+            ("linreg", linear_model.LinearRegression()),
         ]
     )
 
@@ -40,11 +46,11 @@ def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
         ]
     ]
     train_y = df[["body_mass_g"]]
-    pipeline.fit(train_X, train_y)
+    pl.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    score_result = pipeline.score(train_X, train_y).compute()
-    score_expected = pandas.DataFrame(
+    score_result = pl.score(train_X, train_y).compute()
+    score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [309.477334],
             "mean_squared_error": [152184.227218],
@@ -57,19 +63,13 @@ def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
     )
     score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
 
-    pandas.testing.assert_frame_equal(
-        score_result, score_expected, check_exact=False, rtol=0.1
-    )
-
-    # score on all training data
-    score_result = pipeline.score(train_X, train_y).to_pandas()
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         score_result, score_expected, check_exact=False, rtol=0.1
     )
 
     # predict new labels
     new_penguins = session.read_pandas(
-        pandas.DataFrame(
+        pd.DataFrame(
             {
                 "tag_number": [1633, 1672, 1690],
                 "species": [
@@ -85,14 +85,285 @@ def test_pipeline_linreg_fit_score_predict(session, penguins_df_default_index):
             }
         ).set_index("tag_number")
     )
-    predictions = pipeline.predict(new_penguins).to_pandas()
-    expected = pandas.DataFrame(
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
         {"predicted_body_mass_g": [3968.8, 3176.3, 3545.2]},
         dtype="Float64",
-        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
+    )
+
+
+def test_pipeline_logistic_regression_fit_score_predict(
+    session, penguins_df_default_index
+):
+    """Test a supervised model with a minimal preprocessing step"""
+    pl = pipeline.Pipeline(
+        [
+            ("scale", preprocessing.StandardScaler()),
+            ("logreg", linear_model.LogisticRegression()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    train_y = df[["sex"]]
+    pl.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(train_X, train_y).compute()
+    score_expected = pd.DataFrame(
+        {
+            "precision": [0.537091],
+            "recall": [0.538636],
+            "accuracy": [0.805389],
+            "f1_score": [0.537716],
+            "log_loss": [1.445433],
+            "roc_auc": [0.917818],
+        },
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pd.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
+        {"predicted_sex": ["MALE", "FEMALE", "FEMALE"]},
+        dtype=pd.StringDtype(storage="pyarrow"),
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_sex"]],
+        expected,
+    )
+
+
+def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_index):
+    """Test a supervised model with a minimal preprocessing step"""
+    pl = pipeline.Pipeline(
+        [
+            ("scale", preprocessing.StandardScaler()),
+            ("xgbreg", ensemble.XGBRegressor()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    train_y = df[["body_mass_g"]]
+    pl.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(train_X, train_y).compute()
+    score_expected = pd.DataFrame(
+        {
+            "mean_absolute_error": [203.4001727989334],
+            "mean_squared_error": [74898.80551717622],
+            "mean_squared_log_error": [0.004394266810531861],
+            "median_absolute_error": [152.01806640625],
+            "r2_score": [0.8840255831308607],
+            "explained_variance": [0.8858505311591299],
+        },
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pd.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+                "sex": ["MALE", "FEMALE", "FEMALE"],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "predicted_body_mass_g": [
+                4287.34521484375,
+                3198.351806640625,
+                3385.34130859375,
+            ]
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
+    )
+
+
+def test_pipeline_random_forest_classifier_fit_score_predict(
+    session, penguins_df_default_index
+):
+    """Test a supervised model with a minimal preprocessing step"""
+    pl = pipeline.Pipeline(
+        [
+            ("scale", preprocessing.StandardScaler()),
+            ("rfcls", ensemble.RandomForestClassifier()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    train_y = df[["sex"]]
+    pl.fit(train_X, train_y)
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(train_X, train_y).compute()
+    score_expected = pd.DataFrame(
+        {
+            "precision": [0.587673],
+            "recall": [0.588781],
+            "accuracy": [0.88024],
+            "f1_score": [0.587644],
+            "log_loss": [0.859459],
+            "roc_auc": [0.971737],
+        },
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pd.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
+        {"predicted_sex": ["MALE", "FEMALE", "FEMALE"]},
+        dtype=pd.StringDtype(storage="pyarrow"),
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_sex"]],
+        expected,
+    )
+
+
+def test_pipeline_PCA_fit_predict(session, penguins_df_default_index):
+    """Test a supervised model with a minimal preprocessing step"""
+    pl = pipeline.Pipeline(
+        [
+            ("scale", preprocessing.StandardScaler()),
+            ("pca", decomposition.PCA()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    train_X = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    pl.fit(train_X)
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pd.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "species": [
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Adelie Penguin (Pygoscelis adeliae)",
+                    "Chinstrap penguin (Pygoscelis antarctica)",
+                ],
+                "island": ["Torgersen", "Torgersen", "Dream"],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+                "culmen_depth_mm": [18.8, 17.2, 18.1],
+                "flipper_length_mm": [196.0, 181.0, 188.0],
+                "sex": ["MALE", "FEMALE", "FEMALE"],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "principal_component_1": [-1.115259, -1.506141, -1.471174],
+            "principal_component_2": [-0.074824, 0.69664, 0.406104],
+            "principal_component_3": [0.500012, -0.544479, 0.075849],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[
+            ["principal_component_1", "principal_component_2", "principal_component_3"]
+        ],
+        expected,
+        check_exact=False,
+        rtol=0.1,
     )
 
 
@@ -100,10 +371,10 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
     session, penguins_pandas_df_default_index
 ):
     """Test an unsupervised model with a non-BQML implementation of StandardScaler"""
-    pipeline = bigframes.ml.pipeline.Pipeline(
+    pl = pipeline.Pipeline(
         [
-            ("scale", bigframes.ml.preprocessing.StandardScaler()),
-            ("kmeans", bigframes.ml.cluster.KMeans(n_clusters=2)),
+            ("scale", preprocessing.StandardScaler()),
+            ("kmeans", cluster.KMeans(n_clusters=2)),
         ]
     )
 
@@ -116,10 +387,10 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
             "flipper_length_mm",
         ]
     ]
-    pipeline.fit(train_X)
+    pl.fit(train_X)
 
     # predict new labels
-    pd_new_penguins = pandas.DataFrame.from_dict(
+    pd_new_penguins = pd.DataFrame.from_dict(
         {
             "test1": {
                 "species": "Adelie Penguin (Pygoscelis adeliae)",
@@ -181,11 +452,11 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
     pd_new_penguins.index.name = "observation"
 
     new_penguins = session.read_pandas(pd_new_penguins)
-    result = pipeline.predict(new_penguins).to_pandas().sort_index()
-    expected = pandas.DataFrame(
+    result = pl.predict(new_penguins).to_pandas().sort_index()
+    expected = pd.DataFrame(
         {"CENTROID_ID": [1, 2, 1, 2, 1, 2]},
         dtype="Int64",
-        index=pandas.Index(
+        index=pd.Index(
             ["test1", "test2", "test3", "test4", "test5", "test6"],
             dtype="string[pyarrow]",
         ),
@@ -196,37 +467,37 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
 
 def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
     """Test a preprocessing step that manages heterogenous data with ColumnTransformer"""
-    pipeline = bigframes.ml.pipeline.Pipeline(
+    pl = pipeline.Pipeline(
         [
             (
                 "preproc",
-                bigframes.ml.compose.ColumnTransformer(
+                compose.ColumnTransformer(
                     [
                         (
                             "onehot",
-                            bigframes.ml.preprocessing.OneHotEncoder(),
+                            preprocessing.OneHotEncoder(),
                             "species",
                         ),
                         (
                             "scale",
-                            bigframes.ml.preprocessing.StandardScaler(),
+                            preprocessing.StandardScaler(),
                             ["culmen_length_mm", "flipper_length_mm"],
                         ),
                     ]
                 ),
             ),
-            ("linreg", bigframes.ml.linear_model.LinearRegression()),
+            ("linreg", linear_model.LinearRegression()),
         ]
     )
 
     df = penguins_df_default_index.dropna()
     train_X = df[["species", "culmen_length_mm", "flipper_length_mm"]]
     train_y = df[["body_mass_g"]]
-    pipeline.fit(train_X, train_y)
+    pl.fit(train_X, train_y)
 
     # predict new labels
     new_penguins = session.read_pandas(
-        pandas.DataFrame(
+        pd.DataFrame(
             {
                 "tag_number": [1633, 1672, 1690],
                 "species": [
@@ -242,12 +513,12 @@ def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_ind
             }
         ).set_index("tag_number")
     )
-    predictions = pipeline.predict(new_penguins).to_pandas()
-    expected = pandas.DataFrame(
+    predictions = pl.predict(new_penguins).to_pandas()
+    expected = pd.DataFrame(
         {"predicted_body_mass_g": [3909.2, 3436.0, 2860.0]},
         dtype="Float64",
-        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
-    pandas.testing.assert_frame_equal(
+    pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
     )

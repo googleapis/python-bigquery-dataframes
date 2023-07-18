@@ -32,7 +32,7 @@ import third_party.bigframes_vendored.sklearn.linear_model._logistic
 
 class LinearRegression(
     third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
@@ -130,7 +130,7 @@ class LinearRegression(
 
 class LogisticRegression(
     third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression.__doc__

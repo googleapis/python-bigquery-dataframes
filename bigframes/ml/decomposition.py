@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/decomposition.html"""
 
 from __future__ import annotations
 
-from typing import cast, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from google.cloud import bigquery
 
@@ -31,7 +31,7 @@ import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 class PCA(
     third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
@@ -54,9 +54,15 @@ class PCA(
         new_pca._bqml_model = bigframes.ml.core.BqmlModel(session, model)
         return new_pca
 
-    def fit(self, X: bigframes.dataframe.DataFrame):
+    def fit(
+        self,
+        X: bigframes.dataframe.DataFrame,
+        y=None,
+        transforms: Optional[List[str]] = None,
+    ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,
+            transforms=transforms,
             options={
                 "model_type": "PCA",
                 "num_principal_components": self.n_components,
@@ -69,7 +75,8 @@ class PCA(
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X: a BigQuery DataFrames to predict.
+            X: a BigQuery DataFrame to predict.
+            y: ignored for API consistency.
 
         Returns: predicted BigQuery DataFrames."""
         if not self._bqml_model:

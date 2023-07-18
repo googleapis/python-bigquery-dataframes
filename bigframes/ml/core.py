@@ -240,6 +240,7 @@ def create_bqml_model(
 def create_bqml_time_series_model(
     train_X: bigframes.dataframe.DataFrame,
     train_y: bigframes.dataframe.DataFrame,
+    transforms: Optional[Iterable[str]] = None,
     options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
 
@@ -260,9 +261,14 @@ def create_bqml_time_series_model(
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
     options_sql = bigframes.ml.sql.options(**options)
+
+    transform_sql = (
+        bigframes.ml.sql.transform(*transforms) if transforms is not None else None
+    )
     sql = bigframes.ml.sql.create_model(
         model_name=model_name,
         source_sql=source_sql,
+        transform_sql=transform_sql,
         options_sql=options_sql,
     )
 

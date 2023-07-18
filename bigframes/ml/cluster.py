@@ -31,7 +31,7 @@ import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 class KMeans(
     third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans,
-    bigframes.ml.base.Predictor,
+    bigframes.ml.base.TrainablePredictor,
 ):
 
     __doc__ = third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans.__doc__
@@ -61,7 +61,10 @@ class KMeans(
         return {"model_type": "KMEANS", "num_clusters": self.n_clusters}
 
     def fit(
-        self, X: bigframes.dataframe.DataFrame, transforms: Optional[List[str]] = None
+        self,
+        X: bigframes.dataframe.DataFrame,
+        y=None,
+        transforms: Optional[List[str]] = None,
     ):
         self._bqml_model = bigframes.ml.core.create_bqml_model(
             train_X=X,

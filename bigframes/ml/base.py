@@ -113,3 +113,23 @@ class Predictor(BaseEstimator):
 
         self._bqml_model.register(vertex_ai_model_id)
         return self
+
+
+class TrainablePredictor(Predictor):
+    """A BigQuery DataFrame ML Model base class that can be used to fit and predict outputs.
+
+    Also the predictor can be attached to a pipeline with transformers."""
+
+    @abc.abstractmethod
+    def fit(self, X, y, transforms):
+        pass
+
+    # TODO(b/289280565): enable signatures after updating KMeans and PCA
+    # @abc.abstractmethod
+    # def score(self, X, y):
+    #     pass
+
+    # TODO(b/291812029): move to Predictor after implement in LLM and imported models
+    @abc.abstractmethod
+    def to_gbq(self, model_name, replace):
+        pass
