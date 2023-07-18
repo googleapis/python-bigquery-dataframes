@@ -153,6 +153,29 @@ class CountOp(AggregateOp):
         return False
 
 
+class CutOp(WindowOp):
+    def __init__(self, bins: int):
+        self._bins = bins
+
+    def _as_ibis(self, x: ibis_types.Column, window=None):
+        col_min = _apply_window_if_present(x.min(), window)
+        col_max = _apply_window_if_present(x.max(), window)
+        bin_width = (col_max - col_min) / self._bins
+        out = ibis.case()
+        for bin in range(self._bins - 1):
+            out = out.when(x <= (col_min + (bin + 1) * bin_width), bin)
+        out = out.when(x.notnull(), self._bins - 1)
+        return out.end()
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    @property
+    def handles_ties(self):
+        return True
+
+
 class NuniqueOp(AggregateOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None

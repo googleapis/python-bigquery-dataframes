@@ -14,9 +14,11 @@
 from __future__ import annotations
 
 import typing
-from typing import Iterable, Literal, Union
+from typing import Iterable, Literal, Optional, Union
 
+import bigframes.core as core
 import bigframes.dataframe
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 
 
@@ -59,3 +61,19 @@ def concat(
     blocks = [obj._block for obj in objs]
     block = blocks[0].concat(blocks[1:], how=join, ignore_index=ignore_index)
     return bigframes.dataframe.DataFrame(block)
+
+
+def cut(
+    x: bigframes.series.Series,
+    bins: int,
+    *,
+    labels: Optional[bool] = None,
+) -> bigframes.series.Series:
+    if bins <= 0:
+        raise ValueError("`bins` should be a positive integer.")
+
+    if labels is not False:
+        raise NotImplementedError(
+            "Only labels=False is supported in BigQuery DataFrames so far."
+        )
+    return x._apply_window_op(agg_ops.CutOp(bins), window_spec=core.WindowSpec())

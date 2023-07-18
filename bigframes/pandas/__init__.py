@@ -46,6 +46,7 @@ import bigframes.dataframe
 import bigframes.series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
+import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 
 
 # Include method definition so that the method appears in our docs for
@@ -78,6 +79,22 @@ def concat(
 
 
 concat.__doc__ = vendored_pandas_concat.concat.__doc__
+
+
+def cut(
+    x: bigframes.series.Series,
+    bins: int,
+    *,
+    labels: Optional[bool] = None,
+) -> bigframes.series.Series:
+    return bigframes.core.reshape.cut(
+        x,
+        bins,
+        labels=labels,
+    )
+
+
+cut.__doc__ = vendored_pandas_tile.cut.__doc__
 
 
 options = config.options

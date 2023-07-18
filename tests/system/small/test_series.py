@@ -21,6 +21,7 @@ import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
 
+import bigframes.pandas
 import bigframes.series as series
 from tests.system.utils import (
     assert_pandas_df_equal_ignore_ordering,
@@ -1312,6 +1313,26 @@ def test_value_counts(scalars_dfs):
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
+    )
+
+
+def test_value_counts_w_cut(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+
+    bf_cut = bigframes.pandas.cut(scalars_df[col_name], 3, labels=False)
+    pd_cut = pd.cut(scalars_pandas_df[col_name], 3, labels=False)
+
+    bf_result = bf_cut.value_counts().compute()
+    pd_result = pd_cut.value_counts()
+    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
+    pd_result.name = "count"
+    pd_result.index.name = col_name
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result.astype(pd.Int64Dtype()),
     )
 
 
