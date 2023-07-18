@@ -11,29 +11,43 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""BigQuery DataFrames top level APIs."""
+from __future__ import annotations
 
 import typing
+from typing import Iterable, Literal, Union
 
-from bigframes.dataframe import DataFrame
-from bigframes.series import Series
+import bigframes.dataframe
+import bigframes.series
+
+
+@typing.overload
+def concat(
+    objs: Iterable[bigframes.dataframe.DataFrame], *, join, ignore_index
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def concat(
+    objs: Iterable[bigframes.series.Series], *, join, ignore_index
+) -> bigframes.series.Series:
+    ...
 
 
 def concat(
-    objs: typing.Iterable[typing.Union[DataFrame, Series]],
+    objs: Union[
+        Iterable[bigframes.dataframe.DataFrame], Iterable[bigframes.series.Series]
+    ],
     *,
-    join: typing.Literal["inner", "outer"] = "outer",
-    ignore_index: bool = False
-) -> typing.Union[DataFrame, Series]:
-    """Concatenate DataFrame or Series objects along rows.
-
-    Note: currently only supports DataFrames with matching types for each column name.
-    """
-    contains_dataframes = any(isinstance(x, DataFrame) for x in objs)
+    join: Literal["inner", "outer"] = "outer",
+    ignore_index: bool = False,
+) -> Union[bigframes.dataframe.DataFrame, bigframes.series.Series]:
+    contains_dataframes = any(
+        isinstance(x, bigframes.dataframe.DataFrame) for x in objs
+    )
     if not contains_dataframes:
         # Special case, all series, so align everything into single column even if labels don't match
-        series = typing.cast(typing.Iterable[Series], objs)
+        series = typing.cast(typing.Iterable[bigframes.series.Series], objs)
         names = {s.name for s in series}
         # For series case, labels are stripped if they don't all match
         if len(names) > 1:
@@ -41,7 +55,7 @@ def concat(
         else:
             blocks = [s._block for s in series]
         block = blocks[0].concat(blocks[1:], how=join, ignore_index=ignore_index)
-        return Series(block)
+        return bigframes.series.Series(block)
     blocks = [obj._block for obj in objs]
     block = blocks[0].concat(blocks[1:], how=join, ignore_index=ignore_index)
-    return DataFrame(block)
+    return bigframes.dataframe.DataFrame(block)

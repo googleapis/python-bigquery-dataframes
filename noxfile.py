@@ -79,10 +79,12 @@ nox.options.sessions = [
     "mypy",
     "format",
     "docs",
+    "docfx",
     "unit",
     "unit_noextras",
     "unit_prerelease",
     "system",
+    "doctest",
     "cover",
     "release_dry_run",
 ]
@@ -277,6 +279,7 @@ def run_system(
     check_cov=False,
     install_test_extra=True,
     print_duration=False,
+    extra_pytest_options=(),
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -318,6 +321,8 @@ def run_system(
                 "--cov-fail-under=0",
             ]
         )
+
+    pytest_cmd.extend(extra_pytest_options)
     session.run(
         *pytest_cmd,
         test_folder,
@@ -344,6 +349,18 @@ def system_noextras(session):
         prefix_name="system_noextras",
         test_folder=os.path.join("tests", "system", "small"),
         install_test_extra=False,
+    )
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def doctest(session):
+    """Run the system test suite."""
+    run_system(
+        session=session,
+        prefix_name="doctest",
+        extra_pytest_options=("--doctest-modules",),
+        test_folder="bigframes",
+        check_cov=True,
     )
 
 

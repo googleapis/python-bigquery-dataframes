@@ -3,9 +3,6 @@
 General functions
 =================
 
-.. currentmodule:: bigframes.pandas
-
-Data manipulations
-------------------
-
-.. autofunction:: concat
+.. automodule:: bigframes.pandas
+    :members:
+    :undoc-members:

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import inspect
 import threading
+import typing
 from typing import (
     Any,
     Callable,
@@ -39,14 +40,48 @@ import numpy
 import pandas
 
 import bigframes._config as config
-import bigframes.bigframes
 import bigframes.core.indexes
+import bigframes.core.reshape
 import bigframes.dataframe
 import bigframes.series
 import bigframes.session
+import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 
-concat = bigframes.bigframes.concat
+
+# Include method definition so that the method appears in our docs for
+# bigframes.pandas general functions.
+@typing.overload
+def concat(
+    objs: Iterable[bigframes.dataframe.DataFrame], *, join, ignore_index
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def concat(
+    objs: Iterable[bigframes.series.Series], *, join, ignore_index
+) -> bigframes.series.Series:
+    ...
+
+
+def concat(
+    objs: Union[
+        Iterable[bigframes.dataframe.DataFrame], Iterable[bigframes.series.Series]
+    ],
+    *,
+    join: Literal["inner", "outer"] = "outer",
+    ignore_index: bool = False,
+) -> Union[bigframes.dataframe.DataFrame, bigframes.series.Series]:
+    return bigframes.core.reshape.concat(
+        objs=objs, join=join, ignore_index=ignore_index
+    )
+
+
+concat.__doc__ = vendored_pandas_concat.concat.__doc__
+
+
 options = config.options
+"""Global :class:`~bigframes._config.Options` to configure BigQuery DataFrames."""
 
 _global_session: Optional[bigframes.session.Session] = None
 _global_session_lock = threading.Lock()
