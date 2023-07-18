@@ -832,6 +832,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
+    def unique(self) -> Series:
+        return self.drop_duplicates()
+
     def duplicated(self, keep: str = "first") -> Series:
         block, indicator = block_ops.indicate_duplicates(
             self._block, (self._value_column,), keep

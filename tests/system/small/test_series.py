@@ -958,6 +958,19 @@ def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_na
         ("int64_too",),
     ],
 )
+def test_unique(scalars_df_index, scalars_pandas_df_index, col_name):
+    bf_uniq = scalars_df_index[col_name].unique().to_numpy()
+    pd_uniq = scalars_pandas_df_index[col_name].unique()
+    numpy.array_equal(pd_uniq, bf_uniq)
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    [
+        ("bool_col",),
+        ("int64_too",),
+    ],
+)
 @pytest.mark.parametrize(
     ("keep",),
     [
