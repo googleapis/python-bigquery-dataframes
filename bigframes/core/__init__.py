@@ -679,7 +679,12 @@ class ArrayValue:
         # We already need to add the hidden ordering columns for "order_by" so
         # we can order by them.
         if expose_hidden_cols and ordering_mode != "order_by":
-            columns.extend(self._hidden_ordering_columns)
+            columns.extend(
+                [
+                    self._get_hidden_ordering_column(name)
+                    for name in hidden_ordering_columns
+                ]
+            )
 
         # Special case for empty tables, since we can't create an empty
         # projection.

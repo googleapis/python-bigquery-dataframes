@@ -58,7 +58,7 @@ import pydata_google_auth
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.core as core
 import bigframes.core.blocks as blocks
-import bigframes.core.indexes as indexes
+import bigframes.core.guid as guid
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
@@ -348,9 +348,22 @@ class Session(
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
-        _, query_job = self._start_query(query)
-        query_job.result()  # Wait for job to finish.
-        destination = query_job.destination
+
+        if isinstance(index_col, str):
+            index_cols = [index_col]
+        else:
+            index_cols = list(index_col)
+
+        # Make sure we cluster by the index column so that subsequent
+        # operations are as speedy as they can be.
+        if index_cols:
+            destination: bigquery.Table | bigquery.TableReference = (
+                self._query_to_session_table(query, index_cols)
+            )
+        else:
+            _, query_job = self._start_query(query)
+            query_job.result()  # Wait for job to finish.
+            destination = query_job.destination
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.
@@ -368,7 +381,7 @@ class Session(
 
         return self.read_gbq_table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
-            index_col=index_col,
+            index_col=index_cols,
             col_order=col_order,
             max_results=max_results,
         )
@@ -393,11 +406,17 @@ class Session(
             query, default_project=self.bqclient.project
         )
 
-        # TODO(swast): Read from a table snapshot so that reads are consistent.
-        table_expression = self.ibis_client.table(
-            table_ref.table_id,
-            database=f"{table_ref.project}.{table_ref.dataset_id}",
-        )
+        if table_ref.dataset_id.upper() == "_SESSION":
+            # _SESSION tables aren't supported by the tables.get REST API.
+            table_expression = self.ibis_client.sql(
+                f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+            )
+        else:
+            # TODO(swast): Read from a table snapshot so that reads are consistent.
+            table_expression = self.ibis_client.table(
+                table_ref.table_id,
+                database=f"{table_ref.project}.{table_ref.dataset_id}",
+            )
 
         for key in col_order:
             if key not in table_expression.columns:
@@ -422,6 +441,7 @@ class Session(
         is_total_ordering = False
 
         if len(index_cols) != 0:
+            index_labels = typing.cast(List[Optional[str]], index_cols)
             distinct_table = table_expression.select(*index_cols).distinct()
             is_unique_sql = f"""WITH full_table AS (
                 {self.ibis_client.compile(table_expression)}
@@ -439,14 +459,16 @@ class Session(
             total_count = row["total_count"]
             distinct_count = row["distinct_count"]
             is_total_ordering = total_count == distinct_count
-            if is_total_ordering:
-                ordering = core.ExpressionOrdering(
-                    ordering_value_columns=[
-                        core.OrderingColumnReference(column_id)
-                        for column_id in index_cols
-                    ],
-                )
-            else:
+            ordering = core.ExpressionOrdering(
+                ordering_value_columns=[
+                    core.OrderingColumnReference(column_id) for column_id in index_cols
+                ],
+            )
+
+            if not is_total_ordering:
+                # Make sure when we generate an ordering, the row_number()
+                # coresponds to the index columns.
+                table_expression = table_expression.order_by(index_cols)
                 warnings.warn(
                     textwrap.dedent(
                         f"""
@@ -456,6 +478,15 @@ class Session(
                         """,
                     )
                 )
+        else:
+            table_expression, ordering = self._create_sequential_ordering(
+                table_expression
+            )
+            ordering_id_column = ordering.ordering_id
+            assert ordering_id_column is not None
+            is_total_ordering = True
+            index_cols = [ordering_id_column]
+            index_labels = [None]
 
         if max_results is not None:
             if max_results <= 0:
@@ -466,6 +497,7 @@ class Session(
             table_expression=table_expression,
             col_order=col_order,
             index_cols=index_cols,
+            index_labels=index_labels,
             ordering=ordering,
             is_total_ordering=is_total_ordering,
         )
@@ -475,11 +507,12 @@ class Session(
         table_expression: ibis_types.Table,
         *,
         col_order: Iterable[str] = (),
-        index_cols: Union[Iterable[str], Tuple] = (),
-        ordering: Optional[core.ExpressionOrdering] = None,
+        index_cols: Sequence[str] = (),
+        index_labels: Sequence[Optional[str]] = (),
+        ordering: core.ExpressionOrdering,
         is_total_ordering: bool = False,
     ) -> dataframe.DataFrame:
-        """Internal helper method that loads DataFrame from Google BigQuery given an optional ordering column.
+        """Internal helper method that loads DataFrame from Google BigQuery given an ordering column.
 
         Args:
             table_expression: an ibis table expression to be executed in BigQuery.
@@ -490,64 +523,32 @@ class Session(
         Returns:
             A DataFrame representing results of the query or table.
         """
-        if ordering is None and is_total_ordering:
-            raise ValueError("Can't have a total ordering without an ordering.")
+        if len(index_cols) != len(index_labels):
+            raise ValueError(
+                "Needs same number of index labels are there are index columns. "
+                f"Got {len(index_labels)}, expected {len(index_cols)}."
+            )
 
-        index_keys = list(index_cols)
+        if not index_cols:
+            raise ValueError("Need at least 1 index column.")
+
         # Logic:
-        # no total ordering, no index -> create sequential order, use for both ordering and index
         # no total ordering, index -> create sequential order, ordered by index, use for both ordering and index
-        # sequential total ordering, no index -> use ordering as default index
-        # non-sequential total ordering, no index -> NotImplementedException
         # total ordering, index -> use ordering as ordering, index as index
 
         # This code block ensures the existence of a total ordering.
         if not is_total_ordering:
             # Rows are not ordered, we need to generate a default ordering and materialize it
-            default_ordering_name = core.ORDER_ID_COLUMN
-            default_ordering_col = (
-                ibis.row_number().name(default_ordering_name).cast(ibis_dtypes.int64)
+            table_expression, ordering = self._create_sequential_ordering(
+                table_expression, index_cols
             )
-            table_expression = table_expression.mutate(
-                **{default_ordering_name: default_ordering_col}
-            )
-            table_expression = self._query_to_session_table(table_expression.compile())
-            ordering_reference = core.OrderingColumnReference(default_ordering_name)
-            ordering = core.ExpressionOrdering(
-                ordering_id_column=ordering_reference, is_sequential=True
-            )
-        elif (
-            ordering is not None
-            and ordering.ordering_id_column
-            and ordering.is_sequential
-        ):
-            default_ordering_name = typing.cast(str, ordering.ordering_id)
-        else:
-            # Have a total ordering, but not a sequential ordering.
-            default_ordering_name = None
 
-        if index_keys:
-            index_col_labels = index_keys
-            index_col_values = [
-                table_expression[index_id] for index_id in index_col_labels
-            ]
-        elif default_ordering_name is not None:
-            index_col_labels = [None]
-            # Make sure we have a separate "copy" of the ordering ID to use as
-            # the index, because we assume the ordering ID is a hidden column
-            # in ArrayValue, but the index column appears as a "column".
-            index_id = indexes.INDEX_COLUMN_ID.format(0)
-            index_col_values = [table_expression[default_ordering_name].name(index_id)]
-            table_expression = table_expression.mutate(*index_col_values)
-        else:
-            raise NotImplementedError(
-                "non-sequential total ordering without an index not yet supported"
-            )
+        index_col_values = [table_expression[index_id] for index_id in index_cols]
 
         column_keys = list(col_order)
         if len(column_keys) == 0:
-            non_columns = set(index_keys)
-            if ordering is not None and ordering.ordering_id is not None:
+            non_columns = set(index_cols)
+            if ordering.ordering_id is not None:
                 non_columns.add(ordering.ordering_id)
             column_keys = [
                 key for key in table_expression.columns if key not in non_columns
@@ -555,7 +556,7 @@ class Session(
         return self._read_ibis(
             table_expression,
             index_col_values,
-            index_col_labels,
+            index_labels,
             column_keys,
             ordering=ordering,
         )
@@ -569,6 +570,14 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
     ) -> dataframe.DataFrame:
+        if isinstance(index_col, str):
+            index_cols = [index_col]
+        else:
+            index_cols = list(index_col)
+
+        if not job_config.clustering_fields and index_cols:
+            job_config.clustering_fields = index_cols
+
         if isinstance(filepath_or_buffer, str):
             if filepath_or_buffer.startswith("gs://"):
                 load_job = self.bqclient.load_table_from_uri(
@@ -588,10 +597,8 @@ class Session(
 
         # The BigQuery REST API for tables.get doesn't take a session ID, so we
         # can't get the schema for a temp table that way.
-        # TODO(b/288312620): This results in a second job. If we have a unique
-        # index, we should be able to call _read_ibis() instead.
-        return self.read_gbq_query(
-            f"SELECT * FROM `{table.table_id}`",
+        return self.read_gbq_table(
+            f"{table.project}.{table.dataset_id}.{table.table_id}",
             index_col=index_col,
             col_order=col_order,
         )
@@ -599,9 +606,9 @@ class Session(
     def _read_ibis(
         self,
         table_expression: ibis_types.Table,
-        index_cols: List[ibis_types.Value],
-        index_labels: List[Optional[str]],
-        column_keys: List[str],
+        index_cols: Sequence[ibis_types.Value],
+        index_labels: Sequence[Optional[str]],
+        column_keys: Sequence[str],
         ordering: Optional[core.ExpressionOrdering] = None,
     ):
         """Turns a table expression (plus index column) into a DataFrame."""
@@ -673,30 +680,44 @@ class Session(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
                 )
 
+        # Unnamed are not copied to BigQuery when load_table_from_dataframe
+        # executes.
+        index_cols = list(
+            filter(lambda name: name is not None, pandas_dataframe_copy.index.names)
+        )
+        index_labels = typing.cast(List[Optional[str]], index_cols)
+        cluster_cols = index_cols + [ordering_col]
+
+        if len(index_cols) == 0:
+            index_cols = [ordering_col]
+            index_labels = [None]
+
+        job_config = bigquery.LoadJobConfig(schema=schema)
+        job_config.clustering_fields = cluster_cols
+
+        # TODO(swast): Rename the unnamed index columns and restore them after
+        # the load job completes.
         # Column values will be loaded as null if the column name has spaces.
         # https://github.com/googleapis/python-bigquery/issues/1566
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
-            job_config=bigquery.LoadJobConfig(schema=schema),
+            job_config=job_config,
         )
         load_job.result()  # Wait for the job to complete
 
-        # Both default indexes and unnamed non-default indexes are treated the same
-        # and are not copied to BigQuery when load_table_from_dataframe executes
-        index_cols = filter(
-            lambda name: name is not None, pandas_dataframe_copy.index.names
-        )
         ordering = core.ExpressionOrdering(
             ordering_id_column=OrderingColumnReference(ordering_col), is_sequential=True
         )
         table_expression = self.ibis_client.sql(
             f"SELECT * FROM `{load_table_destination.table_id}`"
         )
+
         return self._read_gbq_with_ordering(
             table_expression=table_expression,
             index_cols=index_cols,
+            index_labels=index_labels,
             ordering=ordering,
             is_total_ordering=True,
         )
@@ -860,19 +881,48 @@ class Session(
         )
         return dataset.table(table_name)
 
-    def _query_to_session_table(self, query_text: str) -> ibis_types.Table:
+    def _create_sequential_ordering(
+        self, table: ibis_types.Table, index_cols: Iterable[str] = ()
+    ) -> Tuple[ibis_types.Table, core.ExpressionOrdering]:
+        # Since this might also be used as the index, don't use the default
+        # "ordering ID" name.
+        default_ordering_name = guid.generate_guid("bigframes_ordering_")
+        default_ordering_col = (
+            ibis.row_number().cast(ibis_dtypes.int64).name(default_ordering_name)
+        )
+        table = table.mutate(**{default_ordering_name: default_ordering_col})
+        table_ref = self._query_to_session_table(
+            self.ibis_client.compile(table),
+            cluster_cols=list(index_cols) + [default_ordering_name],
+        )
+        table = self.ibis_client.sql(f"SELECT * FROM `{table_ref.table_id}`")
+        ordering_reference = core.OrderingColumnReference(default_ordering_name)
+        ordering = core.ExpressionOrdering(
+            ordering_id_column=ordering_reference, is_sequential=True
+        )
+        return table, ordering
+
+    def _query_to_session_table(
+        self, query_text: str, cluster_cols: Iterable[str]
+    ) -> bigquery.TableReference:
+        # Can't set a table in _SESSION as destination via query job API, so we
+        # run DDL, instead.
         table = self._create_session_table()
-        # TODO(swast): Can't set a table in _SESSION as destination, so we run
-        # DDL, instead.
+        cluster_cols_sql = ", ".join(f"`{cluster_col}`" for cluster_col in cluster_cols)
+
         # TODO(swast): This might not support multi-statement SQL queries.
-        ddl_text = f"CREATE TEMPORARY TABLE `{table.table_id}` AS {query_text}"
+        ddl_text = f"""
+        CREATE TEMP TABLE `_SESSION`.`{table.table_id}`
+        CLUSTER BY {cluster_cols_sql}
+        AS {query_text}
+        """
         query_job = self.bqclient.query(ddl_text)
         try:
             query_job.result()  # Wait for the job to complete
         except google.api_core.exceptions.Conflict:
             # Allow query retry to succeed.
             pass
-        return self.ibis_client.sql(f"SELECT * FROM `{table.table_id}`")
+        return table
 
     def remote_function(
         self,
