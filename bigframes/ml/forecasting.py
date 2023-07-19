@@ -14,24 +14,21 @@
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional, TYPE_CHECKING
+from typing import cast, Dict, List, Optional
 
 from google.cloud import bigquery
 
-if TYPE_CHECKING:
-    import bigframes
-
-import bigframes.ml.base
-import bigframes.ml.core
+import bigframes
+from bigframes.ml import base, core
 
 _PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
 
-class ARIMAPlus(bigframes.ml.base.TrainablePredictor):
+class ARIMAPlus(base.TrainablePredictor):
     """Time Series ARIMA Plus model."""
 
     def __init__(self):
-        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     @staticmethod
     def _from_bq(session: bigframes.Session, model: bigquery.Model) -> ARIMAPlus:
@@ -40,7 +37,7 @@ class ARIMAPlus(bigframes.ml.base.TrainablePredictor):
         kwargs: Dict[str, str | int | bool | float | List[str]] = {}
 
         new_arima_plus = ARIMAPlus(**kwargs)
-        new_arima_plus._bqml_model = bigframes.ml.core.BqmlModel(session, model)
+        new_arima_plus._bqml_model = core.BqmlModel(session, model)
         return new_arima_plus
 
     @property
@@ -60,7 +57,7 @@ class ARIMAPlus(bigframes.ml.base.TrainablePredictor):
             X: A dataframe of training timestamp.
 
             y: Target values for training."""
-        self._bqml_model = bigframes.ml.core.create_bqml_time_series_model(
+        self._bqml_model = core.create_bqml_time_series_model(
             X,
             y,
             transforms=transforms,

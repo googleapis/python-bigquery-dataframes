@@ -38,18 +38,18 @@ def test_pipeline_linear_regression_fit_score_predict(
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    train_y = df[["body_mass_g"]]
-    pl.fit(train_X, train_y)
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(train_X, train_y).compute()
+    score_result = pl.score(X_train, y_train).compute()
     score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [309.477334],
@@ -108,18 +108,18 @@ def test_pipeline_logistic_regression_fit_score_predict(
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    train_y = df[["sex"]]
-    pl.fit(train_X, train_y)
+    y_train = df[["sex"]]
+    pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(train_X, train_y).compute()
+    score_result = pl.score(X_train, y_train).compute()
     score_expected = pd.DataFrame(
         {
             "precision": [0.537091],
@@ -176,18 +176,18 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    train_y = df[["body_mass_g"]]
-    pl.fit(train_X, train_y)
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(train_X, train_y).compute()
+    score_result = pl.score(X_train, y_train).compute()
     score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [203.4001727989334],
@@ -252,18 +252,18 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    train_y = df[["sex"]]
-    pl.fit(train_X, train_y)
+    y_train = df[["sex"]]
+    pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(train_X, train_y).compute()
+    score_result = pl.score(X_train, y_train).compute()
     score_expected = pd.DataFrame(
         {
             "precision": [0.587673],
@@ -310,7 +310,7 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     )
 
 
-def test_pipeline_PCA_fit_predict(session, penguins_df_default_index):
+def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
         [
@@ -320,14 +320,14 @@ def test_pipeline_PCA_fit_predict(session, penguins_df_default_index):
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    pl.fit(train_X)
+    pl.fit(X_train)
 
     # predict new labels
     new_penguins = session.read_pandas(
@@ -347,6 +347,21 @@ def test_pipeline_PCA_fit_predict(session, penguins_df_default_index):
             }
         ).set_index("tag_number")
     )
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(new_penguins).compute()
+    score_expected = pd.DataFrame(
+        {
+            "total_explained_variance_ratio": [1.0],
+        },
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
     predictions = pl.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {
@@ -367,7 +382,7 @@ def test_pipeline_PCA_fit_predict(session, penguins_df_default_index):
     )
 
 
-def test_pipeline_standard_scaler_kmeans_fit_predict(
+def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     session, penguins_pandas_df_default_index
 ):
     """Test an unsupervised model with a non-BQML implementation of StandardScaler"""
@@ -380,14 +395,14 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
 
     # kmeans is sensitive to the order with this configuration, so use ordered source data
     df = session.read_pandas(penguins_pandas_df_default_index).dropna()
-    train_X = df[
+    X_train = df[
         [
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
         ]
     ]
-    pl.fit(train_X)
+    pl.fit(X_train)
 
     # predict new labels
     pd_new_penguins = pd.DataFrame.from_dict(
@@ -452,6 +467,19 @@ def test_pipeline_standard_scaler_kmeans_fit_predict(
     pd_new_penguins.index.name = "observation"
 
     new_penguins = session.read_pandas(pd_new_penguins)
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(new_penguins).compute()
+    score_expected = pd.DataFrame(
+        {"davies_bouldin_index": [7.345611], "mean_squared_distance": [97.541777]},
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
     result = pl.predict(new_penguins).to_pandas().sort_index()
     expected = pd.DataFrame(
         {"CENTROID_ID": [1, 2, 1, 2, 1, 2]},
@@ -491,9 +519,9 @@ def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_ind
     )
 
     df = penguins_df_default_index.dropna()
-    train_X = df[["species", "culmen_length_mm", "flipper_length_mm"]]
-    train_y = df[["body_mass_g"]]
-    pl.fit(train_X, train_y)
+    X_train = df[["species", "culmen_length_mm", "flipper_length_mm"]]
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
 
     # predict new labels
     new_penguins = session.read_pandas(

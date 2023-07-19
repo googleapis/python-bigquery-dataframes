@@ -72,13 +72,6 @@ class PCA(
     def predict(
         self, X: bigframes.dataframe.DataFrame
     ) -> bigframes.dataframe.DataFrame:
-        """Predict the closest cluster for each sample in X.
-
-        Args:
-            X: a BigQuery DataFrame to predict.
-            y: ignored for API consistency.
-
-        Returns: predicted BigQuery DataFrames."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -102,3 +95,14 @@ class PCA(
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
+
+    def score(
+        self,
+        X=None,
+        y=None,
+    ) -> bigframes.dataframe.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        # TODO(b/291973741): X param is ignored. Update BQML supports input in ML.EVALUTE.
+        return self._bqml_model.evaluate()

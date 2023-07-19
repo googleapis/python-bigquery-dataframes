@@ -69,3 +69,38 @@ class KMeans(_BaseKMeans):
             Fitted Estimator.
         """
         raise NotImplementedError("abstract method")
+
+    def predict(
+        self,
+        X,
+    ):
+        """Predict the closest cluster each sample in X belongs to.
+
+        Args:
+            X:
+                DataFrame of shape (n_samples, n_features). New data to predict.
+            y:  Ignored
+                Not used, present here for API consistency by convention.
+
+        Returns:
+            DataFrame of the cluster each sample belongs to.
+        """
+        raise NotImplementedError("abstract method")
+
+    def score(
+        self,
+        X,
+        y=None,
+    ):
+        """Metrics of the model
+
+        Args:
+            X:
+                DataFrame of shape (n_samples, n_features). New Data.
+            y:  Ignored
+                Not used, present here for API consistency by convention.
+
+        Returns:
+            DataFrame of the metrics.
+        """
+        raise NotImplementedError("abstract method")

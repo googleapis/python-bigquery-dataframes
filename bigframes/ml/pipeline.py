@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import bigframes
-from bigframes.ml import base, cluster, compose, decomposition, preprocessing
+from bigframes.ml import base, compose, preprocessing
 import third_party.bigframes_vendored.sklearn.pipeline
 
 
@@ -87,13 +87,9 @@ class Pipeline(
     def score(
         self,
         X: bigframes.dataframe.DataFrame,
-        y: bigframes.dataframe.DataFrame,
+        y: Optional[bigframes.dataframe.DataFrame] = None,
     ):
-        if isinstance(self._estimator, (cluster.KMeans, decomposition.PCA)):
-            raise NotImplementedError("KMeans/PCA haven't supported score method.")
-
-        # TODO(b/289280565): remove type ignore after updating KMeans and PCA
-        return self._estimator.score(X=X, y=y)  # type: ignore
+        return self._estimator.score(X=X, y=y)
 
     def to_gbq(self, model_name: str, replace: bool = False):
         self._estimator.to_gbq(model_name, replace)

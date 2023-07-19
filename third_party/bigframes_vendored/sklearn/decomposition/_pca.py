@@ -35,10 +35,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
     """
 
-    def fit(
-        self,
-        X,
-    ):
+    def fit(self, X, y=None):
         """Fit the model according to the given training data.
 
         Args:
@@ -47,7 +44,33 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
+            y:
+                Ignored.
         Returns:
             Fitted estimator.
         """
+        raise NotImplementedError("abstract method")
+
+    def score(self, X=None, y=None):
+        """Return the metrics of the model.
+
+        Args:
+            X:
+                Ignored.
+
+            y:
+                Ignored.
+        Returns:
+            DataFrame that represents model metrics.
+        """
+        raise NotImplementedError("abstract method")
+
+    def predict(self, X):
+        """Predict the closest cluster for each sample in X.
+
+        Args:
+            X: a BigQuery DataFrame to predict.
+
+        Returns:
+            predicted BigQuery DataFrames."""
         raise NotImplementedError("abstract method")

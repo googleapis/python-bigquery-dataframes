@@ -124,10 +124,9 @@ class TrainablePredictor(Predictor):
     def fit(self, X, y, transforms):
         pass
 
-    # TODO(b/289280565): enable signatures after updating KMeans and PCA
-    # @abc.abstractmethod
-    # def score(self, X, y):
-    #     pass
+    @abc.abstractmethod
+    def score(self, X, y):
+        pass
 
     # TODO(b/291812029): move to Predictor after implement in LLM and imported models
     @abc.abstractmethod
