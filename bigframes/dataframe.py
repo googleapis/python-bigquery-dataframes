@@ -1550,14 +1550,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     applymap = map
 
-    def _drop_non_numeric(self) -> DataFrame:
-        numeric_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
-        ]
-        return DataFrame(self._block.select_columns(numeric_cols))
-
     def _slice(
         self,
         start: typing.Optional[int] = None,
