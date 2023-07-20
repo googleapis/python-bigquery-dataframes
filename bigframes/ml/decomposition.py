@@ -90,7 +90,7 @@ class PCA(
         )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.

@@ -187,7 +187,7 @@ class XGBRegressor(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> XGBRegressor:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.
@@ -340,7 +340,7 @@ class XGBClassifier(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> XGBClassifier:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.
@@ -499,7 +499,7 @@ class RandomForestRegressor(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> RandomForestRegressor:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.
@@ -658,7 +658,7 @@ class RandomForestClassifier(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> RandomForestClassifier:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.

@@ -83,7 +83,7 @@ class KMeans(
         )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> KMeans:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.

@@ -111,7 +111,7 @@ class ARIMAPlus(bigframes.ml.base.TrainablePredictor):
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> ARIMAPlus:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.

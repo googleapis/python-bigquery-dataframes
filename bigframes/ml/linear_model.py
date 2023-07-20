@@ -114,7 +114,7 @@ class LinearRegression(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LinearRegression:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.
@@ -228,7 +228,7 @@ class LogisticRegression(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LogisticRegression:
-        """Save the model to Google Cloud BigQuey.
+        """Save the model to Google Cloud BigQuery.
 
         Args:
             model_name: the name of the model.
