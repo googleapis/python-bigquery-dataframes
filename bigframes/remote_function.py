@@ -22,6 +22,7 @@ import os
 import random
 import shutil
 import string
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -82,6 +83,18 @@ def _get_hash(def_):
     "Get hash of a function."
     def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
     return hashlib.md5(def_repr).hexdigest()
+
+
+def _run_system_command(command):
+    program = subprocess.Popen(
+        [command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+    )
+    stdout, stderr = program.communicate()
+    exit_code = program.wait()
+    if exit_code:
+        raise RuntimeError(
+            f"Command: {command}\nOutput: {stdout.decode()}\nError: {stderr.decode()}"
+        )
 
 
 def get_cloud_function_name(def_, uniq_suffix=None):
@@ -154,8 +167,7 @@ class RemoteFunctionClient:
                 + ' --role="roles/run.invoker"'
             )
             logger.info(f"Setting up IAM binding on the BQ connection: {command_iam}")
-            if os.system(command_iam):
-                raise ValueError("Failed to set up iam for the bq connection")
+            _run_system_command(command_iam)
 
             logger.info(
                 f"Waiting {self._iam_wait_seconds} seconds for IAM to take effect.."
@@ -384,8 +396,8 @@ class RemoteFunctionClient:
             else:
                 command = f"{command} --no-allow-unauthenticated"
                 logger.info(f"Creating new cloud function: {command}")
-            if os.system(command):
-                raise ValueError("Failed at gcloud functions deploy")
+
+            _run_system_command(command)
 
         # Fetch the endpoint of the just created function
         endpoint = self.get_cloud_function_endpoint(cf_name)
