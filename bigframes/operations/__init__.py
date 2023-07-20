@@ -113,6 +113,79 @@ class CapitalizeOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x).capitalize()
 
 
+class ContainsStringOp(UnaryOp):
+    def __init__(self, pat: str, case: bool = True):
+        self._pat = pat
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).contains(self._pat)
+
+
+class ContainsRegexOp(UnaryOp):
+    def __init__(self, pat: str):
+        self._pat = pat
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).re_search(self._pat)
+
+
+class ReplaceStringOp(UnaryOp):
+    def __init__(self, pat: str, repl: str):
+        self._pat = pat
+        self._repl = repl
+
+    def _as_ibis(self, x: ibis_types.Value):
+        pat_str_value = typing.cast(
+            ibis_types.StringValue, ibis_types.literal(self._pat)
+        )
+        repl_str_value = typing.cast(
+            ibis_types.StringValue, ibis_types.literal(self._pat)
+        )
+
+        return typing.cast(ibis_types.StringValue, x).replace(
+            pat_str_value, repl_str_value
+        )
+
+
+class ReplaceRegexOp(UnaryOp):
+    def __init__(self, pat: str, repl: str):
+        self._pat = pat
+        self._repl = repl
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).re_replace(self._pat, self._repl)
+
+
+class StartsWithOp(UnaryOp):
+    def __init__(self, pat: typing.Sequence[str]):
+        self._pat = pat
+
+    def _as_ibis(self, x: ibis_types.Value):
+        any_match = None
+        for pat in self._pat:
+            pat_match = typing.cast(ibis_types.StringValue, x).startswith(pat)
+            if any_match is not None:
+                any_match = any_match | pat_match
+            else:
+                any_match = pat_match
+        return any_match if any_match is not None else ibis_types.literal(False)
+
+
+class EndsWithOp(UnaryOp):
+    def __init__(self, pat: typing.Sequence[str]):
+        self._pat = pat
+
+    def _as_ibis(self, x: ibis_types.Value):
+        any_match = None
+        for pat in self._pat:
+            pat_match = typing.cast(ibis_types.StringValue, x).endswith(pat)
+            if any_match is not None:
+                any_match = any_match | pat_match
+            else:
+                any_match = pat_match
+        return any_match if any_match is not None else ibis_types.literal(False)
+
+
 class HashOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.IntegerValue, x).hash()

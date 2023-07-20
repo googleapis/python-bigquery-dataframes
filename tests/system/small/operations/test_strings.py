@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import pandas as pd
 import pytest
 
@@ -33,6 +35,113 @@ def test_find(scalars_dfs):
         pd_result.astype(pd.Int64Dtype()),
         bf_result,
     )
+
+
+@pytest.mark.parametrize(
+    ("pat", "case", "flags", "regex"),
+    [
+        ("hEllo", True, 0, False),
+        ("hEllo", False, 0, False),
+        ("hEllo", False, re.I, True),
+        (".*", True, 0, True),
+        (".*", True, 0, False),
+    ],
+)
+def test_str_contains(scalars_dfs, pat, case, flags, regex):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+
+    bf_result = bf_series.str.contains(
+        pat, case=case, flags=flags, regex=regex
+    ).compute()
+    pd_result = scalars_pandas_df[col_name].str.contains(
+        pat, case=case, flags=flags, regex=regex
+    )
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("pat", "repl", "case", "flags", "regex"),
+    [
+        ("hEllo", "blah", True, 0, False),
+        ("hEllo", "blah", False, 0, False),
+        ("hEllo", "blah", False, re.I, True),
+        (".*", "blah", True, 0, True),
+        ("h.l", "blah", False, 0, True),
+        (re.compile("(?i).e.."), "blah", None, 0, True),
+    ],
+)
+def test_str_replace(scalars_dfs, pat, repl, case, flags, regex):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+
+    bf_result = bf_series.str.replace(
+        pat, repl=repl, case=case, flags=flags, regex=regex
+    ).compute()
+    pd_result = scalars_pandas_df[col_name].str.replace(
+        pat, repl=repl, case=case, flags=flags, regex=regex
+    )
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("pat",),
+    [
+        ("こん",),
+        ("Tag!",),
+        (
+            (
+                "Tag!",
+                "Hel",
+            ),
+        ),
+    ],
+)
+def test_str_startswith(scalars_dfs, pat):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name].astype("object")
+
+    bf_result = bf_series.str.startswith(pat).compute()
+    pd_result = pd_series.str.startswith(pat)
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("pat",),
+    [
+        ("こん",),
+        ("Tag!",),
+        (
+            (
+                "Tag!",
+                "Hel",
+            ),
+        ),
+    ],
+)
+def test_str_endswith(scalars_dfs, pat):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name].astype("object")
+
+    bf_result = bf_series.str.endswith(pat).compute()
+    pd_result = pd_series.str.endswith(pat)
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 def test_len(scalars_dfs):

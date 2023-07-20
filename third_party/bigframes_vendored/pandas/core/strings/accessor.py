@@ -1,3 +1,7 @@
+import re
+import typing
+
+
 class StringMethods:
     """
     Vectorized string functions for Series and Index.
@@ -184,4 +188,112 @@ class StringMethods:
             Series
         """
 
+        raise NotImplementedError("abstract method")
+
+    def contains(self, pat, case: bool = True, flags: int = 0, *, regex: bool = True):
+        """
+        Test if pattern or regex is contained within a string of a Series or Index.
+
+        Return boolean Series or Index based on whether a given pattern or regex is
+        contained within a string of a Series or Index.
+
+        Parameters
+        ----------
+        pat:
+            Character sequence or regular expression.
+        case:
+            If True, case sensitive.
+        flags:
+            Flags to pass through to the re module, e.g. re.IGNORECASE.
+        regex:
+            If True, assumes the pat is a regular expression.
+
+            If False, treats the pat as a literal string.
+
+        Returns:
+            A Series or Index of boolean values indicating whether the
+            given pattern is contained within the string of each element
+            of the Series or Index.
+        """
+        raise NotImplementedError("abstract method")
+
+    def replace(
+        self,
+        pat: typing.Union[str, re.Pattern],
+        repl: str,
+        *,
+        case: typing.Optional[bool] = None,
+        flags: int = 0,
+        regex: bool = False,
+    ):
+        """
+        Replace each occurrence of pattern/regex in the Series/Index.
+
+        Equivalent to :meth:`str.replace` or :func:`re.sub`, depending on
+        the regex value.
+
+        Args:
+            pat:
+                String can be a character sequence or regular expression.
+            repl:
+                Replacement string.
+            case:
+                Determines if replace is case sensitive:
+
+                - If True, case sensitive (the default if `pat` is a string)
+                - Set to False for case insensitive
+                - Cannot be set if `pat` is a compiled regex.
+
+            flags:
+                Regex module flags, e.g. re.IGNORECASE. Cannot be set if `pat` is a compiled
+                regex.
+            regex:
+                Determines if the passed-in pattern is a regular expression:
+
+                - If True, assumes the passed-in pattern is a regular expression.
+                - If False, treats the pattern as a literal string
+                - Cannot be set to False if `pat` is a compiled regex or `repl` is
+                    a callable.
+
+        Returns:
+            A copy of the object with all matching occurrences of `pat` replaced by
+            `repl`.
+
+        """
+        raise NotImplementedError("abstract method")
+
+    def startswith(
+        self,
+        pat: typing.Union[str, tuple[str, ...]],
+    ):
+        """
+        Test if the start of each string element matches a pattern.
+
+        Args:
+            pat:
+                Character sequence or tuple of strings. Regular expressions are not
+                accepted.
+
+        Returns:
+            A Series of booleans indicating whether the given pattern matches
+            the start of each string element.
+        """
+        raise NotImplementedError("abstract method")
+
+    def endswith(
+        self,
+        pat: typing.Union[str, tuple[str, ...]],
+    ):
+        """
+        Test if the end of each string element matches a pattern.
+
+        Args:
+            pat:
+                Character sequence or tuple of strings. Regular expressions are not
+                accepted.
+
+        Returns:
+            A Series of booleans indicating whether the given pattern matches
+            the end of each string element.
+        """
         raise NotImplementedError("abstract method")
