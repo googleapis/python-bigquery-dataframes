@@ -892,6 +892,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return DataFrame(block)
 
+    def any(
+        self,
+        *,
+        bool_only: bool = False,
+    ) -> bigframes.series.Series:
+        if not bool_only:
+            frame = self._raise_on_non_boolean("any")
+        else:
+            frame = self._drop_non_bool()
+        block = frame._block.aggregate_all_and_pivot(
+            agg_ops.any_op, dtype=pd.BooleanDtype()
+        )
+        return bigframes.series.Series(block.select_column("values"))
+
+    def all(self, *, bool_only: bool = False) -> bigframes.series.Series:
+        if not bool_only:
+            frame = self._raise_on_non_boolean("all")
+        else:
+            frame = self._drop_non_bool()
+        block = frame._block.aggregate_all_and_pivot(
+            agg_ops.all_op, dtype=pd.BooleanDtype()
+        )
+        return bigframes.series.Series(block.select_column("values"))
+
     def sum(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("sum")
@@ -940,6 +964,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = frame._block.aggregate_all_and_pivot(agg_ops.max_op)
         return bigframes.series.Series(block.select_column("values"))
 
+    def prod(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("prod")
+        else:
+            frame = self._drop_non_numeric()
+        block = frame._block.aggregate_all_and_pivot(agg_ops.product_op)
+        return bigframes.series.Series(block.select_column("values"))
+
+    product = prod
+
     def count(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
             frame = self
@@ -960,6 +994,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ]
         return DataFrame(self._block.drop_columns(non_numeric_cols))
 
+    def _drop_non_bool(self) -> DataFrame:
+        non_bool_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype not in bigframes.dtypes.BOOL_BIGFRAMES_TYPES
+        ]
+        return DataFrame(self._block.drop_columns(non_bool_cols))
+
     def _raise_on_non_numeric(self, op: str):
         if not all(
             dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
@@ -967,6 +1009,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ):
             raise NotImplementedError(
                 f"'{op}' does not support non-numeric columns. Set 'numeric_only'=True to ignore non-numeric columns"
+            )
+        return self
+
+    def _raise_on_non_boolean(self, op: str):
+        if not all(
+            dtype in bigframes.dtypes.BOOL_BIGFRAMES_TYPES
+            for dtype in self._block.dtypes
+        ):
+            raise NotImplementedError(
+                f"'{op}' does not support non-bool columns. Set 'bool_only'=True to ignore non-bool columns"
             )
         return self
 

@@ -571,12 +571,16 @@ class Block:
         *,
         value_col_id: str = "values",
         dropna: bool = True,
+        dtype=pd.Float64Dtype(),
     ) -> Block:
         aggregations = [(col_id, operation, col_id) for col_id in self.value_columns]
         result_expr = self.expr.aggregate(
             aggregations, dropna=dropna
         ).transpose_single_row(
-            labels=self.column_labels, index_col_id="index", value_col_id=value_col_id
+            labels=self.column_labels,
+            index_col_id="index",
+            value_col_id=value_col_id,
+            dtype=dtype,
         )
         return Block(result_expr, index_columns=["index"], column_labels=[None])
 

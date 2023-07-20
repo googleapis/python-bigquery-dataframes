@@ -1306,6 +1306,39 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
 
 
 @pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x: x.all(bool_only=True)),
+        (lambda x: x.any(bool_only=True)),
+    ],
+    ids=["all", "any"],
+)
+def test_dataframe_bool_aggregates(scalars_df_index, scalars_pandas_df_index, op):
+    # Pandas will drop nullable 'boolean' dtype so we convert first to bool, then cast back later
+    scalars_pandas_df_index = scalars_pandas_df_index.assign(
+        bool_col=scalars_pandas_df_index.bool_col.fillna(False).astype("bool")
+    )
+    bf_series = op(scalars_df_index)
+    pd_series = op(scalars_pandas_df_index).astype("boolean")
+    bf_result = bf_series.compute()
+
+    # Pandas has object index type
+    pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
+
+
+def test_dataframe_prod(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col"]
+    bf_series = scalars_df_index[col_names].prod()
+    pd_series = scalars_pandas_df_index[col_names].prod()
+    bf_result = bf_series.compute()
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_series = pd_series.astype("Float64")
+    # Pandas has object index type
+    pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
+
+
+@pytest.mark.parametrize(
     ("frac", "n", "random_state"),
     [
         (None, 4, None),

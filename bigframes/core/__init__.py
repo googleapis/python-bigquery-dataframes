@@ -797,15 +797,20 @@ class ArrayValue:
         )
 
     def transpose_single_row(
-        self, labels, *, index_col_id: str = "index", value_col_id: str = "values"
+        self,
+        labels,
+        *,
+        index_col_id: str = "index",
+        value_col_id: str = "values",
+        dtype=pandas.Float64Dtype(),
     ) -> ArrayValue:
-        """Pivot a single row into a 3 column expression with index, values and offsets. Only works if all values can be cast to float."""
+        """Pivot a single row into a 3 column expression with index, values and offsets. Only works if all values can be cast to a common type."""
         table = self.to_ibis_expr(ordering_mode="unordered")
         sub_expressions = []
         for i, col_id in enumerate(self._column_names.keys()):
             sub_expr = table.select(
                 ibis_types.literal(labels[i]).name(index_col_id),
-                _numeric_to_float(table[col_id]).name(value_col_id),
+                ops.AsTypeOp(dtype)._as_ibis(table[col_id]).name(value_col_id),
                 ibis_types.literal(i).name(ORDER_ID_COLUMN),
             )
             sub_expressions.append(sub_expr)
@@ -998,12 +1003,3 @@ def _as_identity(value: ibis_types.Value):
     if value.type().is_float64() or value.type().is_geospatial():
         return value.cast(ibis_dtypes.str)
     return value
-
-
-def _numeric_to_float(value: ibis_types.Value):
-    if value.type().is_float64():
-        return value
-    if value.type().is_boolean():
-        return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
-    else:
-        return value.cast(ibis_dtypes.float64)

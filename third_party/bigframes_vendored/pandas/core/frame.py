@@ -874,6 +874,53 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # ndarray-like stats methods
 
+    def any(self, *, bool_only: bool = False):
+        """
+        Return whether any element is True, potentially over an axis.
+
+        Returns False unless there is at least one element within a series or
+        along a Dataframe axis that is True or equivalent (e.g. non-zero or
+        non-empty).
+
+        Args:
+            bool_only:
+                Include only boolean columns.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
+    def all(self, *, bool_only: bool = False):
+        """
+        Return whether all elements are True, potentially over an axis.
+
+        Returns True unless there at least one element within a series or
+        along a Dataframe axis that is False or equivalent (e.g. zero or
+        empty).
+
+        Args:
+            bool_only:
+                Include only boolean columns.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
+    def prod(self, *, numeric_only: bool = False):
+        """
+        Return the product of the values over the requested axis.
+
+        Args:
+            numeric_only:
+                Include only float, int, boolean columns.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
     def min(self, *, numeric_only: bool = False):
         """Return the minimum of the values over the requested axis.
 

@@ -61,6 +61,8 @@ IbisDtype = Union[
     ibis_dtypes.Timestamp,
 ]
 
+BOOL_BIGFRAMES_TYPES = [pd.BooleanDtype()]
+
 # Several operations are restricted to these types.
 NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
 
@@ -295,5 +297,8 @@ def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.V
     # TODO(bmil): remove this workaround after fixing Ibis
     if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.string:
         return typing.cast(ibis_types.StringValue, value.cast(to_type)).capitalize()
+
+    if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.float64:
+        return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
 
     raise TypeError(f"Unsupported cast {value.type()} to {to_type}")
