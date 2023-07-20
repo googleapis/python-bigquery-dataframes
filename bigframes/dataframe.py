@@ -1569,13 +1569,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
         )
 
-    def drop_duplicates(self, subset=None, *, keep: str = "first") -> DataFrame:
+    def drop_duplicates(
+        self,
+        subset: typing.Union[blocks.Label, typing.Sequence[blocks.Label]] = None,
+        *,
+        keep: str = "first",
+    ) -> DataFrame:
         if subset is None:
             column_ids = self._block.value_columns
-        else:
+        elif _is_list_like(subset):
             column_ids = [
                 id for label in subset for id in self._block.label_to_col_id[label]
             ]
+        else:
+            # interpret as single label
+            column_ids = self._block.label_to_col_id[typing.cast(blocks.Label, subset)]
         block = block_ops.drop_duplicates(self._block, column_ids, keep)
         return DataFrame(block)
 

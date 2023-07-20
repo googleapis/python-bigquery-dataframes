@@ -1568,6 +1568,7 @@ def test_loc_bf_index_integer_index_renamed_col(
     ("subset"),
     [
         None,
+        "bool_col",
         ["bool_col", "int64_too"],
     ],
 )
