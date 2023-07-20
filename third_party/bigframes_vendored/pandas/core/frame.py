@@ -33,6 +33,23 @@ class DataFrame(NDFrame):
         """Return a tuple representing the dimensionality of the DataFrame."""
         raise NotImplementedError("abstract method")
 
+    @property
+    def axes(self) -> list:
+        """
+        Return a list representing the axes of the DataFrame.
+
+        It has the row axis labels and column axis labels as the only members.
+        They are returned in that order.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+        >>> df.axes
+        [RangeIndex(start=0, stop=2, step=1), Index(['col1', 'col2'],
+        dtype='object')]
+        """
+        return [self.index, self.columns]
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
 
@@ -355,6 +372,50 @@ class DataFrame(NDFrame):
 
     # ----------------------------------------------------------------------
     # Arithmetic Methods
+
+    def eq(self, other, axis: str | int = "columns") -> DataFrame:
+        """
+        Get Equal to of dataframe and other, element-wise (binary operator `eq`).
+
+        Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
+        operators.
+
+        Equivalent to `==`, `!=`, `<=`, `<`, `>=`, `>` with support to choose axis
+        (rows or columns) and level for comparison.
+
+        Args:
+            other:
+                Any single or multiple element data structure, or list-like object.
+            axis:
+                Whether to compare by the index (0 or 'index') or columns
+                (1 or 'columns').
+
+        Returns:
+            Result of the comparison.
+        """
+        raise NotImplementedError("abstract method")
+
+    def ne(self, other, axis: str | int = "columns") -> DataFrame:
+        """
+        Get Not equal to of dataframe and other, element-wise (binary operator `ne`).
+
+        Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
+        operators.
+
+        Equivalent to `==`, `!=`, `<=`, `<`, `>=`, `>` with support to choose axis
+        (rows or columns) and level for comparison.
+
+        Args:
+            other:
+                Any single or multiple element data structure, or list-like object.
+            axis:
+                Whether to compare by the index (0 or 'index') or columns
+                (1 or 'columns').
+
+        Returns:
+            Result of the comparison.
+        """
+        raise NotImplementedError("abstract method")
 
     def le(self, other, axis: str | int = "columns") -> DataFrame:
         """Get 'less than or equal to' of dataframe and other, element-wise (binary operator `<=`).

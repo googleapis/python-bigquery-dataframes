@@ -578,6 +578,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.with_index_labels(self.index.names)
         return DataFrame(block)
 
+    def eq(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.eq_op, axis=axis)
+
+    def ne(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
+        return self._apply_binop(other, ops.ne_op, axis=axis)
+
+    __eq__ = eq  # type: ignore
+
+    __ne__ = ne  # type: ignore
+
     def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.le_op, axis=axis)
 
