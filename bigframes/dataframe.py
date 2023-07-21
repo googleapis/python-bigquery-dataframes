@@ -64,7 +64,9 @@ if typing.TYPE_CHECKING:
 
 # BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
 # TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_DF_SIZE = 5000
+# TODO(swast): Address issues with string escaping and empty tables before
+# re-enabling inline data (ibis.memtable) feature.
+MAX_INLINE_DF_SIZE = -1
 
 LevelsType = typing.Union[str, int, typing.Sequence[typing.Union[str, int]]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]

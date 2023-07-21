@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import operator
+import typing
+from typing import Tuple
 
 import geopandas as gpd  # type: ignore
 import numpy as np
@@ -24,6 +26,7 @@ import pytest
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
+import bigframes.series as series
 from tests.system.utils import (
     assert_pandas_df_equal_ignore_ordering,
     assert_series_equal_ignoring_order,
@@ -633,12 +636,37 @@ def test_empty_false(scalars_dfs):
     assert bf_result == pd_result
 
 
-def test_empty_true(scalars_dfs):
+def test_empty_true_column_filter(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = scalars_df[[]].empty
     pd_result = scalars_pandas_df[[]].empty
 
+    assert bf_result == pd_result
+
+
+def test_empty_true_row_filter(scalars_dfs: Tuple[dataframe.DataFrame, pd.DataFrame]):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_bool: series.Series = typing.cast(series.Series, scalars_df["bool_col"])
+    pd_bool: pd.Series = scalars_pandas_df["bool_col"]
+    bf_false = bf_bool.notna() & (bf_bool != bf_bool)
+    pd_false = pd_bool.notna() & (pd_bool != pd_bool)
+
+    bf_result = scalars_df[bf_false].empty
+    pd_result = scalars_pandas_df[pd_false].empty
+
+    assert pd_result
+    assert bf_result == pd_result
+
+
+def test_empty_true_memtable(session: bigframes.Session):
+    bf_df = dataframe.DataFrame(session=session)
+    pd_df = pd.DataFrame()
+
+    bf_result = bf_df.empty
+    pd_result = pd_df.empty
+
+    assert pd_result
     assert bf_result == pd_result
 
 

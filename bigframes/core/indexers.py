@@ -213,11 +213,21 @@ def _loc_getitem_series_or_dataframe(
                 typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
+
+        # We can't upload a DataFrame with None as the column name, so set it
+        # an arbitrary string.
         index_name = series_or_dataframe.index.name
+        index_name_is_none = index_name is None
+        if index_name_is_none:
+            index_name = "unnamed_col"
+
         keys_df = bigframes.dataframe.DataFrame(
             {index_name: key}, session=series_or_dataframe._get_block().expr._session
         )
         keys_df = keys_df.set_index(index_name, drop=True)
+
+        if index_name_is_none:
+            keys_df.index.name = None
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)

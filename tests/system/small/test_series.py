@@ -62,6 +62,22 @@ def test_series_construct_from_list():
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_series_construct_from_list_escaped_strings():
+    """Check that special characters are supported."""
+    strings = [
+        "string\nwith\nnewline",
+        "string\twith\ttabs",
+        "string\\with\\backslashes",
+    ]
+    bf_result = series.Series(strings, name="test_series", dtype="string[pyarrow]")
+    pd_result = pd.Series(strings, name="test_series", dtype="string[pyarrow]")
+
+    # BigQuery DataFrame default indices use nullable Int64 always
+    pd_result.index = pd_result.index.astype("Int64")
+
+    pd.testing.assert_series_equal(bf_result.compute(), pd_result)
+
+
 @pytest.mark.parametrize(
     ["col_name", "expected_dtype"],
     [
@@ -1041,7 +1057,7 @@ def test_empty_false(scalars_dfs):
     assert pd_result == bf_result
 
 
-def test_empty_true(scalars_dfs):
+def test_empty_true_row_filter(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = scalars_df["string_col"][
@@ -1051,7 +1067,19 @@ def test_empty_true(scalars_dfs):
         scalars_pandas_df["string_col"] == "won't find this"
     ].empty
 
+    assert pd_result
     assert pd_result == bf_result
+
+
+def test_empty_true_memtable(session: bigframes.Session):
+    bf_series: series.Series = series.Series(session=session)
+    pd_series: pd.Series = pd.Series()
+
+    bf_result = bf_series.empty
+    pd_result = pd_series.empty
+
+    assert pd_result
+    assert bf_result == pd_result
 
 
 def test_dtype(scalars_dfs):
