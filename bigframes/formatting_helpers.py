@@ -76,7 +76,6 @@ def wait_for_job(
         display.display(loading_bar)
         query_result = query_job.result(max_results=max_results)
         query_job.reload()
-        loading_bar.close()
     elif progress_bar == "terminal":
         print(get_query_job_loading_string(query_job))
         query_result = query_job.result(max_results=max_results)
