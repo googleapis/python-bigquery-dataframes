@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
+
+import pandas as pd
+
 import bigframes as bf
 import bigframes.formatting_helpers as formatting_helpers
 
@@ -24,7 +28,8 @@ def test_progress_bar_dataframe(
     html_check = "HTML(value="
     open_job_check = "Open Job"
     lines = capsys.readouterr().out.split("\n")
-    lines = filter(None, lines)
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
     assert penguins_df_default_index.query_job is not None
     for line in lines:
         assert html_check in line and open_job_check in line
@@ -37,7 +42,8 @@ def test_progress_bar_series(penguins_df_default_index: bf.dataframe.DataFrame, 
     html_check = "HTML(value="
     open_job_check = "Open Job"
     lines = capsys.readouterr().out.split("\n")
-    lines = filter(None, lines)
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
     assert series.query_job is not None
     for line in lines:
         assert html_check in line and open_job_check in line
@@ -49,7 +55,52 @@ def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, 
     html_check = "HTML(value="
     open_job_check = "Open Job"
     lines = capsys.readouterr().out.split("\n")
-    lines = filter(None, lines)
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
+    for line in lines:
+        assert html_check in line and open_job_check in line
+
+
+def test_progress_bar_read_gbq(session: bf.Session, penguins_table_id: str, capsys):
+    bf.options.display.progress_bar = "notebook"
+    session.read_gbq(penguins_table_id)
+    html_check = "HTML(value="
+    open_job_check = "Open Job"
+    lines = capsys.readouterr().out.split("\n")
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
+    for line in lines:
+        assert html_check in line and open_job_check in line
+
+
+def test_progress_bar_extract_jobs(
+    penguins_df_default_index: bf.dataframe.DataFrame, gcs_folder, capsys
+):
+    bf.options.display.progress_bar = "notebook"
+    path = gcs_folder + "test_read_csv_progress_bar.csv"
+    penguins_df_default_index.to_csv(path)
+    html_check = "HTML(value="
+    open_job_check = "Open Job"
+    lines = capsys.readouterr().out.split("\n")
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
+    for line in lines:
+        assert html_check in line and open_job_check in line
+
+
+def test_progress_bar_load_jobs(
+    session: bf.Session, penguins_pandas_df_default_index: pd.DataFrame, capsys
+):
+    bf.options.display.progress_bar = "notebook"
+    with tempfile.TemporaryDirectory() as dir:
+        path = dir + "/test_read_csv_progress_bar.csv"
+        penguins_pandas_df_default_index.to_csv(path, index=False)
+        session.read_csv(path)
+    html_check = "HTML(value="
+    open_job_check = "Open Job"
+    lines = capsys.readouterr().out.split("\n")
+    lines = [line for line in lines if len(line) > 0]
+    assert len(lines) > 0
     for line in lines:
         assert html_check in line and open_job_check in line
 

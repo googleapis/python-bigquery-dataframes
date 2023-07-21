@@ -13,15 +13,18 @@
 # limitations under the License.
 
 """Shared helper functions for formatting jobs related info."""
+# TODO(orrbradford): cleanup up typings and documenttion in this file
 
 import datetime
-from typing import Optional
+from typing import Any, Optional, Union
 
 import google.cloud.bigquery as bigquery
 import humanize
 import IPython
 import IPython.display as display
 import ipywidgets as widgets
+
+GenericJob = Union[bigquery.LoadJob, bigquery.ExtractJob, bigquery.QueryJob]
 
 query_job_prop_pairs = {
     "Job Id": "job_id",
@@ -33,6 +36,13 @@ query_job_prop_pairs = {
 
 
 def repr_query_job(query_job: Optional[bigquery.QueryJob]):
+    """Return query job in html format.
+    Args:
+        query_job:
+            The job representing the execution of the query on the server.
+    Returns:
+        Pywidget html table.
+    """
     if query_job is None:
         return widgets.HTML("No job information available")
     table_html = "<style> td {text-align: left;}</style>"
@@ -54,7 +64,7 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
     return widgets.HTML(table_html)
 
 
-def wait_for_job(
+def wait_for_query_job(
     query_job: bigquery.QueryJob,
     max_results: Optional[int] = None,
     progress_bar: Optional[str] = None,
@@ -76,14 +86,49 @@ def wait_for_job(
         display.display(loading_bar)
         query_result = query_job.result(max_results=max_results)
         query_job.reload()
+        loading_bar.value = get_query_job_loading_html(query_job)
     elif progress_bar == "terminal":
-        print(get_query_job_loading_string(query_job))
+        initial_loading_bar = get_query_job_loading_string(query_job)
+        print(initial_loading_bar)
         query_result = query_job.result(max_results=max_results)
         query_job.reload()
+        if initial_loading_bar != get_query_job_loading_string(query_job):
+            print(get_query_job_loading_string(query_job))
     return query_result
 
 
-def get_job_url(query_job: bigquery.QueryJob):
+def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
+    """Waits for job results. Displays a progress bar while the job is running
+    Args:
+        job:
+            The bigquery job to be executed
+    """
+    loading_bar = widgets.HTML(get_base_job_loading_html(job))
+    if progress_bar == "auto":
+        progress_bar = "notebook" if in_ipython() else "terminal"
+
+    if progress_bar == "notebook":
+        display.display(loading_bar)
+        job.result()
+        job.reload()
+        loading_bar.value = get_base_job_loading_html(job)
+    elif progress_bar == "terminal":
+        inital_loading_bar = get_base_job_loading_string(job)
+        print(inital_loading_bar)
+        job.result()
+        job.reload()
+        if get_base_job_loading_string != inital_loading_bar:
+            print(get_base_job_loading_string(job))
+
+
+def get_job_url(query_job: GenericJob):
+    """Return url to the query job in cloud console.
+    Args:
+        query_job:
+            The job representing the execution of the query on the server.
+    Returns:
+        String url.
+    """
     if (
         query_job.project is None
         or query_job.location is None
@@ -94,16 +139,57 @@ def get_job_url(query_job: bigquery.QueryJob):
 
 
 def get_query_job_loading_html(query_job: bigquery.QueryJob):
-    return f"""Job {query_job.job_id} is {query_job.state}. <a target="_blank" href="{get_job_url(query_job)}">Open Job</a>"""
+    """Return progress bar html string
+    Args:
+        query_job:
+            The job representing the execution of the query on the server.
+    Returns:
+        Html string.
+    """
+    return f"""Query job {query_job.job_id} is {query_job.state}. {get_bytes_processed_string(query_job.total_bytes_processed)}<a target="_blank" href="{get_job_url(query_job)}">Open Job</a>"""
 
 
 def get_query_job_loading_string(query_job: bigquery.QueryJob):
-    return (
-        f"""Job {query_job.job_id} is {query_job.state}. \n{get_job_url(query_job)}"""
-    )
+    """Return progress bar string
+    Args:
+        query_job:
+            The job representing the execution of the query on the server.
+    Returns:
+        String
+    """
+    return f"""Query job {query_job.job_id} is {query_job.state}.{get_bytes_processed_string(query_job.total_bytes_processed)} \n{get_job_url(query_job)}"""
+
+
+def get_base_job_loading_html(job: GenericJob):
+    """Return progress bar html string
+    Args:
+        job:
+            The job representing the execution of the query on the server.
+    Returns:
+        Html string.
+    """
+    return f"""{job.job_type.capitalize()} job {job.job_id} is {job.state}. <a target="_blank" href="{get_job_url(job)}">Open Job</a>"""
+
+
+def get_base_job_loading_string(job: GenericJob):
+    """Return progress bar string
+    Args:
+        job:
+            The job representing the execution of the query on the server.
+    Returns:
+        String
+    """
+    return f"""{job.job_type.capitalize()} job {job.job_id} is {job.state}. \n{get_job_url(job)}"""
 
 
 def get_formatted_time(val):
+    """Try to format time
+    Args:
+        val:
+            Time in ms
+    Returns:
+        Duration string
+    """
     try:
         return humanize.naturaldelta(datetime.timedelta(milliseconds=float(val)))
     except Exception:
@@ -111,7 +197,22 @@ def get_formatted_time(val):
 
 
 def get_formatted_bytes(val):
+    """Try to format bytes
+    Args:
+        val (float | str):
+            Bytes to format
+    Returns:
+        Duration string
+    """
     return humanize.naturalsize(val)
+
+
+def get_bytes_processed_string(val: Any):
+    """Try to get bytes processed string. Return empty if passed non int value"""
+    bytes_processed_string = ""
+    if isinstance(val, int):
+        bytes_processed_string = f"""{get_formatted_bytes(val)} processed. """
+    return bytes_processed_string
 
 
 def in_ipython():

@@ -394,7 +394,6 @@ class Session(
             )
         else:
             _, query_job = self._start_query(query)
-            query_job.result()  # Wait for job to finish.
             destination = query_job.destination
 
         # If there was no destination table, that means the query must have
@@ -631,7 +630,7 @@ class Session(
                 filepath_or_buffer, table, job_config=job_config
             )
 
-        load_job.result()  # Wait for the job to complete
+        self._start_generic_job(load_job)
 
         # The BigQuery REST API for tables.get doesn't take a session ID, so we
         # can't get the schema for a temp table that way.
@@ -743,7 +742,7 @@ class Session(
             load_table_destination,
             job_config=job_config,
         )
-        load_job.result()  # Wait for the job to complete
+        self._start_generic_job(load_job)
 
         ordering = core.ExpressionOrdering(
             ordering_id_column=OrderingColumnReference(ordering_col), is_sequential=True
@@ -954,9 +953,8 @@ class Session(
         CLUSTER BY {cluster_cols_sql}
         AS {query_text}
         """
-        query_job = self.bqclient.query(ddl_text)
         try:
-            query_job.result()  # Wait for the job to complete
+            self._start_query(ddl_text)  # Wait for the job to complete
         except google.api_core.exceptions.Conflict:
             # Allow query retry to succeed.
             pass
@@ -1049,7 +1047,7 @@ class Session(
 
         opts = bigframes.options.display
         if opts.progress_bar is not None:
-            results_iterator = formatting_helpers.wait_for_job(
+            results_iterator = formatting_helpers.wait_for_query_job(
                 query_job, max_results, opts.progress_bar
             )
         else:
@@ -1062,7 +1060,7 @@ class Session(
             destination_uris=destination_uris,
             job_config=job_config,
         )
-        extract_job.result()
+        self._start_generic_job(extract_job)
         return extract_job
 
     def _rows_to_dataframe(
@@ -1074,6 +1072,14 @@ class Session(
             float_dtype=pandas.Float64Dtype(),
             string_dtype=pandas.StringDtype(storage="pyarrow"),
         )
+
+    def _start_generic_job(self, job: formatting_helpers.GenericJob):
+        if bigframes.options.display.progress_bar is not None:
+            formatting_helpers.wait_for_job(
+                job, bigframes.options.display.progress_bar
+            )  # Wait for the job to complete
+        else:
+            job.result()
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
