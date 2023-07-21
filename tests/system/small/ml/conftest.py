@@ -287,8 +287,8 @@ def ephemera_imported_tensorflow_model(session) -> imported.TensorFlowModel:
 
 
 @pytest.fixture(scope="session")
-def imported_onnx_model(session) -> imported.OnnxModel:
-    return imported.OnnxModel(
+def imported_onnx_model(session) -> imported.ONNXModel:
+    return imported.ONNXModel(
         session=session,
         model_path="gs://cloud-samples-data/bigquery/ml/onnx/pipeline_rf.onnx",
     )

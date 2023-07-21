@@ -62,7 +62,7 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
         )
 
 
-class OnnxModel(bigframes.ml.base.BaseEstimator):
+class ONNXModel(bigframes.ml.base.Predictor):
     """Imported Open Neural Network Exchange (ONNX) model.
 
     Args:
