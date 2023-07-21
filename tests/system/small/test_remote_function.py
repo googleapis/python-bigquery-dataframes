@@ -39,6 +39,7 @@ def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
 def test_remote_function_direct_no_session_param(
     bigquery_client,
     bigqueryconnection_client,
+    cloudfunctions_client,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection,
@@ -48,6 +49,7 @@ def test_remote_function_direct_no_session_param(
         int,
         bigquery_client=bigquery_client,
         bigquery_connection_client=bigqueryconnection_client,
+        cloud_functions_client=cloudfunctions_client,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.

@@ -46,6 +46,7 @@ import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
+import google.cloud.functions_v2
 import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
@@ -143,7 +144,7 @@ def _get_default_credentials_with_project():
     return _pydata_google_auth_credentials, _pydata_google_auth_project
 
 
-def _create_bq_clients(
+def _create_cloud_clients(
     project: Optional[str],
     location: Optional[str],
     use_regional_endpoints: Optional[bool],
@@ -152,6 +153,7 @@ def _create_bq_clients(
     bigquery.Client,
     google.cloud.bigquery_connection_v1.ConnectionServiceClient,
     google.cloud.bigquery_storage_v1.BigQueryReadClient,
+    google.cloud.functions_v2.FunctionServiceClient,
 ]:
     """Create and initialize BigQuery client objects."""
 
@@ -213,7 +215,15 @@ def _create_bq_clients(
         credentials=credentials,
     )
 
-    return bqclient, bqconnectionclient, bqstorageclient
+    functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
+        user_agent=_APPLICATION_NAME
+    )
+    cloudfunctionsclient = google.cloud.functions_v2.FunctionServiceClient(
+        client_info=functions_info,
+        credentials=credentials,
+    )
+
+    return bqclient, bqconnectionclient, bqstorageclient, cloudfunctionsclient
 
 
 class Session(
@@ -242,7 +252,8 @@ class Session(
             self.bqclient,
             self.bqconnectionclient,
             self.bqstorageclient,
-        ) = _create_bq_clients(
+            self.cloudfunctionsclient,
+        ) = _create_cloud_clients(
             project=context.project,
             location=self._location,
             use_regional_endpoints=context.use_regional_endpoints,

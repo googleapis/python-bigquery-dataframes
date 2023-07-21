@@ -123,6 +123,7 @@ class RemoteFunctionClient:
         self,
         gcp_project_id,
         cloud_function_region,
+        cloud_functions_client,
         bq_location,
         bq_dataset,
         bq_client,
@@ -131,6 +132,7 @@ class RemoteFunctionClient:
     ):
         self._gcp_project_id = gcp_project_id
         self._cloud_function_region = cloud_function_region
+        self._cloud_functions_client = cloud_functions_client
         self._bq_location = bq_location
         self._bq_dataset = bq_dataset
         self._bq_client = bq_client
@@ -207,10 +209,11 @@ class RemoteFunctionClient:
 
     def get_cloud_function_endpoint(self, name):
         """Get the http endpoint of a cloud function if it exists."""
-        client = functions_v2.FunctionServiceClient()
         fully_qualified_name = self.get_cloud_function_fully_qualified_name(name)
         try:
-            response = client.get_function(name=fully_qualified_name)
+            response = self._cloud_functions_client.get_function(
+                name=fully_qualified_name
+            )
             return response.service_config.uri
         except google.api_core.exceptions.NotFound:
             pass
@@ -493,6 +496,7 @@ def remote_function(
     bigquery_connection_client: typing.Optional[
         bigquery_connection_v1.ConnectionServiceClient
     ] = None,
+    cloud_functions_client: typing.Optional[functions_v2.FunctionServiceClient] = None,
     dataset: typing.Optional[str] = None,
     bigquery_connection: typing.Optional[str] = None,
     reuse: bool = True,
@@ -514,6 +518,9 @@ def remote_function(
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
         bigquery_connection_client : google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional
+            Client to use for cloud functions operations. If this param is not
+            provided then functions client from the session would be used.
+        cloud_functions_client : google.cloud.functions_v2.FunctionServiceClient, Optional
             Client to use for BigQuery connection operations. If this param is
             not provided then bigquery connection client from the session would
             be used.
@@ -585,6 +592,15 @@ def remote_function(
     if not bigquery_connection_client:
         raise ValueError(
             "A bigquery connection client must be provided, either directly or via session"
+        )
+
+    # A cloud functions client is required to perform cloud functions operations
+    if not cloud_functions_client:
+        if session:
+            cloud_functions_client = session.cloudfunctionsclient
+    if not cloud_functions_client:
+        raise ValueError(
+            "A functions connection client must be provided, either directly or via session"
         )
 
     # BQ remote function must be persisted, for which we need a dataset
@@ -662,6 +678,7 @@ def remote_function(
         remote_function_client = RemoteFunctionClient(
             gcp_project_id,
             cloud_function_region,
+            cloud_functions_client,
             bq_location,
             bq_dataset,
             bigquery_client,

@@ -149,7 +149,7 @@ def _set_default_session_location_if_possible(query):
     if options.bigquery._session_started or options.bigquery.use_regional_endpoints:
         return
 
-    bqclient, _, _ = bigframes.session._create_bq_clients(
+    bqclient, _, _, _ = bigframes.session._create_cloud_clients(
         project=options.bigquery.project,
         location=options.bigquery.location,
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
