@@ -377,6 +377,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rsub(self, other: float | int | Series | pandas.Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
+    subtract = sub
+
     def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
         return self.mul(other)
 
