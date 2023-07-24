@@ -264,6 +264,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             agg_ops.min_op, bigframes.core.WindowSpec(following=0)
         )
 
+    def cumprod(self) -> Series:
+        return self._apply_window_op(
+            agg_ops.product_op, bigframes.core.WindowSpec(following=0)
+        )
+
     def shift(self, periods: int = 1) -> Series:
         window = bigframes.core.WindowSpec(
             preceding=periods if periods > 0 else None,

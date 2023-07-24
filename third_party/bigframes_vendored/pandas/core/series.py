@@ -893,6 +893,18 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def cumprod(self):
+        """
+        Return cumulative product over a DataFrame or Series axis.
+
+        Returns a DataFrame or Series of the same size containing the cumulative
+        product.
+
+        Returns:
+            Return cumulative sum of scalar or Series.
+        """
+        raise NotImplementedError("abstract method")
+
     def cumsum(self):
         """
         Return cumulative sum over a DataFrame or Series axis.

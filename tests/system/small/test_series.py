@@ -758,6 +758,19 @@ def test_product(scalars_dfs):
     assert math.isclose(pd_result, bf_result)
 
 
+def test_cumprod(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("Series.cumprod NA mask are different in pandas 1.x.")
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "float64_col"
+    bf_result = scalars_df[col_name].cumprod()
+    pd_result = scalars_pandas_df[col_name].cumprod()
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result.compute(),
+    )
+
+
 def test_count(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
