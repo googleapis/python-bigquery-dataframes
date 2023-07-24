@@ -48,6 +48,14 @@ import bigframes.session
 import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 
+# Support pandas dtype attribute
+NA = pandas.NA
+BooleanDtype = pandas.BooleanDtype
+Float64Dtype = pandas.Float64Dtype
+Int64Dtype = pandas.Int64Dtype
+StringDtype = pandas.StringDtype
+ArrowDtype = pandas.ArrowDtype
+
 
 # Include method definition so that the method appears in our docs for
 # bigframes.pandas general functions.
