@@ -597,6 +597,7 @@ class Series(NDFrame):  # type: ignore[misc]
         *,
         axis: Axis = 0,
         ascending: bool | int | Sequence[bool] | Sequence[int] = True,
+        kind: str = "quicksort",
         na_position: str = "last",
     ) -> Series | None:
         """
@@ -611,6 +612,10 @@ class Series(NDFrame):  # type: ignore[misc]
             Unused. Parameter needed for compatibility with DataFrame.
         ascending : bool or list of bools, default True
             If True, sort values in ascending order, otherwise descending.
+        kind:
+            Choice of sorting algorithm. Accepts 'quicksort’, ‘mergesort’,
+            ‘heapsort’, ‘stable’. Ignored except when determining whether to
+            sort stably. 'mergesort' or 'stable' will result in stable reorder
         na_position : {'first' or 'last'}, default 'last'
             Argument 'first' puts NaNs at the beginning, 'last' puts NaNs at
             the end.

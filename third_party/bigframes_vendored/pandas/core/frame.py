@@ -340,6 +340,7 @@ class DataFrame(NDFrame):
         by: str | Sequence[str],
         *,
         ascending: bool | Sequence[bool] = True,
+        kind: str = "quicksort",
         na_position="last",
     ) -> DataFrame:
         """Sort by the values along row axis.
@@ -351,6 +352,10 @@ class DataFrame(NDFrame):
                 Sort ascending vs. descending. Specify list for multiple sort
                 orders.  If this is a list of bools, must match the length of
                 the by.
+            kind:
+                Choice of sorting algorithm. Accepts 'quicksort’, ‘mergesort’,
+                ‘heapsort’, ‘stable’. Ignored except when determining whether to
+                sort stably. 'mergesort' or 'stable' will result in stable reorder.
             na_position:
              ``{'first', 'last'}``, default 'last' Puts NaNs at the beginning
              if `first`; `last` puts NaNs at the end.

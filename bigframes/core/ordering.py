@@ -28,6 +28,8 @@ ORDERING_ID_STRING_BASE: int = 10
 # Sufficient to store any value up to 2^63
 DEFAULT_ORDERING_ID_LENGTH: int = math.ceil(63 * math.log(2, ORDERING_ID_STRING_BASE))
 
+STABLE_SORTS = ["mergesort", "stable"]
+
 
 class OrderingDirection(Enum):
     ASC = 1

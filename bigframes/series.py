@@ -34,7 +34,11 @@ import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
-from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
+from bigframes.core.ordering import (
+    OrderingColumnReference,
+    OrderingDirection,
+    STABLE_SORTS,
+)
 import bigframes.core.scalar as scalars
 import bigframes.core.window
 import bigframes.dataframe
@@ -710,7 +714,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block)
 
-    def sort_values(self, *, axis=0, ascending=True, na_position="last") -> Series:
+    def sort_values(
+        self, *, axis=0, ascending=True, kind: str = "quicksort", na_position="last"
+    ) -> Series:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
@@ -721,7 +727,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     direction=direction,
                     na_last=(na_position == "last"),
                 )
-            ]
+            ],
+            stable=kind in STABLE_SORTS,
         )
         return Series(block)
 

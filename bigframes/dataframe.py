@@ -841,6 +841,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         by: str | typing.Sequence[str],
         *,
         ascending: bool | typing.Sequence[bool] = True,
+        kind: str = "quicksort",
         na_position: typing.Literal["first", "last"] = "last",
     ) -> DataFrame:
         if na_position not in {"first", "last"}:
@@ -871,8 +872,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     column_id, direction=direction, na_last=na_last
                 )
             )
-
-        return DataFrame(self._block.order_by(ordering))
+        return DataFrame(
+            self._block.order_by(ordering, stable=kind in order.STABLE_SORTS)
+        )
 
     def value_counts(
         self,

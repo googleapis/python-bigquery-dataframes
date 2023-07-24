@@ -1093,6 +1093,22 @@ def test_dataframe_sort_values(
     )
 
 
+def test_dataframe_sort_values_stable(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index.sort_values("int64_col", kind="stable")
+        .sort_values("bool_col", kind="stable")
+        .compute()
+    )
+    pd_result = scalars_pandas_df_index.sort_values(
+        "int64_col", kind="stable"
+    ).sort_values("bool_col", kind="stable")
+
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("operator", "columns"),
     [
