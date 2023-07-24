@@ -23,6 +23,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
 import numpy as np
+import pandas as pd
 
 import bigframes.dtypes
 import bigframes.dtypes as dtypes
@@ -274,6 +275,20 @@ class SliceOp(UnaryOp):
         return typing.cast(ibis_types.StringValue, x)[self._start : self._stop]
 
 
+class IsInOp(UnaryOp):
+    def __init__(self, values, match_nulls: bool = True):
+        self._values = values
+        self._match_nulls = match_nulls
+
+    def _as_ibis(self, x: ibis_types.Value):
+        if self._match_nulls and any(is_null(value) for value in self._values):
+            return x.isnull() | x.isin(
+                [val for val in self._values if not is_null(val)]
+            )
+        else:
+            return x.isin(self._values)
+
+
 class BinopPartialRight(UnaryOp):
     def __init__(self, binop: BinaryOp, right_scalar: typing.Any):
         self._binop = binop
@@ -401,13 +416,6 @@ def or_op(
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
         ibis_types.BooleanValue, y
     )
-
-
-def isin_op(
-    x: ibis_types.Value,
-    y: ibis_types.Value,
-):
-    return x.isin(y)
 
 
 @short_circuit_nulls()
@@ -617,3 +625,8 @@ def clip_op(
             .else_(original)
             .end()
         )
+
+
+def is_null(value) -> bool:
+    # float NaN/inf should be treated as distinct from 'true' null values
+    return typing.cast(bool, pd.isna(value)) and not isinstance(value, float)

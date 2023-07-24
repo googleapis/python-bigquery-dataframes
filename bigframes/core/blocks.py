@@ -556,10 +556,17 @@ class Block:
         new_labels[col_index] = new_label
         return self.with_column_labels(new_labels)
 
-    def filter(self, column_name: str):
+    def filter(self, column_name: str, keep_null: bool = False):
         condition = typing.cast(
             ibis_types.BooleanValue, self._expr.get_column(column_name)
         )
+        if keep_null:
+            condition = typing.cast(
+                ibis_types.BooleanValue,
+                condition.fillna(
+                    typing.cast(ibis_types.BooleanScalar, ibis_types.literal(True))
+                ),
+            )
         filtered_expr = self.expr.filter(condition)
         return Block(
             filtered_expr,

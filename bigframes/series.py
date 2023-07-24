@@ -50,7 +50,8 @@ import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
-LevelsType = typing.Union[str, int, typing.Sequence[typing.Union[str, int]]]
+LevelType = typing.Union[str, int]
+LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
@@ -192,23 +193,34 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         series.name = self._name
         return series
 
-    def drop(self, labels: blocks.Label | typing.Sequence[blocks.Label] = None):
-        block = self._block
-        index_column = block.index_columns[0]
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, typing.Iterable[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+    ) -> Series:
+        if labels and index:
+            raise ValueError("Must specify exacly one of 'labels' or 'index'")
+        index = labels or index
 
+        # ignore axis, columns params
+        block = self._block
+        level_id = self._resolve_levels(level or 0)[0]
         if _is_list_like(labels):
             block, inverse_condition_id = block.apply_unary_op(
-                index_column, ops.partial_right(ops.isin_op, labels)
+                level_id, ops.IsInOp(index, match_nulls=True)
             )
             block, condition_id = block.apply_unary_op(
                 inverse_condition_id, ops.invert_op
             )
-
         else:
             block, condition_id = block.apply_unary_op(
-                index_column, ops.partial_right(ops.ne_op, labels)
+                level_id, ops.partial_right(ops.ne_op, labels)
             )
-        block = block.filter(condition_id)
+        block = block.filter(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 

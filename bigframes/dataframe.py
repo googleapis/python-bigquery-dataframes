@@ -68,7 +68,8 @@ if typing.TYPE_CHECKING:
 # re-enabling inline data (ibis.memtable) feature.
 MAX_INLINE_DF_SIZE = -1
 
-LevelsType = typing.Union[str, int, typing.Sequence[typing.Union[str, int]]]
+LevelType = typing.Union[str, int]
+LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 
@@ -679,12 +680,50 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def drop(self, *, columns: Union[str, Iterable[str]]) -> DataFrame:
-        if not _is_list_like(columns):
-            columns = [columns]  # type:ignore
-        columns = list(columns)
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, Iterable[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+    ) -> DataFrame:
+        if labels:
+            if index or columns:
+                raise ValueError("Cannot specify both 'labels' and 'index'/'columns")
+            axis_n = blocks._get_axis_number(axis)
+            if axis_n == 0:
+                index = labels
+            else:
+                columns = labels
 
-        block = self._block.drop_columns(self._sql_names(columns))
+        block = self._block
+        if index:
+            level_id = self._resolve_levels(level or 0)[0]
+
+            if _is_list_like(index):
+                block, inverse_condition_id = block.apply_unary_op(
+                    level_id, ops.IsInOp(index, match_nulls=True)
+                )
+                block, condition_id = block.apply_unary_op(
+                    inverse_condition_id, ops.invert_op
+                )
+            else:
+                block, condition_id = block.apply_unary_op(
+                    level_id, ops.partial_right(ops.ne_op, index)
+                )
+            block = block.filter(condition_id, keep_null=True).select_columns(
+                self._block.value_columns
+            )
+        if columns:
+            if not _is_list_like(columns):
+                columns = [columns]  # type:ignore
+            columns = list(columns)
+
+            block = block.drop_columns(self._sql_names(columns))
+        if not index and not columns:
+            raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
 
     def droplevel(self, level: LevelsType):

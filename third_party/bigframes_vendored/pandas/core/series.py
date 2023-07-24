@@ -799,8 +799,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def drop(
-        self,
-        labels=None,
+        self, labels=None, *, axis=0, index=None, columns=None, level=None
     ) -> Series | None:
         """
         Return Series with specified index labels removed.
@@ -809,20 +808,21 @@ class Series(NDFrame):  # type: ignore[misc]
         When using a multi-index, labels on different levels can be removed
         by specifying the level.
 
-        Parameters
-        ----------
-        labels : single label or list-like
-            Index labels to drop.
+        Args:
+            labels:
+                Index labels to drop.
+            axis:
+                Unused. Parameter needed for compatibility with DataFrame.
+            index:
+                Redundant for application on Series, but 'index' can be used instead
+                of 'labels'.
+            columns:
+                No change is made to the Series; use 'index' or 'labels' instead.
+            level:
+                For MultiIndex, level for which the labels will be removed.
 
-        Returns
-        -------
-        Series or None
+        Returns:
             Series with specified index labels removed or None if ``inplace=True``.
-
-        Raises
-        ------
-        KeyError
-            If none of the labels are found in the index.
         """
         raise NotImplementedError("abstract method")
 

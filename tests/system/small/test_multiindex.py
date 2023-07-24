@@ -166,6 +166,24 @@ def test_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index, level)
 
 
 @pytest.mark.parametrize(
+    ("labels", "level"),
+    [
+        (1, 0),
+        ([0, 1], 0),
+        ([True, None], 1),
+    ],
+)
+def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, level):
+    bf_frame = scalars_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+    pd_frame = scalars_pandas_df_index.set_index(["int64_too", "bool_col", "int64_col"])
+
+    bf_result = bf_frame.drop(labels=labels, axis="index", level=level).compute()
+    pd_result = pd_frame.drop(labels=labels, axis="index", level=level)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
     ("order"),
     [
         (1, 0, 2),

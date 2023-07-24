@@ -158,6 +158,16 @@ def test_drop_columns(scalars_dfs):
     )
 
 
+def test_drop_labels_axis_1(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    labels = ["int64_col", "geography_col", "time_col"]
+
+    pd_result = scalars_pandas_df.drop(labels=labels, axis=1)
+    bf_result = scalars_df.drop(labels=labels, axis=1).compute()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
+
+
 def test_drop_with_custom_column_labels(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     rename_mapping = {
@@ -174,6 +184,36 @@ def test_drop_with_custom_column_labels(scalars_dfs):
         columns=dropped_columns
     )
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+def test_drop_index(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.drop(index=[4, 1, 2])
+    bf_result = scalars_df.drop(index=[4, 1, 2]).compute()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
+
+
+def test_drop_labels_axis_0(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.drop(labels=[4, 1, 2], axis=0)
+    bf_result = scalars_df.drop(labels=[4, 1, 2], axis=0).compute()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
+
+
+def test_drop_index_and_columns(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.drop(index=[4, 1, 2], columns="int64_col")
+    bf_result = scalars_df.drop(index=[4, 1, 2], columns="int64_col").compute()
+
+    print(pd_result.columns)
+    print(bf_result.columns)
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
 def test_rename(scalars_dfs):

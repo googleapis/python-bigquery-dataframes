@@ -140,18 +140,26 @@ class DataFrame(NDFrame):
     # Reindexing and alignment
 
     def drop(
-        self,
-        *,
-        columns: Union[str, Iterable[str]],
+        self, labels=None, *, axis=0, index=None, columns=None, level=None
     ) -> DataFrame | None:
         """Drop specified labels from columns.
 
         Remove columns by directly specifying column names.
 
         Args:
+            labels:
+                Index or column labels to drop.
+            axis:
+                Whether to drop labels from the index (0 or 'index') or
+                columns (1 or 'columns').
+            index:
+                Alternative to specifying axis (``labels, axis=0``
+                is equivalent to ``index=labels``).
             columns:
-                Single label or list-like.
-
+                Alternative to specifying axis (``labels, axis=1``
+                is equivalent to ``columns=labels``).
+            level:
+                For MultiIndex, level from which the labels will be removed.
         Returns:
             DataFrame without the removed column labels.
 
