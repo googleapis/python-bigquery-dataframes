@@ -294,10 +294,6 @@ def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series, key
 ) -> bigframes.dataframe.DataFrame | bigframes.series.Series | bigframes.core.scalar.Scalar | pd.Series:
     if isinstance(key, int):
-        if key < 0:
-            raise NotImplementedError(
-                "iloc does not yet support negative single positional index"
-            )
         internal_slice_result = series_or_dataframe._slice(key, key + 1, 1)
         result_pd_df = internal_slice_result.compute()
         if result_pd_df.empty:

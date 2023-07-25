@@ -772,7 +772,7 @@ class Block:
         """
         # TODO(swast): Select a subset of columns if max_columns is less than the
         # number of columns in the schema.
-        count = self.shape()[0]
+        count = self.shape[0]
         if count > max_results:
             head_block = self.slice(0, max_results)
             computed_df, query_job = head_block.compute(max_results=max_results)

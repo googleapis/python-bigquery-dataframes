@@ -1289,7 +1289,7 @@ def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
 
 @pytest.mark.parametrize(
     "index",
-    [0, 5],
+    [0, 5, -2],
 )
 def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
     bf_result = scalars_df_index.iloc[index]
