@@ -422,6 +422,8 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
         """
+        if max_results and max_results <= 0:
+            raise ValueError("`max_results` should be a positive number.")
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
         # TODO(swast): Can we re-use the temp table from other reads in the
@@ -502,7 +504,16 @@ class Session(
                         """,
                     )
                 )
+            # When ordering by index columns, apply limit after ordering to
+            # make limit more predictable.
+            if max_results is not None:
+                table_expression = table_expression.limit(max_results)
         else:
+            if max_results is not None:
+                # Apply limit before generating rownums and creating temp table
+                # This makes sure the offsets are valid and limits the number of
+                # rows for which row numbers must be generated
+                table_expression = table_expression.limit(max_results)
             table_expression, ordering = self._create_sequential_ordering(
                 table_expression
             )
@@ -511,11 +522,6 @@ class Session(
             is_total_ordering = True
             index_cols = [ordering_id_column]
             index_labels = [None]
-
-        if max_results is not None:
-            if max_results <= 0:
-                raise ValueError("`max_results` should be a positive number.")
-            table_expression = table_expression.limit(max_results)
 
         return self._read_gbq_with_ordering(
             table_expression=table_expression,
