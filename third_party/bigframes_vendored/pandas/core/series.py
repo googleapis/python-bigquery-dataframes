@@ -542,10 +542,14 @@ class Series(NDFrame):  # type: ignore[misc]
         Calculates the difference of a {klass} element compared with another
         element in the {klass} (default is element in previous row).
 
-        Returns
-        -------
-        {klass}
-            First differences of the Series.
+        Args:
+            periods (int, default 1):
+                Periods to shift for calculating difference, accepts negative
+                values.
+
+        Returns:
+            {klass}
+                First differences of the Series.
         """
         raise NotImplementedError("abstract method")
 

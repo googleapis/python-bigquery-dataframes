@@ -271,8 +271,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
-    def diff(self) -> Series:
-        return self - self.shift(1)
+    def diff(self, periods: int = 1) -> Series:
+        return self - self.shift(periods=periods)
 
     def rank(
         self,

@@ -1249,6 +1249,29 @@ def test_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
 
 
 @pytest.mark.parametrize(
+    ("periods",),
+    [
+        (1,),
+        (2,),
+        (-1,),
+    ],
+)
+def test_diff(scalars_df_index, scalars_pandas_df_index, periods):
+    bf_result = scalars_df_index["int64_col"].diff(periods=periods).compute()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (
+        scalars_pandas_df_index["int64_col"]
+        .diff(periods=periods)
+        .astype(pd.Int64Dtype())
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
     ("keep",),
     [
         ("first",),
