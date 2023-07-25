@@ -49,18 +49,18 @@ class NDFrame(indexing.IndexingMixin):
         """
         Cast a pandas object to a specified dtype ``dtype``.
 
-        Parameters
-        ----------
-        dtype : str, data type, Series or Mapping of column name -> data type
-            Use a str, numpy.dtype, pandas.ExtensionDtype or Python type to
-            cast entire pandas object to the same type. Alternatively, use a
-            mapping, e.g. {col: dtype, ...}, where col is a column label and dtype is
-            a numpy.dtype or Python type to cast one or more of the DataFrame's
-            columns to column-specific types.
+        Args:
+            dtype (str or pandas.ExtensionDtype):
+                A dtype supported by BigQuery DataFrame include 'boolean','Float64','Int64',
+                'string', 'tring[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
+                'timestamp[us][pyarrow]','date32[day][pyarrow]','time64[us][pyarrow]'
+                A pandas.ExtensionDtype include pandas.BooleanDtype(), pandas.Float64Dtype(),
+                pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
+                pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
+                pd.ArrowDtype(pa.timestamp("us")), pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
 
-        Returns
-        -------
-        same type as caller
+        Returns:
+            same type as caller
 
         """
         raise NotImplementedError("abstract method")
