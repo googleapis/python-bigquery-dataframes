@@ -25,9 +25,9 @@ def accuracy_score(y_true, y_pred, normalize=True) -> float:
     """Accuracy classification score.
 
     Args:
-        y_true: DataFrame of shape (n_samples,)
+        y_true: Series or DataFrame of shape (n_samples,)
             Ground truth (correct) labels.
-        y_pred: DataFrame of shape (n_samples,)
+        y_pred: Series or DataFrame of shape (n_samples,)
             Predicted labels, as returned by a classifier.
         normalize: bool, default=True
             Default to True. If ``False``, return the number of correctly
@@ -58,9 +58,9 @@ def confusion_matrix(
     :math:`C_{1,1}` and false positives is :math:`C_{0,1}`.
 
     Args:
-        y_true: DataFrame of shape (n_samples,)
+        y_true: Series or DataFrame of shape (n_samples,)
             Ground truth (correct) target values.
-        y_pred: DataFrame of shape (n_samples,)
+        y_pred: Series or DataFrame of shape (n_samples,)
             Estimated targets as returned by a classifier.
 
     Returns:
@@ -87,9 +87,9 @@ def recall_score(
     The best value is 1 and the worst value is 0.
 
     Args:
-        y_true: DataFrame of shape (n_samples,)
+        y_true: Series or DataFrame of shape (n_samples,)
             Ground truth (correct) target values.
-        y_pred: DataFrame of shape (n_samples,)
+        y_pred: Series or DataFrame of shape (n_samples,)
             Estimated targets as returned by a classifier.
         average: {'micro', 'macro', 'samples', 'weighted', 'binary'} or None, \
                 default='binary'
@@ -120,9 +120,9 @@ def precision_score(
     The best value is 1 and the worst value is 0.
 
     Args:
-        y_true: DataFrame of shape (n_samples,)
+        y_true: Series or DataFrame of shape (n_samples,)
             Ground truth (correct) target values.
-        y_pred: DataFrame of shape (n_samples,)
+        y_pred: Series or DataFrame of shape (n_samples,)
             Estimated targets as returned by a classifier.
         average: {'micro', 'macro', 'samples', 'weighted', 'binary'} or None, \
                 default='binary'
@@ -155,9 +155,9 @@ def f1_score(
     parameter.
 
     Args:
-        y_true: DataFrame of shape (n_samples,)
+        y_true: Series or DataFrame of shape (n_samples,)
             Ground truth (correct) target values.
-        y_pred: DataFrame of shape (n_samples,)
+        y_pred: Series or DataFrame of shape (n_samples,)
             Estimated targets as returned by a classifier.
         average: {'micro', 'macro', 'samples', 'weighted', 'binary'} or None, \
                 default='binary'
