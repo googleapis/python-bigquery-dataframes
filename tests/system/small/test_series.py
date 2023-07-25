@@ -1424,6 +1424,30 @@ def test_rank_ints(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_cast_float_to_int(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    bf_result = scalars_df_index[col_name].astype(pd.Int64Dtype()).compute()
+    # cumsum does not behave well on nullable floats in pandas, produces object type and never ignores NA
+    pd_result = scalars_pandas_df_index[col_name].astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_cast_float_to_bool(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    bf_result = scalars_df_index[col_name].astype(pd.BooleanDtype()).compute()
+    # cumsum does not behave well on nullable floats in pandas, produces object type and never ignores NA
+    pd_result = scalars_pandas_df_index[col_name].astype(pd.BooleanDtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     bf_result = scalars_df_index[col_name].cumsum().cumsum().cumsum().compute()

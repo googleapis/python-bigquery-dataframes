@@ -289,7 +289,7 @@ def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.V
             ibis_dtypes.float64,
             ibis_dtypes.string,
         ),
-        ibis_dtypes.float64: (ibis_dtypes.string,),
+        ibis_dtypes.float64: (ibis_dtypes.string, ibis_dtypes.int64),
         ibis_dtypes.string: (),
         ibis_dtypes.date: (),
         ibis_dtypes.time: (),
@@ -314,5 +314,8 @@ def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.V
 
     if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.float64:
         return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
+
+    if value.type() == ibis_dtypes.float64 and to_type == ibis_dtypes.bool:
+        return value != ibis_types.literal(0)
 
     raise TypeError(f"Unsupported cast {value.type()} to {to_type}")
