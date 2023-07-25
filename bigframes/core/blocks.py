@@ -624,8 +624,8 @@ class Block:
 
     def aggregate(
         self,
-        by_column_ids: typing.Sequence[str],
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]],
+        by_column_ids: typing.Sequence[str] = (),
+        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]] = (),
         *,
         as_index: bool = True,
         dropna: bool = True,
@@ -633,7 +633,7 @@ class Block:
         """
         Apply aggregations to the block. Callers responsible for setting index column(s) after.
         Arguments:
-            by_column_id: column id of the aggregation key, this is preserved through the transform and used as index
+            by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
             aggregations: input_column_id, operation tuples
             as_index: if True, grouping keys will be index columns in result, otherwise they will be non-index columns.
             dropna: whether null keys should be dropped
@@ -649,15 +649,12 @@ class Block:
             [agg[0] for agg in aggregations]
         )
         if as_index:
-            # TODO: Generalize to multi-index
             names: typing.List[Label] = []
             for by_col_id in by_column_ids:
-                if by_col_id in self.index_columns:
-                    # Groupby level 0 case, keep index name
-                    index_name = self.col_id_to_index_name[by_col_id]
+                if by_col_id in self.value_columns:
+                    names.append(self.col_id_to_label[by_col_id])
                 else:
-                    index_name = self.col_id_to_label[by_col_id]
-                names.append(index_name)
+                    names.append(self.col_id_to_index_name[by_col_id])
             return (
                 Block(
                     result_expr,
@@ -667,10 +664,17 @@ class Block:
                 ),
                 output_col_ids,
             )
-        else:
-            by_column_labels = self._get_labels_for_columns(by_column_ids)
+        else:  # as_index = False
+            # If as_index=False, drop grouping levels, but keep grouping value columns
+            by_value_columns = [
+                col for col in by_column_ids if col in self.value_columns
+            ]
+            by_column_labels = self._get_labels_for_columns(by_value_columns)
             labels = (*by_column_labels, *aggregate_labels)
-            return Block(result_expr, column_labels=labels), output_col_ids
+            result_expr_pruned = result_expr.select_columns(
+                [*by_value_columns, *output_col_ids]
+            )
+            return Block(result_expr_pruned, column_labels=labels), output_col_ids
 
     def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
         """Gets aggregates immediately, and caches it"""

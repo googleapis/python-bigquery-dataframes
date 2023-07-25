@@ -588,8 +588,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
         block, agg_ids = block.aggregate(
-            [self._value_column],
-            ((self._value_column, agg_ops.count_op),),
+            by_column_ids=[self._value_column],
+            aggregations=((self._value_column, agg_ops.count_op),),
             as_index=False,
         )
         value_count_col_id = agg_ids[0]
@@ -813,6 +813,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise ValueError("as_index=False only valid with DataFrame")
         if axis:
             raise ValueError("No axis named {} for object type Series".format(level))
+        if not as_index:
+            raise ValueError("'as_index'=False only applies to DataFrame")
         if by is not None:
             return self._groupby_values(by, dropna)
         if level is not None:
@@ -828,7 +830,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return groupby.SeriesGroupBy(
             self._block,
             self._value_column,
-            self._resolve_levels(level),
+            by_col_ids=self._resolve_levels(level),
             value_name=self.name,
             dropna=dropna,
         )
@@ -875,7 +877,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return groupby.SeriesGroupBy(
             block,
             value_col,
-            grouping_cols,
+            by_col_ids=grouping_cols,
             value_name=self.name,
             dropna=dropna,
         )

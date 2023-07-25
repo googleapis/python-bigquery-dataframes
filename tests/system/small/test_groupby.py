@@ -127,3 +127,33 @@ def test_dataframe_groupby_analytic(
     bf_result_computed = bf_result.compute()
 
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
+def test_dataframe_groupby_getitem(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names].groupby("string_col")["int64_col"].min().compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names].groupby("string_col")["int64_col"].min()
+    )
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_dataframe_groupby_getitem_list(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names].groupby("string_col")[col_names].min().compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names].groupby("string_col")[col_names].min()
+    )
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)

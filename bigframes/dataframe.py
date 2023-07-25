@@ -1232,7 +1232,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ):
         return groupby.DataFrameGroupBy(
             self._block,
-            self._resolve_levels(level),
+            by_col_ids=self._resolve_levels(level),
             as_index=as_index,
             dropna=dropna,
         )
@@ -1280,7 +1280,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return groupby.DataFrameGroupBy(
             block,
-            col_ids,
+            by_col_ids=col_ids,
             as_index=as_index,
             dropna=dropna,
         )

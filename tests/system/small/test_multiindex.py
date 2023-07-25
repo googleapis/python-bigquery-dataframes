@@ -265,27 +265,112 @@ def test_multi_index_dataframe_groupby(scalars_df_index, scalars_pandas_df_index
 
 
 @pytest.mark.parametrize(
-    ("level"),
+    ("level", "as_index"),
     [
-        (1),
-        ([0]),
-        (["bool_col"]),
-        (["bool_col", "int64_too"]),
+        (1, True),
+        ([0], False),
+        (["bool_col"], True),
+        (["bool_col", "int64_too"], False),
     ],
 )
-def test_multi_index_dataframe_groupby_level(
-    scalars_df_index, scalars_pandas_df_index, level
+def test_multi_index_dataframe_groupby_level_aggregate(
+    scalars_df_index, scalars_pandas_df_index, level, as_index
 ):
     bf_result = (
         scalars_df_index.set_index(["int64_too", "bool_col"])
-        .groupby(level=level)
+        .groupby(level=level, as_index=as_index)
         .mean(numeric_only=True)
         .compute()
     )
     pd_result = (
         scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
-        .groupby(level=level)
+        .groupby(level=level, as_index=as_index)
         .mean(numeric_only=True)
     )
 
-    pandas.testing.assert_frame_equal(bf_result, pd_result)
+    # Pandas will have int64 index, while bigquery will have Int64 when resetting
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+@pytest.mark.parametrize(
+    ("level", "as_index"),
+    [
+        (1, True),
+        ([0], False),
+        (
+            ["bool_col"],
+            True,
+        ),
+        (["bool_col", "int64_too"], False),
+    ],
+)
+def test_multi_index_dataframe_groupby_level_analytic(
+    scalars_df_index, scalars_pandas_df_index, level, as_index
+):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "bool_col"])
+        .groupby(level=level, as_index=as_index, dropna=False)
+        .cumsum(numeric_only=True)
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+        .groupby(level=level, as_index=as_index, dropna=False)
+        .cumsum(numeric_only=True)
+    )
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("level",),
+    [
+        (1,),
+        ([0],),
+        (["bool_col"],),
+        (["bool_col", "int64_too"],),
+    ],
+)
+def test_multi_index_series_groupby_level_aggregate(
+    scalars_df_index, scalars_pandas_df_index, level
+):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level)
+        .mean()
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level)
+        .mean()
+    )
+
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("level",),
+    [
+        (1,),
+        ([0],),
+        (["bool_col"],),
+        (["bool_col", "int64_too"],),
+    ],
+)
+def test_multi_index_series_groupby_level_analytic(
+    scalars_df_index, scalars_pandas_df_index, level
+):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level, dropna=False)
+        .cumsum()
+        .compute()
+    )
+    pd_result = (
+        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])["float64_col"]
+        .groupby(level=level, dropna=False)
+        .cumsum()
+    )
+
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
