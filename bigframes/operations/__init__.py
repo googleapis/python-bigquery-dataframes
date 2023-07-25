@@ -29,6 +29,7 @@ import bigframes.dtypes
 import bigframes.dtypes as dtypes
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
+_NAN = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.nan))
 _INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.inf))
 
 BinaryOp = typing.Callable[[ibis_types.Value, ibis_types.Value], ibis_types.Value]
@@ -512,27 +513,43 @@ def floordiv_op(
     )
 
 
+def _is_float(x: ibis_types.Value):
+    return isinstance(x, (ibis_types.FloatingColumn, ibis_types.FloatingScalar))
+
+
 @short_circuit_nulls()
 def mod_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    # TODO(tbergeron): fully support floats, including when mixed with integer
-    # Pandas has inconsitency about whether N mod 0. Most conventions have this be NAN.
-    # For some dtypes, the result is 0 instead. This implementation results in NA always.
-    x_numeric = typing.cast(ibis_types.NumericValue, x)
-    y_numeric = typing.cast(ibis_types.NumericValue, y)
+    is_result_float = _is_float(x) | _is_float(y)
+    x_numeric = typing.cast(
+        ibis_types.NumericValue,
+        x.cast(ibis_dtypes.Decimal(precision=38, scale=9, nullable=True))
+        if is_result_float
+        else x,
+    )
+    y_numeric = typing.cast(
+        ibis_types.NumericValue,
+        y.cast(ibis_dtypes.Decimal(precision=38, scale=9, nullable=True))
+        if is_result_float
+        else y,
+    )
     # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
     if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
     bq_mod = x_numeric % y_numeric  # Bigquery will maintain x sign here
+    if is_result_float:
+        bq_mod = typing.cast(ibis_types.NumericValue, bq_mod.cast(ibis_dtypes.float64))
+
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
     return (
         ibis.case()
         .when(
-            y_numeric == _ZERO, _ZERO * x_numeric
+            y_numeric == _ZERO,
+            _NAN * x_numeric if is_result_float else _ZERO * x_numeric,
         )  # Dummy op to propogate nulls and type from x arg
         .when(
             (y_numeric < _ZERO) & (bq_mod > _ZERO), (y_numeric + bq_mod)

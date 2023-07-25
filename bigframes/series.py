@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import textwrap
 import typing
-from typing import Any, Optional, Union
+from typing import Any, Optional, Tuple, Union
 
 import google.cloud.bigquery as bigquery
 import ibis.expr.types as ibis_types
@@ -485,6 +485,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def rmod(self, other) -> Series:  # type: ignore
         return self._apply_binary_op(other, ops.reverse(ops.mod_op))
+
+    def divmod(self, other) -> Tuple[Series, Series]:  # type: ignore
+        # TODO(huanc): when self and other both has dtype int and other contains zeros,
+        # the output should be dtype float, both floordiv and mod returns dtype int in this case.
+        return (self.floordiv(other), self.mod(other))
+
+    def rdivmod(self, other) -> Tuple[Series, Series]:  # type: ignore
+        # TODO(huanc): when self and other both has dtype int and self contains zeros,
+        # the output should be dtype float, both floordiv and mod returns dtype int in this case.
+        return (self.rfloordiv(other), self.rmod(other))
 
     def __matmul__(self, other):
         return (self * other).sum()

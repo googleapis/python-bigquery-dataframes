@@ -1214,6 +1214,36 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def divmod(self, other) -> Series:
+        """Return Integer division and modulo of series and other, element-wise (binary operator divmod).
+
+        Equivalent to divmod(series, other).
+
+        Args:
+            other: Series, or scalar value
+
+        Returns:
+            2-Tuple of Series. The result of the operation. The result is always
+            consistent with (floordiv, mod) (though pandas may not).
+
+        """
+        raise NotImplementedError("abstract method")
+
+    def rdivmod(self, other) -> Series:
+        """Return Integer division and modulo of series and other, element-wise (binary operator rdivmod).
+
+        Equivalent to other divmod series.
+
+        Args:
+            other: Series, or scalar value
+
+        Returns:
+            2-Tuple of Series. The result of the operation. The result is always
+            consistent with (rfloordiv, rmod) (though pandas may not).
+
+        """
+        raise NotImplementedError("abstract method")
+
     def all(
         self,
     ):

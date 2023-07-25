@@ -347,8 +347,97 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).compute()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
-
     assert_series_equal_ignoring_order(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
+    ("col_x",),
+    [
+        ("int64_col",),
+        ("int64_too",),
+        ("float64_col",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("col_y",),
+    [
+        ("int64_col",),
+        ("int64_too",),
+        ("float64_col",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        ("mod",),
+        ("rmod",),
+    ],
+)
+def test_mods(scalars_dfs, col_x, col_y, method):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = getattr(scalars_df[col_x], method)(scalars_df[col_y]).compute()
+    pd_result = getattr(scalars_pandas_df[col_x], method)(scalars_pandas_df[col_y])
+    pd.testing.assert_series_equal(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
+    ("col_x",),
+    [
+        ("int64_col",),
+        ("float64_col",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("col_y",),
+    [
+        ("int64_col",),
+        ("float64_col",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        ("divmod",),
+        ("rdivmod",),
+    ],
+)
+def test_divmods_series(scalars_dfs, col_x, col_y, method):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_div_result, bf_mod_result = getattr(scalars_df[col_x], method)(scalars_df[col_y])
+    pd_div_result, pd_mod_result = getattr(scalars_pandas_df[col_x], method)(
+        scalars_pandas_df[col_y]
+    )
+    pd.testing.assert_series_equal(pd_div_result, bf_div_result.compute())
+    pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.compute())
+
+
+@pytest.mark.parametrize(
+    ("col_x",),
+    [
+        ("int64_col",),
+        ("float64_col",),
+    ],
+)
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        (-1000,),
+        (678,),
+    ],
+)
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        ("divmod",),
+        ("rdivmod",),
+    ],
+)
+def test_divmods_scalars(scalars_dfs, col_x, other, method):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_div_result, bf_mod_result = getattr(scalars_df[col_x], method)(other)
+    pd_div_result, pd_mod_result = getattr(scalars_pandas_df[col_x], method)(other)
+    pd.testing.assert_series_equal(pd_div_result, bf_div_result.compute())
+    pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.compute())
 
 
 @pytest.mark.parametrize(
