@@ -321,8 +321,16 @@ class Session(
         24 hours of inactivity or after 7 days."""
         if self._session_id is not None and self.bqclient is not None:
             abort_session_query = "CALL BQ.ABORT_SESSION('{}')".format(self._session_id)
-            query_job = self.bqclient.query(abort_session_query)
-            query_job.result()  # blocks until finished
+            try:
+                query_job = self.bqclient.query(abort_session_query)
+                query_job.result()  # blocks until finished
+            except google.api_core.exceptions.BadRequest as e:
+                # Ignore the exception when the BQ session itself has expired
+                # https://cloud.google.com/bigquery/docs/sessions-terminating#auto-terminate_a_session
+                if not e.message.startswith(
+                    f"Session {self._session_id} has expired and is no longer available."
+                ):
+                    raise
             self._session_id = None
 
     def read_gbq(
