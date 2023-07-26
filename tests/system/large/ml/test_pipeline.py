@@ -96,6 +96,61 @@ def test_pipeline_linear_regression_fit_score_predict(
     )
 
 
+def test_pipeline_linear_regression_series_fit_score_predict(
+    session, penguins_df_default_index
+):
+    """Test a supervised model with a minimal preprocessing step"""
+    pl = pipeline.Pipeline(
+        [
+            ("scale", preprocessing.StandardScaler()),
+            ("linreg", linear_model.LinearRegression()),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    X_train = df["culmen_length_mm"]
+    y_train = df["body_mass_g"]
+    pl.fit(X_train, y_train)
+
+    # Check score to ensure the model was fitted
+    score_result = pl.score(X_train, y_train).compute()
+    score_expected = pd.DataFrame(
+        {
+            "mean_absolute_error": [528.495594],
+            "mean_squared_error": [421722.261808],
+            "mean_squared_log_error": [0.022963],
+            "median_absolute_error": [468.895236],
+            "r2_score": [0.346999],
+            "explained_variance": [0.346999],
+        },
+        dtype="Float64",
+    )
+    score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
+
+    pd.testing.assert_frame_equal(
+        score_result, score_expected, check_exact=False, rtol=0.1
+    )
+
+    # predict new labels
+    new_penguins = session.read_pandas(
+        pd.DataFrame(
+            {
+                "tag_number": [1633, 1672, 1690],
+                "culmen_length_mm": [39.5, 38.5, 37.9],
+            }
+        ).set_index("tag_number")
+    )
+    predictions = pl.predict(new_penguins["culmen_length_mm"]).to_pandas()
+    expected = pd.DataFrame(
+        {"predicted_body_mass_g": [3818.845763, 3732.022204, 3679.928069]},
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
+    )
+
+
 def test_pipeline_logistic_regression_fit_score_predict(
     session, penguins_df_default_index
 ):

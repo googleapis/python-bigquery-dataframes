@@ -17,11 +17,12 @@ Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/pre
 
 
 import typing
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple, Union
 
-import bigframes
 from bigframes.ml import base, core
 from bigframes.ml import sql as ml_sql
+from bigframes.ml import utils
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.preprocessing._data
 import third_party.bigframes_vendored.sklearn.preprocessing._encoder
 
@@ -55,8 +56,10 @@ class StandardScaler(
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.Series],
     ):
+        (X,) = utils.convert_to_dataframe(X)
+
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
@@ -69,15 +72,15 @@ class StandardScaler(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
+        (X,) = utils.convert_to_dataframe(X)
+
         df = self._bqml_model.transform(X)
         return typing.cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[self._output_names],
         )
 
@@ -88,7 +91,6 @@ class OneHotEncoder(
 ):
     # BQML max value https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-one-hot-encoder#syntax
     TOP_K_DEFAULT = 1000000
-
     FREQUENCY_THRESHOLD_DEFAULT = 0
 
     __doc__ = (
@@ -145,8 +147,10 @@ class OneHotEncoder(
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.Series],
     ):
+        (X,) = utils.convert_to_dataframe(X)
+
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
@@ -159,14 +163,14 @@ class OneHotEncoder(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
+        (X,) = utils.convert_to_dataframe(X)
+
         df = self._bqml_model.transform(X)
         return typing.cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[self._output_names],
         )

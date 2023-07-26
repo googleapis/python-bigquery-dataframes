@@ -42,9 +42,19 @@ class StandardScaler(BaseEstimator):
             X = [['Male', 1], ['Female', 3], ['Female', 2]]
             enc.fit(X)
 
+        Examples:
+
+        .. code-block::
+
+            from bigframes.ml import StandardScaler
+
+            enc = StandardScaler()
+            X = [['Male', 1], ['Female', 3], ['Female', 2]]
+            enc.fit(X)
+
         Args:
-            X (BigQuery DataFrame):
-                A dataframe with training data.
+            X (BigQuery DataFrame or Series):
+                A dataframe or Series with training data.
 
         Returns:
             N/A: Fitted scaler.
@@ -55,8 +65,8 @@ class StandardScaler(BaseEstimator):
         """Perform standardization by centering and scaling.
 
         Args:
-            X (BigQuery DataFrame):
-                The DataFrame to be transformed.
+            X (BigQuery DataFrame or Series):
+                The DataFrame or Series to be transformed.
 
         Returns:
             N/A: Transformed result.

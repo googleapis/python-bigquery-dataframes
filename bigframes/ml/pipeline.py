@@ -18,10 +18,10 @@ pipeline module: https://scikit-learn.org/stable/modules/pipeline.html"""
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
-import bigframes
-from bigframes.ml import base, compose, preprocessing
+from bigframes.ml import base, compose, preprocessing, utils
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.pipeline
 
 
@@ -67,28 +67,33 @@ class Pipeline(
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y: Optional[bigframes.dataframe.DataFrame] = None,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
     ):
+        (X,) = utils.convert_to_dataframe(X)
+
         compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
         if y is not None:
             # If labels columns are present, they should pass through un-transformed
+            (y,) = utils.convert_to_dataframe(y)
             transform_sqls.extend(y.columns.tolist())
 
         self._estimator.fit(X=X, y=y, transforms=transform_sqls)
 
-    def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         return self._estimator.predict(X)
 
     def score(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y: Optional[bigframes.dataframe.DataFrame] = None,
-    ):
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+    ) -> bpd.DataFrame:
+        (X,) = utils.convert_to_dataframe(X)
+        if y is not None:
+            (y,) = utils.convert_to_dataframe(y)
+
         return self._estimator.score(X=X, y=y)
 
     def to_gbq(self, model_name: str, replace: bool = False):

@@ -38,11 +38,11 @@ class Pipeline(BaseEstimator, metaclass=ABCMeta):
         data. Finally, fit the transformed data using the final estimator.
 
         Args:
-            X (Bigquery DataFrame):
-                A BigQuery DataFrame representing training data. Must match the
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A DataFrame or Series representing training data. Must match the
                 input requirements of the first step of the pipeline.
-            y (Bigquery DataFrame):
-                A BigQuery DataFrame representing training targets, if applicable.
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A DataFrame or Series representing training targets, if applicable.
 
         Returns:
             Pipeline: Pipeline with fitted steps.
@@ -58,13 +58,13 @@ def score(self, X, y):
     `score` method. Only valid if the final estimator implements `score`.
 
     Args:
-        X (Bigquery DataFrame):
-            A BigQuery DataFrame as evaluation data.
-        y (Bigquery DataFrame):
-            A BigQuery DataFrame as evaluation labels.
+        X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            A DataFrame or Series as evaluation data.
+        y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            A DataFrame or Series as evaluation labels.
 
     Returns:;
-        Bigquery DataFrame: A BigQuery DataFrame representing the result
+        DataFrame: A DataFrame representing the result
             of calling `score` on the final estimator.
     """
     raise NotImplementedError("abstract method")
@@ -74,11 +74,11 @@ def predict(self, X):
     """Predict the pipeline result for each sample in X.
 
     Args:
-        X (Bigquery DataFrame):
-            A BigQuery DataFrame to predict.
+        X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            A DataFrame or Series to predict.
 
     Returns:
-        Bigquery DataFrame: A BigQuery DataFrames Dataframe representing
+        DataFrame: A Dataframe representing
             predicted result.
     """
     raise NotImplementedError("abstract method")

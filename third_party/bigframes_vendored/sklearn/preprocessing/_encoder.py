@@ -55,8 +55,8 @@ class OneHotEncoder(BaseEstimator):
             enc.fit(X)
 
         Args:
-            X (BigQuery DataFrame):
-                A dataframe with training data.
+            X (BigQuery DataFrame or Series):
+                A dataframe or series with training data.
 
         Returns:
             N/A: Fitted encoder.
@@ -67,8 +67,8 @@ class OneHotEncoder(BaseEstimator):
         """Transform X using one-hot encoding.
 
         Args:
-            X (BigQuery DataFrame):
-                The DataFrame to be transformed.
+            X (BigQuery DataFrame or Series):
+                The DataFrame or Series to be transformed.
 
         Returns:
             Transformed result. The result is categorized as index: number, value: number.
