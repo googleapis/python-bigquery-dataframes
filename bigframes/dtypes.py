@@ -185,14 +185,14 @@ def bigframes_dtype_to_ibis_dtype(
     """Converts a BigQuery DataFrames supported dtype to an Ibis dtype.
 
     Args:
-        bigframes_dtype: A dtype supported by BigQuery DataFrame
+        bigframes_dtype:
+            A dtype supported by BigQuery DataFrame
 
     Returns:
-        The corresponding Ibis type
+        IbisDtype: The corresponding Ibis type
 
     Raises:
-        ValueError:
-            If passed a dtype not supported by BigQuery DataFrames.
+        ValueError: If passed a dtype not supported by BigQuery DataFrames.
     """
     type_string = str(bigframes_dtype)
     if type_string in BIGFRAMES_STRING_TO_BIGFRAMES:
@@ -223,8 +223,10 @@ def literal_to_ibis_scalar(
     expression with a BigQuery DataFrames compatible data type
 
     Args:
-        literal: any value accepted by Ibis
-        force_dtype: force the value to a specific dtype
+        literal:
+            any value accepted by Ibis
+        force_dtype:
+            force the value to a specific dtype
         validate:
             If true, will raise ValueError if type cannot be stored in a
             BigQuery DataFrames object. If used as a subexpression, this should
@@ -269,9 +271,11 @@ def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.V
     """Perform compatible type casts of ibis values
 
     Args:
-        value: Ibis value, which could be a literal, scalar, or column
+        value:
+            Ibis value, which could be a literal, scalar, or column
 
-        to_type: The Ibis type to cast to
+        to_type:
+            The Ibis type to cast to
 
     Returns:
         A new Ibis value of type to_type

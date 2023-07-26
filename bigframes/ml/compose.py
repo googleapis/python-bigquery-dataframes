@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Build composite transformers on heterogenous data. This module is styled
+"""Build composite transformers on heterogeneous data. This module is styled
 after Scikit-Learn's compose module:
 https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose"""
 
@@ -79,9 +79,11 @@ class ColumnTransformer(
         a BQML TRANSFORM clause
 
         Args:
-            columns: a list of column names to transform
+            columns (List[str]):
+                a list of column names to transform
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns:
+            a list of tuples of (sql_expression, output_name)"""
         return [
             transformer._compile_to_sql([column])[0]
             for column in columns

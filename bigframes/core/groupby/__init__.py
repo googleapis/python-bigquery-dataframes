@@ -203,7 +203,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._aggregate(agg_ops.count_op)
 
     def sum(self, *args) -> series.Series:
-        """Sums the numeric values for each group in the series. Ignores null/nan."""
         return self._aggregate(agg_ops.sum_op)
 
     def mean(self, *args) -> series.Series:
@@ -250,7 +249,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
 
     def shift(self, periods=1) -> series.Series:
-        """Shift index by desired number of periods."""
         window = bigframes.core.WindowSpec(
             grouping_keys=self._by_col_ids,
             preceding=periods if periods > 0 else None,
@@ -259,7 +257,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self) -> series.Series:
-        """Difference between each element and previous element."""
         return self._ungroup() - self.shift(1)
 
     def rolling(self, window: int, min_periods=None) -> windows.Window:

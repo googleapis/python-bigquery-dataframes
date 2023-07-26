@@ -551,10 +551,14 @@ class Session(
         """Internal helper method that loads DataFrame from Google BigQuery given an ordering column.
 
         Args:
-            table_expression: an ibis table expression to be executed in BigQuery.
-            col_order: List of BigQuery column names in the desired order for results DataFrame.
-            index_cols: List of column names to use as the index or multi-index.
-            ordering: Column name to be used for ordering. If not supplied, a default ordering is generated.
+            table_expression:
+                an ibis table expression to be executed in BigQuery.
+            col_order:
+                List of BigQuery column names in the desired order for results DataFrame.
+            index_cols:
+                List of column names to use as the index or multi-index.
+            ordering:
+                Column name to be used for ordering. If not supplied, a default ordering is generated.
 
         Returns:
             A DataFrame representing results of the query or table.
@@ -672,9 +676,10 @@ class Session(
         """Loads a BQML model from Google BigQuery.
 
         Args:
-            model_name : the model's name in BigQuery in the format
-            `project_id.dataset_id.model_id`, or just `dataset_id.model_id`
-            to load from the default project.
+            model_name (str):
+                the model's name in BigQuery in the format
+                `project_id.dataset_id.model_id`, or just `dataset_id.model_id`
+                to load from the default project.
 
         Returns:
             A bigframes.ml Model wrapping the model.
@@ -694,10 +699,11 @@ class Session(
         automatically recycled after the Session is closed.
 
         Args:
-            pandas_dataframe: a Pandas DataFrame object to be loaded.
+            pandas_dataframe (pandas.DataFrame):
+                a Pandas DataFrame object to be loaded.
 
         Returns:
-            A BigQuery DataFrames.
+            BigQuery DataFrame: A BigQuery DataFrame.
         """
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
@@ -971,30 +977,7 @@ class Session(
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
-        Args:
-            input_types (list(type)):
-                List of input data types in the user defined function.
-            output_type (type):
-                Data type of the output in the user defined function.
-            dataset (str, Optional):
-                Dataset to use to create a BigQuery function. It should be in
-                `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
-                param is not provided then session dataset id would be used.
-            bigquery_connection (str, Optional):
-                Name of the BigQuery connection. If it is pre created in the same
-                location as the `bigquery_client.location` then it would be used,
-                otherwise it would be created dynamically assuming the user has
-                necessary priviliges. If this param is not provided then the
-                bigquery connection from the session would be used.
-            reuse (bool, Optional):
-                Reuse the remote function if already exists.
-                `True` by default, which will result in reusing an existing remote
-                function (if any) that was previously created for the same udf.
-                Setting it to false would force creating a unique remote function.
-                If the required remote function does not exist then it would be
-                created irrespective of this param.
-
-        Notes:
+        .. note::
             Please make sure following is setup before using this API:
 
             1. Have the below APIs enabled for your project:
@@ -1025,6 +1008,28 @@ class Session(
                Alternatively, the IAM could also be setup via the gcloud CLI:
                   $ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"
 
+        Args:
+            input_types (list(type)):
+                List of input data types in the user defined function.
+            output_type (type):
+                Data type of the output in the user defined function.
+            dataset (str, Optional):
+                Dataset to use to create a BigQuery function. It should be in
+                `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
+                param is not provided then session dataset id would be used.
+            bigquery_connection (str, Optional):
+                Name of the BigQuery connection. If it is pre created in the same
+                location as the `bigquery_client.location` then it would be used,
+                otherwise it would be created dynamically assuming the user has
+                necessary priviliges. If this param is not provided then the
+                bigquery connection from the session would be used.
+            reuse (bool, Optional):
+                Reuse the remote function if already exists.
+                `True` by default, which will result in reusing an existing remote
+                function (if any) that was previously created for the same udf.
+                Setting it to false would force creating a unique remote function.
+                If the required remote function does not exist then it would be
+                created irrespective of this param.
         """
         return bigframes_rf(
             input_types,

@@ -24,14 +24,14 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
     """Logistic Regression (aka logit, MaxEnt) classifier.
 
     Args:
-        fit_intercept:
+        fit_intercept (default True):
             Default True. Specifies if a constant (a.k.a. bias or intercept)
             should be added to the decision function.
-        auto_class_weights:
+        auto_class_weights (default False):
             Default False. If True, balance class labels using weights for each
             class in inverse proportion to the frequency of that class.
 
-    References:
+    .. note::
         L-BFGS-B -- Software for Large-scale Bound-constrained Optimization
             Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis Morales.
             http://users.iems.northwestern.edu/~nocedal/lbfgsb.html
@@ -62,12 +62,12 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
         """Fit the model according to the given training data.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
-            y:
+            y (BigQuery DataFrame):
                 DataFrame of shape (n_samples,). Target vector relative to X.
 
             transforms:
@@ -78,6 +78,6 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
                 training data.
 
         Returns:
-            Fitted estimator.
+            N/A: Fitted estimator.
         """
         raise NotImplementedError("abstract method")

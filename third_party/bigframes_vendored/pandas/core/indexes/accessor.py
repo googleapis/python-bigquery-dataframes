@@ -19,8 +19,7 @@ class DatetimeProperties:
         values (using the `dt` accessor) or DatetimeIndex.
 
         Returns:
-            Series or Index
-                Containing integers indicating the day number.
+            Series or Index: Containing integers indicating the day number.
         """
 
         raise NotImplementedError("abstract method")
@@ -32,7 +31,7 @@ class DatetimeProperties:
         Namely, the date part of Timestamps without time and
         timezone information.
 
-        warning:
+        .. warning::
             This method returns a Series whereas pandas returns
             a numpy array.
         """
@@ -69,7 +68,7 @@ class DatetimeProperties:
 
         The time part of the Timestamps.
 
-        warning:
+        .. warning::
             This method returns a Series whereas pandas returns
             a numpy array.
         """
@@ -80,7 +79,7 @@ class DatetimeProperties:
     def quarter(self):
         """The quarter of the date.
 
-        warning:
+        .. warning::
            This method returns a Series whereas pandas returns
            a numpy array.
         """

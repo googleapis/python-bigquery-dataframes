@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Linear models. This module is styled after Scikit-Learn's linear_model module:
+"""Linear models. This module is styled after scikit-learn's linear_model module:
 https://scikit-learn.org/stable/modules/linear_model.html"""
 
 from __future__ import annotations
@@ -119,10 +119,13 @@ class LinearRegression(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default to False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            LinearRegression: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -236,10 +239,13 @@ class LogisticRegression(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default to False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            LogisticRegression: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

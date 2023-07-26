@@ -63,10 +63,9 @@ class IndexingMixin:
           and that returns valid output for indexing (one of the above)
 
         Raises:
-            KeyError: If any items are not found.
-            IndexingError:
-                If an indexed key is passed and its index is unalignable to the
-                frame index.
+            KeyErrorr: if any items are not found.
+            IndexingError: if an indexed key is passed and its index is
+              unalignable to theframe index.
 
         """
         raise NotImplementedError("abstract methdod")

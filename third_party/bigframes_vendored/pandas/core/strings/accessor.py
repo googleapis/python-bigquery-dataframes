@@ -44,9 +44,9 @@ class StringMethods:
         Args:
             sub:
                 Substring being searched.
-            start:
+            start (int, default 0):
                 Left edge index.
-            end:
+            end (None):
                 Right edge index.
 
         Returns:
@@ -61,9 +61,8 @@ class StringMethods:
         (such as a dictionary).
 
         Returns:
-            Series or Index of int
-            A Series or Index of integer values indicating the length of each
-            element in the Series or Index.
+            Series or Index of int: A Series or Index of integer values indicating
+            the length of each element in the Series or Index.
         """
 
         raise NotImplementedError("abstract method")
@@ -83,16 +82,16 @@ class StringMethods:
         """Slice substrings from each element in the Series or Index.
 
         Args:
-            start : int, optional
+            start (int, optional):
                 Start position for slice operation.
-            stop : int, optional
+            stop (int, optional):
                 Stop position for slice operation.
-            step : int, optional
+            step (int, optional):
                 Step size for slice operation.
 
         Returns:
-            Series or Index of object
-                Series or Index from sliced substring from original string object.
+            Series or Index of object: Series or Index from sliced
+            substring from original string object.
         """
 
         raise NotImplementedError("abstract method")
@@ -106,7 +105,8 @@ class StringMethods:
         Equivalent to :meth:`str.strip`.
 
         Returns:
-            Series or Index of object
+            Series or Index of object: Series or Index without leading
+            and trailing characters.
         """
 
         raise NotImplementedError("abstract method")
@@ -117,7 +117,7 @@ class StringMethods:
         Equivalent to :meth:`str.upper`.
 
         Returns:
-            Series or Index of object
+            Series or Index of object: Uppercase strings
         """
 
         raise NotImplementedError("abstract method")
@@ -130,9 +130,8 @@ class StringMethods:
         has zero characters, ``False`` is returned for that check.
 
         Returns:
-            Series or Index of bool
-                Series or Index of boolean values with the same length as the original
-                Series/Index.
+            Series or Index of bool: Series or Index of boolean values with the
+            same length as the original Series/Index.
         """
 
         raise NotImplementedError("abstract method")
@@ -146,7 +145,7 @@ class StringMethods:
         Equivalent to :meth:`str.rstrip`.
 
         Returns:
-            Series or Index of object
+            Series or Index of object: Removed trailing characters
         """
 
         raise NotImplementedError("abstract method")
@@ -173,9 +172,8 @@ class StringMethods:
                 Same value for all (int) or different value per (sequence).
 
         Returns:
-            Series or pandas.Index
-                Series or Index of repeated string objects specified by
-                input parameter repeats.
+            Series or pandas.Index: Series or Index of repeated string
+            objects specified by input parameter repeats.
         """
 
         raise NotImplementedError("abstract method")
@@ -186,7 +184,7 @@ class StringMethods:
         Equivalent to :meth:`str.capitalize`.
 
         Returns:
-            Series or Index of object
+            Series or Index of object: Captitalized strings
         """
 
         raise NotImplementedError("abstract method")
@@ -198,16 +196,16 @@ class StringMethods:
         and elements of `others` element-wise.
 
         Args:
-            others : Series
+            others (Series):
 
-            join : {'left', 'outer'}, default 'left'
+            join ({'left', 'outer'}, default 'left'):
                 Determines the join-style between the calling Series and any
                 Series in `others` (objects without an index need
                 to match the length of the calling Series). To disable
                 alignment, use `.values` on any Series/Index/DataFrame in `others`.
 
         Returns:
-            Series
+            Series: Concatenated strings
         """
 
         raise NotImplementedError("abstract method")
@@ -219,23 +217,21 @@ class StringMethods:
         Return boolean Series or Index based on whether a given pattern or regex is
         contained within a string of a Series or Index.
 
-        Parameters
-        ----------
-        pat:
-            Character sequence or regular expression.
-        case:
-            If True, case sensitive.
-        flags:
-            Flags to pass through to the re module, e.g. re.IGNORECASE.
-        regex:
-            If True, assumes the pat is a regular expression.
-
-            If False, treats the pat as a literal string.
+        Args:
+            pat (str, re.Pattern):
+                Character sequence or regular expression.
+            case (bool, default to True):
+                If True, case sensitive.
+            flags (int, default to 0):
+                Flags to pass through to the re module, e.g. re.IGNORECASE.
+            regex (bool, default to True):
+                If True, assumes the pat is a regular expression.
+                If False, treats the pat as a literal string.
 
         Returns:
-            A Series or Index of boolean values indicating whether the
-            given pattern is contained within the string of each element
-            of the Series or Index.
+            A Series or Index: A Series or Index of boolean values indicating
+            whether the given pattern is contained within the string of each
+            element of the Series or Index.
         """
         raise NotImplementedError("abstract method")
 
@@ -255,21 +251,20 @@ class StringMethods:
         the regex value.
 
         Args:
-            pat:
+            pat (str, re.Pattern):
                 String can be a character sequence or regular expression.
-            repl:
+            repl (str):
                 Replacement string.
-            case:
+            case (default to None):
                 Determines if replace is case sensitive:
 
                 - If True, case sensitive (the default if `pat` is a string)
                 - Set to False for case insensitive
                 - Cannot be set if `pat` is a compiled regex.
-
-            flags:
+            flags (int, default to 0):
                 Regex module flags, e.g. re.IGNORECASE. Cannot be set if `pat` is a compiled
                 regex.
-            regex:
+            regex (bool: default to False):
                 Determines if the passed-in pattern is a regular expression:
 
                 - If True, assumes the passed-in pattern is a regular expression.
@@ -292,13 +287,13 @@ class StringMethods:
         Test if the start of each string element matches a pattern.
 
         Args:
-            pat:
+            pat (str, tuple[str, ...]):
                 Character sequence or tuple of strings. Regular expressions are not
                 accepted.
 
         Returns:
-            A Series of booleans indicating whether the given pattern matches
-            the start of each string element.
+            Series of boolean: A Series of booleans indicating whether the given
+            pattern matches the start of each string element.
         """
         raise NotImplementedError("abstract method")
 
@@ -310,12 +305,12 @@ class StringMethods:
         Test if the end of each string element matches a pattern.
 
         Args:
-            pat:
+            pat (str, tuple[str, ...]):
                 Character sequence or tuple of strings. Regular expressions are not
                 accepted.
 
         Returns:
-            A Series of booleans indicating whether the given pattern matches
-            the end of each string element.
+            Series of booleans: A Series of booleans indicating whether the given
+            pattern matches the end of each string element.
         """
         raise NotImplementedError("abstract method")

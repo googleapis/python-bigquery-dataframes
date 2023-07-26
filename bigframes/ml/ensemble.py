@@ -353,10 +353,13 @@ class XGBClassifier(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default to False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            XGBClassifier: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -495,10 +498,14 @@ class RandomForestRegressor(
         """Calculate evaluation metrics of the model.
 
         Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
+            X (BigQuery DataFrame):
+                A BigQuery DataFrame as evaluation data.
+            y (BigQuery DataFrame):
+                A BigQuery DataFrame as evaluation labels.
 
-        Returns: a BigFrames DataFrame as evaluation result."""
+        Returns:
+            BigQuery DataFrame: a BigQuery DataFrame as evaluation result.
+        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -513,10 +520,13 @@ class RandomForestRegressor(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            RandomForestRegressor: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -655,10 +665,14 @@ class RandomForestClassifier(
         """Calculate evaluation metrics of the model.
 
         Args:
-            X: a BigFrames DataFrame as evaluation data.
-            y: a BigFrames DataFrame as evaluation labels.
+            X (BigQuery DataFrame):
+                A BigQuery DataFrame as evaluation data.
+            y (BigQuery DataFrame):
+                A BigQuery DataFrame as evaluation labels.
 
-        Returns: a BigFrames DataFrame as evaluation result."""
+        Returns:
+            BigQuery DataFrame: a BigQuery DataFrame as evaluation result.
+        """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
@@ -673,10 +687,13 @@ class RandomForestClassifier(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            RandomForestClassifier: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

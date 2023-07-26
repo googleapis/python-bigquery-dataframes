@@ -32,8 +32,10 @@ class PaLM2TextGenerator(base.Predictor):
     """PaLM2 text generator LLM model.
 
     Args:
-        session: BQ session to create the model
-        connection_name: connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>"""
+        session (BigQuery Session):
+            BQ session to create the model
+        connection_name (str):
+            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>"""
 
     def __init__(self, session: bigframes.Session, connection_name: str):
         self.session = session
@@ -60,32 +62,39 @@ class PaLM2TextGenerator(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X: Input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input. Prompts can include preamble, questions, suggestions, instructions, or examples.
+            X (BigQuery Dataframe):
+                Input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input.
+                Prompts can include preamble, questions, suggestions, instructions, or examples.
 
-            temperature: The temperature is used for sampling during the response generation, which occurs when topP and topK are applied.
+            temperature (float, default 0.0):
+                The temperature is used for sampling during the response generation, which occurs when topP and topK are applied.
                 Temperature controls the degree of randomness in token selection. Lower temperatures are good for prompts that expect a true or correct response,
                 while higher temperatures can lead to more diverse or unexpected results. A temperature of 0 is deterministic:
                 the highest probability token is always selected. For most use cases, try starting with a temperature of 0.2.
                 Default 0.
 
-            max_output_tokens: Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
+            max_output_tokens (int, default 128):
+                Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
                 A token may be smaller than a word. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
                 Default 128.
 
-            top_k: Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
+            top_k (int, default 40):
+                Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
                 in the model’s vocabulary (also called greedy decoding), while a top-k of 3 means that the next token is selected from among the 3 most probable tokens (using temperature).
                 For each token selection step, the top K tokens with the highest probabilities are sampled. Then tokens are further filtered based on topP with the final token selected using temperature sampling.
                 Specify a lower value for less random responses and a higher value for more random responses.
                 Default 40.
 
-            top_p: Top-p changes how the model selects tokens for output. Tokens are selected from most K (see topK parameter) probable to least until the sum of their probabilities equals the top-p value.
+            top_p (float, default 0.95)::
+                Top-p changes how the model selects tokens for output. Tokens are selected from most K (see topK parameter) probable to least until the sum of their probabilities equals the top-p value.
                 For example, if tokens A, B, and C have a probability of 0.3, 0.2, and 0.1 and the top-p value is 0.5, then the model will select either A or B as the next token (using temperature)
                 and not consider C at all.
                 Specify a lower value for less random responses and a higher value for more random responses.
                 Default 0.95.
 
 
-        Returns: Output DataFrame with only 1 column as the output text results."""
+        Returns:
+            BigQuery DataFrame: Output DataFrame with only 1 column as the output text results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         if temperature < 0.0 or temperature > 1.0:
@@ -126,8 +135,10 @@ class PaLM2EmbeddingGenerator(base.Predictor):
     """PaLM2 embedding generator LLM model.
 
     Args:
-        session: BQ session to create the model
-        connection_name: connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>"""
+        session (BigQuery Session):
+            BQ session to create the model
+        connection_name (str):
+            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>"""
 
     def __init__(self, session: bigframes.Session, connection_name: str):
         self.session = session
@@ -147,9 +158,12 @@ class PaLM2EmbeddingGenerator(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X: Input DataFrame, which needs to contain a column with name "content". Only the column will be used as input. Content can include preamble, questions, suggestions, instructions, or examples.
+            X (BigQuery DataFrame):
+                Input DataFrame, which needs to contain a column with name "content". Only the column will be used as input. Content can include preamble, questions, suggestions, instructions, or examples.
 
-        Returns: Output DataFrame with only 1 column as the output embedding results."""
+        Returns:
+            BigQuery DataFrame: Output DataFrame with only 1 column as the output embedding results
+        """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         (X,) = utils.convert_to_dataframe(X)

@@ -32,17 +32,17 @@ def train_test_split(
     """Splits dataframes into random train and test subsets
 
     Args:
-        *dataframes:
+        dataframes (BigQuery DataFrames):
             A sequence of BigQuery DataFrames that can be joined on
             their indexes
-        test_size:
+        test_size (default None):
             The proportion of the dataset to include in the test split. If
             None, this will default to the complement of train_size. If both
             are none, it will be set to 0.25.
-        train_size:
+        train_size (default None):
             The proportion of the dataset to include in the train split. If
             None, this will default to the complement of test_size.
-        random_state:
+        random_state (default None):
             A seed to use for randomly choosing the rows of the split. If not
             set, a random split will be generated each time.
 

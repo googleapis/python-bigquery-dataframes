@@ -116,6 +116,9 @@ def reset_session() -> None:
     """Start a fresh session next time a function requires a session.
 
     Closes the current session if it was already started.
+
+    Returns:
+        None
     """
     global _global_session
 

@@ -25,18 +25,17 @@ def accuracy_score(y_true, y_pred, normalize=True) -> float:
     """Accuracy classification score.
 
     Args:
-        y_true: Series or DataFrame of shape (n_samples,)
+        y_true (Series or DataFrame of shape (n_samples,)):
             Ground truth (correct) labels.
-        y_pred: Series or DataFrame of shape (n_samples,)
+        y_pred (Series or DataFrame of shape (n_samples,)):
             Predicted labels, as returned by a classifier.
-        normalize: bool, default=True
+        normalize (bool, default True):
             Default to True. If ``False``, return the number of correctly
             classified samples. Otherwise, return the fraction of correctly
             classified samples.
 
     Returns:
-        score: float.
-            If ``normalize == True``, return the fraction of correctly
+        float: If ``normalize == True``, return the fraction of correctly
             classified samples (float), else returns the number of correctly
             classified samples (int).
     """
@@ -58,17 +57,16 @@ def confusion_matrix(
     :math:`C_{1,1}` and false positives is :math:`C_{0,1}`.
 
     Args:
-        y_true: Series or DataFrame of shape (n_samples,)
+        y_true (Series or DataFrame of shape (n_samples,)):
             Ground truth (correct) target values.
-        y_pred: Series or DataFrame of shape (n_samples,)
+        y_pred (Series or DataFrame of shape (n_samples,)):
             Estimated targets as returned by a classifier.
 
     Returns:
-        C: DataFrame of shape (n_samples, n_features).
-            Confusion matrix whose i-th row and j-th
-            column entry indicates the number of
-            samples with true label being i-th class
-            and predicted label being j-th class.
+        DataFrame of shape (n_samples, n_features): Confusion matrix whose
+            i-th row and j-th   column entry indicates the number of
+            samples with true label being i-th class and predicted label
+            being j-th class.
     """
     raise NotImplementedError("abstract method")
 
@@ -87,19 +85,18 @@ def recall_score(
     The best value is 1 and the worst value is 0.
 
     Args:
-        y_true: Series or DataFrame of shape (n_samples,)
+        y_true (Series or DataFrame of shape (n_samples,)):
             Ground truth (correct) target values.
-        y_pred: Series or DataFrame of shape (n_samples,)
+        y_pred (Series or DataFrame of shape (n_samples,)):
             Estimated targets as returned by a classifier.
-        average: {'micro', 'macro', 'samples', 'weighted', 'binary'} or None, \
-                default='binary'
+        average ({'micro', 'macro', 'samples', 'weighted', 'binary'} or None, \
+                default='binary'):
             This parameter is required for multiclass/multilabel targets.
             Possible values are 'None', 'micro', 'macro', 'samples', 'weighted', 'binary'.
 
     Returns:
-        recall: float (if average is not None) or Series of float of shape \
-                (n_unique_labels,).
-            Recall of the positive class in binary classification or weighted
+        float (if average is not None) or Series of float of shape n_unique_labels,): Recall
+            of the positive class in binary classification or weighted
             average of the recall of each class for the multiclass task.
     """
     raise NotImplementedError("abstract method")

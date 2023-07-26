@@ -32,12 +32,22 @@ class StandardScaler(BaseEstimator):
     def fit(self, X):
         """Compute the mean and std to be used for later scaling.
 
+        Examples:
+
+        .. code-block::
+
+            from bigframes.ml import StandardScaler
+
+            enc = StandardScaler()
+            X = [['Male', 1], ['Female', 3], ['Female', 2]]
+            enc.fit(X)
+
         Args:
-            X:
+            X (BigQuery DataFrame):
                 A dataframe with training data.
 
         Returns:
-            Fitted scaler.
+            N/A: Fitted scaler.
         """
         raise NotImplementedError("abstract method")
 
@@ -45,9 +55,10 @@ class StandardScaler(BaseEstimator):
         """Perform standardization by centering and scaling.
 
         Args:
-            X:
+            X (BigQuery DataFrame):
                 The DataFrame to be transformed.
 
         Returns:
-            Transformed result."""
+            N/A: Transformed result.
+        """
         raise NotImplementedError("abstract method")

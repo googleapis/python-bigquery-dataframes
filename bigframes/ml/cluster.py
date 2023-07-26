@@ -87,10 +87,13 @@ class KMeans(
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default to False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            KMeans: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

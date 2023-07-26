@@ -30,8 +30,9 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
     truncated SVD.
 
     Args:
-         n_components: Optional[int]
-            Number of components to keep. if n_components is not set all components are kept.
+         n_components (Optional[int], default 3):
+            Number of components to keep. if n_components is not set all components
+            are kept.
 
     """
 
@@ -39,15 +40,15 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Fit the model according to the given training data.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
-            y:
+            y (default None):
                 Ignored.
         Returns:
-            Fitted estimator.
+            N/A: Fitted estimator.
         """
         raise NotImplementedError("abstract method")
 
@@ -55,13 +56,13 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Return the metrics of the model.
 
         Args:
-            X:
+            X (default None):
                 Ignored.
 
-            y:
+            y (default None):
                 Ignored.
         Returns:
-            Series or DataFrame that represents model metrics.
+            DataFrame that represents model metrics.
         """
         raise NotImplementedError("abstract method")
 
@@ -69,8 +70,9 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X: Series or DataFrame to predict.
+            X (BigQuery DataFrame or Series):
+                Series or a BigQuery DataFrame to predict.
 
         Returns:
-            predicted BigQuery DataFrames."""
+            N/A: predicted BigQuery DataFrames."""
         raise NotImplementedError("abstract method")

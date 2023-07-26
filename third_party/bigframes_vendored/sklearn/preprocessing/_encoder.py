@@ -17,40 +17,49 @@ class OneHotEncoder(BaseEstimator):
     binary columns, the encoding is a single column of STRUCT<index INT64, value DOUBLE>
 
     Args:
-        drop:
+        drop (Optional[Literal["most_frequent"]], default None):
             Specifies a methodology to use to drop one of the categories per feature.
             This is useful in situations where perfectly collinear features cause problems,
             such as when feeding the resulting data into an unregularized linear regression model.
-
             However, dropping one category breaks the symmetry of the original representation
             and can therefore induce a bias in downstream models, for instance for penalized
             linear classification or regression models.
-
             Default None: retain all the categories.
             "most_frequent": Drop the most frequent category found in the string expression.
             Selecting this value causes the function to use dummy encoding.
-        min_frequency:
+        min_frequency (Optional[int], default None):
             Specifies the minimum frequency below which a category will be considered infrequent.
-
             Default None.
             int: categories with a smaller cardinality will be considered infrequent as index 0.
-        max_categories:
+        max_categories (Optional[int], default None):
             Specifies an upper limit to the number of output features for each input feature
             when considering infrequent categories. If there are infrequent categories,
             max_categories includes the category representing the infrequent categories along with the frequent categories.
-
             Default None, set limit to 1,000,000.
     """
 
     def fit(self, X):
         """Fit OneHotEncoder to X.
 
+        Examples:
+
+        Given a dataset with two features, we let the encoder find the unique
+        values per feature and transform the data to a binary one-hot encoding.
+
+        .. code-block::
+
+            from bigframes.ml import OneHotEncoder
+
+            enc = OneHotEncoder()
+            X = [['Male', 1], ['Female', 3], ['Female', 2]]
+            enc.fit(X)
+
         Args:
-            X:
+            X (BigQuery DataFrame):
                 A dataframe with training data.
 
         Returns:
-                Fitted encoder.
+            N/A: Fitted encoder.
         """
         raise NotImplementedError("abstract method")
 
@@ -58,7 +67,7 @@ class OneHotEncoder(BaseEstimator):
         """Transform X using one-hot encoding.
 
         Args:
-            X:
+            X (BigQuery DataFrame):
                 The DataFrame to be transformed.
 
         Returns:

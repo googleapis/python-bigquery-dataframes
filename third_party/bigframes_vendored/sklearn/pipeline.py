@@ -38,14 +38,14 @@ class Pipeline(BaseEstimator, metaclass=ABCMeta):
         data. Finally, fit the transformed data using the final estimator.
 
         Args:
-            X:
-                A BigQuery DataFrames representing training data. Must match the
+            X (Bigquery DataFrame):
+                A BigQuery DataFrame representing training data. Must match the
                 input requirements of the first step of the pipeline.
-            y:
-                A BigQuery DataFrames representing training targets, if applicable.
+            y (Bigquery DataFrame):
+                A BigQuery DataFrame representing training targets, if applicable.
 
         Returns:
-            Pipeline with fitted steps.
+            Pipeline: Pipeline with fitted steps.
         """
         raise NotImplementedError("abstract method")
 
@@ -58,14 +58,14 @@ def score(self, X, y):
     `score` method. Only valid if the final estimator implements `score`.
 
     Args:
-        X:
-            A BigQuery DataFrames as evaluation data.
-        y:
-            A BigQuery DataFrames as evaluation labels.
+        X (Bigquery DataFrame):
+            A BigQuery DataFrame as evaluation data.
+        y (Bigquery DataFrame):
+            A BigQuery DataFrame as evaluation labels.
 
-    Returns:
-        A BigQuery DataFrames representing the result of calling
-        `score` on the final estimator.
+    Returns:;
+        Bigquery DataFrame: A BigQuery DataFrame representing the result
+            of calling `score` on the final estimator.
     """
     raise NotImplementedError("abstract method")
 
@@ -74,10 +74,11 @@ def predict(self, X):
     """Predict the pipeline result for each sample in X.
 
     Args:
-        X:
-            A BigQuery DataFrames to predict.
+        X (Bigquery DataFrame):
+            A BigQuery DataFrame to predict.
 
     Returns:
-        A BigQuery DataFrames Dataframe representing predicted result.
+        Bigquery DataFrame: A BigQuery DataFrames Dataframe representing
+            predicted result.
     """
     raise NotImplementedError("abstract method")

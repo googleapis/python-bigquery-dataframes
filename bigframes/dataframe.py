@@ -263,12 +263,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         including unnamed index columns
 
         Args:
-            always_include_index: whether to include unnamed index columns.
-            If False, only named indexes are included.
+            always_include_index (bool):
+                whether to include unnamed index columns.If False, only named
+                indexes are included.
 
-        Returns: a tuple of (sql_string, index_column_list). Each entry in the
-            index column list is a tuple of (column_name, named). If named is
-            is false, then the column name exists only in SQL"""
+        Returns: a tuple of (sql_string, index_column_list)
+            Each entry in the index column list is a tuple of (column_name, named).
+            If named is false, then the column name exists only in SQL
+        """
         # Has to be unordered as it is impossible to order the sql without
         # including metadata columns in selection with ibis.
         ibis_expr = self._block.expr.to_ibis_expr(ordering_mode="unordered")

@@ -19,7 +19,8 @@ class NDFrame(indexing.IndexingMixin):
     def ndim(self) -> int:
         """Return an int representing the number of axes / array dimensions.
 
-        Return 1 if Series. Otherwise return 2 if DataFrame.
+        Returns:
+            int: Return 1 if Series. Otherwise return 2 if DataFrame.
         """
         raise NotImplementedError("abstract method")
 
@@ -27,8 +28,9 @@ class NDFrame(indexing.IndexingMixin):
     def size(self) -> int:
         """Return an int representing the number of elements in this object.
 
-        Return the number of rows if Series. Otherwise return the number of
-        rows times number of columns if DataFrame.
+        Returns:
+            int: Return the number of rows if Series. Otherwise return the number of
+                rows times number of columns if DataFrame.
         """
         raise NotImplementedError("abstract method")
 
@@ -42,6 +44,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Returns:
             Series/DataFrame containing the absolute value of each element.
+            Returns a Series/DataFrame containing the absolute value of each element.
         """
         raise NotImplementedError("abstract method")
 
@@ -75,12 +78,12 @@ class NDFrame(indexing.IndexingMixin):
         True if Series/DataFrame is entirely empty (no items), meaning any of the
         axes are of length 0.
 
-        Returns:
-            If Series/DataFrame is empty, return True, if not return False.
-
-        Note:
+        .. note::
             If Series/DataFrame contains only NA values, it is still not
             considered empty.
+
+        Returns:
+            bool: If Series/DataFrame is empty, return True, if not return False.
         """
         raise NotImplementedError("abstract method")
 
@@ -102,8 +105,14 @@ class NDFrame(indexing.IndexingMixin):
         Note NaN's and None will be converted to null and datetime objects
         will be converted to UNIX timestamps.
 
+        .. note::
+            In BigQuery DataFrame, only `orient='records'` is supported so far.
+
+        .. note::
+            BigQuery DataFrames only supports ``lines=True`` so far.
+
         Args:
-            path_or_buf:
+            path_or_buf (str):
                 A destination URI of GCS files(s) to store the extracted dataframe
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
 
@@ -112,12 +121,8 @@ class NDFrame(indexing.IndexingMixin):
                 varies.
 
                 None, file-like objects or local file paths not yet supported.
-            orient:
+            orient ({`split`, `records`, `index`, `columns`, `values`, `table`}, default 'columns):
                 Indication of expected JSON string format.
-
-                .. note::
-
-                    In BigQuery DataFrame, only `orient='records'` is supported so far.
 
                 * Series:
 
@@ -141,21 +146,16 @@ class NDFrame(indexing.IndexingMixin):
                     - 'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
 
                     Describing the data, where data component is like ``orient='records'``.
+            index (bool, default True):
+                If True, write row names (index).
 
-            lines:
+            lines (bool, default False):
                 If 'orient' is 'records' write out line-delimited json format. Will
                 throw ValueError if incorrect 'orient' since others are not
                 list-like.
 
-                .. note::
-
-                   BigQuery DataFrames only supports ``lines=True`` so far.
-
-            index:
-                If True, write row names (index).
-
         Returns:
-            None. String output not yet supported.
+            None: String output not yet supported.
         """
         raise NotImplementedError("abstract method")
 
@@ -163,7 +163,7 @@ class NDFrame(indexing.IndexingMixin):
         """Write object to a comma-separated values (csv) file on GCS.
 
         Args:
-            path_or_buf:
+            path_or_buf (str):
                 A destination URI of GCS files(s) to store the extracted dataframe
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
 
@@ -173,11 +173,11 @@ class NDFrame(indexing.IndexingMixin):
 
                 None, file-like objects or local file paths not yet supported.
 
-            index:
+            index (bool, default True):
                 If True, write row names (index).
 
         Returns:
-            None. String output not yet supported.
+            None: String output not yet supported.
         """
         raise NotImplementedError("abstract method")
 
@@ -208,9 +208,9 @@ class NDFrame(indexing.IndexingMixin):
         For DataFrame, the column labels are prefixed.
 
         Args:
-            prefix:
+            prefix (str):
                 The string to add before each label.
-            axis:
+            axis (int or str or None, default None):
                 ``{{0 or 'index', 1 or 'columns', None}}``, default None. Axis
                 to add prefix on
 
@@ -250,7 +250,7 @@ class NDFrame(indexing.IndexingMixin):
         If n is larger than the number of rows, this function returns all rows.
 
         Args:
-            n:
+            n (int, default 5):
                 Default 5. Number of rows to select.
 
         Returns:
@@ -271,7 +271,8 @@ class NDFrame(indexing.IndexingMixin):
         If n is larger than the number of rows, this function returns all rows.
 
         Args:
-            n: int, default 5.  Number of rows to select.
+            n (int, default 5):
+                Number of rows to select.
 
         Returns:
             The last `n` rows of the caller object.
@@ -290,12 +291,12 @@ class NDFrame(indexing.IndexingMixin):
         You can use `random_state` for reproducibility.
 
         Args:
-            n:
+            n (Optional[int], default None):
                 Number of items from axis to return. Cannot be used with `frac`.
                 Default = 1 if `frac` = None.
-            frac:
+            frac (Optional[float], default None):
                 Fraction of axis items to return. Cannot be used with `n`.
-            random_state:
+            random_state (Optional[int], default None):
                 Seed for random number generator.
 
         Returns:
@@ -360,7 +361,7 @@ class NDFrame(indexing.IndexingMixin):
         NA values get mapped to False values.
 
         Returns:
-            Mask of bool values for each element that indicates whether an
+            NDFrame: Mask of bool values for each element that indicates whether an
             element is not an NA value.
         """
         raise NotImplementedError("abstract method")
@@ -376,11 +377,11 @@ class NDFrame(indexing.IndexingMixin):
         Shifts the index without realigning the data.
 
         Args:
-            periods:
+            periods int:
                 Number of periods to shift. Can be positive or negative.
 
         Returns:
-            Copy of input object, shifted.
+            NDFrame:  Copy of input object, shifted.
         """
         raise NotImplementedError("abstract method")
 
@@ -398,34 +399,30 @@ class NDFrame(indexing.IndexingMixin):
         By default, equal values are assigned a rank that is the average of the
         ranks of those values.
 
-        Parameters
-        ----------
-        method : {'average', 'min', 'max', 'first', 'dense'}, default 'average'
-            How to rank the group of records that have the same value (i.e. ties):
+        Args:
+            method ({'average', 'min', 'max', 'first', 'dense'}, default 'average'):
+                How to rank the group of records that have the same value (i.e. ties):
 
-            * average: average rank of the group
-            * min: lowest rank in the group
-            * max: highest rank in the group
-            * first: ranks assigned in order they appear in the array
-            * dense: like 'min', but rank always increases by 1 between groups.
+                * average: average rank of the group
+                * min: lowest rank in the group
+                * max: highest rank in the group
+                * first: ranks assigned in order they appear in the array
+                * dense: like 'min', but rank always increases by 1 between groups.
 
-        numeric_only : bool, default False
-            For DataFrame objects, rank only numeric columns if set to True.
+            numeric_only (bool, default False):
+                For DataFrame objects, rank only numeric columns if set to True.
 
-        na_option : {'keep', 'top', 'bottom'}, default 'keep'
-            How to rank NaN values:
+            na_option ({'keep', 'top', 'bottom'}, default 'keep'):
+                How to rank NaN values:
+                * keep: assign NaN rank to NaN values
+                * top: assign lowest rank to NaN values
+                * bottom: assign highest rank to NaN values
 
-            * keep: assign NaN rank to NaN values
-            * top: assign lowest rank to NaN values
-            * bottom: assign highest rank to NaN values
+            ascending (bool, default True):
+                Whether or not the elements should be ranked in ascending order.
 
-        ascending : bool, default True
-            Whether or not the elements should be ranked in ascending order.
-
-        Returns
-        -------
-        same type as caller
-            Return a Series or DataFrame with data ranks as values.
+        Returns:
+            same type as caller: Return a Series or DataFrame with data ranks as values.
         """
         raise NotImplementedError("abstract method")
 

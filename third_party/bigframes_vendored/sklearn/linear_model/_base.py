@@ -30,11 +30,11 @@ class LinearModel(BaseEstimator, metaclass=ABCMeta):
         """Predict using the linear model.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). Samples.
 
         Returns:
-            DataFrame of shape (n_samples,). Returns predicted values.
+            BigQuery DataFrame: DataFrame of shape (n_samples,). Returns predicted values.
         """
         raise NotImplementedError("abstract method")
 
@@ -44,13 +44,13 @@ class LinearClassifierMixin(ClassifierMixin):
         """Predict class labels for samples in X.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
         Returns:
-            DataFrame of shape (n_samples,), containing the class labels for
-            each sample.
+            BigQuery DataFrame:  DataFrame of shape (n_samples,), containing
+                the class labels for each sample.
         """
         raise NotImplementedError("abstract method")
 
@@ -63,7 +63,7 @@ class LinearRegression(RegressorMixin, LinearModel):
     the dataset, and the targets predicted by the linear approximation.
 
     Args:
-        fit_intercept:
+        fit_intercept (default True):
             Default ``True``. Whether to calculate the intercept for this
             model. If set to False, no intercept will be used in calculations
             (i.e. data is expected to be centered).
@@ -78,14 +78,14 @@ class LinearRegression(RegressorMixin, LinearModel):
         """Fit linear model.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). Training data.
 
-            y:
+            y (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples,) or (n_samples, n_targets).
                 Target values. Will be cast to X's dtype if necessary.
 
-            transforms:
+            transforms (Optional[List[str]], default None):
                 An optional list of SQL expressions to apply over top of the
                 model inputs as preprocessing. This preprocessing will be
                 automatically reapplied to new input data (e.g. in .predict),
@@ -93,6 +93,6 @@ class LinearRegression(RegressorMixin, LinearModel):
                 training data.
 
         Returns:
-            Fitted Estimator.
+            N/A : Fitted Estimator.
         """
         raise NotImplementedError("abstract method")

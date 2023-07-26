@@ -62,11 +62,14 @@ class BqmlModel:
         """Helper to wrap a dataframe in a SQL query, keeping the index intact.
 
         Args:
-            session: the active bigframes
+            session (bigframes.Session):
+                the active bigframes.Session
 
-            input_data: the dataframe to be wrapped
+            input_data (BigQuery DataFrame):
+                the dataframe to be wrapped
 
-            func: a function that will accept a SQL string and produce a new SQL
+            func (function):
+                a function that will accept a SQL string and produce a new SQL
                 string from which to construct the output dataframe. It must
                 include the index columns of the input SQL.
         """
@@ -278,11 +281,13 @@ def create_bqml_remote_model(
     """Create a session-temporary BQML remote model with the CREATE MODEL statement
 
     Args:
-        connection_name: a BQ connection to talk with Vertex AI, of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>. https://cloud.google.com/bigquery/docs/create-cloud-resource-connection
-        options: a dict of options to configure the model. Generates a BQML OPTIONS
-            clause
+        connection_name:
+            a BQ connection to talk with Vertex AI, of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>. https://cloud.google.com/bigquery/docs/create-cloud-resource-connection
+        options:
+            a dict of options to configure the model. Generates a BQML OPTIONS clause
 
-    Returns: a BqmlModel, wrapping a trained model in BigQuery
+    Returns:
+        BqmlModel: a BqmlModel wrapping a trained model in BigQuery
     """
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     options_sql = ml_sql.options(**options)

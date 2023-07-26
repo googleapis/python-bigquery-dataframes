@@ -25,8 +25,10 @@ class TensorFlowModel(base.Predictor):
     """Imported TensorFlow model.
 
     Args:
-        session: BQ session to create the model
-        model_path: GCS path that holds the model files."""
+        session (BigQuery Session):
+            BQ session to create the model
+        model_path (str):
+            GCS path that holds the model files."""
 
     def __init__(self, session: bigframes.Session, model_path: str):
         self.session = session
@@ -41,9 +43,11 @@ class TensorFlowModel(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X: Input DataFrame, schema is defined by the model.
+            X (BigQuery DataFrame):
+                Input DataFrame, schema is defined by the model.
 
-        Returns: Output DataFrame, schema is defined by the model."""
+        Returns:
+            BigQuery DataFrame: Output DataFrame, schema is defined by the model."""
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)
@@ -62,8 +66,10 @@ class ONNXModel(base.Predictor):
     """Imported Open Neural Network Exchange (ONNX) model.
 
     Args:
-        session: BQ session to create the model
-        model_path: GCS path that holds the model files."""
+        session (BigQuery Session):
+            BQ session to create the model
+        model_path (str):
+            GCS path that holds the model files."""
 
     def __init__(self, session: bigframes.Session, model_path: str):
         self.session = session
@@ -78,9 +84,11 @@ class ONNXModel(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X: Input DataFrame, schema is defined by the model.
+            X (BigQuery DataFrame or Series):
+                Input DataFrame or Series, schema is defined by the model.
 
-        Returns: Output DataFrame, schema is defined by the model."""
+        Returns:
+            BigQuery DataFrame: Output DataFrame, schema is defined by the model."""
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)

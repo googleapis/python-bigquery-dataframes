@@ -506,44 +506,7 @@ def remote_function(
     .. deprecated:: 0.0.1
        Use :func:`bigframes.pandas.remote_function` instead.
 
-    Args:
-        input_types : list(type).
-            List of input data types in the user defined function.
-        output_type : type.
-            Data type of the output in the user defined function.
-        session : bigframes.Session, Optional
-            BigQuery DataFrames session to use for getting default project,
-            dataset and BigQuery connection.
-        bigquery_client : google.cloud.bigquery.Client, Optional
-            Client to use for BigQuery operations. If this param is not provided
-            then bigquery client from the session would be used.
-        bigquery_connection_client : google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional
-            Client to use for cloud functions operations. If this param is not
-            provided then functions client from the session would be used.
-        cloud_functions_client : google.cloud.functions_v2.FunctionServiceClient, Optional
-            Client to use for BigQuery connection operations. If this param is
-            not provided then bigquery connection client from the session would
-            be used.
-        dataset : str, Optional.
-            Dataset to use to create a BigQuery function. It should be in
-            `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
-            param is not provided then session dataset id would be used.
-        bigquery_connection : str, Optional.
-            Name of the BigQuery connection. If this param is not provided then
-            the bigquery connection from the session would be used. If it is pre
-            created in the same location as the `bigquery_client.location` then
-            it would be used, otherwise it would be created dynamically using
-            the `bigquery_connection_client` assuming the user has necessary
-            priviliges.
-        reuse : bool, Optional.
-            Reuse the remote function if already exists.
-            `True` by default, which will result in reusing an existing remote
-            function (if any) that was previously created for the same udf.
-            Setting it to false would force creating a unique remote function.
-            If the required remote function does not exist then it would be
-            created irrespective of this param.
-
-    Notes:
+    .. note::
         Please make sure following is setup before using this API:
 
         1. Have the below APIs enabled for your project:
@@ -573,6 +536,43 @@ def remote_function(
               b. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
            Alternatively, the IAM could also be setup via the gcloud CLI:
               $ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"
+
+    Args:
+        input_types list(type):
+            List of input data types in the user defined function.
+        output_type type:
+            Data type of the output in the user defined function.
+        session (bigframes.Session, Optional):
+            BigQuery DataFrames session to use for getting default project,
+            dataset and BigQuery connection.
+        bigquery_client (google.cloud.bigquery.Client, Optional):
+            Client to use for BigQuery operations. If this param is not provided
+            then bigquery client from the session would be used.
+        bigquery_connection_client (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
+            Client to use for cloud functions operations. If this param is not
+            provided then functions client from the session would be used.
+        cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
+            Client to use for BigQuery connection operations. If this param is
+            not provided then bigquery connection client from the session would
+            be used.
+        dataset (str, Optional.):
+            Dataset to use to create a BigQuery function. It should be in
+            `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
+            param is not provided then session dataset id would be used.
+        bigquery_connection (str, Optional):
+            Name of the BigQuery connection. If this param is not provided then
+            the bigquery connection from the session would be used. If it is pre
+            created in the same location as the `bigquery_client.location` then
+            it would be used, otherwise it would be created dynamically using
+            the `bigquery_connection_client` assuming the user has necessary
+            priviliges.
+        reuse (bool, Optional):
+            Reuse the remote function if already exists.
+            `True` by default, which will result in reusing an existing remote
+            function (if any) that was previously created for the same udf.
+            Setting it to false would force creating a unique remote function.
+            If the required remote function does not exist then it would be
+            created irrespective of this param.
 
     """
 

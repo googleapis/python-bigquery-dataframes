@@ -16,10 +16,10 @@ display_options_doc = """
 Encapsulates configuration for displaying objects.
 
 Attributes:
-    max_columns (int):
+    max_columns (int, default 20):
         If max_columns is exceeded, switch to truncate view.
-    max_rows (int):
+    max_rows (int, default 25):
         If max_rows is exceeded, switch to truncate view.
-    progress_bar Optional(str):
+    progress_bar (Optional(str), default "auto"):
         Determines if progress bars are shown during job runs. Use auto | notebook | terminal. Set to 'None' to remove progress bars
 """

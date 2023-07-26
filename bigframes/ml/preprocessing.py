@@ -116,7 +116,8 @@ class OneHotEncoder(
         a BQML TRANSFORM clause
 
         Args:
-            columns: a list of column names to transform
+            columns:
+                a list of column names to transform
 
         Returns: a list of tuples of (sql_expression, output_name)"""
 

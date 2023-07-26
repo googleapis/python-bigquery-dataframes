@@ -24,13 +24,13 @@ class _BaseKMeans(BaseEstimator, ABC):
         """Predict the closest cluster each sample in X belongs to.
 
         Args:
-            X:
+            X (BigQuery DataFrame or Series):
                 Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
         Returns:
-            DataFrame of shape (n_samples,), containing the class labels for
-            each sample.
+            BigQuery DataFrame: DataFrame of shape (n_samples,), containing the
+                class labels for each sample.
         """
         raise NotImplementedError("abstract method")
 
@@ -39,7 +39,7 @@ class KMeans(_BaseKMeans):
     """K-Means clustering.
 
     Args:
-        n_clusters: int, default=8
+        n_clusters (int, default 8):
             The number of clusters to form as well as the number of centroids to generate.
             Default to 8.
     """
@@ -53,12 +53,11 @@ class KMeans(_BaseKMeans):
         """Compute k-means clustering.
 
         Args:
-            X:
+            X (BigQuery DataFrame):
                 DataFrame of shape (n_samples, n_features). Training data.
-            y:  Ignored
+            y (default None):
                 Not used, present here for API consistency by convention.
-
-            transforms:
+            transforms (Optional[List[str]], default None):
                 An optional list of SQL expressions to apply over top of the
                 model inputs as preprocessing. This preprocessing will be
                 automatically reapplied to new input data (e.g. in .predict),
@@ -78,12 +77,12 @@ class KMeans(_BaseKMeans):
 
         Args:
             X:
-                Series or DataFrame of shape (n_samples, n_features). New data to predict.
+                DataFrame of shape (n_samples, n_features). New data to predict.
             y:  Ignored
                 Not used, present here for API consistency by convention.
 
         Returns:
-            DataFrame of the cluster each sample belongs to.
+            BigQuery DataFrame: DataFrame of the cluster each sample belongs to.
         """
         raise NotImplementedError("abstract method")
 
@@ -92,15 +91,15 @@ class KMeans(_BaseKMeans):
         X,
         y=None,
     ):
-        """Metrics of the model
+        """Metrics of the model.
 
         Args:
             X:
-                Series or DataFrame of shape (n_samples, n_features). New Data.
+                DataFrame of shape (n_samples, n_features). New Data.
             y:  Ignored
                 Not used, present here for API consistency by convention.
 
         Returns:
-            DataFrame of the metrics.
+            BigQuery DataFrame: DataFrame of the metrics.
         """
         raise NotImplementedError("abstract method")

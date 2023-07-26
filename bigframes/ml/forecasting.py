@@ -55,9 +55,11 @@ class ARIMAPlus(base.TrainablePredictor):
         """Fit the model to training data
 
         Args:
-            X: A dataframe of training timestamp.
+            X (BigQuery DataFrame):
+                A dataframe of training timestamp.
 
-            y: Target values for training."""
+            y (BigQuery DataFrame):
+                Target values for training."""
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_time_series_model(
@@ -71,10 +73,11 @@ class ARIMAPlus(base.TrainablePredictor):
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X: ignored, to be compatible with other APIs.
+            X (default None):
+                ignored, to be compatible with other APIs.
         Returns:
-            The predicted BigQuery DataFrames. Which contains 2 columns
-            "forecast_timestamp" and "forecast_value".
+            BigQuery DataFrame: The predicted BigQuery DataFrames. Which
+                contains 2 columns "forecast_timestamp" and "forecast_value".
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -92,16 +95,16 @@ class ARIMAPlus(base.TrainablePredictor):
         """Calculate evaluation metrics of the model.
 
         Args:
-            X:
-                A BigQuery DataFrames only contains 1 column as
+            X (BigQuery DataFrame or Series):
+                A BigQuery DataFrame only contains 1 column as
                 evaluation timestamp. The timestamp must be within the horizon
                 of the model, which by default is 1000 data points.
-            y:
-                A BigQuery DataFrames only contains 1 column as
+            y (BigQuery DataFrame or Series):
+                A BigQuery DataFrame only contains 1 column as
                 evaluation numeric values.
 
         Returns:
-            A BigQuery DataFrames as evaluation result.
+            BigQuery DataFrame: A BigQuery DataFrame as evaluation result.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -114,10 +117,13 @@ class ARIMAPlus(base.TrainablePredictor):
         """Save the model to Google Cloud BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns:
+            ARIMAPlus: saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

@@ -102,8 +102,10 @@ class Predictor(BaseEstimator):
 
     def register(self: _T, vertex_ai_model_id: Optional[str] = None) -> _T:
         """Register the model to Vertex AI.
+
         Args:
-            vertex_ai_model_id: optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
+            vertex_ai_model_id (Optional[str], default None):
+                optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
 
         Returns:
             BigQuery DataFrames Model after register.
