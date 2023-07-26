@@ -1583,21 +1583,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if index and self.index.name is not None:
             columns.extend(self._block.index_columns)
             column_labels.extend(self.index.names)
-        # TODO(chelsealin): normalize the file formats if we needs, such as arbitrary
-        # unicode for column labels.
-        value_columns = (expr.get_column(column_name) for column_name in columns)
-        expr = expr.projection(value_columns)
+        else:
+            expr = expr.drop_columns(self._block.index_columns)
 
         # Make columns in SQL reflect _labels_ not _ids_. Note: This may use
         # the arbitrary unicode column labels feature in BigQuery, which is
         # currently (June 2023) in preview.
         # TODO(swast): Handle duplicate and NULL labels.
-        ibis_expr = expr.to_ibis_expr()
-        renamed_columns = [
-            ibis_expr[col_id].name(col_label)
+        id_overrides = {
+            col_id: col_label
             for col_id, col_label in zip(columns, column_labels)
-        ]
-        ibis_expr = ibis_expr.select(*renamed_columns)
+            if col_label
+        }
+        ibis_expr = expr.to_ibis_expr(
+            ordering_mode="order_by", col_id_overrides=id_overrides
+        )
         sql = session.ibis_client.compile(ibis_expr)  # type: ignore
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore

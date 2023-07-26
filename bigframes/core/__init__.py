@@ -593,6 +593,7 @@ class ArrayValue:
         ] = "order_by",
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
         expose_hidden_cols: bool = False,
+        col_id_overrides: typing.Mapping[str, str] = {},
     ):
         """
         Creates an Ibis table expression representing the DataFrame.
@@ -624,6 +625,8 @@ class ArrayValue:
                 If True, include the hidden ordering columns in the results.
                 Only compatible with `order_by` and `unordered`
                 ``ordering_mode``.
+            col_id_overrides:
+                overrides the column ids for the result
         Returns:
             An ibis expression representing the data help by the ArrayValue object.
         """
@@ -638,8 +641,11 @@ class ArrayValue:
                 f"Cannot expose hidden ordering columns with ordering_mode {ordering_mode}"
             )
 
-        table = self._table
         columns = list(self._columns)
+        columns = [
+            col.name(col_id_overrides.get(col.get_name(), col.get_name()))
+            for col in columns
+        ]
         hidden_ordering_columns = [
             col.column_id
             for col in self._ordering.all_ordering_columns
@@ -690,7 +696,8 @@ class ArrayValue:
         # projection.
         if not columns:
             return ibis.memtable([])
-        table = table.select(columns)
+
+        table = self._table.select(columns)
         # Make sure all dtypes are the "canonical" ones for BigFrames. This is
         # important for operations like UNION where the schema must match.
         table = bigframes.dtypes.ibis_table_to_canonical_types(table)

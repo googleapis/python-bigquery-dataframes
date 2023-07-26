@@ -72,6 +72,8 @@ def test_to_csv_index(
     gcs_folder: str,
     index: bool,
 ):
+    if pd.__version__.startswith("1."):
+        pytest.skip("date_format parameter not supported in pandas 1.x.")
     """Test the `to_csv` API with the `index` parameter."""
     scalars_df, scalars_pandas_df = scalars_dfs
     index_col = None
@@ -90,13 +92,18 @@ def test_to_csv_index(
     # BigQuery-backed dataframes, so manually convert the dtypes specifically
     # here.
     dtype = scalars_df.reset_index().dtypes.to_dict()
-    dtype.pop("timestamp_col")
     dtype.pop("geography_col")
+    dtype.pop("rowindex")
     gcs_df = pd.read_csv(
-        path, dtype=dtype, parse_dates=["timestamp_col"], index_col=index_col
+        path,
+        dtype=dtype,
+        date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
+        index_col=index_col,
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
 
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_pandas_df.index = scalars_pandas_df.index.astype("int64")
     assert_pandas_df_equal_ignore_ordering(gcs_df, scalars_pandas_df)
 
 
