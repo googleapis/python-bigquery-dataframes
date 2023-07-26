@@ -835,6 +835,25 @@ def test_set_index(scalars_dfs, index_column, drop, append):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("ascending",),
+    ((True,), (False,)),
+)
+@pytest.mark.parametrize(
+    ("na_position",),
+    (("first",), ("last",)),
+)
+def test_sort_index(scalars_dfs, ascending, na_position):
+    index_column = "int64_col"
+    scalars_df, scalars_pandas_df = scalars_dfs
+    df = scalars_df.set_index(index_column)
+    bf_result = df.sort_index(ascending=ascending, na_position=na_position).compute()
+    pd_result = scalars_pandas_df.set_index(index_column).sort_index(
+        ascending=ascending, na_position=na_position
+    )
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_df_abs(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     columns = ["int64_col", "int64_too", "float64_col"]

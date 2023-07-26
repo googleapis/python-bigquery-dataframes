@@ -855,9 +855,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids = [self._resolve_label_exact(key) for key in keys]
         return DataFrame(self._block.set_index(col_ids, append=append, drop=drop))
 
-    def sort_index(self) -> DataFrame:
+    def sort_index(self, ascending=True, na_position="last") -> DataFrame:
+        if na_position not in ["first", "last"]:
+            raise ValueError("Param na_position must be one of 'first' or 'last'")
+        direction = (
+            order.OrderingDirection.ASC if ascending else order.OrderingDirection.DESC
+        )
+        na_last = na_position == "last"
         index_columns = self._block.index_columns
-        ordering = [order.OrderingColumnReference(column) for column in index_columns]
+        ordering = [
+            order.OrderingColumnReference(column, direction=direction, na_last=na_last)
+            for column in index_columns
+        ]
         return DataFrame(self._block.order_by(ordering))
 
     def sort_values(
