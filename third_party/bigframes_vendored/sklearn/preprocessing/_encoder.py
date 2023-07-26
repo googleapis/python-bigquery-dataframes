@@ -15,6 +15,31 @@ class OneHotEncoder(BaseEstimator):
 
     Note that this method deviates from Scikit-Learn; instead of producing sparse
     binary columns, the encoding is a single column of STRUCT<index INT64, value DOUBLE>
+
+    Args:
+        drop:
+            Specifies a methodology to use to drop one of the categories per feature.
+            This is useful in situations where perfectly collinear features cause problems,
+            such as when feeding the resulting data into an unregularized linear regression model.
+
+            However, dropping one category breaks the symmetry of the original representation
+            and can therefore induce a bias in downstream models, for instance for penalized
+            linear classification or regression models.
+
+            Default None: retain all the categories.
+            "most_frequent": Drop the most frequent category found in the string expression.
+            Selecting this value causes the function to use dummy encoding.
+        min_frequency:
+            Specifies the minimum frequency below which a category will be considered infrequent.
+
+            Default None.
+            int: categories with a smaller cardinality will be considered infrequent as index 0.
+        max_categories:
+            Specifies an upper limit to the number of output features for each input feature
+            when considering infrequent categories. If there are infrequent categories,
+            max_categories includes the category representing the infrequent categories along with the frequent categories.
+
+            Default None, set limit to 1,000,000.
     """
 
     def fit(self, X):
@@ -37,5 +62,6 @@ class OneHotEncoder(BaseEstimator):
                 The DataFrame to be transformed.
 
         Returns:
-            Transformed result."""
+            Transformed result. The result is categorized as index: number, value: number.
+            Where index is the position of the dict that seeing the category, and value is 0 or 1."""
         raise NotImplementedError("abstract method")

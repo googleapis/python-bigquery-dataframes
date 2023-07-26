@@ -77,9 +77,12 @@ def ml_standard_scaler(numeric_expr_sql: str, name: str) -> str:
     return f"""ML.STANDARD_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
 
-def ml_one_hot_encoder(numeric_expr_sql: str, name: str) -> str:
-    """Encode ML.ONE_HOT_ENCODER for BQML"""
-    return f"""ML.ONE_HOT_ENCODER({numeric_expr_sql}) OVER() AS {name}"""
+def ml_one_hot_encoder(
+    numeric_expr_sql: str, drop: str, top_k: int, frequency_threshold: int, name: str
+) -> str:
+    """Encode ML.ONE_HOT_ENCODER for BQML.
+    https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-one-hot-encoder for params."""
+    return f"""ML.ONE_HOT_ENCODER({numeric_expr_sql}, '{drop}', {top_k}, {frequency_threshold}) OVER() AS {name}"""
 
 
 def create_model(

@@ -17,7 +17,7 @@ Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/pre
 
 
 import typing
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import bigframes
 import bigframes.ml
@@ -86,14 +86,30 @@ class OneHotEncoder(
     third_party.bigframes_vendored.sklearn.preprocessing._encoder.OneHotEncoder,
     bigframes.ml.base.BaseEstimator,
 ):
+    # BQML max value https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-one-hot-encoder#syntax
+    TOP_K_DEFAULT = 1000000
+
+    FREQUENCY_THRESHOLD_DEFAULT = 0
+
     __doc__ = (
         third_party.bigframes_vendored.sklearn.preprocessing._encoder.OneHotEncoder.__doc__
     )
 
     # All estimators must implement __init__ to document their parameters, even
     # if they don't have any
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        drop: Optional[Literal["most_frequent"]] = None,
+        min_frequency: Optional[int] = None,
+        max_categories: Optional[int] = None,
+    ):
+        if max_categories is not None and max_categories < 2:
+            raise ValueError(
+                f"max_categories has to be larger than or equal to 2, input is {max_categories}."
+            )
+        self.drop = drop
+        self.min_frequency = min_frequency
+        self.max_categories = max_categories
 
     def _compile_to_sql(self, columns: List[str]) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
@@ -103,9 +119,24 @@ class OneHotEncoder(
             columns: a list of column names to transform
 
         Returns: a list of tuples of (sql_expression, output_name)"""
+
+        drop = self.drop if self.drop is not None else "none"
+        # minus one here since BQML's inplimentation always includes index 0, and top_k is on top of that.
+        top_k = (
+            (self.max_categories - 1)
+            if self.max_categories is not None
+            else OneHotEncoder.TOP_K_DEFAULT
+        )
+        frequency_threshold = (
+            self.min_frequency
+            if self.min_frequency is not None
+            else OneHotEncoder.FREQUENCY_THRESHOLD_DEFAULT
+        )
         return [
             (
-                bigframes.ml.sql.ml_one_hot_encoder(column, f"onehotencoded_{column}"),
+                bigframes.ml.sql.ml_one_hot_encoder(
+                    column, drop, top_k, frequency_threshold, f"onehotencoded_{column}"
+                ),
                 f"onehotencoded_{column}",
             )
             for column in columns

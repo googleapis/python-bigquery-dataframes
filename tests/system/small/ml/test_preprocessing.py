@@ -20,7 +20,7 @@ import bigframes.ml.preprocessing
 
 
 def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
-    # TODO(bmil): add a second test that compares output to sklearn.preprocessing.StandardScaler
+    # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
     scaler.fit(
         penguins_df_default_index[
@@ -59,9 +59,9 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
 
 
-def test_one_hot_encoder_encodes(penguins_df_default_index, new_penguins_df):
+def test_one_hot_encoder_default_params(new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder()
-    encoder.fit(penguins_df_default_index["species", "sex"])
+    encoder.fit(new_penguins_df["species", "sex"])
 
     result = encoder.transform(new_penguins_df).to_pandas()
 
@@ -87,3 +87,66 @@ def test_one_hot_encoder_encodes(penguins_df_default_index, new_penguins_df):
     )
 
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_one_hot_encoder_params(new_penguins_df):
+    encoder = bigframes.ml.preprocessing.OneHotEncoder("most_frequent", 100, 2)
+    encoder.fit(new_penguins_df["species", "sex"])
+
+    result = encoder.transform(new_penguins_df).to_pandas()
+
+    # TODO: bug? feature columns seem to be in nondeterministic random order
+    # workaround: sort columns by name. Can't repro it in pantheon, so could
+    # be a bigframes issue...
+    result = result.reindex(sorted(result.columns), axis=1)
+
+    expected = pd.DataFrame(
+        {
+            "onehotencoded_sex": [
+                [{"index": 0, "value": 1.0}],
+                [{"index": 0, "value": 1.0}],
+                [{"index": 0, "value": 1.0}],
+            ],
+            "onehotencoded_species": [
+                [{"index": 0, "value": 1.0}],
+                [{"index": 0, "value": 1.0}],
+                [{"index": 0, "value": 1.0}],
+            ],
+        },
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_one_hot_encoder_different_data(penguins_df_default_index, new_penguins_df):
+    encoder = bigframes.ml.preprocessing.OneHotEncoder()
+    encoder.fit(penguins_df_default_index["species", "sex"])
+
+    result = encoder.transform(new_penguins_df).to_pandas()
+
+    # TODO: bug? feature columns seem to be in nondeterministic random order
+    # workaround: sort columns by name. Can't repro it in pantheon, so could
+    # be a bigframes issue...
+    result = result.reindex(sorted(result.columns), axis=1)
+
+    expected = pd.DataFrame(
+        {
+            "onehotencoded_sex": [
+                [{"index": 3, "value": 1.0}],
+                [{"index": 2, "value": 1.0}],
+                [{"index": 2, "value": 1.0}],
+            ],
+            "onehotencoded_species": [
+                [{"index": 1, "value": 1.0}],
+                [{"index": 1, "value": 1.0}],
+                [{"index": 2, "value": 1.0}],
+            ],
+        },
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected)
+
+
+# TODO(garrettwu): add OneHotEncoder tests to compare with sklearn.

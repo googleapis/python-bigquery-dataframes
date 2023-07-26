@@ -156,7 +156,7 @@ def test_bqml_standalone_transform(penguins_df_default_index, new_penguins_df):
         options={"model_type": "transform_only"},
         transforms=[
             "ML.STANDARD_SCALER(culmen_length_mm) OVER() AS scaled_culmen_length_mm",
-            "ML.ONE_HOT_ENCODER(species) OVER() AS onehotencoded_species",
+            "ML.ONE_HOT_ENCODER(species, 'none', 1000000, 0) OVER() AS onehotencoded_species",
         ],
     )
 
