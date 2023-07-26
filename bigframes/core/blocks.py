@@ -346,7 +346,6 @@ class Block:
         # TODO(swast): Allow for dry run and timeout.
         expr = self._expr
 
-        value_column_names = value_keys or self.value_columns
         if value_keys is not None:
             index_columns = (
                 expr.get_column(column_name) for column_name in self._index_columns
@@ -360,9 +359,8 @@ class Block:
             expr.to_ibis_expr().schema(),
         )
 
-        df = df.loc[:, [*self.index_columns, *value_column_names]]
         if self.index_columns:
-            df = df.set_index(list(self.index_columns))
+            df.set_index(list(self.index_columns), inplace=True)
             df.index.names = self.index.names  # type: ignore
 
         return df, results_iterator.total_rows, query_job

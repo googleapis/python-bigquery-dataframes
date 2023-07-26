@@ -668,7 +668,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
         df, query_job = self._block.compute()
         self._query_job = query_job
-        return df.set_axis(self._block.column_labels, axis=1)
+        return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
