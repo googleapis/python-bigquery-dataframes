@@ -267,6 +267,15 @@ class FindOp(UnaryOp):
         )
 
 
+class ExtractOp(UnaryOp):
+    def __init__(self, pat: str, n: int = 1):
+        self._pat = pat
+        self._n = n
+
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.StringValue, x).re_extract(self._pat, self._n)
+
+
 class SliceOp(UnaryOp):
     def __init__(self, start, stop):
         self._start = start

@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from typing import cast, Literal, Optional, Union
 
+import bigframes.dataframe as df
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
@@ -92,6 +93,30 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             return self._apply_unary_op(ops.ContainsRegexOp(pat))
         else:
             return self._apply_unary_op(ops.ContainsStringOp(pat))
+
+    def extract(self, pat: str, flags: int = 0):
+        re2flags = _parse_flags(flags)
+        if re2flags:
+            pat = re2flags + pat
+        compiled = re.compile(pat)
+        if compiled.groups == 0:
+            raise ValueError("No capture groups in 'pat'")
+
+        results: list[str] = []
+        block = self._block
+        for i in range(compiled.groups):
+            labels = [
+                label
+                for label, groupn in compiled.groupindex.items()
+                if i + 1 == groupn
+            ]
+            label = labels[0] if labels else str(i)
+            block, id = block.apply_unary_op(
+                self._value_column, ops.ExtractOp(pat, i + 1), result_label=label
+            )
+            results.append(id)
+        block = block.select_columns(results)
+        return df.DataFrame(block)
 
     def replace(
         self,

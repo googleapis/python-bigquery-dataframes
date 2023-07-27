@@ -11,6 +11,29 @@ class StringMethods:
     R's stringr package.
     """
 
+    def extract(self, pat: str, flags: int = 0):
+        """
+        Extract capture groups in the regex `pat` as columns in a DataFrame.
+
+        For each subject string in the Series, extract groups from the
+        first match of regular expression `pat`.
+
+        Args:
+            pat:
+                Regular expression pattern with capturing groups.
+            flags:
+                Flags from the ``re`` module, e.g. ``re.IGNORECASE``, that
+                modify regular expression matching for things like case,
+                spaces, etc. For more details, see :mod:`re`.
+
+        Returns:
+            A DataFrame with one row for each subject string, and one
+            column for each group. Any capture group names in regular
+            expression pat will be used for column names; otherwise
+            capture group numbers will be used.
+        """
+        raise NotImplementedError("abstract method")
+
     def find(self, sub, start: int = 0, end=None):
         """Return lowest indexes in each strings in the Series/Index.
 
@@ -29,7 +52,6 @@ class StringMethods:
         Returns:
             Series or Index of int.
         """
-
         raise NotImplementedError("abstract method")
 
     def len(self):

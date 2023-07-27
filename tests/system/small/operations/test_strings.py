@@ -66,6 +66,26 @@ def test_str_contains(scalars_dfs, pat, case, flags, regex):
 
 
 @pytest.mark.parametrize(
+    ("pat"),
+    [(r"(ell)(lo)"), (r"(?P<somename>h..)"), (r"(?P<somename>e.*o)([g-l]+)")],
+)
+def test_str_extract(scalars_dfs, pat):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+
+    bf_result = bf_series.str.extract(pat).compute()
+    pd_result = scalars_pandas_df[col_name].str.extract(pat)
+
+    # Pandas produces int col labels, while bq df only supports str labels at present
+    pd_result = pd_result.set_axis(pd_result.columns.astype(str), axis=1)
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
     ("pat", "repl", "case", "flags", "regex"),
     [
         ("hEllo", "blah", True, 0, False),
