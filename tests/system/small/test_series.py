@@ -2143,6 +2143,29 @@ def test_loc_bf_index_integer_index(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_single_index_with_duplicate(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(
+        "string_col", drop=False
+    )
+    index = "Hello, World!"
+    bf_result = scalars_df_index.date_col.loc[index]
+    pd_result = scalars_pandas_df_index.date_col.loc[index]
+    pd.testing.assert_series_equal(
+        bf_result.compute(),
+        pd_result,
+    )
+
+
+def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.set_index("int64_too", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index("int64_too", drop=False)
+    index = -2345
+    bf_result = scalars_df_index.date_col.loc[index]
+    pd_result = scalars_pandas_df_index.date_col.loc[index]
+    assert bf_result.compute().iloc[0] == pd_result
+
+
 def test_series_bool_interpretation_error(scalars_df_index):
     with pytest.raises(ValueError):
         True if scalars_df_index["string_col"] else False

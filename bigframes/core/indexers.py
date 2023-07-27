@@ -233,9 +233,17 @@ def _loc_getitem_series_or_dataframe(
         return series_or_dataframe._slice(key.start, key.stop, key.step)
     elif callable(key):
         raise NotImplementedError("loc does not yet support indexing with a callable")
+    elif pd.api.types.is_scalar(key):
+        index_name = "unnamed_col"
+        keys_df = bigframes.dataframe.DataFrame(
+            {index_name: [key]}, session=series_or_dataframe._get_block().expr._session
+        )
+        keys_df = keys_df.set_index(index_name, drop=True)
+        keys_df.index.name = None
+        return _perform_loc_list_join(series_or_dataframe, keys_df)
     else:
         raise TypeError(
-            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series or a list of index entries."
+            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series, a list of index entries or a single index entry."
         )
 
 
