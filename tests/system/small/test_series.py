@@ -1204,6 +1204,27 @@ def test_cumsum_int(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_cumsum_int_ordered(scalars_df_index, scalars_pandas_df_index):
+    if pd.__version__.startswith("1."):
+        pytest.skip("Series.cumsum NA mask are different in pandas 1.x.")
+
+    col_name = "int64_col"
+    bf_result = (
+        scalars_df_index.sort_values(by="rowindex_2")[col_name].cumsum().compute()
+    )
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (
+        scalars_pandas_df_index.sort_values(by="rowindex_2")[col_name]
+        .cumsum()
+        .astype(pd.Int64Dtype())
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("na_option",),
     [

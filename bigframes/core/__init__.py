@@ -749,12 +749,16 @@ class ArrayValue:
         """
         table = self.to_ibis_expr(
             ordering_mode="unordered",
-            order_col_name=self._ordering.ordering_id,
             expose_hidden_cols=True,
         )
         columns = [table[column_name] for column_name in self._column_names]
+        ordering_col_ids = [
+            ref.column_id for ref in self._ordering.all_ordering_columns
+        ]
         hidden_ordering_columns = [
-            table[column_name] for column_name in self._hidden_ordering_column_names
+            table[column_name]
+            for column_name in self._hidden_ordering_column_names
+            if column_name in ordering_col_ids
         ]
         return ArrayValue(
             self._session,
