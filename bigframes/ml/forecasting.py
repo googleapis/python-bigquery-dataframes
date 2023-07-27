@@ -14,12 +14,13 @@
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional
+from typing import cast, Dict, List, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
-from bigframes.ml import base, core
+from bigframes.ml import base, core, utils
+import bigframes.pandas as bpd
 
 _PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
@@ -30,13 +31,13 @@ class ARIMAPlus(base.TrainablePredictor):
     def __init__(self):
         self._bqml_model: Optional[core.BqmlModel] = None
 
-    @staticmethod
-    def _from_bq(session: bigframes.Session, model: bigquery.Model) -> ARIMAPlus:
+    @classmethod
+    def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> ARIMAPlus:
         assert model.model_type == "ARIMA_PLUS"
 
         kwargs: Dict[str, str | int | bool | float | List[str]] = {}
 
-        new_arima_plus = ARIMAPlus(**kwargs)
+        new_arima_plus = cls(**kwargs)
         new_arima_plus._bqml_model = core.BqmlModel(session, model)
         return new_arima_plus
 
@@ -47,8 +48,8 @@ class ARIMAPlus(base.TrainablePredictor):
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
     ):
         """Fit the model to training data
@@ -57,6 +58,8 @@ class ARIMAPlus(base.TrainablePredictor):
             X: A dataframe of training timestamp.
 
             y: Target values for training."""
+        X, y = utils.convert_to_dataframe(X, y)
+
         self._bqml_model = core.create_bqml_time_series_model(
             X,
             y,
@@ -64,7 +67,7 @@ class ARIMAPlus(base.TrainablePredictor):
             options=self._bqml_options,
         )
 
-    def predict(self, X=None) -> bigframes.dataframe.DataFrame:
+    def predict(self, X=None) -> bpd.DataFrame:
         """Predict the closest cluster for each sample in X.
 
         Args:
@@ -77,16 +80,15 @@ class ARIMAPlus(base.TrainablePredictor):
             raise RuntimeError("A model must be fitted before predict")
 
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             self._bqml_model.forecast()[_PREDICT_OUTPUT_COLUMNS],
         )
 
-    # Unlike regression models, time series forcasting can only evaluate with unseen data. X and y must be providee.
     def score(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y: bigframes.dataframe.DataFrame,
-    ) -> bigframes.dataframe.DataFrame:
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
+    ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 
         Args:
@@ -103,6 +105,7 @@ class ARIMAPlus(base.TrainablePredictor):
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
+        X, y = utils.convert_to_dataframe(X, y)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

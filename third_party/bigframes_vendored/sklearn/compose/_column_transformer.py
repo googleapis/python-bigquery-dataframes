@@ -36,7 +36,7 @@ class ColumnTransformer(_BaseComposition):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Training vector,
+                Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
@@ -53,7 +53,7 @@ class ColumnTransformer(_BaseComposition):
 
         Args:
             X:
-                The DataFrame to be transformed by subset.
+                Series or DataFrame to be transformed by subset.
 
         Returns:
             Transformed result.

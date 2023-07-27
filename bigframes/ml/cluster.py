@@ -17,12 +17,13 @@ https://scikit-learn.org/stable/modules/clustering.html"""
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional
+from typing import cast, Dict, List, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
-from bigframes.ml import base, core
+from bigframes.ml import base, core, utils
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 
@@ -37,8 +38,8 @@ class KMeans(
         self.n_clusters = n_clusters
         self._bqml_model: Optional[core.BqmlModel] = None
 
-    @staticmethod
-    def _from_bq(session: bigframes.Session, model: bigquery.Model) -> KMeans:
+    @classmethod
+    def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> KMeans:
         assert model.model_type == "KMEANS"
 
         kwargs = {}
@@ -48,7 +49,7 @@ class KMeans(
         if "numClusters" in last_fitting:
             kwargs["n_clusters"] = int(last_fitting["numClusters"])
 
-        new_kmeans = KMeans(**kwargs)
+        new_kmeans = cls(**kwargs)
         new_kmeans._bqml_model = core.BqmlModel(session, model)
         return new_kmeans
 
@@ -59,10 +60,12 @@ class KMeans(
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y=None,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
         transforms: Optional[List[str]] = None,
     ):
+        (X,) = utils.convert_to_dataframe(X)
+
         self._bqml_model = core.create_bqml_model(
             train_X=X,
             transforms=transforms,
@@ -70,14 +73,15 @@ class KMeans(
         )
 
     def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        return cast(
-            bigframes.dataframe.DataFrame, self._bqml_model.predict(X)[["CENTROID_ID"]]
-        )
+        (X,) = utils.convert_to_dataframe(X)
+
+        return cast(bpd.DataFrame, self._bqml_model.predict(X)[["CENTROID_ID"]])
 
     def to_gbq(self, model_name: str, replace: bool = False) -> KMeans:
         """Save the model to Google Cloud BigQuery.
@@ -95,10 +99,12 @@ class KMeans(
 
     def score(
         self,
-        X: bigframes.dataframe.DataFrame,
-        y=None,
-    ) -> bigframes.dataframe.DataFrame:
+        X: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
+
+        (X,) = utils.convert_to_dataframe(X)
 
         return self._bqml_model.evaluate(X)

@@ -40,7 +40,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Training vector,
+                Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
@@ -61,7 +61,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
             y:
                 Ignored.
         Returns:
-            DataFrame that represents model metrics.
+            Series or DataFrame that represents model metrics.
         """
         raise NotImplementedError("abstract method")
 
@@ -69,7 +69,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X: a BigQuery DataFrame to predict.
+            X: Series or DataFrame to predict.
 
         Returns:
             predicted BigQuery DataFrames."""

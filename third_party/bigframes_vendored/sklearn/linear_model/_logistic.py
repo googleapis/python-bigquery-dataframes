@@ -63,7 +63,7 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Training vector,
+                Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 

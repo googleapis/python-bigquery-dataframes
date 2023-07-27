@@ -19,26 +19,21 @@ https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose"""
 from __future__ import annotations
 
 import typing
-from typing import List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import List, Optional, Tuple, Union
 
-if TYPE_CHECKING:
-    import bigframes
-
-import bigframes.ml.base
-import bigframes.ml.compose
-import bigframes.ml.core
-import bigframes.ml.preprocessing
+from bigframes.ml import base, core, preprocessing, utils
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.compose._column_transformer
 
 CompilablePreprocessorType = Union[
-    bigframes.ml.preprocessing.OneHotEncoder,
-    bigframes.ml.preprocessing.StandardScaler,
+    preprocessing.OneHotEncoder,
+    preprocessing.StandardScaler,
 ]
 
 
 class ColumnTransformer(
     third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer,
-    bigframes.ml.base.BaseEstimator,
+    base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.compose._column_transformer.ColumnTransformer.__doc__
@@ -55,7 +50,7 @@ class ColumnTransformer(
         ],
     ):
         self.transformers = transformers
-        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     @property
     def transformers_(
@@ -96,12 +91,15 @@ class ColumnTransformer(
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.DataFrame],
+        y=None,  # ignored
     ):
+        (X,) = utils.convert_to_dataframe(X)
+
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
-        self._bqml_model = bigframes.ml.core.create_bqml_model(
+        self._bqml_model = core.create_bqml_model(
             X,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,
@@ -110,14 +108,14 @@ class ColumnTransformer(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def transform(self, X: Union[bpd.DataFrame, bpd.DataFrame]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
+        (X,) = utils.convert_to_dataframe(X)
+
         df = self._bqml_model.transform(X)
         return typing.cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[self._output_names],
         )

@@ -14,12 +14,12 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import cast, Union
 
 import bigframes
 from bigframes.core import blocks
-import bigframes.ml.base
-import bigframes.ml.core
+from bigframes.ml import base, core, utils
+import bigframes.pandas as bpd
 
 _REMOTE_TEXT_GENERATOR_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
@@ -28,7 +28,7 @@ _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE = "CLOUD_AI_TEXT_EMBEDDING_MODEL_V1"
 _EMBED_TEXT_RESULT_COLUMN = "ml_embed_text_embedding"
 
 
-class PaLM2TextGenerator(bigframes.ml.base.Predictor):
+class PaLM2TextGenerator(base.Predictor):
     """PaLM2 text generator LLM model.
 
     Args:
@@ -38,25 +38,25 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
     def __init__(self, session: bigframes.Session, connection_name: str):
         self.session = session
         self.connection_name = connection_name
-        self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         options = {
             "remote_service_type": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
         }
 
-        return bigframes.ml.core.create_bqml_remote_model(
+        return core.create_bqml_remote_model(
             session=self.session, connection_name=self.connection_name, options=options
         )
 
     def predict(
         self,
-        X: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.Series],
         temperature: float = 0.0,
         max_output_tokens: int = 128,
         top_k: int = 40,
         top_p: float = 0.95,
-    ) -> bigframes.dataframe.DataFrame:
+    ) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -98,6 +98,9 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
             raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
+
+        (X,) = utils.convert_to_dataframe(X)
+
         if len(X.columns) != 1:
             raise ValueError("Only support one column as input.")
 
@@ -114,12 +117,12 @@ class PaLM2TextGenerator(bigframes.ml.base.Predictor):
         }
         df = self._bqml_model.generate_text(X, options)
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[[_TEXT_GENERATE_RESULT_COLUMN]],
         )
 
 
-class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
+class PaLM2EmbeddingGenerator(base.Predictor):
     """PaLM2 embedding generator LLM model.
 
     Args:
@@ -129,20 +132,18 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
     def __init__(self, session: bigframes.Session, connection_name: str):
         self.session = session
         self.connection_name = connection_name
-        self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         options = {
             "remote_service_type": _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE,
         }
 
-        return bigframes.ml.core.create_bqml_remote_model(
+        return core.create_bqml_remote_model(
             session=self.session, connection_name=self.connection_name, options=options
         )
 
-    def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -151,6 +152,8 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
         Returns: Output DataFrame with only 1 column as the output embedding results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
+        (X,) = utils.convert_to_dataframe(X)
+
         if len(X.columns) != 1:
             raise ValueError("Only support one column as input.")
 
@@ -163,6 +166,6 @@ class PaLM2EmbeddingGenerator(bigframes.ml.base.Predictor):
         }
         df = self._bqml_model.embed_text(X, options)
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[[_EMBED_TEXT_RESULT_COLUMN]],
         )

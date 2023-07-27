@@ -63,7 +63,6 @@ import bigframes.core.guid as guid
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
-import bigframes.ml.loader
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.version
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -680,6 +679,8 @@ class Session(
         Returns:
             A bigframes.ml Model wrapping the model.
         """
+        import bigframes.ml.loader
+
         model_ref = bigquery.ModelReference.from_string(
             model_name, default_project=self.bqclient.project
         )

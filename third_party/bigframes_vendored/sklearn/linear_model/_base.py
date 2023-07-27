@@ -31,7 +31,7 @@ class LinearModel(BaseEstimator, metaclass=ABCMeta):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Samples.
+                Series or DataFrame of shape (n_samples, n_features). Samples.
 
         Returns:
             DataFrame of shape (n_samples,). Returns predicted values.
@@ -45,7 +45,7 @@ class LinearClassifierMixin(ClassifierMixin):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). The data matrix for
+                Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
         Returns:
@@ -79,10 +79,10 @@ class LinearRegression(RegressorMixin, LinearModel):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Training data.
+                Series or DataFrame of shape (n_samples, n_features). Training data.
 
             y:
-                DataFrame of shape (n_samples,) or (n_samples, n_targets).
+                Series or DataFrame of shape (n_samples,) or (n_samples, n_targets).
                 Target values. Will be cast to X's dtype if necessary.
 
             transforms:

@@ -20,22 +20,22 @@ import typing
 from typing import List, Literal, Optional, Tuple
 
 import bigframes
-import bigframes.ml
-import bigframes.ml.sql
+from bigframes.ml import base, core
+from bigframes.ml import sql as ml_sql
 import third_party.bigframes_vendored.sklearn.preprocessing._data
 import third_party.bigframes_vendored.sklearn.preprocessing._encoder
 
 
 class StandardScaler(
     third_party.bigframes_vendored.sklearn.preprocessing._data.StandardScaler,
-    bigframes.ml.base.BaseEstimator,
+    base.BaseEstimator,
 ):
     __doc__ = (
         third_party.bigframes_vendored.sklearn.preprocessing._data.StandardScaler.__doc__
     )
 
     def __init__(self):
-        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     def _compile_to_sql(self, columns: List[str]) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
@@ -47,7 +47,7 @@ class StandardScaler(
         Returns: a list of tuples of (sql_expression, output_name)"""
         return [
             (
-                bigframes.ml.sql.ml_standard_scaler(column, f"scaled_{column}"),
+                ml_sql.ml_standard_scaler(column, f"scaled_{column}"),
                 f"scaled_{column}",
             )
             for column in columns
@@ -60,7 +60,7 @@ class StandardScaler(
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
-        self._bqml_model = bigframes.ml.core.create_bqml_model(
+        self._bqml_model = core.create_bqml_model(
             X,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,
@@ -84,7 +84,7 @@ class StandardScaler(
 
 class OneHotEncoder(
     third_party.bigframes_vendored.sklearn.preprocessing._encoder.OneHotEncoder,
-    bigframes.ml.base.BaseEstimator,
+    base.BaseEstimator,
 ):
     # BQML max value https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-one-hot-encoder#syntax
     TOP_K_DEFAULT = 1000000
@@ -134,7 +134,7 @@ class OneHotEncoder(
         )
         return [
             (
-                bigframes.ml.sql.ml_one_hot_encoder(
+                ml_sql.ml_one_hot_encoder(
                     column, drop, top_k, frequency_threshold, f"onehotencoded_{column}"
                 ),
                 f"onehotencoded_{column}",
@@ -149,7 +149,7 @@ class OneHotEncoder(
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
-        self._bqml_model = bigframes.ml.core.create_bqml_model(
+        self._bqml_model = core.create_bqml_model(
             X,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,

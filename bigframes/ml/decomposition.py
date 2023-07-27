@@ -17,30 +17,28 @@ https://scikit-learn.org/stable/modules/decomposition.html"""
 
 from __future__ import annotations
 
-from typing import cast, List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, Union
 
 from google.cloud import bigquery
 
-if TYPE_CHECKING:
-    import bigframes
-
-import bigframes.ml.base
-import bigframes.ml.core
+import bigframes
+from bigframes.ml import base, core, utils
+import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 
 class PCA(
     third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
-    bigframes.ml.base.TrainablePredictor,
+    base.TrainablePredictor,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
     def __init__(self, n_components=3):
         self.n_components = n_components
-        self._bqml_model: Optional[bigframes.ml.core.BqmlModel] = None
+        self._bqml_model: Optional[core.BqmlModel] = None
 
-    @staticmethod
-    def _from_bq(session: bigframes.Session, model: bigquery.Model) -> PCA:
+    @classmethod
+    def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> PCA:
         assert model.model_type == "PCA"
 
         kwargs = {}
@@ -50,17 +48,19 @@ class PCA(
         if "numPrincipalComponents" in last_fitting:
             kwargs["n_components"] = int(last_fitting["numPrincipalComponents"])
 
-        new_pca = PCA(**kwargs)
-        new_pca._bqml_model = bigframes.ml.core.BqmlModel(session, model)
+        new_pca = cls(**kwargs)
+        new_pca._bqml_model = core.BqmlModel(session, model)
         return new_pca
 
     def fit(
         self,
-        X: bigframes.dataframe.DataFrame,
+        X: Union[bpd.DataFrame, bpd.Series],
         y=None,
         transforms: Optional[List[str]] = None,
     ):
-        self._bqml_model = bigframes.ml.core.create_bqml_model(
+        (X,) = utils.convert_to_dataframe(X)
+
+        self._bqml_model = core.create_bqml_model(
             train_X=X,
             transforms=transforms,
             options={
@@ -69,14 +69,14 @@ class PCA(
             },
         )
 
-    def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
+        (X,) = utils.convert_to_dataframe(X)
+
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             self._bqml_model.predict(X)[
                 ["principal_component_" + str(i + 1) for i in range(self.n_components)]
             ],
@@ -100,7 +100,7 @@ class PCA(
         self,
         X=None,
         y=None,
-    ) -> bigframes.dataframe.DataFrame:
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 

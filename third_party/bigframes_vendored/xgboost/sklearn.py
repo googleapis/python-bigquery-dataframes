@@ -13,7 +13,7 @@ class XGBModel(XGBModelBase):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Samples.
+                Series or DataFrame of shape (n_samples, n_features). Samples.
 
         Returns:
             DataFrame of shape (n_samples,). Returns predicted values.
@@ -29,7 +29,7 @@ class XGBModel(XGBModelBase):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). Training data.
+                Series or DataFrame of shape (n_samples, n_features). Training data.
 
             y:
                 DataFrame of shape (n_samples,) or (n_samples, n_targets).

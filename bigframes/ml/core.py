@@ -21,9 +21,9 @@ import uuid
 
 from google.cloud import bigquery
 
-import bigframes.dataframe
-import bigframes.ml.sql
-import bigframes.session
+import bigframes
+from bigframes.ml import sql as ml_sql
+import bigframes.pandas as bpd
 
 
 class BqmlModel:
@@ -33,7 +33,7 @@ class BqmlModel:
     BigQuery DataFrames ML.
     """
 
-    def __init__(self, session: bigframes.session.Session, model: bigquery.Model):
+    def __init__(self, session: bigframes.Session, model: bigquery.Model):
         self._session = session
         self._model = model
 
@@ -52,16 +52,17 @@ class BqmlModel:
         """Get the BQML model associated with this wrapper"""
         return self._model
 
-    @staticmethod
+    @classmethod
     def _apply_sql(
+        cls,
         session: bigframes.Session,
-        input_data: bigframes.dataframe.DataFrame,
+        input_data: bpd.DataFrame,
         func: Callable[[str], str],
-    ) -> bigframes.dataframe.DataFrame:
+    ) -> bpd.DataFrame:
         """Helper to wrap a dataframe in a SQL query, keeping the index intact.
 
         Args:
-            session: the active bigframes.Session
+            session: the active bigframes
 
             input_data: the dataframe to be wrapped
 
@@ -84,67 +85,63 @@ class BqmlModel:
 
         return df
 
-    def predict(
-        self, input_data: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
             self._session,
             input_data,
-            lambda source_sql: bigframes.ml.sql.ml_predict(
+            lambda source_sql: ml_sql.ml_predict(
                 model_name=self.model_name, source_sql=source_sql
             ),
         )
 
-    def transform(
-        self, input_data: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
             self._session,
             input_data,
-            lambda source_sql: bigframes.ml.sql.ml_transform(
+            lambda source_sql: ml_sql.ml_transform(
                 model_name=self.model_name, source_sql=source_sql
             ),
         )
 
     def generate_text(
         self,
-        input_data: bigframes.dataframe.DataFrame,
+        input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
-    ) -> bigframes.dataframe.DataFrame:
+    ) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
             self._session,
             input_data,
-            lambda source_sql: bigframes.ml.sql.ml_generate_text(
+            lambda source_sql: ml_sql.ml_generate_text(
                 model_name=self.model_name,
                 source_sql=source_sql,
-                struct_options=bigframes.ml.sql.struct_options(**options),
+                struct_options=ml_sql.struct_options(**options),
             ),
         )
 
     def embed_text(
         self,
-        input_data: bigframes.dataframe.DataFrame,
+        input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
-    ) -> bigframes.dataframe.DataFrame:
+    ) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
             self._session,
             input_data,
-            lambda source_sql: bigframes.ml.sql.ml_embed_text(
+            lambda source_sql: ml_sql.ml_embed_text(
                 model_name=self.model_name,
                 source_sql=source_sql,
-                struct_options=bigframes.ml.sql.struct_options(**options),
+                struct_options=ml_sql.struct_options(**options),
             ),
         )
 
-    def forecast(self) -> bigframes.dataframe.DataFrame:
-        sql = bigframes.ml.sql.ml_forecast(self.model_name)
+    def forecast(self) -> bpd.DataFrame:
+        sql = ml_sql.ml_forecast(self.model_name)
         return self._session.read_gbq(sql)
 
-    def evaluate(self, input_data: Union[bigframes.dataframe.DataFrame, None] = None):
+    def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         # TODO: validate input data schema
         # Note: don't need index as evaluate returns a new table
         source_sql, _ = (
@@ -152,11 +149,11 @@ class BqmlModel:
             if (input_data is not None)
             else (None, None)
         )
-        sql = bigframes.ml.sql.ml_evaluate(self.model_name, source_sql)
+        sql = ml_sql.ml_evaluate(self.model_name, source_sql)
 
         return self._session.read_gbq(sql)
 
-    def copy(self, new_model_name, replace=False) -> BqmlModel:
+    def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
         job_config = bigquery.job.CopyJobConfig()
         if replace:
             job_config.write_disposition = "WRITE_TRUNCATE"
@@ -173,10 +170,8 @@ class BqmlModel:
             # vertex id needs to start with letters. https://cloud.google.com/vertex-ai/docs/general/resource-naming
             vertex_ai_model_id = "bigframes_" + cast(str, self._model.model_id)
 
-        options_sql = bigframes.ml.sql.options(
-            **{"vertex_ai_model_id": vertex_ai_model_id}
-        )
-        sql = bigframes.ml.sql.alter_model(self.model_name, options_sql=options_sql)
+        options_sql = ml_sql.options(**{"vertex_ai_model_id": vertex_ai_model_id})
+        sql = ml_sql.alter_model(self.model_name, options_sql=options_sql)
         # Register the model and wait it to finish
         self._session.bqclient.query(sql).result()
 
@@ -185,8 +180,8 @@ class BqmlModel:
 
 
 def create_bqml_model(
-    train_X: bigframes.dataframe.DataFrame,
-    train_y: Optional[bigframes.dataframe.DataFrame] = None,
+    train_X: bpd.DataFrame,
+    train_y: Optional[bpd.DataFrame] = None,
     transforms: Optional[Iterable[str]] = None,
     options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
@@ -219,11 +214,9 @@ def create_bqml_model(
 
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
-    options_sql = bigframes.ml.sql.options(**options)
-    transform_sql = (
-        bigframes.ml.sql.transform(*transforms) if transforms is not None else None
-    )
-    sql = bigframes.ml.sql.create_model(
+    options_sql = ml_sql.options(**options)
+    transform_sql = ml_sql.transform(*transforms) if transforms is not None else None
+    sql = ml_sql.create_model(
         model_name=model_name,
         source_sql=source_sql,
         transform_sql=transform_sql,
@@ -238,8 +231,8 @@ def create_bqml_model(
 
 
 def create_bqml_time_series_model(
-    train_X: bigframes.dataframe.DataFrame,
-    train_y: bigframes.dataframe.DataFrame,
+    train_X: bpd.DataFrame,
+    train_y: bpd.DataFrame,
     transforms: Optional[Iterable[str]] = None,
     options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
 ) -> BqmlModel:
@@ -260,12 +253,10 @@ def create_bqml_time_series_model(
 
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
     source_sql = input_data.sql
-    options_sql = bigframes.ml.sql.options(**options)
+    options_sql = ml_sql.options(**options)
 
-    transform_sql = (
-        bigframes.ml.sql.transform(*transforms) if transforms is not None else None
-    )
-    sql = bigframes.ml.sql.create_model(
+    transform_sql = ml_sql.transform(*transforms) if transforms is not None else None
+    sql = ml_sql.create_model(
         model_name=model_name,
         source_sql=source_sql,
         transform_sql=transform_sql,
@@ -294,8 +285,8 @@ def create_bqml_remote_model(
     Returns: a BqmlModel, wrapping a trained model in BigQuery
     """
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
-    options_sql = bigframes.ml.sql.options(**options)
-    sql = bigframes.ml.sql.create_remote_model(
+    options_sql = ml_sql.options(**options)
+    sql = ml_sql.create_remote_model(
         model_name=model_name,
         connection_name=connection_name,
         options_sql=options_sql,
@@ -321,8 +312,8 @@ def create_bqml_imported_model(
     Returns: a BqmlModel, wrapping a trained model in BigQuery
     """
     model_name = f"{session._session_dataset_id}.{uuid.uuid4().hex}"
-    options_sql = bigframes.ml.sql.options(**options)
-    sql = bigframes.ml.sql.create_imported_model(
+    options_sql = ml_sql.options(**options)
+    sql = ml_sql.create_imported_model(
         model_name=model_name,
         options_sql=options_sql,
     )

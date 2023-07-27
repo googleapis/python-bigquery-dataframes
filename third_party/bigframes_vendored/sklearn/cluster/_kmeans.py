@@ -25,7 +25,7 @@ class _BaseKMeans(BaseEstimator, ABC):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). The data matrix for
+                Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
         Returns:
@@ -78,7 +78,7 @@ class KMeans(_BaseKMeans):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). New data to predict.
+                Series or DataFrame of shape (n_samples, n_features). New data to predict.
             y:  Ignored
                 Not used, present here for API consistency by convention.
 
@@ -96,7 +96,7 @@ class KMeans(_BaseKMeans):
 
         Args:
             X:
-                DataFrame of shape (n_samples, n_features). New Data.
+                Series or DataFrame of shape (n_samples, n_features). New Data.
             y:  Ignored
                 Not used, present here for API consistency by convention.
 

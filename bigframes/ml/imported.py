@@ -14,16 +14,14 @@
 
 from __future__ import annotations
 
-from typing import cast, TYPE_CHECKING
+from typing import cast, Union
 
-if TYPE_CHECKING:
-    import bigframes
-
-import bigframes.ml.base
-import bigframes.ml.core
+import bigframes
+from bigframes.ml import base, core, utils
+import bigframes.pandas as bpd
 
 
-class TensorFlowModel(bigframes.ml.base.Predictor):
+class TensorFlowModel(base.Predictor):
     """Imported TensorFlow model.
 
     Args:
@@ -33,26 +31,24 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
     def __init__(self, session: bigframes.Session, model_path: str):
         self.session = session
         self.model_path = model_path
-        self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         options = {"model_type": "TENSORFLOW", "model_path": self.model_path}
-        return bigframes.ml.core.create_bqml_imported_model(
-            session=self.session, options=options
-        )
+        return core.create_bqml_imported_model(session=self.session, options=options)
 
-    def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
             X: Input DataFrame, schema is defined by the model.
 
         Returns: Output DataFrame, schema is defined by the model."""
+        (X,) = utils.convert_to_dataframe(X)
+
         df = self._bqml_model.predict(X)
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[
                 [
                     cast(str, field.name)
@@ -62,7 +58,7 @@ class TensorFlowModel(bigframes.ml.base.Predictor):
         )
 
 
-class ONNXModel(bigframes.ml.base.Predictor):
+class ONNXModel(base.Predictor):
     """Imported Open Neural Network Exchange (ONNX) model.
 
     Args:
@@ -72,26 +68,24 @@ class ONNXModel(bigframes.ml.base.Predictor):
     def __init__(self, session: bigframes.Session, model_path: str):
         self.session = session
         self.model_path = model_path
-        self._bqml_model: bigframes.ml.core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         options = {"model_type": "ONNX", "model_path": self.model_path}
-        return bigframes.ml.core.create_bqml_imported_model(
-            session=self.session, options=options
-        )
+        return core.create_bqml_imported_model(session=self.session, options=options)
 
-    def predict(
-        self, X: bigframes.dataframe.DataFrame
-    ) -> bigframes.dataframe.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
             X: Input DataFrame, schema is defined by the model.
 
         Returns: Output DataFrame, schema is defined by the model."""
+        (X,) = utils.convert_to_dataframe(X)
+
         df = self._bqml_model.predict(X)
         return cast(
-            bigframes.dataframe.DataFrame,
+            bpd.DataFrame,
             df[
                 [
                     cast(str, field.name)
