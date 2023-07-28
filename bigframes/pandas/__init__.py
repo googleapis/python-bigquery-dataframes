@@ -152,12 +152,19 @@ def _with_default_session(func: Callable[..., _T], *args, **kwargs) -> _T:
 
 
 def _set_default_session_location_if_possible(query):
-    # If the default session has not started yet and this is the first API user
-    # is calling, then set the default location as per the query.
+    # Set the location as per the query if this is the first query the user is
+    # running and:
+    # (1) Default session has not started yet, and
+    # (2) Location is not set yet, and
+    # (3) Use of regional endpoints is not set.
     # If query is a table name, then it would be the location of the table.
     # If query is a SQL with a table, then it would be table's location.
     # If query is a SQL with no table, then it would be the BQ default location.
-    if options.bigquery._session_started or options.bigquery.use_regional_endpoints:
+    if (
+        options.bigquery._session_started
+        or options.bigquery.location
+        or options.bigquery.use_regional_endpoints
+    ):
         return
 
     bqclient, _, _, _ = bigframes.session._create_cloud_clients(

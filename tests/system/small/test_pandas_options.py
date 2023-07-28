@@ -79,6 +79,10 @@ def test_read_gbq_start_sets_session_location(
     # There should still be the previous location set in the bigquery options
     assert bpd.options.bigquery.location == tokyo_location
 
+    # Reset the location to be able to query another location
+    bpd.options.bigquery.location = None
+    assert not bpd.options.bigquery.location
+
     # Starting over the user journey with read_gbq* should work for a table
     # in another location, in this case US
     df = read_method(query)
@@ -142,6 +146,105 @@ def test_read_gbq_after_session_start_must_comply_with_default_location(
 
     # read_gbq* from a table in the default location should work
     df = read_method(query)
+    assert df is not None
+
+
+@pytest.mark.parametrize(
+    ("read_method", "query_prefix"),
+    [
+        (bpd.read_gbq, None),
+        (bpd.read_gbq, "SELECT COUNT(1) FROM "),
+        (bpd.read_gbq_table, None),
+        (bpd.read_gbq_query, "SELECT COUNT(1) FROM "),
+    ],
+    ids=[
+        "read_gbq-on-table-name",
+        "read_gbq-on-sql",
+        "read_gbq_table-on-table-name",
+        "read_gbq_query-on-sql",
+    ],
+)
+def test_read_gbq_must_comply_with_set_location_US(
+    test_data_tables,
+    test_data_tables_tokyo,
+    dataset_id_permanent_tokyo,
+    read_method,
+    query_prefix,
+):
+    # Form query as a table name or a SQL depending on the test scenario
+    query_tokyo = test_data_tables_tokyo["scalars"]
+    query = test_data_tables["scalars"]
+    if query_prefix:
+        query_tokyo = f"{query_prefix} {query_tokyo}"
+        query = f"{query_prefix} {query}"
+
+    # Initially there is no location set in the bigquery options
+    assert not bpd.options.bigquery.location
+
+    # Explicitly set location
+    bpd.options.bigquery.location = "US"
+    assert bpd.options.bigquery.location == "US"
+
+    # Starting user journey with read_gbq* from another location should fail
+    with pytest.raises(
+        google.api_core.exceptions.NotFound,
+        match=f"404 Not found: Dataset {dataset_id_permanent_tokyo} was not found in location US",
+    ):
+        read_method(query_tokyo)
+
+    # Starting user journey with read_gbq* should work for a table in the same
+    # location, in this case tokyo
+    df = read_method(query)
+    assert df is not None
+
+
+@pytest.mark.parametrize(
+    ("read_method", "query_prefix"),
+    [
+        (bpd.read_gbq, None),
+        (bpd.read_gbq, "SELECT COUNT(1) FROM "),
+        (bpd.read_gbq_table, None),
+        (bpd.read_gbq_query, "SELECT COUNT(1) FROM "),
+    ],
+    ids=[
+        "read_gbq-on-table-name",
+        "read_gbq-on-sql",
+        "read_gbq_table-on-table-name",
+        "read_gbq_query-on-sql",
+    ],
+)
+def test_read_gbq_must_comply_with_set_location_non_US(
+    tokyo_location,
+    test_data_tables,
+    test_data_tables_tokyo,
+    dataset_id_permanent,
+    read_method,
+    query_prefix,
+):
+    # Form query as a table name or a SQL depending on the test scenario
+    query_tokyo = test_data_tables_tokyo["scalars"]
+    query = test_data_tables["scalars"]
+    if query_prefix:
+        query_tokyo = f"{query_prefix} {query_tokyo}"
+        query = f"{query_prefix} {query}"
+
+    # Initially there is no location set in the bigquery options
+    assert not bpd.options.bigquery.location
+
+    # Explicitly set location
+    bpd.options.bigquery.location = tokyo_location
+    assert bpd.options.bigquery.location == tokyo_location
+
+    # Starting user journey with read_gbq* from another location should fail
+    with pytest.raises(
+        google.api_core.exceptions.NotFound,
+        match=f"404 Not found: Dataset {dataset_id_permanent} was not found in location {tokyo_location}",
+    ):
+        read_method(query)
+
+    # Starting user journey with read_gbq* should work for a table in the same
+    # location, in this case tokyo
+    df = read_method(query_tokyo)
     assert df is not None
 
 
