@@ -16,6 +16,7 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
+from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
 def test_set_multi_index(scalars_df_index, scalars_pandas_df_index):
@@ -320,6 +321,57 @@ def test_multi_index_dataframe_groupby_level_analytic(
     )
 
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+all_joins = pytest.mark.parametrize(
+    ("how",),
+    (
+        ("outer",),
+        ("left",),
+        ("right",),
+        ("inner",),
+    ),
+)
+
+
+@all_joins
+# Both DFs are multi-index
+def test_multi_index_dataframe_join(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+
+    bf_df_a = bf_df.set_index((["bool_col", "rowindex_2"]))[["string_col", "int64_col"]]
+    bf_df_b = bf_df.assign(rowindex_2=bf_df["rowindex_2"] + 2).set_index(
+        (["bool_col", "rowindex_2"])
+    )[["float64_col"]]
+    bf_result = bf_df_a.join(bf_df_b, how=how).to_pandas()
+
+    pd_df_a = pd_df.set_index((["bool_col", "rowindex_2"]))[["string_col", "int64_col"]]
+    pd_df_b = pd_df.assign(rowindex_2=pd_df["rowindex_2"] + 2).set_index(
+        (["bool_col", "rowindex_2"])
+    )[["float64_col"]]
+    pd_result = pd_df_a.join(pd_df_b, how=how)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@all_joins
+# Only left DF is multi-index
+def test_multi_index_dataframe_join_on(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+
+    bf_df_a = bf_df.set_index((["int64_too", "bool_col"]))[
+        ["string_col", "int64_col", "rowindex_2"]
+    ]
+    bf_df_a = bf_df_a.assign(rowindex_2=bf_df_a["rowindex_2"] + 2)
+    bf_df_b = bf_df[["float64_col"]]
+    bf_result = bf_df_a.join(bf_df_b, on="rowindex_2", how=how).to_pandas()
+
+    pd_df_a = pd_df.set_index((["int64_too", "bool_col"]))[
+        ["string_col", "int64_col", "rowindex_2"]
+    ]
+    pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
+    pd_df_b = pd_df[["float64_col"]]
+    pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(

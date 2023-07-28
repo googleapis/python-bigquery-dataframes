@@ -834,7 +834,7 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # Merging / joining methods
 
-    def join(self, other, *, how: str) -> DataFrame:
+    def join(self, other, *, on: Optional[str] = None, how: str) -> DataFrame:
         """Join columns of another DataFrame.
 
         Join columns with `other` DataFrame on index
@@ -842,6 +842,9 @@ class DataFrame(NDFrame):
         Args:
             other:
                 DataFrame with an Index similar to the Index of this one.
+            on:
+                Column in the caller to join on the index in other, otherwise
+                joins index-on-index. Like an Excel VLOOKUP operation.
             how ({'left', 'right', 'outer', 'inner'}, default 'left'`):
                 How to handle the operation of the two objects.
                 ``left``: use calling frame's index (or column if on is specified)

@@ -844,7 +844,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Update case, remove after copying into columns
             block = block.drop_columns([source_column])
 
-        return DataFrame(block.with_index_labels([self.index.name]))
+        return DataFrame(block.with_index_labels(self.index.names))
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         block = self._block.reset_index(drop)
@@ -1198,15 +1198,54 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return left_col_labels + right_col_labels
 
-    def join(self, other: DataFrame, *, how: str = "left") -> DataFrame:
-        if not self.columns.intersection(other.columns).empty:
+    def join(
+        self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
+    ) -> DataFrame:
+        left, right = self, other
+        if not left.columns.intersection(right.columns).empty:
             raise NotImplementedError("Deduping column names is not implemented")
 
-        left = self
-        right = other
-        combined_index, (get_column_left, get_column_right) = left._block.index.join(
-            right._block.index, how=how
-        )
+        # Join left columns with right index
+        if on is not None:
+            if other._block.index.nlevels != 1:
+                raise ValueError(
+                    "Join on columns must match the index level of the other DataFrame. Join on column with multi-index haven't been supported."
+                )
+            # Switch left index with on column
+            left_columns = left.columns
+            left_idx_original_names = left.index.names
+            left_idx_names_in_cols = [
+                f"bigframes_left_idx_name_{i}" for i in range(len(left.index.names))
+            ]
+            left.index.names = left_idx_names_in_cols
+            left = left.reset_index(drop=False)
+            left = left.set_index(on)
+
+            # Join on index and switch back
+            combined_df = left._perform_join_by_index(right, how=how)
+            combined_df.index.name = on
+            combined_df = combined_df.reset_index(drop=False)
+            combined_df = combined_df.set_index(left_idx_names_in_cols)
+
+            # To be consistent with Pandas
+            combined_df.index.names = (
+                left_idx_original_names
+                if how in ("inner", "left")
+                else ([None] * len(combined_df.index.names))
+            )
+
+            # Reorder columns
+            combined_df = combined_df[list(left_columns) + list(right.columns)]
+            return combined_df
+
+        # Join left index with right index
+        if left._block.index.nlevels != right._block.index.nlevels:
+            raise ValueError("Index to join on must have the same number of levels.")
+
+        return left._perform_join_by_index(right, how=how)
+
+    def _perform_join_by_index(self, other: DataFrame, *, how: str = "left"):
+        combined_index, _ = self._block.index.join(other._block.index, how=how)
         return DataFrame(combined_index._block)
 
     def groupby(

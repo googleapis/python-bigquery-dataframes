@@ -275,11 +275,13 @@ def _perform_loc_list_join(
         name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
         result = typing.cast(
             bigframes.series.Series,
-            series_or_dataframe.to_frame().join(keys_df, how="right")[name],
+            series_or_dataframe.to_frame()._perform_join_by_index(keys_df, how="right")[
+                name
+            ],
         )
         result = result.rename(original_name)
     else:
-        result = series_or_dataframe.join(keys_df, how="right")  # type: ignore
+        result = series_or_dataframe._perform_join_by_index(keys_df, how="right")  # type: ignore
     result = result.rename_axis(original_index_names)
     return result
 

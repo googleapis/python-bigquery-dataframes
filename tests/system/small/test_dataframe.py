@@ -1125,6 +1125,22 @@ def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
         df_a.join(df_b, how="outer").to_pandas()
 
 
+@all_joins
+def test_join_param_on(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+
+    bf_df_a = bf_df[["string_col", "int64_col", "rowindex_2"]]
+    bf_df_a = bf_df_a.assign(rowindex_2=bf_df_a["rowindex_2"] + 2)
+    bf_df_b = bf_df[["float64_col"]]
+    bf_result = bf_df_a.join(bf_df_b, on="rowindex_2", how=how).to_pandas()
+
+    pd_df_a = pd_df[["string_col", "int64_col", "rowindex_2"]]
+    pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
+    pd_df_b = pd_df[["float64_col"]]
+    pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("by", "ascending", "na_position"),
     [
