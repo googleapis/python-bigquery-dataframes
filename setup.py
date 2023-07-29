@@ -30,7 +30,7 @@ description = "Scalable DataFrames with BigQuery"
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 3 - Alpha"
 dependencies = [
-    "cloudpickle >= 2.2.1",
+    "cloudpickle >= 2.0.0",
     "fsspec >=2023.3.0",
     "gcsfs >=2023.3.0",
     "geopandas >=0.12.2",
