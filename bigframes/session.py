@@ -60,7 +60,7 @@ import bigframes._config.bigquery_options as bigquery_options
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
-from bigframes.core.ordering import OrderingColumnReference
+from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.remote_function import remote_function as bigframes_rf
@@ -421,6 +421,8 @@ class Session(
         else:
             index_cols = list(index_col)
 
+        hidden_cols: typing.Sequence[str] = ()
+
         for key in index_cols:
             if key not in table_expression.columns:
                 raise ValueError(
@@ -455,6 +457,7 @@ class Session(
                 ordering_value_columns=[
                     core.OrderingColumnReference(column_id) for column_id in index_cols
                 ],
+                total_ordering_columns=frozenset(index_cols),
             )
 
             if not is_total_ordering:
@@ -483,8 +486,12 @@ class Session(
             table_expression, ordering = self._create_sequential_ordering(
                 table_expression
             )
-            ordering_id_column = ordering.ordering_id
-            assert ordering_id_column is not None
+            hidden_cols = (
+                (ordering.total_order_col.column_id,)
+                if ordering.total_order_col
+                else ()
+            )
+            assert len(ordering.ordering_value_columns) > 0
             is_total_ordering = True
             # Block constructor will generate default index if passed empty
             index_cols = []
@@ -495,6 +502,7 @@ class Session(
             col_order=col_order,
             index_cols=index_cols,
             index_labels=index_labels,
+            hidden_cols=hidden_cols,
             ordering=ordering,
             is_total_ordering=is_total_ordering,
         )
@@ -506,6 +514,7 @@ class Session(
         col_order: Iterable[str] = (),
         index_cols: Sequence[str] = (),
         index_labels: Sequence[Optional[str]] = (),
+        hidden_cols: Sequence[str] = (),
         ordering: core.ExpressionOrdering,
         is_total_ordering: bool = False,
     ) -> dataframe.DataFrame:
@@ -518,6 +527,8 @@ class Session(
                 List of BigQuery column names in the desired order for results DataFrame.
             index_cols:
                 List of column names to use as the index or multi-index.
+            hidden_cols:
+                Columns that should be hidden. Ordering columns may (not always) be hidden
             ordering:
                 Column name to be used for ordering. If not supplied, a default ordering is generated.
 
@@ -535,22 +546,18 @@ class Session(
         # total ordering, index -> use ordering as ordering, index as index
 
         # This code block ensures the existence of a total ordering.
+        column_keys = list(col_order)
+        if len(column_keys) == 0:
+            non_value_columns = set([*index_cols, *hidden_cols])
+            column_keys = [
+                key for key in table_expression.columns if key not in non_value_columns
+            ]
         if not is_total_ordering:
             # Rows are not ordered, we need to generate a default ordering and materialize it
             table_expression, ordering = self._create_sequential_ordering(
                 table_expression, index_cols
             )
-
         index_col_values = [table_expression[index_id] for index_id in index_cols]
-
-        column_keys = list(col_order)
-        if len(column_keys) == 0:
-            non_columns = set(index_cols)
-            if ordering.ordering_id is not None:
-                non_columns.add(ordering.ordering_id)
-            column_keys = [
-                key for key in table_expression.columns if key not in non_columns
-            ]
         return self._read_ibis(
             table_expression,
             index_col_values,
@@ -607,18 +614,21 @@ class Session(
         index_cols: Sequence[ibis_types.Value],
         index_labels: Sequence[Optional[str]],
         column_keys: Sequence[str],
-        ordering: Optional[core.ExpressionOrdering] = None,
-    ):
+        ordering: core.ExpressionOrdering,
+    ) -> dataframe.DataFrame:
         """Turns a table expression (plus index column) into a DataFrame."""
-        hidden_ordering_columns = None
-        if ordering is not None and ordering.ordering_id is not None:
-            hidden_ordering_columns = (table_expression[ordering.ordering_id],)
 
         columns = list(index_cols)
         for key in column_keys:
             if key not in table_expression.columns:
                 raise ValueError(f"Column '{key}' not found in this table.")
             columns.append(table_expression[key])
+
+        non_hidden_ids = [col.get_name() for col in columns]
+        hidden_ordering_columns = []
+        for ref in ordering.all_ordering_columns:
+            if ref.column_id not in non_hidden_ids:
+                hidden_ordering_columns.append(table_expression[ref.column_id])
 
         block = blocks.Block(
             core.ArrayValue(
@@ -675,7 +685,7 @@ class Session(
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
-        schema = []
+        schema: list[bigquery.SchemaField] = []
         for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
             if dtype == "timestamp[us][pyarrow]":
                 schema.append(
@@ -710,7 +720,9 @@ class Session(
         self._start_generic_job(load_job)
 
         ordering = core.ExpressionOrdering(
-            ordering_id_column=OrderingColumnReference(ordering_col), is_sequential=True
+            ordering_value_columns=[OrderingColumnReference(ordering_col)],
+            total_ordering_columns=frozenset([ordering_col]),
+            integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
         table_expression = self.ibis_client.sql(
             f"SELECT * FROM `{load_table_destination.table_id}`"
@@ -720,6 +732,7 @@ class Session(
             table_expression=table_expression,
             index_cols=index_cols,
             index_labels=index_labels,
+            hidden_cols=(ordering_col,),
             ordering=ordering,
             is_total_ordering=True,
         )
@@ -900,7 +913,9 @@ class Session(
         table = self.ibis_client.sql(f"SELECT * FROM `{table_ref.table_id}`")
         ordering_reference = core.OrderingColumnReference(default_ordering_name)
         ordering = core.ExpressionOrdering(
-            ordering_id_column=ordering_reference, is_sequential=True
+            ordering_value_columns=[ordering_reference],
+            total_ordering_columns=frozenset([default_ordering_name]),
+            integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
         )
         return table, ordering
 

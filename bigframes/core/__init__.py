@@ -27,9 +27,12 @@ import pandas
 
 import bigframes.core.guid
 from bigframes.core.ordering import (
+    encode_order_string,
     ExpressionOrdering,
+    IntegerEncoding,
     OrderingColumnReference,
-    stringify_order_id,
+    reencode_order_string,
+    StringEncoding,
 )
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -85,27 +88,22 @@ class ArrayValue:
         self,
         session: Session,
         table: ibis_types.Table,
-        columns: Optional[Sequence[ibis_types.Value]] = None,
+        columns: Sequence[ibis_types.Value],
         hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
-        ordering: Optional[ExpressionOrdering] = None,
+        ordering: ExpressionOrdering = ExpressionOrdering(),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
         # TODO: Validate ordering
-        self._ordering = ordering or ExpressionOrdering()
+        if not ordering.total_ordering_columns:
+            raise ValueError("Must have total ordering defined by one or more columns")
+        self._ordering = ordering
         # Allow creating a DataFrame directly from an Ibis table expression.
-        if columns is None:
-            self._columns = tuple(
-                table[key]
-                for key in table.columns
-                if ordering is None or key != ordering.ordering_id
-            )
-        else:
-            # TODO(swast): Validate that each column references the same table (or
-            # no table for literal values).
-            self._columns = tuple(columns)
+        # TODO(swast): Validate that each column references the same table (or
+        # no table for literal values).
+        self._columns = tuple(columns)
 
         # Meta columns store ordering, or other data that doesn't correspond to dataframe columns
         self._hidden_ordering_columns = (
@@ -120,6 +118,20 @@ class ArrayValue:
         self._hidden_ordering_column_names = {
             column.get_name(): column for column in self._hidden_ordering_columns
         }
+        ### Validation
+        value_col_ids = self._column_names.keys()
+        hidden_col_ids = self._hidden_ordering_column_names.keys()
+
+        all_columns = value_col_ids | hidden_col_ids
+        ordering_valid = all(
+            col.column_id in all_columns for col in ordering.all_ordering_columns
+        )
+        if value_col_ids & hidden_col_ids:
+            raise ValueError(
+                f"Keys in both hidden and exposed list: {value_col_ids & hidden_col_ids}"
+            )
+        if not ordering_valid:
+            raise ValueError(f"Illegal ordering keys: {ordering.all_ordering_columns}")
 
     @classmethod
     def mem_expr_from_pandas(
@@ -146,7 +158,8 @@ class ArrayValue:
             session,  # type: ignore # Session cannot normally be none, see "caution" above
             keys_memtable,
             ordering=ExpressionOrdering(
-                ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN)
+                ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+                total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             ),
             hidden_ordering_columns=(keys_memtable[ORDER_ID_COLUMN],),
         )
@@ -154,10 +167,6 @@ class ArrayValue:
     @property
     def table(self) -> ibis_types.Table:
         return self._table
-
-    @property
-    def predicates(self) -> typing.Tuple[ibis_types.BooleanValue, ...]:
-        return self._predicates
 
     @property
     def reduced_predicate(self) -> typing.Optional[ibis_types.BooleanValue]:
@@ -181,18 +190,12 @@ class ArrayValue:
         return self._hidden_ordering_columns
 
     @property
-    def ordering(self) -> Sequence[ibis_types.Value]:
+    def _ibis_order(self) -> Sequence[ibis_types.Value]:
         """Returns a sequence of ibis values which can be directly used to order a table expression. Has direction modifiers applied."""
-        if not self._ordering:
-            return []
-        else:
-            # TODO(swast): When we assign literals / scalars, we might not
-            # have a true Column. Do we need to check this before trying to
-            # sort by such a column?
-            return _convert_ordering_to_table_values(
-                {**self._column_names, **self._hidden_ordering_column_names},
-                self._ordering.all_ordering_columns,
-            )
+        return _convert_ordering_to_table_values(
+            {**self._column_names, **self._hidden_ordering_column_names},
+            self._ordering.all_ordering_columns,
+        )
 
     def builder(self) -> ArrayValueBuilder:
         """Creates a mutable builder for expressions."""
@@ -202,16 +205,11 @@ class ArrayValue:
         return ArrayValueBuilder(
             self._session,
             self._table,
-            self._columns,
-            self._hidden_ordering_columns,
+            columns=self._columns,
+            hidden_ordering_columns=self._hidden_ordering_columns,
             ordering=self._ordering,
             predicates=self._predicates,
         )
-
-    def insert_column(self, index: int, column: ibis_types.Value) -> ArrayValue:
-        expr = self.builder()
-        expr.columns.insert(index, column)
-        return expr.build()
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         # Must generate offsets if we are dropping a column that ordering depends on
@@ -229,7 +227,9 @@ class ArrayValue:
         return expr_builder.build()
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        ibis_type = typing.cast(bigframes.dtypes.IbisDtype, self.get_column(key).type())
+        ibis_type = typing.cast(
+            bigframes.dtypes.IbisDtype, self.get_any_column(key).type()
+        )
         return typing.cast(
             bigframes.dtypes.Dtype,
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_type),
@@ -286,8 +286,7 @@ class ArrayValue:
     def filter(self, predicate: ibis_types.BooleanValue) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
         expr = self.builder()
-        if expr.ordering:
-            expr.ordering = expr.ordering.with_is_sequential(False)
+        expr.ordering = expr.ordering.with_non_sequential()
         expr.predicates = [*self._predicates, predicate]
         return expr.build()
 
@@ -309,7 +308,11 @@ class ArrayValue:
             raise ValueError(
                 "Expression does not have offsets. Generate them first using project_offsets."
             )
-        return self._get_hidden_ordering_column(self._ordering.ordering_id)
+        if not self._ordering.total_order_col:
+            raise ValueError(
+                "Ordering is invalid. Marked as sequential but no total order columns."
+            )
+        return self.get_any_column(self._ordering.total_order_col.column_id)
 
     def project_offsets(self) -> ArrayValue:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
@@ -321,8 +324,9 @@ class ArrayValue:
         )
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
-            ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
-            is_sequential=True,
+            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
+            integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
         return ArrayValue(
             self._session,
@@ -342,13 +346,7 @@ class ArrayValue:
             *self._hidden_ordering_columns,
             self.get_column(column_id).name(new_name),
         ]
-
-        ordering_columns = [
-            col if col.column_id != column_id else col.with_name(new_name)
-            for col in self._ordering.ordering_value_columns
-        ]
-
-        expr_builder.ordering = self._ordering.with_ordering_columns(ordering_columns)
+        expr_builder.ordering = self._ordering.with_column_remap({column_id: new_name})
         return expr_builder.build()
 
     def promote_offsets(self) -> typing.Tuple[ArrayValue, str]:
@@ -358,12 +356,12 @@ class ArrayValue:
         # Special case: offsets already exist
         ordering = self._ordering
 
-        if (not ordering.is_sequential) or (not ordering.ordering_id):
+        if (not ordering.is_sequential) or (not ordering.total_order_col):
             return self.project_offsets().promote_offsets()
         col_id = bigframes.core.guid.generate_guid()
         expr_builder = self.builder()
         expr_builder.columns = [
-            self._get_hidden_ordering_column(ordering.ordering_id).name(col_id),
+            self.get_any_column(ordering.total_order_col.column_id).name(col_id),
             *self.columns,
         ]
         return expr_builder.build(), col_id
@@ -409,13 +407,13 @@ class ArrayValue:
         prefix_size = math.ceil(math.log(len(other) + 1, prefix_base))
         # Must normalize all ids to the same encoding size
         max_encoding_size = max(
-            self._ordering.ordering_encoding_size,
-            *[expression._ordering.ordering_encoding_size for expression in other],
+            self._ordering.string_encoding.length,
+            *[expression._ordering.string_encoding.length for expression in other],
         )
         for i, expr in enumerate([self, *other]):
             ordering_prefix = str(i).zfill(prefix_size)
             table = expr.to_ibis_expr(
-                ordering_mode="ordered_col", order_col_name=ORDER_ID_COLUMN
+                ordering_mode="string_encoded", order_col_name=ORDER_ID_COLUMN
             )
             # Rename the value columns based on horizontal offset before applying union.
             table = table.select(
@@ -424,7 +422,9 @@ class ArrayValue:
                     if col != ORDER_ID_COLUMN
                     else (
                         ordering_prefix
-                        + stringify_order_id(table[ORDER_ID_COLUMN], max_encoding_size)
+                        + reencode_order_string(
+                            table[ORDER_ID_COLUMN], max_encoding_size
+                        )
                     ).name(ORDER_ID_COLUMN)
                     for i, col in enumerate(table.columns)
                 ]
@@ -432,8 +432,9 @@ class ArrayValue:
             tables.append(table)
         combined_table = ibis.union(*tables)
         ordering = ExpressionOrdering(
-            ordering_id_column=OrderingColumnReference(ORDER_ID_COLUMN),
-            ordering_encoding_size=prefix_size + max_encoding_size,
+            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
+            string_encoding=StringEncoding(True, prefix_size + max_encoding_size),
         )
         return ArrayValue(
             self._session,
@@ -510,9 +511,11 @@ class ArrayValue:
                 [
                     OrderingColumnReference(column_id=column_id)
                     for column_id in by_column_ids
-                ]
+                ],
+                total_ordering_columns=frozenset(by_column_ids),
             )
-            expr = ArrayValue(self._session, result, ordering=ordering)
+            columns = tuple(result[key] for key in result.columns)
+            expr = ArrayValue(self._session, result, columns=columns, ordering=ordering)
             if dropna:
                 for column_id in by_column_ids:
                     expr = expr.filter(
@@ -525,8 +528,9 @@ class ArrayValue:
             result = table.aggregate(**aggregates)
             # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
             ordering = ExpressionOrdering(
-                ordering_id_column=OrderingColumnReference(column_id=ORDER_ID_COLUMN),
-                is_sequential=True,
+                ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+                total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
+                integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
             )
             return ArrayValue(
                 self._session,
@@ -589,7 +593,7 @@ class ArrayValue:
     def to_ibis_expr(
         self,
         ordering_mode: Literal[
-            "order_by", "ordered_col", "offset_col", "unordered"
+            "order_by", "string_encoded", "offset_col", "unordered"
         ] = "order_by",
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
         expose_hidden_cols: bool = False,
@@ -605,8 +609,7 @@ class ArrayValue:
           column, however there will be an order_by clause applied to the ouput.
         * "offset_col": Zero-based offsets are generated as a column, this will
           not sort the rows however.
-        * "ordered_col": An ordered column is provided in output table, without
-          guarantee that the values are sequential
+        * "string_encoded": An ordered string column is provided in output table.
         * "unordered": No ordering information will be provided in output. Only
           value columns are projected.
 
@@ -632,7 +635,7 @@ class ArrayValue:
         """
         assert ordering_mode in (
             "order_by",
-            "ordered_col",
+            "string_encoded",
             "offset_col",
             "unordered",
         )
@@ -651,32 +654,13 @@ class ArrayValue:
             # Usually drop predicate as it is will be all TRUE after filtering
             if not expose_hidden_cols:
                 columns_to_drop.append(self.reduced_predicate.get_name())
-        if ordering_mode in ("offset_col", "ordered_col"):
-            # Generate offsets if current ordering id semantics are not sufficiently strict
-            if (ordering_mode == "offset_col" and not self._ordering.is_sequential) or (
-                ordering_mode == "ordered_col" and not self._ordering.order_id_defined
-            ):
-                window = ibis.window(order_by=self.ordering)
-                if self._predicates:
-                    window = window.group_by(self.reduced_predicate)
-                columns.append(ibis.row_number().name(order_col_name).over(window))
-            elif self._ordering.ordering_id:
-                columns.append(
-                    self._get_hidden_ordering_column(self._ordering.ordering_id).name(
-                        order_col_name
-                    )
-                )
-            else:
-                # Should not be possible.
-                raise ValueError(
-                    "Expression does not have ordering id and none was generated."
-                )
-        elif ordering_mode == "order_by" or expose_hidden_cols:
-            columns.extend(self.hidden_ordering_columns)
-            if not expose_hidden_cols:
-                columns_to_drop.extend(
-                    col.get_name() for col in self.hidden_ordering_columns
-                )
+
+        order_columns = self._create_order_columns(
+            ordering_mode, order_col_name, expose_hidden_cols
+        )
+        columns.extend(order_columns)
+        if (ordering_mode == "order_by") and not expose_hidden_cols:
+            columns_to_drop.extend(col.get_name() for col in order_columns)
 
         # Special case for empty tables, since we can't create an empty
         # projection.
@@ -702,6 +686,57 @@ class ArrayValue:
         if col_id_overrides:
             table = table.relabel(col_id_overrides)
         return table
+
+    def _create_order_columns(
+        self,
+        ordering_mode: str,
+        order_col_name: Optional[str],
+        expose_hidden_cols: bool,
+    ) -> typing.Sequence[ibis_types.Value]:
+        # Generate offsets if current ordering id semantics are not sufficiently strict
+        if ordering_mode == "offset_col":
+            return (self._create_offset_column().name(order_col_name),)
+        elif ordering_mode == "string_encoded":
+            return (self._create_string_ordering_column().name(order_col_name),)
+        elif ordering_mode == "order_by" or expose_hidden_cols:
+            return self.hidden_ordering_columns
+        return ()
+
+    def _create_offset_column(self) -> ibis_types.IntegerColumn:
+        if self._ordering.total_order_col and self._ordering.is_sequential:
+            offsets = self.get_any_column(self._ordering.total_order_col.column_id)
+            return typing.cast(ibis_types.IntegerColumn, offsets)
+        else:
+            window = ibis.window(order_by=self._ibis_order)
+            if self._predicates:
+                window = window.group_by(self.reduced_predicate)
+            offsets = ibis.row_number().over(window)
+            return typing.cast(ibis_types.IntegerColumn, offsets)
+
+    def _create_string_ordering_column(self) -> ibis_types.StringColumn:
+        if self._ordering.total_order_col and self._ordering.is_string_encoded:
+            string_order_ids = self.get_any_column(
+                self._ordering.total_order_col.column_id
+            )
+            return typing.cast(ibis_types.StringColumn, string_order_ids)
+        if (
+            self._ordering.total_order_col
+            and self._ordering.integer_encoding.is_encoded
+        ):
+            # Special case: non-negative integer ordering id can be converted directly to string without regenerating row numbers
+            int_values = self.get_any_column(self._ordering.total_order_col.column_id)
+            return encode_order_string(
+                typing.cast(ibis_types.IntegerColumn, int_values),
+            )
+        else:
+            # Have to build string from scratch
+            window = ibis.window(order_by=self._ibis_order)
+            if self._predicates:
+                window = window.group_by(self.reduced_predicate)
+            row_nums = typing.cast(
+                ibis_types.IntegerColumn, ibis.row_number().over(window)
+            )
+            return encode_order_string(row_nums)
 
     def start_query(
         self,
@@ -775,10 +810,10 @@ class ArrayValue:
             )
             if not allow_ties:
                 # Most operator need an unambiguous ordering, so the table's total ordering is appended
-                order_by = tuple([*order_by, *self.ordering])
+                order_by = tuple([*order_by, *self._ibis_order])
         elif (window_spec.following is not None) or (window_spec.preceding is not None):
             # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
-            order_by = tuple(self.ordering)
+            order_by = tuple(self._ibis_order)
         else:
             # Unbound grouping window. Suitable for aggregations but not for analytic function application.
             order_by = None
@@ -814,20 +849,9 @@ class ArrayValue:
             columns=[rotated_table[index_col_id], rotated_table[value_col_id]],
             hidden_ordering_columns=[rotated_table[ORDER_ID_COLUMN]],
             ordering=ExpressionOrdering(
-                ordering_id_column=OrderingColumnReference(column_id=ORDER_ID_COLUMN),
+                ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+                total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             ),
-        )
-
-    # TODO(b/282041134) Remove deprecate_rename_column once label/id separation in dataframe
-    def deprecated_rename_column(self, old_id, new_id) -> ArrayValue:
-        """
-        Don't use this, temporary measure until dataframe supports sqlid!=dataframe col id.
-        In future, caller shouldn't need to control internal column id strings.
-        """
-        if new_id == old_id:
-            return self
-        return self._set_or_replace_by_id(new_id, self.get_column(old_id)).drop_columns(
-            [old_id]
         )
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
@@ -848,7 +872,15 @@ class ArrayValue:
         expr = self._set_or_replace_by_id(destination_id, ibis_value)
         return expr._reproject_to_table()
 
-    def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value):
+    def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value) -> ArrayValue:
+        """Safely assign by id while maintaining ordering integrity."""
+        # TODO: Split into explicit set and replace methods
+        ordering_col_ids = [
+            col_ref.column_id for col_ref in self._ordering.ordering_value_columns
+        ]
+        if id in ordering_col_ids:
+            return self._hide_column(id)._set_or_replace_by_id(id, new_value)
+
         builder = self.builder()
         if id in self.column_names:
             builder.columns = [
@@ -930,9 +962,9 @@ class ArrayValueBuilder:
         self,
         session: Session,
         table: ibis_types.Table,
+        ordering: ExpressionOrdering,
         columns: Collection[ibis_types.Value] = (),
         hidden_ordering_columns: Collection[ibis_types.Value] = (),
-        ordering: Optional[ExpressionOrdering] = None,
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self.session = session

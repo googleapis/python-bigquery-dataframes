@@ -1135,7 +1135,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sort=sort,
             # In merging on the same column, it only returns 1 key column from coalesced both.
             # While if 2 different columns, both will be presented in the result.
-            get_both_join_key_cols=(left_on != right_on),
+            coalesce_join_keys=(left_on == right_on),
         )
         # TODO(swast): Add suffixes to the column labels instead of reusing the
         # column IDs as the new labels.

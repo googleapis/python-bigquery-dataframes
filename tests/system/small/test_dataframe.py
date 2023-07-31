@@ -1611,11 +1611,11 @@ def test_loc_list_string_index(scalars_df_index, scalars_pandas_df_index):
     scalars_df_index = scalars_df_index.set_index("string_col")
     scalars_pandas_df_index = scalars_pandas_df_index.set_index("string_col")
 
-    bf_result = scalars_df_index.loc[index_list]
+    bf_result = scalars_df_index.loc[index_list].to_pandas()
     pd_result = scalars_pandas_df_index.loc[index_list]
 
     pd.testing.assert_frame_equal(
-        bf_result.to_pandas(),
+        bf_result,
         pd_result,
     )
 

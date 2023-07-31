@@ -201,7 +201,8 @@ def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default
     )
 
     df = session.read_pandas(scalars_pandas_df_default_index)
-    assert df._block._expr._ordering.ordering_id == "rowid_2"
+    total_order_col = df._block._expr._ordering.total_order_col
+    assert total_order_col and total_order_col.column_id == "rowid_2"
 
 
 def test_read_pandas_tokyo(
