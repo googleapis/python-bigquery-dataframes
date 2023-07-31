@@ -33,7 +33,6 @@ from typing import (
 )
 
 import google.cloud.bigquery as bigquery
-import ibis.expr.datatypes as ibis_dtypes
 import numpy
 import pandas as pd
 import typing_extensions
@@ -407,7 +406,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     # Bool Series selects rows
     def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
-        if not key._to_ibis_expr().type() == ibis_dtypes.bool:
+        if not key.dtype == pd.BooleanDtype():
             raise ValueError("Only boolean series currently supported for indexing.")
             # TODO: enforce stricter alignment
         combined_index, (
@@ -1614,8 +1613,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"na_action={na_action} not supported")
 
         # TODO(shobs): Support **kwargs
-
-        return self._apply_to_rows(
+        # Reproject as workaround to applying filter too late. This forces the filter
+        # to be applied before passing data to remote function, protecting from bad
+        # inputs causing errors.
+        reprojected_df = DataFrame(self._block._force_reproject())
+        return reprojected_df._apply_to_rows(
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
         )
 

@@ -526,8 +526,9 @@ class Session(
             ordering_id_column = ordering.ordering_id
             assert ordering_id_column is not None
             is_total_ordering = True
-            index_cols = [ordering_id_column]
-            index_labels = [None]
+            # Block constructor will generate default index if passed empty
+            index_cols = []
+            index_labels = []
 
         return self._read_gbq_with_ordering(
             table_expression=table_expression,
@@ -568,9 +569,6 @@ class Session(
                 "Needs same number of index labels are there are index columns. "
                 f"Got {len(index_labels)}, expected {len(index_cols)}."
             )
-
-        if not index_cols:
-            raise ValueError("Need at least 1 index column.")
 
         # Logic:
         # no total ordering, index -> create sequential order, ordered by index, use for both ordering and index
@@ -733,8 +731,8 @@ class Session(
         cluster_cols = index_cols + [ordering_col]
 
         if len(index_cols) == 0:
-            index_cols = [ordering_col]
-            index_labels = [None]
+            # Block constructor will implicitly build default index
+            pass
 
         job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols

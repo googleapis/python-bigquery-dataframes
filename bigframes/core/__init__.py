@@ -498,7 +498,7 @@ class ArrayValue:
             aggregations: input_column_id, operation, output_column_id tuples
             dropna: whether null keys should be dropped
         """
-        table = self.to_ibis_expr()
+        table = self.to_ibis_expr(ordering_mode="unordered")
         stats = {
             col_out: agg_op._as_ibis(table[col_in])
             for col_in, agg_op, col_out in aggregations
@@ -642,18 +642,15 @@ class ArrayValue:
             )
 
         columns = list(self._columns)
-        columns = [
-            col.name(col_id_overrides.get(col.get_name(), col.get_name()))
-            for col in columns
-        ]
-        hidden_ordering_columns = [
-            col.column_id
-            for col in self._ordering.all_ordering_columns
-            if col.column_id not in self._column_names.keys()
-        ]
+        columns_to_drop: list[
+            str
+        ] = []  # Ordering/Filtering columns that will be dropped at end
 
         if self.reduced_predicate is not None:
             columns.append(self.reduced_predicate)
+            # Usually drop predicate as it is will be all TRUE after filtering
+            if not expose_hidden_cols:
+                columns_to_drop.append(self.reduced_predicate.get_name())
         if ordering_mode in ("offset_col", "ordered_col"):
             # Generate offsets if current ordering id semantics are not sufficiently strict
             if (ordering_mode == "offset_col" and not self._ordering.is_sequential) or (
@@ -674,58 +671,43 @@ class ArrayValue:
                 raise ValueError(
                     "Expression does not have ordering id and none was generated."
                 )
-        elif ordering_mode == "order_by":
-            columns.extend(
-                [
-                    self._get_hidden_ordering_column(name)
-                    for name in hidden_ordering_columns
-                ]
-            )
-
-        # We already need to add the hidden ordering columns for "order_by" so
-        # we can order by them.
-        if expose_hidden_cols and ordering_mode != "order_by":
-            columns.extend(
-                [
-                    self._get_hidden_ordering_column(name)
-                    for name in hidden_ordering_columns
-                ]
-            )
+        elif ordering_mode == "order_by" or expose_hidden_cols:
+            columns.extend(self.hidden_ordering_columns)
+            if not expose_hidden_cols:
+                columns_to_drop.extend(
+                    col.get_name() for col in self.hidden_ordering_columns
+                )
 
         # Special case for empty tables, since we can't create an empty
         # projection.
         if not columns:
             return ibis.memtable([])
 
-        table = self._table.select(columns)
         # Make sure all dtypes are the "canonical" ones for BigFrames. This is
         # important for operations like UNION where the schema must match.
-        table = bigframes.dtypes.ibis_table_to_canonical_types(table)
-
+        table = self._table.select(
+            bigframes.dtypes.ibis_value_to_canonical_type(column) for column in columns
+        )
+        base_table = table
         if self.reduced_predicate is not None:
-            table = table.filter(table[PREDICATE_COLUMN])
-            # Drop predicate as it is will be all TRUE after filtering
-            table = table.drop(PREDICATE_COLUMN)
+            table = table.filter(base_table[PREDICATE_COLUMN])
         if ordering_mode == "order_by":
-            # Some ordering columns are value columns, while other are used purely for ordering.
-            # We drop the non-value columns after the ordering
             table = table.order_by(
                 _convert_ordering_to_table_values(
-                    {col: table[col] for col in table.columns},
+                    {col: base_table[col] for col in table.columns},
                     self._ordering.all_ordering_columns,
                 )  # type: ignore
             )
-            # TODO(swast): We should be able to avoid this subquery by ordering
-            # by columns that don't have to be in the SELECT clause.
-            if not expose_hidden_cols:
-                table = table.drop(*hidden_ordering_columns)
-
+        table = table.drop(*columns_to_drop)
+        if col_id_overrides:
+            table = table.relabel(col_id_overrides)
         return table
 
     def start_query(
         self,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
+        expose_extra_columns: bool = False,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """Execute a query and return metadata about the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
@@ -738,7 +720,7 @@ class ArrayValue:
         # a LocalSession for unit testing.
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        table = self.to_ibis_expr()
+        table = self.to_ibis_expr(expose_hidden_cols=expose_extra_columns)
         sql = self._session.ibis_client.compile(table)  # type:ignore
         return self._session._start_query(
             sql=sql,

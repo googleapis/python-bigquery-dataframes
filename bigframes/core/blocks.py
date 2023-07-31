@@ -347,13 +347,11 @@ class Block:
         expr = self._expr
 
         if value_keys is not None:
-            index_columns = (
-                expr.get_column(column_name) for column_name in self._index_columns
-            )
-            value_columns = (expr.get_column(column_name) for column_name in value_keys)
-            expr = expr.projection(itertools.chain(index_columns, value_columns))
+            expr = expr.select_columns(itertools.chain(self._index_columns, value_keys))
 
-        results_iterator, query_job = expr.start_query(max_results=max_results)
+        results_iterator, query_job = expr.start_query(
+            max_results=max_results, expose_extra_columns=True
+        )
         df = self._to_dataframe(
             results_iterator,
             expr.to_ibis_expr().schema(),
@@ -362,6 +360,12 @@ class Block:
         if self.index_columns:
             df.set_index(list(self.index_columns), inplace=True)
             df.index.names = self.index.names  # type: ignore
+
+        df.drop(
+            [col for col in df.columns if col not in self.value_columns],
+            axis=1,
+            inplace=True,
+        )
 
         return df, results_iterator.total_rows, query_job
 
@@ -881,6 +885,15 @@ class Block:
         if ignore_index:
             result_block = result_block.reset_index()
         return result_block
+
+    def _force_reproject(self) -> Block:
+        """Forces a reprojection of the underlying tables expression. Used to force predicate/order application before subsequent operations."""
+        return Block(
+            self._expr._reproject_to_table(),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
 
 
 def block_from_local(data, session=None, use_index=True) -> Block:

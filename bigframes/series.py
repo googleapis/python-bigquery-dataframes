@@ -187,7 +187,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def compute(self) -> pandas.Series:
         """Executes deferred operations and downloads the results."""
-        df, query_job = self._block.compute((self._value_column,))
+        df, query_job = self._block.compute()
         self._query_job = query_job
         series = df[self._value_column]
         series.name = self._name
