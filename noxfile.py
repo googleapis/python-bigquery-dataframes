@@ -634,11 +634,11 @@ def notebook(session):
         "--nbmake-timeout=600",
     ]
 
-    # session.run(
-    #     *pytest_command,
-    #     "-nauto",
-    #     *notebooks,
-    # )
+    session.run(
+        *pytest_command,
+        "-nauto",
+        *notebooks,
+    )
 
     for notebook, regions in notebooks_reg.items():
         for region in regions:

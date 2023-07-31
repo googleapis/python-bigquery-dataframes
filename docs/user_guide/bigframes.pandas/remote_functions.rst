@@ -22,7 +22,11 @@ Read a table and inspect the column of interest.
 Define a custom function, and specify the intent to turn it into a remote
 function. It requires a BigQuery connection. If the connection is not already
 created, BigQuery DataFrames will attempt to create one assuming the necessary
-APIs and IAM permissions are setup in the project.
+APIs and IAM permissions are setup in the project. In our examples we would be
+using a pre-created connection named `bigframes-rf-conn`. Let's try a
+`pandas`-like use case in which we want to apply a user defined scalar function
+to every value in a `Series`, more specifically bucketize the `body_mass_g` value
+of the penguins, which is a real number, into a category, which is a string.
 
 .. code-block:: python
 
@@ -32,9 +36,66 @@ APIs and IAM permissions are setup in the project.
         boundary = 4000
         return "at_or_above_4000" if num >= boundary else "below_4000"
 
-Run the custom function on the column of interest to create a new column.
+Then we can apply the remote function on the `Series`` of interest via `apply`
+API and store the result in a new column in the DataFrame.
 
 .. code-block:: python
 
     df = df.assign(body_mass_bucket=df['body_mass_g'].apply(get_bucket))
+
+This will add a new column `body_mass_bucket` in the DataFrame. You can preview
+the original value and the bucketized value side by side.
+
+.. code-block:: python
+
     df[['body_mass_g', 'body_mass_bucket']].head(10)
+
+This operation was possible by doing all the computation on the cloud. For that,
+there is a google cloud function deployed by serializing the user code.
+
+.. warning::
+    The deployed cloud function may be visible to other users with sufficient
+    privilege in the project. The user should be careful about having any
+    sensitive data in the code that will be deployed as a remote function.
+
+The cloud function can be located from a property set in the remote function object.
+
+.. code-block:: python
+
+    get_bucket.bigframes_cloud_function
+
+and then there is a BigQuery remote function created configured to call into the
+cloud function via the BigQuery connection. That can also be located from
+another property set in the remote function object.
+
+.. code-block:: python
+
+    get_bucket.bigframes_remote_function
+
+The cloud assets created are persistant and the user can manage them directy
+from the Google Cloud Console.
+
+Let's continue trying other potential use cases of remote functions. Let's say
+we consider the `species`, `island` and `sex` of the penguins sensitive
+information and want to redact that by replacing with their hash code instead.
+Let's define another scalar custom function and decorated it as a remote function:
+
+.. code-block:: python
+
+    @pd.remote_function([str], str, bigquery_connection='bigframes-rf-conn')
+    def get_hash(input):
+        import hashlib
+        # handle missing value
+        if input is None:
+        input = ""
+        encoded_input = input.encode()
+        hash = hashlib.md5(encoded_input)
+        return hash.hexdigest()
+
+We can use this remote function in another `pandas`-like API `map` that can be
+applied on a DataFrame:
+
+.. code-block:: python
+
+    df_redacted = df[["species", "island", "sex"]].map(get_hash)
+    df_redacted.head(10).

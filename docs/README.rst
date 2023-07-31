@@ -125,6 +125,7 @@ To use BigQuery DataFrames remote functions, you must enable the following APIs:
 * The BigQuery API (bigquery.googleapis.com)
 * The BigQuery Connection API (bigqueryconnection.googleapis.com)
 * The Cloud Functions API (cloudfunctions.googleapis.com)
+* The Cloud Run API (run.googleapis.com)
 * The Artifact Registry API (artifactregistry.googleapis.com)
 * The Cloud Build API (cloudbuild.googleapis.com )
 * The Cloud Resource Manager API (cloudresourcemanager.googleapis.com)

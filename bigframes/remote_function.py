@@ -302,7 +302,6 @@ class RemoteFunctionClient:
 
         def {handler_func_name}(request):
           request_json = request.get_json(silent=True)
-          print("[debug] received json request: " + str(request_json))
           calls = request_json["calls"]
           replies = []
           for call in calls:
@@ -504,7 +503,7 @@ def remote_function(
     """Decorator to turn a user defined function into a BigQuery remote function.
 
     .. deprecated:: 0.0.1
-       Use :func:`bigframes.pandas.remote_function` instead.
+       This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
 
     .. note::
         Please make sure following is setup before using this API:
@@ -518,10 +517,12 @@ def remote_function(
             * Artifact Registry API
             * Cloud Resource Manager API
 
-            This can be done from the cloud console (change `PROJECT_ID` to yours):
-            https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
-            Or from the gcloud CLI:
-            `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
+           This can be done from the cloud console (change `PROJECT_ID` to yours):
+           https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
+
+           Or from the gcloud CLI:
+
+           `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
 
         2. Have following IAM roles enabled for you:
 
@@ -536,8 +537,10 @@ def remote_function(
 
             1. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
             2. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-                Alternatively, the IAM could also be setup via the gcloud CLI:
-                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
+
+               Alternatively, the IAM could also be setup via the gcloud CLI:
+
+               `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
         input_types list(type):

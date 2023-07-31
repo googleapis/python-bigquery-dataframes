@@ -963,10 +963,12 @@ class Session(
             * Artifact Registry API
             * Cloud Resource Manager API
 
-            This can be done from the cloud console (change `PROJECT_ID` to yours):
-            https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
-            Or from the gcloud CLI:
-            `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
+           This can be done from the cloud console (change `PROJECT_ID` to yours):
+           https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
+
+           Or from the gcloud CLI:
+
+           `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
 
         2. Have following IAM roles enabled for you:
 
@@ -981,8 +983,10 @@ class Session(
 
             1. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
             2. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-                Alternatively, the IAM could also be setup via the gcloud CLI:
-                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
+
+               Alternatively, the IAM could also be setup via the gcloud CLI:
+
+               `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
             input_types (list(type)):
@@ -1006,6 +1010,14 @@ class Session(
                 Setting it to false would force creating a unique remote function.
                 If the required remote function does not exist then it would be
                 created irrespective of this param.
+        Returns:
+            callable: A remote function object pointing to the cloud assets created
+            in the background to support the remote execution. The cloud assets can be
+            located through the following properties set in the object:
+
+            `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
+
+            `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return bigframes_rf(
             input_types,
