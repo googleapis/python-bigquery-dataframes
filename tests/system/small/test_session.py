@@ -27,6 +27,8 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
 
+FIRST_FILE = "000000000000"
+
 
 def test_read_gbq_tokyo(
     session_tokyo: bigframes.Session,
@@ -220,14 +222,15 @@ def test_read_pandas_tokyo(
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_w_index.csv"
+        path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     else:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index.csv"
+        path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index*.csv"
+    read_path = path.replace("*", FIRST_FILE)
     scalars_df.to_csv(path, index=False)
     dtype = scalars_df.dtypes.to_dict()
     dtype.pop("geography_col")
     df = session.read_csv(
-        path,
+        read_path,
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
     )
@@ -247,9 +250,9 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
 def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
-        path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index.csv"
+        path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index*.csv"
     else:
-        path = gcs_folder + "test_read_csv_gcs_bq_engine_wo_index.csv"
+        path = gcs_folder + "test_read_csv_gcs_bq_engine_wo_index*.csv"
     scalars_df.to_csv(path, index=False)
     df = session.read_csv(path, engine="bigquery")
 
@@ -419,22 +422,25 @@ def test_read_csv_default_engine_throws_not_implemented_error(
     match,
 ):
     path = (
-        gcs_folder + "test_read_csv_gcs_default_engine_throws_not_implemented_error.csv"
+        gcs_folder
+        + "test_read_csv_gcs_default_engine_throws_not_implemented_error*.csv"
     )
+    read_path = path.replace("*", FIRST_FILE)
     scalars_df_index.to_csv(path)
     with pytest.raises(NotImplementedError, match=match):
-        session.read_csv(path, **kwargs)
+        session.read_csv(read_path, **kwargs)
 
 
 def test_read_csv_gcs_default_engine_w_header(session, scalars_df_index, gcs_folder):
-    path = gcs_folder + "test_read_csv_gcs_default_engine_w_header.csv"
+    path = gcs_folder + "test_read_csv_gcs_default_engine_w_header*.csv"
+    read_path = path.replace("*", FIRST_FILE)
     scalars_df_index.to_csv(path)
 
     # Skips header=N rows, normally considers the N+1th row as the header, but overridden by
     # passing the `names` argument. In this case, pandas will skip the N+1th row too, take
     # the column names from `names`, and begin reading data from the N+2th row.
     df = session.read_csv(
-        path,
+        read_path,
         header=2,
         names=scalars_df_index.columns.to_list(),
     )
@@ -443,7 +449,7 @@ def test_read_csv_gcs_default_engine_w_header(session, scalars_df_index, gcs_fol
 
 
 def test_read_csv_gcs_bq_engine_w_header(session, scalars_df_index, gcs_folder):
-    path = gcs_folder + "test_read_csv_gcs_bq_engine_w_header.csv"
+    path = gcs_folder + "test_read_csv_gcs_bq_engine_w_header*.csv"
     scalars_df_index.to_csv(path, index=False)
 
     # Skip the header and the first 2 data rows. Without provided schema, the column names
@@ -487,10 +493,11 @@ def test_read_csv_local_bq_engine_w_header(session, scalars_pandas_df_index):
 def test_read_csv_gcs_default_engine_w_index_col_name(
     session, scalars_df_default_index, gcs_folder
 ):
-    path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_name.csv"
+    path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_name*.csv"
+    read_path = path.replace("*", FIRST_FILE)
     scalars_df_default_index.to_csv(path)
 
-    df = session.read_csv(path, index_col="rowindex")
+    df = session.read_csv(read_path, index_col="rowindex")
     scalars_df_default_index = scalars_df_default_index.set_index(
         "rowindex"
     ).sort_index()
@@ -501,11 +508,12 @@ def test_read_csv_gcs_default_engine_w_index_col_name(
 def test_read_csv_gcs_default_engine_w_index_col_index(
     session, scalars_df_default_index, gcs_folder
 ):
-    path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_index.csv"
+    path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_index*.csv"
+    read_path = path.replace("*", FIRST_FILE)
     scalars_df_default_index.to_csv(path)
 
     index_col = scalars_df_default_index.columns.to_list().index("rowindex")
-    df = session.read_csv(path, index_col=index_col)
+    df = session.read_csv(read_path, index_col=index_col)
     scalars_df_default_index = scalars_df_default_index.set_index(
         "rowindex"
     ).sort_index()
@@ -559,11 +567,12 @@ def test_read_csv_local_default_engine_w_index_col_index(
 )
 def test_read_csv_gcs_w_usecols(session, scalars_df_index, gcs_folder, engine):
     path = gcs_folder + "test_read_csv_gcs_w_usecols"
-    path = path + "_default_engine.csv" if engine is None else path + "_bq_engine.csv"
+    path = path + "_default_engine*.csv" if engine is None else path + "_bq_engine*.csv"
+    read_path = path.replace("*", FIRST_FILE) if engine is None else path
     scalars_df_index.to_csv(path)
 
     # df should only have 1 column which is bool_col.
-    df = session.read_csv(path, usecols=["bool_col"], engine=engine)
+    df = session.read_csv(read_path, usecols=["bool_col"], engine=engine)
     assert len(df.columns) == 1
 
 

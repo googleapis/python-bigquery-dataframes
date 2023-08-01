@@ -77,7 +77,7 @@ def test_progress_bar_extract_jobs(
     penguins_df_default_index: bf.dataframe.DataFrame, gcs_folder, capsys
 ):
     bf.options.display.progress_bar = "notebook"
-    path = gcs_folder + "test_read_csv_progress_bar.csv"
+    path = gcs_folder + "test_read_csv_progress_bar*.csv"
     penguins_df_default_index.to_csv(path)
     html_check = "HTML(value="
     open_job_check = "Open Job"
@@ -93,7 +93,7 @@ def test_progress_bar_load_jobs(
 ):
     bf.options.display.progress_bar = "notebook"
     with tempfile.TemporaryDirectory() as dir:
-        path = dir + "/test_read_csv_progress_bar.csv"
+        path = dir + "/test_read_csv_progress_bar*.csv"
         penguins_pandas_df_default_index.to_csv(path, index=False)
         session.read_csv(path)
     html_check = "HTML(value="

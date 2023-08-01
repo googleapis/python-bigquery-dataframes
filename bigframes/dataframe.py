@@ -46,6 +46,7 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
+import bigframes.core.io
 import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.dtypes
@@ -263,7 +264,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Args:
             always_include_index (bool):
-                whether to include unnamed index columns.If False, only named
+                whether to include unnamed index columns. If False, only named
                 indexes are included.
 
         Returns: a tuple of (sql_string, index_column_list)
@@ -1441,7 +1442,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             typing.cast(DataFrame, df.iloc[lower:upper]) for lower, upper in intervals
         ]
 
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> None:
+    def to_csv(
+        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
+    ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
@@ -1451,16 +1454,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
+        if "*" not in path_or_buf:
+            raise NotImplementedError(
+                "Google Cloud Storage path must contain a wildcard '*' character. See: "
+                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
+            )
 
-        source_table = self._execute_query(index=index)
-        job_config = bigquery.ExtractJobConfig(
-            destination_format=bigquery.DestinationFormat.CSV
+        source_query = self._create_io_query(index=index)
+        export_data_statement = bigframes.core.io.create_export_csv_statement(
+            source_query, uri=path_or_buf, field_delimiter=sep, header=header
         )
-        self._block.expr._session._extract_table(
-            source_table,
-            destination_uris=[path_or_buf],
-            job_config=job_config,
-        )
+        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        # Wait for job to finish
+        query_job.result()
 
     def to_json(
         self,
@@ -1474,12 +1480,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
-        # TODO(swast): Some warning that wildcard is recommended for large
-        # query results? See:
-        # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not path_or_buf.startswith("gs://"):
             raise NotImplementedError(
                 "Only Google Cloud Storage (gs://...) paths are supported."
+            )
+
+        if "*" not in path_or_buf:
+            raise NotImplementedError(
+                "Google Cloud Storage path must contain a wildcard '*' character. See: "
+                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
             )
 
         if lines is True and orient != "records":
@@ -1494,15 +1503,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 "Only newline delimited JSON format is supported."
             )
 
-        source_table = self._execute_query(index=index)
-        job_config = bigquery.ExtractJobConfig(
-            destination_format=bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
+        source_query = self._create_io_query(index=index)
+        export_data_statement = bigframes.core.io.create_export_data_statement(
+            source_query,
+            uri=path_or_buf,
+            format="JSON",
+            export_options={},
         )
-        self._block.expr._session._extract_table(
-            source_table,
-            destination_uris=[path_or_buf],
-            job_config=job_config,
-        )
+        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        # Wait for job to finish
+        query_job.result()
 
     def to_gbq(
         self,
@@ -1533,7 +1543,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ),
         )
 
-        self._execute_query(index=index, job_config=job_config)
+        self._run_io_query(index=index, job_config=job_config)
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
@@ -1553,26 +1563,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 "Only Google Cloud Storage (gs://...) paths are supported."
             )
 
-        source_table = self._execute_query(index=index)
-        job_config = bigquery.ExtractJobConfig(
-            destination_format=bigquery.DestinationFormat.PARQUET
-        )
+        if "*" not in path:
+            raise NotImplementedError(
+                "Google Cloud Storage path must contain a wildcard '*' character. See: "
+                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
+            )
 
-        self._block.expr._session._extract_table(
-            source_table,
-            destination_uris=[path],
-            job_config=job_config,
+        source_query = self._create_io_query(index=index)
+        export_data_statement = bigframes.core.io.create_export_data_statement(
+            source_query,
+            uri=path,
+            format="PARQUET",
+            export_options={},
         )
+        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        # Wait for job to finish
+        query_job.result()
 
     def _apply_to_rows(self, operation: ops.UnaryOp):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
-    def _execute_query(
-        self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None
-    ):
-        """Executes a query job presenting this dataframe and returns the destination
-        table."""
+    def _create_io_query(self, index: bool) -> str:
+        """Create query text representing this dataframe for I/O."""
         expr = self._block.expr
         session = expr._session
         columns = list(self._block.value_columns)
@@ -1600,6 +1613,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_mode="order_by", col_id_overrides=id_overrides
         )
         sql = session.ibis_client.compile(ibis_expr)  # type: ignore
+        return sql
+
+    def _run_io_query(
+        self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None
+    ) -> Optional[bigquery.TableReference]:
+        """Executes a query job presenting this dataframe and returns the destination
+        table."""
+        expr = self._block.expr
+        session = expr._session
+        sql = self._create_io_query(index=index)
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
         )

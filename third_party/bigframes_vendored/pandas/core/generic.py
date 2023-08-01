@@ -106,15 +106,13 @@ class NDFrame(indexing.IndexingMixin):
         will be converted to UNIX timestamps.
 
         .. note::
-            In BigQuery DataFrame, only `orient='records'` is supported so far.
-
-        .. note::
-            BigQuery DataFrames only supports ``lines=True`` so far.
+            Only ``orient='records'`` and ``lines=True`` is supported so far.
 
         Args:
             path_or_buf (str):
                 A destination URI of GCS files(s) to store the extracted dataframe
-                in format of ``gs://<bucket_name>/<object_name_or_glob>``.
+                in format of ``gs://<bucket_name>/<object_name_or_glob>``. Must
+                contain a wildcard `*` character.
 
                 If the data size is more than 1GB, you must use a wildcard to
                 export the data into multiple files and the size of the files

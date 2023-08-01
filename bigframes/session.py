@@ -1018,15 +1018,6 @@ class Session(
             results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
 
-    def _extract_table(self, source_table, destination_uris, job_config):
-        extract_job = self.bqclient.extract_table(
-            source=source_table,
-            destination_uris=destination_uris,
-            job_config=job_config,
-        )
-        self._start_generic_job(extract_job)
-        return extract_job
-
     def _rows_to_dataframe(
         self, row_iterator: bigquery.table.RowIterator
     ) -> pandas.DataFrame:
