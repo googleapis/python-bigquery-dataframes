@@ -330,7 +330,7 @@ class Block:
                 )
         return df
 
-    def compute(
+    def to_pandas(
         self, value_keys: Optional[Iterable[str]] = None, max_results=None
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
@@ -693,7 +693,7 @@ class Block:
         aggregations = [(column_id, stat, stat.name) for stat in stats_to_fetch]
         expr = self.expr.aggregate(aggregations)
         block = Block(expr, column_labels=[s.name for s in stats_to_fetch])
-        df, _ = block.compute()
+        df, _ = block.to_pandas()
 
         # Carefully extract stats such that they aren't coerced to a common type
         stats_map = {stat_name: df.loc[0, stat_name] for stat_name in df.columns}
@@ -788,10 +788,10 @@ class Block:
         count = self.shape[0]
         if count > max_results:
             head_block = self.slice(0, max_results)
-            computed_df, query_job = head_block.compute(max_results=max_results)
+            computed_df, query_job = head_block.to_pandas(max_results=max_results)
         else:
             head_block = self
-            computed_df, query_job = head_block.compute()
+            computed_df, query_job = head_block.to_pandas()
         formatted_df = computed_df.set_axis(self.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name

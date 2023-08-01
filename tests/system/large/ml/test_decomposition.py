@@ -43,7 +43,7 @@ def test_decomposition_configure_fit_score_predict(
     )
 
     # Check score to ensure the model was fitted
-    score_result = model.score(new_penguins).compute()
+    score_result = model.score(new_penguins).to_pandas()
     score_expected = pd.DataFrame(
         {
             "total_explained_variance_ratio": [0.812383],
@@ -56,7 +56,7 @@ def test_decomposition_configure_fit_score_predict(
         score_result, score_expected, check_exact=False, rtol=0.1
     )
 
-    result = model.predict(new_penguins).compute()
+    result = model.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {
             "principal_component_1": [-1.459, 2.258, -1.685],

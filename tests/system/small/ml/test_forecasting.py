@@ -21,7 +21,7 @@ import pytz
 
 def test_model_predict(time_series_arima_plus_model):
     utc = pytz.utc
-    predictions = time_series_arima_plus_model.predict().compute()
+    predictions = time_series_arima_plus_model.predict().to_pandas()
     expected = pd.DataFrame(
         {
             "forecast_timestamp": [
@@ -47,7 +47,7 @@ def test_model_predict(time_series_arima_plus_model):
 def test_model_score(time_series_arima_plus_model, new_time_series_df):
     result = time_series_arima_plus_model.score(
         new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
-    ).compute()
+    ).to_pandas()
     expected = pd.DataFrame(
         {
             "mean_absolute_error": [154.742547],
@@ -69,7 +69,7 @@ def test_model_score(time_series_arima_plus_model, new_time_series_df):
 def test_model_score_series(time_series_arima_plus_model, new_time_series_df):
     result = time_series_arima_plus_model.score(
         new_time_series_df["parsed_date"], new_time_series_df["total_visits"]
-    ).compute()
+    ).to_pandas()
     expected = pd.DataFrame(
         {
             "mean_absolute_error": [154.742547],

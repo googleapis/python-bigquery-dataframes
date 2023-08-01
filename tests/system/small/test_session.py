@@ -35,7 +35,7 @@ def test_read_gbq_tokyo(
     tokyo_location: str,
 ):
     df = session_tokyo.read_gbq(scalars_table_tokyo, index_col=["rowindex"])
-    result = df.sort_index().compute()
+    result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
     _, query_job = df._block.expr.start_query()
@@ -152,7 +152,7 @@ def test_read_gbq_w_max_results(
         query_or_table.format(scalars_table_id=scalars_table_id),
         max_results=max_results,
     )
-    bf_result = df.compute()
+    bf_result = df.to_pandas()
     assert bf_result.shape[0] == max_results
 
 
@@ -181,7 +181,7 @@ def test_read_pandas(session, scalars_dfs):
     df = session.read_pandas(scalars_pandas_df)
     assert df._block._expr._ordering is not None
 
-    result = df.compute()
+    result = df.to_pandas()
     expected = scalars_pandas_df
 
     pd.testing.assert_frame_equal(result, expected)
@@ -189,7 +189,7 @@ def test_read_pandas(session, scalars_dfs):
 
 def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
     df = session.read_pandas(scalars_pandas_df_multi_index)
-    result = df.compute()
+    result = df.to_pandas()
     pd.testing.assert_frame_equal(result, scalars_pandas_df_multi_index)
 
 
@@ -208,7 +208,7 @@ def test_read_pandas_tokyo(
     tokyo_location: str,
 ):
     df = session_tokyo.read_pandas(scalars_pandas_df_index)
-    result = df.compute()
+    result = df.to_pandas()
     expected = scalars_pandas_df_index
 
     _, query_job = df._block.expr.start_query()

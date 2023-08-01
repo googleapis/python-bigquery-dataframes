@@ -34,7 +34,7 @@ from typing import (
 
 import google.cloud.bigquery as bigquery
 import numpy
-import pandas as pd
+import pandas
 import typing_extensions
 
 import bigframes
@@ -143,7 +143,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             import bigframes.pandas
 
-            pd_dataframe = pd.DataFrame(
+            pd_dataframe = pandas.DataFrame(
                 data=data,
                 index=index,  # type:ignore
                 columns=columns,  # type:ignore
@@ -189,7 +189,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _sql_names(
         self,
-        columns: Union[blocks.Label, Sequence[blocks.Label], pd.Index],
+        columns: Union[blocks.Label, Sequence[blocks.Label], pandas.Index],
         tolerance: bool = False,
     ) -> Sequence[str]:
         """Retrieve sql name (column name in BQ schema) of column(s)."""
@@ -217,11 +217,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.ILocDataFrameIndexer(self)
 
     @property
-    def dtypes(self) -> pd.Series:
-        return pd.Series(data=self._block.dtypes, index=self._block.column_labels)
+    def dtypes(self) -> pandas.Series:
+        return pandas.Series(data=self._block.dtypes, index=self._block.column_labels)
 
     @property
-    def columns(self) -> pd.Index:
+    def columns(self) -> pandas.Index:
         return self.dtypes.index
 
     @property
@@ -352,7 +352,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ...
 
     @typing.overload
-    def __getitem__(self, key: pd.Index) -> DataFrame:  # type:ignore
+    def __getitem__(self, key: pandas.Index) -> DataFrame:  # type:ignore
         ...
 
     @typing.overload
@@ -365,7 +365,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             blocks.Label,
             Sequence[blocks.Label],
             # Index of column labels can be treated the same as a sequence of column labels.
-            pd.Index,
+            pandas.Index,
             bigframes.series.Series,
         ],
     ) -> Union[bigframes.series.Series, "DataFrame"]:
@@ -406,7 +406,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     # Bool Series selects rows
     def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
-        if not key.dtype == pd.BooleanDtype():
+        if not key.dtype == pandas.BooleanDtype():
             raise ValueError("Only boolean series currently supported for indexing.")
             # TODO: enforce stricter alignment
         combined_index, (
@@ -422,7 +422,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __getattr__(self, key: str):
         if key in self._block.column_labels:
             return self.__getitem__(key)
-        elif hasattr(pd.DataFrame, key):
+        elif hasattr(pandas.DataFrame, key):
             raise NotImplementedError(
                 textwrap.dedent(
                     f"""
@@ -665,10 +665,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __rmod__ = rmod
 
-    def compute(self) -> pd.DataFrame:
-        """Executes deferred operations and downloads the results."""
+    def to_pandas(self) -> pandas.DataFrame:
+        """Writes DataFrame to pandas DataFrame.
+
+        Returns:
+            panda.DataFrame:
+                A pandas DataFrame with all of the rows and columns from this
+                DataFrame.
+        """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
-        df, query_job = self._block.compute()
+        df, query_job = self._block.to_pandas()
         self._query_job = query_job
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
@@ -955,7 +961,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_bool()
         block = frame._block.aggregate_all_and_pivot(
-            agg_ops.any_op, dtype=pd.BooleanDtype()
+            agg_ops.any_op, dtype=pandas.BooleanDtype()
         )
         return bigframes.series.Series(block.select_column("values"))
 
@@ -965,7 +971,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_bool()
         block = frame._block.aggregate_all_and_pivot(
-            agg_ops.all_op, dtype=pd.BooleanDtype()
+            agg_ops.all_op, dtype=pandas.BooleanDtype()
         )
         return bigframes.series.Series(block.select_column("values"))
 
@@ -1435,12 +1441,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             typing.cast(DataFrame, df.iloc[lower:upper]) for lower, upper in intervals
         ]
 
-    def to_pandas(self) -> pd.DataFrame:
-        """Writes DataFrame to Pandas DataFrame."""
-        # TODO(chelsealin): Support block parameters.
-        # TODO(chelsealin): Add to_pandas_batches() API.
-        return self.compute()
-
     def to_csv(self, path_or_buf: str, *, index: bool = True) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -1538,7 +1538,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
-        return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
     __array__ = to_numpy
 
@@ -1683,8 +1683,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
-    return pd.api.types.is_list_like(obj)
+    return pandas.api.types.is_list_like(obj)
 
 
 def _is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]:
-    return pd.api.types.is_dict_like(obj)
+    return pandas.api.types.is_dict_like(obj)

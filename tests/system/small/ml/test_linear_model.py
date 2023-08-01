@@ -30,7 +30,7 @@ def test_linear_reg_model_score(penguins_linear_model, penguins_df_default_index
         ]
     ]
     test_y = df[["body_mass_g"]]
-    result = penguins_linear_model.score(test_X, test_y).compute()
+    result = penguins_linear_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [225.817334],
@@ -67,7 +67,7 @@ def test_linear_reg_model_score_series(
         ]
     ]
     test_y = df["body_mass_g"]
-    result = penguins_linear_model.score(test_X, test_y).compute()
+    result = penguins_linear_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [225.817334],
@@ -90,7 +90,7 @@ def test_linear_reg_model_score_series(
 
 
 def test_linear_reg_model_predict(penguins_linear_model, new_penguins_df):
-    predictions = penguins_linear_model.predict(new_penguins_df).compute()
+    predictions = penguins_linear_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
         dtype="Float64",
@@ -122,7 +122,7 @@ def test_to_gbq_saved_linear_reg_model_scores(
         ]
     ]
     test_y = df[["body_mass_g"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [227.01223],
@@ -163,7 +163,7 @@ def test_logistic_model_score(penguins_logistic_model, penguins_df_default_index
         ]
     ]
     test_y = df[["sex"]]
-    result = penguins_logistic_model.score(test_X, test_y).compute()
+    result = penguins_logistic_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "precision": [0.616753],
@@ -200,7 +200,7 @@ def test_logistic_model_score_series(
         ]
     ]
     test_y = df["sex"]
-    result = penguins_logistic_model.score(test_X, test_y).compute()
+    result = penguins_logistic_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "precision": [0.616753],
@@ -223,7 +223,7 @@ def test_logistic_model_score_series(
 
 
 def test_logsitic_model_predict(penguins_logistic_model, new_penguins_df):
-    predictions = penguins_logistic_model.predict(new_penguins_df).compute()
+    predictions = penguins_logistic_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_sex": ["MALE", "MALE", "FEMALE"]},
         dtype="string[pyarrow]",
@@ -255,7 +255,7 @@ def test_to_gbq_saved_logsitic_model_score(
         ]
     ]
     test_y = df[["sex"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "precision": [0.616753],

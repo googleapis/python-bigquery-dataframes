@@ -24,7 +24,7 @@ def test_progress_bar_dataframe(
     penguins_df_default_index: bf.dataframe.DataFrame, capsys
 ):
     bf.options.display.progress_bar = "notebook"
-    penguins_df_default_index.compute()
+    penguins_df_default_index.to_pandas()
     html_check = "HTML(value="
     open_job_check = "Open Job"
     lines = capsys.readouterr().out.split("\n")
@@ -38,7 +38,7 @@ def test_progress_bar_dataframe(
 def test_progress_bar_series(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
     bf.options.display.progress_bar = "notebook"
     series = penguins_df_default_index["body_mass_g"].head(10)
-    series.compute()
+    series.to_pandas()
     html_check = "HTML(value="
     open_job_check = "Open Job"
     lines = capsys.readouterr().out.split("\n")
@@ -110,7 +110,7 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
     penguins_df_default_index._block._expr._session.bqclient.default_query_job_config.use_query_cache = (
         False
     )
-    penguins_df_default_index.compute()
+    penguins_df_default_index.to_pandas()
     query_job_repr = formatting_helpers.repr_query_job(
         penguins_df_default_index.query_job
     ).value

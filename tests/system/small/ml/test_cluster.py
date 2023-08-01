@@ -62,7 +62,7 @@ _PD_NEW_PENGUINS = pd.DataFrame.from_dict(
 
 def test_kmeans_predict(session, penguins_kmeans_model: cluster.KMeans):
     new_penguins = session.read_pandas(_PD_NEW_PENGUINS)
-    result = penguins_kmeans_model.predict(new_penguins).compute()
+    result = penguins_kmeans_model.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {"CENTROID_ID": [2, 3, 1, 2]},
         dtype="Int64",
@@ -73,7 +73,7 @@ def test_kmeans_predict(session, penguins_kmeans_model: cluster.KMeans):
 
 def test_kmeans_score(session, penguins_kmeans_model: cluster.KMeans):
     new_penguins = session.read_pandas(_PD_NEW_PENGUINS)
-    result = penguins_kmeans_model.score(new_penguins).compute()
+    result = penguins_kmeans_model.score(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {"davies_bouldin_index": [1.523606], "mean_squared_distance": [1.965944]},
         dtype="Float64",

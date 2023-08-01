@@ -94,8 +94,8 @@ def roc_curve(
 
     # TODO(bmil): remove this once bigframes supports the necessary operations
     session = y_true_series._block.expr._session
-    pd_y_true = y_true_series.compute()
-    pd_y_score = y_score_series.compute()
+    pd_y_true = y_true_series.to_pandas()
+    pd_y_score = y_score_series.to_pandas()
 
     # We operate on rows, so, remove the index if there is one
     # TODO(bmil): check that the indexes are equivalent before removing
@@ -144,8 +144,9 @@ def roc_auc_score(
 
     fpr, tpr, _ = roc_curve(y_true_series, y_score_series, drop_intermediate=False)
 
-    pd_fpr = fpr.compute()
-    pd_tpr = tpr.compute()
+    # TODO(bmil): remove this once bigframes supports the necessary operations
+    pd_fpr = fpr.to_pandas()
+    pd_tpr = tpr.to_pandas()
 
     # Use the trapezoid rule to compute the area under the ROC curve
     width_diff = pd_fpr.diff().iloc[1:].reset_index(drop=True)
@@ -163,7 +164,7 @@ def auc(
     x_series, y_series = utils.convert_to_series(x, y)
 
     # TODO(b/286410053) Support ML exceptions and error handling.
-    auc = sklearn_metrics.auc(x_series.compute(), y_series.compute())
+    auc = sklearn_metrics.auc(x_series.to_pandas(), y_series.to_pandas())
     return auc
 
 
@@ -231,7 +232,7 @@ def recall_score(
     recall = (
         is_accurate.groupby(y_true_series).sum()
         / is_accurate.groupby(y_true_series).count()
-    ).compute()
+    ).to_pandas()
 
     recall_score = pd.Series(0, index=index)
     for i in recall_score.index:
@@ -265,7 +266,7 @@ def precision_score(
     precision = (
         is_accurate.groupby(y_pred_series).sum()
         / is_accurate.groupby(y_pred_series).count()
-    ).compute()
+    ).to_pandas()
 
     precision_score = pd.Series(0, index=index)
     for i in precision.index:

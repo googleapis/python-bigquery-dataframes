@@ -20,7 +20,7 @@ import typing
 from typing import Callable, Tuple
 
 import numpy as np
-import pandas as pd
+import pandas
 
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -63,9 +63,14 @@ class Index(vendored_pandas_index.Index):
     def empty(self) -> bool:
         return self.shape[0] == 0
 
-    def to_pandas(self) -> pd.Index:
-        """Get the Index as a pandas Index."""
-        return IndexValue(self._data._get_block()).compute()
+    def to_pandas(self) -> pandas.Index:
+        """Get the Index as a pandas Index.
+
+        Returns:
+            pandas.Index:
+                A pandas Index with all of the labels from this Index.
+        """
+        return IndexValue(self._data._get_block()).to_pandas()
 
     def __len__(self):
         return self.shape[0]
@@ -107,10 +112,10 @@ class IndexValue:
         # maybe we just print the job metadata that we have so far?
         # TODO(swast): Avoid downloading the whole index by using job
         # metadata, like we do with DataFrame.
-        preview = self.compute()
+        preview = self.to_pandas()
         return repr(preview)
 
-    def compute(self) -> pd.Index:
+    def to_pandas(self) -> pandas.Index:
         """Executes deferred operations and downloads the results."""
         # Project down to only the index column. So the query can be cached to visualize other data.
         index_column = self._block.index_columns[0]

@@ -36,7 +36,7 @@ def test_xgbregressor_model_score(
         ]
     ]
     test_y = df[["sex"]]
-    result = penguins_xgbregressor_model.score(test_X, test_y).compute()
+    result = penguins_xgbregressor_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [108.77582],
@@ -73,7 +73,7 @@ def test_xgbregressor_model_score_series(
         ]
     ]
     test_y = df["sex"]
-    result = penguins_xgbregressor_model.score(test_X, test_y).compute()
+    result = penguins_xgbregressor_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [108.77582],
@@ -98,7 +98,7 @@ def test_xgbregressor_model_score_series(
 def test_xgbregressor_model_predict(
     penguins_xgbregressor_model: bigframes.ml.ensemble.XGBRegressor, new_penguins_df
 ):
-    result = penguins_xgbregressor_model.predict(new_penguins_df).compute()
+    result = penguins_xgbregressor_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": ["4293.1538089", "3410.0271", "3357.944"]},
         dtype="Float64",
@@ -131,7 +131,7 @@ def test_to_gbq_saved_xgbregressor_model_scores(
         ]
     ]
     test_y = df[["sex"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [109.016973],
@@ -176,7 +176,7 @@ def test_xgbclassifier_model_score(
         ]
     ]
     test_y = df[["sex"]]
-    result = penguins_xgbclassifier_model.score(test_X, test_y).compute()
+    result = penguins_xgbclassifier_model.score(test_X, test_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -204,7 +204,7 @@ def test_xgbclassifier_model_score_series(
         ]
     ]
     test_y = df["sex"]
-    result = penguins_xgbclassifier_model.score(test_X, test_y).compute()
+    result = penguins_xgbclassifier_model.score(test_X, test_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -220,7 +220,7 @@ def test_xgbclassifier_model_score_series(
 def test_xgbclassifier_model_predict(
     penguins_xgbclassifier_model: bigframes.ml.ensemble.XGBClassifier, new_penguins_df
 ):
-    result = penguins_xgbclassifier_model.predict(new_penguins_df).compute()
+    result = penguins_xgbclassifier_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_sex": ["MALE", "MALE", "FEMALE"]},
         dtype="string[pyarrow]",
@@ -253,7 +253,7 @@ def test_to_gbq_saved_xgbclassifier_model_scores(
         ]
     ]
     test_y = df[["sex"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "precision": [1.0],
@@ -300,7 +300,7 @@ def test_randomforestregressor_model_score(
         ]
     ]
     test_y = df[["sex"]]
-    result = penguins_randomforest_regressor_model.score(test_X, test_y).compute()
+    result = penguins_randomforest_regressor_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [317.031042],
@@ -337,7 +337,7 @@ def test_randomforestregressor_model_score_series(
         ]
     ]
     test_y = df["sex"]
-    result = penguins_randomforest_regressor_model.score(test_X, test_y).compute()
+    result = penguins_randomforest_regressor_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [317.031042],
@@ -363,7 +363,7 @@ def test_randomforestregressor_model_predict(
     penguins_randomforest_regressor_model: bigframes.ml.ensemble.RandomForestRegressor,
     new_penguins_df,
 ):
-    result = penguins_randomforest_regressor_model.predict(new_penguins_df).compute()
+    result = penguins_randomforest_regressor_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_body_mass_g": ["3897.341797", "3458.385742", "3458.385742"]},
         dtype="Float64",
@@ -396,7 +396,7 @@ def test_to_gbq_saved_randomforestregressor_model_scores(
         ]
     ]
     test_y = df[["sex"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [319.239235],
@@ -445,7 +445,7 @@ def test_randomforestclassifier_model_score(
         ]
     ]
     test_y = df[["sex"]]
-    result = penguins_randomforest_classifier_model.score(test_X, test_y).compute()
+    result = penguins_randomforest_classifier_model.score(test_X, test_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -473,7 +473,7 @@ def test_randomforestclassifier_model_score_series(
         ]
     ]
     test_y = df["sex"]
-    result = penguins_randomforest_classifier_model.score(test_X, test_y).compute()
+    result = penguins_randomforest_classifier_model.score(test_X, test_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -490,7 +490,7 @@ def test_randomforestclassifier_model_predict(
     penguins_randomforest_classifier_model: bigframes.ml.ensemble.RandomForestClassifier,
     new_penguins_df,
 ):
-    result = penguins_randomforest_classifier_model.predict(new_penguins_df).compute()
+    result = penguins_randomforest_classifier_model.predict(new_penguins_df).to_pandas()
     expected = pandas.DataFrame(
         {"predicted_sex": ["MALE", "MALE", "FEMALE"]},
         dtype="string[pyarrow]",
@@ -523,7 +523,7 @@ def test_to_gbq_saved_randomforestclassifier_model_scores(
         ]
     ]
     test_y = df[["sex"]]
-    result = saved_model.score(test_X, test_y).compute()
+    result = saved_model.score(test_X, test_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "precision": [0.636746],

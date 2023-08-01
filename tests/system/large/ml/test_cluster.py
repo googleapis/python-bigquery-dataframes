@@ -85,7 +85,7 @@ def test_cluster_configure_fit_score_predict(
     new_penguins = session.read_pandas(pd_new_penguins)
 
     # Check score to ensure the model was fitted
-    score_result = model.score(new_penguins).compute()
+    score_result = model.score(new_penguins).to_pandas()
     score_expected = pd.DataFrame(
         {"davies_bouldin_index": [1.502182], "mean_squared_distance": [1.953408]},
         dtype="Float64",
@@ -96,7 +96,7 @@ def test_cluster_configure_fit_score_predict(
         score_result, score_expected, check_exact=False, rtol=0.1
     )
 
-    result = model.predict(new_penguins).compute()
+    result = model.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {"CENTROID_ID": [2, 3, 1, 2]},
         dtype="Int64",

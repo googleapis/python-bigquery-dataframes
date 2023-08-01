@@ -49,7 +49,7 @@ def test_pipeline_linear_regression_fit_score_predict(
     pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(X_train, y_train).compute()
+    score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [309.477334],
@@ -119,7 +119,7 @@ def test_pipeline_logistic_regression_fit_score_predict(
     pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(X_train, y_train).compute()
+    score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
             "precision": [0.537091],
@@ -187,7 +187,7 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(X_train, y_train).compute()
+    score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [203.4001727989334],
@@ -263,7 +263,7 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(X_train, y_train).compute()
+    score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
             "precision": [0.587673],
@@ -349,7 +349,7 @@ def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     )
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(new_penguins).compute()
+    score_result = pl.score(new_penguins).to_pandas()
     score_expected = pd.DataFrame(
         {
             "total_explained_variance_ratio": [1.0],
@@ -469,7 +469,7 @@ def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     new_penguins = session.read_pandas(pd_new_penguins)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(new_penguins).compute()
+    score_result = pl.score(new_penguins).to_pandas()
     score_expected = pd.DataFrame(
         {"davies_bouldin_index": [7.345611], "mean_squared_distance": [97.541777]},
         dtype="Float64",

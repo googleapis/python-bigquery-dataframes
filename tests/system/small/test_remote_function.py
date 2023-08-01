@@ -64,7 +64,9 @@ def test_remote_function_direct_no_session_param(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -96,7 +98,9 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -131,7 +135,9 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -168,7 +174,9 @@ def test_remote_function_via_session_with_overrides(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -212,7 +220,9 @@ def test_remote_function_via_session_context_connection_setter(
     bf_int64_col_filter = bf_int64_col.notnull()
     bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
     bf_result_col = bf_int64_col_filtered.apply(square)
-    bf_result = bf_int64_col_filtered.to_frame().assign(result=bf_result_col).compute()
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
     pd_int64_col = scalars_pandas_df["int64_col"]
     pd_int64_col_filter = pd_int64_col.notnull()
@@ -240,7 +250,7 @@ def test_dataframe_applymap(session_with_bq_connection, scalars_dfs):
 
     bf_int64_df = scalars_df[int64_cols]
     bf_int64_df_filtered = bf_int64_df.dropna()
-    bf_result = bf_int64_df_filtered.applymap(remote_add_one).compute()
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).to_pandas()
 
     pd_int64_df = scalars_pandas_df[int64_cols]
     pd_int64_df_filtered = pd_int64_df.dropna()
@@ -266,7 +276,7 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
     int64_cols = ["int64_col", "int64_too"]
 
     bf_int64_df = scalars_df[int64_cols]
-    bf_result = bf_int64_df.applymap(remote_add_one, na_action="ignore").compute()
+    bf_result = bf_int64_df.applymap(remote_add_one, na_action="ignore").to_pandas()
 
     pd_int64_df = scalars_pandas_df[int64_cols]
     pd_result = pd_int64_df.applymap(add_one, na_action="ignore")

@@ -37,7 +37,7 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     expected = pandas.DataFrame(
         {
             "mean_absolute_error": [97.368139],
@@ -97,7 +97,7 @@ def test_xgbregressor_dart_booster_multiple_params(
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "mean_absolute_error",
@@ -153,7 +153,7 @@ def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -209,7 +209,7 @@ def test_xgbclassifier_dart_booster_multiple_params(
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -266,7 +266,7 @@ def test_randomforestregressor_default_params(penguins_df_default_index, dataset
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "mean_absolute_error",
@@ -318,7 +318,7 @@ def test_randomforestregressor_multiple_params(penguins_df_default_index, datase
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "mean_absolute_error",
@@ -371,7 +371,7 @@ def test_randomforestclassifier_default_params(penguins_df_default_index, datase
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",
@@ -422,7 +422,7 @@ def test_randomforestclassifier_multiple_params(penguins_df_default_index, datas
     model.fit(train_X, train_y)
 
     # Check score to ensure the model was fitted
-    result = model.score(train_X, train_y).compute()
+    result = model.score(train_X, train_y).to_pandas()
     TestCase().assertSequenceEqual(result.shape, (1, 6))
     for col_name in [
         "precision",

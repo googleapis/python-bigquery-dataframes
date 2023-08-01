@@ -34,9 +34,9 @@ class DeferredScalar:
         """Converts a Series to a string."""
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-        return repr(self.compute())
+        return repr(self.to_pandas())
 
-    def compute(self) -> Any:
+    def to_pandas(self) -> Any:
         """Executes deferred operations and downloads the resulting scalar."""
         result, _ = self._session._start_query(self._value.compile())
         df = self._session._rows_to_dataframe(result)

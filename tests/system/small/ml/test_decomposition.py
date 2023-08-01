@@ -37,7 +37,7 @@ _PD_NEW_PENGUINS = pd.DataFrame(
 def test_pca_predict(session, penguins_pca_model: decomposition.PCA):
     new_penguins = session.read_pandas(_PD_NEW_PENGUINS)
 
-    predictions = penguins_pca_model.predict(new_penguins).compute()
+    predictions = penguins_pca_model.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {
             "principal_component_1": [-1.459, 2.258, -1.685],
@@ -56,7 +56,7 @@ def test_pca_predict(session, penguins_pca_model: decomposition.PCA):
 
 
 def test_pca_score(session, penguins_pca_model: decomposition.PCA):
-    result = penguins_pca_model.score().compute()
+    result = penguins_pca_model.score().to_pandas()
     expected = pd.DataFrame(
         {"total_explained_variance_ratio": [0.812383]},
         dtype="Float64",

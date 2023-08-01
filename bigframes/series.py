@@ -185,9 +185,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
 
-    def compute(self) -> pandas.Series:
-        """Executes deferred operations and downloads the results."""
-        df, query_job = self._block.compute()
+    def to_pandas(self) -> pandas.Series:
+        """Writes Series to pandas Series.
+
+        Returns:
+            panda.Series:
+                A pandas Series with all of the rows from this Series.
+        """
+        df, query_job = self._block.to_pandas((self._value_column,))
         self._query_job = query_job
         series = df[self._value_column]
         series.name = self._name
@@ -927,13 +932,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.compute().to_csv(path_or_buf, **kwargs)
+        return self.to_pandas().to_csv(path_or_buf, **kwargs)
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        return typing.cast(dict, self.compute().to_dict(into))
+        return typing.cast(dict, self.to_pandas().to_dict(into))
 
     def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        return self.compute().to_excel(excel_writer, sheet_name, **kwargs)
+        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
 
     def to_json(
         self,
@@ -944,17 +949,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         **kwargs,
     ) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.compute().to_json(path_or_buf, **kwargs)
+        return self.to_pandas().to_json(path_or_buf, **kwargs)
 
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
     ) -> typing.Optional[str]:
-        return self.compute().to_latex(
+        return self.to_pandas().to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
     def tolist(self) -> list:
-        return self.compute().to_list()
+        return self.to_pandas().to_list()
 
     to_list = tolist
 
@@ -965,17 +970,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         index: bool = True,
         **kwargs,
     ) -> typing.Optional[str]:
-        return self.compute().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
+        return self.to_pandas().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
-        return self.compute().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
     __array__ = to_numpy
 
     def to_pickle(self, path, **kwargs) -> None:
-        return self.compute().to_pickle(path, **kwargs)
+        return self.to_pandas().to_pickle(path, **kwargs)
 
     def to_string(
         self,
@@ -990,7 +995,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         max_rows=None,
         min_rows=None,
     ) -> typing.Optional[str]:
-        return self.compute().to_string(
+        return self.to_pandas().to_string(
             buf,
             na_rep,
             float_format,
@@ -1004,7 +1009,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def to_xarray(self):
-        return self.compute().to_xarray()
+        return self.to_pandas().to_xarray()
 
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str

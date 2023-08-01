@@ -54,7 +54,7 @@ import pytest
 )
 def test_window_agg_ops(scalars_df_index, scalars_pandas_df_index, windowing, agg_op):
     col_name = "int64_too"
-    bf_series = agg_op(windowing(scalars_df_index[col_name])).compute()
+    bf_series = agg_op(windowing(scalars_df_index[col_name])).to_pandas()
     pd_series = agg_op(windowing(scalars_pandas_df_index[col_name]))
 
     # Pandas always converts to float64, even for min/max/count, which is not desired
