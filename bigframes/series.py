@@ -370,66 +370,66 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     notnull = notna
 
-    def __and__(self, other: bool | int | Series | pandas.Series) -> Series:
+    def __and__(self, other: bool | int | Series) -> Series:
         return self._apply_binary_op(other, ops.and_op)
 
     __rand__ = __and__
 
-    def __or__(self, other: bool | int | Series | pandas.Series) -> Series:
+    def __or__(self, other: bool | int | Series) -> Series:
         return self._apply_binary_op(other, ops.or_op)
 
     __ror__ = __or__
 
-    def __add__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __add__(self, other: float | int | Series) -> Series:
         return self.add(other)
 
-    def __radd__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __radd__(self, other: float | int | Series) -> Series:
         return self.radd(other)
 
-    def add(self, other: float | int | Series | pandas.Series) -> Series:
+    def add(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.add_op)
 
-    def radd(self, other: float | int | Series | pandas.Series) -> Series:
+    def radd(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.add_op))
 
-    def __sub__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __sub__(self, other: float | int | Series) -> Series:
         return self.sub(other)
 
-    def __rsub__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __rsub__(self, other: float | int | Series) -> Series:
         return self.rsub(other)
 
-    def sub(self, other: float | int | Series | pandas.Series) -> Series:
+    def sub(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.sub_op)
 
-    def rsub(self, other: float | int | Series | pandas.Series) -> Series:
+    def rsub(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.sub_op))
 
     subtract = sub
 
-    def __mul__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __mul__(self, other: float | int | Series) -> Series:
         return self.mul(other)
 
-    def __rmul__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __rmul__(self, other: float | int | Series) -> Series:
         return self.rmul(other)
 
-    def mul(self, other: float | int | Series | pandas.Series) -> Series:
+    def mul(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.mul_op)
 
-    def rmul(self, other: float | int | Series | pandas.Series) -> Series:
+    def rmul(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.mul_op))
 
     multiply = mul
 
-    def __truediv__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __truediv__(self, other: float | int | Series) -> Series:
         return self.truediv(other)
 
-    def __rtruediv__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __rtruediv__(self, other: float | int | Series) -> Series:
         return self.rtruediv(other)
 
-    def truediv(self, other: float | int | Series | pandas.Series) -> Series:
+    def truediv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.div_op)
 
-    def rtruediv(self, other: float | int | Series | pandas.Series) -> Series:
+    def rtruediv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.div_op))
 
     div = truediv
@@ -438,22 +438,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     rdiv = rtruediv
 
-    def __floordiv__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __floordiv__(self, other: float | int | Series) -> Series:
         return self.floordiv(other)
 
-    def __rfloordiv__(self, other: float | int | Series | pandas.Series) -> Series:
+    def __rfloordiv__(self, other: float | int | Series) -> Series:
         return self.rfloordiv(other)
 
-    def floordiv(self, other: float | int | Series | pandas.Series) -> Series:
+    def floordiv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.floordiv_op)
 
-    def rfloordiv(self, other: float | int | Series | pandas.Series) -> Series:
+    def rfloordiv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
 
-    def __lt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+    def __lt__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.lt(other)
 
-    def __le__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+    def __le__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.le(other)
 
     def lt(self, other) -> Series:
@@ -462,10 +462,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def le(self, other) -> Series:
         return self._apply_binary_op(other, ops.le_op)
 
-    def __gt__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+    def __gt__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.gt(other)
 
-    def __ge__(self, other: float | int | Series | pandas.Series) -> Series:  # type: ignore
+    def __ge__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.ge(other)
 
     def gt(self, other) -> Series:
