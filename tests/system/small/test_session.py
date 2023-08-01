@@ -769,6 +769,67 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     pd.testing.assert_frame_equal(pd_df_in, pd_df_out)
 
 
+def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
+    scalars_df, _ = scalars_dfs
+    path = gcs_folder + "test_read_json_gcs_bq_engine_w_index*.json"
+    read_path = path.replace("*", FIRST_FILE)
+    scalars_df.to_json(path, index=False, lines=True, orient="records")
+    df = session.read_json(read_path, lines=True, orient="records", engine="bigquery")
+
+    # The auto detects of BigQuery load job does not preserve any ordering of columns for json.
+    pd.testing.assert_index_equal(
+        df.columns.sort_values(), scalars_df.columns.sort_values()
+    )
+
+    # The auto detects of BigQuery load job have restrictions to detect the bytes,
+    # datetime, numeric and geometry types, so they're skipped here.
+    df = df.drop(columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"])
+    scalars_df = scalars_df.drop(
+        columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    )
+    assert df.shape[0] == scalars_df.shape[0]
+    pd.testing.assert_series_equal(
+        df.dtypes.sort_index(), scalars_df.dtypes.sort_index()
+    )
+
+
+def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
+    scalars_df, _ = scalars_dfs
+    path = gcs_folder + "test_read_json_gcs_default_engine_w_index*.json"
+    read_path = path.replace("*", FIRST_FILE)
+    scalars_df.to_json(
+        path,
+        index=False,
+        lines=True,
+        orient="records",
+    )
+    dtype = scalars_df.dtypes.to_dict()
+    dtype.pop("geography_col")
+
+    df = session.read_json(
+        read_path,
+        # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+        dtype=dtype,
+        lines=True,
+        orient="records",
+    )
+
+    assert df._block._expr._ordering is not None
+    pd.testing.assert_index_equal(df.columns, scalars_df.columns)
+
+    # The auto detects of BigQuery load job have restrictions to detect the bytes,
+    # numeric and geometry types, so they're skipped here.
+    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+
+    # pandas read_json does not respect the dtype overrides for these columns
+    df = df.drop(columns=["date_col", "datetime_col", "time_col"])
+    scalars_df = scalars_df.drop(columns=["date_col", "datetime_col", "time_col"])
+
+    assert df.shape[0] == scalars_df.shape[0]
+    pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
 def test_session_id(session):
     assert session._session_id is not None
 

@@ -226,6 +226,33 @@ def read_csv(
 read_csv.__doc__ = inspect.getdoc(bigframes.session.Session.read_csv)
 
 
+def read_json(
+    path_or_buf: str | IO["bytes"],
+    *,
+    orient: Literal[
+        "split", "records", "index", "columns", "values", "table"
+    ] = "columns",
+    dtype: Optional[Dict] = None,
+    encoding: Optional[str] = None,
+    lines: bool = False,
+    engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
+    **kwargs,
+) -> bigframes.dataframe.DataFrame:
+    return global_session.with_default_session(
+        bigframes.session.Session.read_json,
+        path_or_buf=path_or_buf,
+        orient=orient,
+        dtype=dtype,
+        encoding=encoding,
+        lines=lines,
+        engine=engine,
+        **kwargs,
+    )
+
+
+read_json.__doc__ = inspect.getdoc(bigframes.session.Session.read_json)
+
+
 def read_gbq(
     query: str,
     *,

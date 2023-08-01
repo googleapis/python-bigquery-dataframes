@@ -103,6 +103,15 @@ _MAX_CLUSTER_COLUMNS = 4
 # functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
 # Also see if resource manager client library supports regional endpoints.
 
+_VALID_ENCODINGS = {
+    "UTF-8",
+    "ISO-8859-1",
+    "UTF-16BE",
+    "UTF-16LE",
+    "UTF-32BE",
+    "UTF-32LE",
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -873,10 +882,9 @@ class Session(
                         f"{constants.FEEDBACK_LINK}"
                     )
 
-            valid_encodings = {"UTF-8", "ISO-8859-1"}
-            if encoding is not None and encoding not in valid_encodings:
+            if encoding is not None and encoding not in _VALID_ENCODINGS:
                 raise NotImplementedError(
-                    f"BigQuery engine only supports the following encodings: {valid_encodings}. "
+                    f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}. "
                     f"{constants.FEEDBACK_LINK}"
                 )
 
@@ -961,6 +969,86 @@ class Session(
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
 
         return self._read_bigquery_load_job(path, table, job_config=job_config)
+
+    def read_json(
+        self,
+        path_or_buf: str | IO["bytes"],
+        *,
+        orient: Literal[
+            "split", "records", "index", "columns", "values", "table"
+        ] = "columns",
+        dtype: Optional[Dict] = None,
+        encoding: Optional[str] = None,
+        lines: bool = False,
+        engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
+        **kwargs,
+    ) -> dataframe.DataFrame:
+        table = bigquery.Table(self._create_session_table())
+
+        if engine == "bigquery":
+
+            if dtype is not None:
+                raise NotImplementedError(
+                    "BigQuery engine does not support the dtype arguments."
+                )
+
+            if not lines:
+                raise NotImplementedError(
+                    "Only newline delimited JSON format is supported."
+                )
+
+            if encoding is not None and encoding not in _VALID_ENCODINGS:
+                raise NotImplementedError(
+                    f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}"
+                )
+
+            if lines and orient != "records":
+                raise ValueError(
+                    "'lines' keyword is only valid when 'orient' is 'records'."
+                )
+
+            job_config = bigquery.LoadJobConfig()
+            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+            job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+            job_config.autodetect = True
+            job_config.encoding = encoding
+
+            return self._read_bigquery_load_job(
+                path_or_buf,
+                table,
+                job_config=job_config,
+            )
+        else:
+            if any(arg in kwargs for arg in ("chunksize", "iterator")):
+                raise NotImplementedError(
+                    "'chunksize' and 'iterator' arguments are not supported."
+                )
+
+            if isinstance(path_or_buf, str):
+                self._check_file_size(path_or_buf)
+
+            if engine == "ujson":
+                pandas_df = pandas.read_json(  # type: ignore
+                    path_or_buf,
+                    orient=orient,
+                    dtype=dtype,
+                    encoding=encoding,
+                    lines=lines,
+                    **kwargs,
+                )
+
+            else:
+                pandas_df = pandas.read_json(  # type: ignore
+                    path_or_buf,
+                    orient=orient,
+                    dtype=dtype,
+                    encoding=encoding,
+                    lines=lines,
+                    engine=engine,
+                    **kwargs,
+                )
+            return self.read_pandas(pandas_df)
 
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes
