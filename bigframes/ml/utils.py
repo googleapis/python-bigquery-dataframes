@@ -26,18 +26,19 @@ def convert_to_dataframe(*input: FrameType) -> Iterable[bpd.DataFrame]:
     return (_convert_to_dataframe(frame) for frame in input)
 
 
-def _convert_to_dataframe(frame: FrameType):
+def _convert_to_dataframe(frame: FrameType) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
         return frame.to_frame()
+    raise ValueError(f"Unsupported type {type(frame)} to convert to DataFrame.")
 
 
 def convert_to_series(*input: FrameType) -> Iterable[bpd.Series]:
     return (_convert_to_series(frame) for frame in input)
 
 
-def _convert_to_series(frame: FrameType):
+def _convert_to_series(frame: FrameType) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
@@ -48,3 +49,4 @@ def _convert_to_series(frame: FrameType):
         return typing.cast(bpd.Series, frame[label])
     if isinstance(frame, bpd.Series):
         return frame
+    raise ValueError(f"Unsupported type {type(frame)} to convert to Series.")

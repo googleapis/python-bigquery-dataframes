@@ -61,14 +61,20 @@ ArrowDtype = pandas.ArrowDtype
 # bigframes.pandas general functions.
 @typing.overload
 def concat(
-    objs: Iterable[bigframes.dataframe.DataFrame], *, join, ignore_index
+    objs: List[bigframes.dataframe.DataFrame],
+    *,
+    join: Literal["inner", "outer"] = "outer",
+    ignore_index: bool = False,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
 
 @typing.overload
 def concat(
-    objs: Iterable[bigframes.series.Series], *, join, ignore_index
+    objs: Iterable[bigframes.series.Series],
+    *,
+    join: Literal["inner", "outer"] = "outer",
+    ignore_index: bool = False,
 ) -> bigframes.series.Series:
     ...
 

@@ -16,6 +16,7 @@
 Scikit-Learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html"""
 
 import inspect
+import typing
 from typing import Tuple, Union
 
 import numpy as np
@@ -92,44 +93,54 @@ def roc_curve(
 
     y_true_series, y_score_series = utils.convert_to_series(y_true, y_score)
 
-    # TODO(bmil): remove this once bigframes supports the necessary operations
     session = y_true_series._block.expr._session
-    pd_y_true = y_true_series.to_pandas()
-    pd_y_score = y_score_series.to_pandas()
 
     # We operate on rows, so, remove the index if there is one
     # TODO(bmil): check that the indexes are equivalent before removing
-    pd_y_true = pd_y_true.reset_index(drop=True)
-    pd_y_score = pd_y_score.reset_index(drop=True)
 
-    pd_df = pd.DataFrame(
+    y_true_series = typing.cast(bpd.Series, y_true_series.reset_index(drop=True))
+    y_score_series = typing.cast(bpd.Series, y_score_series.reset_index(drop=True))
+
+    df = bpd.DataFrame(
         {
-            "y_true": pd_y_true,
-            "y_score": pd_y_score,
+            "y_true": y_true_series,
+            "y_score": y_score_series,
         }
     )
 
-    total_positives = pd_df.y_true.sum()
-    total_negatives = len(pd_df) - total_positives
+    total_positives = y_true_series.sum()
+    total_negatives = y_true_series.count() - total_positives
 
-    pd_df = pd_df.sort_values(by="y_score", ascending=False)
-    pd_df["cum_tp"] = pd_df.y_true.cumsum()
-    pd_df["cum_fp"] = (~pd_df.y_true.astype(bool)).cumsum()
+    df = df.sort_values(by="y_score", ascending=False)
+    df["cum_tp"] = df["y_true"].cumsum()
+    # have to astype("Int64") as not supported boolean cumsum yet.
+    df["cum_fp"] = (
+        (~typing.cast(bpd.Series, df["y_true"].astype("boolean")))
+        .astype("Int64")
+        .cumsum()
+    )
 
     # produce just one data point per y_score
-    pd_df = pd_df.groupby("y_score", as_index=False).last()
-    pd_df = pd_df.sort_values(by="y_score", ascending=False)
+    df = df.drop_duplicates(subset="y_score", keep="last")
+    df = df.sort_values(by="y_score", ascending=False)
 
-    pd_df["tpr"] = pd_df.cum_tp / total_positives
-    pd_df["fpr"] = pd_df.cum_fp / total_negatives
-    pd_df["thresholds"] = pd_df.y_score
+    df["tpr"] = typing.cast(bpd.Series, df["cum_tp"]) / total_positives
+    df["fpr"] = typing.cast(bpd.Series, df["cum_fp"]) / total_negatives
+    df["thresholds"] = typing.cast(bpd.Series, df["y_score"].astype("Float64"))
 
     # sklearn includes an extra datapoint for the origin with threshold np.inf
-    pd_origin = pd.DataFrame({"tpr": [0.0], "fpr": [0.0], "thresholds": np.inf})
-    pd_df = pd.concat([pd_origin, pd_df])
+    # having problems with concating inline
+    df_origin = session.read_pandas(
+        pd.DataFrame({"tpr": [0.0], "fpr": [0.0], "thresholds": np.inf})
+    )
+    df = bpd.concat([df_origin, df], ignore_index=True)
+    df = df.reset_index(drop=True)
 
-    df = session.read_pandas(pd_df)
-    return df.fpr, df.tpr, df.thresholds
+    return (
+        typing.cast(bpd.Series, df["fpr"]),
+        typing.cast(bpd.Series, df["tpr"]),
+        typing.cast(bpd.Series, df["thresholds"]),
+    )
 
 
 roc_curve.__doc__ = inspect.getdoc(vendored_mertics_ranking.roc_curve)
