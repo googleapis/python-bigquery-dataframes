@@ -82,12 +82,7 @@ _BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapi
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
-# functions operations (BQ Connection API, Cloud Run / Cloud Functions).
-
-# pydata-google-auth credentials in case auth credentials are not available
-# otherwise
-_pydata_google_auth_credentials: Optional[google.auth.credentials.Credentials] = None
-_pydata_google_auth_project: Optional[str] = None
+# functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
 
 logger = logging.getLogger(__name__)
 
@@ -97,50 +92,8 @@ def _is_query(query_or_table: str) -> bool:
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
-# TODO(shobs): Remove it after the same is available via pydata-google-auth
-# after https://github.com/pydata/pydata-google-auth/pull/71 is merged, released
-# and upgraded in the google colab image.
-def _ensure_application_default_credentials_in_colab_environment():
-    # This is a special handling for google colab environment where we want to
-    # use the colab specific authentication flow
-    # https://github.com/googlecolab/colabtools/blob/3c8772efd332289e1c6d1204826b0915d22b5b95/google/colab/auth.py#L209
-    try:
-        from google.colab import auth
-
-        auth.authenticate_user()
-    except Exception:
-        # We are catching a broad exception class here because we want to be
-        # agnostic to anything that could internally go wrong in the google
-        # colab auth. Some of the known exception we want to pass on are:
-        #
-        # ModuleNotFoundError: No module named 'google.colab'
-        # ImportError: cannot import name 'auth' from 'google.cloud'
-        # MessageError: Error: credential propagation was unsuccessful
-        #
-        # The MessageError happens on Vertex Colab when it fails to resolve auth
-        # from the Compute Engine Metadata server.
-        pass
-
-
-pydata_google_auth.auth._ensure_application_default_credentials_in_colab_environment = (
-    _ensure_application_default_credentials_in_colab_environment
-)
-
-
 def _get_default_credentials_with_project():
-    global _pydata_google_auth_credentials, _pydata_google_auth_project
-    if not _pydata_google_auth_credentials or not _pydata_google_auth_credentials.valid:
-        # We want to initiate auth via a non-local web server which
-        # particularly helps in a cloud notebook environment where the
-        # machine running the notebook UI and the VM running the notebook
-        # runtime are not the same.
-        # TODO(shobs, b/278903498): Use BigQuery DataFrames's own client id
-        # and secret
-        (
-            _pydata_google_auth_credentials,
-            _pydata_google_auth_project,
-        ) = pydata_google_auth.default(_SCOPES, use_local_webserver=False)
-    return _pydata_google_auth_credentials, _pydata_google_auth_project
+    return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
 
 
 def _create_cloud_clients(
