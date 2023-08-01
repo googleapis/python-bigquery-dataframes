@@ -112,6 +112,54 @@ def test_series_get_column_default(scalars_dfs):
     assert result == "default_val"
 
 
+def test_series_get_with_default_index(scalars_dfs):
+    col_name = "float64_col"
+    key = 2
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].get(key)
+    pd_result = scalars_pandas_df[col_name].get(key)
+    assert bf_result.to_pandas().iloc[0] == pd_result
+
+
+@pytest.mark.parametrize(
+    ("index_col", "key"),
+    (
+        ("int64_too", 2),
+        ("string_col", "Hello, World!"),
+        ("int64_too", slice(2, 6)),
+    ),
+)
+def test_series___getitem__(scalars_dfs, index_col, key):
+    col_name = "float64_col"
+    scalars_df, scalars_pandas_df = scalars_dfs
+    scalars_df = scalars_df.set_index(index_col, drop=False)
+    scalars_pandas_df = scalars_pandas_df.set_index(index_col, drop=False)
+    bf_result = scalars_df[col_name][key]
+    pd_result = scalars_pandas_df[col_name][key]
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
+def test_series___getitem___with_int_key(scalars_dfs):
+    col_name = "int64_too"
+    index_col = "string_col"
+    key = 2
+    scalars_df, scalars_pandas_df = scalars_dfs
+    scalars_df = scalars_df.set_index(index_col, drop=False)
+    scalars_pandas_df = scalars_pandas_df.set_index(index_col, drop=False)
+    bf_result = scalars_df[col_name][key]
+    pd_result = scalars_pandas_df[col_name][key]
+    assert bf_result == pd_result
+
+
+def test_series___getitem___with_default_index(scalars_dfs):
+    col_name = "float64_col"
+    key = 2
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name][key]
+    pd_result = scalars_pandas_df[col_name][key]
+    assert bf_result.to_pandas().iloc[0] == pd_result
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     (

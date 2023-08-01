@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import numbers
 import textwrap
 import typing
 from typing import Any, Optional, Tuple, Union
@@ -710,12 +711,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    def __getitem__(self, indexer: Series):
+    def __getitem__(self, indexer):
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
-        (left, right, block) = self._align(indexer, "left")
-        block = block.filter(right)
-        block = block.select_column(left)
-        return Series(block)
+        use_iloc = (
+            isinstance(indexer, slice)
+            and all(
+                isinstance(x, numbers.Integral) or (x is None)
+                for x in [indexer.start, indexer.stop, indexer.step]
+            )
+        ) or (
+            isinstance(indexer, numbers.Integral)
+            and not isinstance(self._block.index.dtypes[0], pandas.Int64Dtype)
+        )
+        if use_iloc:
+            return self.iloc[indexer]
+        if isinstance(indexer, Series):
+            (left, right, block) = self._align(indexer, "left")
+            block = block.filter(right)
+            block = block.select_column(left)
+            return Series(block)
+        return self.loc[indexer]
 
     def __getattr__(self, key: str):
         if hasattr(pandas.Series, key):
