@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes
-from bigframes.remote_function import remote_function
+from bigframes.remote_function import read_gbq_function, remote_function
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
@@ -120,6 +120,9 @@ def test_remote_function_direct_no_session_param(
     )
     def square(x):
         return x * x
+
+    assert square.bigframes_remote_function
+    assert square.bigframes_cloud_function
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -517,3 +520,56 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
         pd_result[col] = pd_result[col].astype(pd_int64_df[col].dtype)
 
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_like_original(
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    scalars_df_index,
+    dataset_id_permanent,
+    bq_cf_connection,
+):
+    @remote_function(
+        [int],
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        dataset=dataset_id_permanent,
+        cloud_functions_client=cloudfunctions_client,
+        bigquery_connection=bq_cf_connection,
+        reuse=True,
+    )
+    def square1(x):
+        return x * x
+
+    square2 = read_gbq_function(
+        function_name=square1.bigframes_remote_function,
+        bigquery_client=bigquery_client,
+    )
+
+    # The newly-created function (square1) should have a remote function AND a
+    # cloud function associated with it, while the read-back version (square2)
+    # should only have a remote function.
+    assert square1.bigframes_remote_function
+    assert square1.bigframes_cloud_function
+
+    assert square2.bigframes_remote_function
+    assert not hasattr(square2, "bigframes_cloud_function")
+
+    # They should point to the same function.
+    assert square1.bigframes_remote_function == square2.bigframes_remote_function
+
+    # The result of applying them should be the same.
+    int64_col = scalars_df_index["int64_col"]
+    int64_col_filter = int64_col.notnull()
+    int64_col_filtered = int64_col[int64_col_filter]
+
+    s1_result_col = int64_col_filtered.apply(square1)
+    s1_result = int64_col_filtered.to_frame().assign(result=s1_result_col)
+
+    s2_result_col = int64_col_filtered.apply(square2)
+    s2_result = int64_col_filtered.to_frame().assign(result=s2_result_col)
+
+    assert_pandas_df_equal_ignore_ordering(s1_result.to_pandas(), s2_result.to_pandas())

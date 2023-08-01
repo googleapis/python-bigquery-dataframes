@@ -384,6 +384,16 @@ def remote_function(
 remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_function)
 
 
+def read_gbq_function(function_name: str):
+    return _with_default_session(
+        bigframes.session.Session.read_gbq_function,
+        function_name=function_name,
+    )
+
+
+read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_function)
+
+
 # Other aliases
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
@@ -396,6 +406,7 @@ __all___ = [
     "options",
     "read_csv",
     "read_gbq",
+    "read_gbq_function",
     "read_gbq_model",
     "read_pandas",
     "remote_function",

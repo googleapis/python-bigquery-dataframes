@@ -64,6 +64,7 @@ import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
+from bigframes.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.version
 
@@ -1039,6 +1040,20 @@ class Session(
             dataset=dataset,
             bigquery_connection=bigquery_connection,
             reuse=reuse,
+        )
+
+    def read_gbq_function(
+        self,
+        function_name: str,
+    ):
+        """
+        Turn a BigQuery remote function into a function that can be applied to a
+        DataFrame or Series.
+        """
+
+        return bigframes_rgf(
+            function_name=function_name,
+            session=self,
         )
 
     def _start_query(
