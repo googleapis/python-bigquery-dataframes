@@ -572,9 +572,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 agg_ops.AGGREGATIONS_LOOKUP[typing.cast(str, func)]
             )
 
-    def kurt(self) -> float:
-        # TODO(tbergeron): Cache intermediate count/moment/etc. statistics at block level
+    def skew(self):
         count = self.count()
+        if count < 3:
+            return pandas.NA
+
+        moment3 = self._central_moment(3)
+        moment2 = self.var() * (count - 1) / count  # Convert sample var to pop var
+
+        # See G1 estimator:
+        # https://en.wikipedia.org/wiki/Skewness#Sample_skewness
+        numerator = moment3
+        denominator = moment2 ** (3 / 2)
+        adjustment = (count * (count - 1)) ** 0.5 / (count - 2)
+
+        return (numerator / denominator) * adjustment
+
+    def kurt(self):
+        count = self.count()
+        if count < 4:
+            return pandas.NA
 
         moment4 = self._central_moment(4)
         moment2 = self.var() * (count - 1) / count  # Convert sample var to pop var

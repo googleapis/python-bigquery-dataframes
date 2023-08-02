@@ -219,6 +219,36 @@ def test_kurt(scalars_dfs, col_name):
         ("int64_col",),
     ),
 )
+def test_skew(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[col_name].skew()
+    pd_result = scalars_pandas_df[col_name].skew()
+    assert math.isclose(pd_result, bf_result)
+
+
+def test_skew_undefined(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_col"].iloc[:2].skew()
+    pd_result = scalars_pandas_df["int64_col"].iloc[:2].skew()
+    # both should be pd.NA
+    assert pd_result is bf_result
+
+
+def test_kurt_undefined(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_col"].iloc[:3].kurt()
+    pd_result = scalars_pandas_df["int64_col"].iloc[:3].kurt()
+    # both should be pd.NA
+    assert pd_result is bf_result
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("float64_col",),
+        ("int64_col",),
+    ),
+)
 def test_var(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].var()

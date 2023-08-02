@@ -1279,6 +1279,16 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def skew(self):
+        """Return unbiased skew over requested axis.
+
+        Normalized by N-1.
+
+        Returns:
+            scalar
+        """
+        raise NotImplementedError("abstract method")
+
     def kurt(self):
         """Return unbiased kurtosis over requested axis.
 
