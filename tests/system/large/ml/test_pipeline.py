@@ -113,7 +113,7 @@ def test_pipeline_linear_regression_series_fit_score_predict(
     pl.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
-    score_result = pl.score(X_train, y_train).compute()
+    score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
             "mean_absolute_error": [528.495594],
