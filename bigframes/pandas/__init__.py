@@ -61,34 +61,57 @@ ArrowDtype = pandas.ArrowDtype
 # bigframes.pandas general functions.
 @typing.overload
 def concat(
-    objs: List[bigframes.dataframe.DataFrame],
+    objs: Iterable[bigframes.series.Series],
     *,
-    join: Literal["inner", "outer"] = "outer",
-    ignore_index: bool = False,
+    axis: typing.Literal["index", 0] = ...,
+    join=...,
+    ignore_index=...,
+) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def concat(
+    objs: Iterable[bigframes.dataframe.DataFrame],
+    *,
+    axis: typing.Literal["index", 0] = ...,
+    join=...,
+    ignore_index=...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
 
 @typing.overload
 def concat(
-    objs: Iterable[bigframes.series.Series],
+    objs: Iterable[Union[bigframes.dataframe.DataFrame, bigframes.series.Series]],
     *,
-    join: Literal["inner", "outer"] = "outer",
-    ignore_index: bool = False,
-) -> bigframes.series.Series:
+    axis: typing.Literal["columns", 1],
+    join=...,
+    ignore_index=...,
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def concat(
+    objs: Iterable[Union[bigframes.dataframe.DataFrame, bigframes.series.Series]],
+    *,
+    axis=...,
+    join=...,
+    ignore_index=...,
+) -> Union[bigframes.dataframe.DataFrame, bigframes.series.Series]:
     ...
 
 
 def concat(
-    objs: Union[
-        Iterable[bigframes.dataframe.DataFrame], Iterable[bigframes.series.Series]
-    ],
+    objs: Iterable[Union[bigframes.dataframe.DataFrame, bigframes.series.Series]],
     *,
+    axis: typing.Union[str, int] = 0,
     join: Literal["inner", "outer"] = "outer",
     ignore_index: bool = False,
 ) -> Union[bigframes.dataframe.DataFrame, bigframes.series.Series]:
     return bigframes.core.reshape.concat(
-        objs=objs, join=join, ignore_index=ignore_index
+        objs=objs, axis=axis, join=join, ignore_index=ignore_index
     )
 
 

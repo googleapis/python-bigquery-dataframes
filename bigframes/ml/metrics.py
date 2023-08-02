@@ -133,7 +133,7 @@ def roc_curve(
     df_origin = session.read_pandas(
         pd.DataFrame({"tpr": [0.0], "fpr": [0.0], "thresholds": np.inf})
     )
-    df = bpd.concat([df_origin, df], ignore_index=True)
+    df = typing.cast(bpd.DataFrame, bpd.concat([df_origin, df], ignore_index=True))
     df = df.reset_index(drop=True)
 
     return (

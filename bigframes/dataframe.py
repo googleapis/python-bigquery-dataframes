@@ -49,6 +49,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.io
 import bigframes.core.joins as joins
 import bigframes.core.ordering as order
+import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -700,7 +701,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if labels:
             if index or columns:
                 raise ValueError("Cannot specify both 'labels' and 'index'/'columns")
-            axis_n = blocks._get_axis_number(axis)
+            axis_n = utils.get_axis_number(axis)
             if axis_n == 0:
                 index = labels
             else:

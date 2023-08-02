@@ -38,6 +38,7 @@ import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as ordering
+import bigframes.core.utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -810,7 +811,7 @@ class Block:
         )
 
     def add_prefix(self, prefix: str, axis: str | int | None = None) -> Block:
-        axis_number = _get_axis_number(axis)
+        axis_number = bigframes.core.utils.get_axis_number(axis)
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
@@ -833,7 +834,7 @@ class Block:
             )
 
     def add_suffix(self, suffix: str, axis: str | int | None = None) -> Block:
-        axis_number = _get_axis_number(axis)
+        axis_number = bigframes.core.utils.get_axis_number(axis)
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
@@ -1013,12 +1014,3 @@ def _get_block_schema(
     for label, dtype in zip(block.column_labels, block.dtypes):
         result[label] = typing.cast(bigframes.dtypes.Dtype, dtype)
     return result
-
-
-def _get_axis_number(axis: str | int | None) -> typing.Literal[0, 1]:
-    if axis in {0, "index", "rows", None}:
-        return 0
-    elif axis in {1, "columns"}:
-        return 1
-    else:
-        raise ValueError(f"Not a valid axis: {axis}")
