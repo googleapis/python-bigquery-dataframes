@@ -43,6 +43,7 @@ def join_by_column(
     ],
     sort: bool = False,
     get_both_join_key_cols: bool = False,
+    allow_row_identity_join: bool = True,
 ) -> Tuple[
     core.ArrayValue,
     typing.Sequence[str],
@@ -58,6 +59,9 @@ def join_by_column(
         how: The type of join to perform.
         get_both_join_key_cols: if set to True, returned column ids will contain
             both left and right join key columns.
+        allow_row_identity_join (bool):
+            If True, allow matching by row identity. Set to False to always
+            perform a true JOIN in generated SQL.
 
     Returns:
         The joined expression and the objects needed to interpret it.
@@ -71,14 +75,17 @@ def join_by_column(
         * Tuple[Callable, Callable]: For a given column ID from left or right,
           respectively, return the new column id from the combined expression.
     """
-
     if (
-        how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
+        allow_row_identity_join
+        and how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
         and left.table.equals(right.table)
-        # Compare ibis expressions for left/right columns because its possible that
-        # they both have the same names but were modified in different ways.
+        # Make sure we're joining on exactly the same column(s), at least with
+        # regards to value its possible that they both have the same names but
+        # were modified in different ways. Ignore differences in the names.
         and all(
-            left.get_any_column(lcol).equals(right.get_any_column(rcol))
+            left.get_any_column(lcol)
+            .name("index")
+            .equals(right.get_any_column(rcol).name("index"))
             for lcol, rcol in zip(left_column_ids, right_column_ids)
         )
     ):
@@ -211,12 +218,26 @@ def join_by_column(
                 # these to take the index value from either column.
                 # Use a random name in case the left index and the right index have the
                 # same name. In such a case, _x and _y suffixes will already be used.
-                join_key_cols.append(
-                    ibis.coalesce(
-                        combined_expr.get_column(get_column_left(lcol)),
-                        combined_expr.get_column(get_column_right(rcol)),
-                    ).name(bigframes.core.guid.generate_guid(prefix="index_"))
-                )
+                # Don't need to coalesce if they are exactly the same column.
+                if (
+                    combined_expr.get_column(get_column_left(lcol))
+                    .name("index")
+                    .equals(
+                        combined_expr.get_column(get_column_right(rcol)).name("index")
+                    )
+                ):
+                    join_key_cols.append(
+                        combined_expr.get_column(get_column_left(lcol)).name(
+                            bigframes.core.guid.generate_guid(prefix="index_")
+                        )
+                    )
+                else:
+                    join_key_cols.append(
+                        ibis.coalesce(
+                            combined_expr.get_column(get_column_left(lcol)),
+                            combined_expr.get_column(get_column_right(rcol)),
+                        ).name(bigframes.core.guid.generate_guid(prefix="index_"))
+                    )
             else:
                 raise ValueError(f"Unexpected join type: {how}")
 

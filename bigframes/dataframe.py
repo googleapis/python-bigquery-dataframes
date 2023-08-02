@@ -256,7 +256,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_to_rows(ops.AsTypeOp(dtype))
 
-    def to_sql_query(
+    def _to_sql_query(
         self, always_include_index: bool
     ) -> Tuple[str, List[Tuple[str, bool]]]:
         """Compiles this dataframe's expression tree to SQL, optionally
@@ -331,7 +331,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def sql(self) -> str:
         """Compiles this dataframe's expression tree to SQL"""
-        sql, _ = self.to_sql_query(always_include_index=False)
+        sql, _ = self._to_sql_query(always_include_index=False)
         return sql
 
     @property

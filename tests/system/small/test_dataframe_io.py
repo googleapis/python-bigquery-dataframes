@@ -340,7 +340,7 @@ def test_to_parquet_index(scalars_dfs, gcs_folder, index):
 def test_to_sql_query_named_index_included(
     session, scalars_df_index, scalars_pandas_df_index
 ):
-    sql, index_columns = scalars_df_index.to_sql_query(always_include_index=True)
+    sql, index_columns = scalars_df_index._to_sql_query(always_include_index=True)
     assert len(index_columns) == 1
     index_column, is_named = index_columns[0]
     assert index_column == "rowindex"
@@ -356,7 +356,7 @@ def test_to_sql_query_unnamed_index_excluded(
     session, scalars_df_default_index, scalars_pandas_df_default_index
 ):
     # The .sql property should return SQL without the unnamed indexes
-    sql, index_columns = scalars_df_default_index.to_sql_query(
+    sql, index_columns = scalars_df_default_index._to_sql_query(
         always_include_index=False
     )
     assert len(index_columns) == 0
@@ -372,7 +372,7 @@ def test_to_sql_query_unnamed_index_always_include(
     scalars_df_default_index: bigframes.dataframe.DataFrame,
     scalars_pandas_df_default_index,
 ):
-    sql, index_columns = scalars_df_default_index.to_sql_query(
+    sql, index_columns = scalars_df_default_index._to_sql_query(
         always_include_index=True
     )
     assert len(index_columns) == 1

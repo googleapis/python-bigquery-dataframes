@@ -73,7 +73,7 @@ class BqmlModel:
                 string from which to construct the output dataframe. It must
                 include the index columns of the input SQL.
         """
-        source_sql, tagged_index_cols = input_data.to_sql_query(
+        source_sql, tagged_index_cols = input_data._to_sql_query(
             always_include_index=True
         )
 
@@ -148,7 +148,7 @@ class BqmlModel:
         # TODO: validate input data schema
         # Note: don't need index as evaluate returns a new table
         source_sql, _ = (
-            input_data.to_sql_query(always_include_index=False)
+            input_data._to_sql_query(always_include_index=False)
             if (input_data is not None)
             else (None, None)
         )

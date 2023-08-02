@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import re
 import tempfile
 
 import geopandas as gpd  # type: ignore
@@ -786,6 +787,29 @@ def test_nested_filter(scalars_dfs):
         pd_result,
         bf_result,
     )
+
+
+def test_binop_repeated_application_does_row_identity_joins(scalars_dfs):
+    """Make sure row identity joins kick in so that we don't do way more joins than expected."""
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"]
+
+    num_joins = 10
+    for _ in range(num_joins):
+        bf_series = bf_series + bf_series
+        pd_series = pd_series + pd_series
+
+    bf_result = bf_series.to_pandas()
+    pd_result = pd_series
+    assert_series_equal_ignoring_order(
+        bf_result,
+        pd_result,
+    )
+
+    bf_sql, _ = bf_series.to_frame()._to_sql_query(always_include_index=True)
+    selects = re.findall("SELECT", bf_sql.upper())
+    assert 0 < len(selects) < (num_joins // 2)
 
 
 def test_binop_opposite_filters(scalars_dfs):
