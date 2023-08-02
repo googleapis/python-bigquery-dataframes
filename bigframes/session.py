@@ -330,6 +330,13 @@ class Session(
                     f"Session {self._session_id} has expired and is no longer available."
                 ):
                     raise
+            except google.auth.exceptions.RefreshError:
+                # The refresh token may itself have been invalidated or expired
+                # https://developers.google.com/identity/protocols/oauth2#expiration
+                # Don't raise the exception in this case while closing the
+                # BigFrames session, so that the end user has a path for getting
+                # out of a bad session due to unusable credentials.
+                pass
             self._session_id = None
 
     def read_gbq(

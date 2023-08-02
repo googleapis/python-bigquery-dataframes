@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+from unittest import mock
+
 import google.api_core.exceptions
+import google.auth
+import google.auth.exceptions
 import pytest
 
 import bigframes.pandas as bpd
@@ -285,6 +290,49 @@ def test_reset_session_after_bq_session_ended():
     # Now try to reset session and verify that it works
     bpd.reset_session()
     assert bpd._global_session is None
+
+    # Now verify that use is able to start over
+    df = bpd.read_gbq(test_query)
+    assert df is not None
+
+
+def test_reset_session_after_credentials_need_reauthentication(monkeypatch):
+    # Use a simple test query to verify that default session works to interact
+    # with BQ
+    test_query = "SELECT 1"
+
+    # Confirm that default session has BQ client with valid credentials
+    session = bpd.get_global_session()
+    assert session.bqclient._credentials.valid
+
+    # Confirm that default session works as usual
+    df = bpd.read_gbq(test_query)
+    assert df is not None
+
+    with monkeypatch.context() as m:
+        # Simulate expired credentials to trigger the credential refresh flow
+        m.setattr(session.bqclient._credentials, "expiry", datetime.datetime.utcnow())
+        assert not session.bqclient._credentials.valid
+
+        # Simulate an exception during the credential refresh flow
+        m.setattr(
+            session.bqclient._credentials,
+            "refresh",
+            mock.Mock(side_effect=google.auth.exceptions.RefreshError()),
+        )
+
+        # Confirm that session is unusable to run any jobs
+        with pytest.raises(google.auth.exceptions.RefreshError):
+            query_job = session.bqclient.query(test_query)
+            query_job.result()  # blocks until finished
+
+        # Confirm that as a result bigframes.pandas interface is unusable
+        with pytest.raises(google.auth.exceptions.RefreshError):
+            bpd.read_gbq(test_query)
+
+        # Now verify that resetting the session works
+        bpd.reset_session()
+        assert bpd._global_session is None
 
     # Now verify that use is able to start over
     df = bpd.read_gbq(test_query)
