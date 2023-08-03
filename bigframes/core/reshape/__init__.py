@@ -16,6 +16,7 @@ from __future__ import annotations
 import typing
 from typing import Iterable, Literal, Optional, Union
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.utils as utils
 import bigframes.dataframe
@@ -114,6 +115,6 @@ def cut(
 
     if labels is not False:
         raise NotImplementedError(
-            "Only labels=False is supported in BigQuery DataFrames so far."
+            f"Only labels=False is supported in BigQuery DataFrames so far. {constants.FEEDBACK_LINK}"
         )
     return x._apply_window_op(agg_ops.CutOp(bins), window_spec=core.WindowSpec())

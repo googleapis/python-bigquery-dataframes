@@ -25,6 +25,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
+import bigframes.constants as constants
 import bigframes.core.guid
 from bigframes.core.ordering import (
     encode_order_string,
@@ -887,7 +888,7 @@ class ArrayValue:
         ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
         if ibis_value is None:
             raise NotImplementedError(
-                f"Type not supported as scalar value {type(value)}"
+                f"Type not supported as scalar value {type(value)}. {constants.FEEDBACK_LINK}"
             )
         expr = self._set_or_replace_by_id(destination_id, ibis_value)
         return expr._reproject_to_table()

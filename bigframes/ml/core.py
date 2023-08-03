@@ -22,6 +22,7 @@ import uuid
 from google.cloud import bigquery
 
 import bigframes
+import bigframes.constants as constants
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
 
@@ -78,7 +79,9 @@ class BqmlModel:
         )
 
         if len(tagged_index_cols) != 1:
-            raise NotImplementedError("Only exactly one index column is supported")
+            raise NotImplementedError(
+                f"Only exactly one index column is supported. {constants.FEEDBACK_LINK}"
+            )
 
         index_col_name, is_named_index = tagged_index_cols[0]
         sql = func(source_sql)

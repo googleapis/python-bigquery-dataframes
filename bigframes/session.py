@@ -57,6 +57,7 @@ import pandas
 import pydata_google_auth
 
 import bigframes._config.bigquery_options as bigquery_options
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
@@ -124,7 +125,10 @@ def _create_cloud_clients(
     )
 
     if not project:
-        raise ValueError("Project must be set to initialize BigQuery client.")
+        raise ValueError(
+            "Project must be set to initialize BigQuery client. "
+            "Try setting `bigframes.options.bigquery.project` first."
+        )
 
     if use_regional_endpoints:
         bq_options = google.api_core.client_options.ClientOptions(
@@ -774,14 +778,16 @@ class Session(
             if any(param is not None for param in (dtype, names)):
                 not_supported = ("dtype", "names")
                 raise NotImplementedError(
-                    f"BigQuery engine does not support these arguments: {not_supported}"
+                    f"BigQuery engine does not support these arguments: {not_supported}. "
+                    f"{constants.FEEDBACK_LINK}"
                 )
 
             if index_col is not None and (
                 not index_col or not isinstance(index_col, str)
             ):
                 raise NotImplementedError(
-                    "BigQuery engine only supports a single column name for `index_col`."
+                    "BigQuery engine only supports a single column name for `index_col`. "
+                    f"{constants.FEEDBACK_LINK}"
                 )
 
             # None value for index_col cannot be passed to read_gbq
@@ -797,13 +803,15 @@ class Session(
                     col_order = tuple(col for col in usecols)
                 else:
                     raise NotImplementedError(
-                        "BigQuery engine only supports an iterable of strings for `usecols`."
+                        "BigQuery engine only supports an iterable of strings for `usecols`. "
+                        f"{constants.FEEDBACK_LINK}"
                     )
 
             valid_encodings = {"UTF-8", "ISO-8859-1"}
             if encoding is not None and encoding not in valid_encodings:
                 raise NotImplementedError(
-                    f"BigQuery engine only supports the following encodings: {valid_encodings}"
+                    f"BigQuery engine only supports the following encodings: {valid_encodings}. "
+                    f"{constants.FEEDBACK_LINK}"
                 )
 
             job_config = bigquery.LoadJobConfig()
@@ -833,7 +841,8 @@ class Session(
         else:
             if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
-                    "'chunksize' and 'iterator' arguments are not supported."
+                    "'chunksize' and 'iterator' arguments are not supported. "
+                    f"{constants.FEEDBACK_LINK}"
                 )
 
             if isinstance(filepath_or_buffer, str):

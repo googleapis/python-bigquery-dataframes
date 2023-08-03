@@ -27,6 +27,7 @@ import pandas
 import pandas.core.dtypes.common
 import typing_extensions
 
+import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import WindowSpec
 import bigframes.core.block_transforms as block_ops
@@ -122,7 +123,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rename(self, index: Optional[str], **kwargs) -> Series:
         if len(kwargs) != 0:
             raise NotImplementedError(
-                "rename does not currently support any keyword arguments."
+                f"rename does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
         block = self._block.with_column_labels([index])
         return Series(block)
@@ -134,7 +135,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if len(kwargs) != 0:
             raise NotImplementedError(
-                "rename_axis does not currently support any keyword arguments."
+                f"rename_axis does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
         # limited implementation: the new index name is simply the 'mapper' parameter
         if _is_list_like(mapper):
@@ -557,7 +558,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if _is_list_like(func):
             if self.dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES:
                 raise NotImplementedError(
-                    "Multiple aggregations only supported on numeric series."
+                    f"Multiple aggregations only supported on numeric series. {constants.FEEDBACK_LINK}"
                 )
             aggregations = [agg_ops.AGGREGATIONS_LOOKUP[f] for f in func]
             return Series(
@@ -722,11 +723,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 textwrap.dedent(
                     f"""
                     BigQuery DataFrames has not yet implemented an equivalent to
-                    'pandas.Series.{key}'. Please check
-                    https://github.com/googleapis/python-bigquery-dataframes/issues for
-                    existing feature requests, or file your own.
-                    Please include information about your use case, as well as
-                    relevant code snippets.
+                    'pandas.Series.{key}'. {constants.FEEDBACK_LINK}
                     """
                 )
             )
@@ -938,7 +935,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         if not isinstance(cond, Series):
             raise TypeError(
-                f"Only bigframes series condition is supported, received {type(cond).__name__}"
+                f"Only bigframes series condition is supported, received {type(cond).__name__}. "
+                f"{constants.FEEDBACK_LINK}"
             )
         return self.where(~cond, other)
 

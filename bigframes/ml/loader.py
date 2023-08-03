@@ -19,6 +19,7 @@ from typing import Union
 from google.cloud import bigquery
 
 import bigframes
+import bigframes.constants as constants
 from bigframes.ml import cluster, decomposition, ensemble, forecasting, linear_model
 
 
@@ -64,5 +65,5 @@ def from_bq(
         return ensemble.RandomForestClassifier._from_bq(session, model)
     else:
         raise NotImplementedError(
-            f"Model type {model.model_type} is not yet supported by BigQuery DataFrames."
+            f"Model type {model.model_type} is not yet supported by BigQuery DataFrames. {constants.FEEDBACK_LINK}"
         )

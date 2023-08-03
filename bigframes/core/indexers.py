@@ -20,6 +20,7 @@ from typing import Tuple
 import ibis
 import pandas as pd
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
@@ -47,10 +48,14 @@ class LocSeriesIndexer:
         # TODO(swast): support MultiIndex
         if isinstance(key, slice):
             # TODO(swast): Implement loc with slices.
-            raise NotImplementedError("loc does not yet support slices")
+            raise NotImplementedError(
+                f"loc does not yet support slices. {constants.FEEDBACK_LINK}"
+            )
         elif isinstance(key, list):
             # TODO(tbergeron): Implement loc for index label list.
-            raise NotImplementedError("loc does not yet support index label lists")
+            raise NotImplementedError(
+                f"loc does not yet support index label lists. {constants.FEEDBACK_LINK}"
+            )
 
         # Assume the key is for the index label.
         block = self._series._block
@@ -149,6 +154,7 @@ class LocDataFrameIndexer:
         ):
             raise NotImplementedError(
                 "Only setting a column by DataFrame.loc[:, 'column'] is supported."
+                f"{constants.FEEDBACK_LINK}"
             )
 
         # TODO(swast): Support setting multiple columns with key[1] as a list
@@ -232,7 +238,9 @@ def _loc_getitem_series_or_dataframe(
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)
     elif callable(key):
-        raise NotImplementedError("loc does not yet support indexing with a callable")
+        raise NotImplementedError(
+            f"loc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"
+        )
     elif pd.api.types.is_scalar(key):
         index_name = "unnamed_col"
         keys_df = bigframes.dataframe.DataFrame(
@@ -243,7 +251,9 @@ def _loc_getitem_series_or_dataframe(
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     else:
         raise TypeError(
-            "Invalid argument type. loc currently only supports indexing with a boolean bigframes Series, a list of index entries or a single index entry."
+            "Invalid argument type. loc currently only supports indexing with a "
+            "boolean bigframes Series, a list of index entries or a single index entry. "
+            f"{constants.FEEDBACK_LINK}"
         )
 
 
@@ -345,9 +355,11 @@ def _iloc_getitem_series_or_dataframe(
 
     elif isinstance(key, tuple):
         raise NotImplementedError(
-            "iloc does not yet support indexing with a (row, column) tuple"
+            f"iloc does not yet support indexing with a (row, column) tuple. {constants.FEEDBACK_LINK}"
         )
     elif callable(key):
-        raise NotImplementedError("iloc does not yet support indexing with a callable")
+        raise NotImplementedError(
+            f"iloc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"
+        )
     else:
-        raise TypeError("Invalid argument type.")
+        raise TypeError(f"Invalid argument type. {constants.FEEDBACK_LINK}")

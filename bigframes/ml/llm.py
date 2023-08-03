@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import cast, Union
 
 import bigframes
+import bigframes.constants as constants
 from bigframes.core import blocks
 from bigframes.ml import base, core, utils
 import bigframes.pandas as bpd
@@ -113,7 +114,9 @@ class PaLM2TextGenerator(base.Predictor):
         (X,) = utils.convert_to_dataframe(X)
 
         if len(X.columns) != 1:
-            raise ValueError("Only support one column as input.")
+            raise ValueError(
+                f"Only support one column as input. {constants.FEEDBACK_LINK}"
+            )
 
         # BQML identified the column by name
         col_label = cast(blocks.Label, X.columns[0])
@@ -171,7 +174,9 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         (X,) = utils.convert_to_dataframe(X)
 
         if len(X.columns) != 1:
-            raise ValueError("Only support one column as input.")
+            raise ValueError(
+                f"Only support one column as input. {constants.FEEDBACK_LINK}"
+            )
 
         # BQML identified the column by name
         col_label = cast(blocks.Label, X.columns[0])

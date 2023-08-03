@@ -23,6 +23,7 @@ from typing import Callable, Tuple
 import ibis
 import ibis.expr.types as ibis_types
 
+import bigframes.constants as constants
 import bigframes.core as core
 
 SUPPORTED_ROW_IDENTITY_HOW = {"outer", "left", "inner"}
@@ -33,7 +34,9 @@ def join_by_row_identity(
 ) -> Tuple[core.ArrayValue, Tuple[Callable[[str], str], Callable[[str], str]],]:
     """Compute join when we are joining by row identity not a specific column."""
     if how not in SUPPORTED_ROW_IDENTITY_HOW:
-        raise NotImplementedError("Only how='outer','left','inner' currently supported")
+        raise NotImplementedError(
+            f"Only how='outer','left','inner' currently supported. {constants.FEEDBACK_LINK}"
+        )
 
     if not left.table.equals(right.table):
         raise ValueError(
@@ -163,7 +166,9 @@ def _join_predicates(
         )
         return (*left_predicates, *right_relative_predicates)
     else:
-        raise ValueError("Unsupported join_type: " + join_type)
+        raise ValueError(
+            f"Unsupported join_type: {join_type}. {constants.FEEDBACK_LINK}"
+        )
 
 
 def _get_relative_predicates(

@@ -15,6 +15,7 @@
 import typing
 from typing import Iterable, Union
 
+import bigframes.constants as constants
 from bigframes.core import blocks
 import bigframes.pandas as bpd
 
@@ -31,7 +32,9 @@ def _convert_to_dataframe(frame: FrameType) -> bpd.DataFrame:
         return frame
     if isinstance(frame, bpd.Series):
         return frame.to_frame()
-    raise ValueError(f"Unsupported type {type(frame)} to convert to DataFrame.")
+    raise ValueError(
+        f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
+    )
 
 
 def convert_to_series(*input: FrameType) -> Iterable[bpd.Series]:
@@ -42,11 +45,14 @@ def _convert_to_series(frame: FrameType) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
-                "To convert into Series, DataFrames can only contain one column. Try input with only one column."
+                "To convert into Series, DataFrames can only contain one column. "
+                f"Try input with only one column. {constants.FEEDBACK_LINK}"
             )
 
         label = typing.cast(blocks.Label, frame.columns.tolist()[0])
         return typing.cast(bpd.Series, frame[label])
     if isinstance(frame, bpd.Series):
         return frame
-    raise ValueError(f"Unsupported type {type(frame)} to convert to Series.")
+    raise ValueError(
+        f"Unsupported type {type(frame)} to convert to Series. {constants.FEEDBACK_LINK}"
+    )

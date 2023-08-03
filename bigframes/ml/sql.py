@@ -18,6 +18,8 @@ Generates SQL queries needed for BigQuery DataFrames ML
 
 from typing import Iterable, Optional, Union
 
+import bigframes.constants as constants
+
 
 def _encode_value(v: Union[str, int, float, Iterable[str]]) -> str:
     """Encode a parameter value for SQL"""
@@ -29,7 +31,7 @@ def _encode_value(v: Union[str, int, float, Iterable[str]]) -> str:
         inner = ", ".join([_encode_value(x) for x in v])
         return f"[{inner}]"
     else:
-        raise ValueError("Unexpected value type")
+        raise ValueError(f"Unexpected value type. {constants.FEEDBACK_LINK}")
 
 
 def _build_param_Iterable(**kwargs: Union[str, int, float, Iterable[str]]) -> str:

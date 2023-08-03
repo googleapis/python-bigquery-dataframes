@@ -39,6 +39,7 @@ import typing_extensions
 
 import bigframes
 import bigframes._config.display_options as display_options
+import bigframes.constants as constants
 import bigframes.core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
@@ -73,6 +74,13 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
+ERROR_IO_ONLY_GS_PATHS = f"Only Google Cloud Storage (gs://...) paths are supported. {constants.FEEDBACK_LINK}"
+ERROR_IO_REQUIRES_WILDCARD = (
+    "Google Cloud Storage path must contain a wildcard '*' character. See: "
+    "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
+    f"{constants.FEEDBACK_LINK}"
+)
+
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
 class DataFrame(vendored_pandas_frame.DataFrame):
@@ -91,7 +99,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         session: typing.Optional[bigframes.session.Session] = None,
     ):
         if copy is not None and not copy:
-            raise ValueError("DataFrame constructor only supports copy=True")
+            raise ValueError(
+                f"DataFrame constructor only supports copy=True. {constants.FEEDBACK_LINK}"
+            )
 
         # Check to see if constructing from BigQuery-backed objects before
         # falling back to pandas constructor
@@ -110,7 +120,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ):
             if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
-                raise NotImplementedError("Cannot mix Series with other types.")
+                raise NotImplementedError(
+                    f"Cannot mix Series with other types. {constants.FEEDBACK_LINK}"
+                )
             keys = list(data.keys())
             first_label, first_series = keys[0], data[keys[0]]
             block = (
@@ -132,7 +144,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if block:
             if index:
                 raise NotImplementedError(
-                    "DataFrame 'index' constructor parameter not supported when passing BigQuery-backed objects"
+                    "DataFrame 'index' constructor parameter not supported "
+                    f"when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
                 )
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
@@ -186,7 +199,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _resolve_label_exact(self, label) -> str:
         matches = self._block.label_to_col_id.get(label, [])
         if len(matches) != 1:
-            raise ValueError("Index data must be 1-dimensional")
+            raise ValueError(
+                f"Index data must be 1-dimensional. {constants.FEEDBACK_LINK}"
+            )
         return matches[0]
 
     def _sql_names(
@@ -409,7 +424,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     # Bool Series selects rows
     def _getitem_bool_series(self, key: bigframes.series.Series) -> DataFrame:
         if not key.dtype == pandas.BooleanDtype():
-            raise ValueError("Only boolean series currently supported for indexing.")
+            raise NotImplementedError(
+                f"Only boolean series currently supported for indexing. {constants.FEEDBACK_LINK}"
+            )
             # TODO: enforce stricter alignment
         combined_index, (
             get_column_left,
@@ -429,11 +446,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 textwrap.dedent(
                     f"""
                 BigQuery DataFrames has not yet implemented an equivalent to
-                'pandas.DataFrame.{key}'. Please check
-                https://github.com/googleapis/python-bigquery-dataframes/issues for
-                existing feature requests, or file your own.
-                Please include information about your use case, as well as
-                relevant code snippets.
+                'pandas.DataFrame.{key}'. {constants.FEEDBACK_LINK}
                 """
                 )
             )
@@ -523,6 +536,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self._apply_series_binop(other, op, axis=axis)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
+            f"{constants.FEEDBACK_LINK}"
         )
 
     def _apply_scalar_binop(self, other: float | int, op: ops.BinaryOp) -> DataFrame:
@@ -545,7 +559,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"Invalid input: axis {axis}.")
 
         if axis in ("columns", 1):
-            raise NotImplementedError("Row Series operations haven't been supported.")
+            raise NotImplementedError(
+                f"Row Series operations haven't been supported. {constants.FEEDBACK_LINK}"
+            )
 
         joined_index, (get_column_left, get_column_right) = self._block.index.join(
             other._block.index, how="outer"
@@ -772,7 +788,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if len(kwargs) != 0:
             raise NotImplementedError(
-                "rename_axis does not currently support any keyword arguments."
+                f"rename_axis does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
         # limited implementation: the new index name is simply the 'mapper' parameter
         if _is_list_like(mapper):
@@ -864,7 +880,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids = [self._resolve_label_exact(key) for key in keys]
         return DataFrame(self._block.set_index(col_ids, append=append, drop=drop))
 
-    def sort_index(self, ascending=True, na_position="last") -> DataFrame:
+    def sort_index(
+        self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
+    ) -> DataFrame:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         direction = (
@@ -1096,7 +1114,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
-                f"'{op}' does not support non-numeric columns. Set 'numeric_only'=True to ignore non-numeric columns"
+                f"'{op}' does not support non-numeric columns. "
+                f"Set 'numeric_only'=True to ignore non-numeric columns. {constants.FEEDBACK_LINK}"
             )
         return self
 
@@ -1106,7 +1125,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
-                f"'{op}' does not support non-bool columns. Set 'bool_only'=True to ignore non-bool columns"
+                f"'{op}' does not support non-bool columns. "
+                f"Set 'bool_only'=True to ignore non-bool columns. {constants.FEEDBACK_LINK}"
             )
         return self
 
@@ -1132,10 +1152,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if on is None:
             if left_on is None or right_on is None:
-                raise ValueError("Must specify either on or left_on + right_on.")
+                raise ValueError("Must specify `on` or `left_on` + `right_on`.")
         else:
             if left_on is not None or right_on is not None:
-                raise ValueError("Can not pass both on and left_on + right_on params.")
+                raise ValueError(
+                    "Can not pass both `on` and `left_on` + `right_on` params."
+                )
             left_on, right_on = on, on
 
         left = self
@@ -1231,7 +1253,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         left, right = self, other
         if not left.columns.intersection(right.columns).empty:
-            raise NotImplementedError("Deduping column names is not implemented")
+            raise NotImplementedError(
+                f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
+            )
 
         # Join left columns with right index
         if on is not None:
@@ -1520,14 +1544,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not path_or_buf.startswith("gs://"):
-            raise NotImplementedError(
-                "Only Google Cloud Storage (gs://...) paths are supported."
-            )
+            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
         if "*" not in path_or_buf:
-            raise NotImplementedError(
-                "Google Cloud Storage path must contain a wildcard '*' character. See: "
-                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
-            )
+            raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         source_query = self._create_io_query(index=index)
         export_data_statement = bigframes.core.io.create_export_csv_statement(
@@ -1550,15 +1569,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         if not path_or_buf.startswith("gs://"):
-            raise NotImplementedError(
-                "Only Google Cloud Storage (gs://...) paths are supported."
-            )
+            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
 
         if "*" not in path_or_buf:
-            raise NotImplementedError(
-                "Google Cloud Storage path must contain a wildcard '*' character. See: "
-                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
-            )
+            raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         if lines is True and orient != "records":
             raise ValueError(
@@ -1569,7 +1583,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string
         if lines is False:
             raise NotImplementedError(
-                "Only newline delimited JSON format is supported."
+                f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
             )
 
         source_query = self._create_io_query(index=index)
@@ -1628,15 +1642,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not path.startswith("gs://"):
-            raise NotImplementedError(
-                "Only Google Cloud Storage (gs://...) paths are supported."
-            )
+            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
 
         if "*" not in path:
-            raise NotImplementedError(
-                "Google Cloud Storage path must contain a wildcard '*' character. See: "
-                "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
-            )
+            raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         source_query = self._create_io_query(index=index)
         export_data_statement = bigframes.core.io.create_export_data_statement(

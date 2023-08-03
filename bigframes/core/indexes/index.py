@@ -22,6 +22,7 @@ from typing import Callable, Tuple
 import numpy as np
 import pandas
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.joins as joins
@@ -143,13 +144,13 @@ class IndexValue:
             # actionable for the user. For example, it's possible they
             # could call set_index and try again to resolve this error.
             raise ValueError(
-                "Can't mixed objects with explicit Index and ImpliedJoiner"
+                f"Tried to join with an unexpected type: {type(other)}. {constants.FEEDBACK_LINK}"
             )
 
         # TODO(swast): Support cross-joins (requires reindexing).
         if how not in {"outer", "left", "right", "inner"}:
             raise NotImplementedError(
-                "Only how='outer','left','right','inner' currently supported"
+                f"Only how='outer','left','right','inner' currently supported. {constants.FEEDBACK_LINK}"
             )
         if self.nlevels == other.nlevels == 1:
             return join_mono_indexed(

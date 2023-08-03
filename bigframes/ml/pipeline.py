@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple, Union
 
+import bigframes.constants as constants
 from bigframes.ml import base, compose, preprocessing, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.pipeline
@@ -36,7 +37,7 @@ class Pipeline(
 
         if len(steps) != 2:
             raise NotImplementedError(
-                "Currently only two step (transform, estimator) pipelines are supported"
+                f"Currently only two step (transform, estimator) pipelines are supported. {constants.FEEDBACK_LINK}"
             )
 
         transform, estimator = steps[0][1], steps[1][1]
@@ -51,7 +52,7 @@ class Pipeline(
             self._transform = transform
         else:
             raise NotImplementedError(
-                f"Transform {transform} is not yet supported by Pipeline"
+                f"Transform {transform} is not yet supported by Pipeline. {constants.FEEDBACK_LINK}"
             )
 
         if not isinstance(
@@ -59,7 +60,7 @@ class Pipeline(
             base.TrainablePredictor,
         ):
             raise NotImplementedError(
-                f"Estimator {estimator} is not supported by Pipeline"
+                f"Estimator {estimator} is not supported by Pipeline. {constants.FEEDBACK_LINK}"
             )
 
         self._transform = transform

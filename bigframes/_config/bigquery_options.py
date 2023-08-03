@@ -21,7 +21,10 @@ from typing import Optional
 import google.api_core.exceptions
 import google.auth.credentials
 
-SESSION_STARTED_MESSAGE = "Cannot change '{attribute}' once a session has started."
+SESSION_STARTED_MESSAGE = (
+    "Cannot change '{attribute}' once a session has started. "
+    "Call bigframes.pandas.reset_session() first, if you are using the bigframes.pandas API."
+)
 
 
 class BigQueryOptions:

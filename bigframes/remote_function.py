@@ -41,6 +41,8 @@ from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
 
+import bigframes.constants as constants
+
 # TODO(shobs): Change the min log level to INFO after the development stabilizes
 # before June 2023
 logging.basicConfig(
@@ -94,6 +96,7 @@ def _run_system_command(command):
     if exit_code:
         raise RuntimeError(
             f"Command: {command}\nOutput: {stdout.decode()}\nError: {stderr.decode()}"
+            f"{constants.FEEDBACK_LINK}"
         )
 
 
@@ -193,6 +196,7 @@ class RemoteFunctionClient:
       endpoint = "{endpoint}"
     )"""
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
+        # TODO: Use session._start_query() so we get progress bar
         query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
         query_job.result()  # Wait for the job to complete.
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
@@ -404,7 +408,9 @@ class RemoteFunctionClient:
         # Fetch the endpoint of the just created function
         endpoint = self.get_cloud_function_endpoint(cf_name)
         if not endpoint:
-            raise ValueError("Couldn't fetch the http endpoint")
+            raise ValueError(
+                f"Couldn't fetch the http endpoint. {constants.FEEDBACK_LINK}"
+            )
 
         logger.info(
             f"Successfully created cloud function {cf_name} with uri ({endpoint})"
@@ -468,7 +474,8 @@ class RemoteFunctionClient:
         # cloud function and BigQuery remote function respectively
         if not shutil.which("gcloud"):
             raise ValueError(
-                "gcloud tool not installed, install it from https://cloud.google.com/sdk/docs/install"
+                "gcloud tool not installed, install it from https://cloud.google.com/sdk/docs/install. "
+                f"{constants.FEEDBACK_LINK}"
             )
 
         # TODO(shobs): Check for permissions too
@@ -587,7 +594,8 @@ def remote_function(
             bigquery_client = session.bqclient
     if not bigquery_client:
         raise ValueError(
-            "A bigquery client must be provided, either directly or via session"
+            "A bigquery client must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
         )
 
     # A BigQuery connection client is required to perform BQ connection operations
@@ -596,7 +604,8 @@ def remote_function(
             bigquery_connection_client = session.bqconnectionclient
     if not bigquery_connection_client:
         raise ValueError(
-            "A bigquery connection client must be provided, either directly or via session"
+            "A bigquery connection client must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
         )
 
     # A cloud functions client is required to perform cloud functions operations
@@ -605,7 +614,8 @@ def remote_function(
             cloud_functions_client = session.cloudfunctionsclient
     if not cloud_functions_client:
         raise ValueError(
-            "A functions connection client must be provided, either directly or via session"
+            "A functions connection client must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
         )
 
     # BQ remote function must be persisted, for which we need a dataset
@@ -621,9 +631,15 @@ def remote_function(
         if session:
             bq_dataset = session._session_dataset_id
     if not gcp_project_id:
-        raise ValueError("Project must be provided, either directly or via session")
+        raise ValueError(
+            "Project must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
+        )
     if not bq_dataset:
-        raise ValueError("Dataset must be provided, either directly or via session")
+        raise ValueError(
+            "Dataset must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
+        )
 
     bq_location, cloud_function_region = get_remote_function_locations(
         bigquery_client.location
@@ -635,7 +651,8 @@ def remote_function(
         bigquery_connection = session._remote_udf_connection  # type: ignore
     if not bigquery_connection:
         raise ValueError(
-            "BigQuery connection must be provided, either directly or via session"
+            "BigQuery connection must be provided, either directly or via session. "
+            f"{constants.FEEDBACK_LINK}"
         )
 
     uniq_suffix = None
@@ -653,8 +670,9 @@ def remote_function(
 
         # Check supported python datatypes and convert to ibis datatypes
         type_error_message_format = (
-            "type {{}} not supported, supported types are {}.".format(
-                ", ".join([type_.__name__ for type_ in _supported_io_types])
+            "type {{}} not supported, supported types are {}. {}".format(
+                ", ".join([type_.__name__ for type_ in _supported_io_types]),
+                constants.FEEDBACK_LINK,
             )
         )
         for type_ in input_types:

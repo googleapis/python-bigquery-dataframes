@@ -18,11 +18,14 @@
 import datetime
 from typing import Any, Optional, Union
 
+import google.api_core.exceptions as api_core_exceptions
 import google.cloud.bigquery as bigquery
 import humanize
 import IPython
 import IPython.display as display
 import ipywidgets as widgets
+
+import bigframes.constants as constants
 
 GenericJob = Union[bigquery.LoadJob, bigquery.ExtractJob, bigquery.QueryJob]
 
@@ -33,6 +36,14 @@ query_job_prop_pairs = {
     "Bytes Processed": "estimated_bytes_processed",
     "Cache hit": "cache_hit",
 }
+
+
+def add_feedback_link(
+    exception: Union[
+        api_core_exceptions.RetryError, api_core_exceptions.GoogleAPICallError
+    ]
+):
+    exception.message = exception.message + f" {constants.FEEDBACK_LINK}"
 
 
 def repr_query_job(query_job: Optional[bigquery.QueryJob]):
@@ -82,19 +93,30 @@ def wait_for_query_job(
     if progress_bar == "auto":
         progress_bar = "notebook" if in_ipython() else "terminal"
 
-    if progress_bar == "notebook":
-        display.display(loading_bar)
-        query_result = query_job.result(max_results=max_results)
-        query_job.reload()
-        loading_bar.value = get_query_job_loading_html(query_job)
-    elif progress_bar == "terminal":
-        initial_loading_bar = get_query_job_loading_string(query_job)
-        print(initial_loading_bar)
-        query_result = query_job.result(max_results=max_results)
-        query_job.reload()
-        if initial_loading_bar != get_query_job_loading_string(query_job):
-            print(get_query_job_loading_string(query_job))
-    return query_result
+    try:
+        if progress_bar == "notebook":
+            display.display(loading_bar)
+            query_result = query_job.result(max_results=max_results)
+            query_job.reload()
+            loading_bar.value = get_query_job_loading_html(query_job)
+        elif progress_bar == "terminal":
+            initial_loading_bar = get_query_job_loading_string(query_job)
+            print(initial_loading_bar)
+            query_result = query_job.result(max_results=max_results)
+            query_job.reload()
+            if initial_loading_bar != get_query_job_loading_string(query_job):
+                print(get_query_job_loading_string(query_job))
+        else:
+            # No progress bar.
+            query_result = query_job.result(max_results=max_results)
+            query_job.reload()
+        return query_result
+    except api_core_exceptions.RetryError as exc:
+        add_feedback_link(exc)
+        raise
+    except api_core_exceptions.GoogleAPICallError as exc:
+        add_feedback_link(exc)
+        raise
 
 
 def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
@@ -107,18 +129,29 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
     if progress_bar == "auto":
         progress_bar = "notebook" if in_ipython() else "terminal"
 
-    if progress_bar == "notebook":
-        display.display(loading_bar)
-        job.result()
-        job.reload()
-        loading_bar.value = get_base_job_loading_html(job)
-    elif progress_bar == "terminal":
-        inital_loading_bar = get_base_job_loading_string(job)
-        print(inital_loading_bar)
-        job.result()
-        job.reload()
-        if get_base_job_loading_string != inital_loading_bar:
-            print(get_base_job_loading_string(job))
+    try:
+        if progress_bar == "notebook":
+            display.display(loading_bar)
+            job.result()
+            job.reload()
+            loading_bar.value = get_base_job_loading_html(job)
+        elif progress_bar == "terminal":
+            inital_loading_bar = get_base_job_loading_string(job)
+            print(inital_loading_bar)
+            job.result()
+            job.reload()
+            if get_base_job_loading_string != inital_loading_bar:
+                print(get_base_job_loading_string(job))
+        else:
+            # No progress bar.
+            job.result()
+            job.reload()
+    except api_core_exceptions.RetryError as exc:
+        add_feedback_link(exc)
+        raise
+    except api_core_exceptions.GoogleAPICallError as exc:
+        add_feedback_link(exc)
+        raise
 
 
 def get_job_url(query_job: GenericJob):

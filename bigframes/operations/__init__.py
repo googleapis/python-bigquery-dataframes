@@ -25,6 +25,7 @@ import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+import bigframes.constants as constants
 import bigframes.dtypes
 import bigframes.dtypes as dtypes
 
@@ -41,7 +42,9 @@ TernaryOp = typing.Callable[
 ### Unary Ops
 class UnaryOp:
     def _as_ibis(self, x):
-        raise NotImplementedError("Base class UnaryOp has no implementation.")
+        raise NotImplementedError(
+            f"Base class UnaryOp has no implementation. {constants.FEEDBACK_LINK}"
+        )
 
     @property
     def is_windowed(self):
@@ -329,7 +332,7 @@ class RemoteFunctionOp(UnaryOp):
     def __init__(self, func: typing.Callable, apply_on_null=True):
         if not hasattr(func, "bigframes_remote_function"):
             raise TypeError(
-                "only a bigframes remote function is supported as a callable"
+                f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
             )
 
         self._func = func

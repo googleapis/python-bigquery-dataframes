@@ -19,6 +19,7 @@ import typing
 import ibis.expr.types as ibis_types
 import pandas as pd
 
+import bigframes.constants as constants
 import bigframes.core.blocks as blocks
 import bigframes.core.scalar as scalars
 import bigframes.dtypes
@@ -49,7 +50,9 @@ class SeriesMethods:
     ):
         block = None
         if copy is not None and not copy:
-            raise ValueError("Series constructor only supports copy=True")
+            raise ValueError(
+                f"Series constructor only supports copy=True. {constants.FEEDBACK_LINK}"
+            )
         if isinstance(data, blocks.Block):
             assert len(data.value_columns) == 1
             assert len(data.column_labels) == 1
@@ -62,12 +65,12 @@ class SeriesMethods:
             if name:
                 if not isinstance(name, str):
                     raise NotImplementedError(
-                        "BigQuery DataFrames only supports string series names."
+                        f"BigQuery DataFrames only supports string series names. {constants.FEEDBACK_LINK}"
                     )
                 block = block.with_column_labels([name])
             if index:
                 raise NotImplementedError(
-                    "Series 'index' constructor parameter not supported when passing BigQuery-backed objects"
+                    f"Series 'index' constructor parameter not supported when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
                 )
             if dtype:
                 block = block.multi_apply_unary_op(
@@ -140,7 +143,7 @@ class SeriesMethods:
         if isinstance(other, pd.Series):
             # TODO: Convert to BigQuery DataFrames series
             raise NotImplementedError(
-                "Pandas series not supported supported as operand."
+                f"Pandas series not supported supported as operand. {constants.FEEDBACK_LINK}"
             )
         if isinstance(other, series.Series):
             (left, right, block) = self._align(other, how=alignment)

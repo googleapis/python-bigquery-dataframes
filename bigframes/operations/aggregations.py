@@ -20,6 +20,8 @@ import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
+import bigframes.constants as constants
+
 
 class WindowOp:
     def _as_ibis(self, value: ibis_types.Column, window=None):
@@ -53,7 +55,7 @@ def numeric_op(operation):
             return operation(op, column, window)
         else:
             raise ValueError(
-                f"Numeric operation cannot be applied to type {column.type()}"
+                f"Numeric operation cannot be applied to type {column.type()}. {constants.FEEDBACK_LINK}"
             )
 
     return constrained_op

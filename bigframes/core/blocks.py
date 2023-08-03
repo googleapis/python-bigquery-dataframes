@@ -34,6 +34,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa  # type: ignore
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
@@ -918,14 +919,20 @@ def block_from_local(data, session=None, use_index=True) -> Block:
 
     column_labels = list(pd_data.columns)
     if not all((label is None) or isinstance(label, str) for label in column_labels):
-        raise NotImplementedError("Only string column labels supported")
+        raise NotImplementedError(
+            f"Only string column labels supported. {constants.FEEDBACK_LINK}"
+        )
 
     if use_index:
         if pd_data.index.nlevels > 1:
-            raise NotImplementedError("multi-indices not supported.")
+            raise NotImplementedError(
+                f"multi-indices not supported. {constants.FEEDBACK_LINK}"
+            )
         index_label = pd_data.index.name
         if (index_label is not None) and (not isinstance(index_label, str)):
-            raise NotImplementedError("Only string index names supported")
+            raise NotImplementedError(
+                f"Only string index names supported. {constants.FEEDBACK_LINK}"
+            )
 
         index_id = guid.generate_guid()
         pd_data = pd_data.reset_index(names=index_id)
@@ -976,11 +983,11 @@ def _align_indices(blocks: typing.Sequence[Block]) -> typing.Sequence[Label]:
     for block in blocks[1:]:
         if len(names) != block.index.nlevels:
             raise NotImplementedError(
-                "Cannot combine indices with different number of levels. Use 'ignore_index'=True."
+                f"Cannot combine indices with different number of levels. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
             )
         if block.index.dtypes != types:
             raise NotImplementedError(
-                "Cannot combine different index dtypes. Use 'ignore_index'=True."
+                f"Cannot combine different index dtypes. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
             )
         names = [
             lname if lname == rname else None
@@ -998,7 +1005,7 @@ def _combine_schema_inner(
         if label in right:
             if type != right[label]:
                 raise ValueError(
-                    f"Cannot concat rows with label {label} due to mismatched types"
+                    f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
                 )
             result[label] = type
     return result
@@ -1012,7 +1019,7 @@ def _combine_schema_outer(
     for label, type in left.items():
         if (label in right) and (type != right[label]):
             raise ValueError(
-                f"Cannot concat rows with label {label} due to mismatched types"
+                f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
             )
         result[label] = type
     for label, type in right.items():

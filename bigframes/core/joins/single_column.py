@@ -23,6 +23,7 @@ import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid
 import bigframes.core.joins.row_identity
@@ -299,7 +300,9 @@ def get_join_cols(
                         ).name(bigframes.core.guid.generate_guid(prefix="index_"))
                     )
             else:
-                raise ValueError(f"Unexpected join type: {how}")
+                raise ValueError(
+                    f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}"
+                )
     return join_key_cols
 
 

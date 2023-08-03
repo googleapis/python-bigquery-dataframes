@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics as sklearn_metrics  # type: ignore
 
+import bigframes.constants as constants
 from bigframes.ml import utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.metrics._classification as vendored_mertics_classification
@@ -89,7 +90,9 @@ def roc_curve(
 
     # TODO(bmil): Implement drop_intermediate
     if drop_intermediate:
-        raise NotImplementedError("drop_intermediate is not yet implemented")
+        raise NotImplementedError(
+            f"drop_intermediate is not yet implemented. {constants.FEEDBACK_LINK}"
+        )
 
     y_true_series, y_score_series = utils.convert_to_series(y_true, y_score)
 
@@ -228,7 +231,9 @@ def recall_score(
 ) -> pd.Series:
     # TODO(ashleyxu): support more average type, default to "binary"
     if average is not None:
-        raise NotImplementedError("Only average=None is supported")
+        raise NotImplementedError(
+            f"Only average=None is supported. {constants.FEEDBACK_LINK}"
+        )
 
     y_true_series, y_pred_series = utils.convert_to_series(y_true, y_pred)
 
@@ -262,7 +267,9 @@ def precision_score(
 ) -> pd.Series:
     # TODO(ashleyxu): support more average type, default to "binary"
     if average is not None:
-        raise NotImplementedError("Only average=None is supported")
+        raise NotImplementedError(
+            f"Only average=None is supported. {constants.FEEDBACK_LINK}"
+        )
 
     y_true_series, y_pred_series = utils.convert_to_series(y_true, y_pred)
 
@@ -300,7 +307,9 @@ def f1_score(
     y_true_series, y_pred_series = utils.convert_to_series(y_true, y_pred)
 
     if average is not None:
-        raise NotImplementedError("Only average=None is supported")
+        raise NotImplementedError(
+            f"Only average=None is supported. {constants.FEEDBACK_LINK}"
+        )
 
     recall = recall_score(y_true_series, y_pred_series, average=None)
     precision = precision_score(y_true_series, y_pred_series, average=None)

@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from typing import cast, Literal, Optional, Union
 
+import bigframes.constants as constants
 import bigframes.dataframe as df
 import bigframes.operations as ops
 import bigframes.operations.base
@@ -177,7 +178,9 @@ def _parse_flags(flags: int) -> Optional[str]:
 
     # Remaining flags couldn't be mapped to re2 engine
     if flags:
-        raise NotImplementedError(f"Could not handle RegexFlag: {flags}")
+        raise NotImplementedError(
+            f"Could not handle RegexFlag: {flags}. {constants.FEEDBACK_LINK}"
+        )
 
     if re2flags:
         return "(?" + "".join(re2flags) + ")"

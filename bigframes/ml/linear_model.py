@@ -22,6 +22,7 @@ from typing import cast, Dict, List, Optional, Union
 from google.cloud import bigquery
 
 import bigframes
+import bigframes.constants as constants
 from bigframes.ml import base, core, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.linear_model._base
@@ -252,7 +253,9 @@ class LogisticRegression(
         # TODO(ashleyxu): b/285162045 support auto_class_weights once the API is
         # fixed and enable the tests.
         if self.auto_class_weights is True:
-            raise NotImplementedError("auto_class_weight is not supported yet.")
+            raise NotImplementedError(
+                f"auto_class_weight is not supported yet. {constants.FEEDBACK_LINK}"
+            )
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)

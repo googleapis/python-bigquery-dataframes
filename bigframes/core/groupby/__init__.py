@@ -19,6 +19,7 @@ import typing
 import pandas as pd
 import typing_extensions
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as order
@@ -161,7 +162,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             dtype in dtypes.NUMERIC_BIGFRAMES_TYPES for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
-                f"'{op}' does not support non-numeric columns. Set 'numeric_only'=True to ignore non-numeric columns"
+                f"'{op}' does not support non-numeric columns. "
+                "Set 'numeric_only'=True to ignore non-numeric columns. "
+                f"{constants.FEEDBACK_LINK}"
             )
         return self
 
