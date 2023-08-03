@@ -119,7 +119,7 @@ _global_session_lock = threading.Lock()
 
 
 def reset_session() -> None:
-    """Start a fresh session next time a function requires a session.
+    """Start a fresh session the next time a function requires a session.
 
     Closes the current session if it was already started.
 

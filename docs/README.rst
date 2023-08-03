@@ -95,7 +95,7 @@ DataFrames session, using the name you provide in the custom function
 definition. To view and manage connections, do the following:
 
 1. Go to `BigQuery <https://pantheon.corp.google.com/bigquery>`__.
-2. Select the project in which you created the connection.
+2. Select the project in which you created the remote function.
 3. In the Explorer pane, expand that project and then expand External connections.
 
 BigQuery remote functions are created in the dataset you specify, or
@@ -105,7 +105,7 @@ the location used by the BigQuery DataFrames session. For example,
 the following:
 
 1. Go to `BigQuery <https://pantheon.corp.google.com/bigquery>`__.
-2. Select the project in which you created the connection.
+2. Select the project in which you created the remote function.
 3. In the Explorer pane, expand that project, expand the dataset in which you
    created the remote function, and then expand Routines.
 
@@ -179,3 +179,7 @@ and processing on the BigQuery service. However, you can bring data into the
 memory of your client machine by calling ``.execute()`` on a DataFrame or Series
 object. If you choose to do this, the memory limitation of your client machine
 applies.
+
+Contact Us
+--------------
+For further help and provide feedback, you can email us at `bigframes-feedback@google.com <https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=bigframes-feedback@google.com>`_.

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Matrix Decomposition models. This module is styled after Scikit-Learn's decomposition module:
-https://scikit-learn.org/stable/modules/decomposition.html"""
+https://scikit-learn.org/stable/modules/decomposition.html."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ class PCA(
         )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):

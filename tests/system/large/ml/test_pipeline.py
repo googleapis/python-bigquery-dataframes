@@ -549,7 +549,7 @@ def test_pipeline_standard_scaler_kmeans_fit_score_predict(
 
 
 def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
-    """Test a preprocessing step that manages heterogenous data with ColumnTransformer"""
+    """Test a preprocessing step that manages heterogeneous data with ColumnTransformer"""
     pl = pipeline.Pipeline(
         [
             (

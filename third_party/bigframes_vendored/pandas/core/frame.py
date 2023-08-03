@@ -96,12 +96,12 @@ class DataFrame(NDFrame):
 
         Args:
             path (str):
-                Destination URI(s) of GCS files(s) to store the extracted dataframe
+                Destination URI(s) of Cloud Storage files(s) to store the extracted dataframe
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
 
-            index (bool, default None):
+            index (bool, default True):
                 If ``True``, include the dataframe's index(es) in the file output.
                 If ``False``, they will not be written to the file.
 

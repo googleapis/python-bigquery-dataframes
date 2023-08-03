@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Linear models. This module is styled after Scikit-Learn's linear_model module:
-https://scikit-learn.org/stable/modules/linear_model.html"""
+https://scikit-learn.org/stable/modules/linear_model.html."""
 
 from __future__ import annotations
 
@@ -193,7 +193,7 @@ class XGBRegressor(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> XGBRegressor:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name: the name of the model.
@@ -350,7 +350,7 @@ class XGBClassifier(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> XGBClassifier:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):
@@ -517,7 +517,7 @@ class RandomForestRegressor(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> RandomForestRegressor:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):
@@ -684,7 +684,7 @@ class RandomForestClassifier(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> RandomForestClassifier:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):

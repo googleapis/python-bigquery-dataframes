@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """For composing estimators together. This module is styled after Scikit-Learn's
-pipeline module: https://scikit-learn.org/stable/modules/pipeline.html"""
+pipeline module: https://scikit-learn.org/stable/modules/pipeline.html."""
 
 
 from __future__ import annotations

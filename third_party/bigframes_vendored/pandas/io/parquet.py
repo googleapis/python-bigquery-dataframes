@@ -8,7 +8,7 @@ class ParquetIOMixin:
         self,
         path: str,
     ):
-        r"""Load a parquet object from the file path (local or GCS), returning a DataFrame.
+        r"""Load a Parquet object from the file path (local or Cloud Storage), returning a DataFrame.
 
         .. note::
             This method will not guarantee the same ordering as the file.
@@ -17,6 +17,9 @@ class ParquetIOMixin:
 
         Args:
             path (str):
-                Local or GCS path to parquet file.
+                Local or Cloud Storage path to Parquet file.
+
+        Returns:
+            bigframes.dataframe.DataFrame: A BigQuery DataFrames.
         """
         raise NotImplementedError("abstract method")

@@ -26,7 +26,7 @@ class DatetimeProperties:
 
     @property
     def date(self):
-        """Returns numpy array of python :class:`datetime.date` objects.
+        """Returns numpy array of Python :class:`datetime.date` objects.
 
         Namely, the date part of Timestamps without time and
         timezone information.

@@ -23,27 +23,6 @@ from third_party.bigframes_vendored.sklearn.linear_model._base import (
 class LogisticRegression(LinearClassifierMixin, BaseEstimator):
     """Logistic Regression (aka logit, MaxEnt) classifier.
 
-    .. note::
-        L-BFGS-B -- Software for Large-scale Bound-constrained Optimization
-            Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis Morales.
-            http://users.iems.northwestern.edu/~nocedal/lbfgsb.html
-
-        LIBLINEAR -- A Library for Large Linear Classification
-            https://www.csie.ntu.edu.tw/~cjlin/liblinear/
-
-        SAG -- Mark Schmidt, Nicolas Le Roux, and Francis Bach
-            Minimizing Finite Sums with the Stochastic Average Gradient
-            https://hal.inria.fr/hal-00860051/document
-
-        SAGA -- Defazio, A., Bach F. & Lacoste-Julien S. (2014).
-                "SAGA: A Fast Incremental Gradient Method With Support
-                for Non-Strongly Convex Composite Objectives" (Arxiv <1407.0202>)
-
-        Hsiang-Fu Yu, Fang-Lan Huang, Chih-Jen Lin (2011). Dual coordinate descent
-            methods for logistic regression and maximum entropy models.
-            Machine Learning 85(1-2):41-75.
-            https://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
-
     Args:
         fit_intercept (default True):
             Default True. Specifies if a constant (a.k.a. bias or intercept)

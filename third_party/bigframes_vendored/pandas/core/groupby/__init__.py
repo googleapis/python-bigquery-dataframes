@@ -17,7 +17,7 @@ class GroupBy:
 
     def any(self):
         """
-        Return True if any value in the group is truthful, else False.
+        Return True if any value in the group is true, else False.
 
         Returns:
             Series or DataFrame: DataFrame or Series of boolean values,
@@ -28,7 +28,7 @@ class GroupBy:
 
     def all(self):
         """
-        Return True if all values in the group are truthful, else False.
+        Return True if all values in the group are true, else False.
 
         Returns:
             Series or DataFrame: DataFrame or Series of boolean values,
@@ -240,7 +240,6 @@ class GroupBy:
     def shift(self, periods: int = 1):
         """
         Shift each group by periods observations.
-        If freq is passed, the index will be increased using the periods and the freq.
 
         Args:
             periods (int, default 1):
@@ -253,7 +252,7 @@ class GroupBy:
 
     def rolling(self, *args, **kwargs):
         """
-        Return a rolling grouper, providing rolling functionality per group.
+        Returns a rolling grouper, providing rolling functionality per group.
 
         Args:
             min_periods (int, default None):
@@ -273,10 +272,10 @@ class GroupBy:
 
     def expanding(self, *args, **kwargs):
         """
-        Providing expanding functionality.
+        Provides expanding functionality.
 
         Returns:
-            Series or DataFrame: an expanding grouper, providing expanding functionality per group.
+            Series or DataFrame: A expanding grouper, providing expanding functionality per group.
         """
         raise NotImplementedError("abstract property")
 

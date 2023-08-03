@@ -9,7 +9,7 @@ class Index:
 
     @property
     def name(self):
-        """Return Index name."""
+        """Returns Index name."""
         raise NotImplementedError("abstract method")
 
     @property

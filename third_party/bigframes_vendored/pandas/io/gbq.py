@@ -15,7 +15,7 @@ class GBQIOMixin:
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
     ):
-        """Loads DataFrame from Google BigQuery.
+        """Loads DataFrame from BigQuery.
 
         Args:
             query (str):
@@ -32,6 +32,6 @@ class GBQIOMixin:
                 query results.
 
         Returns:
-            DataFrame: A DataFrame representing results of the query or table.
+            bigframes.dataframe.DataFrame: A DataFrame representing results of the query or table.
         """
         raise NotImplementedError("abstract method")

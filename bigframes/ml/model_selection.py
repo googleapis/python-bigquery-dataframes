@@ -14,7 +14,7 @@
 
 """Functions for test/train split and model tuning. This module is styled after
 Scikit-Learn's model_selection module:
-https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_selection"""
+https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_selection."""
 
 
 from typing import List, Union
@@ -29,7 +29,7 @@ def train_test_split(
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
 ) -> List[Union[bpd.DataFrame, bpd.Series]]:
-    """Splits dataframes or series into random train and test subsets
+    """Splits dataframes or series into random train and test subsets.
 
     Args:
         *arrays (bigframes.dataframe.DataFrame or bigframes.series.Series):

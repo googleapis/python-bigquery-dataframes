@@ -670,7 +670,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Writes DataFrame to pandas DataFrame.
 
         Returns:
-            panda.DataFrame:
+            pandas.DataFrame:
                 A pandas DataFrame with all of the rows and columns from this
                 DataFrame.
         """

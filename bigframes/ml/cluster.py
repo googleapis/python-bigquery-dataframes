@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Clustering models. This module is styled after Scikit-Learn's cluster module:
-https://scikit-learn.org/stable/modules/clustering.html"""
+https://scikit-learn.org/stable/modules/clustering.html."""
 
 from __future__ import annotations
 
@@ -84,7 +84,7 @@ class KMeans(
         return cast(bpd.DataFrame, self._bqml_model.predict(X)[["CENTROID_ID"]])
 
     def to_gbq(self, model_name: str, replace: bool = False) -> KMeans:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):

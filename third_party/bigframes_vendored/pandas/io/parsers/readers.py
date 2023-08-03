@@ -32,7 +32,8 @@ class ReaderIOMixin:
         encoding: Optional[str] = None,
         **kwargs,
     ):
-        """Loads DataFrame from comma-separated values (csv) file locally or from GCS.
+        """Loads DataFrame from comma-separated values (csv) file locally or from
+        Cloud Storage.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
@@ -44,7 +45,7 @@ class ReaderIOMixin:
 
         Args:
             filepath_or_buffer (str):
-                a string path including GCS and local file.
+                a string path including Cloud Storage and local file.
             sep (Optional[str], default ","):
                 the separator for fields in a CSV file. For the BigQuery engine, the separator
                 can be any ISO-8859-1 single-byte character. To use a character in the range
@@ -107,6 +108,6 @@ class ReaderIOMixin:
 
 
         Returns:
-            BigQuery DateFrame: A BigQuery DataFrames.
+            bigframes.dataframe.DataFrame: A BigQuery DataFrames.
         """
         raise NotImplementedError("abstract method")

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Linear models. This module is styled after scikit-learn's linear_model module:
-https://scikit-learn.org/stable/modules/linear_model.html"""
+https://scikit-learn.org/stable/modules/linear_model.html."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ class LinearRegression(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LinearRegression:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):
@@ -236,7 +236,7 @@ class LogisticRegression(
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> LogisticRegression:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):

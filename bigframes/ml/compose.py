@@ -14,7 +14,7 @@
 
 """Build composite transformers on heterogeneous data. This module is styled
 after Scikit-Learn's compose module:
-https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose"""
+https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class ColumnTransformer(
     def transformers_(
         self,
     ) -> List[Tuple[str, CompilablePreprocessorType, str,]]:
-        """The collection of transformers as tuples of (name, transformer, column)"""
+        """The collection of transformers as tuples of (name, transformer, column)."""
         result: List[
             Tuple[
                 str,

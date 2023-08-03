@@ -45,6 +45,7 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def names(self) -> typing.Sequence[blocks.Label]:
+        """Returns the names of the Index."""
         return self._data._get_block()._index_labels
 
     @names.setter
@@ -57,14 +58,16 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def size(self) -> int:
+        """Returns the size of the Index."""
         return self.shape[0]
 
     @property
     def empty(self) -> bool:
+        """Returns True if the Index is empty, otherwise returns False."""
         return self.shape[0] == 0
 
     def to_pandas(self) -> pandas.Index:
-        """Get the Index as a pandas Index.
+        """Gets the Index as a pandas Index.
 
         Returns:
             pandas.Index:

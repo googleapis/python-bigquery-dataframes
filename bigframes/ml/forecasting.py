@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Forcasting models."""
+
 from __future__ import annotations
 
 from typing import cast, Dict, List, Optional, Union
@@ -52,7 +54,7 @@ class ARIMAPlus(base.TrainablePredictor):
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
     ):
-        """Fit the model to training data
+        """Fit the model to training data.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
@@ -114,7 +116,7 @@ class ARIMAPlus(base.TrainablePredictor):
         return self._bqml_model.evaluate(input_data)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> ARIMAPlus:
-        """Save the model to Google Cloud BigQuery.
+        """Save the model to BigQuery.
 
         Args:
             model_name (str):
