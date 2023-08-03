@@ -131,8 +131,8 @@ class PaLM2TextGenerator(base.Predictor):
         )
 
 
-class PaLM2EmbeddingGenerator(base.Predictor):
-    """PaLM2 embedding generator LLM model.
+class PaLM2TextEmbeddingGenerator(base.Predictor):
+    """PaLM2 text embedding generator LLM model.
 
     Args:
         session (BigQuery Session):

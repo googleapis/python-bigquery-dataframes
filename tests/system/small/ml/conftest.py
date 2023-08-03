@@ -252,8 +252,10 @@ def ephemera_palm2_text_generator_model(
 @pytest.fixture(scope="session")
 def palm2_embedding_generator_model(
     session, ml_connection
-) -> llm.PaLM2EmbeddingGenerator:
-    return llm.PaLM2EmbeddingGenerator(session=session, connection_name=ml_connection)
+) -> llm.PaLM2TextEmbeddingGenerator:
+    return llm.PaLM2TextEmbeddingGenerator(
+        session=session, connection_name=ml_connection
+    )
 
 
 @pytest.fixture(scope="session")
