@@ -1245,7 +1245,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return left._perform_join_by_index(right, how=how)
 
     def _perform_join_by_index(self, other: DataFrame, *, how: str = "left"):
-        combined_index, _ = self._block.index.join(other._block.index, how=how)
+        combined_index, _ = self._block.index.join(
+            other._block.index, how=how, block_identity_join=True
+        )
         return DataFrame(combined_index._block)
 
     def groupby(

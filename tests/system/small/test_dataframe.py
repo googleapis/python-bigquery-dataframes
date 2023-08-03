@@ -1092,14 +1092,12 @@ all_joins = pytest.mark.parametrize(
 @all_joins
 def test_join_same_table(scalars_dfs, how):
     bf_df, pd_df = scalars_dfs
-    if how == "right" and pd_df.index.name != "rowindex":
-        pytest.skip("right join not supported without an index")
 
-    bf_df_a = bf_df[["string_col", "int64_col"]]
-    bf_df_b = bf_df[["float64_col"]]
+    bf_df_a = bf_df.set_index("int64_too")[["string_col", "int64_col"]]
+    bf_df_b = bf_df.set_index("int64_too")[["float64_col"]]
     bf_result = bf_df_a.join(bf_df_b, how=how).to_pandas()
-    pd_df_a = pd_df[["string_col", "int64_col"]]
-    pd_df_b = pd_df[["float64_col"]]
+    pd_df_a = pd_df.set_index("int64_too")[["string_col", "int64_col"]]
+    pd_df_b = pd_df.set_index("int64_too")[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, how=how)
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
