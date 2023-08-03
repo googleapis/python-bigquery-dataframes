@@ -147,6 +147,7 @@ def _create_cloud_clients(
         client_options=bq_options,
         credentials=credentials,
         project=project,
+        location=location,
     )
 
     bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
