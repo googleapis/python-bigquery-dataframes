@@ -19,7 +19,7 @@ from __future__ import annotations
 import numbers
 import textwrap
 import typing
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Mapping, Optional, Tuple, Union
 
 import google.cloud.bigquery as bigquery
 import ibis.expr.types as ibis_types
@@ -121,13 +121,49 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def copy(self) -> Series:
         return Series(self._block)
 
-    def rename(self, index: Optional[str], **kwargs) -> Series:
+    def rename(
+        self, index: Union[blocks.Label, Mapping[Any, Any]] = None, **kwargs
+    ) -> Series:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
-        block = self._block.with_column_labels([index])
-        return Series(block)
+
+        # rename the Series name
+        if index is None or isinstance(
+            index, str
+        ):  # Python 3.9 doesn't allow isinstance of Optional
+            index = typing.cast(Optional[str], index)
+            block = self._block.with_column_labels([index])
+            return Series(block)
+
+        # rename the index
+        if isinstance(index, Mapping):
+            index = typing.cast(Mapping[Any, Any], index)
+            block = self._block
+            for k, v in index.items():
+                new_idx_ids = []
+                for idx_id, idx_dtype in zip(block.index_columns, block.index_dtypes):
+                    # Will throw if key type isn't compatible with index type, which leads to invalid SQL.
+                    block.create_constant(k, dtype=idx_dtype)
+
+                    # Will throw if value type isn't compatible with index type.
+                    block, const_id = block.create_constant(v, dtype=idx_dtype)
+                    block, cond_id = block.apply_unary_op(
+                        idx_id, ops.BinopPartialRight(ops.ne_op, k)
+                    )
+                    block, new_idx_id = block.apply_ternary_op(
+                        idx_id, cond_id, const_id, ops.where_op
+                    )
+
+                    new_idx_ids.append(new_idx_id)
+                    block = block.drop_columns([const_id, cond_id])
+
+                block = block.set_index(new_idx_ids, index_labels=block.index_labels)
+
+            return Series(block)
+
+        raise ValueError(f"Unsupported type of parameter index: {type(index)}")
 
     def rename_axis(
         self,

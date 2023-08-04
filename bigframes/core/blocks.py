@@ -248,7 +248,11 @@ class Block:
         return block
 
     def set_index(
-        self, col_ids: typing.Sequence[str], drop: bool = True, append: bool = False
+        self,
+        col_ids: typing.Sequence[str],
+        drop: bool = True,
+        append: bool = False,
+        index_labels: typing.Sequence[Label] = (),
     ) -> Block:
         """Set the index of the block to
 
@@ -256,6 +260,7 @@ class Block:
             ids: columns to be converted to index columns
             drop: whether to drop the new index columns as value columns
             append: whether to discard the existing index or add on to it
+            index_labels: new index labels
 
         Returns:
             Block with new index
@@ -275,6 +280,9 @@ class Block:
             new_index_labels = [*self._index_labels, *new_index_labels]
         else:
             expr = expr.drop_columns(self.index_columns)
+
+        if index_labels:
+            new_index_labels = list(index_labels)
 
         block = Block(
             expr,

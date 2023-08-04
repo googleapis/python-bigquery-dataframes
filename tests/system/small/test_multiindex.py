@@ -426,3 +426,20 @@ def test_multi_index_series_groupby_level_analytic(
     )
 
     pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_multi_index_series_rename_dict_same_type(
+    scalars_df_index, scalars_pandas_df_index
+):
+    bf_result = (
+        scalars_df_index.set_index(["rowindex_2", "int64_too"])["string_col"]
+        .rename({1: 100, 2: 200})
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.set_index(["rowindex_2", "int64_too"])[
+        "string_col"
+    ].rename({1: 100, 2: 200})
+
+    pandas.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
