@@ -512,9 +512,11 @@ class Series(NDFrame):  # type: ignore[misc]
         .. note::
             The Series and other has to share the same index if other is a Series
             or a DataFrame.
+            BigQuery Dataframes does not validate this property and will produce
+            incorrect results if indices are not equal.
 
         Args:
-            other (Series, DataFrame or array-like):
+            other (Series):
                 The other object to compute the dot product with its columns.
 
         Returns:
