@@ -562,9 +562,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             aggregations = [agg_ops.AGGREGATIONS_LOOKUP[f] for f in func]
             return Series(
                 self._block.summarize(
-                    self._value_column,
+                    [self._value_column],
                     aggregations,
-                ).with_column_labels([self.name])
+                )
             )
         else:
 

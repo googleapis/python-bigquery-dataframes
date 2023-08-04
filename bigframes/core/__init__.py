@@ -824,29 +824,49 @@ class ArrayValue:
             group_by=group_by,
         )
 
-    def transpose_single_row(
+    def unpivot_single_row(
         self,
-        labels,
+        row_labels: typing.Sequence[typing.Optional[str]],
+        unpivot_columns: typing.Sequence[typing.Tuple[str, typing.Sequence[str]]],
         *,
         index_col_id: str = "index",
-        value_col_id: str = "values",
         dtype=pandas.Float64Dtype(),
     ) -> ArrayValue:
-        """Pivot a single row into a 3 column expression with index, values and offsets. Only works if all values can be cast to a common type."""
+        """Unpivot a single row."""
+        # TODO: Generalize to multiple row input
         table = self.to_ibis_expr(ordering_mode="unordered")
         sub_expressions = []
-        for i, col_id in enumerate(self._column_names.keys()):
+
+        # TODO: validate all columns are equal length, as well as row labels
+        row_n = len(row_labels)
+        if not all(
+            len(source_columns) == row_n for _, source_columns in unpivot_columns
+        ):
+            raise ValueError("Columns and row labels must all be same length.")
+
+        # Select each column
+        for i in range(row_n):
+            values = []
+            for result_col, source_cols in unpivot_columns:
+                values.append(
+                    ops.AsTypeOp(dtype)._as_ibis(table[source_cols[i]]).name(result_col)
+                )
+
             sub_expr = table.select(
-                ibis_types.literal(labels[i]).name(index_col_id),
-                ops.AsTypeOp(dtype)._as_ibis(table[col_id]).name(value_col_id),
+                ibis_types.literal(row_labels[i]).name(index_col_id),
+                *values,
                 ibis_types.literal(i).name(ORDER_ID_COLUMN),
             )
             sub_expressions.append(sub_expr)
         rotated_table = ibis.union(*sub_expressions)
+
+        value_columns = [
+            rotated_table[value_col_id] for value_col_id, _ in unpivot_columns
+        ]
         return ArrayValue(
             session=self._session,
             table=rotated_table,
-            columns=[rotated_table[index_col_id], rotated_table[value_col_id]],
+            columns=[rotated_table[index_col_id], *value_columns],
             hidden_ordering_columns=[rotated_table[ORDER_ID_COLUMN]],
             ordering=ExpressionOrdering(
                 ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],

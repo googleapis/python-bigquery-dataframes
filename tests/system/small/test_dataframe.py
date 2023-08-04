@@ -1239,6 +1239,30 @@ def test_dataframe_general_analytic_op(
     )
 
 
+def test_dataframe_agg_single_string(scalars_dfs):
+    numeric_cols = ["int64_col", "int64_too", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[numeric_cols].agg("sum").to_pandas()
+    pd_result = scalars_pandas_df[numeric_cols].agg("sum")
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+
+
+def test_dataframe_agg_multi_string(scalars_dfs):
+    numeric_cols = ["int64_col", "int64_too", "float64_col"]
+    aggregations = ["sum", "mean", "std", "var", "min", "max", "nunique", "count"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[numeric_cols].agg(aggregations).to_pandas()
+    pd_result = scalars_pandas_df[numeric_cols].agg(aggregations)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_index_type=False)
+
+
 def test_ipython_key_completions_with_drop(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = "string_col"

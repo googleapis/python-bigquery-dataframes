@@ -591,10 +591,10 @@ class Block:
         aggregations = [(col_id, operation, col_id) for col_id in self.value_columns]
         result_expr = self.expr.aggregate(
             aggregations, dropna=dropna
-        ).transpose_single_row(
-            labels=self.column_labels,
+        ).unpivot_single_row(
+            row_labels=self.column_labels,
             index_col_id="index",
-            value_col_id=value_col_id,
+            unpivot_columns=[(value_col_id, self.value_columns)],
             dtype=dtype,
         )
         return Block(result_expr, index_columns=["index"], column_labels=[None])
@@ -701,15 +701,30 @@ class Block:
         self._stats_cache[column_id].update(stats_map)
         return stats_map[stat.name]
 
-    def summarize(self, column_id: str, stats: typing.Sequence[agg_ops.AggregateOp]):
+    def summarize(
+        self,
+        column_ids: typing.Sequence[str],
+        stats: typing.Sequence[agg_ops.AggregateOp],
+    ):
         """Get a list of stats as a deferred block object."""
         label_col_id = guid.generate_guid()
         labels = [stat.name for stat in stats]
-        aggregations = [(column_id, stat, stat.name) for stat in stats]
-        expr = self.expr.aggregate(aggregations).transpose_single_row(
-            labels, index_col_id=label_col_id, value_col_id=column_id
+        aggregations = [
+            (col_id, stat, f"{col_id}-{stat.name}")
+            for stat in stats
+            for col_id in column_ids
+        ]
+        columns = [
+            (col_id, [f"{col_id}-{stat.name}" for stat in stats])
+            for col_id in column_ids
+        ]
+        expr = self.expr.aggregate(aggregations).unpivot_single_row(
+            labels,
+            unpivot_columns=columns,
+            index_col_id=label_col_id,
         )
-        return Block(expr, column_labels=[None], index_columns=[label_col_id])
+        labels = self._get_labels_for_columns(column_ids)
+        return Block(expr, column_labels=labels, index_columns=[label_col_id])
 
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.AggregateOp]:
         """

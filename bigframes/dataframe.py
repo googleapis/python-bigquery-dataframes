@@ -1047,6 +1047,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.aggregate_all_and_pivot(agg_ops.nunique_op)
         return bigframes.series.Series(block.select_column("values"))
 
+    def agg(
+        self, func: str | typing.Sequence[str]
+    ) -> DataFrame | bigframes.series.Series:
+        if _is_list_like(func):
+            if any(
+                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+                for dtype in self.dtypes
+            ):
+                raise NotImplementedError(
+                    "Multiple aggregations only supported on numeric columns."
+                )
+            aggregations = [agg_ops.AGGREGATIONS_LOOKUP[f] for f in func]
+            return DataFrame(
+                self._block.summarize(
+                    self._block.value_columns,
+                    aggregations,
+                )
+            )
+        else:
+            return bigframes.series.Series(
+                self._block.aggregate_all_and_pivot(
+                    agg_ops.AGGREGATIONS_LOOKUP[typing.cast(str, func)]
+                )
+            )
+
+    aggregate = agg
+
     def _drop_non_numeric(self) -> DataFrame:
         non_numeric_cols = [
             col_id

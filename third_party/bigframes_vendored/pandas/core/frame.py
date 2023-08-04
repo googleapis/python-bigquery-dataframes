@@ -1131,6 +1131,21 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def agg(self, func):
+        """
+        Aggregate using one or more operations over the specified axis.
+
+        Args:
+            func (function):
+                Function to use for aggregating the data.
+                Accepted combinations are: string function name, list of
+                function names, e.g. ``['sum', 'mean']``
+
+        Returns:
+            Series or DataFrame: Aggregated results
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # Add index and columns
 
