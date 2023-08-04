@@ -922,6 +922,16 @@ def test_mean(scalars_dfs):
     assert math.isclose(pd_result, bf_result)
 
 
+def test_median(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = scalars_df[col_name].median()
+    pd_max = scalars_pandas_df[col_name].max()
+    pd_min = scalars_pandas_df[col_name].min()
+    # Median is approximate, so just check for plausibility.
+    assert pd_min < bf_result < pd_max
+
+
 def test_repr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     if scalars_pandas_df.index.name != "rowindex":
@@ -1092,6 +1102,29 @@ def test_groupby_mean(scalars_dfs):
         pd_series,
         bf_result,
     )
+
+
+def test_groupby_median(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    bf_series = (
+        scalars_df[col_name].groupby(scalars_df["string_col"], dropna=False).median()
+    )
+    pd_max = (
+        scalars_pandas_df[col_name]
+        .groupby(scalars_pandas_df["string_col"], dropna=False)
+        .max()
+    )
+    pd_min = (
+        scalars_pandas_df[col_name]
+        .groupby(scalars_pandas_df["string_col"], dropna=False)
+        .min()
+    )
+    # TODO(swast): Update groupby to use index based on group by key(s).
+    bf_result = bf_series.to_pandas()
+
+    # Median is approximate, so just check that it's plausible.
+    assert ((pd_min <= bf_result) & (bf_result <= pd_max)).all()
 
 
 def test_groupby_prod(scalars_dfs):

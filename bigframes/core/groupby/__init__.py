@@ -110,6 +110,17 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             self._raise_on_non_numeric("mean")
         return self._aggregate(agg_ops.mean_op, numeric_only=True)
 
+    def median(
+        self, numeric_only: bool = False, *, exact: bool = False
+    ) -> df.DataFrame:
+        if exact:
+            raise NotImplementedError(
+                f"Only approximate median is supported. {constants.FEEDBACK_LINK}"
+            )
+        if not numeric_only:
+            self._raise_on_non_numeric("median")
+        return self._aggregate(agg_ops.median_op, numeric_only=True)
+
     def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
         return self._aggregate(agg_ops.min_op, numeric_only=numeric_only)
 
@@ -253,6 +264,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._aggregate(agg_ops.sum_op)
 
     def mean(self, *args) -> series.Series:
+        return self._aggregate(agg_ops.mean_op)
+
+    def median(self, *args, **kwargs) -> series.Series:
         return self._aggregate(agg_ops.mean_op)
 
     def std(self, *args, **kwargs) -> series.Series:

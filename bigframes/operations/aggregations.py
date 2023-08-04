@@ -75,6 +75,26 @@ class SumOp(AggregateOp):
         )
 
 
+class MedianOp(AggregateOp):
+    name = "median"
+
+    @numeric_op
+    def _as_ibis(
+        self, column: ibis_types.NumericColumn, window=None
+    ) -> ibis_types.NumericValue:
+        # PERCENTILE_CONT has very few allowed windows. For example, "window
+        # framing clause is not allowed for analytic function percentile_cont".
+        if window is not None:
+            raise NotImplementedError(
+                f"Median with windowing is not supported. {constants.FEEDBACK_LINK}"
+            )
+
+        # TODO(swast): Allow switching between exact and approximate median.
+        # For now, the best we can do is an approximate median when we're doing
+        # an aggregation, as PERCENTILE_CONT is only an analytic function.
+        return typing.cast(ibis_types.NumericValue, column.approx_median())
+
+
 class MeanOp(AggregateOp):
     name = "mean"
 
@@ -323,6 +343,7 @@ def _map_to_literal(
 
 sum_op = SumOp()
 mean_op = MeanOp()
+median_op = MedianOp()
 product_op = ProductOp()
 max_op = MaxOp()
 min_op = MinOp()
@@ -343,6 +364,7 @@ AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
     for op in [
         sum_op,
         mean_op,
+        median_op,
         product_op,
         max_op,
         min_op,

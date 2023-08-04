@@ -1252,7 +1252,17 @@ def test_dataframe_agg_single_string(scalars_dfs):
 
 def test_dataframe_agg_multi_string(scalars_dfs):
     numeric_cols = ["int64_col", "int64_too", "float64_col"]
-    aggregations = ["sum", "mean", "std", "var", "min", "max", "nunique", "count"]
+    aggregations = [
+        "sum",
+        "mean",
+        "median",
+        "std",
+        "var",
+        "min",
+        "max",
+        "nunique",
+        "count",
+    ]
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[numeric_cols].agg(aggregations).to_pandas()
     pd_result = scalars_pandas_df[numeric_cols].agg(aggregations)
@@ -1260,7 +1270,17 @@ def test_dataframe_agg_multi_string(scalars_dfs):
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
     pd_result = pd_result.astype("Float64")
 
+    # Drop median, as it's an approximation.
+    bf_median = bf_result.loc["median", :]
+    bf_result = bf_result.drop(labels=["median"])
+    pd_result = pd_result.drop(labels=["median"])
+
     pd.testing.assert_frame_equal(pd_result, bf_result, check_index_type=False)
+
+    # Double-check that median is at least plausible.
+    assert (
+        (bf_result.loc["min", :] <= bf_median) & (bf_median <= bf_result.loc["max", :])
+    ).all()
 
 
 def test_ipython_key_completions_with_drop(scalars_dfs):
@@ -1474,6 +1494,21 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
     pd_series = pd_series.astype("Float64")
     # Pandas has object index type
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
+
+
+def test_dataframe_aggregates_median(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col"]
+    bf_result = scalars_df_index[col_names].median(numeric_only=True).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].agg(["min", "max"])
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    # Median is an approximation, but double-check that median is plausible.
+    for col in col_names:
+        assert (pd_result.loc["min", col] <= bf_result[col]) and (
+            bf_result[col] <= pd_result.loc["max", col]
+        )
 
 
 @pytest.mark.parametrize(

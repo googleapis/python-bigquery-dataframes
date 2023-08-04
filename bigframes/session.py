@@ -66,6 +66,10 @@ import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.version
+
+# Even though the ibis.backends.bigquery.registry import is unused, it's needed
+# to register new and replacement ops with the Ibis BigQuery backend.
+import third_party.bigframes_vendored.ibis.backends.bigquery.registry  # noqa
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers

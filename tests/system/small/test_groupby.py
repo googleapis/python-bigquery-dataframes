@@ -46,6 +46,22 @@ def test_dataframe_groupby_numeric_aggregate(
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
+def test_dataframe_groupby_median(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names].groupby("string_col").median(numeric_only=True)
+    )
+    pd_min = (
+        scalars_pandas_df_index[col_names].groupby("string_col").min(numeric_only=True)
+    )
+    pd_max = (
+        scalars_pandas_df_index[col_names].groupby("string_col").max(numeric_only=True)
+    )
+    bf_result_computed = bf_result.to_pandas()
+    # Median is approximate. Just check for plausibility.
+    assert ((pd_min <= bf_result_computed) & (bf_result_computed <= pd_max)).all().all()
+
+
 @pytest.mark.parametrize(
     ("operator"),
     [

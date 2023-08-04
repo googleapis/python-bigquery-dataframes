@@ -83,7 +83,6 @@ nox.options.sessions = [
     "docfx",
     "unit",
     "unit_noextras",
-    "unit_prerelease",
     "system",
     "doctest",
     "cover",

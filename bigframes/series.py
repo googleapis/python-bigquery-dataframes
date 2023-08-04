@@ -640,6 +640,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def mean(self) -> float:
         return typing.cast(float, self._apply_aggregation(agg_ops.mean_op))
 
+    def median(self, *, exact: bool = False) -> float:
+        if exact:
+            raise NotImplementedError(
+                f"Only approximate median is supported. {constants.FEEDBACK_LINK}"
+            )
+        return typing.cast(float, self._apply_aggregation(agg_ops.median_op))
+
     def sum(self) -> float:
         return typing.cast(float, self._apply_aggregation(agg_ops.sum_op))
 

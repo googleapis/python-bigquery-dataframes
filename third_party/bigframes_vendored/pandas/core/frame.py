@@ -1035,6 +1035,21 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def median(self, *, numeric_only: bool = False, exact: bool = False):
+        """Return the median of the values over the requested axis.
+
+        Args:
+            numeric_only (bool. default False):
+                Default False. Include only float, int, boolean columns.
+            exact (bool. default False):
+                Default False. Get the exact median instead of an approximate
+                one. Note: ``exact=True`` not yet supported.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError("abstract method")
+
     def var(self, *, numeric_only: bool = False):
         """Return unbiased variance over requested axis.
 

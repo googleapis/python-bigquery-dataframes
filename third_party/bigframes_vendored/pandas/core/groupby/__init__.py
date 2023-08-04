@@ -62,6 +62,27 @@ class GroupBy:
         """
         raise NotImplementedError("abstract property")
 
+    def median(
+        self,
+        numeric_only: bool = False,
+        *,
+        exact: bool = False,
+    ):
+        """
+        Compute median of groups, excluding missing values.
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns.
+            exact (bool, default False):
+                Calculate the exact median instead of an approximation. Note:
+                    ``exact=True`` not yet supported.
+
+        Returns:
+            pandas.Series or pandas.DataFrame: Median of groups.
+        """
+        raise NotImplementedError("abstract property")
+
     def std(
         self,
         *,
