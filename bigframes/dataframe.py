@@ -1651,9 +1651,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if col_label
         }
         ibis_expr = expr.to_ibis_expr(
-            ordering_mode="order_by", col_id_overrides=id_overrides
+            ordering_mode="offset_col",
+            col_id_overrides=id_overrides,
+            order_col_name="bqdf_row_nums",
         )
         sql = session.ibis_client.compile(ibis_expr)  # type: ignore
+        # Manually generate ORDER BY statement since ibis will not always generate
+        # it in the top level statement. This causes BigQuery to then run
+        # non-distributed sort and run out of memory.
+        sql = f"SELECT * EXCEPT (bqdf_row_nums) FROM ({sql}) ORDER BY bqdf_row_nums"
         return sql
 
     def _run_io_query(
