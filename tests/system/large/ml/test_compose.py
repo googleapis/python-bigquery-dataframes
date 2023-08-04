@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas
+import pytest
 
 import bigframes.ml.cluster
 import bigframes.ml.compose
@@ -21,6 +22,7 @@ import bigframes.ml.pipeline
 import bigframes.ml.preprocessing
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_columntransformer_standalone_fit_transform(
     penguins_df_default_index, new_penguins_df
 ):

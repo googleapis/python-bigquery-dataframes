@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 from bigframes.ml import (
     cluster,
@@ -26,6 +27,7 @@ from bigframes.ml import (
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_linear_regression_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -96,6 +98,7 @@ def test_pipeline_linear_regression_fit_score_predict(
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_linear_regression_series_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -151,6 +154,7 @@ def test_pipeline_linear_regression_series_fit_score_predict(
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_logistic_regression_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -221,6 +225,7 @@ def test_pipeline_logistic_regression_fit_score_predict(
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
@@ -295,6 +300,7 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_random_forest_classifier_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -365,6 +371,7 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
@@ -437,6 +444,7 @@ def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     )
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     session, penguins_pandas_df_default_index
 ):
@@ -548,6 +556,7 @@ def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     assert_pandas_df_equal_ignore_ordering(result, expected)
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
     """Test a preprocessing step that manages heterogenous data with ColumnTransformer"""
     pl = pipeline.Pipeline(

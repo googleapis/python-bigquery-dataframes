@@ -15,10 +15,12 @@
 import math
 
 import pandas as pd
+import pytest
 
 import bigframes.ml.preprocessing
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
@@ -59,6 +61,7 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
 
 
+@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_standard_scaler_series_normalizes(penguins_df_default_index, new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
