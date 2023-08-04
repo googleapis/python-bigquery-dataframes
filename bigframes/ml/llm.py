@@ -62,8 +62,8 @@ class PaLM2TextGenerator(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X (BigQuery Dataframe):
-                Input DataFrame, which needs to contain a column with name "prompt". Only the column will be used as input.
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Input DataFrame or Series, which needs to contain a column with name "prompt". Only the column will be used as input.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.0):
@@ -94,7 +94,7 @@ class PaLM2TextGenerator(base.Predictor):
 
 
         Returns:
-            BigQuery DataFrame: Output DataFrame with only 1 column as the output text results."""
+            bigframes.dataframe.DataFrame: Output DataFrame with only 1 column as the output text results."""
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         if temperature < 0.0 or temperature > 1.0:
@@ -158,11 +158,11 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Input DataFrame, which needs to contain a column with name "content". Only the column will be used as input. Content can include preamble, questions, suggestions, instructions, or examples.
 
         Returns:
-            BigQuery DataFrame: Output DataFrame with only 1 column as the output embedding results
+            bigframes.dataframe.DataFrame: Output DataFrame with only 1 column as the output embedding results
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models

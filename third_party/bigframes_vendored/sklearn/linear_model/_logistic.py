@@ -23,14 +23,6 @@ from third_party.bigframes_vendored.sklearn.linear_model._base import (
 class LogisticRegression(LinearClassifierMixin, BaseEstimator):
     """Logistic Regression (aka logit, MaxEnt) classifier.
 
-    Args:
-        fit_intercept (default True):
-            Default True. Specifies if a constant (a.k.a. bias or intercept)
-            should be added to the decision function.
-        auto_class_weights (default False):
-            Default False. If True, balance class labels using weights for each
-            class in inverse proportion to the frequency of that class.
-
     .. note::
         L-BFGS-B -- Software for Large-scale Bound-constrained Optimization
             Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis Morales.
@@ -51,6 +43,14 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
             methods for logistic regression and maximum entropy models.
             Machine Learning 85(1-2):41-75.
             https://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
+
+    Args:
+        fit_intercept (default True):
+            Default True. Specifies if a constant (a.k.a. bias or intercept)
+            should be added to the decision function.
+        auto_class_weights (default False):
+            Default False. If True, balance class labels using weights for each
+            class in inverse proportion to the frequency of that class.
     """
 
     def fit(
@@ -62,15 +62,15 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
         """Fit the model according to the given training data.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
 
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples,). Target vector relative to X.
 
-            transforms:
+            transforms (Optional[List[str]], default None):
                 An optional list of SQL expressions to apply over top of the
                 model inputs as preprocessing. This preprocessing will be
                 automatically reapplied to new input data (e.g. in .predict),
@@ -78,6 +78,6 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
                 training data.
 
         Returns:
-            N/A: Fitted estimator.
+            Fitted estimator.
         """
         raise NotImplementedError("abstract method")

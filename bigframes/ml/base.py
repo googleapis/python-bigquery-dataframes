@@ -118,7 +118,7 @@ class Predictor(BaseEstimator):
 
 
 class TrainablePredictor(Predictor):
-    """A BigQuery DataFrame ML Model base class that can be used to fit and predict outputs.
+    """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
 
     Also the predictor can be attached to a pipeline with transformers."""
 

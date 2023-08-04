@@ -43,11 +43,11 @@ class TensorFlowModel(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame):
                 Input DataFrame, schema is defined by the model.
 
         Returns:
-            BigQuery DataFrame: Output DataFrame, schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)
@@ -69,7 +69,7 @@ class ONNXModel(base.Predictor):
         session (BigQuery Session):
             BQ session to create the model
         model_path (str):
-            GCS path that holds the model files."""
+            Cloud Storage path that holds the model files."""
 
     def __init__(self, session: bigframes.Session, model_path: str):
         self.session = session
@@ -84,11 +84,11 @@ class ONNXModel(base.Predictor):
         """Predict the result from input DataFrame.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Input DataFrame or Series, schema is defined by the model.
 
         Returns:
-            BigQuery DataFrame: Output DataFrame, schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)

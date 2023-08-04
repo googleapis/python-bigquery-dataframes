@@ -12,7 +12,7 @@ class XGBModel(XGBModelBase):
         """Predict using the XGB model.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Samples.
 
         Returns:
@@ -28,15 +28,15 @@ class XGBModel(XGBModelBase):
         pass ``xgb_model`` argument.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Training data.
 
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples,) or (n_samples, n_targets).
                 Target values. Will be cast to X's dtype if necessary.
 
         Returns:
-            N/A: Fitted Estimator.
+            Fitted Estimator.
         """
         raise NotImplementedError("abstract method")
 

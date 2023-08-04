@@ -32,7 +32,7 @@ def train_test_split(
     """Splits dataframes or series into random train and test subsets
 
     Args:
-        *arrays (BigQuery DataFrames or Series):
+        *arrays (bigframes.dataframe.DataFrame or bigframes.series.Series):
             A sequence of BigQuery DataFrames or Series that can be joined on
             their indexes
         test_size (default None):
@@ -47,7 +47,7 @@ def train_test_split(
             set, a random split will be generated each time.
 
     Returns:
-        A list of BigQuery DataFrames or Series.
+        List[Union[bigframes.dataframe.DataFrame, bigframes.series.Series]]: A list of BigQuery DataFrames or Series.
     """
 
     # TODO(garrettwu): Scikit-Learn throws an error when the dataframes don't have the same

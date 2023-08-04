@@ -14,7 +14,7 @@ class OneHotEncoder(BaseEstimator):
     encoding scheme.
 
     Note that this method deviates from Scikit-Learn; instead of producing sparse
-    binary columns, the encoding is a single column of STRUCT<index INT64, value DOUBLE>
+    binary columns, the encoding is a single column of `STRUCT<index INT64, value DOUBLE>`.
 
     Args:
         drop (Optional[Literal["most_frequent"]], default None):
@@ -48,18 +48,18 @@ class OneHotEncoder(BaseEstimator):
 
         .. code-block::
 
-            from bigframes.ml import OneHotEncoder
+            from bigframes.ml.preprocessing import OneHotEncoder
 
             enc = OneHotEncoder()
             X = [['Male', 1], ['Female', 3], ['Female', 2]]
             enc.fit(X)
 
         Args:
-            X (BigQuery DataFrame or Series):
-                A dataframe or series with training data.
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                The DataFrame or Series with training data.
 
         Returns:
-            N/A: Fitted encoder.
+            Fitted encoder.
         """
         raise NotImplementedError("abstract method")
 
@@ -67,10 +67,10 @@ class OneHotEncoder(BaseEstimator):
         """Transform X using one-hot encoding.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 The DataFrame or Series to be transformed.
 
         Returns:
-            Transformed result. The result is categorized as index: number, value: number.
+            Transformed result: The result is categorized as index: number, value: number.
             Where index is the position of the dict that seeing the category, and value is 0 or 1."""
         raise NotImplementedError("abstract method")

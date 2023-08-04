@@ -65,7 +65,7 @@ class BqmlModel:
             session (bigframes.Session):
                 the active bigframes.Session
 
-            input_data (BigQuery DataFrame):
+            input_data (bigframes.dataframe.DataFrame):
                 the dataframe to be wrapped
 
             func (function):

@@ -36,7 +36,7 @@ class StandardScaler(BaseEstimator):
 
         .. code-block::
 
-            from bigframes.ml import StandardScaler
+            from bigframes.ml.preprocessing import StandardScaler
 
             enc = StandardScaler()
             X = [['Male', 1], ['Female', 3], ['Female', 2]]
@@ -53,11 +53,11 @@ class StandardScaler(BaseEstimator):
             enc.fit(X)
 
         Args:
-            X (BigQuery DataFrame or Series):
-                A dataframe or Series with training data.
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                The Dataframe or Series with training data.
 
         Returns:
-            N/A: Fitted scaler.
+            Fitted scaler.
         """
         raise NotImplementedError("abstract method")
 
@@ -65,10 +65,10 @@ class StandardScaler(BaseEstimator):
         """Perform standardization by centering and scaling.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 The DataFrame or Series to be transformed.
 
         Returns:
-            N/A: Transformed result.
+           Transformed result.
         """
         raise NotImplementedError("abstract method")

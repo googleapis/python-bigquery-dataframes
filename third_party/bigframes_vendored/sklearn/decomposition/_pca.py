@@ -40,7 +40,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Fit the model according to the given training data.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
@@ -48,7 +48,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
             y (default None):
                 Ignored.
         Returns:
-            N/A: Fitted estimator.
+            Fitted estimator.
         """
         raise NotImplementedError("abstract method")
 
@@ -62,7 +62,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
             y (default None):
                 Ignored.
         Returns:
-            DataFrame that represents model metrics.
+            bigframes.dataframe.DataFrame: DataFrame that represents model metrics.
         """
         raise NotImplementedError("abstract method")
 
@@ -70,9 +70,9 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         """Predict the closest cluster for each sample in X.
 
         Args:
-            X (BigQuery DataFrame or Series):
-                Series or a BigQuery DataFrame to predict.
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Series or a DataFrame to predict.
 
         Returns:
-            N/A: predicted BigQuery DataFrames."""
+            bigframes.dataframe.DataFrame: predicted DataFrames."""
         raise NotImplementedError("abstract method")

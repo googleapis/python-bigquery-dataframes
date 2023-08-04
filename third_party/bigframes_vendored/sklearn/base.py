@@ -84,15 +84,15 @@ class ClassifierMixin:
         each label set be correctly predicted.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples, n_features). Test samples.
 
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples,) or (n_samples, n_outputs). True
                 labels for `X`.
 
         Returns:
-            BigQuery DataFrame: A DataFrame of the evaluation result.
+            bigframes.dataframe.DataFrame: A DataFrame of the evaluation result.
         """
         raise NotImplementedError("abstract method")
 
@@ -106,19 +106,19 @@ class RegressorMixin:
         """Return the evaluation metrics of the model.
 
         Args:
-            X (BigQuery DataFrame):
-                DataFrame of shape (n_samples, n_features). Test samples. For
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Series or DataFrame of shape (n_samples, n_features). Test samples. For
                 some estimators this may be a precomputed kernel matrix or a
                 list of generic objects instead with shape
                 ``(n_samples, n_samples_fitted)``, where ``n_samples_fitted``
                 is the number of samples used in the fitting for the estimator.
 
-            y (BigQuery DataFrame):
-                DataFrame of shape (n_samples,) or (n_samples, n_outputs). True
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series:
+                Series or DataFrame of shape (n_samples,) or (n_samples, n_outputs). True
                 values for `X`.
 
         Returns:
-            BigQuery DataFrame: A DataFrame of the evaluation result.
+            bigframes.dataframe.DataFrame: A DataFrame of the evaluation result.
         """
         raise NotImplementedError("abstract method")
 

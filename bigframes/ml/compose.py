@@ -93,7 +93,7 @@ class ColumnTransformer(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.DataFrame],
+        X: Union[bpd.DataFrame, bpd.Series],
         y=None,  # ignored
     ):
         (X,) = utils.convert_to_dataframe(X)
@@ -110,7 +110,7 @@ class ColumnTransformer(
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.DataFrame]) -> bpd.DataFrame:
+    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

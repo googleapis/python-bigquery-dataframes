@@ -55,10 +55,10 @@ class ARIMAPlus(base.TrainablePredictor):
         """Fit the model to training data
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A dataframe of training timestamp.
 
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Target values for training."""
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -95,16 +95,16 @@ class ARIMAPlus(base.TrainablePredictor):
         """Calculate evaluation metrics of the model.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame only contains 1 column as
                 evaluation timestamp. The timestamp must be within the horizon
                 of the model, which by default is 1000 data points.
-            y (BigQuery DataFrame or Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame only contains 1 column as
                 evaluation numeric values.
 
         Returns:
-            BigQuery DataFrame: A BigQuery DataFrame as evaluation result.
+            bigframes.dataframe.DataFrame: A DataFrame as evaluation result.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")

@@ -24,12 +24,12 @@ class _BaseKMeans(BaseEstimator, ABC):
         """Predict the closest cluster each sample in X belongs to.
 
         Args:
-            X (BigQuery DataFrame or Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
         Returns:
-            BigQuery DataFrame: DataFrame of shape (n_samples,), containing the
+            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples,), containing the
                 class labels for each sample.
         """
         raise NotImplementedError("abstract method")
@@ -53,7 +53,7 @@ class KMeans(_BaseKMeans):
         """Compute k-means clustering.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples, n_features). Training data.
             y (default None):
                 Not used, present here for API consistency by convention.
@@ -76,13 +76,13 @@ class KMeans(_BaseKMeans):
         """Predict the closest cluster each sample in X belongs to.
 
         Args:
-            X:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples, n_features). New data to predict.
-            y:  Ignored
+            y: (default None)
                 Not used, present here for API consistency by convention.
 
         Returns:
-            BigQuery DataFrame: DataFrame of the cluster each sample belongs to.
+            bigframes.dataframe.DataFrame: DataFrame of the cluster each sample belongs to.
         """
         raise NotImplementedError("abstract method")
 
@@ -94,12 +94,12 @@ class KMeans(_BaseKMeans):
         """Metrics of the model.
 
         Args:
-            X:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples, n_features). New Data.
-            y:  Ignored
+            y (default None)
                 Not used, present here for API consistency by convention.
 
         Returns:
-            BigQuery DataFrame: DataFrame of the metrics.
+            bigframes.dataframe.DataFrame: DataFrame of the metrics.
         """
         raise NotImplementedError("abstract method")

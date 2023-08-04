@@ -35,13 +35,10 @@ class ColumnTransformer(_BaseComposition):
         """Fit all transformers using X.
 
         Args:
-            X (BigQuery DataFrame or Series):
-                Series or DataFrame of shape (n_samples, n_features). Training vector,
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                The Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
-
-        Returns:
-            N/A: Fitted estimator.
         """
         raise NotImplementedError("abstract method")
 
@@ -52,10 +49,10 @@ class ColumnTransformer(_BaseComposition):
         """Transform X separately by each transformer, concatenate results.
 
         Args:
-            X:
-                The DataFrame to be transformed by subset.
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                The Series or DataFrame to be transformed by subset.
 
         Returns:
-            N/A: Transformed result.
+            bigframes.dataframe.DataFrame: Transformed result.
         """
         raise NotImplementedError("abstract method")
