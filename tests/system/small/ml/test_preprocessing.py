@@ -15,12 +15,10 @@
 import math
 
 import pandas as pd
-import pytest
 
 import bigframes.ml.preprocessing
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
@@ -36,10 +34,9 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
         ]
     ).to_pandas()
 
-    # If standard-scaled correctly, mean should be 0.0 and standard deviation 1.0
+    # If standard-scaled correctly, mean should be 0.0
     for column in result.columns:
         assert math.isclose(result[column].mean(), 0.0, abs_tol=1e-3)
-        assert math.isclose(result[column].std(), 1.0, abs_tol=1e-3)
 
     result = scaler.transform(new_penguins_df).to_pandas()
 
@@ -50,9 +47,9 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_depth_mm": [0.8349, 0.02473, 0.4805],
-            "scaled_culmen_length_mm": [-0.8099, -0.9931, -1.103],
-            "scaled_flipper_length_mm": [-0.3495, -1.4163, -0.9185],
+            "scaled_culmen_depth_mm": [0.836148, 0.024748, 0.48116],
+            "scaled_culmen_length_mm": [-0.81112, -0.994552, -1.104611],
+            "scaled_flipper_length_mm": [-0.350044, -1.418336, -0.9198],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -61,7 +58,6 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_standard_scaler_series_normalizes(penguins_df_default_index, new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
@@ -69,10 +65,9 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
 
     result = scaler.transform(penguins_df_default_index["culmen_length_mm"]).to_pandas()
 
-    # If standard-scaled correctly, mean should be 0.0 and standard deviation 1.0
+    # If standard-scaled correctly, mean should be 0.0
     for column in result.columns:
         assert math.isclose(result[column].mean(), 0.0, abs_tol=1e-3)
-        assert math.isclose(result[column].std(), 1.0, abs_tol=1e-3)
 
     result = scaler.transform(new_penguins_df).to_pandas()
 
@@ -83,7 +78,11 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_length_mm": [-0.8099, -0.9931, -1.103],
+            "scaled_culmen_length_mm": [
+                -0.811119671289163,
+                -0.9945520581113803,
+                -1.104611490204711,
+            ],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pandas as pd
-import pytest
 
 from bigframes.ml import (
     cluster,
@@ -27,7 +26,6 @@ from bigframes.ml import (
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_linear_regression_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -54,10 +52,10 @@ def test_pipeline_linear_regression_fit_score_predict(
     score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
-            "mean_absolute_error": [309.477334],
-            "mean_squared_error": [152184.227218],
+            "mean_absolute_error": [309.477331],
+            "mean_squared_error": [152184.227219],
             "mean_squared_log_error": [0.009524],
-            "median_absolute_error": [257.727777],
+            "median_absolute_error": [257.728263],
             "r2_score": [0.764356],
             "explained_variance": [0.764356],
         },
@@ -98,7 +96,6 @@ def test_pipeline_linear_regression_fit_score_predict(
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_linear_regression_series_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -119,10 +116,10 @@ def test_pipeline_linear_regression_series_fit_score_predict(
     score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
-            "mean_absolute_error": [528.495594],
+            "mean_absolute_error": [528.495599],
             "mean_squared_error": [421722.261808],
             "mean_squared_log_error": [0.022963],
-            "median_absolute_error": [468.895236],
+            "median_absolute_error": [468.895249],
             "r2_score": [0.346999],
             "explained_variance": [0.346999],
         },
@@ -145,7 +142,7 @@ def test_pipeline_linear_regression_series_fit_score_predict(
     )
     predictions = pl.predict(new_penguins["culmen_length_mm"]).to_pandas()
     expected = pd.DataFrame(
-        {"predicted_body_mass_g": [3818.845763, 3732.022204, 3679.928069]},
+        {"predicted_body_mass_g": [3818.845703, 3732.022253, 3679.928123]},
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
@@ -154,7 +151,6 @@ def test_pipeline_linear_regression_series_fit_score_predict(
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_logistic_regression_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -225,7 +221,6 @@ def test_pipeline_logistic_regression_fit_score_predict(
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
@@ -250,12 +245,12 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
-            "mean_absolute_error": [203.4001727989334],
-            "mean_squared_error": [74898.80551717622],
-            "mean_squared_log_error": [0.004394266810531861],
-            "median_absolute_error": [152.01806640625],
-            "r2_score": [0.8840255831308607],
-            "explained_variance": [0.8858505311591299],
+            "mean_absolute_error": [202.298434],
+            "mean_squared_error": [74515.108971],
+            "mean_squared_log_error": [0.004365],
+            "median_absolute_error": [142.949219],
+            "r2_score": [0.88462],
+            "explained_variance": [0.886454],
         },
         dtype="Float64",
     )
@@ -300,7 +295,6 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_random_forest_classifier_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -327,12 +321,12 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     score_result = pl.score(X_train, y_train).to_pandas()
     score_expected = pd.DataFrame(
         {
-            "precision": [0.587673],
-            "recall": [0.588781],
-            "accuracy": [0.88024],
-            "f1_score": [0.587644],
-            "log_loss": [0.859459],
-            "roc_auc": [0.971737],
+            "precision": [0.585505],
+            "recall": [0.58676],
+            "accuracy": [0.877246],
+            "f1_score": [0.585657],
+            "log_loss": [0.880643],
+            "roc_auc": [0.970697],
         },
         dtype="Float64",
     )
@@ -371,7 +365,6 @@ def test_pipeline_random_forest_classifier_fit_score_predict(
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
@@ -427,9 +420,9 @@ def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     predictions = pl.predict(new_penguins).to_pandas()
     expected = pd.DataFrame(
         {
-            "principal_component_1": [-1.115259, -1.506141, -1.471174],
-            "principal_component_2": [-0.074824, 0.69664, 0.406104],
-            "principal_component_3": [0.500012, -0.544479, 0.075849],
+            "principal_component_1": [-1.115259, -1.506141, -1.471173],
+            "principal_component_2": [-0.074825, 0.69664, 0.406103],
+            "principal_component_3": [0.500013, -0.544479, 0.075849],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -444,7 +437,6 @@ def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     )
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     session, penguins_pandas_df_default_index
 ):
@@ -534,7 +526,7 @@ def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     # Check score to ensure the model was fitted
     score_result = pl.score(new_penguins).to_pandas()
     score_expected = pd.DataFrame(
-        {"davies_bouldin_index": [7.345611], "mean_squared_distance": [97.541777]},
+        {"davies_bouldin_index": [7.542981], "mean_squared_distance": [94.692409]},
         dtype="Float64",
     )
     score_expected = score_expected.reindex(index=score_expected.index.astype("Int64"))
@@ -556,7 +548,6 @@ def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     assert_pandas_df_equal_ignore_ordering(result, expected)
 
 
-@pytest.mark.skip(reason="Test broken from bqml scaler change.")
 def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_index):
     """Test a preprocessing step that manages heterogenous data with ColumnTransformer"""
     pl = pipeline.Pipeline(
