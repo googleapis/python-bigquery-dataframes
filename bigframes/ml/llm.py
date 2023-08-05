@@ -25,7 +25,7 @@ _REMOTE_TEXT_GENERATOR_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
 _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE = "CLOUD_AI_TEXT_EMBEDDING_MODEL_V1"
-_EMBED_TEXT_RESULT_COLUMN = "ml_embed_text_embedding"
+_EMBED_TEXT_RESULT_COLUMN = "text_embedding"
 
 
 class PaLM2TextGenerator(base.Predictor):
@@ -178,7 +178,7 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         options = {
             "flatten_json_output": True,
         }
-        df = self._bqml_model.embed_text(X, options)
+        df = self._bqml_model.generate_text_embedding(X, options)
         return cast(
             bpd.DataFrame,
             df[[_EMBED_TEXT_RESULT_COLUMN]],

@@ -124,7 +124,7 @@ class BqmlModel:
             ),
         )
 
-    def embed_text(
+    def generate_text_embedding(
         self,
         input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
@@ -133,7 +133,7 @@ class BqmlModel:
         return self._apply_sql(
             self._session,
             input_data,
-            lambda source_sql: ml_sql.ml_embed_text(
+            lambda source_sql: ml_sql.ml_generate_text_embedding(
                 model_name=self.model_name,
                 source_sql=source_sql,
                 struct_options=ml_sql.struct_options(**options),

@@ -75,8 +75,8 @@ def test_embedding_generator_predict_success(
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df).to_pandas()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
-    assert "ml_embed_text_embedding" in df.columns
-    series = df["ml_embed_text_embedding"]
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
     value = series[0]
     assert isinstance(value, np.ndarray)
     assert value.size == 768
@@ -87,8 +87,8 @@ def test_embedding_generator_predict_series_success(
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df["prompt"]).to_pandas()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
-    assert "ml_embed_text_embedding" in df.columns
-    series = df["ml_embed_text_embedding"]
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
     value = series[0]
     assert isinstance(value, np.ndarray)
     assert value.size == 768

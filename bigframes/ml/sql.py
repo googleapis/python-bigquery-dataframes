@@ -165,9 +165,11 @@ def ml_generate_text(model_name: str, source_sql: str, struct_options: str) -> s
   ({source_sql}), {struct_options})"""
 
 
-def ml_embed_text(model_name: str, source_sql: str, struct_options: str) -> str:
-    """Encode ML.EMBED_TEXT for BQML"""
-    return f"""SELECT * FROM ML.EMBED_TEXT(MODEL `{model_name}`,
+def ml_generate_text_embedding(
+    model_name: str, source_sql: str, struct_options: str
+) -> str:
+    """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
+    return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{model_name}`,
   ({source_sql}), {struct_options})"""
 
 
