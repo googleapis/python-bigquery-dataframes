@@ -62,10 +62,12 @@ class ARIMAPlus(base.TrainablePredictor):
 
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Target values for training.
-
             transforms (Optional[List[str]], default None):
                 Do not use. Internal param to be deprecated.
                 Use bigframes.ml.pipeline instead.
+
+        Returns:
+            ARIMAPlus: Fitted estimator.
         """
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -82,8 +84,9 @@ class ARIMAPlus(base.TrainablePredictor):
         Args:
             X (default None):
                 ignored, to be compatible with other APIs.
+
         Returns:
-            BigQuery DataFrame: The predicted BigQuery DataFrames. Which
+            bigframes.dataframe.DataFrame: The predicted DataFrames. Which
                 contains 2 columns "forecast_timestamp" and "forecast_value".
         """
         if not self._bqml_model:

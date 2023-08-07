@@ -63,7 +63,7 @@ class KMeans(
         X: Union[bpd.DataFrame, bpd.Series],
         y=None,  # ignored
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> KMeans:
         (X,) = utils.convert_to_dataframe(X)
 
         self._bqml_model = core.create_bqml_model(
@@ -71,6 +71,7 @@ class KMeans(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(
         self,

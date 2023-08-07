@@ -148,7 +148,7 @@ class XGBRegressor(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> XGBRegressor:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -157,6 +157,7 @@ class XGBRegressor(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(
         self,
@@ -196,8 +197,10 @@ class XGBRegressor(
         """Save the model to BigQuery.
 
         Args:
-            model_name: the name of the model.
-            replace: whether to replace if the model already exists. Default to False.
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
 
         Returns: saved model."""
         if not self._bqml_model:
@@ -307,7 +310,7 @@ class XGBClassifier(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> XGBClassifier:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -316,6 +319,7 @@ class XGBClassifier(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
@@ -460,7 +464,7 @@ class RandomForestRegressor(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> RandomForestRegressor:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -469,6 +473,7 @@ class RandomForestRegressor(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(
         self,
@@ -498,13 +503,13 @@ class RandomForestRegressor(
         """Calculate evaluation metrics of the model.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation data.
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation labels.
 
         Returns:
-            BigQuery DataFrame: a BigQuery DataFrame as evaluation result.
+            bigframes.dataframe.DataFrame: The DataFrame as evaluation result.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -627,7 +632,7 @@ class RandomForestClassifier(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> RandomForestClassifier:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -636,6 +641,7 @@ class RandomForestClassifier(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(
         self,
@@ -665,13 +671,13 @@ class RandomForestClassifier(
         """Calculate evaluation metrics of the model.
 
         Args:
-            X (BigQuery DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation data.
-            y (BigQuery DataFrame):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation labels.
 
         Returns:
-            BigQuery DataFrame: a BigQuery DataFrame as evaluation result.
+            bigframes.dataframe.DataFrame: The DataFrame as evaluation result.
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")

@@ -90,6 +90,6 @@ class LinearRegression(RegressorMixin, LinearModel):
                 Use bigframes.ml.pipeline instead.
 
         Returns:
-            Fitted Estimator.
+            LinearRegression: Fitted Estimator.
         """
         raise NotImplementedError("abstract method")

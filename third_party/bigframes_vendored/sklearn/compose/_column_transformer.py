@@ -39,6 +39,9 @@ class ColumnTransformer(_BaseComposition):
                 The Series or DataFrame of shape (n_samples, n_features). Training vector,
                 where `n_samples` is the number of samples and `n_features` is
                 the number of features.
+
+        Returns:
+            ColumnTransformer: Fitted estimator.
         """
         raise NotImplementedError("abstract method")
 

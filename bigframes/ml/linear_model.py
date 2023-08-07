@@ -76,7 +76,7 @@ class LinearRegression(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> LinearRegression:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -85,6 +85,7 @@ class LinearRegression(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
@@ -193,7 +194,7 @@ class LogisticRegression(
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> LogisticRegression:
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_model(
@@ -202,6 +203,7 @@ class LogisticRegression(
             transforms=transforms,
             options=self._bqml_options,
         )
+        return self
 
     def predict(
         self,

@@ -57,7 +57,7 @@ class StandardScaler(BaseEstimator):
                 The Dataframe or Series with training data.
 
         Returns:
-            Fitted scaler.
+            StandardScaler: Fitted scaler.
         """
         raise NotImplementedError("abstract method")
 
@@ -69,6 +69,6 @@ class StandardScaler(BaseEstimator):
                 The DataFrame or Series to be transformed.
 
         Returns:
-           Transformed result.
+           bigframes.dataframe.DataFrame: Transformed result.
         """
         raise NotImplementedError("abstract method")

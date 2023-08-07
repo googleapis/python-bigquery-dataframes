@@ -78,7 +78,7 @@ def predict(self, X):
             A DataFrame or Series to predict.
 
     Returns:
-        DataFrame: A Dataframe representing
+        bigframes.dataframe.DataFrame: A Dataframe representing
             predicted result.
     """
     raise NotImplementedError("abstract method")

@@ -40,7 +40,7 @@ class XGBModel(XGBModelBase):
                 Use bigframes.ml.pipeline instead.
 
         Returns:
-            Fitted Estimator.
+            XGBModel: Fitted Estimator.
         """
         raise NotImplementedError("abstract method")
 

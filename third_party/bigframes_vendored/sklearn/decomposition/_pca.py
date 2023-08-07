@@ -53,7 +53,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
                 Use bigframes.ml.pipeline instead.
 
         Returns:
-            Fitted estimator.
+            PCA: Fitted estimator.
         """
         raise NotImplementedError("abstract method")
 

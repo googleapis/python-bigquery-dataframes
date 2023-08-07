@@ -70,7 +70,7 @@ class Pipeline(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-    ):
+    ) -> Pipeline:
         (X,) = utils.convert_to_dataframe(X)
 
         compiled_transforms = self._transform._compile_to_sql(X.columns.tolist())
@@ -82,6 +82,7 @@ class Pipeline(
             transform_sqls.extend(y.columns.tolist())
 
         self._estimator.fit(X=X, y=y, transforms=transform_sqls)
+        return self
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         return self._estimator.predict(X)

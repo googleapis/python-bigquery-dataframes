@@ -57,7 +57,7 @@ class PCA(
         X: Union[bpd.DataFrame, bpd.Series],
         y=None,
         transforms: Optional[List[str]] = None,
-    ):
+    ) -> PCA:
         (X,) = utils.convert_to_dataframe(X)
 
         self._bqml_model = core.create_bqml_model(
@@ -68,6 +68,7 @@ class PCA(
                 "num_principal_components": self.n_components,
             },
         )
+        return self
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:

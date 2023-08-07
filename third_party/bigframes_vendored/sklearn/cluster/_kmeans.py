@@ -63,7 +63,7 @@ class KMeans(_BaseKMeans):
 
 
         Returns:
-            Fitted Estimator.
+            KMeans: Fitted Estimator.
         """
         raise NotImplementedError("abstract method")
 

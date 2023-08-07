@@ -15,6 +15,7 @@
 """Transformers that prepare data for other estimators. This module is styled after
 Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html."""
 
+from __future__ import annotations
 
 import typing
 from typing import List, Literal, Optional, Tuple, Union
@@ -57,7 +58,7 @@ class StandardScaler(
     def fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
-    ):
+    ) -> StandardScaler:
         (X,) = utils.convert_to_dataframe(X)
 
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
@@ -71,6 +72,7 @@ class StandardScaler(
 
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
+        return self
 
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
@@ -148,7 +150,7 @@ class OneHotEncoder(
     def fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
-    ):
+    ) -> OneHotEncoder:
         (X,) = utils.convert_to_dataframe(X)
 
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
@@ -162,6 +164,7 @@ class OneHotEncoder(
 
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
+        return self
 
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:

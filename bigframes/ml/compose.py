@@ -95,7 +95,7 @@ class ColumnTransformer(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y=None,  # ignored
-    ):
+    ) -> ColumnTransformer:
         (X,) = utils.convert_to_dataframe(X)
 
         compiled_transforms = self._compile_to_sql(X.columns.tolist())
@@ -109,6 +109,7 @@ class ColumnTransformer(
 
         # The schema of TRANSFORM output is not available in the model API, so save it during fitting
         self._output_names = [name for _, name in compiled_transforms]
+        return self
 
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
