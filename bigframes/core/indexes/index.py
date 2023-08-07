@@ -67,6 +67,15 @@ class Index(vendored_pandas_index.Index):
         """Returns True if the Index is empty, otherwise returns False."""
         return self.shape[0] == 0
 
+    def __getitem__(self, key: int) -> typing.Any:
+        if isinstance(key, int):
+            result_pd_df, _ = self._data._get_block().slice(key, key + 1, 1).to_pandas()
+            if result_pd_df.empty:
+                raise IndexError("single positional indexer is out-of-bounds")
+            return result_pd_df.index[0]
+        else:
+            raise NotImplementedError(f"Index key not supported {key}")
+
     def to_pandas(self) -> pandas.Index:
         """Gets the Index as a pandas Index.
 
@@ -76,10 +85,13 @@ class Index(vendored_pandas_index.Index):
         """
         return IndexValue(self._data._get_block()).to_pandas()
 
+    def to_numpy(self, dtype=None, **kwargs) -> np.ndarray:
+        return self.to_pandas().to_numpy(dtype, **kwargs)
+
+    __array__ = to_numpy
+
     def __len__(self):
         return self.shape[0]
-
-    compute = to_pandas
 
 
 class IndexValue:

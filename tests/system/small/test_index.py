@@ -40,7 +40,13 @@ def test_index_len(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_index_array(scalars_df_index, scalars_pandas_df_index):
-    bf_result = scalars_df_index.__array__()
-    pd_result = scalars_pandas_df_index.__array__()
+    bf_result = scalars_df_index.index.__array__()
+    pd_result = scalars_pandas_df_index.index.__array__()
 
     numpy.array_equal(bf_result, pd_result)
+
+
+def test_index_getitem_int(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.index[-2]
+    pd_result = scalars_pandas_df_index.index[-2]
+    assert bf_result == pd_result
