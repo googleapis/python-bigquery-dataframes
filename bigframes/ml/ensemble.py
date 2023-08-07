@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Linear models. This module is styled after Scikit-Learn's linear_model module:
-https://scikit-learn.org/stable/modules/linear_model.html."""
+"""Ensemble models. This module is styled after Scikit-Learn's ensemble module:
+https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
