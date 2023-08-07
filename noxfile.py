@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import
 
+from multiprocessing import Process
 import os
 import pathlib
 import re
@@ -624,8 +625,9 @@ def notebook(session):
     for nb in notebooks + list(notebooks_reg):
         assert os.path.exists(nb), nb
 
-    # TODO(shobs): For some reason --retries arg masks notebook failures and
-    # always returns success. Investigate that and enable retries if possible
+    # TODO(shobs): For some reason --retries arg masks exceptions occurred in
+    # notebook failures, and shows unhelpful INTERNALERROR. Investigate that
+    # and enable retries if we can find a way to surface the real exception
     # bacause the notebook is running against real GCP and something may fail
     # due to transient issues.
     pytest_command = [
@@ -634,15 +636,29 @@ def notebook(session):
         "--nbmake-timeout=600",
     ]
 
+    # Run self-contained notebooks in single session.run
+    # achieve parallelization via -n
     session.run(
         *pytest_command,
         "-nauto",
         *notebooks,
     )
 
+    # Run regionalized notebooks in parallel session.run's, since each notebook
+    # takes a different region via env param.
+    processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
-            session.run(*pytest_command, notebook, env={"BIGQUERY_LOCATION": region})
+            process = Process(
+                target=session.run,
+                args=(*pytest_command, notebook),
+                kwargs={"env": {"BIGQUERY_LOCATION": region}},
+            )
+            process.start()
+            processes.append(process)
+
+    for process in processes:
+        process.join()
 
 
 @nox.session(python="3.10")
