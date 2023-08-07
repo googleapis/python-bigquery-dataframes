@@ -20,14 +20,14 @@ from bigframes.core import blocks
 import bigframes.pandas as bpd
 
 # Internal type alias
-FrameType = Union[bpd.DataFrame, bpd.Series]
+ArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(*input: FrameType) -> Iterable[bpd.DataFrame]:
+def convert_to_dataframe(*input: ArrayType) -> Iterable[bpd.DataFrame]:
     return (_convert_to_dataframe(frame) for frame in input)
 
 
-def _convert_to_dataframe(frame: FrameType) -> bpd.DataFrame:
+def _convert_to_dataframe(frame: ArrayType) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
@@ -37,11 +37,11 @@ def _convert_to_dataframe(frame: FrameType) -> bpd.DataFrame:
     )
 
 
-def convert_to_series(*input: FrameType) -> Iterable[bpd.Series]:
+def convert_to_series(*input: ArrayType) -> Iterable[bpd.Series]:
     return (_convert_to_series(frame) for frame in input)
 
 
-def _convert_to_series(frame: FrameType) -> bpd.Series:
+def _convert_to_series(frame: ArrayType) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(

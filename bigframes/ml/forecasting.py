@@ -61,7 +61,12 @@ class ARIMAPlus(base.TrainablePredictor):
                 A dataframe of training timestamp.
 
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Target values for training."""
+                Target values for training.
+
+            transforms (Optional[List[str]], default None):
+                Do not use. Internal param to be deprecated.
+                Use bigframes.ml.pipeline instead.
+        """
         X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = core.create_bqml_time_series_model(

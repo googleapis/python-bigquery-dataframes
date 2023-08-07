@@ -103,9 +103,13 @@ class Predictor(BaseEstimator):
     def register(self: _T, vertex_ai_model_id: Optional[str] = None) -> _T:
         """Register the model to Vertex AI.
 
+        After register, go to https://pantheon.corp.google.com/vertex-ai/models to manage the model registries.
+        Refer to https://cloud.google.com/vertex-ai/docs/model-registry/introduction for more options.
+
         Args:
             vertex_ai_model_id (Optional[str], default None):
                 optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
+                Vertex Ai model id will be truncated to 63 characters due to its limitation.
 
         Returns:
             BigQuery DataFrames Model after register.

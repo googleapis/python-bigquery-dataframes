@@ -93,8 +93,7 @@ def create_model(
     transform_sql: Optional[str] = None,
     options_sql: Optional[str] = None,
 ) -> str:
-    """Encode the CREATE MODEL statement for BQML"""
-    # TODO(garrettwu): This should be CREATE TEMP MODEL after b/145824779 is fixed
+    """Encode the CREATE TEMP MODEL statement for BQML"""
     parts = [f"CREATE TEMP MODEL `{model_name}`"]
     if transform_sql:
         parts.append(transform_sql)
@@ -109,8 +108,7 @@ def create_remote_model(
     connection_name: str,
     options_sql: Optional[str] = None,
 ) -> str:
-    """Encode the CREATE MODEL statement for BQML"""
-    # TODO(garrettwu): This should be CREATE TEMP MODEL after b/145824779 is fixed
+    """Encode the CREATE TEMP MODEL statement for BQML remote model."""
     parts = [f"CREATE TEMP MODEL `{model_name}`"]
     parts.append(connection(connection_name))
     if options_sql:
@@ -122,8 +120,7 @@ def create_imported_model(
     model_name: str,
     options_sql: Optional[str] = None,
 ) -> str:
-    """Encode the CREATE MODEL statement for BQML"""
-    # TODO(garrettwu): This should be CREATE TEMP MODEL after b/145824779 is fixed
+    """Encode the CREATE TEMP MODEL statement for BQML remote model."""
     parts = [f"CREATE TEMP MODEL `{model_name}`"]
     if options_sql:
         parts.append(options_sql)

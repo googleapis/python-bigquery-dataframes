@@ -50,11 +50,9 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
                 DataFrame of shape (n_samples,). Target vector relative to X.
 
             transforms (Optional[List[str]], default None):
-                An optional list of SQL expressions to apply over top of the
-                model inputs as preprocessing. This preprocessing will be
-                automatically reapplied to new input data (e.g. in .predict),
-                and may contain steps (like ML.STANDARD_SCALER) that fit to the
-                training data.
+                Do not use. Internal param to be deprecated.
+                Use bigframes.ml.pipeline instead.
+
 
         Returns:
             Fitted estimator.
