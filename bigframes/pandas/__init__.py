@@ -162,6 +162,13 @@ def merge(
     )
 
 
+options = config.options
+"""Global :class:`~bigframes._config.Options` to configure BigQuery DataFrames."""
+
+option_context = config.option_context
+"""Global :class:`~bigframes._config.option_context` to configure BigQuery DataFrames."""
+
+
 merge.__doc__ = vendored_pandas_merge.merge.__doc__
 
 

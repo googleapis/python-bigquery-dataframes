@@ -14,7 +14,7 @@
 
 """BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
 
-from bigframes._config import options
+from bigframes._config import option_context, options
 from bigframes._config.bigquery_options import BigQueryOptions
 from bigframes.core.global_session import close_session, get_global_session
 from bigframes.session import connect, Session
@@ -28,4 +28,5 @@ __all__ = [
     "connect",
     "Session",
     "__version__",
+    "option_context",
 ]
