@@ -236,7 +236,11 @@ def _loc_getitem_series_or_dataframe(
             keys_df.index.name = None
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     elif isinstance(key, slice):
-        return series_or_dataframe._slice(key.start, key.stop, key.step)
+        if (key.start is None) and (key.stop is None) and (key.step is None):
+            return series_or_dataframe.copy()
+        raise NotImplementedError(
+            f"loc does not yet support indexing with a slice. {constants.FEEDBACK_LINK}"
+        )
     elif callable(key):
         raise NotImplementedError(
             f"loc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"
