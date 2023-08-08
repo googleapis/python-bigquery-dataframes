@@ -240,6 +240,34 @@ class RemoteFunctionClient:
     def check_bq_connection_exists(self):
         """Check if the BigQuery Connection exists."""
         client = self._bq_connection_client
+        if self._bq_connection_id.count(".") == 1:
+            bq_location, bq_connection_id = self._bq_connection_id.split(".")
+            if bq_location != self._bq_location:
+                logger.info(
+                    f"Reset location {self._bq_location} to match the"
+                    + f"location in connection name: {bq_location}"
+                )
+            self._bq_location = bq_location
+            self._bq_connection_id = bq_connection_id
+        elif self._bq_connection_id.count(".") == 2:
+            (
+                gcp_project_id,
+                bq_location,
+                bq_connection_id,
+            ) = self._bq_connection_id.split(".")
+            if gcp_project_id != self._gcp_project_id:
+                raise ValueError(
+                    "The project_id does not match BigQuery connection gcp_project_id: "
+                    f"{self._gcp_project_id}."
+                )
+            if bq_location != self._bq_location:
+                logger.info(
+                    f"Reset location {self._bq_location} to match the"
+                    + f"location in connection name: {bq_location}"
+                )
+            self._gcp_project_id = gcp_project_id
+            self._bq_location = bq_location
+            self._bq_connection_id = bq_connection_id
         request = bigquery_connection_v1.GetConnectionRequest(
             name=client.connection_path(
                 self._gcp_project_id, self._bq_location, self._bq_connection_id
@@ -572,12 +600,13 @@ def remote_function(
             `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
             parameter is not provided then session dataset id is used.
         bigquery_connection (str, Optional):
-            Name of the BigQuery connection. If this param is not provided then
-            the bigquery connection from the session would be used. If it is pre
-            created in the same location as the `bigquery_client.location` then
-            it would be used, otherwise it is created dynamically using
-            the `bigquery_connection_client` assuming the user has necessary
-            priviliges.
+            Name of the BigQuery connection in the form of `CONNECTION_ID` or
+            `LOCATION.CONNECTION_ID` or `PROJECT_ID.LOCATION.CONNECTION_ID`.
+            If this param is not provided then the bigquery connection from the session
+            would be used. If it is pre created in the same location as the
+            `bigquery_client.location` then it would be used, otherwise it is created
+            dynamically using the `bigquery_connection_client` assuming the user has necessary
+            priviliges. The PROJECT_ID should be the same as the BigQuery connection project.
         reuse (bool, Optional):
             Reuse the remote function if is already exists.
             `True` by default, which results in reusing an existing remote
