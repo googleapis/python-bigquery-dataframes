@@ -41,6 +41,12 @@ BigQuery DataFrames uses the US multi-region as the default location, but you
 can use ``session_options.location`` to set a different location. Every query
 in a session is executed in the location where the session was created.
 
+If you want to reset the location of the created DataFrame or Series objects,
+can reset the session by executing ``bigframes.pandas.reset_session()``.
+After that, you can reuse ``bigframes.pandas.options.bigquery.location`` to
+specify another location.
+
+
 ``read_gbq()`` requires you to specify a location if the dataset you are
 querying is not in the US multi-region. If you try to read a table from another
 location, you get a NotFound exception.
