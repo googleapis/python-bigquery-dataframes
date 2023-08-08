@@ -1573,9 +1573,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        source_query = self._create_io_query(index=index)
+        result_table = self._run_io_query(
+            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+        )
         export_data_statement = bigframes.core.io.create_export_csv_statement(
-            source_query, uri=path_or_buf, field_delimiter=sep, header=header
+            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
+            uri=path_or_buf,
+            field_delimiter=sep,
+            header=header,
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
@@ -1610,9 +1615,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
             )
 
-        source_query = self._create_io_query(index=index)
+        result_table = self._run_io_query(
+            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+        )
         export_data_statement = bigframes.core.io.create_export_data_statement(
-            source_query,
+            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             format="JSON",
             export_options={},
@@ -1626,6 +1633,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
         index: bool = True,
+        ordering_id: Optional[str] = None,
     ) -> None:
         if "." not in destination_table:
             raise ValueError(
@@ -1649,7 +1657,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ),
         )
 
-        self._run_io_query(index=index, job_config=job_config)
+        self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
@@ -1670,9 +1678,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        source_query = self._create_io_query(index=index)
+        result_table = self._run_io_query(
+            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+        )
         export_data_statement = bigframes.core.io.create_export_data_statement(
-            source_query,
+            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
             format="PARQUET",
             export_options={},
@@ -1684,7 +1694,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
-    def _create_io_query(self, index: bool) -> str:
+    def _create_io_query(self, index: bool, ordering_id: Optional[str]) -> str:
         """Create query text representing this dataframe for I/O."""
         expr = self._block.expr
         session = expr._session
@@ -1709,31 +1719,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col_id, col_label in zip(columns, column_labels)
             if col_label
         }
-        ibis_expr = expr.to_ibis_expr(
-            ordering_mode="offset_col",
-            col_id_overrides=id_overrides,
-            order_col_name="bqdf_row_nums",
-        )
-        sql = session.ibis_client.compile(ibis_expr)  # type: ignore
-        # Manually generate ORDER BY statement since ibis will not always generate
-        # it in the top level statement. This causes BigQuery to then run
-        # non-distributed sort and run out of memory.
-        sql = f"SELECT * EXCEPT (bqdf_row_nums) FROM ({sql}) ORDER BY bqdf_row_nums"
-        return sql
+
+        if ordering_id is not None:
+            ibis_expr = expr.to_ibis_expr(
+                ordering_mode="offset_col",
+                col_id_overrides=id_overrides,
+                order_col_name=ordering_id,
+            )
+        else:
+            ibis_expr = expr.to_ibis_expr(
+                ordering_mode="unordered",
+                col_id_overrides=id_overrides,
+            )
+
+        return session.ibis_client.compile(ibis_expr)  # type: ignore
 
     def _run_io_query(
-        self, index: bool, job_config: Optional[bigquery.job.QueryJobConfig] = None
-    ) -> Optional[bigquery.TableReference]:
+        self,
+        index: bool,
+        ordering_id: Optional[str] = None,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+    ) -> bigquery.TableReference:
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         expr = self._block.expr
         session = expr._session
-        sql = self._create_io_query(index=index)
+        sql = self._create_io_query(index=index, ordering_id=ordering_id)
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
         )
         self._set_internal_query_job(query_job)
-        return query_job.destination
+
+        # The query job should have finished, so there should be always be a result table.
+        result_table = query_job.destination
+        assert result_table is not None
+        return result_table
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
         if not callable(func):

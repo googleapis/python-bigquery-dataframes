@@ -12,17 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers for I/O operations."""
+"""Private module: Helpers for I/O operations."""
 
+import datetime
 import textwrap
 from typing import Dict, Union
 
+import google.cloud.bigquery as bigquery
+
+IO_ORDERING_ID = "bqdf_row_nums"
+
 
 def create_export_csv_statement(
-    query: str, uri: str, field_delimiter: str, header: bool
+    table_id: str, uri: str, field_delimiter: str, header: bool
 ) -> str:
     return create_export_data_statement(
-        query,
+        table_id,
         uri,
         "CSV",
         {
@@ -33,7 +38,7 @@ def create_export_csv_statement(
 
 
 def create_export_data_statement(
-    query: str, uri: str, format: str, export_options: Dict[str, Union[bool, str]]
+    table_id: str, uri: str, format: str, export_options: Dict[str, Union[bool, str]]
 ) -> str:
     all_options: Dict[str, Union[bool, str]] = {
         "uri": uri,
@@ -45,13 +50,36 @@ def create_export_data_statement(
     export_options_str = ", ".join(
         format_option(key, value) for key, value in all_options.items()
     )
+    # Manually generate ORDER BY statement since ibis will not always generate
+    # it in the top level statement. This causes BigQuery to then run
+    # non-distributed sort and run out of memory.
     return textwrap.dedent(
         f"""
         EXPORT DATA
         OPTIONS (
             {export_options_str}
         ) AS
-        {query}
+        SELECT * EXCEPT ({IO_ORDERING_ID})
+        FROM `{table_id}`
+        ORDER BY {IO_ORDERING_ID}
+        """
+    )
+
+
+def create_snapshot_sql(
+    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
+) -> str:
+    """Query a table via 'time travel' for consistent reads."""
+
+    # If we have a _SESSION table, assume that it's already a copy. Nothing to do here.
+    if table_ref.dataset_id.upper() == "_SESSION":
+        return f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+
+    return textwrap.dedent(
+        f"""
+        SELECT *
+        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
+        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
         """
     )
 

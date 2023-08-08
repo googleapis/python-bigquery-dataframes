@@ -88,7 +88,11 @@ def test_read_gbq_w_col_order(
 @pytest.mark.parametrize(
     ("query_or_table", "index_col"),
     [
-        pytest.param("{scalars_table_id}", ["bool_col", "int64_col"], id="multiindex"),
+        pytest.param(
+            "{scalars_table_id}",
+            ["bool_col", "int64_col"],
+            id="unique_multiindex_table",
+        ),
         pytest.param(
             """SELECT
                 t.float64_col * 2 AS my_floats,
@@ -98,6 +102,11 @@ def test_read_gbq_w_col_order(
             """,
             ["my_strings"],
             id="string_index",
+        ),
+        pytest.param(
+            "SELECT GENERATE_UUID() AS uuid, 0 AS my_value FROM UNNEST(GENERATE_ARRAY(1, 20))",
+            ["uuid"],
+            id="unique_uuid_index_query",
         ),
         pytest.param(
             "{scalars_table_id}",
@@ -117,6 +126,11 @@ def test_read_gbq_w_index_col(
         index_col=index_col,
     )
     assert list(df.index.names) == index_col
+
+    # Verify that we get the expected number of results.
+    bf_shape = df.shape
+    result = df.to_pandas()
+    assert bf_shape == result.shape
 
 
 @pytest.mark.parametrize(

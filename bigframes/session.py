@@ -61,6 +61,7 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
+import bigframes.core.io as bigframes_io
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
@@ -400,6 +401,7 @@ class Session(
         """
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
+
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
         # TODO(swast): Can we re-use the temp table from other reads in the
@@ -414,7 +416,6 @@ class Session(
                 f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
             )
         else:
-            # TODO(swast): Read from a table snapshot so that reads are consistent.
             table_expression = self.ibis_client.table(
                 table_ref.table_id,
                 database=f"{table_ref.project}.{table_ref.dataset_id}",
@@ -457,7 +458,7 @@ class Session(
             SELECT (SELECT COUNT(*) FROM full_table) AS total_count,
             (SELECT COUNT(*) FROM distinct_table) AS distinct_count
             """
-            results, _ = self._start_query(is_unique_sql)
+            results, query_job = self._start_query(is_unique_sql)
             row = next(iter(results))
 
             total_count = row["total_count"]
@@ -470,7 +471,21 @@ class Session(
                 total_ordering_columns=frozenset(index_cols),
             )
 
-            if not is_total_ordering:
+            # We have a total ordering, so query via "time travel" so that
+            # the underlying data doesn't mutate.
+            if is_total_ordering:
+
+                # Get the timestamp from the job metadata rather than the query
+                # text so that the query for determining uniqueness of the ID
+                # columns can be cached.
+                current_timestamp = query_job.started
+
+                # The job finished, so we should have a start time.
+                assert current_timestamp is not None
+                table_expression = self.ibis_client.sql(
+                    bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
+                )
+            else:
                 # Make sure when we generate an ordering, the row_number()
                 # coresponds to the index columns.
                 table_expression = table_expression.order_by(index_cols)
@@ -483,6 +498,7 @@ class Session(
                         """,
                     )
                 )
+
             # When ordering by index columns, apply limit after ordering to
             # make limit more predictable.
             if max_results is not None:

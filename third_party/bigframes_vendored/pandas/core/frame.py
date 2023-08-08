@@ -60,6 +60,7 @@ class DataFrame(NDFrame):
         *,
         if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
         index: bool = True,
+        ordering_id: Optional[str] = None,
     ) -> None:
         """Write a DataFrame to a Google BigQuery table.
 
@@ -80,6 +81,10 @@ class DataFrame(NDFrame):
 
             index (bool. default True):
                 whether write row names (index) or not.
+
+            ordering_id (Optional[str], default None):
+                If set, write the ordering of the DataFrame as a column in the
+                result table with this name.
         """
         raise NotImplementedError("abstract method")
 
