@@ -957,7 +957,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 matches = block.index_name_to_col_id.get(key, [])
                 if len(matches) != 1:
                     raise ValueError(
-                        f"GroupBy key {key} does not map to unambiguous index level"
+                        f"GroupBy key {key} does not match a unique index level. BigQuery DataFrames only interprets lists of strings as index level names, not directly as per-row group assignments."
                     )
                 grouping_cols = [*grouping_cols, matches[0]]
 

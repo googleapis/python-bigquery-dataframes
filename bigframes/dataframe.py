@@ -1398,7 +1398,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 matches = [*col_matches, *level_matches]
                 if len(matches) != 1:
                     raise ValueError(
-                        f"GroupBy key {key} does not map to unambiguous column or index level"
+                        f"GroupBy key {key} does not match a unique column or index level. BigQuery DataFrames only interprets lists of strings as column or index names, not directly as per-row group assignments."
                     )
                 col_ids = [*col_ids, matches[0]]
 
