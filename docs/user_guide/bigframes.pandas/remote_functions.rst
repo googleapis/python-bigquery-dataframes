@@ -9,14 +9,14 @@ find more details on it via `help` command.
 
 .. code-block:: python
 
-    import bigframes.pandas as pd
-    help(pd.remote_function)
+    import bigframes.pandas as bpd
+    help(bpd.remote_function)
 
 Read a table and inspect the column of interest.
 
 .. code-block:: python
 
-    df = pd.read_gbq("bigquery-public-data.ml_datasets.penguins")
+    df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
     df["body_mass_g"].head(10)
 
 Define a custom function, and specify the intent to turn it into a remote
@@ -30,7 +30,7 @@ of the penguins, which is a real number, into a category, which is a string.
 
 .. code-block:: python
 
-    @pd.remote_function([float], str, bigquery_connection='bigframes-rf-conn')
+    @bpd.remote_function([float], str, bigquery_connection='bigframes-rf-conn')
     def get_bucket(num):
         if not num: return "NA"
         boundary = 4000
@@ -82,7 +82,7 @@ Let's define another scalar custom function and decorated it as a remote functio
 
 .. code-block:: python
 
-    @pd.remote_function([str], str, bigquery_connection='bigframes-rf-conn')
+    @bpd.remote_function([str], str, bigquery_connection='bigframes-rf-conn')
     def get_hash(input):
         import hashlib
         # handle missing value

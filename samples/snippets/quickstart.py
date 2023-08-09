@@ -26,15 +26,15 @@ def run_quickstart(project_id: str):
     print(f"average_body_mass (df_session): {average_body_mass}")
 
     # [START bigquery_bigframes_quickstart]
-    import bigframes.pandas as pd
+    import bigframes.pandas as bpd
 
     # Set BigQuery DataFrames options
-    pd.options.bigquery.project = your_gcp_project_id
-    pd.options.bigquery.location = "us"
+    bpd.options.bigquery.project = your_gcp_project_id
+    bpd.options.bigquery.location = "us"
 
     # Create a DataFrame from a BigQuery table
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
-    df = pd.read_gbq(query_or_table)
+    df = bpd.read_gbq(query_or_table)
 
     # Use the DataFrame just as you would a pandas DataFrame, but calculations
     # happen in the BigQuery query engine instead of the local system.
