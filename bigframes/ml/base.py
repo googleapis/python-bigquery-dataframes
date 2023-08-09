@@ -22,9 +22,9 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import Optional, TypeVar
+from typing import cast, Optional, TypeVar
 
-from bigframes.ml.core import BqmlModel
+from bigframes.ml import core
 import third_party.bigframes_vendored.sklearn.base
 
 
@@ -92,7 +92,7 @@ class Predictor(BaseEstimator):
     """A BigQuery DataFrames ML Model base class that can be used to predict outputs."""
 
     def __init__(self):
-        self._bqml_model: Optional[BqmlModel] = None
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     @abc.abstractmethod
     def predict(self, X):
@@ -115,7 +115,12 @@ class Predictor(BaseEstimator):
             BigQuery DataFrames Model after register.
         """
         if not self._bqml_model:
-            raise RuntimeError("A model must be trained before register.")
+            # TODO(garrettwu): find a more elegant way to do this.
+            try:
+                self._bqml_model = self._create_bqml_model()  # type: ignore
+            except AttributeError:
+                raise RuntimeError("A model must be trained before register.")
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         self._bqml_model.register(vertex_ai_model_id)
         return self

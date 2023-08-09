@@ -14,13 +14,37 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import Union
 
 from google.cloud import bigquery
 
 import bigframes
 import bigframes.constants as constants
-from bigframes.ml import cluster, decomposition, ensemble, forecasting, linear_model
+from bigframes.ml import (
+    cluster,
+    decomposition,
+    ensemble,
+    forecasting,
+    imported,
+    linear_model,
+)
+
+_BQML_MODEL_TYPE_MAPPING = MappingProxyType(
+    {
+        "LINEAR_REGRESSION": linear_model.LinearRegression,
+        "LOGISTIC_REGRESSION": linear_model.LogisticRegression,
+        "KMEANS": cluster.KMeans,
+        "PCA": decomposition.PCA,
+        "BOOSTED_TREE_REGRESSOR": ensemble.XGBRegressor,
+        "BOOSTED_TREE_CLASSIFIER": ensemble.XGBClassifier,
+        "ARIMA_PLUS": forecasting.ARIMAPlus,
+        "RANDOM_FOREST_REGRESSOR": ensemble.RandomForestRegressor,
+        "RANDOM_FOREST_CLASSIFIER": ensemble.RandomForestClassifier,
+        "TENSORFLOW": imported.TensorFlowModel,
+        "ONNX": imported.ONNXModel,
+    }
+)
 
 
 def from_bq(
@@ -35,6 +59,8 @@ def from_bq(
     forecasting.ARIMAPlus,
     ensemble.RandomForestRegressor,
     ensemble.RandomForestClassifier,
+    imported.TensorFlowModel,
+    imported.ONNXModel,
 ]:
     """Load a BQML model to BigQuery DataFrames ML.
 
@@ -45,25 +71,11 @@ def from_bq(
     Returns:
         A BigQuery DataFrames ML model object.
     """
-    if model.model_type == "LINEAR_REGRESSION":
-        return linear_model.LinearRegression._from_bq(session, model)
-    elif model.model_type == "KMEANS":
-        return cluster.KMeans._from_bq(session, model)
-    elif model.model_type == "PCA":
-        return decomposition.PCA._from_bq(session, model)
-    elif model.model_type == "LOGISTIC_REGRESSION":
-        return linear_model.LogisticRegression._from_bq(session, model)
-    elif model.model_type == "BOOSTED_TREE_REGRESSOR":
-        return ensemble.XGBRegressor._from_bq(session, model)
-    elif model.model_type == "BOOSTED_TREE_CLASSIFIER":
-        return ensemble.XGBClassifier._from_bq(session, model)
-    elif model.model_type == "ARIMA_PLUS":
-        return forecasting.ARIMAPlus._from_bq(session, model)
-    elif model.model_type == "RANDOM_FOREST_REGRESSOR":
-        return ensemble.RandomForestRegressor._from_bq(session, model)
-    elif model.model_type == "RANDOM_FOREST_CLASSIFIER":
-        return ensemble.RandomForestClassifier._from_bq(session, model)
-    else:
-        raise NotImplementedError(
-            f"Model type {model.model_type} is not yet supported by BigQuery DataFrames. {constants.FEEDBACK_LINK}"
+    if model.model_type in _BQML_MODEL_TYPE_MAPPING:
+        return _BQML_MODEL_TYPE_MAPPING[model.model_type]._from_bq(  # type: ignore
+            session=session, model=model
         )
+
+    raise NotImplementedError(
+        f"Model type {model.model_type} is not yet supported by BigQuery DataFrames. {constants.FEEDBACK_LINK}"
+    )

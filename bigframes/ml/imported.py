@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
-from typing import cast, Union
+from typing import cast, Optional, Union
+
+from google.cloud import bigquery
 
 import bigframes
 from bigframes.ml import base, core, utils
@@ -32,14 +34,24 @@ class TensorFlowModel(base.Predictor):
         model_path (str):
             GCS path that holds the model files."""
 
-    def __init__(self, session: bigframes.Session, model_path: str):
+    def __init__(self, session: bigframes.Session, model_path: Optional[str] = None):
         self.session = session
         self.model_path = model_path
-        self._bqml_model: core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     def _create_bqml_model(self):
         options = {"model_type": "TENSORFLOW", "model_path": self.model_path}
         return core.create_bqml_imported_model(session=self.session, options=options)
+
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> TensorFlowModel:
+        assert model.model_type == "TENSORFLOW"
+
+        tf_model = cls(session=session, model_path=None)
+        tf_model._bqml_model = core.BqmlModel(session, model)
+        return tf_model
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
@@ -50,6 +62,13 @@ class TensorFlowModel(base.Predictor):
 
         Returns:
             bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
+
+        if not self._bqml_model:
+            if self.model_path is None:
+                raise ValueError("Model GCS path must be provided.")
+            self._bqml_model = self._create_bqml_model()
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)
@@ -62,6 +81,26 @@ class TensorFlowModel(base.Predictor):
                 ]
             ],
         )
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> TensorFlowModel:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            TensorFlowModel: saved model."""
+        if not self._bqml_model:
+            if self.model_path is None:
+                raise ValueError("Model GCS path must be provided.")
+            self._bqml_model = self._create_bqml_model()
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
 
 
 class ONNXModel(base.Predictor):
@@ -73,14 +112,22 @@ class ONNXModel(base.Predictor):
         model_path (str):
             Cloud Storage path that holds the model files."""
 
-    def __init__(self, session: bigframes.Session, model_path: str):
+    def __init__(self, session: bigframes.Session, model_path: Optional[str] = None):
         self.session = session
         self.model_path = model_path
-        self._bqml_model: core.BqmlModel = self._create_bqml_model()
+        self._bqml_model: Optional[core.BqmlModel] = None
 
     def _create_bqml_model(self):
         options = {"model_type": "ONNX", "model_path": self.model_path}
         return core.create_bqml_imported_model(session=self.session, options=options)
+
+    @classmethod
+    def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> ONNXModel:
+        assert model.model_type == "ONNX"
+
+        onnx_model = cls(session=session, model_path=None)
+        onnx_model._bqml_model = core.BqmlModel(session, model)
+        return onnx_model
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
@@ -91,6 +138,13 @@ class ONNXModel(base.Predictor):
 
         Returns:
             bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
+
+        if not self._bqml_model:
+            if self.model_path is None:
+                raise ValueError("Model GCS path must be provided.")
+            self._bqml_model = self._create_bqml_model()
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+
         (X,) = utils.convert_to_dataframe(X)
 
         df = self._bqml_model.predict(X)
@@ -103,3 +157,23 @@ class ONNXModel(base.Predictor):
                 ]
             ],
         )
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> ONNXModel:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            ONNXModel: saved model."""
+        if not self._bqml_model:
+            if self.model_path is None:
+                raise ValueError("Model GCS path must be provided.")
+            self._bqml_model = self._create_bqml_model()
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)

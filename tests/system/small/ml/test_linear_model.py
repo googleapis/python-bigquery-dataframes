@@ -237,7 +237,7 @@ def test_logsitic_model_predict(penguins_logistic_model, new_penguins_df):
     )
 
 
-def test_to_gbq_saved_logsitic_model_score(
+def test_logsitic_model_to_gbq_saved_score(
     penguins_logistic_model, dataset_id, penguins_df_default_index
 ):
     saved_model = penguins_logistic_model.to_gbq(
@@ -277,7 +277,7 @@ def test_to_gbq_saved_logsitic_model_score(
     )
 
 
-def test_to_logistic_model_gbq_replace(penguins_logistic_model, dataset_id):
+def test_logistic_model_to_gbq_replace(penguins_logistic_model, dataset_id):
     penguins_logistic_model.to_gbq(f"{dataset_id}.test_penguins_model", replace=True)
     with pytest.raises(google.api_core.exceptions.Conflict):
         penguins_logistic_model.to_gbq(f"{dataset_id}.test_penguins_model")

@@ -260,8 +260,10 @@ class XGBClassifier(
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
 
-    @staticmethod
-    def _from_bq(session: bigframes.Session, model: bigquery.Model) -> XGBClassifier:
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> XGBClassifier:
         assert model.model_type == "BOOSTED_TREE_CLASSIFIER"
 
         kwargs = {}
@@ -275,7 +277,7 @@ class XGBClassifier(
             if bqml_param is not None:
                 kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
 
-        new_xgb_classifier = XGBClassifier(**kwargs)
+        new_xgb_classifier = cls(**kwargs)
         new_xgb_classifier._bqml_model = core.BqmlModel(session, model)
         return new_xgb_classifier
 
@@ -583,9 +585,9 @@ class RandomForestClassifier(
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
 
-    @staticmethod
+    @classmethod
     def _from_bq(
-        session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, model: bigquery.Model
     ) -> RandomForestClassifier:
         assert model.model_type == "RANDOM_FOREST_CLASSIFIER"
 
@@ -600,7 +602,7 @@ class RandomForestClassifier(
             if bqml_param is not None:
                 kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
 
-        new_random_forest_classifier = RandomForestClassifier(**kwargs)
+        new_random_forest_classifier = cls(**kwargs)
         new_random_forest_classifier._bqml_model = core.BqmlModel(session, model)
         return new_random_forest_classifier
 
