@@ -673,3 +673,10 @@ WHERE
         session.bqclient.query(sql).result()
     finally:
         return model_name
+
+
+@pytest.fixture()
+def deferred_repr():
+    bigframes.options.display.repr_mode = "deferred"
+    yield
+    bigframes.options.display.repr_mode = "head"
