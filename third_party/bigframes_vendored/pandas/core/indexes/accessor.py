@@ -1,6 +1,6 @@
 class DatetimeProperties:
     """
-    Accessor object for datetimelike properties of the Series values.
+    Accessor object for datetime-like properties of the Series values.
     """
 
     @property

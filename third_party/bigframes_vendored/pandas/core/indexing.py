@@ -21,7 +21,7 @@ class IndexingMixin:
         - A slice object with ints, e.g. ``1:7``.
         - **Not supported yet** A boolean array.
         - **Not supported yet** A ``callable`` function with one argument (the
-          calling Series or DataFrame) and that returns valid output for
+          calling Series or DataFrame) that returns valid output for
           indexing (one of the above). This is useful in method chains, when you
           don't have a reference to the calling object, but would like to base
           your selection on some value.
@@ -54,16 +54,15 @@ class IndexingMixin:
         - **Not supported yet** An alignable boolean Series. The index of the key will be aligned before
           masking.
         - **Not supported yet** A slice object with labels, e.g. ``'a':'f'``.
+
               Note: contrary to usual python slices, **both** the
               start and the stop are included
+
         - **Not supported yet** A ``callable`` function with one argument (the
-          calling Series or DataFrame)
-          and that returns valid output for indexing (one of the above)
+          calling Series or DataFrame) that returns valid output for indexing
+          (one of the above).
 
         Raises:
-            KeyError: if any items are not found.
-            IndexingError: if an indexed key is passed and its index is
-              unalignable to theframe index.
             NotImplementError: if the inputs are not supported.
 
         """

@@ -210,7 +210,7 @@ class NDFrame(indexing.IndexingMixin):
                 The string to add before each label.
             axis (int or str or None, default None):
                 ``{{0 or 'index', 1 or 'columns', None}}``, default None. Axis
-                to add prefix on
+                to add prefix on.
 
         Returns:
             New Series or DataFrame with updated labels.
@@ -400,21 +400,18 @@ class NDFrame(indexing.IndexingMixin):
         Args:
             method ({'average', 'min', 'max', 'first', 'dense'}, default 'average'):
                 How to rank the group of records that have the same value (i.e. ties):
-
-                * average: average rank of the group
-                * min: lowest rank in the group
-                * max: highest rank in the group
-                * first: ranks assigned in order they appear in the array
-                * dense: like 'min', but rank always increases by 1 between groups.
+                `average`: average rank of the group, `min`: lowest rank in the group
+                max`: highest rank in the group, `first`: ranks assigned in order they
+                appear in the array, `dense`: like 'min', but rank always increases by
+                1 between groups.
 
             numeric_only (bool, default False):
                 For DataFrame objects, rank only numeric columns if set to True.
 
             na_option ({'keep', 'top', 'bottom'}, default 'keep'):
-                How to rank NaN values:
-                * keep: assign NaN rank to NaN values
-                * top: assign lowest rank to NaN values
-                * bottom: assign highest rank to NaN values
+                How to rank NaN values: `keep`: assign NaN rank to NaN values,
+                , `top`: assign lowest rank to NaN values, `bottom`: assign highest
+                rank to NaN values.
 
             ascending (bool, default True):
                 Whether or not the elements should be ranked in ascending order.

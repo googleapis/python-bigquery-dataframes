@@ -21,7 +21,7 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def dt(self):
         """
-        Accessor object for datetimelike properties of the Series values.
+        Accessor object for datetime-like properties of the Series values.
         """
         raise NotImplementedError("abstract property")
 
@@ -233,7 +233,7 @@ class Series(NDFrame):  # type: ignore[misc]
             excel_writer (path-like, file-like, or ExcelWriter object):
                 File path or existing ExcelWriter.
             sheet_name (str, default 'Sheet1'):
-                Name of sheet which will contain DataFrame.
+                Name of sheet to contain Series.
         """
         raise NotImplementedError("abstract method")
 
@@ -264,7 +264,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         These are each a scalar type, which is a Python scalar
         (for str, int, float) or a pandas scalar
-        (for Timestamp/Timedelta/Interval/Period)
+        (for Timestamp/Timedelta/Interval/Period).
 
         Returns:
             list: list of the values
@@ -382,7 +382,7 @@ class Series(NDFrame):  # type: ignore[misc]
             func (function):
                 Function to use for aggregating the data.
                 Accepted combinations are: string function name, list of
-                function names, e.g. ``['sum', 'mean']``
+                function names, e.g. ``['sum', 'mean']``.
 
         Returns:
             scalar or Series: Aggregated results
@@ -712,11 +712,11 @@ class Series(NDFrame):  # type: ignore[misc]
                 Return object with group labels as the
                 index. Only relevant for DataFrame input. as_index=False is
                 effectively "SQL-style" grouped output. This argument has no effect
-                on filtrations (see the `filtrations in the user guide
-                <https://pandas.pydata.org/docs/dev/user_guide/groupby.html#filtration>`_),
+                on filtrations (see the "filtrations in the user guide"
+                `<https://pandas.pydata.org/docs/dev/user_guide/groupby.html#filtration>`_),
                 such as ``head()``, ``tail()``, ``nth()`` and in transformations
-                (see the `transformations in the user guide
-                <https://pandas.pydata.org/docs/dev/user_guide/groupby.html#transformation>`_).
+                (see the "transformations in the user guide"
+                `<https://pandas.pydata.org/docs/dev/user_guide/groupby.html#transformation>`_).
             dropna : bool, default True
                 If True, and if group keys contain NA values, NA values together
                 with row/column will be dropped.
@@ -796,6 +796,16 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         value=None,
     ) -> Series | None:
+        """
+        Fill NA/NaN values using the specified method.
+
+        Args:
+            value (scalar, dict, Series, or DataFrame, default None):
+                Value to use to fill holes (e.g. 0).
+
+        Returns:
+            Series or None: Object with missing values filled or None.
+        """
         raise NotImplementedError("abstract method")
 
     def between(
@@ -896,7 +906,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def eq(self, other) -> Series:
-        """Return Equal of series and other, element-wise (binary operator eq).
+        """Return equal of Series and other, element-wise (binary operator eq).
 
         Equivalent to ``other == series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -911,7 +921,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def ne(self, other) -> Series:
-        """Return Not equal of series and other, element-wise (binary operator ne).
+        """Return not equal of Series and other, element-wise (binary operator ne).
 
         Equivalent to ``other != series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -926,7 +936,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def le(self, other) -> Series:
-        """Get 'less than or equal to' of series and other, element-wise (binary operator `<=`).
+        """Get 'less than or equal to' of Series and other, element-wise (binary operator `<=`).
 
         Equivalent to ``series <= other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -941,7 +951,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def lt(self, other) -> Series:
-        """Get 'less than' of series and other, element-wise (binary operator `<`).
+        """Get 'less than' of Series and other, element-wise (binary operator `<`).
 
          Equivalent to ``series < other``, but with support to substitute a fill_value for
          missing data in either one of the inputs.
@@ -956,7 +966,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def ge(self, other) -> Series:
-        """Get 'greater than or equal to' of series and other, element-wise (binary operator `>=`).
+        """Get 'greater than or equal to' of Series and other, element-wise (binary operator `>=`).
 
         Equivalent to ``series >= other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -971,7 +981,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def gt(self, other) -> Series:
-        """Get 'less than or equal to' of series and other, element-wise (binary operator `<=`).
+        """Get 'less than or equal to' of Series and other, element-wise (binary operator `<=`).
 
         Equivalent to ``series <= other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -986,9 +996,24 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def add(self, other) -> Series:
-        """Return Addition of series and other, element-wise (binary operator add).
+        """Return addition of Series and other, element-wise (binary operator add).
 
         Equivalent to ``series + other``, but with support to substitute a fill_value for
+        missing data in either one of the inputs.
+
+        Args:
+            other (Series, or scalar value):
+
+        Returns:
+            Series: The result of the operation.
+
+        """
+        raise NotImplementedError("abstract method")
+
+    def radd(self, other) -> Series:
+        """Return addition of Series and other, element-wise (binary operator radd).
+
+        Equivalent to ``other + series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
 
         Args:
@@ -1004,7 +1029,7 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         other,
     ) -> Series:
-        """Return Subtraction of series and other, element-wise (binary operator sub).
+        """Return subtraction of Series and other, element-wise (binary operator sub).
 
         Equivalent to ``series - other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1019,7 +1044,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def rsub(self, other) -> Series:
-        """Return Subtraction of series and other, element-wise (binary operator rsub).
+        """Return subtraction of Series and other, element-wise (binary operator rsub).
 
         Equivalent to ``other - series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1034,7 +1059,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def mul(self, other) -> Series:
-        """Return Multiplication of series and other, element-wise (binary operator mul).
+        """Return multiplication of Series and other, element-wise (binary operator mul).
 
         Equivalent to ``other * series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1048,8 +1073,22 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def rmul(self, other) -> Series:
+        """Return multiplication of Series and other, element-wise (binary operator mul).
+
+        Equivalent to ``series * others``, but with support to substitute a fill_value for
+        missing data in either one of the inputs.
+
+        Args:
+            other (Series, or scalar value):
+
+        Returns:
+            Series: The result of the operation.
+        """
+        raise NotImplementedError("abstract method")
+
     def truediv(self, other) -> Series:
-        """Return Floating division of series and other, element-wise (binary operator truediv).
+        """Return floating division of Series and other, element-wise (binary operator truediv).
 
         Equivalent to ``series / other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1064,7 +1103,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def rtruediv(self, other) -> Series:
-        """Return Floating division of series and other, element-wise (binary operator rtruediv).
+        """Return floating division of Series and other, element-wise (binary operator rtruediv).
 
         Equivalent to ``other / series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1079,7 +1118,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def floordiv(self, other) -> Series:
-        """Return Integer division of series and other, element-wise (binary operator floordiv).
+        """Return integer division of Series and other, element-wise (binary operator floordiv).
 
         Equivalent to ``series // other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1094,7 +1133,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def rfloordiv(self, other) -> Series:
-        """Return Integer division of series and other, element-wise (binary operator rfloordiv).
+        """Return integer division of Series and other, element-wise (binary operator rfloordiv).
 
         Equivalent to ``other // series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1109,7 +1148,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def mod(self, other) -> Series:
-        """Return Modulo of series and other, element-wise (binary operator mod).
+        """Return modulo of Series and other, element-wise (binary operator mod).
 
         Equivalent to ``series % other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1124,7 +1163,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def rmod(self, other) -> Series:
-        """Get Modulo of series and other, element-wise (binary operator `rmod`).
+        """Get modulo of Series and other, element-wise (binary operator `rmod`).
 
         Equivalent to ``other % series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
@@ -1139,7 +1178,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def divmod(self, other) -> Series:
-        """Return Integer division and modulo of series and other, element-wise (binary operator divmod).
+        """Return integer division and modulo of Series and other, element-wise (binary operator divmod).
 
         Equivalent to divmod(series, other).
 
@@ -1154,7 +1193,7 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError("abstract method")
 
     def rdivmod(self, other) -> Series:
-        """Return Integer division and modulo of series and other, element-wise (binary operator rdivmod).
+        """Return integer division and modulo of Series and other, element-wise (binary operator rdivmod).
 
         Equivalent to other divmod series.
 
@@ -1233,7 +1272,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return sample standard deviation over requested axis.
 
-        Normalized by N-1 by default. This can be changed using the ddof argument.
+        Normalized by N-1 by default.
 
 
         Returns
@@ -1248,7 +1287,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return unbiased variance over requested axis.
 
-        Normalized by N-1 by default. This can be changed using the ddof argument.
+        Normalized by N-1 by default.
 
         Returns:
             scalar or Series (if level specified)
@@ -1310,7 +1349,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Kurtosis obtained using Fisher’s definition of kurtosis (kurtosis of normal == 0.0). Normalized by N-1.
 
         Returns:
-            scalar or scalar: unbiased kurtosis over requested axis.
+            scalar or scalar: Unbiased kurtosis over requested axis.
         """
         raise NotImplementedError("abstract method")
 
@@ -1321,13 +1360,13 @@ class Series(NDFrame):  # type: ignore[misc]
             cond (bool Series/DataFrame, array-like, or callable):
                 Where cond is True, keep the original value. Where False, replace
                 with corresponding value from other. If cond is callable, it is
-                computed on the Series/DataFrame and should return boolean
+                computed on the Series/DataFrame and returns boolean
                 Series/DataFrame or array. The callable must not change input
                 Series/DataFrame (though pandas doesn’t check it).
             other (scalar, Series/DataFrame, or callable):
                 Entries where cond is False are replaced with corresponding value
                 from other. If other is callable, it is computed on the
-                Series/DataFrame and should return scalar or Series/DataFrame.
+                Series/DataFrame and returns scalar or Series/DataFrame.
                 The callable must not change input Series/DataFrame (though pandas
                 doesn’t check it). If not specified, entries will be filled with
                 the corresponding NULL value (np.nan for numpy dtypes, pd.NA for
@@ -1456,7 +1495,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
                 If a timedelta, str, or offset, the time period of each window. Each
                 window will be a variable sized based on the observations included in
-                the time-period. This is only valid for datetimelike indexes.
+                the time-period. This is only valid for datetime-like indexes.
                 To learn more about the offsets & frequency strings, please see `this link
                 <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`__.
 

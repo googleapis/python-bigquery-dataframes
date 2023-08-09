@@ -1159,7 +1159,7 @@ class DataFrame(NDFrame):
             func (function):
                 Function to use for aggregating the data.
                 Accepted combinations are: string function name, list of
-                function names, e.g. ``['sum', 'mean']``
+                function names, e.g. ``['sum', 'mean']``.
 
         Returns:
             Series or DataFrame: Aggregated results
