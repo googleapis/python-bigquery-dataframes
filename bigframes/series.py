@@ -230,14 +230,41 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
 
-    def to_pandas(self) -> pandas.Series:
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> pandas.Series:
         """Writes Series to pandas Series.
 
+        Args:
+            max_download_size (int, default None):
+                Download size threshold in MB. If max_download_size is exceeded when downloading data
+                (e.g., to_pandas()), the data will be downsampled if
+                bigframes.options.sampling.downsample_enabled is True, otherwise, an error will be
+                raised. If set to a value other than None, this will supersede the global config.
+            sampling_method (str, default None):
+                Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
+                returns a portion of the data from the beginning. It is fast and requires minimal
+                computations to perform the downsampling; "uniform": This algorithm returns uniform
+                random samples of the data. If set to a value other than None, this will supersede
+                the global config.
+            random_state (int, default None):
+                The seed for the uniform downsampling algorithm. If provided, the uniform method may
+                take longer to execute and require more computation. If set to a value other than
+                None, this will supersede the global config.
+
         Returns:
-            panda.Series:
-                A pandas Series with all of the rows from this Series.
+            pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
+                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
-        df, query_job = self._block.to_pandas((self._value_column,))
+        df, query_job = self._block.to_pandas(
+            (self._value_column,),
+            max_download_size=max_download_size,
+            sampling_method=sampling_method,
+            random_state=random_state,
+        )
         self._set_internal_query_job(query_job)
         series = df[self._value_column]
         series.name = self._name

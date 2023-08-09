@@ -139,31 +139,31 @@ def test_train_test_split_seeded_correct_rows(
         [
             144,
             146,
-            148,
             168,
             183,
             186,
             217,
+            221,
             225,
-            226,
             237,
+            240,
             244,
             245,
+            257,
             260,
             262,
             263,
+            264,
             266,
+            267,
             268,
-            269,
-            289,
             290,
-            291,
         ],
         dtype="Int64",
         name="rowindex",
     )
     test_index = pd.Index(
-        [161, 221, 240, 257, 264, 267, 278], dtype="Int64", name="rowindex"
+        [148, 161, 226, 269, 278, 289, 291], dtype="Int64", name="rowindex"
     )
 
     all_data.index.name = "_"

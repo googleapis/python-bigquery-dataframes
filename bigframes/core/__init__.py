@@ -303,6 +303,22 @@ class ArrayValue:
         expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
 
+    def uniform_sampling(self, fraction: float) -> ArrayValue:
+        table = self.to_ibis_expr(
+            ordering_mode="order_by", expose_hidden_cols=True, fraction=fraction
+        )
+        columns = [table[column_name] for column_name in self._column_names]
+        hidden_ordering_columns = [
+            table[column_name] for column_name in self._hidden_ordering_column_names
+        ]
+        return ArrayValue(
+            self._session,
+            table,
+            columns=columns,
+            hidden_ordering_columns=hidden_ordering_columns,
+            ordering=self._ordering,
+        )
+
     @property
     def offsets(self):
         if not self._ordering.is_sequential:
@@ -598,6 +614,7 @@ class ArrayValue:
         ] = "order_by",
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
         expose_hidden_cols: bool = False,
+        fraction: Optional[float] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
     ):
         """
@@ -686,6 +703,8 @@ class ArrayValue:
         table = table.drop(*columns_to_drop)
         if col_id_overrides:
             table = table.relabel(col_id_overrides)
+        if fraction is not None:
+            table = table.filter(ibis.random() < ibis.literal(fraction))
         return table
 
     def _create_order_columns(
@@ -763,6 +782,9 @@ class ArrayValue:
             job_config=job_config,
             max_results=max_results,
         )
+
+    def _get_table_size(self, destination_table):
+        return self._session._get_table_size(destination_table)
 
     def _reproject_to_table(self) -> ArrayValue:
         """

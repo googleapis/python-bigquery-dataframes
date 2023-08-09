@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import functools
 import itertools
+import random
 import typing
 from typing import Iterable, List, Optional, Sequence, Tuple
+import warnings
 
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -46,6 +48,15 @@ import bigframes.operations.aggregations as agg_ops
 
 # Type constraint for wherever column labels are used
 Label = typing.Optional[str]
+
+# Bytes to Megabyte Conversion
+_BYTES_TO_KILOBYTES = 1024
+_BYTES_TO_MEGABYTES = _BYTES_TO_KILOBYTES * 1024
+
+# All sampling method
+_HEAD = "head"
+_UNIFORM = "uniform"
+_SAMPLING_METHODS = (_HEAD, _UNIFORM)
 
 
 class BlockHolder(typing.Protocol):
@@ -341,16 +352,48 @@ class Block:
         return df
 
     def to_pandas(
-        self, value_keys: Optional[Iterable[str]] = None, max_results=None
+        self,
+        value_keys: Optional[Iterable[str]] = None,
+        max_results: Optional[int] = None,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
+        if max_download_size is None:
+            max_download_size = bigframes.options.sampling.max_download_size
+        if sampling_method is None:
+            sampling_method = (
+                bigframes.options.sampling.sampling_method
+                if bigframes.options.sampling.sampling_method is not None
+                else _UNIFORM
+            )
+        if random_state is None:
+            random_state = bigframes.options.sampling.random_state
+
+        sampling_method = sampling_method.lower()
+        if sampling_method not in _SAMPLING_METHODS:
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
+
         df, _, query_job = self._compute_and_count(
-            value_keys=value_keys, max_results=max_results
+            value_keys=value_keys,
+            max_results=max_results,
+            max_download_size=max_download_size,
+            sampling_method=sampling_method,
+            random_state=random_state,
         )
         return df, query_job
 
     def _compute_and_count(
-        self, value_keys: Optional[Iterable[str]] = None, max_results=None
+        self,
+        value_keys: Optional[Iterable[str]] = None,
+        max_results: Optional[int] = None,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
@@ -359,22 +402,151 @@ class Block:
         results_iterator, query_job = expr.start_query(
             max_results=max_results, expose_extra_columns=True
         )
-        df = self._to_dataframe(
-            results_iterator,
-            expr.to_ibis_expr().schema(),
+
+        table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+        fraction = (
+            max_download_size / table_size
+            if (max_download_size is not None) and (table_size != 0)
+            else 2
         )
 
-        if self.index_columns:
-            df.set_index(list(self.index_columns), inplace=True)
-            df.index.names = self.index.names  # type: ignore
+        if fraction < 1:
+            if not bigframes.options.sampling.downsample_enabled:
+                raise RuntimeError(
+                    f"The data size ({table_size:.2f} MB) exceeds the maximum limit "
+                    f"({max_download_size} MB). Consider increasing the 'max_download_size' or enabling"
+                    "downsampling."
+                )
 
-        df.drop(
-            [col for col in df.columns if col not in self.value_columns],
-            axis=1,
-            inplace=True,
+            warnings.warn(
+                f"The data size ({table_size:.2f} MB) exceeds the maximum limit ({max_download_size}"
+                " MB). It will be downsampled for download.",
+                UserWarning,
+            )
+            if sampling_method == _HEAD:
+                total_rows = int(results_iterator.total_rows * fraction)
+                results_iterator.max_results = total_rows
+                df = self._to_dataframe(results_iterator, expr.to_ibis_expr().schema())
+
+                if self.index_columns:
+                    df.set_index(list(self.index_columns), inplace=True)
+                    df.index.names = self.index.names  # type: ignore
+
+                df.drop(
+                    [col for col in df.columns if col not in self.value_columns],
+                    axis=1,
+                    inplace=True,
+                )
+            elif (sampling_method == _UNIFORM) and (random_state is None):
+                filtered_expr = self.expr.uniform_sampling(fraction)
+                block = Block(
+                    filtered_expr,
+                    index_columns=self.index_columns,
+                    column_labels=self.column_labels,
+                    index_labels=self.index.names,
+                )
+                df, total_rows, _ = block._compute_and_count(max_download_size=None)
+            elif sampling_method == _UNIFORM:
+                block = self._split(
+                    fracs=(max_download_size / table_size,),
+                    random_state=random_state,
+                    preserve_order=True,
+                )[0]
+                df, total_rows, _ = block._compute_and_count(max_download_size=None)
+            else:
+                # This part should never be called, just in case.
+                raise NotImplementedError(
+                    f"The downsampling method {sampling_method} is not implemented, "
+                    f"please choose from {','.join(_SAMPLING_METHODS)}."
+                )
+        else:
+            total_rows = results_iterator.total_rows
+            df = self._to_dataframe(results_iterator, expr.to_ibis_expr().schema())
+
+            if self.index_columns:
+                df.set_index(list(self.index_columns), inplace=True)
+                df.index.names = self.index.names  # type: ignore
+
+            df.drop(
+                [col for col in df.columns if col not in self.value_columns],
+                axis=1,
+                inplace=True,
+            )
+
+        return df, total_rows, query_job
+
+    def _split(
+        self,
+        ns: Iterable[int] = (),
+        fracs: Iterable[float] = (),
+        *,
+        random_state: Optional[int] = None,
+        preserve_order: Optional[bool] = False,
+    ) -> List[Block]:
+        """Internal function to support splitting Block to multiple parts along index axis.
+
+        At most one of ns and fracs can be passed in. If neither, default to ns = (1,).
+        Return a list of sampled Blocks.
+        """
+        block = self
+        if ns and fracs:
+            raise ValueError("Only one of 'ns' or 'fracs' parameter must be specified.")
+
+        if not ns and not fracs:
+            ns = (1,)
+
+        if ns:
+            sample_sizes = ns
+        else:
+            total_rows = block.shape[0]
+            # Round to nearest integer. "round half to even" rule applies.
+            # At least to be 1.
+            sample_sizes = [round(frac * total_rows) or 1 for frac in fracs]
+
+        if random_state is None:
+            random_state = random.randint(-(2**63), 2**63 - 1)
+
+        # Create a new column with random_state value.
+        block, random_state_col = block.create_constant(str(random_state))
+
+        # Create an ordering col and convert to string
+        block, ordering_col = block.promote_offsets()
+        block, string_ordering_col = block.apply_unary_op(
+            ordering_col, ops.AsTypeOp("string[pyarrow]")
         )
 
-        return df, results_iterator.total_rows, query_job
+        # Apply hash method to sum col and order by it.
+        block, string_sum_col = block.apply_binary_op(
+            string_ordering_col, random_state_col, ops.concat_op
+        )
+        block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
+        block = block.order_by([ordering.OrderingColumnReference(hash_string_sum_col)])
+
+        intervals = []
+        cur = 0
+
+        for sample_size in sample_sizes:
+            intervals.append((cur, cur + sample_size))
+            cur += sample_size
+
+        sliced_blocks = [
+            typing.cast(Block, block.slice(start=lower, stop=upper))
+            for lower, upper in intervals
+        ]
+        if preserve_order:
+            sliced_blocks = [
+                sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
+                for sliced_block in sliced_blocks
+            ]
+
+        drop_cols = [
+            random_state_col,
+            ordering_col,
+            string_ordering_col,
+            string_sum_col,
+            hash_string_sum_col,
+        ]
+        return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
         self, value_keys: Optional[Iterable[str]] = None

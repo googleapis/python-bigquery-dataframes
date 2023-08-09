@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import random
 import re
 import textwrap
 import typing
@@ -691,16 +690,42 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __rmod__ = rmod
 
-    def to_pandas(self) -> pandas.DataFrame:
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> pandas.DataFrame:
         """Writes DataFrame to pandas DataFrame.
 
+        Args:
+            max_download_size (int, default None):
+                Download size threshold in MB. If max_download_size is exceeded when downloading data
+                (e.g., to_pandas()), the data will be downsampled if
+                bigframes.options.sampling.downsample_enabled is True, otherwise, an error will be
+                raised. If set to a value other than None, this will supersede the global config.
+            sampling_method (str, default None):
+                Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
+                returns a portion of the data from the beginning. It is fast and requires minimal
+                computations to perform the downsampling; "uniform": This algorithm returns uniform
+                random samples of the data. If set to a value other than None, this will supersede
+                the global config.
+            random_state (int, default None):
+                The seed for the uniform downsampling algorithm. If provided, the uniform method may
+                take longer to execute and require more computation. If set to a value other than
+                None, this will supersede the global config.
+
         Returns:
-            pandas.DataFrame:
-                A pandas DataFrame with all of the rows and columns from this
-                DataFrame.
+            pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
+                data_sampling_threshold_mb is not exceeded; otherwise, a pandas DataFrame with
+                downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
-        df, query_job = self._block.to_pandas()
+        df, query_job = self._block.to_pandas(
+            max_download_size=max_download_size,
+            sampling_method=sampling_method,
+            random_state=random_state,
+        )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
@@ -1503,8 +1528,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
-
-        return self._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+        return DataFrame(
+            self._block._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+        )
 
     def _split(
         self,
@@ -1518,61 +1544,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         At most one of ns and fracs can be passed in. If neither, default to ns = (1,).
         Return a list of sampled DataFrames.
         """
-        if ns and fracs:
-            raise ValueError("Only one of 'ns' or 'fracs' parameter must be specified.")
-
-        block = self._block
-        if not ns and not fracs:
-            ns = (1,)
-
-        if ns:
-            sample_sizes = ns
-        else:
-            total_rows = block.shape[0]
-            # Round to nearest integer. "round half to even" rule applies.
-            # At least to be 1.
-            sample_sizes = [round(frac * total_rows) or 1 for frac in fracs]
-
-        # Set random_state if it is not provided
-        if random_state is None:
-            random_state = random.randint(-(2**30), 2**30)
-
-        # Create a new column with random_state value.
-        block, random_state_col = block.create_constant(random_state)
-
-        # Create an ordering col and a new sum col which is ordering+random_state.
-        block, ordering_col = block.promote_offsets()
-        block, sum_col = block.apply_binary_op(
-            ordering_col, random_state_col, ops.add_op
-        )
-
-        # Apply hash method to sum col and order by it.
-        block, string_sum_col = block.apply_unary_op(
-            sum_col, ops.AsTypeOp("string[pyarrow]")
-        )
-        block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
-        block = block.order_by([order.OrderingColumnReference(hash_string_sum_col)])
-
-        drop_cols = [
-            random_state_col,
-            ordering_col,
-            sum_col,
-            string_sum_col,
-            hash_string_sum_col,
-        ]
-        block = block.drop_columns(drop_cols)
-        df = DataFrame(block)
-
-        intervals = []
-        cur = 0
-        for sample_size in sample_sizes:
-            intervals.append((cur, cur + sample_size))
-            cur += sample_size
-
-        # DF.iloc[slice] always returns DF.
-        return [
-            typing.cast(DataFrame, df.iloc[lower:upper]) for lower, upper in intervals
-        ]
+        blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
+        return [DataFrame(block) for block in blocks]
 
     def to_csv(
         self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True

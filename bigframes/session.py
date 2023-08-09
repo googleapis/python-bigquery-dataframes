@@ -1111,6 +1111,10 @@ class Session(
             results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
 
+    def _get_table_size(self, destination_table):
+        table = self.bqclient.get_table(destination_table)
+        return table.num_bytes
+
     def _rows_to_dataframe(
         self, row_iterator: bigquery.table.RowIterator
     ) -> pandas.DataFrame:

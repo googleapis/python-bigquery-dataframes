@@ -680,3 +680,12 @@ def deferred_repr():
     bigframes.options.display.repr_mode = "deferred"
     yield
     bigframes.options.display.repr_mode = "head"
+
+
+@pytest.fixture()
+def restore_sampling_settings():
+    downsample_enabled = bigframes.options.sampling.downsample_enabled
+    max_download_size = bigframes.options.sampling.max_download_size
+    yield
+    bigframes.options.sampling.downsample_enabled = downsample_enabled
+    bigframes.options.sampling.max_download_size = max_download_size
