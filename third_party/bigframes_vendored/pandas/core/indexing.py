@@ -43,29 +43,28 @@ class IndexingMixin:
 
         Allowed inputs are:
 
-        - **Not supported yet** A single label, e.g. ``5`` or ``'a'``, (note
+        - A single label, e.g. ``5`` or ``'a'``, (note
           that ``5`` is interpreted as a *label* of the index, and **never** as
           an integer position along the index).
-        - **Not supported yet** A list or array of labels, e.g. ``['a', 'b', 'c']``.
-        - **Not supported yet** A slice object with labels, e.g. ``'a':'f'``.
-
-          .. warning:: Note that contrary to usual python slices, **both** the
-              start and the stop are included
-
-        - **Not supported yet** A boolean array of the same length as the axis being sliced,
+        - A list of labels, e.g. ``['a', 'b', 'c']``.
+        - A boolean series of the same length as the axis being sliced,
           e.g. ``[True, False, True]``.
-        - An alignable boolean Series. The index of the key will be aligned before
-          masking.
-        - **Not supported yet** An alignable Index. The Index of the returned
+        - An alignable Index. The Index of the returned
           selection will be the input.
+        - **Not supported yet** An alignable boolean Series. The index of the key will be aligned before
+          masking.
+        - **Not supported yet** A slice object with labels, e.g. ``'a':'f'``.
+              Note: contrary to usual python slices, **both** the
+              start and the stop are included
         - **Not supported yet** A ``callable`` function with one argument (the
           calling Series or DataFrame)
           and that returns valid output for indexing (one of the above)
 
         Raises:
-            KeyErrorr: if any items are not found.
+            KeyError: if any items are not found.
             IndexingError: if an indexed key is passed and its index is
               unalignable to theframe index.
+            NotImplementError: if the inputs are not supported.
 
         """
         raise NotImplementedError("abstract methdod")
