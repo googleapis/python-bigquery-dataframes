@@ -1062,9 +1062,25 @@ class Session(
         self,
         function_name: str,
     ):
-        """
-        Turn a BigQuery remote function into a function that can be applied to a
-        DataFrame or Series.
+        """Loads a BigQuery function from BigQuery.
+
+        Then it can be applied to a DataFrame or Series.
+
+        Args:
+            function_name (str):
+                the function's name in BigQuery in the format
+                `project_id.dataset_id.function_name`, or
+                `dataset_id.function_name` to load from the default project, or
+                `function_name` to load from the default project and the dataset
+                associated with the current session.
+
+        Returns:
+            callable: A function object pointing to the BigQuery function read
+            from BigQuery.
+
+            The object is similar to the one created by the `remote_function`
+            decorator, including the `bigframes_remote_function` property, but
+            not including the `bigframes_cloud_function` property.
         """
 
         return bigframes_rgf(

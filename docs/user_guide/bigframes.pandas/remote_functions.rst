@@ -99,3 +99,35 @@ applied on a DataFrame:
 
     df_redacted = df[["species", "island", "sex"]].map(get_hash)
     df_redacted.head(10).
+
+Using Existing Functions
+========================
+
+If you have already defined a custom function in BigQuery, either in the
+BigQuery Studio or with the `remote_function` decorator above or otherwise, you
+may use it with BigQuery DataFrames with the `read_gbq_function` method.
+
+More details are available via the `help` command:
+
+.. code-block:: python
+
+    import bigframes.pandas as pd
+    help(pd.read_gbq_function)
+
+Here is an example of using `read_gbq_function` to load an existing function
+named `get_bucket`:
+
+.. code-block:: python
+
+    import bigframes.pandas as pd
+
+    df = pd.read_gbq("bigquery-public-data.ml_datasets.penguins")
+    get_bucket = pd.read_gbq_function("get_bucket")
+
+    df = df.assign(body_mass_bucket=df['body_mass_g'].apply(get_bucket))
+    df.head(10)
+
+Note: As mentioned above, if a function is created using the `remote_function`
+decorator, its generated name (including project and dataset) is accessible
+immediately afterward in the function's `bigframes_remote_function` attribute.
+The same string can be passed to `read_gbq_function` later in another context.
