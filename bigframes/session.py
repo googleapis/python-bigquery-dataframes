@@ -1086,6 +1086,10 @@ class Session(
 
         Then it can be applied to a DataFrame or Series.
 
+        .. note::
+            The return type of the function must be explicitly specified in the
+            function's original definition even if not otherwise required.
+
         Args:
             function_name (str):
                 the function's name in BigQuery in the format
