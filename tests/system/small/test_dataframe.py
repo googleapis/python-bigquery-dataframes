@@ -210,9 +210,6 @@ def test_drop_index_and_columns(scalars_dfs):
     pd_result = scalars_pandas_df.drop(index=[4, 1, 2], columns="int64_col")
     bf_result = scalars_df.drop(index=[4, 1, 2], columns="int64_col").to_pandas()
 
-    print(pd_result.columns)
-    print(bf_result.columns)
-
     pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
@@ -1280,6 +1277,39 @@ def test_dataframe_agg_multi_string(scalars_dfs):
     # Double-check that median is at least plausible.
     assert (
         (bf_result.loc["min", :] <= bf_median) & (bf_median <= bf_result.loc["max", :])
+    ).all()
+
+
+def test_df_describe(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # pyarrows time columns fail in pandas
+    unsupported_columns = ["datetime_col", "timestamp_col", "time_col", "date_col"]
+    bf_result = scalars_df.describe().to_pandas()
+
+    modified_pd_df = scalars_pandas_df.drop(columns=unsupported_columns)
+    pd_result = modified_pd_df.describe()
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    # Drop quartiles, as they are approximate
+    bf_min = bf_result.loc["min", :]
+    bf_p25 = bf_result.loc["25%", :]
+    bf_p50 = bf_result.loc["50%", :]
+    bf_p75 = bf_result.loc["75%", :]
+    bf_max = bf_result.loc["max", :]
+
+    bf_result = bf_result.drop(labels=["25%", "50%", "75%"])
+    pd_result = pd_result.drop(labels=["25%", "50%", "75%"])
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_index_type=False)
+
+    # Double-check that quantiles are at least plausible.
+    assert (
+        (bf_min <= bf_p25)
+        & (bf_p25 <= bf_p50)
+        & (bf_p50 <= bf_p50)
+        & (bf_p75 <= bf_max)
     ).all()
 
 

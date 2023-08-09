@@ -1099,7 +1099,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 for dtype in self.dtypes
             ):
                 raise NotImplementedError(
-                    "Multiple aggregations only supported on numeric columns."
+                    f"Multiple aggregations only supported on numeric columns. {constants.FEEDBACK_LINK}"
                 )
             aggregations = [agg_ops.AGGREGATIONS_LOOKUP[f] for f in func]
             return DataFrame(
@@ -1117,11 +1117,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     aggregate = agg
 
-    def _drop_non_numeric(self) -> DataFrame:
+    def describe(self) -> DataFrame:
+        df_numeric = self._drop_non_numeric(keep_bool=False)
+        if len(df_numeric.columns) == 0:
+            raise NotImplementedError(
+                f"df.describe() currently only supports numeric values. {constants.FEEDBACK_LINK}"
+            )
+        result = df_numeric.agg(
+            ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+        )
+        return typing.cast(DataFrame, result)
+
+    def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
+        types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+        if not keep_bool:
+            types_to_keep -= set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            if dtype not in types_to_keep
         ]
         return DataFrame(self._block.drop_columns(non_numeric_cols))
 

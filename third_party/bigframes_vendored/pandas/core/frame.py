@@ -1166,6 +1166,33 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def describe(self):
+        """
+        Generate descriptive statistics.
+
+        Descriptive statistics include those that summarize the central
+        tendency, dispersion and shape of a
+        dataset's distribution, excluding ``NaN`` values.
+
+        Only supports numeric columns.
+
+        .. note::
+            Percentile values are approximates only.
+
+        Returns:
+            Summary statistics of the Series or Dataframe provided.
+
+
+        Notes
+        -----
+        For numeric data, the result's index will include ``count``,
+        ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
+        upper percentiles. By default the lower percentile is ``25`` and the
+        upper percentile is ``75``. The ``50`` percentile is the
+        same as the median.
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # Add index and columns
 

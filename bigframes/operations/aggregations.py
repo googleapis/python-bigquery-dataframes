@@ -21,6 +21,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes.constants as constants
+import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 
 class WindowOp:
@@ -93,6 +94,27 @@ class MedianOp(AggregateOp):
         # For now, the best we can do is an approximate median when we're doing
         # an aggregation, as PERCENTILE_CONT is only an analytic function.
         return typing.cast(ibis_types.NumericValue, column.approx_median())
+
+
+class ApproxQuartilesOp(AggregateOp):
+    def __init__(self, quartile: int):
+        self.name = f"{quartile*25}%"
+        self._quartile = quartile
+
+    @numeric_op
+    def _as_ibis(
+        self, column: ibis_types.NumericColumn, window=None
+    ) -> ibis_types.NumericValue:
+        # PERCENTILE_CONT has very few allowed windows. For example, "window
+        # framing clause is not allowed for analytic function percentile_cont".
+        if window is not None:
+            raise NotImplementedError(
+                f"Approx Quartiles with windowing is not supported. {constants.FEEDBACK_LINK}"
+            )
+        value = vendored_ibis_ops.ApproximateMultiQuantile(
+            column, num_bins=4  # type: ignore
+        ).to_expr()[self._quartile]
+        return typing.cast(ibis_types.NumericValue, value)
 
 
 class MeanOp(AggregateOp):
@@ -374,5 +396,8 @@ AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
         all_op,
         any_op,
         nunique_op,
+        ApproxQuartilesOp(1),
+        ApproxQuartilesOp(2),
+        ApproxQuartilesOp(3),
     ]
 }
