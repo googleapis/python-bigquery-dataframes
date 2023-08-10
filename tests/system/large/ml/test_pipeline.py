@@ -605,3 +605,129 @@ def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_ind
     pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]], expected, check_exact=False, rtol=0.1
     )
+
+
+def test_pipeline_columntransformer_to_gbq(penguins_df_default_index, dataset_id):
+    pl = pipeline.Pipeline(
+        [
+            (
+                "transform",
+                compose.ColumnTransformer(
+                    [
+                        (
+                            "ont_hot_encoder",
+                            preprocessing.OneHotEncoder(
+                                drop="most_frequent",
+                                min_frequency=5,
+                                max_categories=100,
+                            ),
+                            "species",
+                        ),
+                        (
+                            "standard_scaler",
+                            preprocessing.StandardScaler(),
+                            ["culmen_length_mm", "flipper_length_mm"],
+                        ),
+                    ]
+                ),
+            ),
+            ("estimator", linear_model.LinearRegression(fit_intercept=False)),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    X_train = df[["species", "culmen_length_mm", "flipper_length_mm"]]
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
+
+    pl_loaded = pl.to_gbq(
+        f"{dataset_id}.test_penguins_pipeline_col_transformer", replace=True
+    )
+
+    assert isinstance(pl_loaded._transform, compose.ColumnTransformer)
+    transformers = pl_loaded._transform.transformers_
+    assert len(transformers) == 3
+
+    assert transformers[0][0] == "ont_hot_encoder"
+    assert isinstance(transformers[0][1], preprocessing.OneHotEncoder)
+    one_hot_encoder = transformers[0][1]
+    assert one_hot_encoder.drop == "most_frequent"
+    assert one_hot_encoder.min_frequency == 5
+    assert one_hot_encoder.max_categories == 100
+    assert transformers[0][2] == "species"
+
+    assert transformers[1][0] == "standard_scaler"
+    assert isinstance(transformers[1][1], preprocessing.StandardScaler)
+    assert transformers[1][2] == "culmen_length_mm"
+
+    assert transformers[2][0] == "standard_scaler"
+    assert isinstance(transformers[2][1], preprocessing.StandardScaler)
+    assert transformers[2][2] == "flipper_length_mm"
+
+    assert isinstance(pl_loaded._estimator, linear_model.LinearRegression)
+    assert pl_loaded._estimator.fit_intercept is False
+
+
+def test_pipeline_standard_scaler_to_gbq(penguins_df_default_index, dataset_id):
+    pl = pipeline.Pipeline(
+        [
+            ("transform", preprocessing.StandardScaler()),
+            ("estimator", linear_model.LinearRegression(fit_intercept=False)),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    X_train = df[
+        [
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+        ]
+    ]
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
+
+    pl_loaded = pl.to_gbq(
+        f"{dataset_id}.test_penguins_pipeline_standard_scaler", replace=True
+    )
+    assert isinstance(pl_loaded._transform, preprocessing.StandardScaler)
+
+    assert isinstance(pl_loaded._estimator, linear_model.LinearRegression)
+    assert pl_loaded._estimator.fit_intercept is False
+
+
+def test_pipeline_one_hot_encoder_to_gbq(penguins_df_default_index, dataset_id):
+    pl = pipeline.Pipeline(
+        [
+            (
+                "transform",
+                preprocessing.OneHotEncoder(
+                    drop="most_frequent", min_frequency=5, max_categories=100
+                ),
+            ),
+            ("estimator", linear_model.LinearRegression(fit_intercept=False)),
+        ]
+    )
+
+    df = penguins_df_default_index.dropna()
+    X_train = df[
+        [
+            "sex",
+            "species",
+        ]
+    ]
+    y_train = df[["body_mass_g"]]
+    pl.fit(X_train, y_train)
+
+    pl_loaded = pl.to_gbq(
+        f"{dataset_id}.test_penguins_pipeline_one_hot_encoder", replace=True
+    )
+    assert isinstance(pl_loaded._transform, preprocessing.OneHotEncoder)
+
+    one_hot_encoder = pl_loaded._transform
+    assert one_hot_encoder.drop == "most_frequent"
+    assert one_hot_encoder.min_frequency == 5
+    assert one_hot_encoder.max_categories == 100
+
+    assert isinstance(pl_loaded._estimator, linear_model.LinearRegression)
+    assert pl_loaded._estimator.fit_intercept is False

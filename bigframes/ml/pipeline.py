@@ -18,10 +18,13 @@ pipeline module: https://scikit-learn.org/stable/modules/pipeline.html."""
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple, Union
+from typing import cast, List, Optional, Tuple, Union
 
+from google.cloud import bigquery
+
+import bigframes
 import bigframes.constants as constants
-from bigframes.ml import base, compose, preprocessing, utils
+from bigframes.ml import base, compose, loader, preprocessing, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.pipeline
 
@@ -66,6 +69,14 @@ class Pipeline(
         self._transform = transform
         self._estimator = estimator
 
+    @classmethod
+    def _from_bq(cls, session: bigframes.Session, bq_model: bigquery.Model) -> Pipeline:
+        col_transformer = _extract_as_column_transformer(bq_model)
+        transform = _merge_column_transformer(bq_model, col_transformer)
+
+        estimator = loader._model_from_bq(session, bq_model)
+        return cls([("transform", transform), ("estimator", estimator)])
+
     def fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
@@ -98,8 +109,88 @@ class Pipeline(
 
         return self._estimator.score(X=X, y=y)
 
-    def to_gbq(self, model_name: str, replace: bool = False):
-        self._estimator.to_gbq(model_name, replace)
+    def to_gbq(self, model_name: str, replace: bool = False) -> Pipeline:
+        """Save the pipeline to BigQuery.
 
-        # TODO: should instead load from GBQ, but loading pipelines is not implemented yet
-        return self
+        Args:
+            model_name (str):
+                the name of the model(pipeline).
+            replace (bool, default to False):
+                whether to replace if the model(pipeline) already exists. Default to False.
+
+        Returns:
+            Pipeline: saved model(pipeline)."""
+        if not self._estimator._bqml_model:
+            raise RuntimeError("A model must be fitted before it can be saved")
+
+        new_model = self._estimator._bqml_model.copy(model_name, replace)
+
+        return new_model.session.read_gbq_model(model_name)
+
+
+def _extract_as_column_transformer(
+    bq_model: bigquery.Model,
+) -> compose.ColumnTransformer:
+    """Extract transformers as ColumnTransformer obj from a BQ Model."""
+    assert "transformColumns" in bq_model._properties
+
+    transformers: List[
+        Tuple[
+            str,
+            Union[preprocessing.OneHotEncoder, preprocessing.StandardScaler],
+            Union[str, List[str]],
+        ]
+    ] = []
+    for transform_col in bq_model._properties["transformColumns"]:
+        # pass the columns that are not transformed
+        if "transformSql" not in transform_col:
+            continue
+
+        transform_sql: str = cast(dict, transform_col)["transformSql"]
+        if transform_sql.startswith("ML.STANDARD_SCALER"):
+            transformers.append(
+                (
+                    "standard_scaler",
+                    *preprocessing.StandardScaler._parse_from_sql(transform_sql),
+                )
+            )
+        elif transform_sql.startswith("ML.ONE_HOT_ENCODER"):
+            transformers.append(
+                (
+                    "ont_hot_encoder",
+                    *preprocessing.OneHotEncoder._parse_from_sql(transform_sql),
+                )
+            )
+        else:
+            raise NotImplementedError(
+                f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
+            )
+
+    return compose.ColumnTransformer(transformers=transformers)
+
+
+def _merge_column_transformer(
+    bq_model: bigquery.Model, column_transformer: compose.ColumnTransformer
+) -> Union[
+    compose.ColumnTransformer,
+    preprocessing.StandardScaler,
+    preprocessing.OneHotEncoder,
+]:
+    """Try to merge the column transformer to a simple transformer."""
+    transformers = column_transformer.transformers_
+
+    assert len(transformers) > 0
+    _, transformer_0, column_0 = transformers[0]
+    columns = [column_0]
+    for _, transformer, column in transformers[1:]:
+        # all transformers are the same
+        if transformer != transformer_0:
+            return column_transformer
+        columns.append(column)
+    # all feature columns are transformed
+    if sorted(
+        [cast(str, feature_column.name) for feature_column in bq_model.feature_columns]
+    ) == sorted(columns):
+        return transformer_0
+
+    return column_transformer

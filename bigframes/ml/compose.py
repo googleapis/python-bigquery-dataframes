@@ -21,6 +21,7 @@ from __future__ import annotations
 import typing
 from typing import List, Optional, Tuple, Union
 
+from bigframes import constants
 from bigframes.ml import base, core, preprocessing, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.compose._column_transformer
@@ -49,8 +50,11 @@ class ColumnTransformer(
             ]
         ],
     ):
+        # TODO: if any(transformers) has fitted raise warning
         self.transformers = transformers
         self._bqml_model: Optional[core.BqmlModel] = None
+        # call self.transformers_ to check chained transformers
+        self.transformers_
 
     @property
     def transformers_(
@@ -64,13 +68,22 @@ class ColumnTransformer(
                 str,
             ]
         ] = []
+
+        column_set: set[str] = set()
         for entry in self.transformers:
             name, transformer, column_or_columns = entry
-            if isinstance(column_or_columns, str):
-                result.append((name, transformer, column_or_columns))
-            else:
-                for column in column_or_columns:
-                    result.append((name, transformer, column))
+            columns = (
+                column_or_columns
+                if isinstance(column_or_columns, List)
+                else [column_or_columns]
+            )
+
+            for column in columns:
+                if column in column_set:
+                    raise NotImplementedError(
+                        f"Chained transformers on the same column isn't supported. {constants.FEEDBACK_LINK}"
+                    )
+                result.append((name, transformer, column))
 
         return result
 

@@ -18,7 +18,7 @@ Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/pre
 from __future__ import annotations
 
 import typing
-from typing import List, Literal, Optional, Tuple, Union
+from typing import Any, cast, List, Literal, Optional, Tuple, Union
 
 from bigframes.ml import base, core
 from bigframes.ml import sql as ml_sql
@@ -39,6 +39,10 @@ class StandardScaler(
     def __init__(self):
         self._bqml_model: Optional[core.BqmlModel] = None
 
+    # TODO(garrettwu): implement __hash__
+    def __eq__(self, other: Any) -> bool:
+        return type(other) is StandardScaler and self._bqml_model == other._bqml_model
+
     def _compile_to_sql(self, columns: List[str]) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
@@ -55,9 +59,22 @@ class StandardScaler(
             for column in columns
         ]
 
+    @classmethod
+    def _parse_from_sql(cls, sql: str) -> tuple[StandardScaler, str]:
+        """Parse SQL to tuple(StandardScaler, column_label).
+
+        Args:
+            sql: SQL string of format "ML.STANDARD_SCALER({col_label}) OVER()"
+
+        Returns:
+            tuple(StandardScaler, column_label)"""
+        col_label = sql[sql.find("(") + 1 : sql.find(")")]
+        return cls(), col_label
+
     def fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
     ) -> StandardScaler:
         (X,) = utils.convert_to_dataframe(X)
 
@@ -114,6 +131,17 @@ class OneHotEncoder(
         self.drop = drop
         self.min_frequency = min_frequency
         self.max_categories = max_categories
+        self._bqml_model: Optional[core.BqmlModel] = None
+
+    # TODO(garrettwu): implement __hash__
+    def __eq__(self, other: Any) -> bool:
+        return (
+            type(other) is OneHotEncoder
+            and self._bqml_model == other._bqml_model
+            and self.drop == other.drop
+            and self.min_frequency == other.min_frequency
+            and self.max_categories == other.max_categories
+        )
 
     def _compile_to_sql(self, columns: List[str]) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
@@ -147,9 +175,31 @@ class OneHotEncoder(
             for column in columns
         ]
 
+    @classmethod
+    def _parse_from_sql(cls, sql: str) -> tuple[OneHotEncoder, str]:
+        """Parse SQL to tuple(OneHotEncoder, column_label).
+
+        Args:
+            sql: SQL string of format "ML.ONE_HOT_ENCODER({col_label}, '{drop}', {top_k}, {frequency_threshold}) OVER() "
+
+        Returns:
+            tuple(OneHotEncoder, column_label)"""
+        s = sql[sql.find("(") + 1 : sql.find(")")]
+        col_label, drop_str, top_k, frequency_threshold = s.split(", ")
+        drop = (
+            cast(Literal["most_frequent"], "most_frequent")
+            if drop_str.lower() == "'most_frequent'"
+            else None
+        )
+        max_categories = int(top_k) + 1
+        min_frequency = int(frequency_threshold)
+
+        return cls(drop, min_frequency, max_categories), col_label
+
     def fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
     ) -> OneHotEncoder:
         (X,) = utils.convert_to_dataframe(X)
 

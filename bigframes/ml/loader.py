@@ -28,6 +28,7 @@ from bigframes.ml import (
     forecasting,
     imported,
     linear_model,
+    pipeline,
 )
 
 _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
@@ -48,7 +49,7 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
 
 
 def from_bq(
-    session: bigframes.Session, model: bigquery.Model
+    session: bigframes.Session, bq_model: bigquery.Model
 ) -> Union[
     decomposition.PCA,
     cluster.KMeans,
@@ -61,21 +62,33 @@ def from_bq(
     ensemble.RandomForestClassifier,
     imported.TensorFlowModel,
     imported.ONNXModel,
+    pipeline.Pipeline,
 ]:
     """Load a BQML model to BigQuery DataFrames ML.
 
     Args:
         session: a BigQuery DataFrames session.
-        model: a BigQuery model.
+        bq_model: a BigQuery model.
 
     Returns:
         A BigQuery DataFrames ML model object.
     """
-    if model.model_type in _BQML_MODEL_TYPE_MAPPING:
-        return _BQML_MODEL_TYPE_MAPPING[model.model_type]._from_bq(  # type: ignore
-            session=session, model=model
+    if _is_bq_model_pipeline(bq_model):
+        return pipeline.Pipeline._from_bq(session, bq_model)
+
+    return _model_from_bq(session, bq_model)
+
+
+def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
+    if bq_model.model_type in _BQML_MODEL_TYPE_MAPPING:
+        return _BQML_MODEL_TYPE_MAPPING[bq_model.model_type]._from_bq(  # type: ignore
+            session=session, model=bq_model
         )
 
     raise NotImplementedError(
-        f"Model type {model.model_type} is not yet supported by BigQuery DataFrames. {constants.FEEDBACK_LINK}"
+        f"Model type {bq_model.model_type} is not yet supported by BigQuery DataFrames. {constants.FEEDBACK_LINK}"
     )
+
+
+def _is_bq_model_pipeline(bq_model: bigquery.Model) -> bool:
+    return "transformColumns" in bq_model._properties
