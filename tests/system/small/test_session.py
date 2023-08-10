@@ -113,6 +113,33 @@ def test_read_gbq_w_col_order(
             ["bool_col"],
             id="non_unique_index",
         ),
+        pytest.param(
+            "{scalars_table_id}",
+            ["float64_col"],
+            id="non_unique_float_index",
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            [
+                "timestamp_col",
+                "float64_col",
+                "datetime_col",
+                "int64_too",
+            ],
+            id="multi_part_index_direct",
+        ),
+        pytest.param(
+            "SELECT * FROM {scalars_table_id}",
+            [
+                "timestamp_col",
+                "float64_col",
+                "string_col",
+                "bool_col",
+                "int64_col",
+                "int64_too",
+            ],
+            id="multi_part_index_w_query",
+        ),
     ],
 )
 def test_read_gbq_w_index_col(
