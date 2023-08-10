@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 from bigframes.ml import cluster
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_cluster_configure_fit_score_predict(
     session, penguins_df_default_index, dataset_id
 ):

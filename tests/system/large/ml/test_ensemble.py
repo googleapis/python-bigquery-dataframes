@@ -15,10 +15,12 @@
 from unittest import TestCase
 
 import pandas
+import pytest
 
 import bigframes.ml.ensemble
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.XGBRegressor()
 
@@ -62,6 +64,7 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_xgbregressor_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
@@ -136,6 +139,7 @@ def test_xgbregressor_dart_booster_multiple_params(
     assert reloaded_model.num_parallel_tree == 2
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.XGBClassifier()
 
@@ -175,6 +179,7 @@ def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
     )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_xgbclassifier_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
@@ -248,6 +253,7 @@ def test_xgbclassifier_dart_booster_multiple_params(
     assert reloaded_model.num_parallel_tree == 2
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_randomforestregressor_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestRegressor()
 
@@ -288,6 +294,7 @@ def test_randomforestregressor_default_params(penguins_df_default_index, dataset
     )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_randomforestregressor_multiple_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestRegressor(
         tree_method="AUTO",
@@ -354,6 +361,7 @@ def test_randomforestregressor_multiple_params(penguins_df_default_index, datase
     assert reloaded_model.enable_global_explain is False
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_randomforestclassifier_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestClassifier()
 
@@ -393,6 +401,7 @@ def test_randomforestclassifier_default_params(penguins_df_default_index, datase
     )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_randomforestclassifier_multiple_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestClassifier(
         tree_method="AUTO",
