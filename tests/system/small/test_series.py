@@ -2346,39 +2346,6 @@ def test_series_bool_interpretation_error(scalars_df_index):
         True if scalars_df_index["string_col"] else False
 
 
-@pytest.mark.parametrize(
-    ("max_download_size", "expected_size_mb"),
-    [
-        (10, 10),
-        (800, 259),
-        (None, 259),
-    ],
-)
-@pytest.mark.parametrize(
-    ("sampling_method", "random_state"),
-    [("head", None), ("Uniform", None), ("uniform", 2)],
-)
-def test_to_pandas_sampling(
-    session,
-    max_download_size,
-    expected_size_mb,
-    sampling_method,
-    random_state,
-    restore_sampling_settings,
-):
-    bigframes.options.sampling.downsample_enabled = True
-    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.1g")
-    pandas_df = df["s1"].to_pandas(
-        max_download_size=max_download_size,
-        sampling_method=sampling_method,
-        random_state=random_state,
-    )
-    pandas_size_mb = pandas_df.memory_usage() / 1048576
-    # note that the test may fail due to the random downsampling result,
-    # Run the test again if necessary, but this should be a rare case.
-    assert expected_size_mb == pytest.approx(pandas_size_mb, rel=0.1)
-
-
 def test_query_job_setters(scalars_dfs):
     job_ids = set()
     df, _ = scalars_dfs

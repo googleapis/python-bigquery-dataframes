@@ -42,10 +42,10 @@ Attributes:
     max_download_size (int, default 500):
         Download size threshold in MB. If value set to None, the download size
         won't be checked.
-    downsample_enabled (bool, default False):
+    enable_downsampling (bool, default False):
         Whether to enable downsampling, If max_download_size is exceeded when
         downloading data (e.g., to_pandas()), the data will be downsampled
-        if downsample_enabled is True, otherwise, an error will be raised.
+        if enable_downsampling is True, otherwise, an error will be raised.
     sampling_method (str, default "uniform"):
         Downsampling algorithms to be chosen from, the choices are:
         "head": This algorithm returns a portion of the data from

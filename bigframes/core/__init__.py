@@ -303,7 +303,7 @@ class ArrayValue:
         expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
 
-    def uniform_sampling(self, fraction: float) -> ArrayValue:
+    def _uniform_sampling(self, fraction: float) -> ArrayValue:
         table = self.to_ibis_expr(
             ordering_mode="order_by", expose_hidden_cols=True, fraction=fraction
         )

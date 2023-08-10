@@ -25,6 +25,6 @@ class SamplingOptions:
     __doc__ = vendored_pandas_config.sampling_options_doc
 
     max_download_size: Optional[int] = 500
-    downsample_enabled: bool = False
+    enable_downsampling: bool = False
     sampling_method: Literal["head", "uniform"] = "uniform"
     random_state: Optional[int] = None

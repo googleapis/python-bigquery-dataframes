@@ -702,7 +702,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_download_size (int, default None):
                 Download size threshold in MB. If max_download_size is exceeded when downloading data
                 (e.g., to_pandas()), the data will be downsampled if
-                bigframes.options.sampling.downsample_enabled is True, otherwise, an error will be
+                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
                 raised. If set to a value other than None, this will supersede the global config.
             sampling_method (str, default None):
                 Downsampling algorithms to be chosen from, the choices are: "head": This algorithm

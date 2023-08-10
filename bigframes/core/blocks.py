@@ -411,16 +411,22 @@ class Block:
         )
 
         if fraction < 1:
-            if not bigframes.options.sampling.downsample_enabled:
+            if not bigframes.options.sampling.enable_downsampling:
                 raise RuntimeError(
-                    f"The data size ({table_size:.2f} MB) exceeds the maximum limit "
-                    f"({max_download_size} MB). Consider increasing the 'max_download_size' or enabling"
-                    "downsampling."
+                    f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of "
+                    f"{max_download_size} MB. You can:\n\t* Enable downsampling in global options:\n"
+                    "\t\t`bigframes.options.sampling.enable_downsampling = True`\n"
+                    "\t* Update the global `max_download_size` option. Please make sure "
+                    "there is enough memory available:\n"
+                    "\t\t`bigframes.options.sampling.max_download_size = desired_size`"
+                    " # Setting it to None will download all the data\n"
+                    f"{constants.FEEDBACK_LINK}"
                 )
 
             warnings.warn(
-                f"The data size ({table_size:.2f} MB) exceeds the maximum limit ({max_download_size}"
-                " MB). It will be downsampled for download.",
+                f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of"
+                f"({max_download_size} MB). It will be downsampled to {max_download_size} MB for download."
+                "\nPlease refer to the documentation for configuring the downloading limit.",
                 UserWarning,
             )
             if sampling_method == _HEAD:
@@ -438,7 +444,7 @@ class Block:
                     inplace=True,
                 )
             elif (sampling_method == _UNIFORM) and (random_state is None):
-                filtered_expr = self.expr.uniform_sampling(fraction)
+                filtered_expr = self.expr._uniform_sampling(fraction)
                 block = Block(
                     filtered_expr,
                     index_columns=self.index_columns,

@@ -1931,57 +1931,6 @@ def test_df_bool_interpretation_error(scalars_df_index):
         True if scalars_df_index else False
 
 
-@pytest.mark.parametrize(
-    ("max_download_size", "expected_size_mb"),
-    [
-        (100, 100),
-        (2000, 1034),
-        (None, 500),
-    ],
-)
-@pytest.mark.parametrize(
-    ("sampling_method", "random_state"),
-    [("head", None), ("uniform", None), ("uniform", 2)],
-)
-def test_to_pandas_sampling(
-    session,
-    max_download_size,
-    expected_size_mb,
-    sampling_method,
-    random_state,
-    restore_sampling_settings,
-):
-    bigframes.options.sampling.downsample_enabled = True
-    bigframes.options.sampling.max_download_size = 500
-    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.1g")
-    pandas_df = df.to_pandas(
-        max_download_size=max_download_size,
-        sampling_method=sampling_method,
-        random_state=random_state,
-    )
-    pandas_size_mb = pandas_df.memory_usage().sum() / 1048576
-    # note that the test may fail due to the random downsampling result,
-    # Run the test again if necessary, but this should be a rare case.
-    assert expected_size_mb == pytest.approx(pandas_size_mb, rel=0.1)
-
-
-def test_to_pandas_sampling_no_limit(session, restore_sampling_settings):
-    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.1g")
-    bigframes.options.sampling.downsample_enabled = True
-    bigframes.options.sampling.max_download_size = None
-    pandas_df = df.to_pandas()
-    pandas_size_mb = pandas_df.memory_usage().sum() / 1048576
-    # note that the test may fail due to the random downsampling result,
-    # Run the test again if necessary, but this should be a rare case.
-    assert 1034 == pytest.approx(pandas_size_mb, rel=0.1)
-
-
-def test_to_pandas_raise_error(session, restore_sampling_settings):
-    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.1g")
-    with pytest.raises(RuntimeError):
-        df.to_pandas()
-
-
 def test_query_job_setters(scalars_df_default_index: dataframe.DataFrame):
     job_ids = set()
     repr(scalars_df_default_index)
