@@ -123,7 +123,7 @@ class LinearRegression(
         Args:
             model_name (str):
                 the name of the model.
-            replace (bool, default to False):
+            replace (bool, default False):
                 whether to replace if the model already exists. Default to False.
 
         Returns:
@@ -244,7 +244,7 @@ class LogisticRegression(
         Args:
             model_name (str):
                 the name of the model.
-            replace (bool, default to False):
+            replace (bool, default False):
                 whether to replace if the model already exists. Default to False.
 
         Returns:

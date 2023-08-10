@@ -89,7 +89,7 @@ class PCA(
         Args:
             model_name (str):
                 the name of the model.
-            replace (bool, default to False):
+            replace (bool, default False):
                 whether to replace if the model already exists. Default to False.
 
         Returns:

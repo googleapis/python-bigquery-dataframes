@@ -115,7 +115,7 @@ class Pipeline(
         Args:
             model_name (str):
                 the name of the model(pipeline).
-            replace (bool, default to False):
+            replace (bool, default False):
                 whether to replace if the model(pipeline) already exists. Default to False.
 
         Returns:
