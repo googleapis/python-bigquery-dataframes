@@ -50,7 +50,7 @@ class StringMethods:
                 Right edge index.
 
         Returns:
-            Series or Index of int.
+            bigframes.series.Series: Series with lowest indexes in each strings.
         """
         raise NotImplementedError("abstract method")
 
@@ -61,8 +61,8 @@ class StringMethods:
         (such as a dictionary).
 
         Returns:
-            Series or Index of int: A Series or Index of integer values indicating
-            the length of each element in the Series or Index.
+            bigframes.series.Series: A Series or Index of integer values indicating
+                the length of each element in the Series or Index.
         """
 
         raise NotImplementedError("abstract method")
@@ -73,7 +73,7 @@ class StringMethods:
         Equivalent to :meth:`str.lower`.
 
         Returns:
-            Series or Index of object
+            bigframes.series.Series: Series with lowercase.
         """
 
         raise NotImplementedError("abstract method")
@@ -90,8 +90,8 @@ class StringMethods:
                 Step size for slice operation.
 
         Returns:
-            Series or Index of object: Series or Index from sliced
-            substring from original string object.
+            bigframes.series.Series:: Series or Index from sliced
+                substring from original string object.
         """
 
         raise NotImplementedError("abstract method")
@@ -105,8 +105,8 @@ class StringMethods:
         Equivalent to :meth:`str.strip`.
 
         Returns:
-            Series or Index of object: Series or Index without leading
-            and trailing characters.
+            bigframes.series.Series: Series or Index without leading
+                and trailing characters.
         """
 
         raise NotImplementedError("abstract method")
@@ -117,7 +117,7 @@ class StringMethods:
         Equivalent to :meth:`str.upper`.
 
         Returns:
-            Series or Index of object: Uppercase strings
+            bigframes.series.Series: Series with uppercase strings.
         """
 
         raise NotImplementedError("abstract method")
@@ -130,8 +130,8 @@ class StringMethods:
         has zero characters, ``False`` is returned for that check.
 
         Returns:
-            Series or Index of bool: Series or Index of boolean values with the
-            same length as the original Series/Index.
+            bigframes.series.Series: Series or Index of boolean values with the
+                same length as the original Series/Index.
         """
 
         raise NotImplementedError("abstract method")
@@ -145,7 +145,7 @@ class StringMethods:
         Equivalent to :meth:`str.rstrip`.
 
         Returns:
-            Series or Index of object: Removed trailing characters
+            bigframes.series.Series: Series without trailing characters.
         """
 
         raise NotImplementedError("abstract method")
@@ -159,7 +159,7 @@ class StringMethods:
         Equivalent to :meth:`str.lstrip`.
 
         Returns:
-            Series or Index of object`
+            bigframes.series.Series: Series without leading characters.
         """
 
         raise NotImplementedError("abstract method")
@@ -172,8 +172,8 @@ class StringMethods:
                 Same value for all (int) or different value per (sequence).
 
         Returns:
-            Series or pandas.Index: Series or Index of repeated string
-            objects specified by input parameter repeats.
+            bigframes.series.Series: Series or Index of repeated string
+                objects specified by input parameter repeats.
         """
 
         raise NotImplementedError("abstract method")
@@ -184,7 +184,7 @@ class StringMethods:
         Equivalent to :meth:`str.capitalize`.
 
         Returns:
-            Series or Index of object: Captitalized strings
+            bigframes.series.Series: Series with captitalized strings.
         """
 
         raise NotImplementedError("abstract method")
@@ -205,7 +205,7 @@ class StringMethods:
                 alignment, use `.values` on any Series/Index/DataFrame in `others`.
 
         Returns:
-            Series: Concatenated strings
+            bigframes.series.Series: Series with concatenated strings.
         """
 
         raise NotImplementedError("abstract method")
@@ -220,18 +220,18 @@ class StringMethods:
         Args:
             pat (str, re.Pattern):
                 Character sequence or regular expression.
-            case (bool, default to True):
+            case (bool, default True):
                 If True, case sensitive.
-            flags (int, default to 0):
+            flags (int, default 0):
                 Flags to pass through to the re module, e.g. re.IGNORECASE.
-            regex (bool, default to True):
+            regex (bool, default True):
                 If True, assumes the pat is a regular expression.
                 If False, treats the pat as a literal string.
 
         Returns:
-            A Series or Index: A Series or Index of boolean values indicating
-            whether the given pattern is contained within the string of each
-            element of the Series or Index.
+            bigframes.series.Series: A Series or Index of boolean values indicating
+                whether the given pattern is contained within the string of each
+                element of the Series or Index.
         """
         raise NotImplementedError("abstract method")
 
@@ -255,16 +255,16 @@ class StringMethods:
                 String can be a character sequence or regular expression.
             repl (str):
                 Replacement string.
-            case (default to None):
+            case (default None):
                 Determines if replace is case sensitive:
 
                 - If True, case sensitive (the default if `pat` is a string)
                 - Set to False for case insensitive
                 - Cannot be set if `pat` is a compiled regex.
-            flags (int, default to 0):
+            flags (int, default 0):
                 Regex module flags, e.g. re.IGNORECASE. Cannot be set if `pat` is a compiled
                 regex.
-            regex (bool: default to False):
+            regex (bool: default False):
                 Determines if the passed-in pattern is a regular expression:
 
                 - If True, assumes the passed-in pattern is a regular expression.
@@ -273,8 +273,8 @@ class StringMethods:
                     a callable.
 
         Returns:
-            A copy of the object with all matching occurrences of `pat` replaced by
-            `repl`.
+            bigframes.series.Series: A copy of the object with all matching occurrences
+                of `pat` replaced by `repl`.
 
         """
         raise NotImplementedError("abstract method")
@@ -292,8 +292,8 @@ class StringMethods:
                 accepted.
 
         Returns:
-            Series of boolean: A Series of booleans indicating whether the given
-            pattern matches the start of each string element.
+            bigframes.series.Series: A Series of booleans indicating whether the given
+                pattern matches the start of each string element.
         """
         raise NotImplementedError("abstract method")
 
@@ -310,7 +310,7 @@ class StringMethods:
                 accepted.
 
         Returns:
-            Series of booleans: A Series of booleans indicating whether the given
-            pattern matches the end of each string element.
+            bigframes.series.Series: A Series of booleans indicating whether the given
+                pattern matches the end of each string element.
         """
         raise NotImplementedError("abstract method")

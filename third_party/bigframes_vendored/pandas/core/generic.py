@@ -73,7 +73,7 @@ class NDFrame(indexing.IndexingMixin):
 
     @property
     def empty(self) -> bool:
-        """Indicator whether Series/DataFrame is empty.
+        """Indicates whether Series/DataFrame is empty.
 
         True if Series/DataFrame is entirely empty (no items), meaning any of the
         axes are of length 0.
@@ -100,7 +100,7 @@ class NDFrame(indexing.IndexingMixin):
         index: bool = True,
         lines: bool = False,
     ) -> str | None:
-        """Convert the object to a JSON string, written to GCS.
+        """Convert the object to a JSON string, written to Cloud Storage.
 
         Note NaN's and None will be converted to null and datetime objects
         will be converted to UNIX timestamps.
@@ -110,9 +110,9 @@ class NDFrame(indexing.IndexingMixin):
 
         Args:
             path_or_buf (str):
-                A destination URI of GCS files(s) to store the extracted dataframe
-                in format of ``gs://<bucket_name>/<object_name_or_glob>``. Must
-                contain a wildcard `*` character.
+                A destination URI of Cloud Storage files(s) to store the extracted
+                dataframe in format of ``gs://<bucket_name>/<object_name_or_glob>``.
+                Must contain a wildcard `*` character.
 
                 If the data size is more than 1GB, you must use a wildcard to
                 export the data into multiple files and the size of the files
@@ -158,11 +158,11 @@ class NDFrame(indexing.IndexingMixin):
         raise NotImplementedError("abstract method")
 
     def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
-        """Write object to a comma-separated values (csv) file on GCS.
+        """Write object to a comma-separated values (csv) file on Cloud Storage.
 
         Args:
             path_or_buf (str):
-                A destination URI of GCS files(s) to store the extracted dataframe
+                A destination URI of Cloud Storage files(s) to store the extracted dataframe
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
 
                 If the data size is more than 1GB, you must use a wildcard to

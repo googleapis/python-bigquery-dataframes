@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Iterable, Literal, Mapping, Optional, Sequence, Union
 
+import numpy
+
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 # -----------------------------------------------------------------------
@@ -51,8 +53,43 @@ class DataFrame(NDFrame):
         """
         return [self.index, self.columns]
 
+    @property
+    def values(self) -> numpy.ndarray:
+        """Return the values of DataFrame in the form of a NumPy array.
+
+        Args:
+            dytype (default None):
+                The dtype to pass to `numpy.asarray()`.
+            copy (bool, default False):
+                Whether to ensure that the returned value is not a view
+                on another array.
+            na_value (default None):
+                The value to use for missing values.
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
+    def to_numpy(
+        self, dtype=None, copy=False, na_value=None, **kwargs
+    ) -> numpy.ndarray:
+        """
+        Convert the DataFrame to a NumPy array.
+
+        Args:
+            dtype (None):
+                The dtype to pass to `numpy.asarray()`.
+            copy (bool, default None):
+                Whether to ensure that the returned value is not a view
+                on another array.
+            na_value (Any, default None):
+                The value to use for missing values. The default value
+                depends on dtype and the dtypes of the DataFrame columns.
+
+        Returns:
+            numpy.ndarray: The converted NumPy array.
+        """
+        raise NotImplementedError("abstract method")
 
     def to_gbq(
         self,
@@ -62,7 +99,7 @@ class DataFrame(NDFrame):
         index: bool = True,
         ordering_id: Optional[str] = None,
     ) -> None:
-        """Write a DataFrame to a Google BigQuery table.
+        """Write a DataFrame to a BigQuery table.
 
         Args:
             destination_table (str):
@@ -94,10 +131,10 @@ class DataFrame(NDFrame):
         *,
         index: bool = True,
     ) -> None:
-        """Write a DataFrame to the binary parquet format.
+        """Write a DataFrame to the binary Parquet format.
 
         This function writes the dataframe as a `parquet file
-        <https://parquet.apache.org/>`_ to Google Cloud Storage.
+        <https://parquet.apache.org/>`_ to Cloud Storage.
 
         Args:
             path (str):
@@ -201,7 +238,9 @@ class DataFrame(NDFrame):
         """
         Set the name of the axis for the index.
 
-        Note: currently only accepts a single string parameter (the new name of the index)
+        .. Note::
+
+            Currently only accepts a single string parameter (the new name of the index).
 
         Args:
             mapper str:
@@ -245,7 +284,7 @@ class DataFrame(NDFrame):
                 (position) or by key (label).
 
         Returns:
-            DataFrame: DataFrame of rearranged index
+            DataFrame: DataFrame of rearranged index.
         """
         raise NotImplementedError("abstract method")
 
@@ -392,7 +431,7 @@ class DataFrame(NDFrame):
 
     def eq(self, other, axis: str | int = "columns") -> DataFrame:
         """
-        Get Equal to of dataframe and other, element-wise (binary operator `eq`).
+        Get equal to of DataFrame and other, element-wise (binary operator `eq`).
 
         Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
         operators.
@@ -414,7 +453,7 @@ class DataFrame(NDFrame):
 
     def ne(self, other, axis: str | int = "columns") -> DataFrame:
         """
-        Get Not equal to of dataframe and other, element-wise (binary operator `ne`).
+        Get not equal to of DataFrame and other, element-wise (binary operator `ne`).
 
         Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
         operators.
@@ -460,7 +499,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def lt(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'less than' of dataframe and other, element-wise (binary operator `<`).
+        """Get 'less than' of DataFrame and other, element-wise (binary operator `<`).
 
         Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
         operators.
@@ -486,7 +525,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def ge(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'greater than or equal to' of dataframe and other, element-wise (binary operator `>=`).
+        """Get 'greater than or equal to' of DataFrame and other, element-wise (binary operator `>=`).
 
         Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
         operators.
@@ -512,7 +551,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def gt(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'greater than' of dataframe and other, element-wise (binary operator `>`).
+        """Get 'greater than' of DataFrame and other, element-wise (binary operator `>`).
 
         Among flexible wrappers (`eq`, `ne`, `le`, `lt`, `ge`, `gt`) to comparison
         operators.
@@ -538,7 +577,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def add(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'addition' of dataframe and other, element-wise (binary operator `+`).
+        """Get addition of DataFrame and other, element-wise (binary operator `+`).
 
         Equivalent to ``dataframe + other``. With reverse version, `radd`.
 
@@ -561,7 +600,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def sub(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'subtraction' of dataframe and other, element-wise (binary operator `-`).
+        """Get subtraction of DataFrame and other, element-wise (binary operator `-`).
 
         Equivalent to ``dataframe - other``. With reverse version, `rsub`.
 
@@ -584,7 +623,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def rsub(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'subtraction' of dataframe and other, element-wise (binary operator `-`).
+        """Get subtraction of DataFrame and other, element-wise (binary operator `-`).
 
         Equivalent to ``other - dataframe``. With reverse version, `sub`.
 
@@ -607,7 +646,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def mul(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'multiplication' of dataframe and other, element-wise (binary operator `*`).
+        """Get multiplication of DataFrame and other, element-wise (binary operator `*`).
 
         Equivalent to ``dataframe * other``. With reverse version, `rmul`.
 
@@ -630,7 +669,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def truediv(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'floating division' of dataframe and other, element-wise (binary operator `/`).
+        """Get floating division of DataFrame and other, element-wise (binary operator `/`).
 
         Equivalent to ``dataframe / other``. With reverse version, `rtruediv`.
 
@@ -653,7 +692,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def rtruediv(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'floating division' of dataframe and other, element-wise (binary operator `/`).
+        """Get floating division of DataFrame and other, element-wise (binary operator `/`).
 
         Equivalent to ``other / dataframe``. With reverse version, `truediv`.
 
@@ -676,7 +715,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def floordiv(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'integer division' of dataframe and other, element-wise (binary operator `//`).
+        """Get integer division of DataFrame and other, element-wise (binary operator `//`).
 
         Equivalent to ``dataframe // other``. With reverse version, `rfloordiv`.
 
@@ -699,7 +738,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def rfloordiv(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'integer division' of dataframe and other, element-wise (binary operator `//`).
+        """Get integer division of DataFrame and other, element-wise (binary operator `//`).
 
         Equivalent to ``other // dataframe``. With reverse version, `rfloordiv`.
 
@@ -722,7 +761,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def mod(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'modulo' of dataframe and other, element-wise (binary operator `%`).
+        """Get modulo of DataFrame and other, element-wise (binary operator `%`).
 
         Equivalent to ``dataframe % other``. With reverse version, `rmod`.
 
@@ -745,7 +784,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError("abstract method")
 
     def rmod(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get 'modulo' of dataframe and other, element-wise (binary operator `%`).
+        """Get modulo of DataFrame and other, element-wise (binary operator `%`).
 
         Equivalent to ``other % dataframe``. With reverse version, `mod`.
 
@@ -958,8 +997,8 @@ class DataFrame(NDFrame):
         """
         Return whether all elements are True, potentially over an axis.
 
-        Returns True unless there at least one element within a series or
-        along a Dataframe axis that is False or equivalent (e.g. zero or
+        Returns True unless there at least one element within a Series or
+        along a DataFrame axis that is False or equivalent (e.g. zero or
         empty).
 
         Args:

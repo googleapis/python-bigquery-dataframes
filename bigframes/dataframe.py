@@ -275,8 +275,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _to_sql_query(
         self, always_include_index: bool
     ) -> Tuple[str, List[Tuple[str, bool]]]:
-        """Compiles this dataframe's expression tree to SQL, optionally
-        including unnamed index columns
+        """Compiles this DataFrame's expression tree to SQL, optionally
+        including unnamed index columns.
 
         Args:
             always_include_index (bool):
@@ -346,7 +346,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this dataframe's expression tree to SQL"""
+        """Compiles this DataFrame's expression tree to SQL."""
         sql, _ = self._to_sql_query(always_include_index=False)
         return sql
 
@@ -461,7 +461,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls compute.
 
-        Only represents the first ``bigframes.options.display.max_rows``.
+        Only represents the first `bigframes.options.display.max_rows`.
         """
         opts = bigframes.options.display
         max_results = opts.max_rows
@@ -696,7 +696,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
     ) -> pandas.DataFrame:
-        """Writes DataFrame to pandas DataFrame.
+        """Write DataFrame to pandas DataFrame.
 
         Args:
             max_download_size (int, default None):

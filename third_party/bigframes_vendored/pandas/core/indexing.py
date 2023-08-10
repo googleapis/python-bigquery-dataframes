@@ -49,15 +49,12 @@ class IndexingMixin:
         - A list of labels, e.g. ``['a', 'b', 'c']``.
         - A boolean series of the same length as the axis being sliced,
           e.g. ``[True, False, True]``.
-        - An alignable Index. The Index of the returned
+        - An alignable Index. The index of the returned
           selection will be the input.
         - **Not supported yet** An alignable boolean Series. The index of the key will be aligned before
           masking.
         - **Not supported yet** A slice object with labels, e.g. ``'a':'f'``.
-
-              Note: contrary to usual python slices, **both** the
-              start and the stop are included
-
+          Note: contrary to usual python slices, **both** the start and the stop are included.
         - **Not supported yet** A ``callable`` function with one argument (the
           calling Series or DataFrame) that returns valid output for indexing
           (one of the above).

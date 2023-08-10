@@ -1213,8 +1213,8 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return whether all elements are True, potentially over an axis.
 
-        Returns True unless there at least one element within a series or along a
-        Dataframe axis that is False or equivalent (e.g. zero or empty).
+        Returns True unless there at least one element within a Series or along a
+        DataFrame axis that is False or equivalent (e.g. zero or empty).
 
         Returns:
             scalar or Series: If level is specified, then, Series is returned;
