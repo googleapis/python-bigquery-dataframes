@@ -2401,3 +2401,41 @@ def test_query_job_setters(scalars_dfs):
     series.to_pandas()
     job_ids.add(series.query_job.job_id)
     assert len(job_ids) == 2
+
+
+@pytest.mark.parametrize(
+    ("series_input",),
+    [
+        ([1, 2, 3, 4, 5],),
+        ([1, 1, 3, 5, 5],),
+        ([1, pd.NA, 4, 5, 5],),
+        ([1, 3, 2, 5, 4],),
+        ([pd.NA, pd.NA],),
+        ([1, 1, 1, 1, 1],),
+    ],
+)
+def test_is_monotonic_increasing(series_input):
+    scalars_df = series.Series(series_input)
+    scalars_pandas_df = pd.Series(series_input)
+    assert (
+        scalars_df.is_monotonic_increasing == scalars_pandas_df.is_monotonic_increasing
+    )
+
+
+@pytest.mark.parametrize(
+    ("series_input",),
+    [
+        ([1],),
+        ([5, 4, 3, 2, 1],),
+        ([5, 5, 3, 1, 1],),
+        ([1, pd.NA, 4, 5, 5],),
+        ([5, pd.NA, 4, 2, 1],),
+        ([1, 1, 1, 1, 1],),
+    ],
+)
+def test_is_monotonic_decreasing(series_input):
+    scalars_df = series.Series(series_input)
+    scalars_pandas_df = pd.Series(series_input)
+    assert (
+        scalars_df.is_monotonic_decreasing == scalars_pandas_df.is_monotonic_decreasing
+    )

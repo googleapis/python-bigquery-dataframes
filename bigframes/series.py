@@ -802,6 +802,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
+    @property
+    def is_monotonic_increasing(self) -> bool:
+        period = 1
+        window = bigframes.core.WindowSpec(
+            preceding=period,
+            following=None,
+        )
+        shifted_series = self._apply_window_op(agg_ops.ShiftOp(period), window)
+        return self.notna().__and__(self >= shifted_series).all()
+
+    @property
+    def is_monotonic_decreasing(self) -> bool:
+        period = 1
+        window = bigframes.core.WindowSpec(
+            preceding=period,
+            following=None,
+        )
+        shifted_series = self._apply_window_op(agg_ops.ShiftOp(period), window)
+        return self.notna().__and__(self <= shifted_series).all()
+
     def __getitem__(self, indexer):
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
         use_iloc = (
