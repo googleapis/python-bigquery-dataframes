@@ -260,6 +260,8 @@ class Session(
         """Create a BQ session and bind the session id with clients to capture BQ activities:
         go/bigframes-transient-data"""
         job_config = bigquery.QueryJobConfig(create_session=True)
+        # Make sure the session is a new one, not one associated with another query.
+        job_config.use_query_cache = False
         query_job = self.bqclient.query(
             "SELECT 1", job_config=job_config, location=self._location
         )
@@ -466,8 +468,8 @@ class Session(
                 {self.ibis_client.compile(distinct_table)}
             )
 
-            SELECT (SELECT COUNT(*) FROM full_table) AS total_count,
-            (SELECT COUNT(*) FROM distinct_table) AS distinct_count
+            SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
+            (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
             """
             results, query_job = self._start_query(is_unique_sql)
             row = next(iter(results))
@@ -475,6 +477,7 @@ class Session(
             total_count = row["total_count"]
             distinct_count = row["distinct_count"]
             is_total_ordering = total_count == distinct_count
+
             ordering = core.ExpressionOrdering(
                 ordering_value_columns=[
                     core.OrderingColumnReference(column_id) for column_id in index_cols
@@ -485,7 +488,6 @@ class Session(
             # We have a total ordering, so query via "time travel" so that
             # the underlying data doesn't mutate.
             if is_total_ordering:
-
                 # Get the timestamp from the job metadata rather than the query
                 # text so that the query for determining uniqueness of the ID
                 # columns can be cached.
