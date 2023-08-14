@@ -54,6 +54,12 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas
+from pandas._typing import (
+    CompressionOptions,
+    FilePath,
+    ReadPickleBuffer,
+    StorageOptions,
+)
 import pydata_google_auth
 
 import bigframes._config.bigquery_options as bigquery_options
@@ -75,6 +81,7 @@ import third_party.bigframes_vendored.ibis.backends.bigquery.registry  # noqa
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
+import third_party.bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
@@ -194,6 +201,7 @@ def _create_cloud_clients(
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
+    third_party_pandas_pickle.PickleIOMixin,
     third_party_pandas_readers.ReaderIOMixin,
 ):
     """Establishes a BigQuery connection to capture a group of job activities related to
@@ -887,6 +895,25 @@ class Session(
                 **kwargs,
             )
             return self.read_pandas(pandas_df)
+
+    def read_pickle(
+        self,
+        filepath_or_buffer: FilePath | ReadPickleBuffer,
+        compression: CompressionOptions = "infer",
+        storage_options: StorageOptions = None,
+    ):
+        pandas_obj = pandas.read_pickle(
+            filepath_or_buffer,
+            compression=compression,
+            storage_options=storage_options,
+        )
+
+        if isinstance(pandas_obj, pandas.Series):
+            if pandas_obj.name is None:
+                pandas_obj.name = "0"
+            bigframes_df = self.read_pandas(pandas_obj.to_frame())
+            return bigframes_df[bigframes_df.columns[0]]
+        return self.read_pandas(pandas_obj)
 
     def read_parquet(
         self,

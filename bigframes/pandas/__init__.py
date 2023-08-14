@@ -39,6 +39,12 @@ from typing import (
 from google.cloud import bigquery
 import numpy
 import pandas
+from pandas._typing import (
+    CompressionOptions,
+    FilePath,
+    ReadPickleBuffer,
+    StorageOptions,
+)
 
 import bigframes._config as config
 import bigframes.core.indexes
@@ -355,6 +361,22 @@ def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataF
 read_pandas.__doc__ = inspect.getdoc(bigframes.session.Session.read_pandas)
 
 
+def read_pickle(
+    filepath_or_buffer: FilePath | ReadPickleBuffer,
+    compression: CompressionOptions = "infer",
+    storage_options: StorageOptions = None,
+):
+    return _with_default_session(
+        bigframes.session.Session.read_pickle,
+        filepath_or_buffer=filepath_or_buffer,
+        compression=compression,
+        storage_options=storage_options,
+    )
+
+
+read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
+
+
 def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
     return _with_default_session(
         bigframes.session.Session.read_parquet,
@@ -413,6 +435,7 @@ __all___ = [
     "read_gbq_function",
     "read_gbq_model",
     "read_pandas",
+    "read_pickle",
     "remote_function",
     "Series",
     "NamedAgg",
