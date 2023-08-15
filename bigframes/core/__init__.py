@@ -854,7 +854,7 @@ class ArrayValue:
 
     def unpivot_single_row(
         self,
-        row_labels: typing.Sequence[typing.Optional[str]],
+        row_labels: typing.Sequence[typing.Hashable],
         unpivot_columns: typing.Sequence[typing.Tuple[str, typing.Sequence[str]]],
         *,
         index_col_id: str = "index",

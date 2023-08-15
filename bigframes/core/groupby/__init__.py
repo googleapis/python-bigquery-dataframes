@@ -309,7 +309,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         block: blocks.Block,
         value_column: str,
         by_col_ids: typing.Sequence[str],
-        value_name: typing.Optional[str] = None,
+        value_name: blocks.Label = None,
         dropna=True,
     ):
         # TODO(tbergeron): Support more group-by expression types

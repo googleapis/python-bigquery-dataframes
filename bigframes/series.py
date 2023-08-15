@@ -87,7 +87,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return bigframes.core.indexers.IlocSeriesIndexer(self)
 
     @property
-    def name(self) -> Optional[str]:
+    def name(self) -> blocks.Label:
         return self._name
 
     @property
@@ -167,6 +167,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
                 block = block.set_index(new_idx_ids, index_labels=block.index_labels)
 
+            return Series(block)
+
+        # rename the Series name
+        if isinstance(index, typing.Hashable):
+            index = typing.cast(Optional[str], index)
+            block = self._block.with_column_labels([index])
             return Series(block)
 
         raise ValueError(f"Unsupported type of parameter index: {type(index)}")
@@ -321,7 +327,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         for level_ref in levels:
             if isinstance(level_ref, int):
                 resolved_level_ids.append(self._block.index_columns[level_ref])
-            elif isinstance(level_ref, str):
+            elif isinstance(level_ref, typing.Hashable):
                 matching_ids = self._block.index_name_to_col_id.get(level_ref, [])
                 if len(matching_ids) != 1:
                     raise ValueError("level name cannot be found or is ambiguous")

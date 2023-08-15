@@ -2242,6 +2242,16 @@ def test_rename(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_rename_nonstring(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.rename((4, 2))
+    pd_result = scalars_pandas_df_index.string_col.rename((4, 2))
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_rename_dict_same_type(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.string_col.rename({1: 100, 2: 200})
     pd_result = scalars_pandas_df_index.string_col.rename({1: 100, 2: 200})
