@@ -159,6 +159,13 @@ class BqmlModel:
 
         return self._session.read_gbq(sql)
 
+    def centroids(self):
+        assert self._model.model_type == "KMEANS"
+
+        sql = ml_sql.ml_centroids(self.model_name)
+
+        return self._session.read_gbq(sql)
+
     def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
         job_config = bigquery.job.CopyJobConfig()
         if replace:
