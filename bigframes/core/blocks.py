@@ -75,9 +75,9 @@ class Block:
     def __init__(
         self,
         expr: core.ArrayValue,
-        index_columns: Iterable[str] = (),
-        column_labels: Optional[Sequence[Label]] = None,
-        index_labels: Optional[Sequence[Label]] = None,
+        index_columns: Iterable[str],
+        column_labels: typing.Union[pd.Index, typing.Sequence[Label]],
+        index_labels: typing.Union[pd.Index, typing.Sequence[Label], None] = None,
     ):
         """Construct a block object, will create default index if no index columns specified."""
         if index_labels and (len(index_labels) != len(list(index_columns))):
@@ -88,15 +88,18 @@ class Block:
             expr, new_index_col_id = expr.promote_offsets()
             index_columns = [new_index_col_id]
         self._index_columns = tuple(index_columns)
+        # Index labels don't need complicated hierarchical access so can store as tuple
         self._index_labels = (
             tuple(index_labels)
             if index_labels
             else tuple([None for _ in index_columns])
         )
         self._expr = self._normalize_expression(expr, self._index_columns)
-        # TODO(tbergeron): Force callers to provide column labels
+        # Use pandas index to more easily replicate column indexing, especially for hierarchical column index
         self._column_labels = (
-            tuple(column_labels) if column_labels else tuple(self.value_columns)
+            column_labels.copy()
+            if isinstance(column_labels, pd.Index)
+            else pd.Index(column_labels)
         )
         if len(self.value_columns) != len(self._column_labels):
             raise ValueError(
@@ -874,10 +877,16 @@ class Block:
             ]
             by_column_labels = self._get_labels_for_columns(by_value_columns)
             labels = (*by_column_labels, *aggregate_labels)
-            result_expr_pruned = result_expr.select_columns(
+            result_expr_pruned, offsets_id = result_expr.select_columns(
                 [*by_value_columns, *output_col_ids]
+            ).promote_offsets()
+
+            return (
+                Block(
+                    result_expr_pruned, index_columns=[offsets_id], column_labels=labels
+                ),
+                output_col_ids,
             )
-            return Block(result_expr_pruned, column_labels=labels), output_col_ids
 
     def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
         """Gets aggregates immediately, and caches it"""
@@ -891,7 +900,12 @@ class Block:
 
         aggregations = [(column_id, stat, stat.name) for stat in stats_to_fetch]
         expr = self.expr.aggregate(aggregations)
-        block = Block(expr, column_labels=[s.name for s in stats_to_fetch])
+        expr, offset_index_id = expr.promote_offsets()
+        block = Block(
+            expr,
+            index_columns=[offset_index_id],
+            column_labels=[s.name for s in stats_to_fetch],
+        )
         df, _ = block.to_pandas()
 
         # Carefully extract stats such that they aren't coerced to a common type
@@ -1138,8 +1152,9 @@ def block_from_local(data, session=None, use_index=True) -> Block:
         )
     else:
         keys_expr = core.ArrayValue.mem_expr_from_pandas(pd_data, session)
+        keys_expr, offsets_id = keys_expr.promote_offsets()
         # Constructor will create default range index
-        return Block(keys_expr, column_labels=column_labels)
+        return Block(keys_expr, index_columns=[offsets_id], column_labels=column_labels)
 
 
 def _align_block_to_schema(

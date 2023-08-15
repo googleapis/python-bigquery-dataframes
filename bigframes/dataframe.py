@@ -1271,7 +1271,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         # Constructs default index
-        block = blocks.Block(expr, column_labels=labels)
+        expr, offset_index_id = expr.promote_offsets()
+        block = blocks.Block(
+            expr, index_columns=[offset_index_id], column_labels=labels
+        )
         return DataFrame(block)
 
     def _get_merged_col_labels(

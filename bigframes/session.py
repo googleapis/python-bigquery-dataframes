@@ -663,7 +663,8 @@ class Session(
             core.ArrayValue(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
-            [index_col.get_name() for index_col in index_cols],
+            index_columns=[index_col.get_name() for index_col in index_cols],
+            column_labels=column_keys,
             index_labels=index_labels,
         )
 
