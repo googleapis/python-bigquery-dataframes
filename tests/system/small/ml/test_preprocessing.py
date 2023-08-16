@@ -24,13 +24,13 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     scaler = bigframes.ml.preprocessing.StandardScaler()
     scaler.fit(
         penguins_df_default_index[
-            "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"
+            ["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]
         ]
     )
 
     result = scaler.transform(
         penguins_df_default_index[
-            "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"
+            ["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]
         ]
     ).to_pandas()
 
@@ -62,7 +62,7 @@ def test_standard_scaler_normalizeds_fit_transform(new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = bigframes.ml.preprocessing.StandardScaler()
     result = scaler.fit_transform(
-        new_penguins_df["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]
+        new_penguins_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
     ).to_pandas()
 
     # If standard-scaled correctly, mean should be 0.0
@@ -122,7 +122,7 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
 
 def test_one_hot_encoder_default_params(new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder()
-    encoder.fit(new_penguins_df["species", "sex"])
+    encoder.fit(new_penguins_df[["species", "sex"]])
 
     result = encoder.transform(new_penguins_df).to_pandas()
 
@@ -153,7 +153,7 @@ def test_one_hot_encoder_default_params(new_penguins_df):
 def test_one_hot_encoder_default_params_fit_transform(new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder()
 
-    result = encoder.fit_transform(new_penguins_df["species", "sex"]).to_pandas()
+    result = encoder.fit_transform(new_penguins_df[["species", "sex"]]).to_pandas()
 
     # TODO: bug? feature columns seem to be in nondeterministic random order
     # workaround: sort columns by name. Can't repro it in pantheon, so could
@@ -206,7 +206,7 @@ def test_one_hot_encoder_series_default_params(new_penguins_df):
 
 def test_one_hot_encoder_params(new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder("most_frequent", 100, 2)
-    encoder.fit(new_penguins_df["species", "sex"])
+    encoder.fit(new_penguins_df[["species", "sex"]])
 
     result = encoder.transform(new_penguins_df).to_pandas()
 
@@ -236,7 +236,7 @@ def test_one_hot_encoder_params(new_penguins_df):
 
 def test_one_hot_encoder_different_data(penguins_df_default_index, new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder()
-    encoder.fit(penguins_df_default_index["species", "sex"])
+    encoder.fit(penguins_df_default_index[["species", "sex"]])
 
     result = encoder.transform(new_penguins_df).to_pandas()
 

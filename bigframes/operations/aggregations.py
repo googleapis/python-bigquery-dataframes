@@ -381,7 +381,7 @@ first_op = FirstOp()
 
 
 # TODO: Alternative names and lookup from numpy function objects
-AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
+_AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
     op.name: op
     for op in [
         sum_op,
@@ -401,3 +401,18 @@ AGGREGATIONS_LOOKUP: dict[str, AggregateOp] = {
         ApproxQuartilesOp(3),
     ]
 }
+
+
+def lookup_agg_func(key: str) -> AggregateOp:
+    if callable(key):
+        raise NotImplementedError(
+            "Aggregating with callable object not supported, pass method name as string instead (eg. 'sum' instead of np.sum)."
+        )
+    if not isinstance(key, str):
+        raise ValueError(
+            f"Cannot aggregate using object of type: {type(key)}. Use string method name (eg. 'sum')"
+        )
+    if key in _AGGREGATIONS_LOOKUP:
+        return _AGGREGATIONS_LOOKUP[key]
+    else:
+        raise ValueError(f"Unrecognize aggregate function: {key}")

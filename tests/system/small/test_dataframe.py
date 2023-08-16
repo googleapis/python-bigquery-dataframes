@@ -1629,6 +1629,7 @@ def test_sample_raises_value_error(scalars_dfs):
 @pytest.mark.parametrize(
     ("axis",),
     [
+        (None,),
         (0,),
         (1,),
     ],
