@@ -870,23 +870,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @property
     def is_monotonic_increasing(self) -> bool:
-        period = 1
-        window = bigframes.core.WindowSpec(
-            preceding=period,
-            following=None,
+        return typing.cast(
+            bool, self._block.is_monotonic_increasing(self._value_column)
         )
-        shifted_series = self._apply_window_op(agg_ops.ShiftOp(period), window)
-        return self.notna().__and__(self >= shifted_series).all()
 
     @property
     def is_monotonic_decreasing(self) -> bool:
-        period = 1
-        window = bigframes.core.WindowSpec(
-            preceding=period,
-            following=None,
+        return typing.cast(
+            bool, self._block.is_monotonic_decreasing(self._value_column)
         )
-        shifted_series = self._apply_window_op(agg_ops.ShiftOp(period), window)
-        return self.notna().__and__(self <= shifted_series).all()
 
     def __getitem__(self, indexer):
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
