@@ -389,7 +389,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         sql_names = self._sql_names(key)
         # Only input is a single key and only find one column, returns a Series
-        if (not _is_list_like(key)) and len(sql_names) == 1:
+        if (not utils.is_list_like(key)) and len(sql_names) == 1:
             return bigframes.series.Series(self._block.select_column(sql_names[0]))
 
         # Select a subset of columns or re-order columns.
@@ -932,7 +932,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if na_position not in {"first", "last"}:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
 
-        sort_labels = tuple(by) if _is_list_like(by) else (by,)
+        sort_labels = tuple(by) if utils.is_list_like(by) else (by,)
         sort_column_ids = self._sql_names(sort_labels)
 
         len_by = len(sort_labels)
