@@ -1055,6 +1055,10 @@ class Block:
         )
         return block
 
+    # Using cache to optimize for Jupyter Notebook's behavior where both '__repr__'
+    # and '__repr_html__' are called in a single display action, reducing redundant
+    # queries.
+    @functools.cache
     def retrieve_repr_request_results(
         self, max_results: int
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
