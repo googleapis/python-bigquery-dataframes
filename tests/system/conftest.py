@@ -211,6 +211,7 @@ def load_test_data_tables(
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
+        ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
     ]:
         test_data_hash = hashlib.md5()
         _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
@@ -253,6 +254,11 @@ def test_data_tables_tokyo(
 @pytest.fixture(scope="session")
 def scalars_table_id(test_data_tables) -> str:
     return test_data_tables["scalars"]
+
+
+@pytest.fixture(scope="session")
+def hockey_table_id(test_data_tables) -> str:
+    return test_data_tables["hockey_players"]
 
 
 @pytest.fixture(scope="session")
@@ -352,6 +358,34 @@ def scalars_dfs(
     scalars_pandas_df_index,
 ):
     return scalars_df_index, scalars_pandas_df_index
+
+
+@pytest.fixture(scope="session")
+def hockey_df(
+    hockey_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(hockey_table_id)
+
+
+@pytest.fixture(scope="session")
+def hockey_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+    df = pd.read_json(
+        DATA_DIR / "hockey_players.jsonl",
+        lines=True,
+        dtype={
+            "team_name": pd.StringDtype(storage="pyarrow"),
+            "position": pd.StringDtype(storage="pyarrow"),
+            "player_name": pd.StringDtype(storage="pyarrow"),
+            "goals": pd.Int64Dtype(),
+            "assists": pd.Int64Dtype(),
+            "number": pd.Int64Dtype(),
+            "season": pd.Int64Dtype(),
+        },
+    )
+    df.index = df.index.astype("Int64")
+    return df
 
 
 @pytest.fixture(scope="session")

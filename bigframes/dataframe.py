@@ -1178,6 +1178,37 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return typing.cast(DataFrame, result)
 
+    def pivot(
+        self,
+        *,
+        columns: typing.Union[blocks.Label, Sequence[blocks.Label]],
+        index: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+        values: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+    ) -> DataFrame:
+        if index:
+            block = self.set_index(index)._block
+        else:
+            block = self._block
+
+        column_ids = self._sql_names(columns)
+        if values:
+            value_col_ids = self._sql_names(values)
+        else:
+            value_col_ids = [
+                col for col in block.value_columns if col not in column_ids
+            ]
+
+        pivot_block = block.pivot(
+            columns=column_ids,
+            values=value_col_ids,
+            values_in_index=utils.is_list_like(values),
+        )
+        return DataFrame(pivot_block)
+
     def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
         types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
         if not keep_bool:

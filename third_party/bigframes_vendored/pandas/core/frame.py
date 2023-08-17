@@ -1233,6 +1233,42 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError("abstract method")
 
+    def pivot(self, *, columns, index=None, values=None):
+        """
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a "pivot" table) based on column values. Uses
+        unique values from specified `index` / `columns` to form axes of the
+        resulting DataFrame. This function does not support data
+        aggregation, multiple values will result in a MultiIndex in the
+        columns.
+
+        .. note::
+            BigQuery supports up to 10000 columns. Pivot operations on columns
+            with too many unique values will fail if they would exceed this limit.
+
+        .. note::
+            The validity of the pivot operation is not checked. If columns and index
+            do not together uniquely identify input rows, the output will be
+            silently non-deterministic.
+
+        Args:
+            columns (str or object or a list of str):
+                Column to use to make new frame's columns.
+
+            index (str or object or a list of str, optional):
+                Column to use to make new frame's index. If not given, uses existing index.
+
+            values (str, object or a list of the previous, optional):
+                Column(s) to use for populating new frame's values. If not
+                specified, all remaining columns will be used and the result will
+                have hierarchically indexed columns.
+
+        Returns:
+            Returns reshaped DataFrame.
+        """
+        raise NotImplementedError("abstract method")
+
     # ----------------------------------------------------------------------
     # Add index and columns
 

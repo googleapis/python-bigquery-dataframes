@@ -251,6 +251,21 @@ class NuniqueOp(AggregateOp):
         return False
 
 
+class AnyValueOp(AggregateOp):
+    # Warning: only use if all values are equal. Non-deterministic otherwise.
+    # Do not expose to users. For special cases only (e.g. pivot).
+    name = "any_value"
+
+    def _as_ibis(
+        self, column: ibis_types.Column, window=None
+    ) -> ibis_types.IntegerValue:
+        return _apply_window_if_present(column.arbitrary(), window)
+
+    @property
+    def skips_nulls(self):
+        return True
+
+
 class RankOp(WindowOp):
     name = "rank"
 

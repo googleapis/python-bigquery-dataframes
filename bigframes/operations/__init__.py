@@ -692,6 +692,18 @@ def clip_op(
         )
 
 
+def partial_arg1(op: TernaryOp, scalar: typing.Any) -> BinaryOp:
+    return lambda x, y: op(dtypes.literal_to_ibis_scalar(scalar, validate=False), x, y)
+
+
+def partial_arg2(op: TernaryOp, scalar: typing.Any) -> BinaryOp:
+    return lambda x, y: op(x, dtypes.literal_to_ibis_scalar(scalar, validate=False), y)
+
+
+def partial_arg3(op: TernaryOp, scalar: typing.Any) -> BinaryOp:
+    return lambda x, y: op(x, y, dtypes.literal_to_ibis_scalar(scalar, validate=False))
+
+
 def is_null(value) -> bool:
     # float NaN/inf should be treated as distinct from 'true' null values
     return typing.cast(bool, pd.isna(value)) and not isinstance(value, float)

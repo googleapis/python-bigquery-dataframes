@@ -53,6 +53,10 @@ Label = typing.Hashable
 _BYTES_TO_KILOBYTES = 1024
 _BYTES_TO_MEGABYTES = _BYTES_TO_KILOBYTES * 1024
 
+# This is the max limit of physical columns in BQ
+# May choose to set smaller limit for number of block columns to allow overhead for ordering, etc.
+_BQ_MAX_COLUMNS = 10000
+
 # All sampling method
 _HEAD = "head"
 _UNIFORM = "uniform"
@@ -1119,6 +1123,109 @@ class Block:
             )
         if axis_number == 1:
             return self.rename(columns=lambda label: f"{label}{suffix}")
+
+    def pivot(
+        self,
+        *,
+        columns: Sequence[str],
+        values: Sequence[str],
+        values_in_index: typing.Optional[bool] = None,
+    ):
+        # Columns+index should uniquely identify rows
+        # Warning: This is not validated, breaking this constraint will result in silently non-deterministic behavior.
+        # -1 to allow for ordering column in addition to pivot columns
+        max_unique_value = (_BQ_MAX_COLUMNS - 1) // len(values)
+        columns_values = self._get_unique_values(columns, max_unique_value)
+        column_index = columns_values
+
+        column_ids: list[str] = []
+        block = self
+        for value in values:
+            for uvalue in columns_values:
+                block, masked_id = self._create_pivot_col(block, columns, value, uvalue)
+                column_ids.append(masked_id)
+
+        block = block.select_columns(column_ids)
+        aggregations = [(col_id, agg_ops.AnyValueOp()) for col_id in column_ids]
+        result_block, _ = block.aggregate(
+            by_column_ids=self.index_columns,
+            aggregations=aggregations,
+            as_index=True,
+            dropna=True,
+        )
+
+        if values_in_index or len(values) > 1:
+            value_labels = self._get_labels_for_columns(values)
+            column_index = self._create_pivot_column_index(value_labels, columns_values)
+        else:
+            column_index = columns_values
+
+        return result_block.with_column_labels(column_index)
+
+    @staticmethod
+    def _create_pivot_column_index(
+        value_labels: Sequence[typing.Hashable], columns_values: pd.Index
+    ):
+        index_parts = []
+        for value in value_labels:
+            as_frame = columns_values.to_frame()
+            as_frame.insert(0, None, value)  # type: ignore
+            ipart = pd.MultiIndex.from_frame(
+                as_frame, names=(None, *columns_values.names)
+            )
+            index_parts.append(ipart)
+        return functools.reduce(lambda x, y: x.append(y), index_parts)
+
+    @staticmethod
+    def _create_pivot_col(
+        block: Block, columns: typing.Sequence[str], value_col: str, value
+    ) -> typing.Tuple[Block, str]:
+        cond_id = ""
+        nlevels = len(columns)
+        for i in range(len(columns)):
+            uvalue_level = value[i] if nlevels > 1 else value
+            if pd.isna(uvalue_level):
+                block, eq_id = block.apply_unary_op(
+                    columns[i],
+                    ops.isnull_op,
+                )
+            else:
+                block, eq_id = block.apply_unary_op(
+                    columns[i], ops.partial_right(ops.eq_op, uvalue_level)
+                )
+            if cond_id:
+                block, cond_id = block.apply_binary_op(eq_id, cond_id, ops.and_op)
+            else:
+                cond_id = eq_id
+        block, masked_id = block.apply_binary_op(
+            value_col, cond_id, ops.partial_arg3(ops.where_op, None)
+        )
+
+        return block, masked_id
+
+    def _get_unique_values(
+        self, columns: Sequence[str], max_unique_values: int
+    ) -> pd.Index:
+        """Gets N unique values for a column immediately."""
+        # Importing here to avoid circular import
+        import bigframes.core.block_transforms as block_tf
+        import bigframes.dataframe as df
+
+        unique_value_block = block_tf.drop_duplicates(
+            self.select_columns(columns), columns
+        )
+        pd_values = (
+            df.DataFrame(unique_value_block).head(max_unique_values + 1).to_pandas()
+        )
+        if len(pd_values) > max_unique_values:
+            raise ValueError(f"Too many unique values: {pd_values}")
+
+        if len(columns) > 1:
+            return pd.MultiIndex.from_frame(
+                pd_values.sort_values(by=list(pd_values.columns), na_position="first")
+            )
+        else:
+            return pd.Index(pd_values.squeeze(axis=1).sort_values(na_position="first"))
 
     def concat(
         self,
