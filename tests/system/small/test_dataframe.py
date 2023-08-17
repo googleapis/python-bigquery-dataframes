@@ -840,6 +840,14 @@ def test_set_index(scalars_dfs, index_column, drop, append):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_set_index_key_error(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    with pytest.raises(KeyError):
+        scalars_pandas_df.set_index(["not_a_col"])
+    with pytest.raises(KeyError):
+        scalars_df.set_index(["not_a_col"])
+
+
 @pytest.mark.parametrize(
     ("ascending",),
     ((True,), (False,)),

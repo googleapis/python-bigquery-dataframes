@@ -201,13 +201,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids = self._sql_names(columns, tolerance)
         return [self._block.value_columns.index(col_id) for col_id in col_ids]
 
-    def _resolve_label_exact(self, label) -> str:
+    def _resolve_label_exact(self, label) -> Optional[str]:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such column, returns None."""
         matches = self._block.label_to_col_id.get(label, [])
-        if len(matches) != 1:
+        if len(matches) > 1:
             raise ValueError(
-                f"Index data must be 1-dimensional. {constants.FEEDBACK_LINK}"
+                f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
             )
-        return matches[0]
+        return matches[0] if len(matches) != 0 else None
 
     def _sql_names(
         self,
@@ -903,7 +906,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             keys = typing.cast(typing.Sequence[blocks.Label], tuple(keys))
         col_ids = [self._resolve_label_exact(key) for key in keys]
-        return DataFrame(self._block.set_index(col_ids, append=append, drop=drop))
+        missing = [keys[i] for i in range(len(col_ids)) if col_ids[i] is None]
+        if len(missing) > 0:
+            raise KeyError(f"None of {missing} are in the columns")
+        # convert col_ids to non-optional strs since we just determined they are not None
+        col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
+        return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
     def sort_index(
         self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
