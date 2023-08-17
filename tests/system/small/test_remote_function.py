@@ -65,9 +65,7 @@ def bq_cf_connection_location_project_mismatched() -> str:
 
 @pytest.fixture(scope="module")
 def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
-    return bigframes.Session(
-        bigframes.BigQueryOptions(remote_udf_connection=bq_cf_connection)
-    )
+    return bigframes.Session(bigframes.BigQueryOptions(bq_connection=bq_cf_connection))
 
 
 @pytest.fixture(scope="module")
@@ -75,7 +73,7 @@ def session_with_bq_connection_location_specified(
     bq_cf_connection_location,
 ) -> bigframes.Session:
     return bigframes.Session(
-        bigframes.BigQueryOptions(remote_udf_connection=bq_cf_connection_location)
+        bigframes.BigQueryOptions(bq_connection=bq_cf_connection_location)
     )
 
 
@@ -84,9 +82,7 @@ def session_with_bq_connection_location_mistached(
     bq_cf_connection_location_mistached,
 ) -> bigframes.Session:
     return bigframes.Session(
-        bigframes.BigQueryOptions(
-            remote_udf_connection=bq_cf_connection_location_mistached
-        )
+        bigframes.BigQueryOptions(bq_connection=bq_cf_connection_location_mistached)
     )
 
 
@@ -95,9 +91,7 @@ def session_with_bq_connection_location_project_specified(
     bq_cf_connection_location_project,
 ) -> bigframes.Session:
     return bigframes.Session(
-        bigframes.BigQueryOptions(
-            remote_udf_connection=bq_cf_connection_location_project
-        )
+        bigframes.BigQueryOptions(bq_connection=bq_cf_connection_location_project)
     )
 
 
@@ -432,7 +426,7 @@ def test_remote_function_via_session_context_connection_setter(
     # Creating a session scoped only to this test as we would be setting a
     # property in it
     context = bigframes.BigQueryOptions()
-    context.remote_udf_connection = bq_cf_connection
+    context.bq_connection = bq_cf_connection
     session = bigframes.connect(context)
 
     # Without an explicit bigquery connection, the one present in Session,

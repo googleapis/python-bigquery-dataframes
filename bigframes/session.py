@@ -305,7 +305,7 @@ class Session(
             ),
         )
 
-        self._remote_udf_connection = context.remote_udf_connection
+        self._bq_connection = context.bq_connection
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
