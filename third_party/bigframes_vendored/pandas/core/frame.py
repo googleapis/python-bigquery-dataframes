@@ -44,6 +44,7 @@ class DataFrame(NDFrame):
         They are returned in that order.
 
         Examples
+
         .. code-block::
 
             df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
