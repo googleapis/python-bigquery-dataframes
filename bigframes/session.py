@@ -47,6 +47,7 @@ import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
+import google.cloud.resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
@@ -99,6 +100,7 @@ _MAX_CLUSTER_COLUMNS = 4
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
 # functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
+# Also see if resource manager client library supports regional endpoints.
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,7 @@ def _create_cloud_clients(
     google.cloud.bigquery_connection_v1.ConnectionServiceClient,
     google.cloud.bigquery_storage_v1.BigQueryReadClient,
     google.cloud.functions_v2.FunctionServiceClient,
+    google.cloud.resourcemanager_v3.ProjectsClient,
 ]:
     """Create and initialize BigQuery client objects."""
 
@@ -195,7 +198,20 @@ def _create_cloud_clients(
         credentials=credentials,
     )
 
-    return bqclient, bqconnectionclient, bqstorageclient, cloudfunctionsclient
+    resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
+        user_agent=_APPLICATION_NAME
+    )
+    resourcemanager_client = google.cloud.resourcemanager_v3.ProjectsClient(
+        credentials=credentials, client_info=resourcemanager_info
+    )
+
+    return (
+        bqclient,
+        bqconnectionclient,
+        bqstorageclient,
+        cloudfunctionsclient,
+        resourcemanager_client,
+    )
 
 
 class Session(
@@ -226,6 +242,7 @@ class Session(
             self.bqconnectionclient,
             self.bqstorageclient,
             self.cloudfunctionsclient,
+            self.resourcemanagerclient,
         ) = _create_cloud_clients(
             project=context.project,
             location=self._location,

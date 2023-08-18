@@ -23,6 +23,7 @@ import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
 import google.cloud.exceptions
 import google.cloud.functions_v2 as functions_v2
+import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
 import pandas as pd
@@ -99,6 +100,13 @@ def cloudfunctions_client(
     session: bigframes.Session,
 ) -> functions_v2.FunctionServiceClient:
     return session.cloudfunctionsclient
+
+
+@pytest.fixture(scope="session")
+def resourcemanager_client(
+    session: bigframes.Session,
+) -> resourcemanager_v3.ProjectsClient:
+    return session.resourcemanagerclient
 
 
 @pytest.fixture(scope="session")
