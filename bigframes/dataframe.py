@@ -872,6 +872,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             copy = self.copy()
             copy[k] = v(copy)
             return copy
+        elif utils.is_list_like(v):
+            given_rows = len(v)
+            actual_rows = len(self)
+            if given_rows != actual_rows:
+                raise ValueError(
+                    f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
+                )
+
+            local_df = bigframes.dataframe.DataFrame(
+                {k: v}, session=self._get_block().expr._session
+            )
+            # local_df is likely (but not guarunteed) to be cached locally
+            # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
+
+            this_expr, this_offsets_col_id = self._get_block()._expr.promote_offsets()
+            block = blocks.Block(
+                expr=this_expr,
+                index_labels=self.index.names,
+                index_columns=self._block.index_columns,
+                column_labels=[this_offsets_col_id] + list(self._block.value_columns),
+            )  # offsets are temporarily the first value column, label set to id
+            this_df_with_offsets = DataFrame(data=block)
+            join_result = this_df_with_offsets.join(
+                other=local_df, on=this_offsets_col_id, how="left"
+            )
+            return join_result.drop(columns=[this_offsets_col_id])
         else:
             return self._assign_scalar(k, v)
 
