@@ -864,7 +864,11 @@ def read_gbq_function(
         )
 
     # Find the routine and get its arguments.
-    routine = bigquery_client.get_routine(routine_ref)
+    try:
+        routine = bigquery_client.get_routine(routine_ref)
+    except google.api_core.exceptions.NotFound:
+        raise ValueError(f"Unknown function '{routine_ref}'. {constants.FEEDBACK_LINK}")
+
     try:
         ibis_signature = ibis_signature_from_routine(routine)
     except ReturnTypeMissingError:

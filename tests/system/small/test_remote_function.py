@@ -514,6 +514,18 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_detects_invalid_function(bigquery_client, dataset_id):
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    with pytest.raises(ValueError) as e:
+        rf.read_gbq_function(
+            str(dataset_ref.routine("not_a_function")),
+            bigquery_client=bigquery_client,
+        )
+
+    assert "Unknown function" in str(e.value)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_like_original(
     bigquery_client,
     bigqueryconnection_client,
