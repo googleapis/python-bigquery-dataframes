@@ -117,6 +117,7 @@ class Block:
         self._stats_cache: dict[str, dict[str, typing.Any]] = {
             col_id: {} for col_id in self.value_columns
         }
+        # TODO(kemppeterson) Add a cache for corr to parallel the single-column stats.
 
     @property
     def index(self) -> indexes.IndexValue:
@@ -966,6 +967,26 @@ class Block:
         stats_map = {stat_name: df.loc[0, stat_name] for stat_name in df.columns}
         self._stats_cache[column_id].update(stats_map)
         return stats_map[stat.name]
+
+    def get_corr_stat(self, column_id_left: str, column_id_right: str):
+        # TODO(kemppeterson): Clean up the column names for DataFrames.corr support
+        # TODO(kemppeterson): Add a cache here.
+        corr_aggregations = [
+            (
+                column_id_left,
+                column_id_right,
+                "corr_" + column_id_left + column_id_right,
+            )
+        ]
+        expr = self.expr.corr_aggregate(corr_aggregations)
+        expr, offset_index_id = expr.promote_offsets()
+        block = Block(
+            expr,
+            index_columns=[offset_index_id],
+            column_labels=[a[2] for a in corr_aggregations],
+        )
+        df, _ = block.to_pandas()
+        return df.loc[0, "corr_" + column_id_left + column_id_right]
 
     def summarize(
         self,

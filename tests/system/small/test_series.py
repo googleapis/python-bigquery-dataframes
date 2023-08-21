@@ -459,6 +459,19 @@ def test_mods(scalars_dfs, col_x, col_y, method):
     pd.testing.assert_series_equal(pd_result, bf_result)
 
 
+# We work around a pandas bug that doesn't handle correlating nullable dtypes by doing this
+# manually with dumb self-correlation instead of parameterized as test_mods is above.
+def test_corr(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_too"].corr(scalars_df["int64_too"])
+    pd_result = (
+        scalars_pandas_df["int64_too"]
+        .astype("int64")
+        .corr(scalars_pandas_df["int64_too"].astype("int64"))
+    )
+    assert math.isclose(pd_result, bf_result)
+
+
 @pytest.mark.parametrize(
     ("col_x",),
     [

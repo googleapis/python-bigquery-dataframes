@@ -563,6 +563,36 @@ class ArrayValue:
                 ordering=ordering,
             )
 
+    def corr_aggregate(
+        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
+    ) -> ArrayValue:
+        """
+        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
+        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
+        Arguments:
+            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
+        """
+        table = self.to_ibis_expr(ordering_mode="unordered")
+        stats = {
+            col_out: table[col_left].corr(table[col_right], how="pop")
+            for col_left, col_right, col_out in corr_aggregations
+        }
+        aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
+        result = table.aggregate(**aggregates)
+        # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
+        ordering = ExpressionOrdering(
+            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
+            integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
+        )
+        return ArrayValue(
+            self._session,
+            result,
+            columns=[result[col_id] for col_id in [*stats.keys()]],
+            hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
+            ordering=ordering,
+        )
+
     def project_window_op(
         self,
         column_name: str,
