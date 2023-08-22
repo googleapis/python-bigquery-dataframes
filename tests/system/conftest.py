@@ -755,3 +755,48 @@ def restore_sampling_settings():
     yield
     bigframes.options.sampling.enable_downsampling = enable_downsampling
     bigframes.options.sampling.max_download_size = max_download_size
+
+
+@pytest.fixture()
+def weird_strings_pd():
+    df = pd.DataFrame(
+        {
+            "string_col": [
+                "٠١٢٣٤٥٦٧٨٩",
+                "",
+                "0",
+                "字",
+                "五",
+                "0123456789",
+                pd.NA,
+                "abc 123 mixed letters and numbers",
+                "no numbers here",
+                "123a",
+                "23!",
+                " 45",
+                "a45",
+                "ǅ",
+                "tT",
+                "-123",
+                "-123.4",
+                "-0",
+                "-.0",
+                ".0",
+                ".1",
+                "⅙",
+                "²",
+                "\t",
+                "a\ta",
+                "p1\np2",
+                "  ",
+            ]
+        },
+        dtype=pd.StringDtype(storage="pyarrow"),
+    )
+    df.index = df.index.astype("Int64")
+    return df.string_col
+
+
+@pytest.fixture()
+def weird_strings(session, weird_strings_pd):
+    return session.read_pandas(weird_strings_pd.to_frame()).string_col
