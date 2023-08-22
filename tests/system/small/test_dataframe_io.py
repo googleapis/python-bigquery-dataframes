@@ -32,6 +32,7 @@ import typing
 
 import bigframes
 import bigframes.dataframe
+import bigframes.pandas as bpd
 
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
@@ -339,51 +340,38 @@ def test_to_parquet_index(scalars_dfs, gcs_folder, index):
     pd.testing.assert_frame_equal(gcs_df, scalars_pandas_df)
 
 
-def test_to_sql_query_named_index_included(
-    session, scalars_df_index, scalars_pandas_df_index
+def test_to_sql_query_index_included(
+    session: bigframes.Session,
+    scalars_df_default_index: bpd.DataFrame,
+    scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    sql, index_columns = scalars_df_index._to_sql_query(always_include_index=True)
-    assert len(index_columns) == 1
-    index_column, is_named = index_columns[0]
-    assert index_column == "rowindex"
-    assert is_named
-
-    roundtrip = session.read_gbq(sql, index_col=[index_column])
-    assert_pandas_df_equal_ignore_ordering(
-        roundtrip.to_pandas(), scalars_pandas_df_index
+    sql, idx_ids, idx_labels = scalars_df_default_index._to_sql_query(
+        include_index=True
     )
+    assert len(idx_labels) == 1
+    assert len(idx_ids) == 1
+    assert idx_labels[0] is None
+    assert idx_ids[0].startswith("bigframes")
 
-
-def test_to_sql_query_unnamed_index_excluded(
-    session, scalars_df_default_index, scalars_pandas_df_default_index
-):
-    # The .sql property should return SQL without the unnamed indexes
-    sql, index_columns = scalars_df_default_index._to_sql_query(
-        always_include_index=False
-    )
-    assert len(index_columns) == 0
-
-    roundtrip = session.read_gbq(sql)
+    roundtrip = session.read_gbq(sql, index_col=idx_ids)
+    roundtrip.index.names = [None]
     assert_pandas_df_equal_ignore_ordering(
         roundtrip.to_pandas(), scalars_pandas_df_default_index
     )
 
 
-def test_to_sql_query_unnamed_index_always_include(
-    session,
-    scalars_df_default_index: bigframes.dataframe.DataFrame,
-    scalars_pandas_df_default_index,
+def test_to_sql_query_index_excluded(
+    session: bigframes.Session,
+    scalars_df_default_index: bpd.DataFrame,
+    scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    sql, index_columns = scalars_df_default_index._to_sql_query(
-        always_include_index=True
+    sql, idx_ids, idx_labels = scalars_df_default_index._to_sql_query(
+        include_index=False
     )
-    assert len(index_columns) == 1
-    index_column, is_named = index_columns[0]
-    assert index_column == "bigframes_index_0"
-    assert not is_named
+    assert len(idx_labels) == 0
+    assert len(idx_ids) == 0
 
-    roundtrip = session.read_gbq(sql, index_col=[index_column])
-    roundtrip.index.name = None
+    roundtrip = session.read_gbq(sql)
     assert_pandas_df_equal_ignore_ordering(
         roundtrip.to_pandas(), scalars_pandas_df_default_index
     )

@@ -80,11 +80,11 @@ class Block:
         self,
         expr: core.ArrayValue,
         index_columns: Iterable[str],
-        column_labels: typing.Union[pd.Index, typing.Sequence[Label]],
-        index_labels: typing.Union[pd.Index, typing.Sequence[Label], None] = None,
+        column_labels: typing.Union[pd.Index, typing.Iterable[Label]],
+        index_labels: typing.Union[pd.Index, typing.Iterable[Label], None] = None,
     ):
         """Construct a block object, will create default index if no index columns specified."""
-        if index_labels and (len(index_labels) != len(list(index_columns))):
+        if index_labels and (len(list(index_labels)) != len(list(index_columns))):
             raise ValueError(
                 "'index_columns' and 'index_labels' must have equal length"
             )

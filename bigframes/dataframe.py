@@ -56,7 +56,6 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
-import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 if typing.TYPE_CHECKING:
@@ -294,81 +293,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_to_rows(ops.AsTypeOp(dtype))
 
     def _to_sql_query(
-        self, always_include_index: bool
-    ) -> Tuple[str, List[Tuple[str, bool]]]:
+        self, include_index: bool
+    ) -> Tuple[str, list[str], list[blocks.Label]]:
         """Compiles this DataFrame's expression tree to SQL, optionally
-        including unnamed index columns.
+        including index columns.
 
         Args:
-            always_include_index (bool):
-                whether to include unnamed index columns. If False, only named
-                indexes are included.
+            include_index (bool):
+                whether to include index columns.
 
-        Returns: a tuple of (sql_string, index_column_list)
-            Each entry in the index column list is a tuple of (column_name, named).
-            If named is false, then the column name exists only in SQL
+        Returns:
+            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+                If include_index is set to False, index_column_id_list and index_column_label_list
+                return empty lists.
         """
         # Has to be unordered as it is impossible to order the sql without
         # including metadata columns in selection with ibis.
         ibis_expr = self._block.expr.to_ibis_expr(ordering_mode="unordered")
-        column_labels = list(self._block.column_labels)
-
-        # TODO(swast): Need to have a better way of controlling when to include
-        # the index or not.
-        index_has_names = all([name is not None for name in self.index.names])
-        if index_has_names:
-            column_labels = column_labels + list(self.index.names)
-        elif always_include_index:
-            # In this mode include the index even if it is a nameless generated
-            # column like 'bigframes_index_0'
-            index_labels = []
-            unnamed_index_count = 0
-            for index_label in self._block.index_labels:
-                if isinstance(index_label, str):
-                    index_labels.append(index_label)
-                else:
-                    index_labels.append(
-                        indexes.INDEX_COLUMN_ID.format(unnamed_index_count),
-                    )
-                    unnamed_index_count += 1
-
-            column_labels = column_labels + typing.cast(
-                List[Optional[str]], index_labels
-            )
-
-        column_labels_deduped = typing.cast(
-            List[str],
-            vendored_pandas_io_common.dedup_names(
-                column_labels, is_potential_multiindex=False
-            ),
+        col_labels, idx_labels = list(self._block.column_labels), list(
+            self._block.index_labels
         )
-        column_ids = self._block.value_columns
-        substitutions = {}
-        for column_id, column_label in zip(column_ids, column_labels_deduped):
-            # TODO(swast): Do we need to further escape this, or can we rely on
-            # the BigQuery unicode column name feature?
-            substitutions[column_id] = column_label
+        old_col_ids, old_idx_ids = list(self._block.value_columns), list(
+            self._block.index_columns
+        )
 
-        index_cols: List[Tuple[str, bool]] = []
-        first_index_offset = len(self._block.column_labels)
-        if index_has_names or always_include_index:
-            for i, index_col in enumerate(self._block.index_columns):
-                offset = first_index_offset + i
-                substitutions[index_col] = column_labels_deduped[offset]
-            index_cols = [
-                (label, index_has_names)
-                for label in column_labels_deduped[first_index_offset:]
-            ]
-        else:
+        if not include_index:
+            idx_labels, old_idx_ids = [], []  # exclude index
             ibis_expr = ibis_expr.drop(*self._block.index_columns)
 
+        old_ids = old_idx_ids + old_col_ids
+
+        new_col_ids, new_idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
+        new_ids = new_idx_ids + new_col_ids
+
+        substitutions = {}
+        for old_id, new_id in zip(old_ids, new_ids):
+            # TODO(swast): Do we need to further escape this, or can we rely on
+            # the BigQuery unicode column name feature?
+            substitutions[old_id] = new_id
+
         ibis_expr = ibis_expr.relabel(substitutions)
-        return typing.cast(str, ibis_expr.compile()), index_cols
+        return (
+            typing.cast(str, ibis_expr.compile()),
+            new_ids[: len(idx_labels)],
+            idx_labels,
+        )
 
     @property
     def sql(self) -> str:
         """Compiles this DataFrame's expression tree to SQL."""
-        sql, _ = self._to_sql_query(always_include_index=False)
+        sql, _, _ = self._to_sql_query(include_index=False)
         return sql
 
     @property

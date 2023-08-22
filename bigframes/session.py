@@ -70,6 +70,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
 import bigframes.core.io as bigframes_io
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
+import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.remote_function import read_gbq_function as bigframes_rgf
@@ -568,9 +569,10 @@ class Session(
         table_expression: ibis_types.Table,
         *,
         col_order: Iterable[str] = (),
-        index_cols: Sequence[str] = (),
-        index_labels: Sequence[Optional[str]] = (),
-        hidden_cols: Sequence[str] = (),
+        col_labels: Iterable[Optional[str]] = (),
+        index_cols: Iterable[str] = (),
+        index_labels: Iterable[Optional[str]] = (),
+        hidden_cols: Iterable[str] = (),
         ordering: core.ExpressionOrdering,
         is_total_ordering: bool = False,
     ) -> dataframe.DataFrame:
@@ -580,9 +582,13 @@ class Session(
             table_expression:
                 an ibis table expression to be executed in BigQuery.
             col_order:
-                List of BigQuery column names in the desired order for results DataFrame.
+                List of BigQuery column ids in the desired order for results DataFrame.
+            col_labels:
+                List of column labels as the column names.
             index_cols:
-                List of column names to use as the index or multi-index.
+                List of index ids to use as the index or multi-index.
+            index_labels:
+                List of index labels as names of index.
             hidden_cols:
                 Columns that should be hidden. Ordering columns may (not always) be hidden
             ordering:
@@ -591,6 +597,7 @@ class Session(
         Returns:
             A DataFrame representing results of the query or table.
         """
+        index_cols, index_labels = list(index_cols), list(index_labels)
         if len(index_cols) != len(index_labels):
             raise ValueError(
                 "Needs same number of index labels are there are index columns. "
@@ -614,11 +621,14 @@ class Session(
                 table_expression, index_cols
             )
         index_col_values = [table_expression[index_id] for index_id in index_cols]
+        if not col_labels:
+            col_labels = column_keys
         return self._read_ibis(
             table_expression,
             index_col_values,
             index_labels,
             column_keys,
+            col_labels,
             ordering=ordering,
         )
 
@@ -667,9 +677,10 @@ class Session(
     def _read_ibis(
         self,
         table_expression: ibis_types.Table,
-        index_cols: Sequence[ibis_types.Value],
-        index_labels: Sequence[Optional[str]],
-        column_keys: Sequence[str],
+        index_cols: Iterable[ibis_types.Value],
+        index_labels: Iterable[Optional[str]],
+        column_keys: Iterable[str],
+        column_labels: Iterable[Optional[str]],
         ordering: core.ExpressionOrdering,
     ) -> dataframe.DataFrame:
         """Turns a table expression (plus index column) into a DataFrame."""
@@ -691,7 +702,7 @@ class Session(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
             index_columns=[index_col.get_name() for index_col in index_cols],
-            column_labels=column_keys,
+            column_labels=column_labels,
             index_labels=index_labels,
         )
 
@@ -730,15 +741,23 @@ class Session(
         Returns:
             bigframes.dataframe.DataFrame: The BigQuery DataFrame.
         """
+        col_labels, idx_labels = (
+            list(pandas_dataframe.columns),
+            pandas_dataframe.index.names,
+        )
+        new_col_ids, new_idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
+
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
-        columns = frozenset(pandas_dataframe.columns)
+        columns = frozenset(col_labels + idx_labels)
         suffix = 2
         while ordering_col in columns:
             ordering_col = f"rowid_{suffix}"
             suffix += 1
 
         pandas_dataframe_copy = pandas_dataframe.copy()
+        pandas_dataframe_copy.index.names = new_idx_ids
+        pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
@@ -749,27 +768,12 @@ class Session(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
                 )
 
-        # Unnamed are not copied to BigQuery when load_table_from_dataframe
-        # executes.
-        index_cols = list(
-            filter(lambda name: name is not None, pandas_dataframe_copy.index.names)
-        )
-        index_labels = typing.cast(List[Optional[str]], index_cols)
-
         # Clustering probably not needed anyways as pandas tables are small
         cluster_cols = [ordering_col]
-
-        if len(index_cols) == 0:
-            # Block constructor will implicitly build default index
-            pass
 
         job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols
 
-        # TODO(swast): Rename the unnamed index columns and restore them after
-        # the load job completes.
-        # Column values will be loaded as null if the column name has spaces.
-        # https://github.com/googleapis/python-bigquery/issues/1566
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
@@ -787,14 +791,22 @@ class Session(
             f"SELECT * FROM `{load_table_destination.table_id}`"
         )
 
-        return self._read_gbq_with_ordering(
+        # Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
+        if any(
+            [new_idx_id not in table_expression.columns for new_idx_id in new_idx_ids]
+        ):
+            new_idx_ids, idx_labels = [], []
+
+        df = self._read_gbq_with_ordering(
             table_expression=table_expression,
-            index_cols=index_cols,
-            index_labels=index_labels,
+            col_labels=col_labels,
+            index_cols=new_idx_ids,
+            index_labels=idx_labels,
             hidden_cols=(ordering_col,),
             ordering=ordering,
             is_total_ordering=True,
         )
+        return df
 
     def read_csv(
         self,

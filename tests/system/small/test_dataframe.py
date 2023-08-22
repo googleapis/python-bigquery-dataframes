@@ -77,6 +77,19 @@ def test_df_construct_from_series(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_construct_from_dict():
+    input_dict = {
+        "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
+        "Max Speed": [380.0, 370.0, 24.0, 26.0],
+    }
+    bf_result = dataframe.DataFrame(input_dict).to_pandas()
+    pd_result = pd.DataFrame(input_dict)
+
+    pandas.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
 def test_get_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"

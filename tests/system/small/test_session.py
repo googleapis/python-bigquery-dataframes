@@ -252,6 +252,20 @@ def test_read_pandas(session, scalars_dfs):
     pd.testing.assert_frame_equal(result, expected)
 
 
+def test_read_pandas_col_label_w_space(session: bigframes.Session):
+    expected = pd.DataFrame(
+        {
+            "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
+            "Max Speed": [380.0, 370.0, 24.0, 26.0],
+        }
+    )
+    result = session.read_pandas(expected).to_pandas()
+
+    pd.testing.assert_frame_equal(
+        result, expected, check_index_type=False, check_dtype=False
+    )
+
+
 def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
     df = session.read_pandas(scalars_pandas_df_multi_index)
     result = df.to_pandas()

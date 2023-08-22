@@ -900,7 +900,7 @@ def test_binop_repeated_application_does_row_identity_joins(scalars_dfs):
         pd_result,
     )
 
-    bf_sql, _ = bf_series.to_frame()._to_sql_query(always_include_index=True)
+    bf_sql, _, _ = bf_series.to_frame()._to_sql_query(include_index=True)
     selects = re.findall("SELECT", bf_sql.upper())
     assert 0 < len(selects) < (num_joins // 2)
 
