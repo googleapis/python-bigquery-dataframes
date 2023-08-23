@@ -1024,13 +1024,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(self._get_block().add_suffix(suffix, axis))
 
     def dropna(self) -> DataFrame:
-        block = self._block
-        for column in self._block.value_columns:
-            block, result_id = block.apply_unary_op(column, ops.notnull_op)
-            block = block.filter(result_id)
-            block = block.drop_columns([result_id])
-
-        return DataFrame(block)
+        return DataFrame(block_ops.dropna(self._block, how="any"))
 
     def any(
         self,
@@ -1208,6 +1202,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values_in_index=utils.is_list_like(values),
         )
         return DataFrame(pivot_block)
+
+    def stack(self):
+        # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
+        # TODO: support 'dropna' param by executing dropna only conditionally
+        result_block = block_ops.dropna(self._block.stack(), how="all")
+        if not isinstance(self.columns, pandas.MultiIndex):
+            return bigframes.series.Series(result_block)
+        return DataFrame(result_block)
 
     def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
         types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)

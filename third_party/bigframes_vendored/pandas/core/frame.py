@@ -1266,6 +1266,29 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def stack(self):
+        """
+        Stack the prescribed level(s) from columns to index.
+
+        Return a reshaped DataFrame or Series having a multi-level
+        index with one or more new inner-most levels compared to the current
+        DataFrame. The new inner-most levels are created by pivoting the
+        columns of the current dataframe:
+
+        - if the columns have a single level, the output is a Series;
+        - if the columns have multiple levels, the new index
+            level(s) is (are) taken from the prescribed level(s) and
+            the output is a DataFrame.
+
+        .. note::
+            BigQuery DataFrames does not support stack operations that would
+            combine columns of different dtypes.
+
+        Returns:
+            DataFrame or Series: Stacked dataframe or series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Add index and columns
 
