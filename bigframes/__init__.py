@@ -16,13 +16,16 @@
 
 from bigframes._config import options
 from bigframes._config.bigquery_options import BigQueryOptions
+from bigframes.core.global_session import get_global_session, reset_session
 from bigframes.session import connect, Session
 from bigframes.version import __version__
 
 __all__ = [
-    "BigQueryOptions",
-    "connect",
     "options",
+    "BigQueryOptions",
+    "get_global_session",
+    "reset_session",
+    "connect",
     "Session",
     "__version__",
 ]
