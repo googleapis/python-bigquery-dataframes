@@ -166,6 +166,20 @@ class BqmlModel:
 
         return self._session.read_gbq(sql)
 
+    def principal_components(self):
+        assert self._model.model_type == "PCA"
+
+        sql = ml_sql.ml_principal_components(self.model_name)
+
+        return self._session.read_gbq(sql)
+
+    def principal_component_info(self):
+        assert self._model.model_type == "PCA"
+
+        sql = ml_sql.ml_principal_component_info(self.model_name)
+
+        return self._session.read_gbq(sql)
+
     def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
         job_config = bigquery.job.CopyJobConfig()
         if replace:

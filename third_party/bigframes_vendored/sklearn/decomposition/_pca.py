@@ -81,3 +81,50 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         Returns:
             bigframes.dataframe.DataFrame: predicted DataFrames."""
         raise NotImplementedError("abstract method")
+
+    @property
+    def components_(self):
+        """Principal axes in feature space, representing the directions of maximum variance in the data.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame of principal components, containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                feature: The column name that contains the feature.
+
+                numerical_value: If feature is numeric, the value of feature for the principal component that principal_component_id identifies. If feature isn't numeric, the value is NULL.
+
+                categorical_value: An list of mappings containing information about categorical features. Each mapping contains the following fields:
+                    categorical_value.category: The name of each category.
+
+                    categorical_value.value: The value of categorical_value.category for the centroid that centroid_id identifies.
+
+            The output contains one row per feature per component.
+        """
+        raise NotImplementedError("abstract method")
+
+    @property
+    def explained_variance_(self):
+        """The amount of variance explained by each of the selected components.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                explained_variance: The factor by which the eigenvector is scaled. Eigenvalue and explained variance are the same concepts in PCA.
+        """
+        raise NotImplementedError("abstract method")
+
+    @property
+    def explained_variance_ratio_(self):
+        """Percentage of variance explained by each of the selected components.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                explained_variance_ratio: the total variance is the sum of variances, also known as eigenvalues, of all
+                of the individual principal components. The explained variance ratio by a principal component is
+                the ratio between the variance, also known as eigenvalue, of that principal component and the total variance.
+        """
+        raise NotImplementedError("abstract method")
