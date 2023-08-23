@@ -7,6 +7,9 @@ powered by the BigQuery engine.
 * ``bigframes.pandas`` provides a pandas-compatible API for analytics.
 * ``bigframes.ml`` provides a scikit-learn-like API for ML.
 
+BigQuery DataFrames is an open-source package. You can run
+``pip install --upgrade bigframes`` to install the latest version.
+
 Documentation
 -------------
 
