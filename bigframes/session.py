@@ -124,104 +124,143 @@ def _get_default_credentials_with_project():
     return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
 
 
-def _create_cloud_clients(
-    project: Optional[str],
-    location: Optional[str],
-    use_regional_endpoints: Optional[bool],
-    credentials: Optional[google.auth.credentials.Credentials],
-) -> typing.Tuple[
-    bigquery.Client,
-    google.cloud.bigquery_connection_v1.ConnectionServiceClient,
-    google.cloud.bigquery_storage_v1.BigQueryReadClient,
-    google.cloud.functions_v2.FunctionServiceClient,
-    google.cloud.resourcemanager_v3.ProjectsClient,
-]:
-    """Create and initialize BigQuery client objects."""
+class ClientsProvider:
+    """Provides client instances necessary to perform cloud operations."""
 
-    credentials_project = None
-    if credentials is None:
-        credentials, credentials_project = _get_default_credentials_with_project()
+    def __init__(
+        self,
+        project: Optional[str],
+        location: Optional[str],
+        use_regional_endpoints: Optional[bool],
+        credentials: Optional[google.auth.credentials.Credentials],
+    ):
+        credentials_project = None
+        if credentials is None:
+            credentials, credentials_project = _get_default_credentials_with_project()
 
-    # Prefer the project in this order:
-    # 1. Project explicitly specified by the user
-    # 2. Project set in the environment
-    # 3. Project associated with the default credentials
-    project = (
-        project
-        or os.getenv(_ENV_DEFAULT_PROJECT)
-        or typing.cast(Optional[str], credentials_project)
-    )
-
-    if not project:
-        raise ValueError(
-            "Project must be set to initialize BigQuery client. "
-            "Try setting `bigframes.options.bigquery.project` first."
+        # Prefer the project in this order:
+        # 1. Project explicitly specified by the user
+        # 2. Project set in the environment
+        # 3. Project associated with the default credentials
+        project = (
+            project
+            or os.getenv(_ENV_DEFAULT_PROJECT)
+            or typing.cast(Optional[str], credentials_project)
         )
 
-    if use_regional_endpoints:
-        bq_options = google.api_core.client_options.ClientOptions(
-            api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=location),
-        )
-        bqstorage_options = google.api_core.client_options.ClientOptions(
-            api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(location=location)
-        )
-        bqconnection_options = google.api_core.client_options.ClientOptions(
-            api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(location=location)
-        )
-    else:
-        bq_options = None
-        bqstorage_options = None
-        bqconnection_options = None
+        if not project:
+            raise ValueError(
+                "Project must be set to initialize BigQuery client. "
+                "Try setting `bigframes.options.bigquery.project` first."
+            )
 
-    bq_info = google.api_core.client_info.ClientInfo(user_agent=_APPLICATION_NAME)
-    bqclient = bigquery.Client(
-        client_info=bq_info,
-        client_options=bq_options,
-        credentials=credentials,
-        project=project,
-        location=location,
-    )
+        self._project = project
+        self._location = location
+        self._use_regional_endpoints = use_regional_endpoints
+        self._credentials = credentials
 
-    bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
-        user_agent=_APPLICATION_NAME
-    )
-    bqconnectionclient = google.cloud.bigquery_connection_v1.ConnectionServiceClient(
-        client_info=bqconnection_info,
-        client_options=bqconnection_options,
-        credentials=credentials,
-    )
+        # cloud clients initialized for lazy load
+        self._bqclient = None
+        self._bqconnectionclient = None
+        self._bqstorageclient = None
+        self._cloudfunctionsclient = None
+        self._resourcemanagerclient = None
 
-    bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
-        user_agent=_APPLICATION_NAME
-    )
-    bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
-        client_info=bqstorage_info,
-        client_options=bqstorage_options,
-        credentials=credentials,
-    )
+    @property
+    def bqclient(self):
+        if not self._bqclient:
+            bq_options = None
+            if self._use_regional_endpoints:
+                bq_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(
+                        location=self._location
+                    ),
+                )
+            bq_info = google.api_core.client_info.ClientInfo(
+                user_agent=_APPLICATION_NAME
+            )
+            self._bqclient = bigquery.Client(
+                client_info=bq_info,
+                client_options=bq_options,
+                credentials=self._credentials,
+                project=self._project,
+                location=self._location,
+            )
 
-    functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
-        user_agent=_APPLICATION_NAME
-    )
-    cloudfunctionsclient = google.cloud.functions_v2.FunctionServiceClient(
-        client_info=functions_info,
-        credentials=credentials,
-    )
+        return self._bqclient
 
-    resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
-        user_agent=_APPLICATION_NAME
-    )
-    resourcemanager_client = google.cloud.resourcemanager_v3.ProjectsClient(
-        credentials=credentials, client_info=resourcemanager_info
-    )
+    @property
+    def bqconnectionclient(self):
+        if not self._bqconnectionclient:
+            bqconnection_options = None
+            if self._use_regional_endpoints:
+                bqconnection_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
+                        location=self._location
+                    )
+                )
+            bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                user_agent=_APPLICATION_NAME
+            )
+            self._bqconnectionclient = (
+                google.cloud.bigquery_connection_v1.ConnectionServiceClient(
+                    client_info=bqconnection_info,
+                    client_options=bqconnection_options,
+                    credentials=self._credentials,
+                )
+            )
 
-    return (
-        bqclient,
-        bqconnectionclient,
-        bqstorageclient,
-        cloudfunctionsclient,
-        resourcemanager_client,
-    )
+        return self._bqconnectionclient
+
+    @property
+    def bqstorageclient(self):
+        if not self._bqstorageclient:
+            bqstorage_options = None
+            if self._use_regional_endpoints:
+                bqstorage_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
+                        location=self._location
+                    )
+                )
+            bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                user_agent=_APPLICATION_NAME
+            )
+            self._bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
+                client_info=bqstorage_info,
+                client_options=bqstorage_options,
+                credentials=self._credentials,
+            )
+
+        return self._bqstorageclient
+
+    @property
+    def cloudfunctionsclient(self):
+        if not self._cloudfunctionsclient:
+            functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                user_agent=_APPLICATION_NAME
+            )
+            self._cloudfunctionsclient = (
+                google.cloud.functions_v2.FunctionServiceClient(
+                    client_info=functions_info,
+                    credentials=self._credentials,
+                )
+            )
+
+        return self._cloudfunctionsclient
+
+    @property
+    def resourcemanagerclient(self):
+        if not self._resourcemanagerclient:
+            resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                user_agent=_APPLICATION_NAME
+            )
+            self._resourcemanagerclient = (
+                google.cloud.resourcemanager_v3.ProjectsClient(
+                    credentials=self._credentials, client_info=resourcemanager_info
+                )
+            )
+
+        return self._resourcemanagerclient
 
 
 class Session(
@@ -247,13 +286,9 @@ class Session(
         else:
             self._location = context.location
 
-        (
-            self.bqclient,
-            self.bqconnectionclient,
-            self.bqstorageclient,
-            self.cloudfunctionsclient,
-            self.resourcemanagerclient,
-        ) = _create_cloud_clients(
+        # Instantiate a clients provider to help with cloud clients that will be
+        # used in the future operations in the session
+        self._clients_provider = ClientsProvider(
             project=context.project,
             location=self._location,
             use_regional_endpoints=context.use_regional_endpoints,
@@ -275,6 +310,26 @@ class Session(
         # Now that we're starting the session, don't allow the options to be
         # changed.
         context._session_started = True
+
+    @property
+    def bqclient(self):
+        return self._clients_provider.bqclient
+
+    @property
+    def bqconnectionclient(self):
+        return self._clients_provider.bqconnectionclient
+
+    @property
+    def bqstorageclient(self):
+        return self._clients_provider.bqstorageclient
+
+    @property
+    def cloudfunctionsclient(self):
+        return self._clients_provider.cloudfunctionsclient
+
+    @property
+    def resourcemanagerclient(self):
+        return self._clients_provider.resourcemanagerclient
 
     @property
     def _session_dataset_id(self):

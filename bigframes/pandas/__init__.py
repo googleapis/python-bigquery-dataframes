@@ -148,12 +148,14 @@ def _set_default_session_location_if_possible(query):
     ):
         return
 
-    bqclient, _, _, _, _ = bigframes.session._create_cloud_clients(
+    clients_provider = bigframes.session.ClientsProvider(
         project=options.bigquery.project,
         location=options.bigquery.location,
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
         credentials=options.bigquery.credentials,
     )
+
+    bqclient = clients_provider.bqclient
 
     if bigframes.session._is_query(query):
         job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
