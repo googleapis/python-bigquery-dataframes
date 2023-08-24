@@ -20,6 +20,8 @@ from typing import (
 
 import numpy as np
 
+from bigframes import constants
+
 
 class ReaderIOMixin:
     def read_csv(
@@ -121,7 +123,7 @@ class ReaderIOMixin:
         Returns:
             bigframes.dataframe.DataFrame: A BigQuery DataFrames.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def read_json(
         self,
@@ -182,4 +184,4 @@ class ReaderIOMixin:
             bigframes.dataframe.DataFrame:
                 The DataFrame representing JSON contents.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

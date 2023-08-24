@@ -12,6 +12,7 @@
 
 from abc import ABCMeta
 
+from bigframes import constants
 from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
@@ -55,7 +56,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         Returns:
             PCA: Fitted estimator.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def score(self, X=None, y=None):
         """Return the metrics of the model.
@@ -69,7 +70,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         Returns:
             bigframes.dataframe.DataFrame: DataFrame that represents model metrics.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def predict(self, X):
         """Predict the closest cluster for each sample in X.
@@ -80,7 +81,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
         Returns:
             bigframes.dataframe.DataFrame: predicted DataFrames."""
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def components_(self):
@@ -101,7 +102,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
             The output contains one row per feature per component.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def explained_variance_(self):
@@ -113,7 +114,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
                 explained_variance: The factor by which the eigenvector is scaled. Eigenvalue and explained variance are the same concepts in PCA.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def explained_variance_ratio_(self):
@@ -127,4 +128,4 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
                 of the individual principal components. The explained variance ratio by a principal component is
                 the ratio between the variance, also known as eigenvalue, of that principal component and the total variance.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
