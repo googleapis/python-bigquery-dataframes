@@ -39,6 +39,16 @@ def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]
     return pd.api.types.is_dict_like(obj)
 
 
+def combine_indices(index1: pd.Index, index2: pd.Index) -> pd.MultiIndex:
+    """Combines indices into multi-index while preserving dtypes, names."""
+    multi_index = pd.MultiIndex.from_frame(
+        pd.concat([index1.to_frame(index=False), index2.to_frame(index=False)], axis=1)
+    )
+    # to_frame will produce numbered default names, we don't want these
+    multi_index.names = [*index1.names, *index2.names]
+    return multi_index
+
+
 def get_standardized_ids(
     col_labels: Iterable[Hashable], idx_labels: Iterable[Hashable] = ()
 ) -> tuple[list[str], list[str]]:
