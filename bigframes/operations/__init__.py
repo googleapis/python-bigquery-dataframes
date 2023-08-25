@@ -56,6 +56,60 @@ class AbsOp(UnaryOp):
         return typing.cast(ibis_types.NumericValue, x).abs()
 
 
+class SinOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.NumericValue, x).sin()
+
+
+class CosOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.NumericValue, x).cos()
+
+
+class TanOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        return typing.cast(ibis_types.NumericValue, x).tan()
+
+
+class SqrtOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        numeric_value = typing.cast(ibis_types.NumericValue, x)
+        sqrtval = numeric_value.sqrt()
+        return (
+            ibis.case()
+            .when(numeric_value >= _ZERO, sqrtval)
+            .when(numeric_value.notnull(), _NAN)
+            .else_(None)
+            .end()
+        )
+
+
+class Log10Op(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        numeric_value = typing.cast(ibis_types.NumericValue, x)
+        logval = numeric_value.log10()
+        return (
+            ibis.case()
+            .when(numeric_value > _ZERO, logval)
+            .when(numeric_value.notnull(), _NAN)
+            .else_(None)
+            .end()
+        )
+
+
+class LnOp(UnaryOp):
+    def _as_ibis(self, x: ibis_types.Value):
+        numeric_value = typing.cast(ibis_types.NumericValue, x)
+        logval = numeric_value.ln()
+        return (
+            ibis.case()
+            .when(numeric_value > _ZERO, logval)
+            .when(numeric_value.notnull(), _NAN)
+            .else_(None)
+            .end()
+        )
+
+
 class InvertOp(UnaryOp):
     def _as_ibis(self, x: ibis_types.Value):
         return typing.cast(ibis_types.NumericValue, x).negate()
@@ -483,6 +537,18 @@ second_op = SecondOp()
 time_op = TimeOp()
 year_op = YearOp()
 capitalize_op = CapitalizeOp()
+
+# Just parameterless unary ops for now
+# TODO: Parameter mappings
+NUMPY_TO_OP: typing.Final = {
+    np.sin: SinOp(),
+    np.cos: CosOp(),
+    np.tan: TanOp(),
+    np.log: LnOp(),
+    np.log10: Log10Op(),
+    np.sqrt: SqrtOp(),
+    np.abs: AbsOp(),
+}
 
 
 ### Binary Ops

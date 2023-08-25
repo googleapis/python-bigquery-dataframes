@@ -290,7 +290,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
-        return self._apply_to_rows(ops.AsTypeOp(dtype))
+        return self._apply_unary_op(ops.AsTypeOp(dtype))
 
     def _to_sql_query(
         self, include_index: bool
@@ -1508,15 +1508,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def abs(self) -> DataFrame:
-        return self._apply_to_rows(ops.abs_op)
+        return self._apply_unary_op(ops.abs_op)
 
     def isna(self) -> DataFrame:
-        return self._apply_to_rows(ops.isnull_op)
+        return self._apply_unary_op(ops.isnull_op)
 
     isnull = isna
 
     def notna(self) -> DataFrame:
-        return self._apply_to_rows(ops.notnull_op)
+        return self._apply_unary_op(ops.notnull_op)
 
     notnull = notna
 
@@ -1736,7 +1736,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         _, query_job = self._block.expr._session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
-    def _apply_to_rows(self, operation: ops.UnaryOp):
+    def _apply_unary_op(self, operation: ops.UnaryOp) -> DataFrame:
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
@@ -1813,7 +1813,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # to be applied before passing data to remote function, protecting from bad
         # inputs causing errors.
         reprojected_df = DataFrame(self._block._force_reproject())
-        return reprojected_df._apply_to_rows(
+        return reprojected_df._apply_unary_op(
             ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
         )
 
@@ -1870,6 +1870,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         block = self._block.slice(start=start, stop=stop, step=step)
         return DataFrame(block)
+
+    def __array_ufunc__(
+        self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
+    ) -> DataFrame:
+        """Used to support numpy ufuncs.
+        See: https://numpy.org/doc/stable/reference/ufuncs.html
+        """
+        if (
+            inputs[0] is not self
+            or method != "__call__"
+            or len(inputs) > 1
+            or len(kwargs) > 0
+        ):
+            return NotImplemented
+
+        if ufunc in ops.NUMPY_TO_OP:
+            return self._apply_unary_op(ops.NUMPY_TO_OP[ufunc])
+
+        return NotImplemented
 
     def _set_block(self, block: blocks.Block):
         self._block = block

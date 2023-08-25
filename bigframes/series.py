@@ -1158,6 +1158,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def to_xarray(self):
         return self.to_pandas().to_xarray()
 
+    def __array_ufunc__(
+        self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
+    ) -> Series:
+        """Used to support numpy ufuncs.
+        See: https://numpy.org/doc/stable/reference/ufuncs.html
+        """
+        # Only __call__ supported with zero arguments
+        if (
+            inputs[0] is not self
+            or method != "__call__"
+            or len(inputs) > 1
+            or len(kwargs) > 0
+        ):
+            return NotImplemented
+
+        if ufunc in ops.NUMPY_TO_OP:
+            return self._apply_unary_op(ops.NUMPY_TO_OP[ufunc])
+
+        return NotImplemented
+
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str
     @property
