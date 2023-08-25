@@ -562,6 +562,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rfloordiv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
 
+    def __pow__(self, other: float | int | Series) -> Series:
+        return self.pow(other)
+
+    def __rpow__(self, other: float | int | Series) -> Series:
+        return self.rpow(other)
+
+    def pow(self, other: float | int | Series) -> Series:
+        return self._apply_binary_op(other, ops.pow_op)
+
+    def rpow(self, other: float | int | Series) -> Series:
+        return self._apply_binary_op(other, ops.reverse(ops.pow_op))
+
     def __lt__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.lt(other)
 
@@ -1213,16 +1225,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         See: https://numpy.org/doc/stable/reference/ufuncs.html
         """
         # Only __call__ supported with zero arguments
-        if (
-            inputs[0] is not self
-            or method != "__call__"
-            or len(inputs) > 1
-            or len(kwargs) > 0
-        ):
+        if method != "__call__" or len(inputs) > 2 or len(kwargs) > 0:
             return NotImplemented
 
-        if ufunc in ops.NUMPY_TO_OP:
+        if len(inputs) == 1 and ufunc in ops.NUMPY_TO_OP:
             return self._apply_unary_op(ops.NUMPY_TO_OP[ufunc])
+        if len(inputs) == 2 and ufunc in ops.NUMPY_TO_BINOP:
+            binop = ops.NUMPY_TO_BINOP[ufunc]
+            if inputs[0] is self:
+                return self._apply_binary_op(inputs[1], binop)
+            else:
+                return self._apply_binary_op(inputs[0], ops.reverse(binop))
 
         return NotImplemented
 

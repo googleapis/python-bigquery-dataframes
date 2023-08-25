@@ -686,6 +686,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __rmod__ = rmod
 
+    def pow(
+        self, other: int | bigframes.series.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.pow_op, axis=axis)
+
+    def rpow(
+        self, other: int | bigframes.series.Series, axis: str | int = "columns"
+    ) -> DataFrame:
+        return self._apply_binop(other, ops.reverse(ops.pow_op), axis=axis)
+
+    __pow__ = pow
+
+    __rpow__ = rpow
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -1916,16 +1930,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Used to support numpy ufuncs.
         See: https://numpy.org/doc/stable/reference/ufuncs.html
         """
-        if (
-            inputs[0] is not self
-            or method != "__call__"
-            or len(inputs) > 1
-            or len(kwargs) > 0
-        ):
+        if method != "__call__" or len(inputs) > 2 or len(kwargs) > 0:
             return NotImplemented
 
-        if ufunc in ops.NUMPY_TO_OP:
+        if len(inputs) == 1 and ufunc in ops.NUMPY_TO_OP:
             return self._apply_unary_op(ops.NUMPY_TO_OP[ufunc])
+        if len(inputs) == 2 and ufunc in ops.NUMPY_TO_BINOP:
+            binop = ops.NUMPY_TO_BINOP[ufunc]
+            if inputs[0] is self:
+                return self._apply_binop(inputs[1], binop)
+            else:
+                return self._apply_binop(inputs[0], ops.reverse(binop))
 
         return NotImplemented
 

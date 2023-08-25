@@ -382,6 +382,24 @@ def test_series_int_int_operators_scalar(
     assert_series_equal_ignoring_order(pd_result, bf_result)
 
 
+def test_series_pow_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (scalars_df["int64_col"] ** 2).to_pandas()
+    pd_result = scalars_pandas_df["int64_col"] ** 2
+
+    assert_series_equal_ignoring_order(pd_result, bf_result)
+
+
+def test_series_pow_scalar_reverse(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (0.8 ** scalars_df["int64_col"]).to_pandas()
+    pd_result = 0.8 ** scalars_pandas_df["int64_col"]
+
+    assert_series_equal_ignoring_order(pd_result, bf_result)
+
+
 @pytest.mark.parametrize(
     ("operator"),
     [

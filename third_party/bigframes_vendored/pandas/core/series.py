@@ -1202,9 +1202,39 @@ class Series(NDFrame):  # type: ignore[misc]
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rmod(self, other) -> Series:
-        """Get modulo of Series and other, element-wise (binary operator `rmod`).
+        """Return modulo of Series and other, element-wise (binary operator mod).
 
-        Equivalent to ``other % series``, but with support to substitute a fill_value for
+        Equivalent to ``series % other``, but with support to substitute a fill_value for
+        missing data in either one of the inputs.
+
+        Args:
+            other (Series, or scalar value):
+
+        Returns:
+            bigframes.series.Series: The result of the operation.
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def pow(self, other) -> Series:
+        """Return Exponential power of series and other, element-wise (binary operator `pow`).
+
+        Equivalent to ``series ** other``, but with support to substitute a fill_value for
+        missing data in either one of the inputs.
+
+        Args:
+            other (Series, or scalar value):
+
+        Returns:
+            bigframes.series.Series: The result of the operation.
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def rpow(self, other) -> Series:
+        """Return Exponential power of series and other, element-wise (binary operator `rpow`).
+
+        Equivalent to ``other ** series``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
 
         Args:

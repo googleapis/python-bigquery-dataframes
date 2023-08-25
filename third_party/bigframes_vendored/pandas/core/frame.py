@@ -825,6 +825,54 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def pow(self, other, axis: str | int = "columns") -> DataFrame:
+        """Get Exponential power of dataframe and other, element-wise (binary operator `pow`).
+
+        Equivalent to ``dataframe ** other``, but with support to substitute a fill_value
+        for missing data in one of the inputs. With reverse version, `rpow`.
+
+        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
+        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
+
+        .. note::
+            Mismatched indices will be unioned together.
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def rpow(self, other, axis: str | int = "columns") -> DataFrame:
+        """Get Exponential power of dataframe and other, element-wise (binary operator `rpow`).
+
+        Equivalent to ``other ** dataframe``, but with support to substitute a fill_value
+        for missing data in one of the inputs. With reverse version, `pow`.
+
+        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
+        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
+
+        .. note::
+            Mismatched indices will be unioned together.
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Data reshaping
 
