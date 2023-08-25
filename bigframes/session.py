@@ -1043,8 +1043,20 @@ class Session(
         CLUSTER BY {cluster_cols_sql}
         AS {query_text}
         """
+
+        job_config = bigquery.QueryJobConfig()
+
+        # Include a label so that Dataplex Lineage can identify temporary
+        # tables that BigQuery DataFrames creates. Googlers: See internal issue
+        # 296779699. We're labeling the job instead of the table because
+        # otherwise we get `BadRequest: 400 OPTIONS on temporary tables are not
+        # supported`.
+        job_config.labels = {"source": "bigquery-dataframes-temp"}
+
         try:
-            self._start_query(ddl_text)  # Wait for the job to complete
+            self._start_query(
+                ddl_text, job_config=job_config
+            )  # Wait for the job to complete
         except google.api_core.exceptions.Conflict:
             # Allow query retry to succeed.
             pass
