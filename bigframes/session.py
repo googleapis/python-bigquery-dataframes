@@ -370,6 +370,38 @@ class Session(
                 max_results=max_results,
             )
 
+    def _query_to_destination(
+        self, query: str, index_cols: List[str]
+    ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
+        # If there are no index columns, then there's no reason to cache to a
+        # (clustered) session table, as we'll just have to query it again to
+        # create a default index & ordering.
+        if not index_cols:
+            _, query_job = self._start_query(query)
+            return query_job.destination, query_job
+
+        # If a dry_run indicates this is not a query type job, then don't
+        # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
+        dry_run_config = bigquery.QueryJobConfig()
+        dry_run_config.dry_run = True
+        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        if dry_run_job.statement_type != "SELECT":
+            _, query_job = self._start_query(query)
+            return query_job.destination, query_job
+
+        # Make sure we cluster by the index column(s) so that subsequent
+        # operations are as speedy as they can be.
+        try:
+            ibis_expr = self.ibis_client.sql(query)
+            return self._ibis_to_session_table(ibis_expr, index_cols), None
+        except google.api_core.exceptions.BadRequest:
+            # Some SELECT statements still aren't compatible with CREATE TEMP
+            # TABLE ... AS SELECT ... statements. For example, if the query has
+            # a top-level ORDER BY, this conflicts with our ability to cluster
+            # the table by the index column(s).
+            _, query_job = self._start_query(query)
+            return query_job.destination, query_job
+
     def read_gbq_query(
         self,
         query: str,
@@ -395,16 +427,7 @@ class Session(
         else:
             index_cols = list(index_col)
 
-        # Make sure we cluster by the index column so that subsequent
-        # operations are as speedy as they can be.
-        if index_cols:
-            # Since index_cols are specified, assume that we have a normal SQL
-            # query. DDL or DML not supported.
-            ibis_expr = self.ibis_client.sql(query)
-            destination = self._ibis_to_session_table(ibis_expr, index_cols)
-        else:
-            _, query_job = self._start_query(query)
-            destination = query_job.destination
+        destination, query_job = self._query_to_destination(query, index_cols)
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.
@@ -412,9 +435,11 @@ class Session(
             return dataframe.DataFrame(
                 data=pandas.DataFrame(
                     {
-                        "statement_type": [query_job.statement_type],
-                        "job_id": [query_job.job_id],
-                        "location": [query_job.location],
+                        "statement_type": [
+                            query_job.statement_type if query_job else "unknown"
+                        ],
+                        "job_id": [query_job.job_id if query_job else "unknown"],
+                        "location": [query_job.location if query_job else "unknown"],
                     }
                 ),
                 session=self,
@@ -1125,7 +1150,7 @@ class Session(
         table = self._create_session_table()
         cluster_cols_sql = ", ".join(f"`{cluster_col}`" for cluster_col in cluster_cols)
 
-        # TODO(swast): This might not support multi-statement SQL queries.
+        # TODO(swast): This might not support multi-statement SQL queries (scripts).
         ddl_text = f"""
         CREATE TEMP TABLE `_SESSION`.`{table.table_id}`
         CLUSTER BY {cluster_cols_sql}

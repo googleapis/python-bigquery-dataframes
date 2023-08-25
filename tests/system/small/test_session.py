@@ -112,6 +112,54 @@ def test_read_gbq_w_col_order(
             id="unique_uuid_index_query",
         ),
         pytest.param(
+            """
+            SELECT my_index, my_value
+            FROM UNNEST(
+                [
+                    STRUCT<my_index INT64, my_value INT64>(0, 12),
+                    STRUCT<my_index INT64, my_value INT64>(1, 12),
+                    STRUCT<my_index INT64, my_value INT64>(2, 24)
+                ]
+            )
+            -- Can't normally cluster tables with ORDER BY clause.
+            ORDER BY my_index DESC
+            """,
+            ["my_index"],
+            id="unique_index_query_has_order_by",
+        ),
+        pytest.param(
+            """
+            WITH my_table AS (
+                SELECT *
+                FROM UNNEST(
+                    [
+                        STRUCT<my_index INT64, my_value INT64>(0, 12),
+                        STRUCT<my_index INT64, my_value INT64>(1, 12),
+                        STRUCT<my_index INT64, my_value INT64>(2, 24)
+                    ]
+                )
+            )
+            SELECT my_index, my_value FROM my_table
+            """,
+            ["my_index"],
+            id="unique_index_query_with_named_table_expression",
+        ),
+        pytest.param(
+            """
+            CREATE TEMP TABLE test_read_gbq_w_index_col_unique_index_query_with_script
+            AS SELECT * FROM UNNEST(
+                [
+                    STRUCT<my_index INT64, my_value INT64>(0, 12),
+                    STRUCT<my_index INT64, my_value INT64>(1, 12),
+                    STRUCT<my_index INT64, my_value INT64>(2, 24)
+                ]
+            );
+            SELECT my_index, my_value FROM test_read_gbq_w_index_col_unique_index_query_with_script
+            """,
+            ["my_index"],
+            id="unique_index_query_with_script",
+        ),
+        pytest.param(
             "{scalars_table_id}",
             ["bool_col"],
             id="non_unique_index",
@@ -221,7 +269,7 @@ def test_read_gbq_w_max_results(
     assert bf_result.shape[0] == max_results
 
 
-def test_read_gbq_w_script(session, dataset_id: str):
+def test_read_gbq_w_script_no_select(session, dataset_id: str):
     ddl = f"""
     CREATE TABLE `{dataset_id}.test_read_gbq_w_ddl` (
         `col_a` INT64,
