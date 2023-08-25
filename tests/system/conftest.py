@@ -15,6 +15,7 @@
 from datetime import datetime
 import hashlib
 import logging
+import math
 import pathlib
 import typing
 from typing import Dict, Optional
@@ -840,3 +841,39 @@ def weird_strings_pd():
 @pytest.fixture()
 def weird_strings(session, weird_strings_pd):
     return session.read_pandas(weird_strings_pd.to_frame()).string_col
+
+
+@pytest.fixture()
+def floats_pd():
+    df = pd.DataFrame(
+        {
+            "float64_col": [
+                float("-inf"),
+                float("-inf"),
+                float("nan"),
+                float(-234239487.4),
+                float(-1.0),
+                float(-0.000000001),
+                float(0),
+                float(0.000000001),
+                float(0.9999999999),
+                float(1.0),
+                float(1.0000001),
+                float(math.pi / 2),
+                float(math.e),
+                float(math.pi),
+                float(234239487.4),
+                pd.NA,
+            ]
+        },
+        dtype=pd.Float64Dtype(),
+    )
+    df.index = df.float64_col
+    # Upload fails if index name same as column name
+    df.index.name = None
+    return df.float64_col
+
+
+@pytest.fixture()
+def floats_bf(session, floats_pd):
+    return session.read_pandas(floats_pd.to_frame()).float64_col

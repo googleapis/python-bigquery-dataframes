@@ -23,17 +23,25 @@ import pytest
         ("sin",),
         ("cos",),
         ("tan",),
+        ("arcsin",),
+        ("arccos",),
+        ("arctan",),
+        ("sinh",),
+        ("cosh",),
+        ("tanh",),
+        ("arcsinh",),
+        ("arccosh",),
+        ("arctanh",),
+        ("exp",),
         ("log",),
         ("log10",),
         ("sqrt",),
         ("abs",),
     ],
 )
-def test_series_ufuncs(scalars_dfs, opname):
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    bf_result = getattr(np, opname)(scalars_df["int64_col"]).to_pandas()
-    pd_result = getattr(np, opname)(scalars_pandas_df["int64_col"])
+def test_series_ufuncs(floats_pd, floats_bf, opname):
+    bf_result = getattr(np, opname)(floats_bf).to_pandas()
+    pd_result = getattr(np, opname)(floats_pd)
 
     pd.testing.assert_series_equal(bf_result, pd_result)
 
