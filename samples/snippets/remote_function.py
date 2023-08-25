@@ -80,7 +80,7 @@ def run_remote_function_and_read_gbq_function(project_id: str):
     # Let's continue trying other potential use cases of remote functions. Let's
     # say we consider the `species`, `island` and `sex` of the penguins
     # sensitive information and want to redact that by replacing with their hash
-    # code instead. Let's define another scalar custom function and decorated it
+    # code instead. Let's define another scalar custom function and decorate it
     # as a remote function
     @bpd.remote_function([str], str, bigquery_connection="bigframes-rf-conn")
     def get_hash(input):

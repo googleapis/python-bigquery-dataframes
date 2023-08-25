@@ -99,7 +99,7 @@ def get_remote_function_locations(bq_location):
 
 
 def _get_hash(def_):
-    "Get hash of a function."
+    "Get hash (32 digits alphanumeric) of a function."
     def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
     return hashlib.md5(def_repr).hexdigest()
 
@@ -128,7 +128,7 @@ class IbisSignature(NamedTuple):
 
 
 def get_cloud_function_name(def_, uniq_suffix=None):
-    """Get the name of the cloud function."""
+    "Get a name for the cloud function for the given user defined function."
     cf_name = _get_hash(def_)
     cf_name = f"bigframes-{cf_name}"  # for identification
     if uniq_suffix:
@@ -137,7 +137,7 @@ def get_cloud_function_name(def_, uniq_suffix=None):
 
 
 def get_remote_function_name(def_, uniq_suffix=None):
-    """Get the name for the BQ remote function."""
+    "Get a name for the BQ remote function for the given user defined function."
     bq_rf_name = _get_hash(def_)
     bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
     if uniq_suffix:
@@ -389,23 +389,48 @@ class RemoteFunctionClient:
         return endpoint
 
     def provision_bq_remote_function(
-        self, def_, input_types, output_type, uniq_suffix=None
+        self,
+        def_,
+        input_types,
+        output_type,
+        reuse,
+        name,
     ):
         """Provision a BigQuery remote function."""
-        # Derive the name of the underlying cloud function and first create
-        # it if it does not exist
+        # If reuse of any existing function with the same name (indicated by the
+        # same hash of its source code) is not intended, then attach a unique
+        # suffix to the intended function name to make it unique.
+        uniq_suffix = None
+        if not reuse:
+            uniq_suffix = "".join(
+                random.choices(string.ascii_lowercase + string.digits, k=8)
+            )
+
+        # Derive the name of the cloud function underlying the intended BQ
+        # remote function
         cloud_function_name = get_cloud_function_name(def_, uniq_suffix)
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
+
+        # Create the cloud function if it does not exist
         if not cf_endpoint:
             self.check_cloud_function_tools_and_permissions()
             cf_endpoint = self.create_cloud_function(def_, cloud_function_name)
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
 
-        # Derive the name of the remote function and create/replace it if needed
-        remote_function_name = get_remote_function_name(def_, uniq_suffix)
+        # Derive the name of the remote function
+        remote_function_name = name
+        if not remote_function_name:
+            remote_function_name = get_remote_function_name(def_, uniq_suffix)
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
-        if rf_endpoint != cf_endpoint or rf_conn != self._bq_connection_id:
+
+        # Create the BQ remote function in following circumstances:
+        # 1. It does not exist
+        # 2. It exists but the existing remote function has different
+        #    configuration than intended
+        if not rf_endpoint or (
+            rf_endpoint != cf_endpoint or rf_conn != self._bq_connection_id
+        ):
             input_args = inspect.getargs(def_.__code__).args
             if len(input_args) != len(input_types):
                 raise ValueError(
@@ -583,6 +608,7 @@ def remote_function(
     dataset: Optional[str] = None,
     bigquery_connection: Optional[str] = None,
     reuse: bool = True,
+    name: Optional[str] = None,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -613,7 +639,7 @@ def remote_function(
             * BigQuery Data Editor (roles/bigquery.dataEditor)
             * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
             * Cloud Functions Developer (roles/cloudfunctions.developer)
-            * Service Account User (roles/iam.serviceAccountUser)
+            * Service Account User (roles/iam.serviceAccountUser) on the service account `PROJECT_NUMBER-compute@developer.gserviceaccount.com`
             * Storage Object Viewer (roles/storage.objectViewer)
             * Project IAM Admin (roles/resourcemanager.projectIamAdmin) (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
 
@@ -664,10 +690,16 @@ def remote_function(
         reuse (bool, Optional):
             Reuse the remote function if is already exists.
             `True` by default, which results in reusing an existing remote
-            function (if any) that was previously created for the same udf.
-            Setting it to false forces the creation of creating a unique remote function.
+            function and corresponding cloud function (if any) that was
+            previously created for the same udf.
+            Setting it to `False` forces the creation of a unique remote function.
             If the required remote function does not exist then it would be
             created irrespective of this param.
+        name (str, Optional):
+            Explicit name of the persisted BigQuery remote function. Use it with
+            caution, because two users working in the same project and dataset
+            could overwrite each other's remote functions if they use the same
+            persistent name.
 
     """
 
@@ -739,12 +771,6 @@ def remote_function(
             f"{constants.FEEDBACK_LINK}"
         )
 
-    uniq_suffix = None
-    if not reuse:
-        uniq_suffix = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=8)
-        )
-
     # Check connection_id with `LOCATION.CONNECTION_ID` or `PROJECT_ID.LOCATION.CONNECTION_ID` format.
     if bigquery_connection.count(".") == 1:
         bq_connection_location, bq_connection_id = bigquery_connection.split(".")
@@ -792,8 +818,13 @@ def remote_function(
             bigquery_connection,
             resource_manager_client,
         )
+
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
-            f, ibis_signature.input_types, ibis_signature.output_type, uniq_suffix
+            f,
+            ibis_signature.input_types,
+            ibis_signature.output_type,
+            reuse,
+            name,
         )
 
         node = remote_function_node(dataset_ref.routine(rf_name), ibis_signature)

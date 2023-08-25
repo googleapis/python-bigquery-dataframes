@@ -1253,6 +1253,7 @@ class Session(
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
+        name: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -1280,7 +1281,7 @@ class Session(
             * BigQuery Data Editor (roles/bigquery.dataEditor)
             * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
             * Cloud Functions Developer (roles/cloudfunctions.developer)
-            * Service Account User (roles/iam.serviceAccountUser)
+            * Service Account User (roles/iam.serviceAccountUser) on the service account `PROJECT_NUMBER-compute@developer.gserviceaccount.com`
             * Storage Object Viewer (roles/storage.objectViewer)
             * Project IAM Admin (roles/resourcemanager.projectIamAdmin) (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
 
@@ -1311,10 +1312,16 @@ class Session(
             reuse (bool, Optional):
                 Reuse the remote function if already exists.
                 `True` by default, which will result in reusing an existing remote
-                function (if any) that was previously created for the same udf.
-                Setting it to false would force creating a unique remote function.
+                function and corresponding cloud function (if any) that was
+                previously created for the same udf.
+                Setting it to `False` would force creating a unique remote function.
                 If the required remote function does not exist then it would be
                 created irrespective of this param.
+            name (str, Optional):
+                Explicit name of the persisted BigQuery remote function. Use it with
+                caution, because two users working in the same project and dataset
+                could overwrite each other's remote functions if they use the same
+                persistent name.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1331,6 +1338,7 @@ class Session(
             dataset=dataset,
             bigquery_connection=bigquery_connection,
             reuse=reuse,
+            name=name,
         )
 
     def read_gbq_function(
