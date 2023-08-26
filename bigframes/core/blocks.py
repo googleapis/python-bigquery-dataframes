@@ -84,11 +84,14 @@ class Block:
         index_labels: typing.Union[pd.Index, typing.Iterable[Label], None] = None,
     ):
         """Construct a block object, will create default index if no index columns specified."""
-        if index_labels and (len(list(index_labels)) != len(list(index_columns))):
-            raise ValueError(
-                "'index_columns' and 'index_labels' must have equal length"
-            )
-        if len(list(index_columns)) == 0:
+        index_columns = list(index_columns)
+        if index_labels:
+            index_labels = list(index_labels)
+            if len(index_labels) != len(index_columns):
+                raise ValueError(
+                    "'index_columns' and 'index_labels' must have equal length"
+                )
+        if len(index_columns) == 0:
             expr, new_index_col_id = expr.promote_offsets()
             index_columns = [new_index_col_id]
         self._index_columns = tuple(index_columns)

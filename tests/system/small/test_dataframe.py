@@ -80,6 +80,7 @@ def test_df_construct_from_series(scalars_dfs):
 def test_df_construct_from_dict():
     input_dict = {
         "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
+        # With a space in column name. We use standardized SQL schema ids to solve the problem that BQ schema doesn't support column names with spaces. b/296751058
         "Max Speed": [380.0, 370.0, 24.0, 26.0],
     }
     bf_result = dataframe.DataFrame(input_dict).to_pandas()

@@ -19,8 +19,8 @@ import typing_extensions
 
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
-UNNAMED_COLUMN_ID = "bigframes_unnammed_column"
-UNNAMED_INDEX_ID = "bigframes_unnammed_index"
+UNNAMED_COLUMN_ID = "bigframes_unnamed_column"
+UNNAMED_INDEX_ID = "bigframes_unnamed_index"
 
 
 def get_axis_number(axis: typing.Union[str, int, None]) -> typing.Literal[0, 1]:
@@ -42,7 +42,7 @@ def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]
 def get_standardized_ids(
     col_labels: Iterable[Hashable], idx_labels: Iterable[Hashable] = ()
 ) -> tuple[list[str], list[str]]:
-    """Get stardardized column ids as dicts of {original_column(index)_label: standardized_column(index)_id}.
+    """Get stardardized column ids as column_ids_list, index_ids_list.
     The standardized_column_id must be valid BQ SQL schema column names, can only be string type and unique.
 
     Args:

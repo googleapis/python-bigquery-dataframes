@@ -767,9 +767,9 @@ class Session(
         self,
         table_expression: ibis_types.Table,
         index_cols: Iterable[ibis_types.Value],
-        index_labels: Iterable[Optional[str]],
+        index_labels: Iterable[blocks.Label],
         column_keys: Iterable[str],
-        column_labels: Iterable[Optional[str]],
+        column_labels: Iterable[blocks.Label],
         ordering: core.ExpressionOrdering,
     ) -> dataframe.DataFrame:
         """Turns a table expression (plus index column) into a DataFrame."""
@@ -831,7 +831,7 @@ class Session(
             bigframes.dataframe.DataFrame: The BigQuery DataFrame.
         """
         col_labels, idx_labels = (
-            list(pandas_dataframe.columns),
+            pandas_dataframe.columns.to_list(),
             pandas_dataframe.index.names,
         )
         new_col_ids, new_idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
@@ -880,7 +880,7 @@ class Session(
             f"SELECT * FROM `{load_table_destination.table_id}`"
         )
 
-        # Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
+        # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
         if any(
             [new_idx_id not in table_expression.columns for new_idx_id in new_idx_ids]
         ):

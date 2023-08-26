@@ -318,7 +318,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         if not include_index:
-            idx_labels, old_idx_ids = [], []  # exclude index
+            idx_labels, old_idx_ids = [], []
             ibis_expr = ibis_expr.drop(*self._block.index_columns)
 
         old_ids = old_idx_ids + old_col_ids
