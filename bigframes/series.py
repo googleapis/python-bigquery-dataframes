@@ -387,8 +387,23 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         return Series(block_ops.rank(self._block, method, na_option, ascending))
 
-    def fillna(self, value=None) -> "Series" | None:
+    def fillna(self, value=None) -> Series:
         return self._apply_binary_op(value, ops.fillna_op)
+
+    def dropna(
+        self,
+        *,
+        axis: int = 0,
+        inplace: bool = False,
+        how: typing.Optional[str] = None,
+        ignore_index: bool = False,
+    ) -> Series:
+        if inplace:
+            raise NotImplementedError("'inplace'=True not supported")
+        result = block_ops.dropna(self._block, how="any")
+        if ignore_index:
+            result = result.reset_index()
+        return Series(result)
 
     def head(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[0:n])

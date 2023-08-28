@@ -380,6 +380,23 @@ class DataFrame(NDFrame):
     ) -> DataFrame:
         """Remove missing values.
 
+        Args:
+            axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
+                Determine if rows or columns which contain missing values are
+                removed.
+
+                * 0, or 'index' : Drop rows which contain missing values.
+                * 1, or 'columns' : Drop columns which contain missing value.
+            how ({'any', 'all'}, default 'any'):
+                Determine if row or column is removed from DataFrame, when we have
+                at least one NA or all NA.
+
+                * 'any' : If any NA values are present, drop that row or column.
+                * 'all' : If all values are NA, drop that row or column.
+            ignore_index (bool, default ``False``):
+                If ``True``, the resulting axis will be labeled 0, 1, …, n - 1.
+
+
         Returns:
             bigframes.dataframe.DataFrame: DataFrame with NA entries dropped from it.
         """
@@ -1336,5 +1353,22 @@ class DataFrame(NDFrame):
 
         Returns:
             Series: Series containing counts of unique rows in the DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def fillna(self, value):
+        """
+        Fill NA/NaN values using the specified method.
+
+        Args:
+            value (scalar, Series):
+                Value to use to fill holes (e.g. 0), alternately a
+                Series of values specifying which value to use for
+                each index (for a Series) or column (for a DataFrame).  Values not
+                in the Series will not be filled. This value cannot
+                be a list.
+
+        Returns:
+            DataFrame: Object with missing values filled
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

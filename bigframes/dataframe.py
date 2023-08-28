@@ -1023,8 +1023,45 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         axis = 1 if axis is None else axis
         return DataFrame(self._get_block().add_suffix(suffix, axis))
 
-    def dropna(self) -> DataFrame:
-        return DataFrame(block_ops.dropna(self._block, how="any"))
+    def fillna(self, value=None) -> DataFrame:
+        return self._apply_binop(value, ops.fillna_op)
+
+    def dropna(
+        self,
+        *,
+        axis: int | str = 0,
+        inplace: bool = False,
+        how: str = "any",
+        ignore_index=False,
+    ) -> DataFrame:
+        if inplace:
+            raise NotImplementedError(
+                "'inplace'=True not supported. {constants.FEEDBACK_LINK}"
+            )
+        if how not in ("any", "all"):
+            raise ValueError("'how' must be one of 'any', 'all'")
+
+        axis_n = utils.get_axis_number(axis)
+
+        if axis_n == 0:
+            result = block_ops.dropna(self._block, how=how)  # type: ignore
+            if ignore_index:
+                result = result.reset_index()
+            return DataFrame(result)
+        else:
+            isnull_block = self._block.multi_apply_unary_op(
+                self._block.value_columns, ops.isnull_op
+            )
+            if how == "any":
+                null_locations = DataFrame(isnull_block).any().to_pandas()
+            else:  # 'all'
+                null_locations = DataFrame(isnull_block).all().to_pandas()
+            keep_columns = [
+                col
+                for col, to_drop in zip(self._block.value_columns, null_locations)
+                if not to_drop
+            ]
+            return DataFrame(self._block.select_columns(keep_columns))
 
     def any(
         self,

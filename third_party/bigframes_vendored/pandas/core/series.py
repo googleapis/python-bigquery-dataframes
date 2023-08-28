@@ -830,6 +830,23 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def dropna(self, *, axis=0, inplace: bool = False, how=None) -> Series:
+        """
+        Return a new Series with missing values removed.
+
+        Args:
+            axis (0 or 'index'):
+                Unused. Parameter needed for compatibility with DataFrame.
+            inplace (bool, default False):
+                Unsupported, do not set.
+            how (str, optional):
+                Not in use. Kept for compatibility.
+
+        Returns:
+            Series: Series with NA entries dropped from it.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def between(
         self,
         left,
