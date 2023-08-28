@@ -443,12 +443,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if key in self._block.column_labels:
             return self.__getitem__(key)
         elif hasattr(pandas.DataFrame, key):
-            raise NotImplementedError(
+            raise AttributeError(
                 textwrap.dedent(
                     f"""
-                BigQuery DataFrames has not yet implemented an equivalent to
-                'pandas.DataFrame.{key}'. {constants.FEEDBACK_LINK}
-                """
+                    BigQuery DataFrames has not yet implemented an equivalent to
+                    'pandas.DataFrame.{key}'. {constants.FEEDBACK_LINK}
+                    """
                 )
             )
         else:

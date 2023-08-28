@@ -851,7 +851,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def __getattr__(self, key: str):
         if hasattr(pandas.Series, key):
-            raise NotImplementedError(
+            raise AttributeError(
                 textwrap.dedent(
                     f"""
                     BigQuery DataFrames has not yet implemented an equivalent to

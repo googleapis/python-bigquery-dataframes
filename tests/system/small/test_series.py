@@ -2222,8 +2222,9 @@ def test_argmax(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
-def test_getattr_not_implemented(scalars_df_index):
-    with pytest.raises(NotImplementedError):
+def test_getattr_attribute_error_when_pandas_has(scalars_df_index):
+    # asof is implemented in pandas but not in bigframes
+    with pytest.raises(AttributeError):
         scalars_df_index.string_col.asof()
 
 
