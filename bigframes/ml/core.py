@@ -22,7 +22,6 @@ import uuid
 from google.cloud import bigquery
 
 import bigframes
-import bigframes.constants as constants
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
 
@@ -53,10 +52,8 @@ class BqmlModel:
         """Get the BQML model associated with this wrapper"""
         return self._model
 
-    @classmethod
     def _apply_sql(
-        cls,
-        session: bigframes.Session,
+        self,
         input_data: bpd.DataFrame,
         func: Callable[[str], str],
     ) -> bpd.DataFrame:
@@ -78,13 +75,8 @@ class BqmlModel:
             include_index=True
         )
 
-        if len(index_col_ids) != 1:
-            raise NotImplementedError(
-                f"Only exactly one index column is supported. {constants.FEEDBACK_LINK}"
-            )
-
         sql = func(source_sql)
-        df = session.read_gbq(sql, index_col=index_col_ids)
+        df = self._session.read_gbq(sql, index_col=index_col_ids)
         df.index.names = index_labels
 
         return df
@@ -92,7 +84,6 @@ class BqmlModel:
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
-            self._session,
             input_data,
             lambda source_sql: ml_sql.ml_predict(
                 model_name=self.model_name, source_sql=source_sql
@@ -102,7 +93,6 @@ class BqmlModel:
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
-            self._session,
             input_data,
             lambda source_sql: ml_sql.ml_transform(
                 model_name=self.model_name, source_sql=source_sql
@@ -116,7 +106,6 @@ class BqmlModel:
     ) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
-            self._session,
             input_data,
             lambda source_sql: ml_sql.ml_generate_text(
                 model_name=self.model_name,
@@ -132,7 +121,6 @@ class BqmlModel:
     ) -> bpd.DataFrame:
         # TODO: validate input data schema
         return self._apply_sql(
-            self._session,
             input_data,
             lambda source_sql: ml_sql.ml_generate_text_embedding(
                 model_name=self.model_name,
@@ -230,16 +218,10 @@ def create_bqml_model(
     if train_y is None:
         input_data = train_X
     else:
-        # TODO: handle case where train_y columns are renamed in the join
         input_data = train_X.join(train_y, how="outer")
         options.update({"INPUT_LABEL_COLS": train_y.columns.tolist()})
 
-    # pickpocket session object from the dataframe
     session = train_X._get_block().expr._session
-
-    # TODO(garrettwu): add wrapper to select the feature columns
-    # for now, drop index to avoid including the index in feature columns
-    input_data = input_data.reset_index(drop=True)
 
     source_sql = input_data.sql
     options_sql = ml_sql.options(**options)
@@ -272,7 +254,7 @@ def create_bqml_time_series_model(
     input_data = train_X.join(train_y, how="outer")
     options.update({"TIME_SERIES_TIMESTAMP_COL": train_X.columns.tolist()[0]})
     options.update({"TIME_SERIES_DATA_COL": train_y.columns.tolist()[0]})
-    # pickpocket session object from the dataframe
+
     session = train_X._get_block().expr._session
 
     source_sql = input_data.sql
