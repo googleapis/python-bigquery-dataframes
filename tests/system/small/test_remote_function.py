@@ -518,6 +518,25 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_series_map(session_with_bq_connection, scalars_dfs):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function([int], int)(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.int64_too.map(remote_add_one).to_pandas()
+    pd_result = scalars_pandas_df.int64_too.map(add_one)
+    pd_result = pd_result.astype("Int64")  # pandas type differences
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_detects_invalid_function(bigquery_client, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     with pytest.raises(ValueError) as e:

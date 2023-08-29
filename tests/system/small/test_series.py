@@ -2498,3 +2498,57 @@ def test_is_monotonic_decreasing(series_input):
     assert (
         scalars_df.is_monotonic_decreasing == scalars_pandas_df.is_monotonic_decreasing
     )
+
+
+def test_map_dict_input(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    local_map = dict()
+    # construct a local map, incomplete to cover <NA> behavior
+    for s in scalars_pandas_df.string_col[:-3]:
+        if isinstance(s, str):
+            local_map[s] = ord(s[0])
+
+    pd_result = scalars_pandas_df.string_col.map(local_map)
+    pd_result = pd_result.astype("Int64")  # pandas type differences
+    bf_result = scalars_df.string_col.map(local_map)
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_map_series_input(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    new_index = scalars_pandas_df.int64_too.drop_duplicates()
+    pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
+    pd_map_series.index = new_index
+    bf_map_series = series.Series(
+        pd_map_series, session=scalars_df._get_block().expr._session
+    )
+
+    pd_result = scalars_pandas_df.int64_too.map(pd_map_series)
+    bf_result = scalars_df.int64_too.map(bf_map_series)
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_map_series_input_duplicates_error(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    new_index = scalars_pandas_df.int64_too
+    pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
+    pd_map_series.index = new_index
+    bf_map_series = series.Series(
+        pd_map_series, session=scalars_df._get_block().expr._session
+    )
+
+    with pytest.raises(pd.errors.InvalidIndexError):
+        scalars_pandas_df.int64_too.map(pd_map_series)
+    with pytest.raises(pd.errors.InvalidIndexError):
+        scalars_df.int64_too.map(bf_map_series, verify_integrity=True)

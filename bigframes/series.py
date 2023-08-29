@@ -1124,9 +1124,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         return self.where(~cond, other)
 
-    def to_frame(self) -> bigframes.dataframe.DataFrame:
+    def to_frame(self, name: blocks.Label = None) -> bigframes.dataframe.DataFrame:
+        provided_name = name if name else self.name
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
-        block = self._block.with_column_labels([self.name] if self.name else ["0"])
+        block = self._block.with_column_labels(
+            [provided_name] if provided_name else ["0"]
+        )
         return bigframes.dataframe.DataFrame(block)
 
     def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
@@ -1209,6 +1212,57 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_xarray(self):
         return self.to_pandas().to_xarray()
+
+    def _throw_if_index_contains_duplicates(
+        self, error_message: typing.Optional[str] = None
+    ) -> None:
+        duplicates_block, _ = block_ops.indicate_duplicates(
+            self._get_block(), self._get_block().index_columns
+        )
+        duplicates_block = duplicates_block.with_column_labels(
+            ["values", "is_duplicate"]
+        )
+        duplicates_df = bigframes.dataframe.DataFrame(duplicates_block)
+        if duplicates_df["is_duplicate"].any():
+            error_message = (
+                error_message
+                if error_message
+                else "Index contains duplicate entries, but uniqueness is required."
+            )
+            raise pandas.errors.InvalidIndexError(error_message)
+
+    def map(
+        self,
+        arg: typing.Union[Mapping, Series],
+        na_action: Optional[str] = None,
+        *,
+        verify_integrity: bool = False,
+    ) -> Series:
+        if na_action:
+            raise NotImplementedError(
+                f"Non-None na_action argument is not yet supported for Series.map. {constants.FEEDBACK_LINK}"
+            )
+        if isinstance(arg, Series):
+            if verify_integrity:
+                error_message = "When verify_integrity is True in Series.map, index of arg parameter must not have duplicate entries."
+                arg._throw_if_index_contains_duplicates(error_message=error_message)
+            map_df = bigframes.dataframe.DataFrame(arg._block)
+            map_df = map_df.rename(columns={arg.name: self.name})
+        elif isinstance(arg, Mapping):
+            map_df = bigframes.dataframe.DataFrame(
+                {"keys": list(arg.keys()), self.name: list(arg.values())},
+                session=self._get_block().expr._session,
+            )
+            map_df = map_df.set_index("keys")
+        elif callable(arg):
+            return self.apply(arg)
+        else:
+            # Mirroring pandas, call the uncallable object
+            arg()  # throws TypeError: object is not callable
+
+        self_df = self.to_frame(name="series")
+        result_df = self_df.join(map_df, on="series")
+        return result_df[self.name]
 
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
