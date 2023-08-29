@@ -138,15 +138,8 @@ if ! [ ${DRY_RUN} ]; then
       gsutil cp -v dist/* ${gcs_path}
       gsutil cp -v LICENSE ${gcs_path}
       gsutil cp -v ${THIRD_PARTY_NOTICES_FILE} ${gcs_path}
-      gsutil -m cp -v "notebooks/00 - Summary.ipynb" \
-                      "notebooks/01 - Getting Started.ipynb" \
-                      "notebooks/02 - DataFrame.ipynb" \
-                      "notebooks/03 - Using ML - ML fundamentals.ipynb" \
-                      "notebooks/04 - Using ML - SKLearn linear regression.ipynb" \
-                      "notebooks/05 - Using ML - Easy linear regression.ipynb" \
-                      "notebooks/06 - Using ML - Large Language Models.ipynb" \
-                      "notebooks/50 - Remote Function.ipynb" \
-                      ${gcs_path}notebooks/
+      gsutil -m cp -r -v "notebooks/" ${gcs_path}notebooks/
+
     done
 
     # publish API coverage information to BigQuery
