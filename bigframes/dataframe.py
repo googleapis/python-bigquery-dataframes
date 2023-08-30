@@ -1256,7 +1256,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def stack(self):
         # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
-        # TODO: support 'dropna' param by executing dropna only conditionally
+        # TODO: match impl to pandas future_stack as described in pandas 2.1 release notes
         result_block = block_ops.dropna(self._block.stack(), how="all")
         if not isinstance(self.columns, pandas.MultiIndex):
             return bigframes.series.Series(result_block)
