@@ -375,7 +375,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self, periods: int = 1) -> Series:
-        return self - self.shift(periods=periods)
+        window = bigframes.core.WindowSpec(
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
     def rank(
         self,

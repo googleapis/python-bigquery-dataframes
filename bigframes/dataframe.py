@@ -1702,6 +1702,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
+    def diff(self, periods: int = 1) -> DataFrame:
+        window = bigframes.core.WindowSpec(
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.DiffOp(periods), window)
+
     def _apply_window_op(
         self,
         op: agg_ops.WindowOp,

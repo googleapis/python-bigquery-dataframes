@@ -321,6 +321,28 @@ class ShiftOp(WindowOp):
         return False
 
 
+class DiffOp(WindowOp):
+    def __init__(self, periods: int):
+        self._periods = periods
+
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        shifted = ShiftOp(self._periods)._as_ibis(column, window)
+        if column.type().is_boolean():
+            return typing.cast(ibis_types.BooleanColumn, column) != typing.cast(
+                ibis_types.BooleanColumn, shifted
+            )
+        elif column.type().is_numeric():
+            return typing.cast(ibis_types.NumericColumn, column) - typing.cast(
+                ibis_types.NumericColumn, shifted
+            )
+        else:
+            raise TypeError(f"Cannot perform diff on type{column.type()}")
+
+    @property
+    def skips_nulls(self):
+        return False
+
+
 class AllOp(AggregateOp):
     def _as_ibis(
         self, column: ibis_types.Column, window=None

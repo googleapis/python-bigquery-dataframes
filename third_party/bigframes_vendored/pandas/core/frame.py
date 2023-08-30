@@ -1271,6 +1271,25 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def diff(
+        self,
+        periods: int = 1,
+    ) -> NDFrame:
+        """First discrete difference of element.
+
+        Calculates the difference of a DataFrame element compared with another
+        element in the DataFrame (default is element in previous row).
+
+        Args:
+            periods (int, default 1):
+                Periods to shift for calculating difference, accepts negative
+                values.
+
+        Returns:
+            bigframes.dataframe.DataFrame: First differences of the Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def agg(self, func):
         """
         Aggregate using one or more operations over the specified axis.

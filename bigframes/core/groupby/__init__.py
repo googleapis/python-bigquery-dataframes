@@ -168,6 +168,22 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def cumprod(self, *args, **kwargs) -> df.DataFrame:
         return self._apply_window_op(agg_ops.product_op, numeric_only=True)
 
+    def shift(self, periods=1) -> series.Series:
+        window = core.WindowSpec(
+            grouping_keys=self._by_col_ids,
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
+
+    def diff(self, periods=1) -> series.Series:
+        window = core.WindowSpec(
+            grouping_keys=self._by_col_ids,
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
+
     def agg(self, func=None, **kwargs) -> df.DataFrame:
         if func:
             if isinstance(func, str):
@@ -459,8 +475,13 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
-    def diff(self) -> series.Series:
-        return self._ungroup() - self.shift(1)
+    def diff(self, periods=1) -> series.Series:
+        window = core.WindowSpec(
+            grouping_keys=self._by_col_ids,
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
+        return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
