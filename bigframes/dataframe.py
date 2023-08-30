@@ -529,7 +529,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_binop(
         self,
-        other: float | int | bigframes.series.Series,
+        other: float | int | bigframes.series.Series | DataFrame,
         op,
         axis: str | int = "columns",
     ):
@@ -537,6 +537,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self._apply_scalar_binop(other, op)
         elif isinstance(other, bigframes.series.Series):
             return self._apply_series_binop(other, op, axis=axis)
+        elif isinstance(other, DataFrame):
+            return self._apply_dataframe_binop(other, op)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
             f"{constants.FEEDBACK_LINK}"
@@ -588,6 +590,47 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.with_index_labels(self.index.names)
         return DataFrame(block)
 
+    def _apply_dataframe_binop(
+        self,
+        other: DataFrame,
+        op: ops.BinaryOp,
+    ) -> DataFrame:
+        # Join rows
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            other._block.index, how="outer"
+        )
+        # join columns schema
+        columns, lcol_indexer, rcol_indexer = self.columns.join(
+            other.columns, how="outer", return_indexers=True
+        )
+
+        binop_result_ids = []
+        block = joined_index._block
+        for left_index, right_index in zip(lcol_indexer, rcol_indexer):
+            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
+                left_col_id = self._block.value_columns[left_index]
+                right_col_id = other._block.value_columns[right_index]
+                block, result_col_id = block.apply_binary_op(
+                    get_column_left(left_col_id),
+                    get_column_right(right_col_id),
+                    op,
+                )
+                binop_result_ids.append(result_col_id)
+            elif left_index >= 0:
+                dtype = self.dtypes[left_index]
+                block, null_col_id = block.create_constant(None, dtype=dtype)
+                binop_result_ids.append(null_col_id)
+            elif right_index >= 0:
+                dtype = other.dtypes[right_index]
+                block, null_col_id = block.create_constant(None, dtype=dtype)
+                binop_result_ids.append(null_col_id)
+            else:
+                # Should not be possible
+                raise ValueError("No right or left index.")
+
+        block = block.select_columns(binop_result_ids).with_column_labels(columns)
+        return DataFrame(block)
+
     def eq(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.eq_op, axis=axis)
 
@@ -619,7 +662,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __ge__ = ge
 
     def add(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         # TODO(swast): Support fill_value parameter.
         # TODO(swast): Support level parameter with MultiIndex.
@@ -628,58 +673,72 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __radd__ = __add__ = radd = add
 
     def sub(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.sub_op, axis=axis)
 
     __sub__ = subtract = sub
 
     def rsub(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.sub_op), axis=axis)
 
     __rsub__ = rsub
 
     def mul(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.mul_op, axis=axis)
 
     __rmul__ = __mul__ = rmul = multiply = mul
 
     def truediv(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.div_op, axis=axis)
 
     div = divide = __truediv__ = truediv
 
     def rtruediv(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.div_op), axis=axis)
 
     __rtruediv__ = rdiv = rtruediv
 
     def floordiv(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.floordiv_op, axis=axis)
 
     __floordiv__ = floordiv
 
     def rfloordiv(
-        self, other: float | int | bigframes.series.Series, axis: str | int = "columns"
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
     ) -> DataFrame:
         return self._apply_binop(other, ops.reverse(ops.floordiv_op), axis=axis)
 
     __rfloordiv__ = rfloordiv
 
-    def mod(self, other: int | bigframes.series.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+    def mod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis)
 
-    def rmod(self, other: int | bigframes.series.Series, axis: str | int = "columns") -> DataFrame:  # type: ignore
+    def rmod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.reverse(ops.mod_op), axis=axis)
 
     __mod__ = mod

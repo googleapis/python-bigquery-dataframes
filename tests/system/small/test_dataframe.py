@@ -1106,50 +1106,43 @@ def test_series_binop_axis_index(
 
 
 @pytest.mark.parametrize(
-    ("op"),
+    ("left_labels", "right_labels"),
     [
-        (lambda x, y: x.add(y, axis="index")),
-        (lambda x, y: x.radd(y, axis="index")),
-        (lambda x, y: x.sub(y, axis="index")),
-        (lambda x, y: x.rsub(y, axis="index")),
-        (lambda x, y: x.mul(y, axis="index")),
-        (lambda x, y: x.rmul(y, axis="index")),
-        (lambda x, y: x.truediv(y, axis="index")),
-        (lambda x, y: x.rtruediv(y, axis="index")),
-        (lambda x, y: x.floordiv(y, axis="index")),
-        (lambda x, y: x.floordiv(y, axis="index")),
-        (lambda x, y: x.gt(y, axis="index")),
-        (lambda x, y: x.ge(y, axis="index")),
-        (lambda x, y: x.lt(y, axis="index")),
-        (lambda x, y: x.le(y, axis="index")),
+        (["a", "a", "b"], ["c", "c", "d"]),
+        (["a", "b", "c"], ["c", "a", "b"]),
+        (["a", "c", "c"], ["c", "a", "c"]),
     ],
     ids=[
-        "add",
-        "radd",
-        "sub",
-        "rsub",
-        "mul",
-        "rmul",
-        "truediv",
-        "rtruediv",
-        "floordiv",
-        "rfloordiv",
-        "gt",
-        "ge",
-        "lt",
-        "le",
+        "no_overlap",
+        "one_one_match",
+        "multi_match",
     ],
 )
-def test_dataframe_binop_axis_index_throws_not_implemented(
-    scalars_dfs,
-    op,
+def test_binop_df_df_binary_op(
+    scalars_df_index,
+    scalars_df_2_index,
+    scalars_pandas_df_index,
+    left_labels,
+    right_labels,
 ):
-    scalars_df, scalars_pandas_df = scalars_dfs
-    df_columns = ["int64_col", "float64_col"]
-    other_df_columns = ["int64_too"]
+    if pd.__version__.startswith("1."):
+        pytest.skip("pd.NA vs NaN not handled well in pandas 1.x.")
+    columns = ["int64_too", "int64_col", "float64_col"]
 
-    with pytest.raises(NotImplementedError):
-        op(scalars_df[df_columns], scalars_df[other_df_columns]).to_pandas()
+    bf_df_a = scalars_df_index[columns]
+    bf_df_a.columns = left_labels
+    bf_df_b = scalars_df_2_index[columns]
+    bf_df_b.columns = right_labels
+    bf_result = (bf_df_a - bf_df_b).to_pandas()
+
+    pd_df_a = scalars_pandas_df_index[columns]
+    pd_df_a.columns = left_labels
+    pd_df_b = scalars_pandas_df_index[columns]
+    pd_df_b.columns = right_labels
+    pd_result = pd_df_a - pd_df_b
+
+    # Some dtype inconsistency for all-NULL columns
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
 # Differnt table will only work for explicit index, since default index orders are arbitrary.
