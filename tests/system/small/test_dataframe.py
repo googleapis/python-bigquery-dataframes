@@ -582,6 +582,40 @@ def test_df_fillna(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_isin_list(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    values = ["Hello, World!", 55555, 2.51, pd.NA, True]
+    bf_result = (
+        scalars_df[["int64_col", "float64_col", "string_col", "bool_col"]]
+        .isin(values)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df[
+        ["int64_col", "float64_col", "string_col", "bool_col"]
+    ].isin(values)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
+
+
+def test_df_isin_dict(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    values = {
+        "string_col": ["Hello, World!", 55555, 2.51, pd.NA, True],
+        "int64_col": [5555, 2.51],
+        "bool_col": [pd.NA],
+    }
+    bf_result = (
+        scalars_df[["int64_col", "float64_col", "string_col", "bool_col"]]
+        .isin(values)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df[
+        ["int64_col", "float64_col", "string_col", "bool_col"]
+    ].isin(values)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
+
+
 @pytest.mark.parametrize(
     ("merge_how",),
     [

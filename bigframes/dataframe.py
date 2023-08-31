@@ -1099,6 +1099,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op)
 
+    def isin(self, values) -> DataFrame:
+        if utils.is_dict_like(values):
+            block = self._block
+            result_ids = []
+            for col, label in zip(self._block.value_columns, self._block.column_labels):
+                if label in values.keys():
+                    value_for_key = values[label]
+                    block, result_id = block.apply_unary_op(
+                        col, ops.IsInOp(value_for_key, match_nulls=True), label
+                    )
+                    result_ids.append(result_id)
+                else:
+                    block, result_id = block.create_constant(
+                        False, label=label, dtype=pandas.BooleanDtype()
+                    )
+                    result_ids.append(result_id)
+            return DataFrame(block.select_columns(result_ids)).fillna(value=False)
+        elif utils.is_list_like(values):
+            return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
+                value=False
+            )
+        else:
+            raise TypeError(
+                "only list-like objects are allowed to be passed to "
+                f"isin(), you passed a [{type(values).__name__}]"
+            )
+
     def dropna(
         self,
         *,

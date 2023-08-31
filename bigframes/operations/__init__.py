@@ -539,12 +539,27 @@ class IsInOp(UnaryOp):
         self._match_nulls = match_nulls
 
     def _as_ibis(self, x: ibis_types.Value):
-        if self._match_nulls and any(is_null(value) for value in self._values):
-            return x.isnull() | x.isin(
-                [val for val in self._values if not is_null(val)]
-            )
+        contains_nulls = any(is_null(value) for value in self._values)
+        matchable_ibis_values = []
+        for item in self._values:
+            if not is_null(item):
+                try:
+                    # we want values that *could* be cast to the dtype, but we don't want
+                    # to actually cast it, as that could be lossy (eg float -> int)
+                    item_inferred_type = ibis.literal(item).type()
+                    if (
+                        x.type() == item_inferred_type
+                        or x.type().is_numeric()
+                        and item_inferred_type.is_numeric()
+                    ):
+                        matchable_ibis_values.append(item)
+                except TypeError:
+                    pass
+
+        if self._match_nulls and contains_nulls:
+            return x.isnull() | x.isin(matchable_ibis_values)
         else:
-            return x.isin(self._values)
+            return x.isin(matchable_ibis_values)
 
 
 class BinopPartialRight(UnaryOp):

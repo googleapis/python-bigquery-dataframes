@@ -402,6 +402,22 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def isin(self, values):
+        """
+        Whether each element in the DataFrame is contained in values.
+
+        Args:
+            values (iterable, or dict):
+                The result will only be true at a location if all the
+                labels match. If `values` is a dict, the keys must be
+                the column names, which must match.
+
+        Returns:
+            DataFrame: DataFrame of booleans showing whether each element
+            in the DataFrame is contained in values.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Sorting
 
