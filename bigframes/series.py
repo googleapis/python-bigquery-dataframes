@@ -310,11 +310,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 
-    def droplevel(self, level: LevelsType):
+    def droplevel(self, level: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(level)
         return Series(self._block.drop_levels(resolved_level_ids))
 
-    def reorder_levels(self, order: LevelsType):
+    def swaplevel(self, i: int = -2, j: int = -1):
+        level_i = self._block.index_columns[i]
+        level_j = self._block.index_columns[j]
+        mapping = {level_i: level_j, level_j: level_i}
+        reordering = [
+            mapping.get(index_id, index_id) for index_id in self._block.index_columns
+        ]
+        return Series(self._block.reorder_levels(reordering))
+
+    def reorder_levels(self, order: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(order)
         return Series(self._block.reorder_levels(resolved_level_ids))
 

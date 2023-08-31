@@ -276,7 +276,9 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def reorder_levels(self, order: Sequence[int | str]) -> DataFrame:
+    def reorder_levels(
+        self, order: Sequence[int | str], axis: str | int = 0
+    ) -> DataFrame:
         """
         Rearrange index levels using input order. May not drop or duplicate levels.
 
@@ -284,13 +286,33 @@ class DataFrame(NDFrame):
             order (list of int or list of str):
                 List representing new level order. Reference level by number
                 (position) or by key (label).
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
+                Where to reorder levels.
 
         Returns:
             DataFrame: DataFrame of rearranged index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def droplevel(self, level):
+    def swaplevel(self, i, j, axis: str | int = 0) -> DataFrame:
+        """
+        Swap levels i and j in a :class:`MultiIndex`.
+
+        Default is to swap the two innermost levels of the index.
+
+        Args:
+            i, j (int or str):
+                Levels of the indices to be swapped. Can pass level name as string.
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
+                The axis to swap levels on. 0 or 'index' for row-wise, 1 or
+                'columns' for column-wise.
+
+        Returns:
+            DataFrame: DataFrame with levels swapped in MultiIndex.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def droplevel(self, level, axis: str | int = 0):
         """
         Return DataFrame with requested index / column level(s) removed.
 
@@ -299,6 +321,11 @@ class DataFrame(NDFrame):
                 If a string is given, must be the name of a level
                 If list-like, elements must be names or positional indexes
                 of levels.
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
+                Axis along which the level(s) is removed:
+
+                * 0 or 'index': remove level(s) in column.
+                * 1 or 'columns': remove level(s) in row.
         Returns:
             DataFrame: DataFrame with requested index / column level(s) removed.
         """

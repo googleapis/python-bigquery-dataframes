@@ -790,7 +790,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def reorder_levels(self, order: Sequence) -> Series:
+    def reorder_levels(self, order: Sequence, axis) -> Series:
         """
         Rearrange index levels using input order.
 
@@ -800,12 +800,31 @@ class Series(NDFrame):  # type: ignore[misc]
             order (list of int representing new level order):
                 Reference level by number or key.
 
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
+                For `Series` this parameter is unused and defaults to 0.
+
+
         Returns:
             type of caller (new object)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def droplevel(self, level):
+    def swaplevel(self, i, j):
+        """
+        Swap levels i and j in a `MultiIndex`.
+
+        Default is to swap the two innermost levels of the index.
+
+        Args:
+            i, j (int or str):
+                Levels of the indices to be swapped. Can pass level name as string.
+
+        Returns:
+            Series: Series with levels swapped in MultiIndex
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def droplevel(self, level, axis):
         """
         Return Series with requested index / column level(s) removed.
 
@@ -814,6 +833,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 If a string is given, must be the name of a level
                 If list-like, elements must be names or positional indexes
                 of levels.
+
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
+                For `Series` this parameter is unused and defaults to 0.
 
         Returns:
             Series with requested index / column level(s) removed.

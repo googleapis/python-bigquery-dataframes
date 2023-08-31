@@ -852,13 +852,50 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
 
-    def droplevel(self, level: LevelsType):
-        resolved_level_ids = self._resolve_levels(level)
-        return DataFrame(self._block.drop_levels(resolved_level_ids))
+    def droplevel(self, level: LevelsType, axis: int | str = 0):
+        axis_n = utils.get_axis_number(axis)
+        if axis_n == 0:
+            resolved_level_ids = self._resolve_levels(level)
+            return DataFrame(self._block.drop_levels(resolved_level_ids))
+        else:
+            if isinstance(self.columns, pandas.MultiIndex):
+                new_df = self.copy()
+                new_df.columns = self.columns.droplevel(level)
+                return new_df
+            else:
+                raise ValueError("Columns must be a multiindex to drop levels.")
 
-    def reorder_levels(self, order: LevelsType):
-        resolved_level_ids = self._resolve_levels(order)
-        return DataFrame(self._block.reorder_levels(resolved_level_ids))
+    def swaplevel(self, i: int = -2, j: int = -1, axis: int | str = 0):
+        axis_n = utils.get_axis_number(axis)
+        if axis_n == 0:
+            level_i = self._block.index_columns[i]
+            level_j = self._block.index_columns[j]
+            mapping = {level_i: level_j, level_j: level_i}
+            reordering = [
+                mapping.get(index_id, index_id)
+                for index_id in self._block.index_columns
+            ]
+            return DataFrame(self._block.reorder_levels(reordering))
+        else:
+            if isinstance(self.columns, pandas.MultiIndex):
+                new_df = self.copy()
+                new_df.columns = self.columns.swaplevel(i, j)
+                return new_df
+            else:
+                raise ValueError("Columns must be a multiindex to reorder levels.")
+
+    def reorder_levels(self, order: LevelsType, axis: int | str = 0):
+        axis_n = utils.get_axis_number(axis)
+        if axis_n == 0:
+            resolved_level_ids = self._resolve_levels(order)
+            return DataFrame(self._block.reorder_levels(resolved_level_ids))
+        else:
+            if isinstance(self.columns, pandas.MultiIndex):
+                new_df = self.copy()
+                new_df.columns = self.columns.reorder_levels(order)
+                return new_df
+            else:
+                raise ValueError("Columns must be a multiindex to reorder levels.")
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):
