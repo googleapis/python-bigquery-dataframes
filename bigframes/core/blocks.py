@@ -1123,7 +1123,9 @@ class Block:
         )
 
     def add_prefix(self, prefix: str, axis: str | int | None = None) -> Block:
-        axis_number = bigframes.core.utils.get_axis_number(axis)
+        axis_number = bigframes.core.utils.get_axis_number(
+            "rows" if (axis is None) else axis
+        )
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
@@ -1140,7 +1142,9 @@ class Block:
             return self.rename(columns=lambda label: f"{prefix}{label}")
 
     def add_suffix(self, suffix: str, axis: str | int | None = None) -> Block:
-        axis_number = bigframes.core.utils.get_axis_number(axis)
+        axis_number = bigframes.core.utils.get_axis_number(
+            "rows" if (axis is None) else axis
+        )
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:

@@ -1133,6 +1133,157 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         axis = 1 if axis is None else axis
         return DataFrame(self._get_block().add_suffix(suffix, axis))
 
+    def filter(
+        self,
+        items: typing.Optional[typing.Iterable] = None,
+        like: typing.Optional[str] = None,
+        regex: typing.Optional[str] = None,
+        axis: int | str | None = None,
+    ) -> DataFrame:
+        if sum([(items is not None), (like is not None), (regex is not None)]) != 1:
+            raise ValueError(
+                "Need to provide exactly one of 'items', 'like', or 'regex'"
+            )
+        axis_n = utils.get_axis_number(axis) if (axis is not None) else 1
+        if axis_n == 0:  # row labels
+            return self._filter_rows(items, like, regex)
+        else:  # column labels
+            return self._filter_columns(items, like, regex)
+
+    def _filter_rows(
+        self,
+        items: typing.Optional[typing.Iterable] = None,
+        like: typing.Optional[str] = None,
+        regex: typing.Optional[str] = None,
+    ) -> DataFrame:
+        if len(self._block.index_columns) > 1:
+            raise NotImplementedError(
+                "Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
+            )
+        if (like is not None) or (regex is not None):
+            block = self._block
+            block, label_string_id = block.apply_unary_op(
+                self._block.index_columns[0],
+                ops.AsTypeOp(pandas.StringDtype(storage="pyarrow")),
+            )
+            if like is not None:
+                block, mask_id = block.apply_unary_op(
+                    label_string_id, ops.ContainsStringOp(pat=like)
+                )
+            else:  # regex
+                assert regex is not None
+                block, mask_id = block.apply_unary_op(
+                    label_string_id, ops.ContainsRegexOp(pat=regex)
+                )
+
+            block = block.filter(mask_id)
+            block = block.select_columns(self._block.value_columns)
+            return DataFrame(block)
+        elif items is not None:
+            # Behavior matches pandas 2.1+, older pandas versions would reindex
+            block = self._block
+            block, mask_id = block.apply_unary_op(
+                self._block.index_columns[0], ops.IsInOp(values=list(items))
+            )
+            block = block.filter(mask_id)
+            block = block.select_columns(self._block.value_columns)
+            return DataFrame(block)
+        else:
+            raise ValueError("Need to provide 'items', 'like', or 'regex'")
+
+    def _filter_columns(
+        self,
+        items: typing.Optional[typing.Iterable] = None,
+        like: typing.Optional[str] = None,
+        regex: typing.Optional[str] = None,
+    ) -> DataFrame:
+        if (like is not None) or (regex is not None):
+
+            def label_filter(label):
+                label_str = label if isinstance(label, str) else str(label)
+                if like:
+                    return like in label_str
+                else:  # regex
+                    return re.match(regex, label_str) is not None
+
+            cols = [
+                col_id
+                for col_id, label in zip(self._block.value_columns, self.columns)
+                if label_filter(label)
+            ]
+            return DataFrame(self._block.select_columns(cols))
+        if items is not None:
+            # Behavior matches pandas 2.1+, older pandas versions would reorder using order of items
+            new_columns = self.columns.intersection(pandas.Index(items))
+            return self.reindex(columns=new_columns)
+        else:
+            raise ValueError("Need to provide 'items', 'like', or 'regex'")
+
+    def reindex(
+        self,
+        labels=None,
+        *,
+        index=None,
+        columns=None,
+        axis: typing.Optional[typing.Union[str, int]] = None,
+        validate: typing.Optional[bool] = None,
+    ):
+        if labels:
+            if index or columns:
+                raise ValueError("Cannot specify both 'labels' and 'index'/'columns")
+            axis_n = utils.get_axis_number(axis) if (axis is not None) else 0
+            if axis_n == 0:
+                index = labels
+            else:
+                columns = labels
+        if index is not None:
+            return self._reindex_rows(index, validate=validate or False)
+        if columns is not None:
+            return self._reindex_columns(columns)
+
+    def _reindex_rows(
+        self,
+        index,
+        *,
+        validate: typing.Optional[bool] = None,
+    ):
+        if validate and not self.index.is_unique:
+            raise ValueError("Original index must be unique to reindex")
+        keep_original_names = False
+        if not isinstance(index, pandas.Index):
+            keep_original_names = True
+            index = pandas.Index(index)
+        if index.nlevels != self.index.nlevels:
+            raise NotImplementedError(
+                "Cannot reindex with index with different nlevels"
+            )
+        new_indexer = DataFrame(index=index)
+        # multiindex join is senstive to index names, so we will set all these
+        result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
+            self.rename_axis(range(self.index.nlevels)),
+            how="left",
+        )
+        # and then reset the names after the join
+        return result.rename_axis(
+            self.index.names if keep_original_names else index.names
+        )
+
+    def _reindex_columns(self, columns):
+        block = self._block
+        new_column_index, indexer = self.columns.reindex(columns)
+        result_cols = []
+        for label, index in zip(columns, indexer):
+            if index >= 0:
+                result_cols.append(self._block.value_columns[index])
+            else:
+                block, null_col = block.create_constant(
+                    pandas.NA, label, dtype=pandas.Float64Dtype()
+                )
+                result_cols.append(null_col)
+        result_df = DataFrame(block.select_columns(result_cols))
+        result_df.columns = new_column_index
+        return result_df
+
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op)
 

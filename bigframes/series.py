@@ -42,6 +42,7 @@ from bigframes.core.ordering import (
     STABLE_SORTS,
 )
 import bigframes.core.scalar as scalars
+import bigframes.core.utils as utils
 import bigframes.core.window
 import bigframes.dataframe
 import bigframes.dtypes
@@ -1109,6 +1110,69 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
 
+    def filter(
+        self,
+        items: typing.Optional[typing.Iterable] = None,
+        like: typing.Optional[str] = None,
+        regex: typing.Optional[str] = None,
+        axis: typing.Optional[typing.Union[str, int]] = None,
+    ) -> Series:
+        if (axis is not None) and utils.get_axis_number(axis) != 0:
+            raise ValueError(f"Invalid axis for series: {axis}")
+        if sum([(items is not None), (like is not None), (regex is not None)]) != 1:
+            raise ValueError(
+                "Need to provide exactly one of 'items', 'like', or 'regex'"
+            )
+        if len(self._block.index_columns) > 1:
+            raise NotImplementedError(
+                "Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
+            )
+        if (like is not None) or (regex is not None):
+            block = self._block
+            block, label_string_id = block.apply_unary_op(
+                self._block.index_columns[0],
+                ops.AsTypeOp(pandas.StringDtype(storage="pyarrow")),
+            )
+            if like is not None:
+                block, mask_id = block.apply_unary_op(
+                    label_string_id, ops.ContainsStringOp(pat=like)
+                )
+            else:  # regex
+                assert regex is not None
+                block, mask_id = block.apply_unary_op(
+                    label_string_id, ops.ContainsRegexOp(pat=regex)
+                )
+
+            block = block.filter(mask_id)
+            block = block.select_columns([self._value_column])
+            return Series(block)
+        elif items is not None:
+            # Behavior matches pandas 2.1+, older pandas versions would reindex
+            block = self._block
+            block, mask_id = block.apply_unary_op(
+                self._block.index_columns[0], ops.IsInOp(values=list(items))
+            )
+            block = block.filter(mask_id)
+            block = block.select_columns([self._value_column])
+            return Series(block)
+        else:
+            raise ValueError("Need to provide 'items', 'like', or 'regex'")
+
+    def reindex(self, index=None, *, validate: typing.Optional[bool] = None):
+        if validate and not self.index.is_unique:
+            raise ValueError("Original index must be unique to reindex")
+        new_indexer = bigframes.dataframe.DataFrame(
+            {self.index.name: pandas.Index(index)}
+        ).set_index(self.index.name)
+        joined = new_indexer.join(self.to_frame())
+        result_block = joined._block.select_column(  # type: ignore
+            self._value_column,
+        )
+        return Series(
+            result_block,
+            name=self.name,
+        )
+
     def drop_duplicates(self, *, keep: str = "first") -> Series:
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
@@ -1229,14 +1293,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _throw_if_index_contains_duplicates(
         self, error_message: typing.Optional[str] = None
     ) -> None:
-        duplicates_block, _ = block_ops.indicate_duplicates(
-            self._get_block(), self._get_block().index_columns
-        )
-        duplicates_block = duplicates_block.with_column_labels(
-            ["values", "is_duplicate"]
-        )
-        duplicates_df = bigframes.dataframe.DataFrame(duplicates_block)
-        if duplicates_df["is_duplicate"].any():
+        if not self.index.is_unique:
             error_message = (
                 error_message
                 if error_message

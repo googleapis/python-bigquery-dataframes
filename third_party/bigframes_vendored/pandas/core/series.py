@@ -758,6 +758,24 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def reindex(self, index=None):
+        """
+        Conform Series to new index with optional filling logic.
+
+        Places NA/NaN in locations having no value in the previous index. A new object
+        is produced unless the new index is equivalent to the current one and
+        ``copy=False``.
+
+        Args:
+            index (array-like, optional):
+                New labels for the index. Preferably an Index object to avoid
+                duplicating data.
+
+        Returns:
+            Series: Series with changed index.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def drop(
         self, labels=None, *, axis=0, index=None, columns=None, level=None
     ) -> Series | None:

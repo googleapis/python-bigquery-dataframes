@@ -367,6 +367,36 @@ class NDFrame(indexing.IndexingMixin):
 
     notnull = notna
 
+    def filter(
+        self,
+        items=None,
+        like: str | None = None,
+        regex: str | None = None,
+        axis=None,
+    ) -> NDFrame:
+        """
+        Subset the dataframe rows or columns according to the specified index labels.
+
+        Note that this routine does not filter a dataframe on its
+        contents. The filter is applied to the labels of the index.
+
+        Args:
+            items (list-like):
+                Keep labels from axis which are in items.
+            like (str):
+                Keep labels from axis for which "like in label == True".
+            regex (str (regular expression)):
+                Keep labels from axis for which re.search(regex, label) == True.
+            axis ({0 or 'index', 1 or 'columns', None}, default None):
+                The axis to filter on, expressed either as an index (int)
+                or axis name (str). By default this is the info axis, 'columns' for
+                DataFrame. For `Series` this parameter is unused and defaults to `None`.
+
+        Returns:
+            same type as input object
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def shift(
         self,
         periods: int = 1,

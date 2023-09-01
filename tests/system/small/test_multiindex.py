@@ -513,6 +513,24 @@ def test_multi_index_series_rename_dict_same_type(
     )
 
 
+def test_multi_index_df_reindex(scalars_df_index, scalars_pandas_df_index):
+    new_index = pandas.MultiIndex.from_tuples(
+        [(4, "Hello, World!"), (99, "some_new_string")],
+        names=["new_index1", "new_index2"],
+    )
+    bf_result = (
+        scalars_df_index.set_index(["rowindex_2", "string_col"])
+        .reindex(index=new_index)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.set_index(["rowindex_2", "string_col"]).reindex(
+        index=new_index
+    )
+    pandas.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
 # Column Multi-index tests
 
 
@@ -805,6 +823,31 @@ def test_column_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index)
     pd_result = pd_df.droplevel(1, axis=1)
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_df_column_multi_index_reindex(scalars_df_index, scalars_pandas_df_index):
+    columns = ["int64_too", "int64_col", "rowindex_2"]
+    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "a"], ["a", "b", "b"]))
+    bf_df = scalars_df_index[columns].copy()
+    bf_df.columns = multi_columns
+    pd_df = scalars_pandas_df_index[columns].copy()
+    pd_df.columns = multi_columns
+
+    new_index = pandas.MultiIndex.from_tuples(
+        [("z", "a"), ("a", "a")], names=["newname1", "newname2"]
+    )
+
+    bf_result = bf_df.reindex(columns=new_index).to_pandas()
+
+    pd_result = pd_df.reindex(columns=new_index)
+
+    # Pandas uses float64 as default for newly created empty column, bf uses Float64
+    pd_result[("z", "a")] = pd_result[("z", "a")].astype(pandas.Float64Dtype())
+
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
 
 
 def test_column_multi_index_reorder_levels(scalars_df_index, scalars_pandas_df_index):

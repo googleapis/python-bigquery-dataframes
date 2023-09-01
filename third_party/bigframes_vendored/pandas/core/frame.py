@@ -185,6 +185,36 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # Reindexing and alignment
 
+    def reindex(
+        self,
+        labels=None,
+        *,
+        index=None,
+        columns=None,
+        axis=None,
+    ):
+        """Conform DataFrame to new index with optional filling logic.
+
+        Places NA in locations having no value in the previous index. A new object
+        is produced.
+
+        Args:
+            labels (array-like, optional):
+                New labels / index to conform the axis specified by 'axis' to.
+            index (array-like, optional):
+                New labels for the index. Preferably an Index object to avoid
+                duplicating data.
+            columns (array-like, optional):
+                New labels for the columns. Preferably an Index object to avoid
+                duplicating data.
+            axis (int or str, optional):
+                Axis to target. Can be either the axis name ('index', 'columns')
+                or number (0, 1).
+        Returns:
+            DataFrame: DataFrame with changed index.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def drop(
         self, labels=None, *, axis=0, index=None, columns=None, level=None
     ) -> DataFrame | None:

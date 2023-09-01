@@ -759,7 +759,6 @@ def test_isin_raise_error(scalars_df_index, scalars_pandas_df_index):
 )
 def test_isin(scalars_dfs, col_name, test_set):
     scalars_df, scalars_pandas_df = scalars_dfs
-    print(type(scalars_pandas_df["datetime_col"].iloc[0]))
     bf_result = scalars_df[col_name].isin(test_set).to_pandas()
     pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
     pd.testing.assert_series_equal(
@@ -1851,6 +1850,72 @@ def test_series_add_suffix(scalars_df_index, scalars_pandas_df_index):
         pd_result,
         check_index_type=False,
     )
+
+
+def test_series_filter_items(scalars_df_index, scalars_pandas_df_index):
+    if pd.__version__.startswith("2.0") or pd.__version__.startswith("1."):
+        pytest.skip("pandas filter items behavior different pre-2.1")
+    bf_result = scalars_df_index["float64_col"].filter(items=[5, 1, 3]).to_pandas()
+
+    pd_result = scalars_pandas_df_index["float64_col"].filter(items=[5, 1, 3])
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_filter_like(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.copy().set_index("string_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.copy().set_index("string_col")
+
+    bf_result = scalars_df_index["float64_col"].filter(like="ello").to_pandas()
+
+    pd_result = scalars_pandas_df_index["float64_col"].filter(like="ello")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_filter_regex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.copy().set_index("string_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.copy().set_index("string_col")
+
+    bf_result = scalars_df_index["float64_col"].filter(regex="^[GH].*").to_pandas()
+
+    pd_result = scalars_pandas_df_index["float64_col"].filter(regex="^[GH].*")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_reindex(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["float64_col"].reindex(index=[5, 1, 3, 99, 1]).to_pandas()
+    )
+
+    pd_result = scalars_pandas_df_index["float64_col"].reindex(index=[5, 1, 3, 99, 1])
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_reindex_nonunique(scalars_df_index):
+    with pytest.raises(ValueError):
+        # int64_too is non-unique
+        scalars_df_index.set_index("int64_too")["float64_col"].reindex(
+            index=[5, 1, 3, 99, 1], validate=True
+        )
 
 
 def test_where_with_series(scalars_df_index, scalars_pandas_df_index):
