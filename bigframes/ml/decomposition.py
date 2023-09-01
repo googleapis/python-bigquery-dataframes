@@ -28,8 +28,8 @@ import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 
 class PCA(
+    base.UnsupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
-    base.TrainablePredictor,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
@@ -52,7 +52,7 @@ class PCA(
         new_pca._bqml_model = core.BqmlModel(session, model)
         return new_pca
 
-    def fit(
+    def _fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y=None,

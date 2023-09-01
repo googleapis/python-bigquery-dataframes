@@ -48,8 +48,8 @@ _BQML_PARAMS_MAPPING = {
 
 
 class XGBRegressor(
+    base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
-    base.TrainablePredictor,
 ):
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
@@ -143,7 +143,7 @@ class XGBRegressor(
             "xgboost_version": self.xgboost_version,
         }
 
-    def fit(
+    def _fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
@@ -211,8 +211,8 @@ class XGBRegressor(
 
 
 class XGBClassifier(
+    base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
-    base.TrainablePredictor,
 ):
 
     __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
@@ -307,7 +307,7 @@ class XGBClassifier(
             "xgboost_version": self.xgboost_version,
         }
 
-    def fit(
+    def _fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
@@ -374,8 +374,8 @@ class XGBClassifier(
 
 
 class RandomForestRegressor(
+    base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
-    base.TrainablePredictor,
 ):
 
     __doc__ = (
@@ -461,7 +461,7 @@ class RandomForestRegressor(
             "xgboost_version": self.xgboost_version,
         }
 
-    def fit(
+    def _fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
@@ -542,8 +542,8 @@ class RandomForestRegressor(
 
 
 class RandomForestClassifier(
+    base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
-    base.TrainablePredictor,
 ):
 
     __doc__ = (
@@ -629,7 +629,7 @@ class RandomForestClassifier(
             "xgboost_version": self.xgboost_version,
         }
 
-    def fit(
+    def _fit(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
