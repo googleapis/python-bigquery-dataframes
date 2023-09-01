@@ -30,8 +30,8 @@ import third_party.bigframes_vendored.sklearn.pipeline
 
 
 class Pipeline(
-    third_party.bigframes_vendored.sklearn.pipeline.Pipeline,
     base.BaseEstimator,
+    third_party.bigframes_vendored.sklearn.pipeline.Pipeline,
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.pipeline.Pipeline.__doc__
 
