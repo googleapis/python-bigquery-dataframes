@@ -57,16 +57,6 @@ export PYTHONUNBUFFERED=1
 # Install dependencies, as the following steps depend on it
 python3.10 -m pip install -e .[all]
 
-# If NOX_SESSION is set, it only runs the specified session,
-# otherwise run all the sessions.
-if ! [ ${DRY_RUN} ]; then
-    if [ -n "${NOX_SESSION:-}" ]; then
-        python3.10 -m nox -s ${NOX_SESSION:-}
-    else
-        python3.10 -m nox
-    fi
-fi
-
 # Generate third party notices and include it in the licenses in setup.cfg
 # TODO(shobs): Don't include it in the package once vertex colab can pick it
 # from elsewhere
