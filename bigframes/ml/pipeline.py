@@ -24,7 +24,7 @@ from google.cloud import bigquery
 
 import bigframes
 import bigframes.constants as constants
-from bigframes.ml import base, compose, loader, preprocessing, utils
+from bigframes.ml import base, compose, forecasting, loader, preprocessing, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.pipeline
 
@@ -55,7 +55,7 @@ class Pipeline(
             self._transform = transform
         else:
             raise NotImplementedError(
-                f"Transform {transform} is not yet supported by Pipeline. {constants.FEEDBACK_LINK}"
+                f"Transformer type {type(transform)} is not yet supported by Pipeline. {constants.FEEDBACK_LINK}"
             )
 
         if not isinstance(
@@ -63,7 +63,13 @@ class Pipeline(
             base.TrainablePredictor,
         ):
             raise NotImplementedError(
-                f"Estimator {estimator} is not supported by Pipeline. {constants.FEEDBACK_LINK}"
+                f"Estimator type {type(estimator)} is not supported by Pipeline. {constants.FEEDBACK_LINK}"
+            )
+
+        # BQML doesn't support ARIMA_PLUS with transformers. b/298676367
+        if isinstance(estimator, forecasting.ARIMAPlus):
+            raise NotImplementedError(
+                f"Estimator type {type(estimator)} is not supported by Pipeline. {constants.FEEDBACK_LINK}"
             )
 
         self._transform = transform
