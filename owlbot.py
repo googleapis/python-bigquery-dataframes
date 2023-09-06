@@ -28,11 +28,6 @@ common = gcp.CommonTemplates()
 # ----------------------------------------------------------------------------
 # Add templated files
 # ----------------------------------------------------------------------------
-
-# BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
-continuous_paths = list((REPO_ROOT / ".kokoro" / "continuous").glob("*.cfg"))
-presubmit_paths = list((REPO_ROOT / ".kokoro" / "presubmit").glob("*.cfg"))
-
 templated_files = common.py_library(
     unit_test_python_versions=["3.9", "3.10", "3.11"],
     system_test_python_versions=["3.9", "3.11"],
@@ -51,9 +46,10 @@ s.move(
         "noxfile.py",
         "README.rst",
         ".github/release-trigger.yml",
-    ]
-    + continuous_paths
-    + presubmit_paths,
+        # BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
+        ".kokoro/continuous/common.cfg",
+        ".kokoro/presubmit/common.cfg",
+    ],
 )
 
 # ----------------------------------------------------------------------------
