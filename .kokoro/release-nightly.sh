@@ -158,49 +158,6 @@ sed -i -e "s/$RELEASE_VERSION/$BIGFRAMES_VERSION/g" bigframes/version.py
 mv -f ${SETUP_CFG_BKP} setup.cfg
 rm -f ${THIRD_PARTY_NOTICES_FILE}
 
-# Keep this last so as not to block the release on PDF docs build.
-pdf_docs () {
-    sudo apt update
-    sudo apt install -y texlive texlive-latex-extra latexmk
-
-    pushd "${PROJECT_ROOT}/docs"
-    make latexpdf
-
-    cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-${RELEASE_VERSION}.pdf"
-    cp "_build/latex/bigframes.pdf" "_build/latex/bigframes-latest.pdf"
-
-    if ! [ ${DRY_RUN} ]; then
-        for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                        gs://dl-platform-colab/bigframes/ \
-                        gs://bigframes-wheels/;
-        do
-          gsutil cp -v "_build/latex/bigframes-*.pdf" ${gcs_path}
-        done
-    fi
-
-    popd
-}
-
-pdf_docs
-
-# Copy html docs to GCS from where it can be deployed to anywhere else
-gcs_docs () {
-    docs_gcs_bucket=gs://bigframes-docs
-    docs_local_html_folder=docs/_build/html
-    if [ ! -d ${docs_local_html_folder} ]; then
-      python3.10 -m nox -s docs
-    fi
-
-    if ! [ ${DRY_RUN} ]; then
-        gsutil -m cp -v -r ${docs_local_html_folder} ${docs_gcs_bucket}/${GIT_HASH}
-
-        # Copy the script to refresh firebase docs website from GCS to GCS itself
-        gsutil -m cp -v scripts/update_firebase_docs_site.sh ${docs_gcs_bucket}
-    fi
-}
-
-gcs_docs
-
 if ! [ ${DRY_RUN} ]; then
     # Copy docs and wheels to Google Drive
     python3.10 scripts/upload_to_google_drive.py

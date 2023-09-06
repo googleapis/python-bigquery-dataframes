@@ -15,8 +15,14 @@
 
 set -eo pipefail
 
+if [[ -z "${KOKORO_GOB_COMMIT}" ]]; then
+    PROJECT_SCM="github"
+else
+    PROJECT_SCM="git"
+fi
+
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
-    PROJECT_ROOT="github/python-bigquery-dataframes"
+    PROJECT_ROOT="${KOKORO_ARTIFACTS_DIR}/${PROJECT_SCM}/bigframes"
 fi
 
 cd "${PROJECT_ROOT}"
@@ -27,11 +33,9 @@ export PYTHONUNBUFFERED=1
 # Debug: show build environment
 env | grep KOKORO
 
-# Setup service account credentials.
-export GOOGLE_APPLICATION_CREDENTIALS=${KOKORO_GFILE_DIR}/service-account.json
-
-# Setup project id.
-export PROJECT_ID=$(cat "${KOKORO_GFILE_DIR}/project-id.json")
+# Install pip
+python3 -m pip install --upgrade --quiet pip
+python3 -m pip --version
 
 # Remove old nox
 python3 -m pip uninstall --yes --quiet nox-automation
@@ -40,20 +44,10 @@ python3 -m pip uninstall --yes --quiet nox-automation
 python3 -m pip install --upgrade --quiet nox
 python3 -m nox --version
 
-# If this is a continuous build, send the test log to the FlakyBot.
-# See https://github.com/googleapis/repo-automation-bots/tree/main/packages/flakybot.
-if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
-  cleanup() {
-    chmod +x $KOKORO_GFILE_DIR/linux_amd64/flakybot
-    $KOKORO_GFILE_DIR/linux_amd64/flakybot
-  }
-  trap cleanup EXIT HUP
-fi
-
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
 if [[ -n "${NOX_SESSION:-}" ]]; then
-    python3 -m nox -s ${NOX_SESSION:-}
+    python3 -m nox --stop-on-first-error -s ${NOX_SESSION:-}
 else
-    python3 -m nox
+    python3 -m nox --stop-on-first-error
 fi

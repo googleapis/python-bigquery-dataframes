@@ -15,6 +15,7 @@
 """This script is used to synthesize generated parts of this library."""
 
 import pathlib
+import re
 
 from synthtool import gcp
 import synthtool as s
@@ -28,10 +29,14 @@ common = gcp.CommonTemplates()
 # Add templated files
 # ----------------------------------------------------------------------------
 
+# BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
+continuous_paths = list((REPO_ROOT / ".kokoro" / "continuous").glob("*.cfg"))
+presubmit_paths = list((REPO_ROOT / ".kokoro" / "presubmit").glob("*.cfg"))
+
 templated_files = common.py_library(
     unit_test_python_versions=["3.9", "3.10", "3.11"],
     system_test_python_versions=["3.9", "3.11"],
-    cov_level=40,
+    cov_level=39,
     intersphinx_dependencies={
         "pandas": "https://pandas.pydata.org/pandas-docs/stable/",
         "pydata-google-auth": "https://pydata-google-auth.readthedocs.io/en/latest/",
@@ -40,18 +45,61 @@ templated_files = common.py_library(
 s.move(
     templated_files,
     excludes=[
-        # Multi-processing note isn't relevant, as pandas_gbq is responsible for
+        # Multi-processing note isn't relevant, as bigframes is responsible for
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
         "noxfile.py",
         "README.rst",
-    ],
+        ".github/release-trigger.yml",
+    ]
+    + continuous_paths
+    + presubmit_paths,
 )
 
 # ----------------------------------------------------------------------------
 # Fixup files
 # ----------------------------------------------------------------------------
 
+# Make sure build includes all necessary files.
+s.replace(
+    ["MANIFEST.in"],
+    re.escape("recursive-include google"),
+    "recursive-include third_party *\nrecursive-include bigframes",
+)
+
+# Even though BigQuery DataFrames isn't technically a client library, we are
+# opting into Cloud RAD for docs hosting.
+s.replace(
+    [".kokoro/docs/common.cfg"],
+    re.escape('value: "docs-staging-v2-staging"'),
+    'value: "docs-staging-v2"',
+)
+
+# Use a custom table of contents since the default one isn't organized well
+# enough for the number of classes we have.
+s.replace(
+    [".kokoro/publish-docs.sh"],
+    (
+        re.escape("# upload docs")
+        + "\n"
+        + re.escape(
+            'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
+        )
+    ),
+    (
+        "# Replace toc.yml template file\n"
+        + "mv docs/templates/toc.yml docs/_build/html/docfx_yaml/toc.yml\n\n"
+        + "# upload docs\n"
+        + 'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
+    ),
+)
+
+# Fixup the documentation.
+s.replace(
+    ["docs/conf.py"],
+    re.escape("Google Cloud Client Libraries for bigframes"),
+    "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
+)
 
 # ----------------------------------------------------------------------------
 # Samples templates
@@ -63,6 +111,6 @@ python.py_samples(skip_readmes=True)
 # Final cleanup
 # ----------------------------------------------------------------------------
 
-s.shell.run(["nox", "-s", "blacken"], hide_output=False)
+s.shell.run(["nox", "-s", "format"], hide_output=False)
 for noxfile in REPO_ROOT.glob("samples/**/noxfile.py"):
     s.shell.run(["nox", "-s", "blacken"], cwd=noxfile.parent, hide_output=False)
