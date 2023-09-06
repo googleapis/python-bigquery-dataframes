@@ -24,9 +24,9 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys
 import os
 import shlex
+import sys
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -154,7 +154,7 @@ html_theme = "alabaster"
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "description": "Google Cloud Client Libraries for bigframes",
+    "description": "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
     "github_user": "googleapis",
     "github_repo": "python-bigquery-dataframes",
     "github_banner": True,
