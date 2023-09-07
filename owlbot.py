@@ -44,6 +44,7 @@ s.move(
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
         "noxfile.py",
+        ".pre-commit-config.yaml",
         "README.rst",
         ".github/release-trigger.yml",
         # BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
