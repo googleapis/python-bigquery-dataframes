@@ -35,13 +35,13 @@ while [ $# -gt 0 ] ; do
 done
 
 if [[ -z "${KOKORO_GOB_COMMIT}" ]]; then
-    PROJECT_SCM="github"
+    PROJECT_SCM="github/python-bigquery-dataframes"
 else
-    PROJECT_SCM="git"
+    PROJECT_SCM="git/bigframes"
 fi
 
 if [ -z "${PROJECT_ROOT:-}" ]; then
-    PROJECT_ROOT="${KOKORO_ARTIFACTS_DIR}/${PROJECT_SCM}/bigframes"
+    PROJECT_ROOT="${KOKORO_ARTIFACTS_DIR}/${PROJECT_SCM}"
 fi
 
 # Move into the package, build the distribution and upload to shared bucket.
