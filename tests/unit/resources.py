@@ -15,6 +15,7 @@
 from typing import Dict, List, Optional
 import unittest.mock as mock
 
+import google.auth.credentials
 import google.cloud.bigquery
 import ibis
 import pandas
@@ -28,14 +29,22 @@ import bigframes.core as core
 def create_bigquery_session(
     bqclient: Optional[google.cloud.bigquery.Client] = None, session_id: str = "abcxyz"
 ) -> bigframes.Session:
+    credentials = mock.create_autospec(
+        google.auth.credentials.Credentials, instance=True
+    )
+
     if bqclient is None:
         bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
         bqclient.project = "test-project"
 
     clients_provider = mock.create_autospec(bigframes.session.ClientsProvider)
     type(clients_provider).bqclient = mock.PropertyMock(return_value=bqclient)
+    clients_provider._credentials = credentials
 
-    session = bigframes.Session(clients_provider=clients_provider)
+    bqoptions = bigframes.BigQueryOptions(
+        credentials=credentials, location="test-region"
+    )
+    session = bigframes.Session(context=bqoptions, clients_provider=clients_provider)
     session._session_id = session_id
     return session
 

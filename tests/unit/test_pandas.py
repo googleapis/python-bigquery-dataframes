@@ -132,7 +132,9 @@ def test_reset_session_after_bq_session_ended(monkeypatch):
     )
     bqclient.query.return_value = query_job
 
+    # Simulate that the session has already started.
     monkeypatch.setattr(bigframes.core.global_session, "_global_session", session)
+    bpd.options.bigquery._session_started = True
 
     # Confirm that as a result bigframes.pandas interface is unusable
     with pytest.raises(
