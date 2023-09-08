@@ -404,6 +404,47 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def fillna(self, value=None) -> Series:
         return self._apply_binary_op(value, ops.fillna_op)
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if regex:
+            if not (isinstance(to_replace, str) and isinstance(value, str)):
+                raise NotImplementedError(
+                    f"replace regex mode only supports strings for 'to_replace' and 'value'. {constants.FEEDBACK_LINK}"
+                )
+            block, result_col = self._block.apply_unary_op(
+                self._value_column,
+                ops.ReplaceRegexOp(to_replace, value),
+                result_label=self.name,
+            )
+            return Series(block.select_column(result_col))
+        elif utils.is_dict_like(to_replace):
+            raise NotImplementedError(
+                f"Dict 'to_replace' not supported. {constants.FEEDBACK_LINK}"
+            )
+        elif utils.is_list_like(to_replace):
+            block, cond = self._block.apply_unary_op(
+                self._value_column, ops.IsInOp(to_replace)
+            )
+            block, result_col = block.apply_binary_op(
+                cond,
+                self._value_column,
+                ops.partial_arg1(ops.where_op, value),
+                result_label=self.name,
+            )
+            return Series(block.select_column(result_col))
+        else:  # Scalar
+            block, cond = self._block.apply_unary_op(
+                self._value_column, ops.BinopPartialLeft(ops.eq_op, to_replace)
+            )
+            block, result_col = block.apply_binary_op(
+                cond,
+                self._value_column,
+                ops.partial_arg1(ops.where_op, value),
+                result_label=self.name,
+            )
+            return Series(block.select_column(result_col))
+
     def dropna(
         self,
         *,

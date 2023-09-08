@@ -186,6 +186,54 @@ def test_fillna(scalars_dfs):
     )
 
 
+def test_series_replace_scalar_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = (
+        scalars_df[col_name].replace("Hello, World!", "Howdy, Planet!").to_pandas()
+    )
+    pd_result = scalars_pandas_df[col_name].replace("Hello, World!", "Howdy, Planet!")
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_series_replace_regex_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = (
+        scalars_df[col_name].replace("^H.l", "Howdy, Planet!", regex=True).to_pandas()
+    )
+    pd_result = scalars_pandas_df[col_name].replace(
+        "^H.l", "Howdy, Planet!", regex=True
+    )
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_series_replace_list_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = (
+        scalars_df[col_name]
+        .replace(["Hello, World!", "T"], "Howdy, Planet!")
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df[col_name].replace(
+        ["Hello, World!", "T"], "Howdy, Planet!"
+    )
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("ignore_index",),
     (
