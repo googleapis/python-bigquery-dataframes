@@ -1695,6 +1695,52 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
     )
 
 
+def test_loc_setitem_bool_series_scalar_new_col(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.loc[bf_df["int64_too"] == 0, "new_col"] = 99
+    pd_df.loc[pd_df["int64_too"] == 0, "new_col"] = 99
+
+    # pandas type difference
+    pd_df["new_col"] = pd_df["new_col"].astype("Float64")
+
+    pd.testing.assert_frame_equal(
+        bf_df.to_pandas(),
+        pd_df,
+    )
+
+
+def test_loc_setitem_bool_series_scalar_existing_col(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("this loc overload not supported in pandas 1.x.")
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.loc[bf_df["int64_too"] == 1, "string_col"] = "hello"
+    pd_df.loc[pd_df["int64_too"] == 1, "string_col"] = "hello"
+
+    pd.testing.assert_frame_equal(
+        bf_df.to_pandas(),
+        pd_df,
+    )
+
+
+def test_loc_setitem_bool_series_scalar_type_error(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("this loc overload not supported in pandas 1.x.")
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+
+    with pytest.raises(TypeError):
+        bf_df.loc[bf_df["int64_too"] == 1, "string_col"] = 99
+    with pytest.raises(TypeError):
+        pd_df.loc[pd_df["int64_too"] == 1, "string_col"] = 99
+
+
 @pytest.mark.parametrize(
     ("op"),
     [
