@@ -39,7 +39,7 @@ class LinearRegression(
 
     def __init__(
         self,
-        fit_intercept=True,
+        fit_intercept: bool = True,
     ):
         self.fit_intercept = fit_intercept
         self._bqml_model: Optional[core.BqmlModel] = None

@@ -34,7 +34,7 @@ class KMeans(
 
     __doc__ = third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans.__doc__
 
-    def __init__(self, n_clusters=8):
+    def __init__(self, n_clusters: int = 8):
         self.n_clusters = n_clusters
         self._bqml_model: Optional[core.BqmlModel] = None
 

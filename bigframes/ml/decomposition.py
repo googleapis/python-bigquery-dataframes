@@ -33,7 +33,7 @@ class PCA(
 ):
     __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
-    def __init__(self, n_components=3):
+    def __init__(self, n_components: int = 3):
         self.n_components = n_components
         self._bqml_model: Optional[core.BqmlModel] = None
 
