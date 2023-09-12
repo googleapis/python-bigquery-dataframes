@@ -1202,17 +1202,33 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def reindex(self, index=None, *, validate: typing.Optional[bool] = None):
         if validate and not self.index.is_unique:
             raise ValueError("Original index must be unique to reindex")
-        new_indexer = bigframes.dataframe.DataFrame(
-            {self.index.name: pandas.Index(index)}
-        ).set_index(self.index.name)
-        joined = new_indexer.join(self.to_frame())
-        result_block = joined._block.select_column(  # type: ignore
-            self._value_column,
+        keep_original_names = False
+        if isinstance(index, indexes.Index):
+            new_indexer = bigframes.dataframe.DataFrame(data=index._data._get_block())[
+                []
+            ]
+        else:
+            if not isinstance(index, pandas.Index):
+                keep_original_names = True
+                index = pandas.Index(index)
+            if index.nlevels != self.index.nlevels:
+                raise NotImplementedError(
+                    "Cannot reindex with index with different nlevels"
+                )
+            new_indexer = bigframes.dataframe.DataFrame(index=index)[[]]
+        # multiindex join is senstive to index names, so we will set all these
+        result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
+            self.to_frame().rename_axis(range(self.index.nlevels)),
+            how="left",
         )
-        return Series(
-            result_block,
-            name=self.name,
-        )
+        # and then reset the names after the join
+        result_block = result.rename_axis(
+            self.index.names if keep_original_names else index.names
+        )._block
+        return Series(result_block)
+
+    def reindex_like(self, other: Series, *, validate: typing.Optional[bool] = None):
+        return self.reindex(other.index, validate=validate)
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)

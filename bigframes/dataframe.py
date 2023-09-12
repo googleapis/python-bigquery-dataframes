@@ -1243,6 +1243,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 index = labels
             else:
                 columns = labels
+        if (index is not None) and (columns is not None):
+            return self._reindex_columns(columns)._reindex_rows(
+                index, validate=validate or False
+            )
         if index is not None:
             return self._reindex_rows(index, validate=validate or False)
         if columns is not None:
@@ -1257,14 +1261,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if validate and not self.index.is_unique:
             raise ValueError("Original index must be unique to reindex")
         keep_original_names = False
-        if not isinstance(index, pandas.Index):
-            keep_original_names = True
-            index = pandas.Index(index)
-        if index.nlevels != self.index.nlevels:
-            raise NotImplementedError(
-                "Cannot reindex with index with different nlevels"
-            )
-        new_indexer = DataFrame(index=index)
+        if isinstance(index, indexes.Index):
+            new_indexer = DataFrame(data=index._data._get_block())[[]]
+        else:
+            if not isinstance(index, pandas.Index):
+                keep_original_names = True
+                index = pandas.Index(index)
+            if index.nlevels != self.index.nlevels:
+                raise NotImplementedError(
+                    "Cannot reindex with index with different nlevels"
+                )
+            new_indexer = DataFrame(index=index)[[]]
         # multiindex join is senstive to index names, so we will set all these
         result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
             self.rename_axis(range(self.index.nlevels)),
@@ -1290,6 +1297,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result_df = DataFrame(block.select_columns(result_cols))
         result_df.columns = new_column_index
         return result_df
+
+    def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
+        return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op)

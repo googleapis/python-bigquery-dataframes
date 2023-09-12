@@ -215,6 +215,23 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def reindex_like(self, other):
+        """Return an object with matching indices as other object.
+
+        Conform the object to the same index on all axes. Optional
+        filling logic, placing Null in locations having no value
+        in the previous index.
+
+        Args:
+            other (Object of the same data type):
+                Its row and column indices are used to define the new indices
+                of this object.
+
+        Returns:
+            Series or DataFrame: Same type as caller, but with changed indices on each axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def drop(
         self, labels=None, *, axis=0, index=None, columns=None, level=None
     ) -> DataFrame | None:

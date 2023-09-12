@@ -2027,6 +2027,28 @@ def test_df_reindex_columns(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_df_reindex_like(scalars_df_index, scalars_pandas_df_index):
+    reindex_target_bf = scalars_df_index.reindex(
+        columns=["not_a_col", "int64_col", "int64_too"], index=[5, 1, 3, 99, 1]
+    )
+    bf_result = scalars_df_index.reindex_like(reindex_target_bf).to_pandas()
+
+    reindex_target_pd = scalars_pandas_df_index.reindex(
+        columns=["not_a_col", "int64_col", "int64_too"], index=[5, 1, 3, 99, 1]
+    )
+    pd_result = scalars_pandas_df_index.reindex_like(reindex_target_pd)
+
+    # Pandas uses float64 as default for newly created empty column, bf uses Float64
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    # Pandas uses float64 as default for newly created empty column, bf uses Float64
+    pd_result.not_a_col = pd_result.not_a_col.astype(pandas.Float64Dtype())
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_values(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.values
 

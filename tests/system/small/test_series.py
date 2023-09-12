@@ -1966,6 +1966,25 @@ def test_series_reindex_nonunique(scalars_df_index):
         )
 
 
+def test_series_reindex_like(scalars_df_index, scalars_pandas_df_index):
+    bf_reindex_target = scalars_df_index["float64_col"].reindex(index=[5, 1, 3, 99, 1])
+    bf_result = (
+        scalars_df_index["int64_too"].reindex_like(bf_reindex_target).to_pandas()
+    )
+
+    pd_reindex_target = scalars_pandas_df_index["float64_col"].reindex(
+        index=[5, 1, 3, 99, 1]
+    )
+    pd_result = scalars_pandas_df_index["int64_too"].reindex_like(pd_reindex_target)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_where_with_series(scalars_df_index, scalars_pandas_df_index):
     bf_result = (
         scalars_df_index["int64_col"]
