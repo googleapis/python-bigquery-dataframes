@@ -600,13 +600,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block.index, how="outer"
         )
         # join columns schema
+        # indexers will be none for exact match
         columns, lcol_indexer, rcol_indexer = self.columns.join(
             other.columns, how="outer", return_indexers=True
         )
 
         binop_result_ids = []
         block = joined_index._block
-        for left_index, right_index in zip(lcol_indexer, rcol_indexer):
+
+        column_indices = zip(
+            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+        )
+
+        for left_index, right_index in column_indices:
             if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
                 left_col_id = self._block.value_columns[left_index]
                 right_col_id = other._block.value_columns[right_index]

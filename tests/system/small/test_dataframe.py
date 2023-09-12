@@ -1145,11 +1145,13 @@ def test_series_binop_axis_index(
         (["a", "a", "b"], ["c", "c", "d"]),
         (["a", "b", "c"], ["c", "a", "b"]),
         (["a", "c", "c"], ["c", "a", "c"]),
+        (["a", "b", "c"], ["a", "b", "c"]),
     ],
     ids=[
         "no_overlap",
         "one_one_match",
         "multi_match",
+        "exact_match",
     ],
 )
 def test_binop_df_df_binary_op(
