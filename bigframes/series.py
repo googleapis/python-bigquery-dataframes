@@ -477,52 +477,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
-        block = self._block
-        if keep == "last":
-            block = block.reversed()
-        ordering = (
-            OrderingColumnReference(
-                self._value_column, direction=OrderingDirection.DESC
-            ),
+        return Series(
+            block_ops.nlargest(self._block, n, [self._value_column], keep=keep)
         )
-        block = block.order_by(ordering, stable=True)
-        if keep in ("first", "last"):
-            return Series(block.slice(0, n))
-        else:  # keep == "all":
-            block, counter = block.apply_window_op(
-                self._value_column,
-                agg_ops.rank_op,
-                window_spec=WindowSpec(ordering=ordering),
-            )
-            block, condition = block.apply_unary_op(
-                counter, ops.partial_right(ops.le_op, n)
-            )
-            block = block.filter(condition)
-            block = block.select_column(self._value_column)
-            return Series(block)
 
     def nsmallest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
-        block = self._block
-        if keep == "last":
-            block = block.reversed()
-        ordering = (OrderingColumnReference(self._value_column),)
-        block = block.order_by(ordering, stable=True)
-        if keep in ("first", "last"):
-            return Series(block.slice(0, n))
-        else:  # keep == "all":
-            block, counter = block.apply_window_op(
-                self._value_column,
-                agg_ops.rank_op,
-                window_spec=WindowSpec(ordering=ordering),
-            )
-            block, condition = block.apply_unary_op(
-                counter, ops.partial_right(ops.le_op, n)
-            )
-            block = block.filter(condition)
-            block = block.select_column(self._value_column)
-            return Series(block)
+        return Series(
+            block_ops.nsmallest(self._block, n, [self._value_column], keep=keep)
+        )
 
     def isin(self, values) -> "Series" | None:
         if not _is_list_like(values):

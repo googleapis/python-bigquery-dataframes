@@ -1657,7 +1657,7 @@ def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, m
         ("all",),
     ],
 )
-def test_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
+def test_series_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
     col_name = "bool_col"
     bf_result = scalars_df_index[col_name].nlargest(4, keep=keep).to_pandas()
     pd_result = scalars_pandas_df_index[col_name].nlargest(4, keep=keep)
@@ -1699,7 +1699,7 @@ def test_diff(scalars_df_index, scalars_pandas_df_index, periods):
         ("all",),
     ],
 )
-def test_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
+def test_series_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
     col_name = "bool_col"
     bf_result = scalars_df_index[col_name].nsmallest(2, keep=keep).to_pandas()
     pd_result = scalars_pandas_df_index[col_name].nsmallest(2, keep=keep)

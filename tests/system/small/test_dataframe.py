@@ -137,6 +137,46 @@ def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_inde
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        ("all",),
+    ],
+)
+def test_df_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
+    bf_result = scalars_df_index.nlargest(
+        3, ["bool_col", "int64_too"], keep=keep
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.nlargest(
+        3, ["bool_col", "int64_too"], keep=keep
+    )
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        ("all",),
+    ],
+)
+def test_df_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
+    bf_result = scalars_df_index.nsmallest(6, ["bool_col"], keep=keep).to_pandas()
+    pd_result = scalars_pandas_df_index.nsmallest(6, ["bool_col"], keep=keep)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_get_column_by_attr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     series = scalars_df.int64_col

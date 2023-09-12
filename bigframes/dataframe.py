@@ -817,6 +817,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
+    def nlargest(
+        self,
+        n: int,
+        columns: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        keep: str = "first",
+    ) -> DataFrame:
+        if keep not in ("first", "last", "all"):
+            raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        column_ids = self._sql_names(columns)
+        return DataFrame(block_ops.nlargest(self._block, n, column_ids, keep=keep))
+
+    def nsmallest(
+        self,
+        n: int,
+        columns: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        keep: str = "first",
+    ) -> DataFrame:
+        if keep not in ("first", "last", "all"):
+            raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        column_ids = self._sql_names(columns)
+        return DataFrame(block_ops.nsmallest(self._block, n, column_ids, keep=keep))
+
     def drop(
         self,
         labels: typing.Any = None,

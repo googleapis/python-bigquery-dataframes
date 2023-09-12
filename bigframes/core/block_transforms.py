@@ -229,3 +229,67 @@ def dropna(block: blocks.Block, how: typing.Literal["all", "any"] = "any"):
             filtered_block = filtered_block.filter(predicate)
         filtered_block = filtered_block.select_columns(block.value_columns)
         return filtered_block
+
+
+def nsmallest(
+    block: blocks.Block,
+    n: int,
+    column_ids: typing.Sequence[str],
+    keep: str,
+) -> blocks.Block:
+    if keep not in ("first", "last", "all"):
+        raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+    if keep == "last":
+        block = block.reversed()
+    order_refs = [
+        ordering.OrderingColumnReference(
+            col_id, direction=ordering.OrderingDirection.ASC
+        )
+        for col_id in column_ids
+    ]
+    block = block.order_by(order_refs, stable=True)
+    if keep in ("first", "last"):
+        return block.slice(0, n)
+    else:  # keep == "all":
+        block, counter = block.apply_window_op(
+            column_ids[0],
+            agg_ops.rank_op,
+            window_spec=core.WindowSpec(ordering=order_refs),
+        )
+        block, condition = block.apply_unary_op(
+            counter, ops.partial_right(ops.le_op, n)
+        )
+        block = block.filter(condition)
+        return block.drop_columns([counter, condition])
+
+
+def nlargest(
+    block: blocks.Block,
+    n: int,
+    column_ids: typing.Sequence[str],
+    keep: str,
+) -> blocks.Block:
+    if keep not in ("first", "last", "all"):
+        raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+    if keep == "last":
+        block = block.reversed()
+    order_refs = [
+        ordering.OrderingColumnReference(
+            col_id, direction=ordering.OrderingDirection.DESC
+        )
+        for col_id in column_ids
+    ]
+    block = block.order_by(order_refs, stable=True)
+    if keep in ("first", "last"):
+        return block.slice(0, n)
+    else:  # keep == "all":
+        block, counter = block.apply_window_op(
+            column_ids[0],
+            agg_ops.rank_op,
+            window_spec=core.WindowSpec(ordering=order_refs),
+        )
+        block, condition = block.apply_unary_op(
+            counter, ops.partial_right(ops.le_op, n)
+        )
+        block = block.filter(condition)
+        return block.drop_columns([counter, condition])
