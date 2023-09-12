@@ -582,6 +582,22 @@ def test_df_fillna(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_ffill(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[["int64_col", "float64_col"]].ffill(limit=1).to_pandas()
+    pd_result = scalars_pandas_df[["int64_col", "float64_col"]].ffill(limit=1)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_df_bfill(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[["int64_col", "float64_col"]].bfill().to_pandas()
+    pd_result = scalars_pandas_df[["int64_col", "float64_col"]].bfill()
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_df_isin_list(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     values = ["Hello, World!", 55555, 2.51, pd.NA, True]

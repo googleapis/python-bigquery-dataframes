@@ -305,6 +305,28 @@ class FirstOp(WindowOp):
         return _apply_window_if_present(column.first(), window)
 
 
+class FirstNonNullOp(WindowOp):
+    @property
+    def skips_nulls(self):
+        return False
+
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(
+            vendored_ibis_ops.FirstNonNullValue(column).to_expr(), window  # type: ignore
+        )
+
+
+class LastNonNullOp(WindowOp):
+    @property
+    def skips_nulls(self):
+        return False
+
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(
+            vendored_ibis_ops.LastNonNullValue(column).to_expr(), window  # type: ignore
+        )
+
+
 class ShiftOp(WindowOp):
     def __init__(self, periods: int):
         self._periods = periods

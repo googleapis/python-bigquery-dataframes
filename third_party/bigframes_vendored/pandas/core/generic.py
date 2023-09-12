@@ -335,6 +335,41 @@ class NDFrame(indexing.IndexingMixin):
     # ----------------------------------------------------------------------
     # Action Methods
 
+    def ffill(self, *, limit: Optional[int] = None):
+        """Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Args:
+            limit : int, default None
+                If method is specified, this is the maximum number of consecutive
+                NaN values to forward/backward fill. In other words, if there is
+                a gap with more than this number of consecutive NaNs, it will only
+                be partially filled. If method is not specified, this is the
+                maximum number of entries along the entire axis where NaNs will be
+                filled. Must be greater than 0 if not None.
+
+
+        Returns:
+            Series/DataFrame or None: Object with missing values filled.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def bfill(self, *, limit: Optional[int] = None):
+        """Fill NA/NaN values by using the next valid observation to fill the gap.
+
+        Args:
+            limit : int, default None
+                If method is specified, this is the maximum number of consecutive
+                NaN values to forward/backward fill. In other words, if there is
+                a gap with more than this number of consecutive NaNs, it will only
+                be partially filled. If method is not specified, this is the
+                maximum number of entries along the entire axis where NaNs will be
+                filled. Must be greater than 0 if not None.
+
+        Returns:
+            Series/DataFrame or None: Object with missing values filled.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def isna(self) -> NDFrame:
         """Detect missing values.
 

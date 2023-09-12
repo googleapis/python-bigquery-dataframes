@@ -1304,6 +1304,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op)
 
+    def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
+        window = bigframes.core.WindowSpec(preceding=limit, following=0)
+        return self._apply_window_op(agg_ops.LastNonNullOp(), window)
+
+    def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
+        window = bigframes.core.WindowSpec(preceding=0, following=limit)
+        return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
+
     def isin(self, values) -> DataFrame:
         if utils.is_dict_like(values):
             block = self._block

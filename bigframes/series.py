@@ -362,6 +362,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             agg_ops.sum_op, bigframes.core.WindowSpec(following=0)
         )
 
+    def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
+        window = bigframes.core.WindowSpec(preceding=limit, following=0)
+        return self._apply_window_op(agg_ops.LastNonNullOp(), window)
+
+    def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
+        window = bigframes.core.WindowSpec(preceding=0, following=limit)
+        return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
+
     def cummax(self) -> Series:
         return self._apply_window_op(
             agg_ops.max_op, bigframes.core.WindowSpec(following=0)
