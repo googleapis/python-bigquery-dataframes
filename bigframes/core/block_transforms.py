@@ -312,3 +312,96 @@ def nlargest(
         )
         block = block.filter(condition)
         return block.drop_columns([counter, condition])
+
+
+def skew(
+    block: blocks.Block,
+    skew_column_ids: typing.Sequence[str],
+    grouping_column_ids: typing.Sequence[str] = (),
+) -> blocks.Block:
+
+    original_columns = skew_column_ids
+    column_labels = block.select_columns(original_columns).column_labels
+
+    block, delta3_ids = _mean_delta_to_power(
+        block, 3, original_columns, grouping_column_ids
+    )
+    # counts, moment3 for each column
+    aggregations = []
+    for i, col in enumerate(original_columns):
+        count_agg = (col, agg_ops.count_op)
+        moment3_agg = (delta3_ids[i], agg_ops.mean_op)
+        variance_agg = (col, agg_ops.PopVarOp())
+        aggregations.extend([count_agg, moment3_agg, variance_agg])
+
+    block, agg_ids = block.aggregate(
+        by_column_ids=grouping_column_ids, aggregations=aggregations
+    )
+
+    skew_ids = []
+    for i, col in enumerate(original_columns):
+        # Corresponds to order of aggregations in preceding loop
+        count_id, moment3_id, var_id = agg_ids[i * 3 : (i * 3) + 3]
+        block, skew_id = _skew_from_moments_and_count(
+            block, count_id, moment3_id, var_id
+        )
+        skew_ids.append(skew_id)
+
+    block = block.select_columns(skew_ids).with_column_labels(column_labels)
+    if not grouping_column_ids:
+        # When ungrouped, stack everything into single column so can be returned as series
+        block = block.stack()
+        block = block.drop_levels([block.index_columns[0]])
+    return block
+
+
+def _mean_delta_to_power(
+    block: blocks.Block,
+    n_power,
+    column_ids: typing.Sequence[str],
+    grouping_column_ids: typing.Sequence[str],
+) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
+    """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
+    window = core.WindowSpec(grouping_keys=grouping_column_ids)
+    block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
+    delta_ids = []
+    cube_op = ops.partial_right(ops.pow_op, n_power)
+    for val_id, mean_val_id in zip(column_ids, mean_ids):
+        block, delta_id = block.apply_binary_op(val_id, mean_val_id, ops.sub_op)
+        block, delta_power_id = block.apply_unary_op(delta_id, cube_op)
+        block = block.drop_columns(delta_id)
+        delta_ids.append(delta_power_id)
+    return block, delta_ids
+
+
+def _skew_from_moments_and_count(
+    block: blocks.Block, count_id: str, moment3_id: str, var_id: str
+) -> typing.Tuple[blocks.Block, str]:
+    # Calculate skew using count, third moment and population variance
+    # See G1 estimator:
+    # https://en.wikipedia.org/wiki/Skewness#Sample_skewness
+    block, denominator_id = block.apply_unary_op(
+        var_id, ops.partial_right(ops.pow_op, 3 / 2)
+    )
+    block, base_id = block.apply_binary_op(moment3_id, denominator_id, ops.div_op)
+    block, countminus1_id = block.apply_unary_op(
+        count_id, ops.partial_right(ops.sub_op, 1)
+    )
+    block, countminus2_id = block.apply_unary_op(
+        count_id, ops.partial_right(ops.sub_op, 2)
+    )
+    block, adjustment_id = block.apply_binary_op(count_id, countminus1_id, ops.mul_op)
+    block, adjustment_id = block.apply_unary_op(
+        adjustment_id, ops.partial_right(ops.pow_op, 1 / 2)
+    )
+    block, adjustment_id = block.apply_binary_op(
+        adjustment_id, countminus2_id, ops.div_op
+    )
+    block, skew_id = block.apply_binary_op(base_id, adjustment_id, ops.mul_op)
+
+    # Need to produce NA if have less than 3 data points
+    block, na_cond_id = block.apply_unary_op(count_id, ops.partial_right(ops.ge_op, 3))
+    block, skew_id = block.apply_binary_op(
+        skew_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
+    )
+    return block, skew_id

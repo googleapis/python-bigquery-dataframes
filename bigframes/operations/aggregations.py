@@ -204,6 +204,16 @@ class VarOp(AggregateOp):
         )
 
 
+class PopVarOp(AggregateOp):
+    name = "popvar"
+
+    @numeric_op
+    def _as_ibis(self, x: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(
+            typing.cast(ibis_types.NumericColumn, x).var(how="pop"), window
+        )
+
+
 class CountOp(AggregateOp):
     name = "count"
 

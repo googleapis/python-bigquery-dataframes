@@ -729,13 +729,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         """Useful helper for calculating central moment statistics"""
         # Nth central moment is mean((x-mean(x))^n)
         # See: https://en.wikipedia.org/wiki/Moment_(mathematics)
-        mean = self.mean()
-        mean_deltas = self - mean
-        delta_power = mean_deltas
-        # TODO(tbergeron): Replace with pow once implemented
-        for i in range(1, n):
-            delta_power = delta_power * mean_deltas
-        return delta_power.mean()
+        mean_deltas = self - self.mean()
+        delta_powers = mean_deltas**n
+        return delta_powers.mean()
 
     def agg(self, func: str | typing.Sequence[str]) -> scalars.Scalar | Series:
         if _is_list_like(func):

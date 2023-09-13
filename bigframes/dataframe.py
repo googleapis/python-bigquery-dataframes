@@ -1544,6 +1544,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return typing.cast(DataFrame, result)
 
+    def skew(self, *, numeric_only: bool = False):
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("skew")
+        else:
+            frame = self._drop_non_numeric()
+        result_block = block_ops.skew(frame._block, frame._block.value_columns)
+        return bigframes.series.Series(result_block)
+
     def pivot(
         self,
         *,

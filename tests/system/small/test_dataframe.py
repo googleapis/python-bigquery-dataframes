@@ -1890,6 +1890,30 @@ def test_dataframe_prod(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
 
 
+def test_df_skew_too_few_values(scalars_dfs):
+    columns = ["float64_col", "int64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[columns].head(2).skew().to_pandas()
+    pd_result = scalars_pandas_df[columns].head(2).skew()
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+
+
+def test_df_skew(scalars_dfs):
+    columns = ["float64_col", "int64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[columns].skew().to_pandas()
+    pd_result = scalars_pandas_df[columns].skew()
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+
+
 @pytest.mark.parametrize(
     ("frac", "n", "random_state"),
     [

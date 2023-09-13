@@ -1507,6 +1507,20 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def skew(self, *, numeric_only: bool = False):
+        """Return unbiased skew over requested axis.
+
+        Normalized by N-1.
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns.
+
+        Returns:
+            Series
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def std(self, *, numeric_only: bool = False):
         """Return sample standard deviation over requested axis.
 
