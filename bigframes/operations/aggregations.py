@@ -19,8 +19,10 @@ import typing
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
+from pandas import Int64Dtype
 
 import bigframes.constants as constants
+import bigframes.dtypes as dtypes
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 
@@ -217,16 +219,20 @@ class CountOp(AggregateOp):
 
 class CutOp(WindowOp):
     def __init__(self, bins: int):
-        self._bins = bins
+        self._bins_ibis = dtypes.literal_to_ibis_scalar(bins, force_dtype=Int64Dtype())
+        self._bins_int = bins
 
     def _as_ibis(self, x: ibis_types.Column, window=None):
         col_min = _apply_window_if_present(x.min(), window)
         col_max = _apply_window_if_present(x.max(), window)
-        bin_width = (col_max - col_min) / self._bins
+        bin_width = (col_max - col_min) / self._bins_ibis
         out = ibis.case()
-        for bin in range(self._bins - 1):
-            out = out.when(x <= (col_min + (bin + 1) * bin_width), bin)
-        out = out.when(x.notnull(), self._bins - 1)
+        for this_bin in range(self._bins_int - 1):
+            out = out.when(
+                x <= (col_min + (this_bin + 1) * bin_width),
+                dtypes.literal_to_ibis_scalar(this_bin, force_dtype=Int64Dtype()),
+            )
+        out = out.when(x.notnull(), self._bins_ibis - 1)
         return out.end()
 
     @property
