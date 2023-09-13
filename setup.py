@@ -58,7 +58,7 @@ extras = {
         "pandas-gbq >=0.19.0",
     ],
     # Packages required for basic development flow.
-    "dev": ["pytest", "pre-commit", "nox", "google-cloud-testutils"],
+    "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
 
