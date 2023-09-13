@@ -117,6 +117,25 @@ def value_counts(
     return block.select_column(count_id).with_column_labels(["count"])
 
 
+def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
+    column_labels = block.column_labels
+    window_spec = core.WindowSpec(
+        preceding=periods if periods > 0 else None,
+        following=-periods if periods < 0 else None,
+    )
+
+    original_columns = block.value_columns
+    block, shift_columns = block.multi_apply_window_op(
+        original_columns, agg_ops.ShiftOp(periods), window_spec=window_spec
+    )
+    result_ids = []
+    for original_col, shifted_col in zip(original_columns, shift_columns):
+        block, change_id = block.apply_binary_op(original_col, shifted_col, ops.sub_op)
+        block, pct_change_id = block.apply_binary_op(change_id, shifted_col, ops.div_op)
+        result_ids.append(pct_change_id)
+    return block.select_columns(result_ids).with_column_labels(column_labels)
+
+
 def rank(
     block: blocks.Block,
     method: str = "average",

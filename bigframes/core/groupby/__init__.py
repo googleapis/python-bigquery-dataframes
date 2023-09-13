@@ -339,10 +339,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             grouping_keys=self._by_col_ids, following=0
         )
         columns = self._aggregated_columns(numeric_only=numeric_only)
-        block = self._block.multi_apply_window_op(
+        block, result_ids = self._block.multi_apply_window_op(
             columns, op, window_spec=window_spec, skip_null_groups=self._dropna
         )
-        block = block.select_columns(columns)
+        block = block.select_columns(result_ids)
         return df.DataFrame(block)
 
     def _resolve_label(self, label: blocks.Label) -> str:

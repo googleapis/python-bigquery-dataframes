@@ -709,8 +709,9 @@ class Block:
         window_spec: core.WindowSpec,
         *,
         skip_null_groups: bool = False,
-    ) -> Block:
+    ) -> typing.Tuple[Block, typing.Sequence[str]]:
         block = self
+        result_ids = []
         for i, col_id in enumerate(columns):
             label = self.col_id_to_label[col_id]
             block, result_id = block.apply_window_op(
@@ -721,9 +722,8 @@ class Block:
                 result_label=label,
                 skip_null_groups=skip_null_groups,
             )
-            block = block.copy_values(result_id, col_id)
-            block = block.drop_columns([result_id])
-        return block
+            result_ids.append(result_id)
+        return block, result_ids
 
     def multi_apply_unary_op(
         self,

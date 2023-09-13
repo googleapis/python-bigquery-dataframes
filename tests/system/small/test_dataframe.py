@@ -1438,6 +1438,24 @@ def test_dataframe_diff(scalars_df_index, scalars_pandas_df_index, periods):
     )
 
 
+@pytest.mark.parametrize(
+    ("periods",),
+    [
+        (1,),
+        (2,),
+        (-1,),
+    ],
+)
+def test_dataframe_pct_change(scalars_df_index, scalars_pandas_df_index, periods):
+    col_names = ["int64_too", "float64_col", "int64_col"]
+    bf_result = scalars_df_index[col_names].pct_change(periods=periods).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].pct_change(periods=periods)
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_dataframe_agg_single_string(scalars_dfs):
     numeric_cols = ["int64_col", "int64_too", "float64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs

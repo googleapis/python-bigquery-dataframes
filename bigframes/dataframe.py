@@ -1944,17 +1944,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
+    def pct_change(self, periods: int = 1) -> DataFrame:
+        # Future versions of pandas will not perfrom ffill automatically
+        df = self.ffill()
+        return DataFrame(block_ops.pct_change(df._block, periods=periods))
+
     def _apply_window_op(
         self,
         op: agg_ops.WindowOp,
         window_spec: bigframes.core.WindowSpec,
     ):
-        block = self._block.multi_apply_window_op(
+        block, result_ids = self._block.multi_apply_window_op(
             self._block.value_columns,
             op,
             window_spec=window_spec,
         )
-        return DataFrame(block)
+        return DataFrame(block.select_columns(result_ids))
 
     def sample(
         self,

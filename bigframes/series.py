@@ -399,6 +399,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
+    def pct_change(self, periods: int = 1) -> Series:
+        # Future versions of pandas will not perfrom ffill automatically
+        series = self.ffill()
+        return Series(block_ops.pct_change(series._block, periods=periods))
+
     def rank(
         self,
         axis=0,

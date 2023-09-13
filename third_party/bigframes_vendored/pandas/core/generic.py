@@ -449,6 +449,30 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def pct_change(self, periods: int = 1):
+        """
+        Fractional change between the current and a prior element.
+
+        Computes the fractional change from the immediately previous row by
+        default. This is useful in comparing the fraction of change in a time
+        series of elements.
+
+        .. note::
+
+            Despite the name of this method, it calculates fractional change
+            (also known as per unit change or relative change) and not
+            percentage change. If you need the percentage change, multiply
+            these values by 100.
+
+        Args:
+            periods (int, default 1):
+                Periods to shift for forming percent change.
+
+        Returns:
+            Series or DataFrame: The same type as the calling object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rank(
         self,
         axis=0,
