@@ -532,13 +532,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         other: float | int | bigframes.series.Series | DataFrame,
         op,
         axis: str | int = "columns",
+        how: str = "outer",
     ):
         if isinstance(other, (float, int)):
             return self._apply_scalar_binop(other, op)
         elif isinstance(other, bigframes.series.Series):
-            return self._apply_series_binop(other, op, axis=axis)
+            return self._apply_series_binop(other, op, axis=axis, how=how)
         elif isinstance(other, DataFrame):
-            return self._apply_dataframe_binop(other, op)
+            return self._apply_dataframe_binop(other, op, how=how)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
             f"{constants.FEEDBACK_LINK}"
@@ -559,6 +560,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         other: bigframes.series.Series,
         op: ops.BinaryOp,
         axis: str | int = "columns",
+        how: str = "outer",
     ) -> DataFrame:
         if axis not in ("columns", "index", 0, 1):
             raise ValueError(f"Invalid input: axis {axis}.")
@@ -569,7 +571,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         joined_index, (get_column_left, get_column_right) = self._block.index.join(
-            other._block.index, how="outer"
+            other._block.index, how=how
         )
 
         series_column_id = other._value.get_name()
@@ -591,18 +593,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def _apply_dataframe_binop(
-        self,
-        other: DataFrame,
-        op: ops.BinaryOp,
+        self, other: DataFrame, op: ops.BinaryOp, how: str = "outer"
     ) -> DataFrame:
         # Join rows
         joined_index, (get_column_left, get_column_right) = self._block.index.join(
-            other._block.index, how="outer"
+            other._block.index, how=how
         )
         # join columns schema
         # indexers will be none for exact match
         columns, lcol_indexer, rcol_indexer = self.columns.join(
-            other.columns, how="outer", return_indexers=True
+            other.columns, how=how, return_indexers=True
         )
 
         binop_result_ids = []
@@ -624,13 +624,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
                 binop_result_ids.append(result_col_id)
             elif left_index >= 0:
-                dtype = self.dtypes[left_index]
-                block, null_col_id = block.create_constant(None, dtype=dtype)
-                binop_result_ids.append(null_col_id)
+                left_col_id = self._block.value_columns[left_index]
+                block, result_col_id = block.apply_unary_op(
+                    get_column_left(left_col_id),
+                    ops.partial_right(op, None),
+                )
+                binop_result_ids.append(result_col_id)
             elif right_index >= 0:
-                dtype = other.dtypes[right_index]
-                block, null_col_id = block.create_constant(None, dtype=dtype)
-                binop_result_ids.append(null_col_id)
+                right_col_id = other._block.value_columns[right_index]
+                block, result_col_id = block.apply_unary_op(
+                    get_column_right(right_col_id),
+                    ops.partial_left(op, None),
+                )
+                binop_result_ids.append(result_col_id)
             else:
                 # Should not be possible
                 raise ValueError("No right or left index.")
@@ -765,6 +771,75 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __pow__ = pow
 
     __rpow__ = rpow
+
+    def combine(
+        self,
+        other: DataFrame,
+        func: typing.Callable[
+            [bigframes.series.Series, bigframes.series.Series], bigframes.series.Series
+        ],
+        fill_value=None,
+        overwrite: bool = True,
+    ) -> DataFrame:
+        # Join rows
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            other._block.index, how="outer"
+        )
+        columns, lcol_indexer, rcol_indexer = self.columns.join(
+            other.columns, how="outer", return_indexers=True
+        )
+
+        column_indices = zip(
+            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+        )
+
+        block = joined_index._block
+        results = []
+        for left_index, right_index in column_indices:
+            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
+                left_col_id = get_column_left(self._block.value_columns[left_index])
+                right_col_id = get_column_right(other._block.value_columns[right_index])
+                left_series = bigframes.series.Series(block.select_column(left_col_id))
+                right_series = bigframes.series.Series(
+                    block.select_column(right_col_id)
+                )
+                if fill_value is not None:
+                    left_series = left_series.fillna(fill_value)
+                    right_series = right_series.fillna(fill_value)
+                results.append(func(left_series, right_series))
+            elif left_index >= 0:
+                # Does not exist in other
+                if overwrite:
+                    dtype = self.dtypes[left_index]
+                    block, null_col_id = block.create_constant(None, dtype=dtype)
+                    result = bigframes.series.Series(block.select_column(null_col_id))
+                    results.append(result)
+                else:
+                    left_col_id = get_column_left(self._block.value_columns[left_index])
+                    result = bigframes.series.Series(block.select_column(left_col_id))
+                    if fill_value is not None:
+                        result = result.fillna(fill_value)
+                    results.append(result)
+            elif right_index >= 0:
+                right_col_id = get_column_right(other._block.value_columns[right_index])
+                result = bigframes.series.Series(block.select_column(right_col_id))
+                if fill_value is not None:
+                    result = result.fillna(fill_value)
+                results.append(result)
+            else:
+                # Should not be possible
+                raise ValueError("No right or left index.")
+
+        if all([isinstance(val, bigframes.series.Series) for val in results]):
+            import bigframes.core.reshape as rs
+
+            return rs.concat(results, axis=1)
+        else:
+            raise ValueError("'func' must return Series")
+
+    def combine_first(self, other: DataFrame):
+        return self._apply_dataframe_binop(other, ops.fillna_op)
 
     def to_pandas(
         self,
@@ -1324,7 +1399,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
     def fillna(self, value=None) -> DataFrame:
-        return self._apply_binop(value, ops.fillna_op)
+        return self._apply_binop(value, ops.fillna_op, how="left")
 
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)

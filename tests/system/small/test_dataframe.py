@@ -1085,6 +1085,88 @@ def test_df_notnull(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("left_labels", "right_labels", "overwrite", "fill_value"),
+    [
+        (["a", "b", "c"], ["c", "a", "b"], True, None),
+        (["a", "b", "c"], ["c", "a", "b"], False, None),
+        (["a", "b", "c"], ["a", "b", "c"], False, 2),
+    ],
+    ids=[
+        "one_one_match_overwrite",
+        "one_one_match_no_overwrite",
+        "exact_match",
+    ],
+)
+def test_combine(
+    scalars_df_index,
+    scalars_df_2_index,
+    scalars_pandas_df_index,
+    left_labels,
+    right_labels,
+    overwrite,
+    fill_value,
+):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pd.NA vs NaN not handled well in pandas 1.x.")
+    columns = ["int64_too", "int64_col", "float64_col"]
+
+    bf_df_a = scalars_df_index[columns]
+    bf_df_a.columns = left_labels
+    bf_df_b = scalars_df_2_index[columns]
+    bf_df_b.columns = right_labels
+    bf_result = bf_df_a.combine(
+        bf_df_b,
+        lambda x, y: x**2 + 2 * x * y + y**2,
+        overwrite=overwrite,
+        fill_value=fill_value,
+    ).to_pandas()
+
+    pd_df_a = scalars_pandas_df_index[columns]
+    pd_df_a.columns = left_labels
+    pd_df_b = scalars_pandas_df_index[columns]
+    pd_df_b.columns = right_labels
+    pd_result = pd_df_a.combine(
+        pd_df_b,
+        lambda x, y: x**2 + 2 * x * y + y**2,
+        overwrite=overwrite,
+        fill_value=fill_value,
+    )
+
+    # Some dtype inconsistency for all-NULL columns
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_combine_first(
+    scalars_df_index,
+    scalars_df_2_index,
+    scalars_pandas_df_index,
+):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pd.NA vs NaN not handled well in pandas 1.x.")
+    columns = ["int64_too", "int64_col", "float64_col"]
+
+    bf_df_a = scalars_df_index[columns].iloc[0:6]
+    bf_df_a.columns = ["a", "b", "c"]
+    bf_df_b = scalars_df_2_index[columns].iloc[2:8]
+    bf_df_b.columns = ["b", "a", "d"]
+    bf_result = bf_df_a.combine_first(bf_df_b).to_pandas()
+
+    pd_df_a = scalars_pandas_df_index[columns].iloc[0:6]
+    pd_df_a.columns = ["a", "b", "c"]
+    pd_df_b = scalars_pandas_df_index[columns].iloc[2:8]
+    pd_df_b.columns = ["b", "a", "d"]
+    pd_result = pd_df_a.combine_first(pd_df_b)
+
+    print("pandas")
+    print(pd_result.to_string())
+    print("bigframes")
+    print(bf_result.to_string())
+
+    # Some dtype inconsistency for all-NULL columns
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
     ("op"),
     [
         operator.add,

@@ -1205,6 +1205,54 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def combine(
+        self, other, func, fill_value=None, overwrite: bool = True
+    ) -> DataFrame:
+        """Perform column-wise combine with another DataFrame.
+
+        Combines a DataFrame with `other` DataFrame using `func`
+        to element-wise combine columns. The row and column indexes of the
+        resulting DataFrame will be the union of the two.
+
+        Args:
+            other (DataFrame):
+                The DataFrame to merge column-wise.
+            func (function):
+                Function that takes two series as inputs and return a Series or a
+                scalar. Used to merge the two dataframes column by columns.
+            fill_value (scalar value, default None):
+                The value to fill NaNs with prior to passing any column to the
+                merge func.
+            overwrite (bool, default True):
+                If True, columns in `self` that do not exist in `other` will be
+                overwritten with NaNs.
+
+        Returns:
+            DataFrame: Combination of the provided DataFrames.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def combine_first(self, other) -> DataFrame:
+        """
+        Update null elements with value in the same location in `other`.
+
+        Combine two DataFrame objects by filling null values in one DataFrame
+        with non-null values from other DataFrame. The row and column indexes
+        of the resulting DataFrame will be the union of the two. The resulting
+        dataframe contains the 'first' dataframe values and overrides the
+        second one values where both first.loc[index, col] and
+        second.loc[index, col] are not missing values, upon calling
+        first.combine_first(second).
+
+        Args:
+            other (DataFrame):
+                Provided DataFrame to use to fill null values.
+
+        Returns:
+            DataFrame: The result of combining the provided DataFrame with the other object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Data reshaping
 
