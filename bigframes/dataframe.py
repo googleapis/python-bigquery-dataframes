@@ -1627,6 +1627,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result_block = block_ops.skew(frame._block, frame._block.value_columns)
         return bigframes.series.Series(result_block)
 
+    def kurt(self, *, numeric_only: bool = False):
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("kurt")
+        else:
+            frame = self._drop_non_numeric()
+        result_block = block_ops.kurt(frame._block, frame._block.value_columns)
+        return bigframes.series.Series(result_block)
+
+    kurtosis = kurt
+
     def pivot(
         self,
         *,

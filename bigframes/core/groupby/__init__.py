@@ -156,6 +156,18 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         block = block_ops.skew(self._block, self._selected_cols, self._by_col_ids)
         return df.DataFrame(block)
 
+    def kurt(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        if not numeric_only:
+            self._raise_on_non_numeric("kurt")
+        block = block_ops.kurt(self._block, self._selected_cols, self._by_col_ids)
+        return df.DataFrame(block)
+
+    kurtosis = kurt
+
     def all(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.all_op)
 
@@ -421,6 +433,12 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def skew(self, *args, **kwargs) -> series.Series:
         block = block_ops.skew(self._block, [self._value_column], self._by_col_ids)
         return series.Series(block)
+
+    def kurt(self, *args, **kwargs) -> series.Series:
+        block = block_ops.kurt(self._block, [self._value_column], self._by_col_ids)
+        return series.Series(block)
+
+    kurtosis = kurt
 
     def prod(self, *args) -> series.Series:
         return self._aggregate(agg_ops.product_op)
