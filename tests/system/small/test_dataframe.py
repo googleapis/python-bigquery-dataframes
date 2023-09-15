@@ -411,6 +411,30 @@ def test_assign_new_column_w_setitem(scalars_dfs):
     pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_assign_new_column_w_setitem_dataframe(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df["int64_col"] = bf_df["int64_too"].to_frame()
+    pd_df["int64_col"] = pd_df["int64_too"].to_frame()
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
+    pd_df["int64_col"] = pd_df["int64_col"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df)
+
+
+def test_assign_new_column_w_setitem_dataframe_error(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+
+    with pytest.raises(ValueError):
+        bf_df["impossible_col"] = bf_df[["int64_too", "string_col"]]
+    with pytest.raises(ValueError):
+        pd_df["impossible_col"] = pd_df[["int64_too", "string_col"]]
+
+
 def test_assign_new_column_w_setitem_list(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_df = scalars_df.copy()

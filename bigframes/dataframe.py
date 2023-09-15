@@ -1057,6 +1057,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)
+        elif isinstance(v, bigframes.dataframe.DataFrame):
+            v_df_col_count = len(v._block.value_columns)
+            if v_df_col_count != 1:
+                raise ValueError(
+                    f"Cannot set a DataFrame with {v_df_col_count} columns to the single column {k}"
+                )
+            return self._assign_series_join_on_index(k, v[v.columns[0]])
         elif callable(v):
             copy = self.copy()
             copy[k] = v(copy)
