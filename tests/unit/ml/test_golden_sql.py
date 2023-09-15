@@ -14,34 +14,105 @@
 
 from unittest import mock
 
+from google.cloud import bigquery
+import pandas as pd
+import pytest
 import pytest_mock
 
 import bigframes
-from bigframes.ml import linear_model
+from bigframes.ml import core, linear_model
 import bigframes.pandas as bpd
 
 
-def test_linear_regression_default_fit(mocker: pytest_mock.MockerFixture):
+@pytest.fixture
+def mock_session():
     mock_session = mock.create_autospec(spec=bigframes.Session)
 
-    mock_X = mock.create_autospec(spec=bpd.DataFrame)
-    mock_X._get_block().expr._session = mock_session
-
-    mock_y = mock.create_autospec(spec=bpd.DataFrame)
-    mock_y.columns.tolist.return_value = ["input_label_column"]
-
-    mock_X.join(mock_y).sql = "input_dataframe_sql"
-
-    # return values we don't care about, but need to provide to continue the program
+    # return values we don't care about, but need to provide to continue the program when calling session._start_query()
     mock_session._start_query.return_value = (None, mock.MagicMock())
 
+    return mock_session
+
+
+@pytest.fixture
+def mock_y():
+    mock_y = mock.create_autospec(spec=bpd.DataFrame)
+    mock_y.columns = pd.Index(["input_column_label"])
+
+    return mock_y
+
+
+@pytest.fixture
+def mock_X(mock_y, mock_session):
+    mock_X = mock.create_autospec(spec=bpd.DataFrame)
+    mock_X._session = mock_session
+    mock_X._to_sql_query.return_value = (
+        "input_X_sql",
+        ["index_column_id"],
+        ["index_column_label"],
+    )
+    mock_X.join(mock_y).sql = "input_X_y_sql"
+    mock_X.join(mock_y)._to_sql_query.return_value = (
+        "input_X_y_sql",
+        ["index_column_id"],
+        ["index_column_label"],
+    )
+
+    return mock_X
+
+
+@pytest.fixture
+def bqml_model(mock_session):
+    bqml_model = core.BqmlModel(
+        mock_session, bigquery.Model("model_project.model_dataset.model_name")
+    )
+
+    return bqml_model
+
+
+@pytest.fixture
+def ml_mocker(mocker: pytest_mock.MockerFixture):
     mocker.patch(
         "bigframes.ml.core._create_temp_model_name", return_value="temp_model_name"
     )
 
+    return mocker
+
+
+def test_linear_regression_default_fit(ml_mocker, mock_session, mock_X, mock_y):
     model = linear_model.LinearRegression()
     model.fit(mock_X, mock_y)
 
     mock_session._start_query.assert_called_once_with(
-        'CREATE TEMP MODEL `temp_model_name`\nOPTIONS(\n  model_type="LINEAR_REG",\n  data_split_method="NO_SPLIT",\n  fit_intercept=True,\n  INPUT_LABEL_COLS=["input_label_column"])\nAS input_dataframe_sql'
+        'CREATE TEMP MODEL `temp_model_name`\nOPTIONS(\n  model_type="LINEAR_REG",\n  data_split_method="NO_SPLIT",\n  fit_intercept=True,\n  INPUT_LABEL_COLS=["input_column_label"])\nAS input_X_y_sql'
+    )
+
+
+def test_linear_regression_params_fit(ml_mocker, mock_session, mock_X, mock_y):
+    model = linear_model.LinearRegression(fit_intercept=False)
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query.assert_called_once_with(
+        'CREATE TEMP MODEL `temp_model_name`\nOPTIONS(\n  model_type="LINEAR_REG",\n  data_split_method="NO_SPLIT",\n  fit_intercept=False,\n  INPUT_LABEL_COLS=["input_column_label"])\nAS input_X_y_sql'
+    )
+
+
+def test_linear_regression_predict(mock_session, bqml_model, mock_X):
+    model = linear_model.LinearRegression()
+    model._bqml_model = bqml_model
+    model.predict(mock_X)
+
+    mock_session.read_gbq.assert_called_once_with(
+        "SELECT * FROM ML.PREDICT(MODEL `model_project.model_dataset.model_name`,\n  (input_X_sql))",
+        index_col=["index_column_id"],
+    )
+
+
+def test_linear_regression_score(mock_session, bqml_model, mock_X, mock_y):
+    model = linear_model.LinearRegression()
+    model._bqml_model = bqml_model
+    model.score(mock_X, mock_y)
+
+    mock_session.read_gbq.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project.model_dataset.model_name`,\n  (input_X_y_sql))"
     )

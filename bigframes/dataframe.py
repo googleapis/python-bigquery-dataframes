@@ -283,6 +283,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def values(self) -> numpy.ndarray:
         return self.to_numpy()
 
+    @property
+    def _session(self) -> bigframes.Session:
+        return self._get_block().expr._session
+
     def __len__(self):
         rows, _ = self.shape
         return rows
