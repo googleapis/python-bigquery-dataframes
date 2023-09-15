@@ -34,7 +34,6 @@ def test_linear_regression_default_fit(mocker: pytest_mock.MockerFixture):
 
     # return values we don't care about, but need to provide to continue the program
     mock_session._start_query.return_value = (None, mock.MagicMock())
-    mock_session.bqclient.get_model.return_value = mock.MagicMock()
 
     mocker.patch(
         "bigframes.ml.core._create_temp_model_name", return_value="temp_model_name"
