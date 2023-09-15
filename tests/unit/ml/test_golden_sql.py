@@ -116,3 +116,44 @@ def test_linear_regression_score(mock_session, bqml_model, mock_X, mock_y):
     mock_session.read_gbq.assert_called_once_with(
         "SELECT * FROM ML.EVALUATE(MODEL `model_project.model_dataset.model_name`,\n  (input_X_y_sql))"
     )
+
+
+def test_logistic_regression_default_fit(ml_mocker, mock_session, mock_X, mock_y):
+    model = linear_model.LogisticRegression()
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query.assert_called_once_with(
+        'CREATE TEMP MODEL `temp_model_name`\nOPTIONS(\n  model_type="LOGISTIC_REG",\n  data_split_method="NO_SPLIT",\n  fit_intercept=True,\n  auto_class_weights=False,\n  INPUT_LABEL_COLS=["input_column_label"])\nAS input_X_y_sql'
+    )
+
+
+def test_logistic_regression_params_fit(ml_mocker, mock_session, mock_X, mock_y):
+    model = linear_model.LogisticRegression(
+        fit_intercept=False, class_weights="balanced"
+    )
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query.assert_called_once_with(
+        'CREATE TEMP MODEL `temp_model_name`\nOPTIONS(\n  model_type="LOGISTIC_REG",\n  data_split_method="NO_SPLIT",\n  fit_intercept=False,\n  auto_class_weights=True,\n  INPUT_LABEL_COLS=["input_column_label"])\nAS input_X_y_sql'
+    )
+
+
+def test_logistic_regression_predict(mock_session, bqml_model, mock_X):
+    model = linear_model.LogisticRegression()
+    model._bqml_model = bqml_model
+    model.predict(mock_X)
+
+    mock_session.read_gbq.assert_called_once_with(
+        "SELECT * FROM ML.PREDICT(MODEL `model_project.model_dataset.model_name`,\n  (input_X_sql))",
+        index_col=["index_column_id"],
+    )
+
+
+def test_logistic_regression_score(mock_session, bqml_model, mock_X, mock_y):
+    model = linear_model.LogisticRegression()
+    model._bqml_model = bqml_model
+    model.score(mock_X, mock_y)
+
+    mock_session.read_gbq.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project.model_dataset.model_name`,\n  (input_X_y_sql))"
+    )
