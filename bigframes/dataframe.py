@@ -49,6 +49,7 @@ import bigframes.core.io
 import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
+import bigframes.core.window
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
@@ -1891,6 +1892,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block.index, how=how, block_identity_join=True
         )
         return DataFrame(combined_index._block)
+
+    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
+        # To get n size window, need current row and n-1 preceding rows.
+        window_spec = bigframes.core.WindowSpec(
+            preceding=window - 1, following=0, min_periods=min_periods or window
+        )
+        return bigframes.core.window.Window(
+            self._block, window_spec, self._block.value_columns
+        )
+
+    def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
+        window_spec = bigframes.core.WindowSpec(following=0, min_periods=min_periods)
+        return bigframes.core.window.Window(
+            self._block, window_spec, self._block.value_columns
+        )
 
     def groupby(
         self,
