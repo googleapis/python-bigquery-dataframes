@@ -45,6 +45,7 @@ if typing.TYPE_CHECKING:
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
+MAX_LABELS_COUNT = 64
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,7 @@ class ArrayValue:
         hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: ExpressionOrdering = ExpressionOrdering(),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
+        api_methods: Dict[str, str] = {},
     ):
         self._session = session
         self._table = table
@@ -120,6 +122,9 @@ class ArrayValue:
         self._hidden_ordering_column_names = {
             column.get_name(): column for column in self._hidden_ordering_columns
         }
+
+        self._api_methods = api_methods
+
         ### Validation
         value_col_ids = self._column_names.keys()
         hidden_col_ids = self._hidden_ordering_column_names.keys()
@@ -233,6 +238,10 @@ class ArrayValue:
             {**self._column_names, **self._hidden_ordering_column_names},
             self._ordering.all_ordering_columns,
         )
+
+    @property
+    def api_method(self) -> Dict[str, str]:
+        return self._api_methods
 
     def builder(self) -> ArrayValueBuilder:
         """Creates a mutable builder for expressions."""
@@ -461,7 +470,19 @@ class ArrayValue:
         width = len(self.columns)
         count_expr = self._to_ibis_expr(ordering_mode="unordered").count()
         sql = self._session.ibis_client.compile(count_expr)
+        api_methods_len = len(self._api_methods)
 
+        # Initialize methods to add as an empty dictionary
+        add_api_methods: Dict[str, str] = {}
+        if api_methods_len >= MAX_LABELS_COUNT:
+            add_api_methods = self.api_method
+        elif api_methods_len == 0:
+            add_api_key = "bigframes-api-0"
+            add_api_methods = {add_api_key: "shape"}
+        else:
+            add_api_key = "bigframes-api-" + str(api_methods_len)
+            self.api_method[add_api_key] = "shape"
+            add_api_methods = self.api_method
         # Support in-memory engines for hermetic unit tests.
         if not isinstance(sql, str):
             length = self._session.ibis_client.execute(count_expr)
@@ -469,6 +490,7 @@ class ArrayValue:
             row_iterator, _ = self._session._start_query(
                 sql=sql,
                 max_results=1,
+                api_methods=add_api_methods,
             )
             length = next(row_iterator)[0]
         return (length, width)
@@ -579,6 +601,20 @@ class ArrayValue:
             col_out: agg_op._as_ibis(table[col_in])
             for col_in, agg_op, col_out in aggregations
         }
+
+        # Initialize methods to add as an empty dictionary
+        add_api_methods: Dict[str, str] = {}
+        api_methods_len = len(self._api_methods)
+        if api_methods_len >= MAX_LABELS_COUNT:
+            add_api_methods = self.api_method
+        elif api_methods_len == 0:
+            add_api_key = "bigframes-api-0"
+            add_api_methods = {add_api_key: "aggregate"}
+        else:
+            add_api_key = "bigframes-api-" + str(api_methods_len)
+            self.api_method[add_api_key] = "aggregate"
+            add_api_methods = self.api_method
+
         if by_column_ids:
             result = table.group_by(by_column_ids).aggregate(**stats)
             # Must have deterministic ordering, so order by the unique "by" column
@@ -590,7 +626,13 @@ class ArrayValue:
                 total_ordering_columns=frozenset(by_column_ids),
             )
             columns = tuple(result[key] for key in result.columns)
-            expr = ArrayValue(self._session, result, columns=columns, ordering=ordering)
+            expr = ArrayValue(
+                self._session,
+                result,
+                columns=columns,
+                ordering=ordering,
+                api_methods=add_api_methods,
+            )
             if dropna:
                 for column_id in by_column_ids:
                     expr = expr._filter(
@@ -613,6 +655,7 @@ class ArrayValue:
                 columns=[result[col_id] for col_id in [*stats.keys()]],
                 hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
                 ordering=ordering,
+                api_methods=add_api_methods,
             )
 
     def corr_aggregate(
@@ -871,6 +914,7 @@ class ArrayValue:
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
         expose_extra_columns: bool = False,
+        api_name: str = "",
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """Execute a query and return metadata about the results."""
         # TODO(swast): Cache the job ID so we can look it up again if they ask
@@ -885,10 +929,23 @@ class ArrayValue:
         # maybe we just print the job metadata that we have so far?
         table = self._to_ibis_expr(expose_hidden_cols=expose_extra_columns)
         sql = self._session.ibis_client.compile(table)  # type:ignore
+
+        # Initialize methods to add as an empty dictionary
+        add_api_methods: Dict[str, str] = {}
+        api_methods_len = len(self._api_methods)
+        if api_methods_len >= MAX_LABELS_COUNT:
+            add_api_methods = self.api_method
+        elif api_methods_len == 0:
+            add_api_key = "bigframes-api-0"
+            add_api_methods = {add_api_key: api_name}
+        else:
+            add_api_key = "bigframes-api-" + str(api_methods_len)
+            add_api_methods[add_api_key] = api_name
         return self._session._start_query(
             sql=sql,
             job_config=job_config,
             max_results=max_results,
+            api_methods=add_api_methods,
         )
 
     def _get_table_size(self, destination_table):

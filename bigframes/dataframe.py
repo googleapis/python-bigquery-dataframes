@@ -885,7 +885,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run()
+        return self._block._compute_dry_run(api_name="dataframe_query_job")
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)

@@ -429,6 +429,7 @@ class Block:
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
+            api_name="to_pandas",
         )
         return df, query_job
 
@@ -439,13 +440,16 @@ class Block:
         max_download_size: Optional[int] = None,
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
+        api_name: str = "",
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
         results_iterator, query_job = expr.start_query(
-            max_results=max_results, expose_extra_columns=True
+            max_results=max_results,
+            expose_extra_columns=True,
+            api_name=api_name,
         )
 
         table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
@@ -602,11 +606,13 @@ class Block:
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
-        self, value_keys: Optional[Iterable[str]] = None
+        self,
+        value_keys: Optional[Iterable[str]] = None,
+        api_name: str = "",
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        _, query_job = expr.start_query(job_config=job_config)
+        _, query_job = expr.start_query(job_config=job_config, api_name=api_name)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):

@@ -274,7 +274,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return series
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run((self._value_column,))
+        return self._block._compute_dry_run(
+            value_keys=(self._value_column,), api_name="series_query_job"
+        )
 
     def drop(
         self,

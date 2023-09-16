@@ -98,6 +98,7 @@ _BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapi
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
 _MAX_CLUSTER_COLUMNS = 4
+_MAX_LABELS_COUNT = 64
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
 # functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
@@ -932,7 +933,7 @@ class Session(
 
         job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols
-        job_config.labels = {"bigframes-api": api_name}
+        job_config.labels = {"bigframes-io-api": api_name}
 
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
@@ -1047,7 +1048,7 @@ class Session(
             job_config.autodetect = True
             job_config.field_delimiter = sep
             job_config.encoding = encoding
-            job_config.labels = {"bigframes-api": "read_csv"}
+            job_config.labels = {"bigframes-io-api": "read_csv"}
 
             # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
             # do not need to set `skip_leading_rows`. If header is None, then there is no header.
@@ -1119,7 +1120,7 @@ class Session(
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
         job_config.source_format = bigquery.SourceFormat.PARQUET
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-        job_config.labels = {"bigframes-api": "read_parquet"}
+        job_config.labels = {"bigframes-io-api": "read_parquet"}
 
         return self._read_bigquery_load_job(path, table, job_config=job_config)
 
@@ -1166,7 +1167,7 @@ class Session(
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
-            job_config.labels = {"bigframes-api": "read_json"}
+            job_config.labels = {"bigframes-io-api": "read_json"}
 
             return self._read_bigquery_load_job(
                 path_or_buf,
@@ -1459,14 +1460,32 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
+        api_methods: Dict[str, str] = {},
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts query job and waits for results
         """
         if job_config is not None:
+            # If there is no lable set
+            if job_config.labels is None:
+                job_config.labels = api_methods
+            # If the total number of lables is under the limit of labels count
+            elif len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
+                job_config.labels = {**api_methods, **job_config.labels}
+            # We truncate the label if it is out of the length limit of labels count
+            else:
+                job_config_labels_len = len(job_config.labels)
+                added_lables_len = _MAX_LABELS_COUNT - job_config_labels_len
+                for key, value in api_methods.items():
+                    _, _, num = key.split("-")
+                    # Add the label in order before reaching limit
+                    if int(num) < added_lables_len:
+                        job_config.labels[key] = value
             query_job = self.bqclient.query(sql, job_config=job_config)
         else:
-            query_job = self.bqclient.query(sql)
+            job_config = bigquery.QueryJobConfig()
+            job_config.labels = api_methods
+            query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
