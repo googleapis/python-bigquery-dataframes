@@ -28,6 +28,23 @@ import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.linear_model._base
 import third_party.bigframes_vendored.sklearn.linear_model._logistic
 
+_BQML_PARAMS_MAPPING = {
+    "optimize_strategy": "optimizationStrategy",
+    "fit_intercept": "fitIntercept",
+    "l1_reg": "l1Regularization",
+    "l2_reg": "l2Regularization",
+    "max_iterations": "maxIterations",
+    "learn_rate_strategy": "learnRateStrategy",
+    "learn_rate": "learnRate",
+    "early_stop": "earlyStop",
+    "min_rel_progress": "minRelativeProgress",
+    "ls_init_learn_rate": "initialLearnRate",
+    "warm_start": "warmStart",
+    "calculate_p_values": "calculatePValues",
+    "enable_global_explain": "enableGlobalExplain",
+    "category_encoding_method": "categoryEncodingMethod",
+}
+
 
 class LinearRegression(
     base.SupervisedTrainablePredictor,
@@ -39,9 +56,29 @@ class LinearRegression(
 
     def __init__(
         self,
+        optimize_strategy: Literal[
+            "auto_strategy", "batch_gradient_descent", "normal_equation"
+        ] = "normal_equation",
         fit_intercept: bool = True,
+        l2_reg: float = 0.0,
+        max_iterations: int = 20,
+        learn_rate_strategy: Literal["line_search", "constant"] = "line_search",
+        early_stop: bool = True,
+        min_rel_progress: float = 0.01,
+        ls_init_learn_rate: float = 0.1,
+        calculate_p_values: bool = False,
+        enable_global_explain: bool = False,
     ):
+        self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
+        self.l2_reg = l2_reg
+        self.max_iterations = max_iterations
+        self.learn_rate_strategy = learn_rate_strategy
+        self.early_stop = early_stop
+        self.min_rel_progress = min_rel_progress
+        self.ls_init_learn_rate = ls_init_learn_rate
+        self.calculate_p_values = calculate_p_values
+        self.enable_global_explain = enable_global_explain
         self._bqml_model: Optional[core.BqmlModel] = None
 
     @classmethod
@@ -55,8 +92,13 @@ class LinearRegression(
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "fitIntercept" in last_fitting:
-            kwargs["fit_intercept"] = last_fitting["fitIntercept"]
+
+        dummy_linear = cls()
+        for bf_param, bf_value in dummy_linear.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param in last_fitting:
+                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
+
         new_linear_regression = cls(**kwargs)
         new_linear_regression._bqml_model = core.BqmlModel(session, model)
         return new_linear_regression
@@ -64,10 +106,20 @@ class LinearRegression(
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
+        # TODO: Support l1_reg, warm_start, and learn_rate with error catching.
         return {
             "model_type": "LINEAR_REG",
             "data_split_method": "NO_SPLIT",
+            "optimize_strategy": self.optimize_strategy,
             "fit_intercept": self.fit_intercept,
+            "l2_reg": self.l2_reg,
+            "max_iterations": self.max_iterations,
+            "learn_rate_strategy": self.learn_rate_strategy,
+            "early_stop": self.early_stop,
+            "min_rel_progress": self.min_rel_progress,
+            "ls_init_learn_rate": self.ls_init_learn_rate,
+            "calculate_p_values": self.calculate_p_values,
+            "enable_global_explain": self.enable_global_explain,
         }
 
     def _fit(

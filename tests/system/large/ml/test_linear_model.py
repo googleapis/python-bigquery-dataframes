@@ -18,7 +18,7 @@ import bigframes.ml.linear_model
 
 
 def test_linear_regression_configure_fit_score(penguins_df_default_index, dataset_id):
-    model = bigframes.ml.linear_model.LinearRegression(fit_intercept=False)
+    model = bigframes.ml.linear_model.LinearRegression()
 
     df = penguins_df_default_index.dropna()
     X_train = df[
@@ -55,13 +55,24 @@ def test_linear_regression_configure_fit_score(penguins_df_default_index, datase
     assert (
         f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.fit_intercept is False
+    assert reloaded_model.optimize_strategy == "NORMAL_EQUATION"
+    assert reloaded_model.fit_intercept is True
+    assert reloaded_model.calculate_p_values is False
+    assert reloaded_model.early_stop is True
+    assert reloaded_model.enable_global_explain is False
+    assert reloaded_model.l2_reg == 0.0
+    assert reloaded_model.learn_rate_strategy == "line_search"
+    assert reloaded_model.ls_init_learn_rate == 0.1
+    assert reloaded_model.max_iterations == 20
+    assert reloaded_model.min_rel_progress == 0.01
 
 
-def test_linear_regression_manual_split_configure_fit_score(
+def test_linear_regression_customized_params_fit_score(
     penguins_df_default_index, dataset_id
 ):
-    model = bigframes.ml.linear_model.LinearRegression(fit_intercept=True)
+    model = bigframes.ml.linear_model.LinearRegression(
+        fit_intercept=False, l2_reg=0.1, min_rel_progress=0.01
+    )
 
     df = penguins_df_default_index.dropna()
     X_train = df[
@@ -81,12 +92,12 @@ def test_linear_regression_manual_split_configure_fit_score(
     result = model.score(X_train, y_train).to_pandas()
     expected = pd.DataFrame(
         {
-            "mean_absolute_error": [225.735767],
-            "mean_squared_error": [80417.461828],
-            "mean_squared_log_error": [0.004967],
-            "median_absolute_error": [172.543702],
-            "r2_score": [0.87548],
-            "explained_variance": [0.87548],
+            "mean_absolute_error": [226.108411],
+            "mean_squared_error": [80459.668456],
+            "mean_squared_log_error": [0.00497],
+            "median_absolute_error": [171.618872],
+            "r2_score": [0.875415],
+            "explained_variance": [0.875417],
         },
         dtype="Float64",
     )
@@ -98,7 +109,16 @@ def test_linear_regression_manual_split_configure_fit_score(
     assert (
         f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
     )
-    assert reloaded_model.fit_intercept is True
+    assert reloaded_model.optimize_strategy == "NORMAL_EQUATION"
+    assert reloaded_model.fit_intercept is False
+    assert reloaded_model.calculate_p_values is False
+    assert reloaded_model.early_stop is True
+    assert reloaded_model.enable_global_explain is False
+    assert reloaded_model.l2_reg == 0.1
+    assert reloaded_model.learn_rate_strategy == "line_search"
+    assert reloaded_model.ls_init_learn_rate == 0.1
+    assert reloaded_model.max_iterations == 20
+    assert reloaded_model.min_rel_progress == 0.01
 
 
 def test_logistic_regression_configure_fit_score(penguins_df_default_index, dataset_id):
