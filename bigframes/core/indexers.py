@@ -37,12 +37,7 @@ class LocSeriesIndexer:
         self._series = series
 
     def __getitem__(self, key) -> bigframes.series.Series:
-        """
-        Only indexing by a boolean bigframes.series.Series or list of index entries is currently supported
-        """
-        return typing.cast(
-            bigframes.series.Series, _loc_getitem_series_or_dataframe(self._series, key)
-        )
+        return _loc_getitem_series_or_dataframe(self._series, key)
 
     def __setitem__(self, key, value) -> None:
         # TODO(swast): support MultiIndex
@@ -261,8 +256,8 @@ def _loc_getitem_series_or_dataframe(
         return _perform_loc_list_join(series_or_dataframe, keys_df)
     else:
         raise TypeError(
-            "Invalid argument type. loc currently only supports indexing with a "
-            "boolean bigframes Series, a list of index entries or a single index entry. "
+            "Invalid argument type. Expected bigframes.Series, bigframes.Index, "
+            "list, : (empty slice), or scalar. "
             f"{constants.FEEDBACK_LINK}"
         )
 
