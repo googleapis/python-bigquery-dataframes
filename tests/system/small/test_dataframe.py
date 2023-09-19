@@ -2755,3 +2755,80 @@ def test_df_cached(scalars_df_index):
 
     df_cached_copy = df._cached()
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
+def test_df_dot_inline(session):
+    df1 = pd.DataFrame([[1, 2, 3], [2, 5, 7]])
+    df2 = pd.DataFrame([[2, 4, 8], [1, 5, 10], [3, 6, 9]])
+
+    bf1 = session.read_pandas(df1)
+    bf2 = session.read_pandas(df2)
+    bf_result = bf1.dot(bf2).to_pandas()
+    pd_result = df1.dot(df2)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = matrix_2by3_df.dot(matrix_3by4_df).to_pandas()
+    pd_result = matrix_2by3_pandas_df.dot(matrix_3by4_pandas_df)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot_bq_table_data_small(session):
+    square_bq_table = "bigframes-dev.zzz_shobs_us.matrix_int_100_by_100"
+
+    # In the first variant, convert BigFrames dataframe to Pandas dataframe
+    # and then test parity
+    df1 = session.read_gbq(square_bq_table)
+    df2 = session.read_gbq(square_bq_table)
+    df1.columns = df2.index
+
+    bf_result = df1.dot(df2).to_pandas()
+    pd_result = df1.to_pandas().dot(df2.to_pandas())
+
+    # Ignore dtype parity, just compare the values
+    # TODO(shobs): See if we can achieve data type parity
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    # In the second variant, read Pandas dataframe directly and then test parity
+    df1 = pd.read_gbq(square_bq_table)
+    df2 = pd.read_gbq(square_bq_table)
+    df1.columns = df2.index
+
+    pd_result = df1.dot(df2)
+
+    # Ignore data type and index parity, just compare the values
+    # TODO(shobs): See if we can achieve data type and index parity
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.skipif(True, reason="https://paste.googleplex.com/6270958410137600")
+def test_df_dot_bq_1kx1k_mul_1kx1k(session):
+    df1 = session.read_gbq("bigframes-dev.zzz_shobs_us.matrix_1k_by_1k")
+    df2 = session.read_gbq("bigframes-dev.zzz_shobs_us.matrix_1k_by_1k")
+    df1.columns = df2.index
+    bf_result = df1.dot(df2)
+    assert bf_result is not None

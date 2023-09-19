@@ -2500,3 +2500,64 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _cached(self) -> DataFrame:
         return DataFrame(self._block.cached())
+
+    def dot(self, other: DataFrame) -> DataFrame:
+        if not isinstance(other, DataFrame):
+            raise NotImplementedError("Only DataFrame operand is supported")
+
+        # if not self.columns.equals(other.index):
+        #     raise ValueError("matrices are not aligned")
+
+        # Convert the dataframes into cell-value-decomposed representation, i.e.
+        # each cell value is present in a separate row
+        row_id = "row"
+        col_id = "col"
+        val_id = "val"
+        left_suffix = "_left"
+        right_suffix = "_right"
+        cvd_columns = [row_id, col_id, val_id]
+
+        def get_left_id(id):
+            return f"{id}{left_suffix}"
+
+        def get_right_id(id):
+            return f"{id}{right_suffix}"
+
+        left = self.stack().reset_index()
+        left.columns = cvd_columns
+
+        right = other.stack().reset_index()
+        right.columns = cvd_columns
+
+        merged = left.merge(
+            right,
+            left_on=col_id,
+            right_on=row_id,
+            suffixes=(left_suffix, right_suffix),
+        )
+
+        left_row_id = get_left_id(row_id)
+        right_col_id = get_right_id(col_id)
+
+        aggregated = (
+            merged.assign(
+                val=merged[get_left_id(val_id)] * merged[get_right_id(val_id)]
+            )[[left_row_id, right_col_id, val_id]]
+            .groupby([left_row_id, right_col_id])
+            .sum(numeric_only=True)
+        )
+        aggregated_noindex = aggregated.reset_index()
+        aggregated_noindex.columns = cvd_columns
+        result = aggregated_noindex.pivot(columns=col_id, index=row_id)
+
+        # Set the index names to match the left side matrix
+        result.index.names = self.index.names
+
+        # Pivot has the result columns ordered alphabetically. It should still
+        # match the columns in the right sided matrix. Let's reorder them as per
+        # the right side matrix
+        if not result.columns.difference(other.columns).empty:
+            raise RuntimeError("Could not construct all columns")
+        result = result[other.columns]
+
+        return result
