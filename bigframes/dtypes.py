@@ -155,6 +155,9 @@ def ibis_dtype_to_bigframes_dtype(
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
+    elif isinstance(ibis_dtype, ibis_dtypes.Null):
+        # Fallback to STRING for NULL values for most flexibility in SQL.
+        return IBIS_TO_BIGFRAMES[ibis_dtypes.string]
     else:
         raise ValueError(
             f"Unexpected Ibis data type {ibis_dtype}. {constants.FEEDBACK_LINK}"
