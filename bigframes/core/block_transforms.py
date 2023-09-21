@@ -178,7 +178,6 @@ def rank(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
             window_spec=window,
-            skip_reproject_unsafe=(col != columns[-1]),
         )
         rownum_col_ids.append(rownum_id)
 
@@ -191,12 +190,11 @@ def rank(
             "max": agg_ops.max_op,
         }[method]
         post_agg_rownum_col_ids = []
-        for i in range(len(columns)):
+        for i, col in enumerate(columns):
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=core.WindowSpec(grouping_keys=[columns[i]]),
-                skip_reproject_unsafe=(i < (len(columns) - 1)),
+                window_spec=core.WindowSpec(grouping_keys=[col]),
             )
             post_agg_rownum_col_ids.append(result_id)
         rownum_col_ids = post_agg_rownum_col_ids

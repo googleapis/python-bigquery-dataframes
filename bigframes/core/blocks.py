@@ -717,7 +717,6 @@ class Block:
                 col_id,
                 op,
                 window_spec=window_spec,
-                skip_reproject_unsafe=(i + 1) < len(columns),
                 result_label=label,
                 skip_null_groups=skip_null_groups,
                 never_skip_nulls=never_skip_nulls,
@@ -750,7 +749,6 @@ class Block:
         *,
         result_label: Label = None,
         skip_null_groups: bool = False,
-        skip_reproject_unsafe: bool = False,
         never_skip_nulls: bool = False,
     ) -> typing.Tuple[Block, str]:
         block = self
@@ -764,7 +762,6 @@ class Block:
             op,
             window_spec,
             result_id,
-            skip_reproject_unsafe=skip_reproject_unsafe,
             never_skip_nulls=never_skip_nulls,
         )
         block = Block(

@@ -21,6 +21,7 @@ from typing import Collection, Dict, Iterable, Literal, Optional, Sequence, Tupl
 
 from google.cloud import bigquery
 import ibis
+import ibis.expr.analysis as ibis_analysis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -653,7 +654,6 @@ class ArrayValue:
         output_name=None,
         *,
         never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
     ) -> ArrayValue:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
@@ -665,6 +665,10 @@ class ArrayValue:
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
         column = typing.cast(ibis_types.Column, self.get_column(column_name))
+        if ibis_analysis.is_analytic(column.op()):
+            return self._reproject_to_table().project_window_op(
+                column_name, op, window_spec, never_skip_nulls=never_skip_nulls
+            )
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
 
         window_op = op._as_ibis(column, window)
@@ -696,7 +700,7 @@ class ArrayValue:
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
         # TODO(tbergeron): Automatically track analytic expression usage and defer reprojection until required for valid query generation.
-        return result._reproject_to_table() if not skip_reproject_unsafe else result
+        return result
 
     def to_sql(
         self,
