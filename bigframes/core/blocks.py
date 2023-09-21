@@ -1539,7 +1539,7 @@ def block_from_local(data, session=None) -> Block:
     )
     pd_data = pd_data.set_axis(
         vendored_pandas_io_common.dedup_names(
-            pd_data.columns, is_potential_multiindex=False
+            list(pd_data.columns), is_potential_multiindex=False
         ),
         axis="columns",
     )

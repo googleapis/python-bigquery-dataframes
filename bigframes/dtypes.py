@@ -96,13 +96,13 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
     ),
 )
 
-BIGFRAMES_TO_IBIS: Dict[Dtype, IbisDtype] = {
+BIGFRAMES_TO_IBIS: Dict[Dtype, ibis_dtypes.DataType] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
 
-IBIS_TO_BIGFRAMES: Dict[
-    Union[IbisDtype, ReadOnlyIbisDtype], Union[Dtype, np.dtype[Any]]
-] = {ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
+IBIS_TO_BIGFRAMES: Dict[ibis_dtypes.DataType, Union[Dtype, np.dtype[Any]]] = {
+    ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS
+}
 # Allow REQUIRED fields to map correctly.
 IBIS_TO_BIGFRAMES.update(
     {ibis.copy(nullable=False): pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
@@ -130,7 +130,7 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarr
 
 
 def ibis_dtype_to_bigframes_dtype(
-    ibis_dtype: Union[IbisDtype, ReadOnlyIbisDtype]
+    ibis_dtype: ibis_dtypes.DataType,
 ) -> Union[Dtype, np.dtype[Any]]:
     """Converts an Ibis dtype to a BigQuery DataFrames dtype
 
@@ -188,8 +188,8 @@ def ibis_table_to_canonical_types(table: ibis_types.Table) -> ibis_types.Table:
 
 
 def bigframes_dtype_to_ibis_dtype(
-    bigframes_dtype: Union[DtypeString, Dtype]
-) -> IbisDtype:
+    bigframes_dtype: Union[DtypeString, Dtype, np.dtype[Any]]
+) -> ibis_dtypes.DataType:
     """Converts a BigQuery DataFrames supported dtype to an Ibis dtype.
 
     Args:
@@ -284,7 +284,9 @@ def literal_to_ibis_scalar(
     return scalar_expr
 
 
-def cast_ibis_value(value: ibis_types.Value, to_type: IbisDtype) -> ibis_types.Value:
+def cast_ibis_value(
+    value: ibis_types.Value, to_type: ibis_dtypes.DataType
+) -> ibis_types.Value:
     """Perform compatible type casts of ibis values
 
     Args:

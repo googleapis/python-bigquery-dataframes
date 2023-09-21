@@ -164,7 +164,7 @@ class ArrayValue:
         new_schema = []
         for column_index, column in enumerate(schema):
             if column == ORDER_ID_COLUMN:
-                new_type = ibis_dtypes.int64
+                new_type: ibis_dtypes.DataType = ibis_dtypes.int64
             else:
                 column_type = schema[column]
                 # The autodetected type might not be one we can support, such
