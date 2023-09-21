@@ -219,6 +219,8 @@ class BqmlModelFactory:
         # real model path in the session specific hidden dataset and table prefix
         model_name_full = f"{job.destination.dataset_id}.{job.destination.table_id}"
         model = session.bqclient.get_model(model_name_full)
+
+        self._reset_model_id()
         return BqmlModel(session, model)
 
     def create_model(
