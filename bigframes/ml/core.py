@@ -209,6 +209,9 @@ class BqmlModelFactory:
     def _create_temp_model_id(self) -> str:
         return uuid.uuid4().hex
 
+    def _reset_model_id(self):
+        self._model_creation_sql_generator._model_id = self._create_temp_model_id()
+
     def _create_model_with_sql(self, session: bigframes.Session, sql: str) -> BqmlModel:
         # fit the model, synchronously
         _, job = session._start_query(sql)
