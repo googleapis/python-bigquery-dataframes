@@ -59,7 +59,7 @@ from .. import resources
             ),
             marks=[
                 pytest.mark.skipif(
-                    pandas.__version__.split() < ("2", "0", "0"),
+                    tuple(pandas.__version__.split()) < ("2", "0", "0"),
                     reason="pandas 1.5.3 treats column MultiIndex as Index of tuples",
                 ),
             ],
