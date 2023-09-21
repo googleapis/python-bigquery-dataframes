@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Tuple
+from typing import Tuple, Union
 
 import ibis
 import pandas as pd
@@ -29,14 +29,18 @@ import bigframes.operations as ops
 import bigframes.series
 
 if typing.TYPE_CHECKING:
-    LocSingleKey = typing.Union[bigframes.series.Series, indexes.Index, slice]
+    LocSingleKey = Union[
+        bigframes.series.Series, indexes.Index, slice, bigframes.core.scalar.Scalar
+    ]
 
 
 class LocSeriesIndexer:
     def __init__(self, series: bigframes.series.Series):
         self._series = series
 
-    def __getitem__(self, key) -> bigframes.series.Series:
+    def __getitem__(
+        self, key
+    ) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
         return _loc_getitem_series_or_dataframe(self._series, key)
 
     def __setitem__(self, key, value) -> None:
@@ -79,7 +83,7 @@ class IlocSeriesIndexer:
 
     def __getitem__(
         self, key
-    ) -> bigframes.core.scalar.Scalar | bigframes.series.Series:
+    ) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
         """
         Index series using integer offsets. Currently supports index by key type:
 
@@ -98,13 +102,17 @@ class LocDataFrameIndexer:
         self._dataframe = dataframe
 
     @typing.overload
-    def __getitem__(self, key: LocSingleKey) -> bigframes.dataframe.DataFrame:
+    def __getitem__(
+        self, key: LocSingleKey
+    ) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
         ...
 
     # Technically this is wrong since we can have duplicate column labels, but
     # this is expected to be rare.
     @typing.overload
-    def __getitem__(self, key: Tuple[LocSingleKey, str]) -> bigframes.series.Series:
+    def __getitem__(
+        self, key: Tuple[LocSingleKey, str]
+    ) -> Union[bigframes.series.Series, bigframes.core.scalar.Scalar]:
         ...
 
     def __getitem__(self, key):
@@ -168,7 +176,7 @@ class ILocDataFrameIndexer:
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key) -> bigframes.dataframe.DataFrame | pd.Series:
+    def __getitem__(self, key) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
         """
         Index dataframe using integer offsets. Currently supports index by key type:
 
@@ -183,21 +191,26 @@ class ILocDataFrameIndexer:
 @typing.overload
 def _loc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.series.Series, key
-) -> bigframes.series.Series:
+) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
     ...
 
 
 @typing.overload
 def _loc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.dataframe.DataFrame, key
-) -> bigframes.dataframe.DataFrame:
+) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
     ...
 
 
 def _loc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series,
+    series_or_dataframe: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     key: LocSingleKey,
-) -> bigframes.dataframe.DataFrame | bigframes.series.Series:
+) -> Union[
+    bigframes.dataframe.DataFrame,
+    bigframes.series.Series,
+    pd.Series,
+    bigframes.core.scalar.Scalar,
+]:
     if isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
         return series_or_dataframe[key]
     elif isinstance(key, bigframes.series.Series):
@@ -217,7 +230,7 @@ def _loc_getitem_series_or_dataframe(
         # TODO(henryjsolberg): support MultiIndex
         if len(key) == 0:  # type: ignore
             return typing.cast(
-                typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+                Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
 
@@ -253,7 +266,15 @@ def _loc_getitem_series_or_dataframe(
         )
         keys_df = keys_df.set_index(index_name, drop=True)
         keys_df.index.name = None
-        return _perform_loc_list_join(series_or_dataframe, keys_df)
+        result = _perform_loc_list_join(series_or_dataframe, keys_df)
+        if len(result) == 1:
+            # although loc[scalar_key] returns multiple results when scalar_key
+            # is not unique, we run a query and return the computed individual
+            # result here (as a scalar or pandas series) when the key is unique,
+            # since we expect unique index keys to be more common. loc[[scalar_key]]
+            # can be used to retrieve one-item DataFrames or Series.
+            return result.iloc[0]
+        return result
     else:
         raise TypeError(
             "Invalid argument type. Expected bigframes.Series, bigframes.Index, "
@@ -279,9 +300,9 @@ def _perform_loc_list_join(
 
 
 def _perform_loc_list_join(
-    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series,
+    series_or_dataframe: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     keys_df: bigframes.dataframe.DataFrame,
-) -> bigframes.series.Series | bigframes.dataframe.DataFrame:
+) -> Union[bigframes.series.Series, bigframes.dataframe.DataFrame]:
     # right join based on the old index so that the matching rows from the user's
     # original dataframe will be duplicated and reordered appropriately
     original_index_names = series_or_dataframe.index.names
@@ -304,20 +325,26 @@ def _perform_loc_list_join(
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.series.Series, key
-) -> bigframes.series.Series | bigframes.core.scalar.Scalar:
+) -> Union[bigframes.series.Series, bigframes.core.scalar.Scalar]:
     ...
 
 
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.dataframe.DataFrame, key
-) -> bigframes.dataframe.DataFrame | pd.Series:
+) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
     ...
 
 
 def _iloc_getitem_series_or_dataframe(
-    series_or_dataframe: bigframes.dataframe.DataFrame | bigframes.series.Series, key
-) -> bigframes.dataframe.DataFrame | bigframes.series.Series | bigframes.core.scalar.Scalar | pd.Series:
+    series_or_dataframe: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+    key,
+) -> Union[
+    bigframes.dataframe.DataFrame,
+    bigframes.series.Series,
+    bigframes.core.scalar.Scalar,
+    pd.Series,
+]:
     if isinstance(key, int):
         internal_slice_result = series_or_dataframe._slice(key, key + 1, 1)
         result_pd_df = internal_slice_result.to_pandas()
@@ -331,7 +358,7 @@ def _iloc_getitem_series_or_dataframe(
 
         if len(key) == 0:
             return typing.cast(
-                typing.Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+                Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
         df = series_or_dataframe
