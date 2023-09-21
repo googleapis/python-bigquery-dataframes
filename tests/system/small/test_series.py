@@ -2617,7 +2617,7 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
     index = -2345
     bf_result = scalars_df_index.date_col.loc[index]
     pd_result = scalars_pandas_df_index.date_col.loc[index]
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 def test_series_bool_interpretation_error(scalars_df_index):
