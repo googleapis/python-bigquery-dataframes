@@ -1472,15 +1472,21 @@ class Session(
             # If the total number of lables is under the limit of labels count
             elif len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
                 job_config.labels = {**api_methods, **job_config.labels}
-            # We truncate the label if it is out of the length limit of labels count
+            # We capture the latest label if it is out of the length limit of labels count
             else:
                 job_config_labels_len = len(job_config.labels)
-                added_lables_len = _MAX_LABELS_COUNT - job_config_labels_len
-                for key, value in api_methods.items():
-                    _, _, num = key.split("-")
-                    # Add the label in order before reaching limit
-                    if int(num) < added_lables_len:
-                        job_config.labels[key] = value
+                # The last n labels to add
+                added_lables_len = (
+                    job_config_labels_len + len(api_methods) - _MAX_LABELS_COUNT
+                )
+
+                # Convert the dictionary items into a list
+                label_list = sorted(api_methods.items())
+
+                # Process the last n items using slicing
+                for key, value in label_list[-added_lables_len:]:
+                    job_config.labels[key] = value
+
             query_job = self.bqclient.query(sql, job_config=job_config)
         else:
             job_config = bigquery.QueryJobConfig()

@@ -474,8 +474,18 @@ class ArrayValue:
 
         # Initialize methods to add as an empty dictionary
         add_api_methods: Dict[str, str] = {}
+        # We capture the latest label if it is out of the length limit of labels count
         if api_methods_len >= MAX_LABELS_COUNT:
-            add_api_methods = self.api_method
+            # Pop out the first item
+            sorted_dict = dict(sorted(self._api_methods.items()))
+            sorted_dict.popitem()
+            # Get the new key number
+            sorted_items = sorted(self._api_methods.items())
+            adeded_number = int(sorted_items[-1][1]) + 1
+            add_api_key = "bigframes-api-" + str(adeded_number)
+            # Add the latest api to
+            sorted_dict[add_api_key] = "shape"
+            add_api_methods = sorted_dict
         elif api_methods_len == 0:
             add_api_key = "bigframes-api-0"
             add_api_methods = {add_api_key: "shape"}
@@ -606,7 +616,16 @@ class ArrayValue:
         add_api_methods: Dict[str, str] = {}
         api_methods_len = len(self._api_methods)
         if api_methods_len >= MAX_LABELS_COUNT:
-            add_api_methods = self.api_method
+            # Pop out the first item
+            sorted_dict = dict(sorted(self._api_methods.items()))
+            sorted_dict.popitem()
+            # Get the new key number
+            sorted_items = sorted(self._api_methods.items())
+            adeded_number = int(sorted_items[-1][1]) + 1
+            add_api_key = "bigframes-api-" + str(adeded_number)
+            # Add the latest api to
+            sorted_dict[add_api_key] = "shape"
+            add_api_methods = sorted_dict
         elif api_methods_len == 0:
             add_api_key = "bigframes-api-0"
             add_api_methods = {add_api_key: "aggregate"}
