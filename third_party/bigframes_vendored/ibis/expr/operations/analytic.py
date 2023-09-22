@@ -12,14 +12,14 @@ class FirstNonNullValue(ibis_ops_analytic.Analytic):
     """Retrieve the first element."""
 
     arg: ibis_ops_core.Column[dt.Any]
-    output_dtype = rlz.dtype_like("arg")
+    dtype = rlz.dtype_like("arg")
 
 
 class LastNonNullValue(ibis_ops_analytic.Analytic):
     """Retrieve the last element."""
 
     arg: ibis_ops_core.Column[dt.Any]
-    output_dtype = rlz.dtype_like("arg")
+    dtype = rlz.dtype_like("arg")
 
 
 __all__ = [

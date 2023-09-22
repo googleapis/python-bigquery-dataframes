@@ -15,7 +15,7 @@ class ApproximateMultiQuantile(Filterable, Reduction):
 
     arg: ibis_ops_core.Value
     num_bins: ibis_ops_core.Value[dt.Int64]
-    output_dtype: ibis_ops_core.Value[dt.Array[dt.Float64]]
+    dtype: ibis_ops_core.Value[dt.Array[dt.Float64]]
 
 
 __all__ = [
