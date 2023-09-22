@@ -118,7 +118,7 @@ def test_series_get_with_default_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].get(key)
     pd_result = scalars_pandas_df[col_name].get(key)
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
