@@ -120,6 +120,97 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
     pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
 
 
+def test_max_abs_scaler_normalizes(penguins_df_default_index, new_penguins_df):
+    # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
+    scaler = bigframes.ml.preprocessing.MaxAbsScaler()
+    scaler.fit(
+        penguins_df_default_index[
+            ["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]
+        ]
+    )
+
+    result = scaler.transform(
+        penguins_df_default_index[
+            ["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]
+        ]
+    ).to_pandas()
+
+    # If maxabs-scaled correctly, max should be 1.0
+    for column in result.columns:
+        assert math.isclose(result[column].max(), 1.0, abs_tol=1e-3)
+
+    result = scaler.transform(new_penguins_df).to_pandas()
+
+    # TODO: bug? feature columns seem to be in nondeterministic random order
+    # workaround: sort columns by name. Can't repro it in pantheon, so could
+    # be a bigframes issue...
+    result = result.reindex(sorted(result.columns), axis=1)
+
+    expected = pd.DataFrame(
+        {
+            "scaled_culmen_depth_mm": [0.874419, 0.8, 0.84186],
+            "scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
+            "scaled_flipper_length_mm": [0.848485, 0.78355, 0.813853],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
+
+
+def test_max_abs_scaler_normalizeds_fit_transform(new_penguins_df):
+    scaler = bigframes.ml.preprocessing.MaxAbsScaler()
+    result = scaler.fit_transform(
+        new_penguins_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
+    ).to_pandas()
+
+    # TODO: bug? feature columns seem to be in nondeterministic random order
+    # workaround: sort columns by name. Can't repro it in pantheon, so could
+    # be a bigframes issue...
+    result = result.reindex(sorted(result.columns), axis=1)
+
+    expected = pd.DataFrame(
+        {
+            "scaled_culmen_depth_mm": [1.0, 0.914894, 0.962766],
+            "scaled_culmen_length_mm": [1.0, 0.974684, 0.959494],
+            "scaled_flipper_length_mm": [1.0, 0.923469, 0.959184],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
+
+
+def test_max_abs_scaler_series_normalizes(penguins_df_default_index, new_penguins_df):
+    scaler = bigframes.ml.preprocessing.MaxAbsScaler()
+    scaler.fit(penguins_df_default_index["culmen_length_mm"])
+
+    result = scaler.transform(penguins_df_default_index["culmen_length_mm"]).to_pandas()
+
+    # If maxabs-scaled correctly, max should be 1.0
+    for column in result.columns:
+        assert math.isclose(result[column].max(), 1.0, abs_tol=1e-3)
+
+    result = scaler.transform(new_penguins_df).to_pandas()
+
+    # TODO: bug? feature columns seem to be in nondeterministic random order
+    # workaround: sort columns by name. Can't repro it in pantheon, so could
+    # be a bigframes issue...
+    result = result.reindex(sorted(result.columns), axis=1)
+
+    expected = pd.DataFrame(
+        {
+            "scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, rtol=1e-3)
+
+
 def test_one_hot_encoder_default_params(new_penguins_df):
     encoder = bigframes.ml.preprocessing.OneHotEncoder()
     encoder.fit(new_penguins_df[["species", "sex"]])
