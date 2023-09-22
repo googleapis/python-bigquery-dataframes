@@ -18,6 +18,7 @@ import functools
 import typing
 
 import ibis
+import ibis.common.annotations
 import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations.generic
@@ -737,9 +738,15 @@ def add_op(
 ):
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
         return
-    return typing.cast(ibis_types.NumericValue, x) + typing.cast(
-        ibis_types.NumericValue, y
-    )
+    try:
+        # Could be string concatenation or numeric addition.
+        return x + y  # type: ignore
+    except ibis.common.annotations.SignatureValidationError as exc:
+        left_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(x.type())
+        right_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(y.type())
+        raise TypeError(
+            f"Cannot add {repr(left_type)} and {repr(right_type)}. {constants.FEEDBACK_LINK}"
+        ) from exc
 
 
 @short_circuit_nulls()

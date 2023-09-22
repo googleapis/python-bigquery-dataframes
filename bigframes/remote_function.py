@@ -491,7 +491,7 @@ def remote_function_node(
         )
     }
 
-    fields["dtype"] = ibis_signature.output_type
+    fields["dtype"] = ibis_signature.output_type  # type: ignore
     fields["shape"] = rlz.shape_like("args")
 
     node = type(routine_ref_to_string_for_query(routine_ref), (ops.ValueOp,), fields)  # type: ignore

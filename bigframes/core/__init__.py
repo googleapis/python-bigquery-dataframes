@@ -691,8 +691,7 @@ class ArrayValue:
             case_statement = ibis.case()
             for clause in clauses:
                 case_statement = case_statement.when(clause[0], clause[1])
-            case_statement = case_statement.else_(window_op).end()
-            window_op = case_statement
+            window_op = case_statement.else_(window_op).end()
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
         # TODO(tbergeron): Automatically track analytic expression usage and defer reprojection until required for valid query generation.
