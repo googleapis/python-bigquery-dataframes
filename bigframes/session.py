@@ -1466,10 +1466,10 @@ class Session(
         Starts query job and waits for results
         """
         if job_config is not None:
-            # If there is no lable set
+            # If there is no label set
             if job_config.labels is None:
                 job_config.labels = api_methods
-            # If the total number of lables is under the limit of labels count
+            # If the total number of labels is under the limit of labels count
             elif len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
                 job_config.labels = {**api_methods, **job_config.labels}
             # We capture the latest label if it is out of the length limit of labels count

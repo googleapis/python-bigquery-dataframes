@@ -472,7 +472,7 @@ class ArrayValue:
         sql = self._session.ibis_client.compile(count_expr)
         api_methods_len = len(self._api_methods)
 
-        # Initialize methods to add as an empty dictionary
+        # Initialize api-methods as an empty dictionary
         add_api_methods: Dict[str, str] = {}
         # We capture the latest label if it is out of the length limit of labels count
         if api_methods_len >= MAX_LABELS_COUNT:
@@ -483,7 +483,7 @@ class ArrayValue:
             sorted_items = sorted(self._api_methods.items())
             adeded_number = int(sorted_items[-1][1]) + 1
             add_api_key = "bigframes-api-" + str(adeded_number)
-            # Add the latest api to
+            # Add the latest api
             sorted_dict[add_api_key] = "shape"
             add_api_methods = sorted_dict
         elif api_methods_len == 0:
@@ -612,7 +612,7 @@ class ArrayValue:
             for col_in, agg_op, col_out in aggregations
         }
 
-        # Initialize methods to add as an empty dictionary
+        # Initialize api-methods as an empty dictionary
         add_api_methods: Dict[str, str] = {}
         api_methods_len = len(self._api_methods)
         if api_methods_len >= MAX_LABELS_COUNT:
@@ -623,7 +623,7 @@ class ArrayValue:
             sorted_items = sorted(self._api_methods.items())
             adeded_number = int(sorted_items[-1][1]) + 1
             add_api_key = "bigframes-api-" + str(adeded_number)
-            # Add the latest api to
+            # Add the latest api
             sorted_dict[add_api_key] = "shape"
             add_api_methods = sorted_dict
         elif api_methods_len == 0:
