@@ -500,3 +500,68 @@ def _kurt_from_moments_and_count(
         kurt_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
     )
     return block, kurt_id
+
+
+def align(
+    left_block: blocks.Block,
+    right_block: blocks.Block,
+    join: str = "outer",
+    axis: typing.Union[str, int, None] = None,
+) -> typing.Tuple[blocks.Block, blocks.Block]:
+    axis_n = core.utils.get_axis_number(axis) if axis is not None else None
+    if (axis_n == 0) or (axis_n is None):
+        # Align rows
+        joined_index, (get_column_left, get_column_right) = left_block.index.join(
+            right_block.index, how=join
+        )
+        left_block_merged = joined_index._block
+        right_block_merged = joined_index._block
+        # Syncing the blocks ensures that the resulting blocks can utilize row identity join
+        sync_blocks = True
+    else:
+        left_block_merged = left_block
+        right_block_merged = right_block
+        get_column_left = get_column_right = lambda x: x
+        sync_blocks = False
+
+    if (axis_n == 1) or (axis_n is None):
+        # align columns
+        columns, lcol_indexer, rcol_indexer = left_block.column_labels.join(
+            right_block.column_labels, how=join, return_indexers=True
+        )
+        column_indices = zip(
+            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
+        )
+        left_column_ids = []
+        right_column_ids = []
+
+        for left_index, right_index in column_indices:
+            if left_index >= 0:
+                left_col_id = get_column_left(left_block.value_columns[left_index])
+            else:
+                dtype = right_block.dtypes[right_index]
+                left_block_merged, left_col_id = left_block_merged.create_constant(
+                    None, dtype=dtype, label=right_block.column_labels[right_index]
+                )
+                if sync_blocks:
+                    right_block_merged = left_block_merged
+            left_column_ids.append(left_col_id)
+
+            if right_index >= 0:
+                right_col_id = get_column_right(right_block.value_columns[right_index])
+            else:
+                dtype = left_block.dtypes[left_index]
+                right_block_merged, right_col_id = right_block_merged.create_constant(
+                    None, dtype=dtype, label=left_block.column_labels[left_index]
+                )
+                if sync_blocks:
+                    left_block_merged = right_block_merged
+            right_column_ids.append(right_col_id)
+    else:
+        left_column_ids = [get_column_left(col) for col in left_block.value_columns]
+        right_column_ids = [get_column_right(col) for col in right_block.value_columns]
+
+    left_final = left_block_merged.select_columns(left_column_ids)
+    right_final = right_block_merged.select_columns(right_column_ids)
+    return left_final, right_final
