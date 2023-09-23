@@ -47,9 +47,9 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_depth_mm": [0.836148, 0.024748, 0.48116],
-            "scaled_culmen_length_mm": [-0.81112, -0.994552, -1.104611],
-            "scaled_flipper_length_mm": [-0.350044, -1.418336, -0.9198],
+            "standard_scaled_culmen_depth_mm": [0.836148, 0.024748, 0.48116],
+            "standard_scaled_culmen_length_mm": [-0.81112, -0.994552, -1.104611],
+            "standard_scaled_flipper_length_mm": [-0.350044, -1.418336, -0.9198],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -76,9 +76,9 @@ def test_standard_scaler_normalizeds_fit_transform(new_penguins_df):
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_depth_mm": [1.17072, -1.272416, 0.101848],
-            "scaled_culmen_length_mm": [1.313249, -0.20198, -1.111118],
-            "scaled_flipper_length_mm": [1.251089, -1.196588, -0.054338],
+            "standard_scaled_culmen_depth_mm": [1.17072, -1.272416, 0.101848],
+            "standard_scaled_culmen_length_mm": [1.313249, -0.20198, -1.111118],
+            "standard_scaled_flipper_length_mm": [1.251089, -1.196588, -0.054338],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -107,7 +107,7 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_length_mm": [
+            "standard_scaled_culmen_length_mm": [
                 -0.811119671289163,
                 -0.9945520581113803,
                 -1.104611490204711,
@@ -148,9 +148,9 @@ def test_max_abs_scaler_normalizes(penguins_df_default_index, new_penguins_df):
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_depth_mm": [0.874419, 0.8, 0.84186],
-            "scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
-            "scaled_flipper_length_mm": [0.848485, 0.78355, 0.813853],
+            "max_abs_scaled_culmen_depth_mm": [0.874419, 0.8, 0.84186],
+            "max_abs_scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
+            "max_abs_scaled_flipper_length_mm": [0.848485, 0.78355, 0.813853],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -172,9 +172,9 @@ def test_max_abs_scaler_normalizeds_fit_transform(new_penguins_df):
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_depth_mm": [1.0, 0.914894, 0.962766],
-            "scaled_culmen_length_mm": [1.0, 0.974684, 0.959494],
-            "scaled_flipper_length_mm": [1.0, 0.923469, 0.959184],
+            "max_abs_scaled_culmen_depth_mm": [1.0, 0.914894, 0.962766],
+            "max_abs_scaled_culmen_length_mm": [1.0, 0.974684, 0.959494],
+            "max_abs_scaled_flipper_length_mm": [1.0, 0.923469, 0.959184],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -202,7 +202,7 @@ def test_max_abs_scaler_series_normalizes(penguins_df_default_index, new_penguin
 
     expected = pd.DataFrame(
         {
-            "scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
+            "max_abs_scaled_culmen_length_mm": [0.662752, 0.645973, 0.635906],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
