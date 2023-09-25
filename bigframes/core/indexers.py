@@ -267,13 +267,16 @@ def _loc_getitem_series_or_dataframe(
         keys_df = keys_df.set_index(index_name, drop=True)
         keys_df.index.name = None
         result = _perform_loc_list_join(series_or_dataframe, keys_df)
-        if len(result) == 1:
-            # although loc[scalar_key] returns multiple results when scalar_key
-            # is not unique, we run a query and return the computed individual
-            # result here (as a scalar or pandas series) when the key is unique,
-            # since we expect unique index keys to be more common. loc[[scalar_key]]
-            # can be used to retrieve one-item DataFrames or Series.
-            return result.iloc[0]
+        pandas_result = result.to_pandas()
+        # although loc[scalar_key] returns multiple results when scalar_key
+        # is not unique, we download the results here and return the computed
+        # individual result (as a scalar or pandas series) when the key is unique,
+        # since we expect unique index keys to be more common. loc[[scalar_key]]
+        # can be used to retrieve one-item DataFrames or Series.
+        if len(pandas_result) == 1:
+            return pandas_result.iloc[0]
+        # when the key is not unique, we return a bigframes data type
+        # as usual for methods that return dataframes/series
         return result
     else:
         raise TypeError(
