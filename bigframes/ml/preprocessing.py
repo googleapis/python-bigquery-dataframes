@@ -315,7 +315,7 @@ class OneHotEncoder(
 
 
 class LabelEncoder(
-    base.Transformer,
+    base.LabelTransformer,
     third_party.bigframes_vendored.sklearn.preprocessing._label.LabelEncoder,
 ):
     # BQML max value https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-one-hot-encoder#syntax
@@ -399,7 +399,7 @@ class LabelEncoder(
 
         return cls(min_frequency, max_categories), col_label
 
-    def fit(  # type: ignore[override]
+    def fit(
         self,
         y: Union[bpd.DataFrame, bpd.Series],
     ) -> LabelEncoder:
