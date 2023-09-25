@@ -50,7 +50,7 @@ class StandardScaler(BaseEstimator, TransformerMixin):
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 The Dataframe or Series with training data.
 
-            y : None
+            y (default None):
                 Ignored.
 
         Returns:
@@ -87,7 +87,7 @@ class MaxAbsScaler(BaseEstimator, TransformerMixin):
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 The Dataframe or Series with training data.
 
-            y : None
+            y (default None):
                 Ignored.
 
         Returns:

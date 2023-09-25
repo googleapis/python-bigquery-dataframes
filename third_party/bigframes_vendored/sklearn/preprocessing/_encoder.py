@@ -61,7 +61,7 @@ class OneHotEncoder(BaseEstimator):
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 The DataFrame or Series with training data.
 
-            y : None
+            y (default None):
                 Ignored.
 
         Returns:
