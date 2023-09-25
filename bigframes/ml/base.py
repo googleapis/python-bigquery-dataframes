@@ -212,6 +212,6 @@ class LabelTransformer(BaseEstimator):
 
     def fit_transform(
         self,
-        y: Optional[Union[bpd.DataFrame, bpd.Series]],
+        y: Union[bpd.DataFrame, bpd.Series],
     ) -> bpd.DataFrame:
         return self.fit(y).transform(y)
