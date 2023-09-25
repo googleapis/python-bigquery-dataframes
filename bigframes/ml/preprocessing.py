@@ -399,18 +399,17 @@ class LabelEncoder(
 
         return cls(min_frequency, max_categories), col_label
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y=None,  # ignored
+        y: Union[bpd.DataFrame, bpd.Series],
     ) -> LabelEncoder:
-        (X,) = utils.convert_to_dataframe(X)
+        (y,) = utils.convert_to_dataframe(y)
 
-        compiled_transforms = self._compile_to_sql(X.columns.tolist())
+        compiled_transforms = self._compile_to_sql(y.columns.tolist())
         transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
 
         self._bqml_model = self._bqml_model_factory.create_model(
-            X,
+            y,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,
         )
@@ -419,13 +418,13 @@ class LabelEncoder(
         self._output_names = [name for _, name in compiled_transforms]
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def transform(self, y: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (y,) = utils.convert_to_dataframe(y)
 
-        df = self._bqml_model.transform(X)
+        df = self._bqml_model.transform(y)
         return typing.cast(
             bpd.DataFrame,
             df[self._output_names],
