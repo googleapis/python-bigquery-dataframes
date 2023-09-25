@@ -144,21 +144,56 @@ class ArrayValue:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
 
-        Caution: If session is None, only a subset of expr functionality will be available (null Session is usually not supported).
+        Caution: If session is None, only a subset of expr functionality will
+        be available (null Session is usually not supported).
         """
-        # must set non-null column labels. these are not the user-facing labels
-        pd_df = pd_df.set_axis(
-            [column or bigframes.core.guid.generate_guid() for column in pd_df.columns],
-            axis="columns",
-        )
+        # We can't include any hidden columns in the ArrayValue constructor, so
+        # grab the column names before we add the hidden ordering column.
+        column_names = [str(column) for column in pd_df.columns]
+        # Make sure column names are all strings.
+        pd_df = pd_df.set_axis(column_names, axis="columns")
         pd_df = pd_df.assign(**{ORDER_ID_COLUMN: range(len(pd_df))})
+
         # ibis memtable cannot handle NA, must convert to None
         pd_df = pd_df.astype("object")  # type: ignore
         pd_df = pd_df.where(pandas.notnull(pd_df), None)
+
+        # NULL type isn't valid in BigQuery, so retry with an explicit schema in these cases.
         keys_memtable = ibis.memtable(pd_df)
+        schema = keys_memtable.schema()
+        new_schema = []
+        for column_index, column in enumerate(schema):
+            if column == ORDER_ID_COLUMN:
+                new_type: ibis_dtypes.DataType = ibis_dtypes.int64
+            else:
+                column_type = schema[column]
+                # The autodetected type might not be one we can support, such
+                # as NULL type for empty rows, so convert to a type we do
+                # support.
+                new_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(
+                    bigframes.dtypes.ibis_dtype_to_bigframes_dtype(column_type)
+                )
+                # TODO(swast): Ibis memtable doesn't use backticks in struct
+                # field names, so spaces and other characters aren't allowed in
+                # the memtable context. Blocked by
+                # https://github.com/ibis-project/ibis/issues/7187
+                column = f"col_{column_index}"
+            new_schema.append((column, new_type))
+
+        # must set non-null column labels. these are not the user-facing labels
+        pd_df = pd_df.set_axis(
+            [column for column, _ in new_schema],
+            axis="columns",
+        )
+        keys_memtable = ibis.memtable(pd_df, schema=ibis.schema(new_schema))
+
         return cls(
             session,  # type: ignore # Session cannot normally be none, see "caution" above
             keys_memtable,
+            columns=[
+                keys_memtable[f"col_{column_index}"].name(column)
+                for column_index, column in enumerate(column_names)
+            ],
             ordering=ExpressionOrdering(
                 ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
                 total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
@@ -426,11 +461,16 @@ class ArrayValue:
         width = len(self.columns)
         count_expr = self._to_ibis_expr(ordering_mode="unordered").count()
         sql = self._session.ibis_client.compile(count_expr)
-        row_iterator, _ = self._session._start_query(
-            sql=sql,
-            max_results=1,
-        )
-        length = next(row_iterator)[0]
+
+        # Support in-memory engines for hermetic unit tests.
+        if not isinstance(sql, str):
+            length = self._session.ibis_client.execute(count_expr)
+        else:
+            row_iterator, _ = self._session._start_query(
+                sql=sql,
+                max_results=1,
+            )
+            length = next(row_iterator)[0]
         return (length, width)
 
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
@@ -942,61 +982,78 @@ class ArrayValue:
             ArrayValue: The unpivoted ArrayValue
         """
         table = self._to_ibis_expr(ordering_mode="offset_col")
-        sub_expressions = []
-
-        # Use ibis memtable to infer type of rowlabels (if possible)
-        # TODO: Allow caller to specify dtype
-        labels_ibis_type = ibis.memtable({"col": row_labels})["col"].type()
-        labels_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(labels_ibis_type)
-
         row_n = len(row_labels)
         if not all(
             len(source_columns) == row_n for _, source_columns in unpivot_columns
         ):
             raise ValueError("Columns and row labels must all be same length.")
 
-        for i in range(row_n):
-            values = []
-            for j in range(len(unpivot_columns)):
-                result_col, source_cols = unpivot_columns[j]
-                col_dtype = dtype[j] if utils.is_list_like(dtype) else dtype
-                if source_cols[i] is not None:
-                    values.append(
-                        ops.AsTypeOp(col_dtype)
-                        ._as_ibis(table[source_cols[i]])
-                        .name(result_col)
-                    )
-                else:
-                    values.append(
-                        bigframes.dtypes.literal_to_ibis_scalar(
-                            None, force_dtype=col_dtype
-                        ).name(result_col)
-                    )
-            offsets_value = (
-                ((table[ORDER_ID_COLUMN] * row_n) + i)
-                .cast(ibis_dtypes.int64)
-                .name(ORDER_ID_COLUMN),
+        unpivot_offset_id = bigframes.core.guid.generate_guid("unpivot_offsets_")
+        unpivot_table = table.cross_join(
+            ibis.memtable({unpivot_offset_id: range(row_n)})
+        )
+        unpivot_offsets_value = (
+            (
+                (unpivot_table[ORDER_ID_COLUMN] * row_n)
+                + unpivot_table[unpivot_offset_id]
             )
-            sub_expr = table.select(
-                passthrough_columns,
+            .cast(ibis_dtypes.int64)
+            .name(ORDER_ID_COLUMN),
+        )
+
+        # Use ibis memtable to infer type of rowlabels (if possible)
+        # TODO: Allow caller to specify dtype
+        labels_ibis_type = ibis.memtable({"col": row_labels})["col"].type()
+        labels_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(labels_ibis_type)
+        cases = [
+            (
+                i,
                 bigframes.dtypes.literal_to_ibis_scalar(
                     row_labels[i], force_dtype=labels_dtype  # type:ignore
-                ).name(index_col_id),
-                *values,
-                offsets_value,
+                ),
             )
-            sub_expressions.append(sub_expr)
-        rotated_table = ibis.union(*sub_expressions)
+            for i in range(len(row_labels))
+        ]
+        labels_value = (
+            typing.cast(ibis_types.IntegerColumn, unpivot_table[unpivot_offset_id])
+            .cases(cases, default=None)  # type:ignore
+            .name(index_col_id)
+        )
+
+        unpivot_values = []
+        for j in range(len(unpivot_columns)):
+            col_dtype = dtype[j] if utils.is_list_like(dtype) else dtype
+            result_col, source_cols = unpivot_columns[j]
+            null_value = bigframes.dtypes.literal_to_ibis_scalar(
+                None, force_dtype=col_dtype
+            )
+            ibis_values = [
+                ops.AsTypeOp(col_dtype)._as_ibis(unpivot_table[col])
+                if col is not None
+                else null_value
+                for col in source_cols
+            ]
+            cases = [(i, ibis_values[i]) for i in range(len(ibis_values))]
+            unpivot_value = typing.cast(
+                ibis_types.IntegerColumn, unpivot_table[unpivot_offset_id]
+            ).cases(
+                cases, default=null_value  # type:ignore
+            )
+            unpivot_values.append(unpivot_value.name(result_col))
+
+        unpivot_table = unpivot_table.select(
+            passthrough_columns, labels_value, *unpivot_values, unpivot_offsets_value
+        )
 
         value_columns = [
-            rotated_table[value_col_id] for value_col_id, _ in unpivot_columns
+            unpivot_table[value_col_id] for value_col_id, _ in unpivot_columns
         ]
-        passthrough_values = [rotated_table[col] for col in passthrough_columns]
+        passthrough_values = [unpivot_table[col] for col in passthrough_columns]
         return ArrayValue(
             session=self._session,
-            table=rotated_table,
-            columns=[rotated_table[index_col_id], *value_columns, *passthrough_values],
-            hidden_ordering_columns=[rotated_table[ORDER_ID_COLUMN]],
+            table=unpivot_table,
+            columns=[unpivot_table[index_col_id], *value_columns, *passthrough_values],
+            hidden_ordering_columns=[unpivot_table[ORDER_ID_COLUMN]],
             ordering=ExpressionOrdering(
                 ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
                 integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
@@ -1087,6 +1144,29 @@ class ArrayValue:
             functools.reduce(lambda x, y: x & y, cond_list)
         )
         return sliced_expr if step > 0 else sliced_expr.reversed()
+
+    def cached(self, cluster_cols: typing.Sequence[str]) -> ArrayValue:
+        """Write the ArrayValue to a session table and create a new block object that references it."""
+        ibis_expr = self._to_ibis_expr(
+            ordering_mode="unordered", expose_hidden_cols=True
+        )
+        destination = self._session._ibis_to_session_table(
+            ibis_expr, cluster_cols=cluster_cols, api_name="cache"
+        )
+        table_expression = self._session.ibis_client.sql(
+            f"SELECT * FROM `_SESSION`.`{destination.table_id}`"
+        )
+        new_columns = [table_expression[column] for column in self.column_names]
+        new_hidden_columns = [
+            table_expression[column] for column in self._hidden_ordering_column_names
+        ]
+        return ArrayValue(
+            self._session,
+            table_expression,
+            columns=new_columns,
+            hidden_ordering_columns=new_hidden_columns,
+            ordering=self._ordering,
+        )
 
 
 class ArrayValueBuilder:
