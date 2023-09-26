@@ -144,7 +144,7 @@ class MaxAbsScaler(
 
     @classmethod
     def _parse_from_sql(cls, sql: str) -> tuple[MaxAbsScaler, str]:
-        """Parse SQL to tuple(StandardScaler, column_label).
+        """Parse SQL to tuple(MaxAbsScaler, column_label).
 
         Args:
             sql: SQL string of format "ML.MAX_ABS_SCALER({col_label}) OVER()"

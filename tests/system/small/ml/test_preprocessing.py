@@ -241,7 +241,7 @@ def test_min_max_scaler_series_normalizes(penguins_df_default_index, new_penguin
 
     result = scaler.transform(penguins_df_default_index["culmen_length_mm"]).to_pandas()
 
-    # If maxabs-scaled correctly, max should be 1.0
+    # If minmax-scaled correctly, min should be 0 and max should be 1.
     for column in result.columns:
         assert math.isclose(result[column].max(), 1.0, abs_tol=1e-3)
 
@@ -278,7 +278,7 @@ def test_min_max_scaler_normalizes(penguins_df_default_index, new_penguins_df):
         ]
     ).to_pandas()
 
-    # If maxabs-scaled correctly, max should be 1.0
+    # If minmax-scaled correctly, min should be 0 and max should be 1.
     for column in result.columns:
         assert math.isclose(result[column].max(), 1.0, abs_tol=1e-3)
 
