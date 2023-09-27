@@ -1440,7 +1440,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         axis_n = utils.get_axis_number(axis)
 
         if axis_n == 0:
-            result = block_ops.dropna(self._block, how=how)  # type: ignore
+            result = block_ops.dropna(self._block, self._block.value_columns, how=how)  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
@@ -1462,41 +1462,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def any(
         self,
         *,
+        axis: typing.Union[str, int] = 0,
         bool_only: bool = False,
     ) -> bigframes.series.Series:
         if not bool_only:
             frame = self._raise_on_non_boolean("any")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_pivot(
-            agg_ops.any_op, dtype=pandas.BooleanDtype()
+        block = frame._block.aggregate_all_and_stack(
+            agg_ops.any_op, dtype=pandas.BooleanDtype(), axis=axis
         )
         return bigframes.series.Series(block.select_column("values"))
 
-    def all(self, *, bool_only: bool = False) -> bigframes.series.Series:
+    def all(
+        self, axis: typing.Union[str, int] = 0, *, bool_only: bool = False
+    ) -> bigframes.series.Series:
         if not bool_only:
             frame = self._raise_on_non_boolean("all")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_pivot(
-            agg_ops.all_op, dtype=pandas.BooleanDtype()
+        block = frame._block.aggregate_all_and_stack(
+            agg_ops.all_op, dtype=pandas.BooleanDtype(), axis=axis
         )
         return bigframes.series.Series(block.select_column("values"))
 
-    def sum(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def sum(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("sum")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.sum_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.sum_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def mean(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def mean(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("mean")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.mean_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.mean_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     def median(
@@ -1510,47 +1517,57 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self._raise_on_non_numeric("median")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.median_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.median_op)
         return bigframes.series.Series(block.select_column("values"))
 
-    def std(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def std(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("std")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.std_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.std_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def var(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def var(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("var")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.var_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.var_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def min(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def min(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("min")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.min_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.min_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def max(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def max(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("max")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.max_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.max_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def prod(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def prod(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("prod")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.product_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.product_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     product = prod
@@ -1560,11 +1577,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.count_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.count_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def nunique(self) -> bigframes.series.Series:
-        block = self._block.aggregate_all_and_pivot(agg_ops.nunique_op)
+        block = self._block.aggregate_all_and_stack(agg_ops.nunique_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def agg(
@@ -1587,7 +1604,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         else:
             return bigframes.series.Series(
-                self._block.aggregate_all_and_pivot(
+                self._block.aggregate_all_and_stack(
                     agg_ops.lookup_agg_func(typing.cast(str, func))
                 )
             )
@@ -1657,7 +1674,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def stack(self):
         # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
         # TODO: match impl to pandas future_stack as described in pandas 2.1 release notes
-        result_block = block_ops.dropna(self._block.stack(), how="all")
+        stack_block = self._block.stack()
+        result_block = block_ops.dropna(
+            stack_block, stack_block.value_columns, how="all"
+        )
         if not isinstance(self.columns, pandas.MultiIndex):
             return bigframes.series.Series(result_block)
         return DataFrame(result_block)
