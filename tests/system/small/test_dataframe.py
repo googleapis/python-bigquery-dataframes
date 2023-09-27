@@ -258,6 +258,16 @@ def test_drop_index(scalars_dfs):
     pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
+def test_drop_pandas_index(scalars_dfs):
+    # TODO
+    pass
+
+
+def test_drop_bigframes_index(scalars_dfs):
+    # TODO
+    pass
+
+
 def test_drop_labels_axis_0(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 

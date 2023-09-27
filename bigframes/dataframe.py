@@ -906,16 +906,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns = labels
 
         block = self._block
-        if index:
+        if index is not None:
             level_id = self._resolve_levels(level or 0)[0]
 
-            if utils.is_list_like(index):
+            if utils.is_list_like(index) or isinstance(index, pandas.Index):
                 block, inverse_condition_id = block.apply_unary_op(
                     level_id, ops.IsInOp(index, match_nulls=True)
                 )
                 block, condition_id = block.apply_unary_op(
                     inverse_condition_id, ops.invert_op
                 )
+            elif isinstance(index, indexes.Index):
+                # idea: make a value column with the same values as index
+                # align index with self so that the new value column is NA
+                # for rows that weren't in index originally
+                # then filter by the index's value column == self index
+                pass
             else:
                 block, condition_id = block.apply_unary_op(
                     level_id, ops.partial_right(ops.ne_op, index)
@@ -925,7 +931,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         if columns:
             block = block.drop_columns(self._sql_names(columns))
-        if not index and not columns:
+        if index is None and not columns:
             raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
 
