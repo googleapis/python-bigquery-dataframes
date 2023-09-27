@@ -933,7 +933,7 @@ class Session(
 
         job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols
-        job_config.labels = {"bigframes-io-api": api_name}
+        job_config.labels = {"bigframes-api": api_name}
 
         load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
@@ -1048,7 +1048,7 @@ class Session(
             job_config.autodetect = True
             job_config.field_delimiter = sep
             job_config.encoding = encoding
-            job_config.labels = {"bigframes-io-api": "read_csv"}
+            job_config.labels = {"bigframes-api": "read_csv"}
 
             # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
             # do not need to set `skip_leading_rows`. If header is None, then there is no header.
@@ -1120,7 +1120,7 @@ class Session(
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
         job_config.source_format = bigquery.SourceFormat.PARQUET
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-        job_config.labels = {"bigframes-io-api": "read_parquet"}
+        job_config.labels = {"bigframes-api": "read_parquet"}
 
         return self._read_bigquery_load_job(path, table, job_config=job_config)
 
@@ -1167,7 +1167,7 @@ class Session(
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
-            job_config.labels = {"bigframes-io-api": "read_json"}
+            job_config.labels = {"bigframes-api": "read_json"}
 
             return self._read_bigquery_load_job(
                 path_or_buf,
@@ -1460,7 +1460,7 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
-        api_methods: Dict[str, str] = {},
+        api_methods: List[str] = [],
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts query job and waits for results
@@ -1468,29 +1468,30 @@ class Session(
         if job_config is not None:
             # If there is no label set
             if job_config.labels is None:
-                job_config.labels = api_methods
-            # If the total number of labels is under the limit of labels count
-            elif len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
-                job_config.labels = {**api_methods, **job_config.labels}
-            # We capture the latest label if it is out of the length limit of labels count
+                label_values = api_methods
             else:
-                job_config_labels_len = len(job_config.labels)
-                # The last n labels to add
-                added_lables_len = (
-                    job_config_labels_len + len(api_methods) - _MAX_LABELS_COUNT
-                )
+                cur_labels: List[str] = [*job_config.labels.values()]
+                total_label_values = cur_labels + api_methods
+                # If the total number of labels is under the limit of labels count
+                if len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
+                    label_values = total_label_values
+                # We capture the latest label if it is out of the length limit of labels count
+                else:
+                    label_values = total_label_values[-_MAX_LABELS_COUNT:]
 
-                # Convert the dictionary items into a list
-                label_list = sorted(api_methods.items())
-
-                # Process the last n items using slicing
-                for key, value in label_list[-added_lables_len:]:
-                    job_config.labels[key] = value
-
+            labels = {}
+            for i, label_value in enumerate(label_values):
+                label_key = "bigframes-api" + str(i)
+                labels[label_key] = label_value
+            job_config.labels = labels
             query_job = self.bqclient.query(sql, job_config=job_config)
         else:
             job_config = bigquery.QueryJobConfig()
-            job_config.labels = api_methods
+            labels = {}
+            for i, label_value in enumerate(api_methods):
+                label_key = "bigframes-api" + str(i)
+                labels[label_key] = label_value
+            job_config.labels = labels
             query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
