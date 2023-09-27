@@ -1478,21 +1478,16 @@ class Session(
                 # We capture the latest label if it is out of the length limit of labels count
                 else:
                     label_values = total_label_values[-_MAX_LABELS_COUNT:]
-
-            labels = {}
-            for i, label_value in enumerate(label_values):
-                label_key = "bigframes-api" + str(i)
-                labels[label_key] = label_value
-            job_config.labels = labels
-            query_job = self.bqclient.query(sql, job_config=job_config)
         else:
             job_config = bigquery.QueryJobConfig()
-            labels = {}
-            for i, label_value in enumerate(api_methods):
-                label_key = "bigframes-api" + str(i)
-                labels[label_key] = label_value
-            job_config.labels = labels
-            query_job = self.bqclient.query(sql, job_config=job_config)
+            label_values = api_methods
+
+        labels = {}
+        for i, label_value in enumerate(label_values):
+            label_key = "bigframes-api" + str(i)
+            labels[label_key] = label_value
+        job_config.labels = labels
+        query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
