@@ -196,7 +196,7 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return f"""SELECT * FROM ML.FORECAST(MODEL `{self._model_name}`)"""
 
     def ml_generate_text(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, int | float]
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
         """Encode ML.GENERATE_TEXT for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
@@ -204,7 +204,7 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
   ({self._source_sql(source_df)}), {struct_options_sql})"""
 
     def ml_generate_text_embedding(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, int | float]
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
         """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
