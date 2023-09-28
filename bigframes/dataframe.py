@@ -919,19 +919,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             elif isinstance(index, indexes.Index):
                 block = index._data._get_block()
                 original_value_columns = block.value_columns
+                original_index_columns = block.index_columns
                 block = blocks.Block(block._expr, [], block._expr.column_names.keys())
-                level_names = ["level_" + str(n) for n in range(index.nlevels)]
-                block = block.set_index(level_names, drop=False)
+                block = block.set_index(original_index_columns, drop=False)
                 index_df = DataFrame(block)
                 index_df = index_df.drop(columns=original_value_columns)
                 df_with_indices_to_drop = self.join(index_df)
-                bool_series = df_with_indices_to_drop["level_0"].isna()
-                for i in range(1, index.nlevels):
+                bool_series = df_with_indices_to_drop[original_index_columns[0]].isna()
+                for index_name in original_index_columns[1:]:
                     bool_series = (
-                        bool_series & df_with_indices_to_drop[level_names[i]].isna()
+                        bool_series & df_with_indices_to_drop[index_name].isna()
                     )
                 result = df_with_indices_to_drop[bool_series]
-                result = result.drop(columns=level_names)
+                result = result.drop(columns=list(original_index_columns))
                 return result
             else:
                 block, condition_id = block.apply_unary_op(
