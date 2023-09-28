@@ -918,9 +918,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             elif isinstance(index, indexes.Index):
                 block = index._data._get_block()
-                original_value_columns = block.value_columns
-                original_index_columns = block.index_columns
-                block = blocks.Block(block._expr, [], block._expr.column_names.keys())
+                original_value_columns = list(block.value_columns)
+                original_index_columns = list(block.index_columns)
+                block = blocks.Block(
+                    block._expr, [], original_value_columns + original_index_columns
+                )
                 block = block.set_index(original_index_columns, drop=False)
                 index_df = DataFrame(block)
                 index_df = index_df.drop(columns=original_value_columns)
@@ -931,7 +933,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         bool_series & df_with_indices_to_drop[index_name].isna()
                     )
                 result = df_with_indices_to_drop[bool_series]
-                result = result.drop(columns=list(original_index_columns))
+                result = result.drop(columns=original_index_columns)
                 return result
             else:
                 block, condition_id = block.apply_unary_op(
