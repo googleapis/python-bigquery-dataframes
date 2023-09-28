@@ -291,8 +291,6 @@ def test_drop_bigframes_index_with_na(scalars_dfs):
     pd_result = scalars_pandas_df.drop(index=drop_pandas_index)  # drop_pandas_index)
     bf_result = scalars_df.drop(index=drop_index).to_pandas()
 
-    print(pd_result)
-    print(bf_result)
     pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
