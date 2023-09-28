@@ -920,6 +920,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = index._data._get_block()
                 original_value_columns = list(block.value_columns)
                 original_index_columns = list(block.index_columns)
+                original_index_names = self.index.names
                 block = blocks.Block(
                     block._expr, [], original_index_columns + original_value_columns
                 )
@@ -934,6 +935,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
                 result = df_with_indices_to_drop[bool_series]
                 result = result.drop(columns=original_index_columns)
+                result.index.names = original_index_names
                 return result
             else:
                 block, condition_id = block.apply_unary_op(
