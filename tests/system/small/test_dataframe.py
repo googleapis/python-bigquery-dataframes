@@ -1225,6 +1225,8 @@ def test_combine(
     ],
 )
 def test_df_update(overwrite, filter_func):
+    if pd.__version__.startswith("1."):
+        pytest.skip("dtype handled differently in pandas 1.x.")
     index1 = pandas.Index([1, 2, 3, 4], dtype="Int64")
     index2 = pandas.Index([1, 2, 4, 5], dtype="Int64")
     pd_df1 = pandas.DataFrame(
