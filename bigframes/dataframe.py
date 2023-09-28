@@ -931,7 +931,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
 
-    def _drop_by_index(self, index: indexes.Index):
+    def _drop_by_index(self, index: indexes.Index) -> DataFrame:
         block = index._data._get_block()
         original_value_columns = list(block.value_columns)
         original_index_columns = list(block.index_columns)
@@ -943,6 +943,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # additionally restore index columns in order to join
         block = block.set_index(original_index_columns, drop=False)
         index_df = DataFrame(block)
+        index_df.index.names = original_index_names
         original_isna = index_df[original_index_columns[0]].isna()
         for index_name in original_index_columns[1:]:
             original_isna = original_isna & index_df[index_name].isna()
@@ -952,7 +953,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # value columns on the index argument are superfluous and could cause
         # name conflicts, so we drop them
         index_df = index_df.drop(columns=original_value_columns)
-        index_df.index.names = original_index_names
         df_with_indices_to_drop = self.join(index_df)
         # df_with_indices_to_drop has columns from the original index argument's
         # index columns, and if all such columns are <NA> for a row, it means that
@@ -963,7 +963,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             bool_series = bool_series & df_with_indices_to_drop[index_name].isna()
         result = df_with_indices_to_drop[bool_series]
         result = result.drop(columns=original_index_columns)
-        result.index.names = original_index_names
         # if the user passed a <NA> label to drop, it will not be dropped yet,
         # so we drop all <NA> labeled rows here if needed
         if original_has_all_na_row:
