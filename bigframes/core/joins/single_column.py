@@ -26,7 +26,6 @@ import ibis.expr.types as ibis_types
 
 import bigframes.constants as constants
 import bigframes.core as core
-import bigframes.core.guid
 import bigframes.core.guid as guid
 import bigframes.core.joins.row_identity
 import bigframes.core.ordering
@@ -236,20 +235,14 @@ def get_join_cols(
     join_key_cols: list[ibis_types.Value] = []
     for left_col, right_col in zip(left_join_cols, right_join_cols):
         if not coalesce_join_keys:
-            join_key_cols.append(
-                left_col.name(bigframes.core.guid.generate_guid(prefix="index_"))
-            )
-            join_key_cols.append(
-                right_col.name(bigframes.core.guid.generate_guid(prefix="index_"))
-            )
+            join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
+            join_key_cols.append(right_col.name(guid.generate_guid(prefix="index_")))
         else:
             if how == "left" or how == "inner":
-                join_key_cols.append(
-                    left_col.name(bigframes.core.guid.generate_guid(prefix="index_"))
-                )
+                join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
             elif how == "right":
                 join_key_cols.append(
-                    right_col.name(bigframes.core.guid.generate_guid(prefix="index_"))
+                    right_col.name(guid.generate_guid(prefix="index_"))
                 )
             elif how == "outer":
                 # The left index and the right index might contain null values, for
@@ -260,16 +253,14 @@ def get_join_cols(
                 # Don't need to coalesce if they are exactly the same column.
                 if left_col.name("index").equals(right_col.name("index")):
                     join_key_cols.append(
-                        left_col.name(
-                            bigframes.core.guid.generate_guid(prefix="index_")
-                        )
+                        left_col.name(guid.generate_guid(prefix="index_"))
                     )
                 else:
                     join_key_cols.append(
                         ibis.coalesce(
                             left_col,
                             right_col,
-                        ).name(bigframes.core.guid.generate_guid(prefix="index_"))
+                        ).name(guid.generate_guid(prefix="index_"))
                     )
             else:
                 raise ValueError(
