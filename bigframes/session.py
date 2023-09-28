@@ -1460,7 +1460,7 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
-        api_methods: List[str] = [],
+        api_methods: Sequence[str] = [],
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts query job and waits for results
@@ -1470,8 +1470,8 @@ class Session(
             if job_config.labels is None:
                 label_values = api_methods
             else:
-                cur_labels: List[str] = [*job_config.labels.values()]
-                total_label_values = cur_labels + api_methods
+                cur_labels: Sequence[str] = [*job_config.labels.values()]
+                total_label_values = list(cur_labels) + list(api_methods)
                 # If the total number of labels is under the limit of labels count
                 if len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
                     label_values = total_label_values

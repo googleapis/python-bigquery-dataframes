@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import functools
 import math
 import typing
-from typing import Collection, Dict, Iterable, List, Literal, Optional, Sequence, Tuple
+from typing import Collection, Dict, Iterable, Literal, Optional, Sequence, Tuple
 
 from google.cloud import bigquery
 import ibis
@@ -95,7 +95,7 @@ class ArrayValue:
         hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: ExpressionOrdering = ExpressionOrdering(),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
-        api_methods: List[str] = [],
+        api_methods: Sequence[str] = [],
     ):
         self._session = session
         self._table = table
@@ -240,7 +240,7 @@ class ArrayValue:
         )
 
     @property
-    def api_method(self) -> List[str]:
+    def api_methods(self) -> Sequence[str]:
         return self._api_methods
 
     def builder(self) -> ArrayValueBuilder:
@@ -465,21 +465,13 @@ class ArrayValue:
         new_expr = builder.build()
         return new_expr
 
-    def shape(self) -> typing.Tuple[int, int]:
+    def shape(self, api_method: str) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.columns)
         count_expr = self._to_ibis_expr(ordering_mode="unordered").count()
         sql = self._session.ibis_client.compile(count_expr)
-        api_methods_len = len(self._api_methods)
-
-        # Initialize methods to add as an empty list
-        add_api_methods = []
-        api_methods_len = len(self._api_methods)
-        if api_methods_len >= MAX_LABELS_COUNT:
-            add_api_methods = self.api_method[1:]
-        else:
-            add_api_methods = self.api_method
-        add_api_methods.append("shape")
+        add_api_methods = list(self.api_methods)
+        add_api_methods.append(api_method)
 
         # Support in-memory engines for hermetic unit tests.
         if not isinstance(sql, str):
@@ -586,6 +578,7 @@ class ArrayValue:
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
+        api_method: str = "",
     ) -> ArrayValue:
         """
         Apply aggregations to the expression.
@@ -599,16 +592,8 @@ class ArrayValue:
             col_out: agg_op._as_ibis(table[col_in])
             for col_in, agg_op, col_out in aggregations
         }
-
-        # Initialize methods to add as an empty list
-        add_api_methods = []
-        api_methods_len = len(self._api_methods)
-        if api_methods_len >= MAX_LABELS_COUNT:
-            add_api_methods = self.api_method[1:]
-        else:
-            add_api_methods = self.api_method
-        add_api_methods.append("aggregate")
-
+        add_api_methods = list(self.api_methods)
+        add_api_methods.append(api_method)
         if by_column_ids:
             result = table.group_by(by_column_ids).aggregate(**stats)
             # Must have deterministic ordering, so order by the unique "by" column
@@ -924,16 +909,8 @@ class ArrayValue:
         table = self._to_ibis_expr(expose_hidden_cols=expose_extra_columns)
         sql = self._session.ibis_client.compile(table)  # type:ignore
 
-        # Initialize methods to add as an empty list
-        add_api_methods = []
-        api_methods_len = len(self._api_methods)
-        if api_methods_len >= MAX_LABELS_COUNT:
-            add_api_methods = self.api_method[1:]
-        else:
-            add_api_methods = self.api_method
-        if len(api_name) > 1:
-            add_api_methods.append(api_name)
-
+        add_api_methods = list(self.api_methods)
+        add_api_methods.append(api_name)
         return self._session._start_query(
             sql=sql,
             job_config=job_config,

@@ -1629,8 +1629,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
             return DataFrame(
                 self._block.summarize(
-                    self._block.value_columns,
-                    aggregations,
+                    column_ids=self._block.value_columns,
+                    stats=aggregations,
+                    api_method="df-agg",
                 )
             )
         else:

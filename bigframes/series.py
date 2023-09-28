@@ -735,8 +735,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
             return Series(
                 self._block.summarize(
-                    [self._value_column],
-                    aggregations,
+                    column_ids=[self._value_column],
+                    stats=aggregations,
+                    api_method="series-agg",
                 )
             )
         else:
@@ -786,6 +787,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             by_column_ids=[self._value_column],
             aggregations=((self._value_column, agg_ops.count_op),),
             as_index=False,
+            api_method="series-mode",
         )
         value_count_col_id = agg_ids[0]
         block, max_value_count_col_id = block.apply_window_op(

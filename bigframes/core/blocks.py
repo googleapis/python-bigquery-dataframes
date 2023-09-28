@@ -134,7 +134,7 @@ class Block:
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-        impl_length, _ = self._expr.shape()
+        impl_length, _ = self._expr.shape("shape")
         return (impl_length, len(self.value_columns))
 
     @property
@@ -930,6 +930,7 @@ class Block:
         *,
         as_index: bool = True,
         dropna: bool = True,
+        api_method: str = "",
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
         Apply aggregations to the block. Callers responsible for setting index column(s) after.
@@ -944,7 +945,9 @@ class Block:
             for input_id, operation in aggregations
         ]
         output_col_ids = [agg_spec[2] for agg_spec in agg_specs]
-        result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
+        result_expr = self.expr.aggregate(
+            agg_specs, by_column_ids, dropna=dropna, api_method=api_method
+        )
 
         aggregate_labels = self._get_labels_for_columns(
             [agg[0] for agg in aggregations]
@@ -1032,6 +1035,7 @@ class Block:
         self,
         column_ids: typing.Sequence[str],
         stats: typing.Sequence[agg_ops.AggregateOp],
+        api_method: str,
     ):
         """Get a list of stats as a deferred block object."""
         label_col_id = guid.generate_guid()
@@ -1045,7 +1049,9 @@ class Block:
             (col_id, [f"{col_id}-{stat.name}" for stat in stats])
             for col_id in column_ids
         ]
-        expr = self.expr.aggregate(aggregations).unpivot(
+        expr = self.expr.aggregate(
+            aggregations=aggregations, api_method=api_method
+        ).unpivot(
             labels,
             unpivot_columns=columns,
             index_col_ids=[label_col_id],

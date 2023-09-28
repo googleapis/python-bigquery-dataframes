@@ -104,12 +104,16 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def sum(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("sum")
-        return self._aggregate_all(agg_ops.sum_op, numeric_only=True)
+        return self._aggregate_all(
+            agg_ops.sum_op, numeric_only=True, api_method="dfgroupby-sum"
+        )
 
     def mean(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("mean")
-        return self._aggregate_all(agg_ops.mean_op, numeric_only=True)
+        return self._aggregate_all(
+            agg_ops.mean_op, numeric_only=True, api_method="dfgroupby-mean"
+        )
 
     def median(
         self, numeric_only: bool = False, *, exact: bool = False
@@ -120,13 +124,19 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         if not numeric_only:
             self._raise_on_non_numeric("median")
-        return self._aggregate_all(agg_ops.median_op, numeric_only=True)
+        return self._aggregate_all(
+            agg_ops.median_op, numeric_only=True, api_method="dfgroupby-median"
+        )
 
     def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
-        return self._aggregate_all(agg_ops.min_op, numeric_only=numeric_only)
+        return self._aggregate_all(
+            agg_ops.min_op, numeric_only=numeric_only, api_method="dfgroupby-min"
+        )
 
     def max(self, numeric_only: bool = False, *args) -> df.DataFrame:
-        return self._aggregate_all(agg_ops.max_op, numeric_only=numeric_only)
+        return self._aggregate_all(
+            agg_ops.max_op, numeric_only=numeric_only, api_method="dfgroupby-max"
+        )
 
     def std(
         self,
@@ -135,7 +145,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     ) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("std")
-        return self._aggregate_all(agg_ops.std_op, numeric_only=True)
+        return self._aggregate_all(
+            agg_ops.std_op, numeric_only=True, api_method="dfgroupby-std"
+        )
 
     def var(
         self,
@@ -144,7 +156,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     ) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("var")
-        return self._aggregate_all(agg_ops.var_op, numeric_only=True)
+        return self._aggregate_all(
+            agg_ops.var_op, numeric_only=True, api_method="dfgroupby-var"
+        )
 
     def skew(
         self,
@@ -169,13 +183,13 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     kurtosis = kurt
 
     def all(self) -> df.DataFrame:
-        return self._aggregate_all(agg_ops.all_op)
+        return self._aggregate_all(agg_ops.all_op, api_method="dfgroupby-all")
 
     def any(self) -> df.DataFrame:
-        return self._aggregate_all(agg_ops.any_op)
+        return self._aggregate_all(agg_ops.any_op, api_method="dfgroupby-any")
 
     def count(self) -> df.DataFrame:
-        return self._aggregate_all(agg_ops.count_op)
+        return self._aggregate_all(agg_ops.count_op, api_method="dfgroupby-count")
 
     def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
@@ -240,19 +254,19 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def agg(self, func=None, **kwargs) -> df.DataFrame:
         if func:
             if isinstance(func, str):
-                return self._agg_string(func)
+                return self._agg_string(func, "dfgroupby-agg")
             elif utils.is_dict_like(func):
-                return self._agg_dict(func)
+                return self._agg_dict(func, "dfgroupby-agg")
             elif utils.is_list_like(func):
-                return self._agg_list(func)
+                return self._agg_list(func, "dfgroupby-agg")
             else:
                 raise NotImplementedError(
                     f"Aggregate with {func} not supported. {constants.FEEDBACK_LINK}"
                 )
         else:
-            return self._agg_named(**kwargs)
+            return self._agg_named("dfgroupby-agg", **kwargs)
 
-    def _agg_string(self, func: str) -> df.DataFrame:
+    def _agg_string(self, func: str, api_method: str) -> df.DataFrame:
         aggregations = [
             (col_id, agg_ops.lookup_agg_func(func))
             for col_id in self._aggregated_columns()
@@ -262,10 +276,11 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             as_index=self._as_index,
             dropna=self._dropna,
+            api_method=api_method,
         )
         return df.DataFrame(agg_block)
 
-    def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
+    def _agg_dict(self, func: typing.Mapping, api_method: str) -> df.DataFrame:
         aggregations: typing.List[typing.Tuple[str, agg_ops.AggregateOp]] = []
         column_labels = []
 
@@ -284,6 +299,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             as_index=self._as_index,
             dropna=self._dropna,
+            api_method=api_method,
         )
         if want_aggfunc_level:
             agg_block = agg_block.with_column_labels(
@@ -296,7 +312,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             agg_block = agg_block.with_column_labels(pd.Index(column_labels))
         return df.DataFrame(agg_block)
 
-    def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
+    def _agg_list(self, func: typing.Sequence, api_method: str) -> df.DataFrame:
         aggregations = [
             (col_id, agg_ops.lookup_agg_func(f))
             for col_id in self._aggregated_columns()
@@ -310,6 +326,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             as_index=self._as_index,
             dropna=self._dropna,
+            api_method=api_method,
         )
         agg_block = agg_block.with_column_labels(
             pd.MultiIndex.from_tuples(
@@ -318,7 +335,11 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         return df.DataFrame(agg_block)
 
-    def _agg_named(self, **kwargs) -> df.DataFrame:
+    def _agg_named(
+        self,
+        api_method: str,
+        **kwargs,
+    ) -> df.DataFrame:
         aggregations = []
         column_labels = []
         for k, v in kwargs.items():
@@ -338,6 +359,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             as_index=self._as_index,
             dropna=self._dropna,
+            api_method=api_method,
         )
         agg_block = agg_block.with_column_labels(column_labels)
         return df.DataFrame(agg_block)
@@ -369,7 +391,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dtype
 
     def _aggregate_all(
-        self, aggregate_op: agg_ops.AggregateOp, numeric_only: bool = False
+        self,
+        aggregate_op: agg_ops.AggregateOp,
+        numeric_only: bool = False,
+        api_method: str = "",
     ) -> df.DataFrame:
         aggregated_col_ids = self._aggregated_columns(numeric_only=numeric_only)
         aggregations = [(col_id, aggregate_op) for col_id in aggregated_col_ids]
@@ -378,6 +403,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             as_index=self._as_index,
             dropna=self._dropna,
+            api_method=api_method,
         )
         return df.DataFrame(result_block)
 
@@ -471,7 +497,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     kurtosis = kurt
 
     def prod(self, *args) -> series.Series:
-        return self._aggregate(agg_ops.product_op)
+        return self._aggregate(agg_ops.product_op, "seriesgroupby-prod")
 
     def agg(self, func=None) -> typing.Union[df.DataFrame, series.Series]:
         column_names: list[str] = []
@@ -492,6 +518,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
             dropna=self._dropna,
+            api_method="seriesgroupby-agg",
         )
 
         if column_names:
@@ -584,11 +611,14 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             is_series=True,
         )
 
-    def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> series.Series:
+    def _aggregate(
+        self, aggregate_op: agg_ops.AggregateOp, api_method: str = ""
+    ) -> series.Series:
         result_block, _ = self._block.aggregate(
             self._by_col_ids,
             ((self._value_column, aggregate_op),),
             dropna=self._dropna,
+            api_method=api_method,
         )
 
         return series.Series(result_block.with_column_labels([self._value_name]))
