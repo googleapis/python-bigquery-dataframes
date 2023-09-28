@@ -1014,15 +1014,19 @@ class ArrayValue:
         for label_part, (col_id, label_dtype) in enumerate(
             zip(index_col_ids, labels_dtypes)
         ):
+            # interpret as tuples even if it wasn't originally so can apply same logic for multi-column labels
+            labels_as_tuples = [
+                label if isinstance(label, tuple) else (label,) for label in row_labels
+            ]
             cases = [
                 (
                     i,
                     bigframes.dtypes.literal_to_ibis_scalar(
-                        row_labels[i][label_part],  # type:ignore
+                        label_tuple[label_part],  # type:ignore
                         force_dtype=label_dtype,  # type:ignore
                     ),
                 )
-                for i in range(len(row_labels))
+                for i, label_tuple in enumerate(labels_as_tuples)
             ]
             labels_value = (
                 typing.cast(ibis_types.IntegerColumn, unpivot_table[unpivot_offset_id])
