@@ -83,7 +83,7 @@ class BqConnectionManager:
         service_account_id = cast(str, service_account_id)
         # Ensure IAM role on the BQ connection
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-        self._ensure_iam_binding(project_id, service_account_id, iam_role)  # type: ignore
+        self._ensure_iam_binding(project_id, service_account_id, iam_role)
 
     # Introduce retries to accommodate transient errors like etag mismatch,
     # which can be caused by concurrent operation on the same resource, and
