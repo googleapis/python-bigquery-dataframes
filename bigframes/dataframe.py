@@ -917,11 +917,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     inverse_condition_id, ops.invert_op
                 )
             elif isinstance(index, indexes.Index):
-                # idea: make a value column with the same values as index
-                # align index with self so that the new value column is NA
-                # for rows that weren't in index originally
-                # then filter by the index's value column == self index
-                pass
+                block = index._data._get_block()
+                original_value_columns = block.value_columns
+                block = blocks.Block(block._expr, [], block._expr.column_names.keys())
+                level_names = ["level_" + str(n) for n in range(index.nlevels)]
+                block = block.set_index(level_names, drop=False)
+                index_df = DataFrame(block)
+                index_df = index_df.drop(columns=original_value_columns)
+                df_with_indices_to_drop = self.join(index_df)
+                bool_series = df_with_indices_to_drop["level_0"].isna()
+                for i in range(1, index.nlevels):
+                    bool_series = (
+                        bool_series & df_with_indices_to_drop[level_names[i]].isna()
+                    )
+                result = df_with_indices_to_drop[bool_series]
+                result = result.drop(columns=level_names)
+                return result
             else:
                 block, condition_id = block.apply_unary_op(
                     level_id, ops.partial_right(ops.ne_op, index)
