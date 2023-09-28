@@ -58,7 +58,7 @@ class BqmlModel:
     def _apply_sql(
         self,
         input_data: bpd.DataFrame,
-        func: Callable[[str], str],
+        func: Callable[[bpd.DataFrame], str],
     ) -> bpd.DataFrame:
         """Helper to wrap a dataframe in a SQL query, keeping the index intact.
 
@@ -74,11 +74,9 @@ class BqmlModel:
                 string from which to construct the output dataframe. It must
                 include the index columns of the input SQL.
         """
-        source_sql, index_col_ids, index_labels = input_data._to_sql_query(
-            include_index=True
-        )
+        _, index_col_ids, index_labels = input_data._to_sql_query(include_index=True)
 
-        sql = func(source_sql)
+        sql = func(input_data)
         df = self._session.read_gbq(sql, index_col=index_col_ids)
         df.index.names = index_labels
 
@@ -106,11 +104,9 @@ class BqmlModel:
         # TODO: validate input data schema
         return self._apply_sql(
             input_data,
-            lambda source_sql: self._model_manipulation_sql_generator.ml_generate_text(
-                source_sql=source_sql,
-                struct_options=self._model_manipulation_sql_generator.struct_options(
-                    **options
-                ),
+            lambda source_df: self._model_manipulation_sql_generator.ml_generate_text(
+                source_df=source_df,
+                struct_options=options,
             ),
         )
 
@@ -122,11 +118,9 @@ class BqmlModel:
         # TODO: validate input data schema
         return self._apply_sql(
             input_data,
-            lambda source_sql: self._model_manipulation_sql_generator.ml_generate_text_embedding(
-                source_sql=source_sql,
-                struct_options=self._model_manipulation_sql_generator.struct_options(
-                    **options
-                ),
+            lambda source_df: self._model_manipulation_sql_generator.ml_generate_text_embedding(
+                source_df=source_df,
+                struct_options=options,
             ),
         )
 
@@ -136,13 +130,7 @@ class BqmlModel:
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         # TODO: validate input data schema
-        # Note: don't need index as evaluate returns a new table
-        source_sql, _, _ = (
-            input_data._to_sql_query(include_index=False)
-            if (input_data is not None)
-            else (None, None, None)
-        )
-        sql = self._model_manipulation_sql_generator.ml_evaluate(source_sql)
+        sql = self._model_manipulation_sql_generator.ml_evaluate(input_data)
 
         return self._session.read_gbq(sql)
 
@@ -188,11 +176,8 @@ class BqmlModel:
         # truncate as Vertex ID only accepts 63 characters, easily exceeding the limit for temp models.
         # The possibility of conflicts should be low.
         vertex_ai_model_id = vertex_ai_model_id[:63]
-        options_sql = self._model_manipulation_sql_generator.options(
-            **{"vertex_ai_model_id": vertex_ai_model_id}
-        )
         sql = self._model_manipulation_sql_generator.alter_model(
-            options_sql=options_sql
+            options={"vertex_ai_model_id": vertex_ai_model_id}
         )
         # Register the model and wait it to finish
         self._session._start_query(sql)
@@ -251,17 +236,10 @@ class BqmlModelFactory:
 
         session = X_train._session
 
-        source_sql = input_data.sql
-        options_sql = self._model_creation_sql_generator.options(**options)
-        transform_sql = (
-            self._model_creation_sql_generator.transform(*transforms)
-            if transforms is not None
-            else None
-        )
         sql = self._model_creation_sql_generator.create_model(
-            source_sql=source_sql,
-            transform_sql=transform_sql,
-            options_sql=options_sql,
+            source_df=input_data,
+            transforms=transforms,
+            options=options,
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
@@ -287,18 +265,10 @@ class BqmlModelFactory:
 
         session = X_train._session
 
-        source_sql = input_data.sql
-        options_sql = self._model_creation_sql_generator.options(**options)
-
-        transform_sql = (
-            self._model_creation_sql_generator.transform(*transforms)
-            if transforms is not None
-            else None
-        )
         sql = self._model_creation_sql_generator.create_model(
-            source_sql=source_sql,
-            transform_sql=transform_sql,
-            options_sql=options_sql,
+            source_df=input_data,
+            transforms=transforms,
+            options=options,
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
@@ -320,10 +290,9 @@ class BqmlModelFactory:
         Returns:
             BqmlModel: a BqmlModel wrapping a trained model in BigQuery
         """
-        options_sql = self._model_creation_sql_generator.options(**options)
         sql = self._model_creation_sql_generator.create_remote_model(
             connection_name=connection_name,
-            options_sql=options_sql,
+            options=options,
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
@@ -341,9 +310,8 @@ class BqmlModelFactory:
 
         Returns: a BqmlModel, wrapping a trained model in BigQuery
         """
-        options_sql = self._model_creation_sql_generator.options(**options)
         sql = self._model_creation_sql_generator.create_imported_model(
-            options_sql=options_sql,
+            options=options,
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
