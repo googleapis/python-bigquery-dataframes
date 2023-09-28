@@ -259,13 +259,27 @@ def test_drop_index(scalars_dfs):
 
 
 def test_drop_pandas_index(scalars_dfs):
-    # TODO
-    pass
+    scalars_df, scalars_pandas_df = scalars_dfs
+    drop_index = scalars_pandas_df.iloc[[4, 1, 2]].index
+
+    pd_result = scalars_pandas_df.drop(index=drop_index)
+    bf_result = scalars_df.drop(index=drop_index).to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
 def test_drop_bigframes_index(scalars_dfs):
-    # TODO
-    pass
+    scalars_df, scalars_pandas_df = scalars_dfs
+    drop_index = scalars_df.loc[[4, 1, 2]].index
+    drop_pandas_index = scalars_pandas_df.loc[[4, 1, 2]].index
+
+    pd_result = scalars_pandas_df.drop(index=drop_pandas_index)
+    bf_result = scalars_df.drop(index=drop_index).to_pandas()
+
+    print(pd_result)
+    print(bf_result)
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
 def test_drop_labels_axis_0(scalars_dfs):

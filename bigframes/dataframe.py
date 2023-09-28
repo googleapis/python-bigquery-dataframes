@@ -921,7 +921,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 original_value_columns = list(block.value_columns)
                 original_index_columns = list(block.index_columns)
                 block = blocks.Block(
-                    block._expr, [], original_value_columns + original_index_columns
+                    block._expr, [], original_index_columns + original_value_columns
                 )
                 block = block.set_index(original_index_columns, drop=False)
                 index_df = DataFrame(block)
