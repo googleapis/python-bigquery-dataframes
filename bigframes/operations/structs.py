@@ -35,7 +35,7 @@ class StructField(bigframes.operations.UnaryOp):
             name = self._name_or_index
         else:
             name = struct_value.names[self._name_or_index]
-        return struct_value[name]
+        return struct_value[name].name(name)
 
 
 class StructAccessor(
@@ -44,4 +44,18 @@ class StructAccessor(
     __doc__ = vendoracessors.StructAccessor.__doc__
 
     def field(self, name_or_index: str | int) -> bigframes.series.Series:
-        return self._apply_unary_op(StructField(name_or_index))
+        series = self._apply_unary_op(StructField(name_or_index))
+        if isinstance(name_or_index, str):
+            name = name_or_index
+        else:
+            struct_field = self._dtype.pyarrow_dtype[name_or_index]
+            name = struct_field.name
+        return series.rename(name)
+
+    def explode(self) -> bigframes.dataframe.DataFrame:
+        import bigframes.pandas
+
+        pa_type = self._dtype.pyarrow_dtype
+        return bigframes.pandas.concat(
+            [self.field(i) for i in range(pa_type.num_fields)], axis="columns"
+        )

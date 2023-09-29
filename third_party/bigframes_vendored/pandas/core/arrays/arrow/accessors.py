@@ -61,3 +61,39 @@ class StructAccessor:
         Name: version, dtype: int64[pyarrow]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def explode(self):
+        """
+        Extract all child fields of a struct as a DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The data corresponding to all child fields.
+
+        See Also
+        --------
+        Series.struct.field : Return a single child field as a Series.
+
+        Examples
+        --------
+        >>> import bigframes.pandas as bpd
+        >>> import pyarrow as pa
+        >>> s = bpd.Series(
+        ...     [
+        ...         {"version": 1, "project": "pandas"},
+        ...         {"version": 2, "project": "pandas"},
+        ...         {"version": 1, "project": "numpy"},
+        ...     ],
+        ...     dtype=bpd.ArrowDtype(pa.struct(
+        ...         [("version", pa.int64()), ("project", pa.string())]
+        ...     ))
+        ... )
+
+        >>> s.struct.explode()
+           version project
+        0        1  pandas
+        1        2  pandas
+        2        1   numpy
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
