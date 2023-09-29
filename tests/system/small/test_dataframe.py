@@ -2802,7 +2802,7 @@ def test_df_dot_bq_table_data_small(session):
     # and then test parity
     df1 = session.read_gbq(square_bq_table)
     df2 = session.read_gbq(square_bq_table)
-    df1.columns = df2.index
+    df1.columns = df2.index.to_pandas()
 
     bf_result = df1.dot(df2).to_pandas()
     pd_result = df1.to_pandas().dot(df2.to_pandas())
@@ -2825,10 +2825,42 @@ def test_df_dot_bq_table_data_small(session):
     )
 
 
-@pytest.mark.skipif(True, reason="https://paste.googleplex.com/6270958410137600")
-def test_df_dot_bq_1kx1k_mul_1kx1k(session):
-    df1 = session.read_gbq("bigframes-dev.zzz_shobs_us.matrix_1k_by_1k")
-    df2 = session.read_gbq("bigframes-dev.zzz_shobs_us.matrix_1k_by_1k")
-    df1.columns = df2.index
+@pytest.mark.parametrize(
+    ("left_matrix", "right_matrix", "result_matrix"),
+    [
+        (
+            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1kx1k_mul_1kx1k_bf",
+        ),
+        (
+            "bigframes-dev.zzz_shobs_us.matrix_100k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_100kx1k_mul_1kx1k_bf",
+        ),
+        (
+            "bigframes-dev.zzz_shobs_us.matrix_1m_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1mx1k_mul_1kx1k_bf",
+        ),
+        (
+            "bigframes-dev.zzz_shobs_us.matrix_10m_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
+            "bigframes-dev.zzz_shobs_us.matrix_10mx1k_mul_1kx1k_bf",
+        ),
+    ],
+    ids=[
+        "1k",
+        "100k",
+        "1m",
+        "10m",
+    ],
+)
+@pytest.mark.skipif(True, reason="Enable only for large scale local testing")
+def test_df_dot_bq_1kx1k_mul_1kx1k(session, left_matrix, right_matrix, result_matrix):
+    df1 = session.read_gbq(left_matrix)
+    df2 = session.read_gbq(right_matrix)
+    df1.columns = df2.index.to_pandas()
     bf_result = df1.dot(df2)
+    bf_result.to_gbq(result_matrix, if_exists="replace")
     assert bf_result is not None
