@@ -275,20 +275,6 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
         session.install("-e", ".", *constraints)
 
 
-def clean_pycache():
-    paths = CURRENT_DIRECTORY.glob("**/__pycache__/**/*")
-    for path in paths:
-        path.unlink()
-
-    paths = CURRENT_DIRECTORY.glob("**/__pycache__")
-    for path in paths:
-        path.rmdir()
-
-    paths = CURRENT_DIRECTORY.glob("**/*.pyc")
-    for path in paths:
-        path.unlink()
-
-
 def run_system(
     session: nox.sessions.Session,
     prefix_name,
@@ -300,7 +286,6 @@ def run_system(
     extra_pytest_options=(),
 ):
     """Run the system test suite."""
-    clean_pycache()
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
@@ -374,6 +359,9 @@ def system_noextras(session: nox.sessions.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
+    # Workaround https://github.com/pytest-dev/pytest/issues/9567
+    os.environ["PY_IGNORE_IMPORTMISMATCH"] = "1"
+
     run_system(
         session=session,
         prefix_name="doctest",
