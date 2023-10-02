@@ -275,6 +275,20 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
         session.install("-e", ".", *constraints)
 
 
+def clean_pycache():
+    paths = CURRENT_DIRECTORY.glob("**/__pycache__/**/*")
+    for path in paths:
+        path.unlink()
+
+    paths = CURRENT_DIRECTORY.glob("**/__pycache__")
+    for path in paths:
+        path.rmdir()
+
+    paths = CURRENT_DIRECTORY.glob("**/*.pyc")
+    for path in paths:
+        path.unlink()
+
+
 def run_system(
     session: nox.sessions.Session,
     prefix_name,
@@ -286,6 +300,7 @@ def run_system(
     extra_pytest_options=(),
 ):
     """Run the system test suite."""
+    clean_pycache()
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
