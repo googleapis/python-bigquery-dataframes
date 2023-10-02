@@ -16,7 +16,7 @@
 Generates SQL queries needed for BigQuery DataFrames ML
 """
 
-from typing import Iterable, Mapping, Optional, Union
+from typing import Iterable, List, Mapping, Optional, Union
 
 import bigframes.constants as constants
 import bigframes.pandas as bpd
@@ -84,6 +84,15 @@ class BaseSqlGenerator:
     def ml_min_max_scaler(self, numeric_expr_sql: str, name: str) -> str:
         """Encode ML.MIN_MAX_SCALER for BQML"""
         return f"""ML.MIN_MAX_SCALER({numeric_expr_sql}) OVER() AS {name}"""
+
+    def ml_k_bind_discretizer(
+        self,
+        numeric_expr_sql: str,
+        array_split_points: List[str],
+        name: str,
+    ) -> str:
+        """Encode ML.MIN_MAX_SCALER for BQML"""
+        return f"""ML.BUCKETIZE({numeric_expr_sql}, {array_split_points}, FALSE) AS {name}"""
 
     def ml_one_hot_encoder(
         self,
