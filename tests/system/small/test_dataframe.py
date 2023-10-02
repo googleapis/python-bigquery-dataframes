@@ -2881,6 +2881,7 @@ def test_df_dot(
     )
 
 
+@pytest.mark.skipif(True, reason="Enable only for large scale local testing")
 def test_df_dot_bq_table_data_small(session):
     square_bq_table = "bigframes-dev.zzz_shobs_us.matrix_int_100_by_100"
 

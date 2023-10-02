@@ -1664,10 +1664,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     kurtosis = kurt
 
-    def pivot(
+    def _pivot(
         self,
         *,
         columns: typing.Union[blocks.Label, Sequence[blocks.Label]],
+        columns_unique_values: typing.Optional[
+            typing.Union[pandas.Index, Sequence[object]]
+        ] = None,
         index: typing.Optional[
             typing.Union[blocks.Label, Sequence[blocks.Label]]
         ] = None,
@@ -1691,9 +1694,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pivot_block = block.pivot(
             columns=column_ids,
             values=value_col_ids,
+            columns_unique_values=columns_unique_values,
             values_in_index=utils.is_list_like(values),
         )
         return DataFrame(pivot_block)
+
+    def pivot(
+        self,
+        *,
+        columns: typing.Union[blocks.Label, Sequence[blocks.Label]],
+        index: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+        values: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+    ) -> DataFrame:
+        return self._pivot(columns=columns, index=index, values=values)
 
     def stack(self):
         # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
@@ -2596,7 +2613,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         aggregated_noindex = aggregated.reset_index()
         aggregated_noindex.columns = cvd_columns
-        result = aggregated_noindex.pivot(columns=col_id, index=row_id)
+        result = aggregated_noindex._pivot(
+            columns=col_id, columns_unique_values=other.columns, index=row_id
+        )
 
         # Set the index names to match the left side matrix
         result.index.names = self.index.names
