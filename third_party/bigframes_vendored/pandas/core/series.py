@@ -8,7 +8,6 @@ from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
 import numpy as np
 from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
-import pandas.io.formats.format as fmt
 
 from bigframes import constants
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
@@ -62,6 +61,20 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             hashable object: The name of the Series, also the column name
                 if part of a DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def T(self) -> Series:
+        """Return the transpose, which is by definition self."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def transpose(self) -> Series:
+        """
+        Return the transpose, which is by definition self.
+
+        Returns:
+            Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -151,21 +164,6 @@ class Series(NDFrame):  # type: ignore[misc]
             str or None: String representation of Series if ``buf=None``,
                 otherwise None.
         """
-        formatter = fmt.SeriesFormatter(
-            self,
-            name=name,
-            length=length,
-            header=header,
-            index=index,
-            dtype=dtype,
-            na_rep=na_rep,
-            float_format=float_format,
-            min_rows=min_rows,
-            max_rows=max_rows,
-        )
-        result = formatter.to_string()
-
-        # catch contract violations
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_markdown(

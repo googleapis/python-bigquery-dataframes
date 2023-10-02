@@ -99,6 +99,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.shape[0]
 
     @property
+    def ndim(self) -> int:
+        return 1
+
+    @property
     def empty(self) -> bool:
         return self.shape[0] == 0
 
@@ -117,6 +121,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
         return self._query_job
+
+    @property
+    def T(self) -> Series:
+        return self.transpose()
+
+    def transpose(self) -> Series:
+        return self
 
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
@@ -356,6 +367,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
+
+    pad = ffill
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.WindowSpec(preceding=0, following=limit)
@@ -737,6 +750,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self._apply_aggregation(
                 agg_ops.lookup_agg_func(typing.cast(str, func))
             )
+
+    aggregate = agg
 
     def skew(self):
         count = self.count()
