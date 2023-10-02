@@ -16,7 +16,7 @@
 
 import datetime
 import textwrap
-from typing import Dict, Union
+from typing import Dict, Iterable, Union
 
 import google.cloud.bigquery as bigquery
 
@@ -87,6 +87,22 @@ def create_snapshot_sql(
         FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
         """
     )
+
+
+BQ_STANDARD_TYPES = {
+    "INT": "INT64",
+    "FLOAT": "FLOAT64",
+}
+
+
+def bq_schema_to_sql(schema: Iterable[bigquery.SchemaField]):
+    field_strings = []
+    for field in schema:
+        name = field.name
+        type_ = field.field_type
+        type_ = BQ_STANDARD_TYPES.get(type_, type_)
+        field_strings.append(f"`{name}` {type_}")
+    return ", ".join(field_strings)
 
 
 def format_option(key: str, value: Union[bool, str]) -> str:
