@@ -464,7 +464,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if inplace:
             raise NotImplementedError("'inplace'=True not supported")
-        result = block_ops.dropna(self._block, how="any")
+        result = block_ops.dropna(self._block, [self._value_column], how="any")
         if ignore_index:
             result = result.reset_index()
         return Series(result)
@@ -861,7 +861,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
-    def argmax(self) -> scalars.Scalar:
+    def argmax(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
@@ -875,7 +875,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    def argmin(self) -> scalars.Scalar:
+    def argmin(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
