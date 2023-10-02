@@ -359,9 +359,6 @@ def system_noextras(session: nox.sessions.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
-    # Workaround https://github.com/pytest-dev/pytest/issues/9567
-    os.environ["PY_IGNORE_IMPORTMISMATCH"] = "1"
-
     run_system(
         session=session,
         prefix_name="doctest",
