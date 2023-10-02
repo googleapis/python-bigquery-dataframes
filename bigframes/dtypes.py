@@ -192,9 +192,6 @@ def ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
 
     if ibis_dtype in IBIS_TO_ARROW:
         return IBIS_TO_ARROW[ibis_dtype]
-    elif isinstance(ibis_dtype, ibis_dtypes.Null):
-        # Fallback to STRING for NULL values for most flexibility in SQL.
-        return IBIS_TO_ARROW[ibis_dtypes.string]
     else:
         raise ValueError(
             f"Unexpected Ibis data type {ibis_dtype}. {constants.FEEDBACK_LINK}"
