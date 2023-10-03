@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ibis
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -45,7 +44,7 @@ def test_arrayvalue_constructor_from_ibis_table_adds_all_columns():
     actual = core.ArrayValue(
         session=session, table=ibis_table, columns=columns, ordering=ordering
     )
-    assert actual.table is ibis_table
+    assert actual._table is ibis_table
     assert len(actual.columns) == 3
 
 
@@ -79,35 +78,10 @@ def test_arrayvalue_with_get_column():
         ),
         total_ordering_columns=["col1"],
     )
-    col1 = value.get_column("col1")
+    col1 = value._get_ibis_column("col1")
     assert isinstance(col1, ibis_types.Value)
     assert col1.get_name() == "col1"
     assert col1.type().is_int64()
-
-
-def test_arrayvalue_to_ibis_expr_with_projection():
-    value = resources.create_arrayvalue(
-        pandas.DataFrame(
-            {
-                "col1": [1, 2, 3],
-                "col2": ["a", "b", "c"],
-                "col3": [0.1, 0.2, 0.3],
-            }
-        ),
-        total_ordering_columns=["col1"],
-    )
-    expr = value.projection(
-        [
-            (value.table["col1"] + ibis.literal(-1)).name("int64_col"),
-            ibis.literal(123456789).name("literals"),
-            value.table["col2"].name("string_col"),
-        ]
-    )
-    actual = expr._to_ibis_expr()
-    assert len(actual.columns) == 3
-    assert actual.columns[0] == "int64_col"
-    assert actual.columns[1] == "literals"
-    assert actual.columns[2] == "string_col"
 
 
 def test_arrayvalues_to_ibis_expr_with_get_column():
@@ -121,7 +95,7 @@ def test_arrayvalues_to_ibis_expr_with_get_column():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value.get_column("col1")
+    expr = value._get_ibis_column("col1")
     assert expr.get_name() == "col1"
     assert expr.type().is_int64()
 

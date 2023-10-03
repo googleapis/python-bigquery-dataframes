@@ -151,7 +151,7 @@ class Block:
         """All value columns, mutually exclusive with index columns."""
         return [
             column
-            for column in self._expr.column_names
+            for column in self._expr.column_ids
             if column not in self.index_columns
         ]
 
@@ -443,9 +443,7 @@ class Block:
         # TODO(swast): Allow for dry run and timeout.
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
-        results_iterator, query_job = expr.start_query(
-            max_results=max_results, expose_extra_columns=True
-        )
+        results_iterator, query_job = expr.start_query(max_results=max_results)
 
         table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
         fraction = (
@@ -482,12 +480,6 @@ class Block:
                 if self.index_columns:
                     df.set_index(list(self.index_columns), inplace=True)
                     df.index.names = self.index.names  # type: ignore
-
-                df.drop(
-                    [col for col in df.columns if col not in self.value_columns],
-                    axis=1,
-                    inplace=True,
-                )
             elif (sampling_method == _UNIFORM) and (random_state is None):
                 filtered_expr = self.expr._uniform_sampling(fraction)
                 block = Block(
@@ -518,12 +510,6 @@ class Block:
             if self.index_columns:
                 df.set_index(list(self.index_columns), inplace=True)
                 df.index.names = self.index.names  # type: ignore
-
-            df.drop(
-                [col for col in df.columns if col not in self.value_columns],
-                axis=1,
-                inplace=True,
-            )
 
         return df, total_rows, query_job
 
@@ -1086,7 +1072,7 @@ class Block:
     ):
         """Normalizes expression by moving index columns to left."""
         value_columns = [
-            col_id for col_id in expr.column_names.keys() if col_id not in index_columns
+            col_id for col_id in expr.column_ids if col_id not in index_columns
         ]
         if (assert_value_size is not None) and (
             len(value_columns) != assert_value_size
@@ -1095,7 +1081,7 @@ class Block:
         return expr.select_columns([*index_columns, *value_columns])
 
     def slice(
-        self: bigframes.core.blocks.Block,
+        self,
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
@@ -1395,7 +1381,7 @@ class Block:
         )
         result_block = Block(
             result_expr,
-            index_columns=list(result_expr.column_names.keys())[:index_nlevels],
+            index_columns=list(result_expr.column_ids)[:index_nlevels],
             column_labels=aligned_blocks[0].column_labels,
             index_labels=result_labels,
         )
@@ -1457,9 +1443,7 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        sql = array_value.to_sql(
-            ordering_mode="unordered", col_id_overrides=substitutions
-        )
+        sql = array_value.to_sql(col_id_overrides=substitutions)
         return (
             sql,
             new_ids[: len(idx_labels)],
