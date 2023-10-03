@@ -1258,7 +1258,6 @@ class Session(
         else:
             cluster_sql = ""
 
-        # TODO(swast): This might not support multi-statement SQL queries (scripts).
         ddl_text = f"""
         CREATE TEMP TABLE
         `_SESSION`.`{table.table_id}`
@@ -1503,19 +1502,6 @@ class Session(
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)
-
-
-def _can_cluster(ibis_type: ibis_dtypes.DataType):
-    # https://cloud.google.com/bigquery/docs/clustered-tables
-    # Notably, float is excluded
-    return (
-        ibis_type.is_integer()
-        or ibis_type.is_string()
-        or ibis_type.is_decimal()
-        or ibis_type.is_date()
-        or ibis_type.is_timestamp()
-        or ibis_type.is_boolean()
-    )
 
 
 def _can_cluster_bq(field: bigquery.SchemaField):
