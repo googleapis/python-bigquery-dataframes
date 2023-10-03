@@ -98,7 +98,6 @@ _BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapi
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
 _MAX_CLUSTER_COLUMNS = 4
-_MAX_LABELS_COUNT = 64
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
 # functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
@@ -1465,9 +1464,15 @@ class Session(
         """
         Starts query job and waits for results
         """
-        _, job_config = bigframes_io.create_job_configs_labels(
-            job_config=job_config, api_methods=api_methods
-        )
+        if job_config is not None:
+            job_config.labels = bigframes_io.create_job_configs_labels(
+                job_configs_labels=job_config.labels, api_methods=api_methods
+            )
+        else:
+            job_config = bigquery.QueryJobConfig()
+            job_config.labels = bigframes_io.create_job_configs_labels(
+                job_configs_labels=None, api_methods=api_methods
+            )
         query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display

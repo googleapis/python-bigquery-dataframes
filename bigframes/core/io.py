@@ -17,7 +17,7 @@
 import datetime
 import textwrap
 import types
-from typing import Dict, Optional, Sequence, Tuple, Union, Iterable
+from typing import Dict, Optional, Sequence, Union, Iterable
 
 import google.cloud.bigquery as bigquery
 
@@ -26,34 +26,32 @@ MAX_LABELS_COUNT = 64
 
 
 def create_job_configs_labels(
-    job_config: Optional[bigquery.job.QueryJobConfig],
+    job_configs_labels: Optional[Dict[str, str]],
     api_methods: Sequence[str],
-) -> Tuple[Dict[str, str], bigquery.job.QueryJobConfig]:
-    if job_config is not None:
-        # If there is no label set
-        if job_config.labels is None:
-            label_values = api_methods
-        else:
-            cur_labels: Sequence[str] = [*job_config.labels.values()]
-            cur_labels_len = len(job_config.labels)
-            api_methods_len = len(api_methods)
-            # If the total number of labels is under the limit of labels count
-            if cur_labels_len + api_methods_len <= MAX_LABELS_COUNT:
-                label_values = list(cur_labels) + list(api_methods)
-            # We capture the latest label if it is out of the length limit of labels count
-            else:
-                added_api_len = cur_labels_len + api_methods_len - MAX_LABELS_COUNT
-                label_values = list(cur_labels) + list(api_methods)[-added_api_len:]
+) -> Dict[str, str]:
+    # If there is no label set
+    if job_configs_labels is None:
+        labels = {}
+        label_values = list(api_methods)
     else:
-        job_config = bigquery.QueryJobConfig()
-        label_values = api_methods
+        labels = job_configs_labels.copy()
+        cur_labels_len = len(job_configs_labels)
+        api_methods_len = len(api_methods)
+        # If the total number of labels is under the limit of labels count
+        if cur_labels_len + api_methods_len <= MAX_LABELS_COUNT:
+            label_values = list(api_methods)
+        # We capture the latest label if it is out of the length limit of labels count
+        else:
+            added_api_len = cur_labels_len + api_methods_len - MAX_LABELS_COUNT
+            label_values = list(api_methods)[-added_api_len:]
 
-    labels = {}
     for i, label_value in enumerate(label_values):
-        label_key = "bigframes-api-" + str(i)
+        if job_configs_labels is not None:
+            label_key = "bigframes-api-" + str(i + len(job_configs_labels))
+        else:
+            label_key = "bigframes-api-" + str(i)
         labels[label_key] = label_value
-    job_config.labels = labels
-    return labels, job_config
+    return labels
 
 
 def create_export_csv_statement(

@@ -45,7 +45,6 @@ if typing.TYPE_CHECKING:
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
-MAX_LABELS_COUNT = 64
 
 
 @dataclass(frozen=True)
