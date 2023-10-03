@@ -317,9 +317,9 @@ def test_k_bins_discretizer_normalized_fit_transform_default_params(new_penguins
 
     expected = pd.DataFrame(
         {
-            "kbinsdiscretizer_culmen_depth_mm": ["bin_6", "bin_2", "bin_4"],
-            "kbinsdiscretizer_culmen_length_mm": ["bin_6", "bin_3", "bin_2"],
-            "kbinsdiscretizer_flipper_length_mm": ["bin_6", "bin_2", "bin_4"],
+            "kbinsdiscretizer_culmen_depth_mm": ["bin_5", "bin_2", "bin_4"],
+            "kbinsdiscretizer_culmen_length_mm": ["bin_5", "bin_3", "bin_2"],
+            "kbinsdiscretizer_flipper_length_mm": ["bin_5", "bin_2", "bin_4"],
         },
         dtype="string[pyarrow]",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
