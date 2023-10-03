@@ -460,9 +460,9 @@ class Session(
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
         # internal issue 303057336.
-        temp_table = self._create_session_table_empty(
-            api_name, dry_run_job.schema, index_cols
-        )
+        # Since we have a `statement_type == 'SELECT'`, schema should be populated.
+        schema = typing.cast(Iterable[bigquery.SchemaField], dry_run_job.schema)
+        temp_table = self._create_session_table_empty(api_name, schema, index_cols)
 
         job_config = bigquery.QueryJobConfig()
         job_config.destination = temp_table
