@@ -582,7 +582,7 @@ def test_pipeline_columntransformer_fit_predict(session, penguins_df_default_ind
                         ),
                         (
                             "k_bins_discretizer",
-                            preprocessing.KBinsDiscretizer(),
+                            preprocessing.KBinsDiscretizer(strategy="uniform"),
                             ["culmen_length_mm", "flipper_length_mm"],
                         ),
                         (
@@ -664,7 +664,7 @@ def test_pipeline_columntransformer_to_gbq(penguins_df_default_index, dataset_id
                         ),
                         (
                             "k_bins_discretizer",
-                            preprocessing.KBinsDiscretizer(),
+                            preprocessing.KBinsDiscretizer(strategy="uniform"),
                             ["culmen_length_mm", "flipper_length_mm"],
                         ),
                         (
@@ -706,11 +706,19 @@ def test_pipeline_columntransformer_to_gbq(penguins_df_default_index, dataset_id
         ("standard_scaler", preprocessing.StandardScaler(), "culmen_length_mm"),
         ("max_abs_scaler", preprocessing.MaxAbsScaler(), "culmen_length_mm"),
         ("min_max_scaler", preprocessing.MinMaxScaler(), "culmen_length_mm"),
-        ("k_bins_discretizer", preprocessing.KBinsDiscretizer(), "culmen_length_mm"),
+        (
+            "k_bins_discretizer",
+            preprocessing.KBinsDiscretizer(strategy="uniform"),
+            "culmen_length_mm",
+        ),
         ("standard_scaler", preprocessing.StandardScaler(), "flipper_length_mm"),
         ("max_abs_scaler", preprocessing.MaxAbsScaler(), "flipper_length_mm"),
         ("min_max_scaler", preprocessing.MinMaxScaler(), "flipper_length_mm"),
-        ("k_bins_discretizer", preprocessing.KBinsDiscretizer(), "flipper_length_mm"),
+        (
+            "k_bins_discretizer",
+            preprocessing.KBinsDiscretizer(strategy="uniform"),
+            "flipper_length_mm",
+        ),
     ]
 
     assert transformers == expected
@@ -806,7 +814,7 @@ def test_pipeline_min_max_scaler_to_gbq(penguins_df_default_index, dataset_id):
 def test_pipeline_k_bins_discretizer_to_gbq(penguins_df_default_index, dataset_id):
     pl = pipeline.Pipeline(
         [
-            ("transform", preprocessing.KBinsDiscretizer()),
+            ("transform", preprocessing.KBinsDiscretizer(strategy="uniform")),
             ("estimator", linear_model.LinearRegression(fit_intercept=False)),
         ]
     )

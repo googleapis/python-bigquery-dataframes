@@ -95,12 +95,10 @@ def test_min_max_scaler_produces_correct_sql(
     assert sql == "ML.MIN_MAX_SCALER(col_a) OVER() AS scaled_col_a"
 
 
-def test__k_bind_discretizer_produces_correct_sql(
+def test_k_bins_discretizer_produces_correct_sql(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
-    sql = base_sql_generator.ml_k_bind_discretizer(
-        "col_a", [1, 2, 3, 4], "scaled_col_a"  # type:ignore
-    )
+    sql = base_sql_generator.ml_bucketize("col_a", [1, 2, 3, 4], "scaled_col_a")
     assert sql == "ML.BUCKETIZE(col_a, [1, 2, 3, 4], FALSE) AS scaled_col_a"
 
 

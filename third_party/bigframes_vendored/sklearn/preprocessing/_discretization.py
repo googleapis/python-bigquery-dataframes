@@ -11,10 +11,15 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator):
     """
     Bin continuous data into intervals.
 
-
     Args:
         n_bins (int, default 5):
             The number of bins to produce. Raises ValueError if ``n_bins < 2``.
+        strategy ({'uniform', 'quantile', 'kmeans'}, default='quantile'):
+            Strategy used to define the widths of the bins. 'uniform': All bins
+            in each feature have identical widths. 'quantile': All bins in each
+            feature have the same number of points. 'kmeans': Values in each bin
+            have the same nearest center of a 1D k-means cluster. Only
+            `uniform` is supported now.
     """
 
     def fit(self, X, y=None):

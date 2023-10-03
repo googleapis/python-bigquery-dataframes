@@ -23,7 +23,7 @@ def test_columntransformer_init_expectedtransforms():
     standard_scaler_transformer = preprocessing.StandardScaler()
     max_abs_scaler_transformer = preprocessing.MaxAbsScaler()
     min_max_scaler_transformer = preprocessing.MinMaxScaler()
-    k_bins_discretizer_transformer = preprocessing.KBinsDiscretizer()
+    k_bins_discretizer_transformer = preprocessing.KBinsDiscretizer(strategy="uniform")
     label_transformer = preprocessing.LabelEncoder()
     column_transformer = compose.ColumnTransformer(
         [
@@ -91,7 +91,7 @@ def test_columntransformer_repr():
             ),
             (
                 "k_bins_discretizer",
-                preprocessing.KBinsDiscretizer(),
+                preprocessing.KBinsDiscretizer(strategy="uniform"),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
         ]
@@ -106,7 +106,8 @@ def test_columntransformer_repr():
                                  ['culmen_length_mm', 'flipper_length_mm']),
                                 ('min_max_scale', MinMaxScaler(),
                                  ['culmen_length_mm', 'flipper_length_mm']),
-                                ('k_bins_discretizer', KBinsDiscretizer(),
+                                ('k_bins_discretizer',
+                                 KBinsDiscretizer(strategy='uniform'),
                                  ['culmen_length_mm', 'flipper_length_mm'])])"""
     )
 
@@ -136,7 +137,7 @@ def test_columntransformer_repr_matches_sklearn():
             ),
             (
                 "k_bins_discretizer",
-                preprocessing.KBinsDiscretizer(),
+                preprocessing.KBinsDiscretizer(strategy="uniform"),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
         ]
@@ -165,7 +166,7 @@ def test_columntransformer_repr_matches_sklearn():
             ),
             (
                 "k_bins_discretizer",
-                sklearn_preprocessing.KBinsDiscretizer(),
+                sklearn_preprocessing.KBinsDiscretizer(strategy="uniform"),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
         ]

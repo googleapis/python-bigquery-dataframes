@@ -51,7 +51,9 @@ class StandardScaler(
 
         Args:
             columns:
-                a list of column names to transform
+                a list of column names to transform.
+            X (default None):
+                Ignored.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
         return [
@@ -132,7 +134,9 @@ class MaxAbsScaler(
 
         Args:
             columns:
-                a list of column names to transform
+                a list of column names to transform.
+            X (default None):
+                Ignored.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
         return [
@@ -213,7 +217,9 @@ class MinMaxScaler(
 
         Args:
             columns:
-                a list of column names to transform
+                a list of column names to transform.
+            X (default None):
+                Ignored.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
         return [
@@ -282,8 +288,18 @@ class KBinsDiscretizer(
     def __init__(
         self,
         n_bins: int = 5,
+        strategy: Literal["uniform", "quantile", "kmeans"] = "quantile",
     ):
+        if strategy != "uniform":
+            raise NotImplementedError(
+                f"Only strategy = 'uniform' is supported now, input is {strategy}."
+            )
+        if n_bins < 2:
+            raise ValueError(
+                f"n_bins has to be larger than or equal to 2, input is {n_bins}."
+            )
         self.n_bins = n_bins
+        self.strategy = strategy
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
@@ -299,7 +315,7 @@ class KBinsDiscretizer(
     def _compile_to_sql(
         self,
         columns: List[str],
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: bpd.DataFrame,
     ) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
@@ -308,21 +324,22 @@ class KBinsDiscretizer(
             columns:
                 a list of column names to transform
             X:
-                The Dataframe or Series with training data.
+                The Dataframe with training data.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
         array_split_points = {}
-        for column in columns:
-            min_value = X[column].min()
-            max_value = X[column].max()
-            bin_size = (max_value - min_value) / self.n_bins
-            array_split_points[column] = [
-                min_value + i * bin_size for i in range(self.n_bins)
-            ]
+        if self.strategy == "uniform":
+            for column in columns:
+                min_value = X[column].min()
+                max_value = X[column].max()
+                bin_size = (max_value - min_value) / self.n_bins
+                array_split_points[column] = [
+                    min_value + i * bin_size for i in range(self.n_bins)
+                ]
 
         return [
             (
-                self._base_sql_generator.ml_k_bind_discretizer(
+                self._base_sql_generator.ml_bucketize(
                     column, array_split_points[column], f"kbinsdiscretizer_{column}"
                 ),
                 f"kbinsdiscretizer_{column}",
@@ -343,7 +360,7 @@ class KBinsDiscretizer(
         array_split_points = s[s.find("[") + 1 : s.find("]")]
         col_label = s[: s.find(",")]
         n_bins = array_split_points.count(",") + 1
-        return cls(n_bins), col_label
+        return cls(n_bins, "uniform"), col_label
 
     def fit(
         self,
@@ -425,7 +442,9 @@ class OneHotEncoder(
 
         Args:
             columns:
-                a list of column names to transform
+                a list of column names to transform.
+            X (default None):
+                Ignored.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
 
@@ -549,7 +568,9 @@ class LabelEncoder(
 
         Args:
             columns:
-                a list of column names to transform
+                a list of column names to transform.
+            X (default None):
+                Ignored.
 
         Returns: a list of tuples of (sql_expression, output_name)"""
 

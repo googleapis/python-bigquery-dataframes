@@ -93,7 +93,9 @@ class ColumnTransformer(
         return result
 
     def _compile_to_sql(
-        self, columns: List[str], X: Union[bpd.DataFrame, bpd.Series]
+        self,
+        columns: List[str],
+        X: bpd.DataFrame,
     ) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
@@ -101,6 +103,8 @@ class ColumnTransformer(
         Args:
             columns (List[str]):
                 a list of column names to transform
+            X (bpd.DataFrame):
+                The Dataframe with training data.
 
         Returns:
             a list of tuples of (sql_expression, output_name)"""
