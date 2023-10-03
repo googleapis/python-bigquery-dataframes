@@ -932,7 +932,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if index is not None:
             level_id = self._resolve_levels(level or 0)[0]
 
-            if utils.is_list_like(index) or isinstance(index, pandas.Index):
+            if utils.is_list_like(index):
                 block, inverse_condition_id = block.apply_unary_op(
                     level_id, ops.IsInOp(index, match_nulls=True)
                 )
