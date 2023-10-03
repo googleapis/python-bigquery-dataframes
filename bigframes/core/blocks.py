@@ -1086,20 +1086,16 @@ class Block:
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> bigframes.core.blocks.Block:
-        start = start or 0
         if step is None:
             step = 1
         if step == 0:
             raise ValueError("slice step cannot be zero")
         if step < 0:
-            adj_start = -start + 1 if start > 0 else -start - 1
-            if stop:
-                adj_stop = -stop + 1 if stop > 0 else -stop - 1
-            else:
-                adj_stop = None
-            adj_step = -step
-            return (
-                self.reversed()._forward_slice(adj_start, adj_stop, adj_step).reversed()
+            reverse_start = (-start - 1) if start else 0
+            reverse_stop = (-stop - 1) if stop else None
+            reverse_step = -step
+            return self.reversed()._forward_slice(
+                reverse_start, reverse_stop, reverse_step
             )
         return self._forward_slice(start or 0, stop, step)
 
@@ -1122,6 +1118,7 @@ class Block:
         # only generate offsets that are used
         positive_offsets = None
         negative_offsets = None
+
         if use_postive_offsets:
             block, positive_offsets = self.promote_offsets()
         if use_negative_offsets:
