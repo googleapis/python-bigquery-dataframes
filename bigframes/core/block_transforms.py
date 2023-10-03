@@ -590,6 +590,12 @@ def idxmax(block: blocks.Block) -> blocks.Block:
 def _idx_extrema(
     block: blocks.Block, min_or_max: typing.Literal["min", "max"]
 ) -> blocks.Block:
+    if len(block.index_columns) != 1:
+        # TODO: Need support for tuple dtype
+        raise NotImplementedError(
+            f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"
+        )
+
     original_block = block
     result_cols = []
     for value_col in original_block.value_columns:
@@ -607,11 +613,6 @@ def _idx_extrema(
             ],
         ]
         window_spec = core.WindowSpec(ordering=order_refs)
-        if len(original_block.index_columns) != 1:
-            # TODO: Need support for tuple dtype
-            raise NotImplementedError(
-                f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"
-            )
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec
