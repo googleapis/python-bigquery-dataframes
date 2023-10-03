@@ -16,6 +16,7 @@
 
 import datetime
 import textwrap
+import types
 from typing import Dict, Iterable, Union
 
 import google.cloud.bigquery as bigquery
@@ -93,11 +94,13 @@ def create_snapshot_sql(
 # https://cloud.google.com/bigquery/docs/data-types but we use Standard SQL
 # names
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
-BQ_STANDARD_TYPES = {
-    "BOOLEAN": "BOOL",
-    "INTEGER": "INT64",
-    "FLOAT": "FLOAT64",
-}
+BQ_STANDARD_TYPES = types.MappingProxyType(
+    {
+        "BOOLEAN": "BOOL",
+        "INTEGER": "INT64",
+        "FLOAT": "FLOAT64",
+    }
+)
 
 
 def bq_field_to_type_sql(field: bigquery.SchemaField):
