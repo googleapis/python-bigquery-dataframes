@@ -89,20 +89,44 @@ def create_snapshot_sql(
     )
 
 
+# BigQuery REST API returns types in Legacy SQL format
+# https://cloud.google.com/bigquery/docs/data-types but we use Standard SQL
+# names
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
 BQ_STANDARD_TYPES = {
-    "INT": "INT64",
+    "BOOLEAN": "BOOL",
+    "INTEGER": "INT64",
     "FLOAT": "FLOAT64",
 }
 
 
+def bq_field_to_type_sql(field: bigquery.SchemaField):
+    if field.mode == "REPEATED":
+        nested_type = bq_field_to_type_sql(
+            bigquery.SchemaField(
+                field.name, field.field_type, mode="NULLABLE", fields=field.fields
+            )
+        )
+        return f"ARRAY<{nested_type}>"
+
+    if field.field_type == "RECORD":
+        nested_fields_sql = ", ".join(
+            bq_field_to_sql(child_field) for child_field in field.fields
+        )
+        return f"STRUCT<{nested_fields_sql}>"
+
+    type_ = field.field_type
+    return BQ_STANDARD_TYPES.get(type_, type_)
+
+
+def bq_field_to_sql(field: bigquery.SchemaField):
+    name = field.name
+    type_ = bq_field_to_type_sql(field)
+    return f"`{name}` {type_}"
+
+
 def bq_schema_to_sql(schema: Iterable[bigquery.SchemaField]):
-    field_strings = []
-    for field in schema:
-        name = field.name
-        type_ = field.field_type
-        type_ = BQ_STANDARD_TYPES.get(type_, type_)
-        field_strings.append(f"`{name}` {type_}")
-    return ", ".join(field_strings)
+    return ", ".join(bq_field_to_sql(field) for field in schema)
 
 
 def format_option(key: str, value: Union[bool, str]) -> str:

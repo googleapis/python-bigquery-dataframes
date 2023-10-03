@@ -467,8 +467,18 @@ class Session(
         job_config = bigquery.QueryJobConfig()
         job_config.destination = temp_table
 
-        _, query_job = self._start_query(query, job_config=job_config)
-        return query_job.destination, query_job
+        try:
+            # Write to temp table to workaround BigQuery 10 GB query results
+            # limit. See: internal issue 303057336.
+            _, query_job = self._start_query(query, job_config=job_config)
+            return query_job.destination, query_job
+        except google.api_core.exceptions.BadRequest:
+            # Some SELECT statements still aren't compatible with cluster
+            # tables as the destination. For example, if the query has a
+            # top-level ORDER BY, this conflicts with our ability to cluster
+            # the table by the index column(s).
+            _, query_job = self._start_query(query)
+            return query_job.destination, query_job
 
     def read_gbq_query(
         self,
@@ -1229,23 +1239,20 @@ class Session(
         schema: Iterable[bigquery.SchemaField],
         cluster_cols: List[str],
     ) -> bigquery.TableReference:
+        # Can't set a table in _SESSION as destination via query job API, so we
+        # run DDL, instead.
+        table = self._create_session_table()
+        schema_sql = bigframes_io.bq_schema_to_sql(schema)
+
         clusterable_cols = [
             col.name
             for col in schema
             if col.name in cluster_cols and _can_cluster_bq(col)
         ][:_MAX_CLUSTER_COLUMNS]
 
-        # Can't set a table in _SESSION as destination via query job API, so we
-        # run DDL, instead.
-        table = self._create_session_table()
-        cluster_cols_sql = ", ".join(f"`{cluster_col}`" for cluster_col in cluster_cols)
-
-        # TODO(swast): Handle STRUCT (RECORD) / ARRAY (REPEATED) columns.
-        schema_sql = bigframes_io.bq_schema_to_sql(schema)
-
         if clusterable_cols:
             cluster_cols_sql = ", ".join(
-                f"`{cluster_col}`" for cluster_col in cluster_cols
+                f"`{cluster_col}`" for cluster_col in clusterable_cols
             )
             cluster_sql = f"CLUSTER BY {cluster_cols_sql}"
         else:
@@ -1562,7 +1569,8 @@ def _can_cluster_bq(field: bigquery.SchemaField):
         "NUMERIC",
         "DECIMAL",
         "BIGNUMERIC",
-        "BIGDECIMAL" "DATE",
+        "BIGDECIMAL",
+        "DATE",
         "DATETIME",
         "TIMESTAMP",
         "BOOL",
