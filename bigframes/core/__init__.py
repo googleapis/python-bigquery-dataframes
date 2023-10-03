@@ -351,7 +351,7 @@ class ArrayValue:
         )
 
     @property
-    def _offsets(self) -> ibis_types.Value:
+    def _offsets(self) -> ibis_types.IntegerColumn:
         if not self._ordering.is_sequential:
             raise ValueError(
                 "Expression does not have offsets. Generate them first using project_offsets."
@@ -360,7 +360,8 @@ class ArrayValue:
             raise ValueError(
                 "Ordering is invalid. Marked as sequential but no total order columns."
             )
-        return self._get_any_column(self._ordering.total_order_col.column_id)
+        column = self._get_any_column(self._ordering.total_order_col.column_id)
+        return typing.cast(ibis_types.IntegerColumn, column)
 
     def _project_offsets(self) -> ArrayValue:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
@@ -1126,53 +1127,6 @@ class ArrayValue:
         else:
             builder.columns = [*self.columns, new_value.name(id)]
         return builder.build()
-
-    def slice(
-        self,
-        start: typing.Optional[int] = None,
-        stop: typing.Optional[int] = None,
-        step: typing.Optional[int] = None,
-    ) -> ArrayValue:
-        if step == 0:
-            raise ValueError("slice step cannot be zero")
-
-        if not step:
-            step = 1
-
-        expr_with_offsets = self._project_offsets()
-
-        # start with True and reduce with start, stop, and step conditions
-        cond_list = [expr_with_offsets._offsets == expr_with_offsets._offsets]
-
-        last_offset = expr_with_offsets._offsets.max()
-
-        # Convert negative indexes to positive indexes
-        if start and start < 0:
-            start = last_offset + start + 1
-        if stop and stop < 0:
-            stop = last_offset + stop + 1
-
-        if start is not None:
-            if step >= 1:
-                cond_list.append(expr_with_offsets._offsets >= start)
-            else:
-                cond_list.append(expr_with_offsets._offsets <= start)
-        if stop is not None:
-            if step >= 1:
-                cond_list.append(expr_with_offsets._offsets < stop)
-            else:
-                cond_list.append(expr_with_offsets._offsets > stop)
-        if step > 1:
-            start = start if (start is not None) else 0
-            cond_list.append((expr_with_offsets._offsets - start) % step == 0)
-        if step < 0:
-            start = start if (start is not None) else last_offset
-            cond_list.append((start - expr_with_offsets._offsets) % (-step) == 0)
-
-        sliced_expr = expr_with_offsets._filter(
-            functools.reduce(lambda x, y: x & y, cond_list)
-        )
-        return sliced_expr if step > 0 else sliced_expr.reversed()
 
     def cached(self, cluster_cols: typing.Sequence[str]) -> ArrayValue:
         """Write the ArrayValue to a session table and create a new block object that references it."""

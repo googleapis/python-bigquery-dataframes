@@ -1086,15 +1086,90 @@ class Block:
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> bigframes.core.blocks.Block:
-        sliced_expr = self.expr.slice(start=start, stop=stop, step=step)
-        # since this is slice, return a copy even if unchanged
-        block = Block(
-            sliced_expr,
-            index_columns=self.index_columns,
-            column_labels=self.column_labels,
-            index_labels=self._index_labels,
+        start = start or 0
+        if step is None:
+            step = 1
+        if step == 0:
+            raise ValueError("slice step cannot be zero")
+        if step < 0:
+            adj_start = -start + 1 if start > 0 else -start - 1
+            if stop:
+                adj_stop = -stop + 1 if stop > 0 else -stop - 1
+            else:
+                adj_stop = None
+            adj_step = -step
+            return (
+                self.reversed()._forward_slice(adj_start, adj_stop, adj_step).reversed()
+            )
+        return self._forward_slice(start or 0, stop, step)
+
+    def _forward_slice(self, start: int = 0, stop=None, step: int = 1):
+        """Performs slice but only for positive step size."""
+        if step <= 0:
+            raise ValueError("forward_slice only supports positive step size")
+
+        use_postive_offsets = (
+            (start > 0)
+            or ((stop is not None) and (stop >= 0))
+            or ((step > 1) and (start >= 0))
         )
-        return block
+        use_negative_offsets = (
+            (start < 0) or (stop and (stop < 0)) or ((step > 1) and (start < 0))
+        )
+
+        block = self
+
+        # only generate offsets that are used
+        positive_offsets = None
+        negative_offsets = None
+        if use_postive_offsets:
+            block, positive_offsets = self.promote_offsets()
+        if use_negative_offsets:
+            block, negative_offsets = block.reversed().promote_offsets()
+            block = block.reversed()
+
+        conditions = []
+        if start != 0:
+            if start > 0:
+                op = ops.partial_right(ops.ge_op, start)
+                assert positive_offsets
+                block, start_cond = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.le_op, -start - 1)
+                assert negative_offsets
+                block, start_cond = block.apply_unary_op(negative_offsets, op)
+            conditions.append(start_cond)
+        if stop is not None:
+            if stop >= 0:
+                op = ops.partial_right(ops.lt_op, stop)
+                assert positive_offsets
+                block, stop_cond = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.gt_op, -stop - 1)
+                assert negative_offsets
+                block, stop_cond = block.apply_unary_op(negative_offsets, op)
+            conditions.append(stop_cond)
+
+        if step > 1:
+            op = ops.partial_right(ops.mod_op, step)
+            if start >= 0:
+                op = ops.partial_right(ops.sub_op, start)
+                assert positive_offsets
+                block, start_diff = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.sub_op, -start + 1)
+                assert negative_offsets
+                block, start_diff = block.apply_unary_op(negative_offsets, op)
+            modulo_op = ops.partial_right(ops.mod_op, step)
+            block, mod = block.apply_unary_op(start_diff, modulo_op)
+            is_zero_op = ops.partial_right(ops.eq_op, 0)
+            block, step_cond = block.apply_unary_op(mod, is_zero_op)
+            conditions.append(step_cond)
+
+        for cond in conditions:
+            block = block.filter(cond)
+
+        return block.select_columns(self.value_columns)
 
     # Using cache to optimize for Jupyter Notebook's behavior where both '__repr__'
     # and '__repr_html__' are called in a single display action, reducing redundant
