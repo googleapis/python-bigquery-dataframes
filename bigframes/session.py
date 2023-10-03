@@ -1300,7 +1300,9 @@ class Session(
             cluster_cols=list(index_cols) + [default_ordering_name],
             api_name=api_name,
         )
-        table = self.ibis_client.sql(f"SELECT * FROM `{table_ref.table_id}`")
+        table = self.ibis_client.table(
+            f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+        )
         ordering_reference = core.OrderingColumnReference(default_ordering_name)
         ordering = core.ExpressionOrdering(
             ordering_value_columns=[ordering_reference],
