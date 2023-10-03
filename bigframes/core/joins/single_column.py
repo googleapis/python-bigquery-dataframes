@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import itertools
-import itertools
 import typing
 from typing import Callable, Literal, Tuple
 
@@ -136,25 +135,6 @@ def join_by_column(
         def get_column_right(col_id):
             return rmapping[col_id]
 
-        lmapping = {
-            col_id: guid.generate_guid()
-            for col_id in itertools.chain(
-                left.column_names, left._hidden_ordering_column_names
-            )
-        }
-        rmapping = {
-            col_id: guid.generate_guid()
-            for col_id in itertools.chain(
-                right.column_names, right._hidden_ordering_column_names
-            )
-        }
-
-        def get_column_left(col_id):
-            return lmapping[col_id]
-
-        def get_column_right(col_id):
-            return rmapping[col_id]
-
         left_table = left._to_ibis_expr(
             ordering_mode="unordered",
             expose_hidden_cols=True,
@@ -166,8 +146,6 @@ def join_by_column(
             col_id_overrides=rmapping,
         )
         join_conditions = [
-            value_to_join_key(left_table[lmapping[left_index]])
-            == value_to_join_key(right_table[rmapping[right_index]])
             value_to_join_key(left_table[lmapping[left_index]])
             == value_to_join_key(right_table[rmapping[right_index]])
             for left_index, right_index in zip(left_column_ids, right_column_ids)
