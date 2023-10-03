@@ -19,6 +19,8 @@ import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
 import geopandas as gpd  # type: ignore
+import google.cloud.bigquery as bigquery
+import google.cloud.bigquery._pandas_helpers
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -401,3 +403,18 @@ def cast_ibis_value(
     raise TypeError(
         f"Unsupported cast {value.type()} to {to_type}. {constants.FEEDBACK_LINK}"
     )
+
+
+def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
+    """For each STRUCT field, make sure we specify the full type to use."""
+    # TODO(swast): Also override ARRAY fields.
+    dtypes = {}
+    for field in schema:
+        if field.field_type == "RECORD" and field.mode != "REPEATED":
+            # TODO(swast): We're using a private API here. Would likely be
+            # better if we called `to_arrow()` and converted to a pandas
+            # DataFrame ourselves from that.
+            dtypes[field.name] = pd.ArrowDtype(
+                google.cloud.bigquery._pandas_helpers.bq_to_arrow_data_type(field)
+            )
+    return dtypes
