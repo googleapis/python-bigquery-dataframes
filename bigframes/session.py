@@ -1468,7 +1468,7 @@ class Session(
         _, job_config = bigframes_io.create_job_configs_labels(
             job_config=job_config, api_methods=api_methods
         )
-        query_job = self.bqclient.query(sql=sql, job_config=job_config)
+        query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
