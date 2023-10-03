@@ -14,11 +14,76 @@
 
 import datetime
 from typing import Iterable
+from unittest import mock
 
 import google.cloud.bigquery as bigquery
 import pytest
 
 import bigframes.core.io
+
+
+def test_create_job_configs_is_none():
+    mock_job_config = mock.create_autospec(None)
+    api_methods = ["df-agg", "series-mode"]
+    labels, _ = bigframes.core.io.create_job_configs_labels(
+        job_config=mock_job_config, api_methods=api_methods
+    )
+    expected_dict = {"bigframes-api-0": "df-agg", "bigframes-api-1": "series-mode"}
+    assert labels is not None
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_is_none():
+    mock_job_config = mock.create_autospec(bigquery.QueryJobConfig())
+    api_methods = ["df-agg", "series-mode"]
+    labels, _ = bigframes.core.io.create_job_configs_labels(
+        job_config=mock_job_config, api_methods=api_methods
+    )
+    expected_dict = {"bigframes-api-0": "df-agg", "bigframes-api-1": "series-mode"}
+    assert labels is not None
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_length_limit_not_met():
+    mock_job_config = mock.create_autospec(bigquery.QueryJobConfig())
+    mock_job_config.labels = {
+        "bigframes-api-0": "test0",
+        "bigframes-api-1": "test1",
+        "bigframes-api-2": "test2",
+    }
+    api_methods = ["df-agg", "series-mode"]
+    labels, _ = bigframes.core.io.create_job_configs_labels(
+        job_config=mock_job_config, api_methods=api_methods
+    )
+    expected_dict = {
+        "bigframes-api-0": "test0",
+        "bigframes-api-1": "test1",
+        "bigframes-api-2": "test2",
+        "bigframes-api-3": "df-agg",
+        "bigframes-api-4": "series-mode",
+    }
+    assert labels is not None
+    assert len(labels) == 5
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_length_limit_met():
+    mock_job_config = mock.create_autospec(bigquery.QueryJobConfig())
+    cur_labels = {}
+    for i in range(63):
+        key = f"bigframes-api{i}"
+        value = f"test{i}"
+        cur_labels[key] = value
+    # If cur_labels length is 63, we can only add one label from api_methods
+    mock_job_config.labels = cur_labels
+    api_methods = ["df-agg", "series-mode"]
+    labels, _ = bigframes.core.io.create_job_configs_labels(
+        job_config=mock_job_config, api_methods=api_methods
+    )
+    assert labels is not None
+    assert len(labels) == 64
+    assert "df-agg" not in labels.values()
+    assert "series-mode" in labels.values()
 
 
 def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():

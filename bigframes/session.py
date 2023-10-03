@@ -1465,29 +1465,10 @@ class Session(
         """
         Starts query job and waits for results
         """
-        if job_config is not None:
-            # If there is no label set
-            if job_config.labels is None:
-                label_values = api_methods
-            else:
-                cur_labels: Sequence[str] = [*job_config.labels.values()]
-                total_label_values = list(cur_labels) + list(api_methods)
-                # If the total number of labels is under the limit of labels count
-                if len(job_config.labels) + len(api_methods) <= _MAX_LABELS_COUNT:
-                    label_values = total_label_values
-                # We capture the latest label if it is out of the length limit of labels count
-                else:
-                    label_values = total_label_values[-_MAX_LABELS_COUNT:]
-        else:
-            job_config = bigquery.QueryJobConfig()
-            label_values = api_methods
-
-        labels = {}
-        for i, label_value in enumerate(label_values):
-            label_key = "bigframes-api" + str(i)
-            labels[label_key] = label_value
-        job_config.labels = labels
-        query_job = self.bqclient.query(sql, job_config=job_config)
+        _, job_config = bigframes_io.create_job_configs_labels(
+            job_config=job_config, api_methods=api_methods
+        )
+        query_job = self.bqclient.query(sql=sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
