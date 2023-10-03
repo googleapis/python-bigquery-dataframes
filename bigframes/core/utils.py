@@ -49,6 +49,26 @@ def combine_indices(index1: pd.Index, index2: pd.Index) -> pd.MultiIndex:
     return multi_index
 
 
+def index_as_tuples(index: pd.Index) -> typing.Sequence[typing.Tuple]:
+    if isinstance(index, pd.MultiIndex):
+        return [label for label in index]
+    else:
+        return [(label,) for label in index]
+
+
+def split_index(
+    index: pd.Index, levels: int = 1
+) -> typing.Tuple[typing.Optional[pd.Index], pd.Index]:
+    nlevels = index.nlevels
+    remaining = nlevels - levels
+    if remaining > 0:
+        return index.droplevel(list(range(remaining, nlevels))), index.droplevel(
+            list(range(0, remaining))
+        )
+    else:
+        return (None, index)
+
+
 def get_standardized_ids(
     col_labels: Iterable[Hashable], idx_labels: Iterable[Hashable] = ()
 ) -> tuple[list[str], list[str]]:
@@ -84,3 +104,36 @@ def get_standardized_ids(
     idx_ids, col_ids = ids[: len(idx_ids)], ids[len(idx_ids) :]
 
     return col_ids, idx_ids
+
+
+def merge_column_labels(
+    left_labels: pd.Index,
+    right_labels: pd.Index,
+    coalesce_labels: typing.Sequence,
+    suffixes: tuple[str, str] = ("_x", "_y"),
+) -> pd.Index:
+    result_labels = []
+
+    for col_label in left_labels:
+        if col_label in right_labels:
+            if col_label in coalesce_labels:
+                # Merging on the same column only returns 1 key column from coalesce both.
+                # Take the left key column.
+                result_labels.append(col_label)
+            else:
+                result_labels.append(str(col_label) + suffixes[0])
+        else:
+            result_labels.append(col_label)
+
+    for col_label in right_labels:
+        if col_label in left_labels:
+            if col_label in coalesce_labels:
+                # Merging on the same column only returns 1 key column from coalesce both.
+                # Pass the right key column.
+                pass
+            else:
+                result_labels.append(str(col_label) + suffixes[1])
+        else:
+            result_labels.append(col_label)
+
+    return pd.Index(result_labels)

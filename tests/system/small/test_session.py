@@ -57,6 +57,7 @@ def test_read_gbq_tokyo(
         ),
         pytest.param(
             """SELECT
+                t.int64_col + 1 as my_ints,
                 t.float64_col * 2 AS my_floats,
                 CONCAT(t.string_col, "_2") AS my_strings,
                 t.int64_col > 0 AS my_bools,
@@ -321,11 +322,10 @@ def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
 
 
 def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default_index):
-    scalars_pandas_df_default_index["rowid"] = np.arange(
-        scalars_pandas_df_default_index.shape[0]
-    )
+    pandas_df = scalars_pandas_df_default_index.copy()
+    pandas_df["rowid"] = np.arange(pandas_df.shape[0])
 
-    df = session.read_pandas(scalars_pandas_df_default_index)
+    df = session.read_pandas(pandas_df)
     total_order_col = df._block._expr._ordering.total_order_col
     assert total_order_col and total_order_col.column_id == "rowid_2"
 
@@ -578,9 +578,12 @@ def test_read_csv_gcs_bq_engine_w_header(session, scalars_df_index, gcs_folder):
     path = gcs_folder + "test_read_csv_gcs_bq_engine_w_header*.csv"
     scalars_df_index.to_csv(path, index=False)
 
-    # Skip the header and the first 2 data rows. Without provided schema, the column names
-    # would be like `bool_field_0`, `string_field_1` and etc.
-    df = session.read_csv(path, header=2, engine="bigquery")
+    # Skip the header and the first 2 data rows. Note that one line of header
+    # also got added while writing the csv through `to_csv`, so we would have to
+    # pass headers=3 in the `read_csv` to skip reading the header and two rows.
+    # Without provided schema, the column names would be like `bool_field_0`,
+    # `string_field_1` and etc.
+    df = session.read_csv(path, header=3, engine="bigquery")
     assert df.shape[0] == scalars_df_index.shape[0] - 2
     assert len(df.columns) == len(scalars_df_index.columns)
 
@@ -609,9 +612,12 @@ def test_read_csv_local_bq_engine_w_header(session, scalars_pandas_df_index):
         # Using the pandas to_csv method because the BQ one does not support local write.
         scalars_pandas_df_index.to_csv(path, index=False)
 
-        # Skip the header and the first 2 data rows. Without provided schema, the column names
-        # would be like `bool_field_0`, `string_field_1` and etc.
-        df = session.read_csv(path, header=2, engine="bigquery")
+        # Skip the header and the first 2 data rows. Note that one line of
+        # header also got added while writing the csv through `to_csv`, so we
+        # would have to pass headers=3 in the `read_csv` to skip reading the
+        # header and two rows. Without provided schema, the column names would
+        # be like `bool_field_0`, `string_field_1` and etc.
+        df = session.read_csv(path, header=3, engine="bigquery")
         assert df.shape[0] == scalars_pandas_df_index.shape[0] - 2
         assert len(df.columns) == len(scalars_pandas_df_index.columns)
 

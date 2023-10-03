@@ -16,9 +16,10 @@
 Generates SQL queries needed for BigQuery DataFrames ML
 """
 
-from typing import Iterable, Optional, Union
+from typing import Iterable, Mapping, Optional, Union
 
 import bigframes.constants as constants
+import bigframes.pandas as bpd
 
 
 class BaseSqlGenerator:
@@ -80,6 +81,10 @@ class BaseSqlGenerator:
         """Encode ML.MAX_ABS_SCALER for BQML"""
         return f"""ML.MAX_ABS_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
+    def ml_min_max_scaler(self, numeric_expr_sql: str, name: str) -> str:
+        """Encode ML.MIN_MAX_SCALER for BQML"""
+        return f"""ML.MIN_MAX_SCALER({numeric_expr_sql}) OVER() AS {name}"""
+
     def ml_one_hot_encoder(
         self,
         numeric_expr_sql: str,
@@ -113,11 +118,15 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
     # Model create and alter
     def create_model(
         self,
-        source_sql: str,
-        transform_sql: Optional[str] = None,
-        options_sql: Optional[str] = None,
+        source_df: bpd.DataFrame,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+        transforms: Optional[Iterable[str]] = None,
     ) -> str:
         """Encode the CREATE TEMP MODEL statement for BQML"""
+        source_sql = source_df.sql
+        transform_sql = self.transform(*transforms) if transforms is not None else None
+        options_sql = self.options(**options)
+
         parts = [f"CREATE TEMP MODEL `{self._model_id}`"]
         if transform_sql:
             parts.append(transform_sql)
@@ -129,9 +138,11 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
     def create_remote_model(
         self,
         connection_name: str,
-        options_sql: Optional[str] = None,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE TEMP MODEL statement for BQML remote model."""
+        options_sql = self.options(**options)
+
         parts = [f"CREATE TEMP MODEL `{self._model_id}`"]
         parts.append(self.connection(connection_name))
         if options_sql:
@@ -140,9 +151,11 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
 
     def create_imported_model(
         self,
-        options_sql: Optional[str] = None,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE TEMP MODEL statement for BQML remote model."""
+        options_sql = self.options(**options)
+
         parts = [f"CREATE TEMP MODEL `{self._model_id}`"]
         if options_sql:
             parts.append(options_sql)
@@ -150,44 +163,63 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
 
 
 class ModelManipulationSqlGenerator(BaseSqlGenerator):
-    """Sql generator for manipulating a model entity. Model name is the fully model path of project_id.dataset_id.model_id."""
+    """Sql generator for manipulating a model entity. Model name is the full model path of project_id.dataset_id.model_id."""
 
     def __init__(self, model_name: str):
         self._model_name = model_name
 
+    def _source_sql(self, source_df: bpd.DataFrame) -> str:
+        """Return DataFrame sql with index columns."""
+        _source_sql, _, _ = source_df._to_sql_query(include_index=True)
+        return _source_sql
+
     # Alter model
     def alter_model(
         self,
-        options_sql: str,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the ALTER MODEL statement for BQML"""
+        options_sql = self.options(**options)
+
         parts = [f"ALTER MODEL `{self._model_name}`"]
         parts.append(f"SET {options_sql}")
         return "\n".join(parts)
 
     # ML prediction TVFs
-    def ml_predict(self, source_sql: str) -> str:
+    def ml_predict(self, source_df: bpd.DataFrame) -> str:
         """Encode ML.PREDICT for BQML"""
         return f"""SELECT * FROM ML.PREDICT(MODEL `{self._model_name}`,
-  ({source_sql}))"""
+  ({self._source_sql(source_df)}))"""
 
     def ml_forecast(self) -> str:
         """Encode ML.FORECAST for BQML"""
         return f"""SELECT * FROM ML.FORECAST(MODEL `{self._model_name}`)"""
 
-    def ml_generate_text(self, source_sql: str, struct_options: str) -> str:
+    def ml_generate_text(
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+    ) -> str:
         """Encode ML.GENERATE_TEXT for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{self._model_name}`,
-  ({source_sql}), {struct_options})"""
+  ({self._source_sql(source_df)}), {struct_options_sql})"""
 
-    def ml_generate_text_embedding(self, source_sql: str, struct_options: str) -> str:
+    def ml_generate_text_embedding(
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+    ) -> str:
         """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{self._model_name}`,
-  ({source_sql}), {struct_options})"""
+  ({self._source_sql(source_df)}), {struct_options_sql})"""
 
     # ML evaluation TVFs
-    def ml_evaluate(self, source_sql: Optional[str] = None) -> str:
+    def ml_evaluate(self, source_df: Optional[bpd.DataFrame] = None) -> str:
         """Encode ML.EVALUATE for BQML"""
+        if source_df is None:
+            source_sql = None
+        else:
+            # Note: don't need index as evaluate returns a new table
+            source_sql, _, _ = source_df._to_sql_query(include_index=False)
+
         if source_sql is None:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`)"""
         else:
@@ -209,7 +241,7 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         )
 
     # ML transform TVF, that require a transform_only type model
-    def ml_transform(self, source_sql: str) -> str:
+    def ml_transform(self, source_df: bpd.DataFrame) -> str:
         """Encode ML.TRANSFORM for BQML"""
         return f"""SELECT * FROM ML.TRANSFORM(MODEL `{self._model_name}`,
-  ({source_sql}))"""
+  ({self._source_sql(source_df)}))"""

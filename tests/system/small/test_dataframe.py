@@ -757,7 +757,7 @@ def test_df_isin_dict(scalars_dfs):
         ("right",),
     ],
 )
-def test_merge(scalars_dfs, merge_how):
+def test_df_merge(scalars_dfs, merge_how):
     scalars_df, scalars_pandas_df = scalars_dfs
     on = "rowindex_2"
     left_columns = ["int64_col", "float64_col", "rowindex_2"]
@@ -776,6 +776,39 @@ def test_merge(scalars_dfs, merge_how):
         ),
         merge_how,
         on,
+        sort=True,
+    )
+
+    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("left_on", "right_on"),
+    [
+        (["int64_col", "rowindex_2"], ["int64_col", "rowindex_2"]),
+        (["rowindex_2", "int64_col"], ["int64_col", "rowindex_2"]),
+        (["rowindex_2", "float64_col"], ["int64_col", "rowindex_2"]),
+    ],
+)
+def test_df_merge_multi_key(scalars_dfs, left_on, right_on):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    left_columns = ["int64_col", "float64_col", "rowindex_2"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
+
+    left = scalars_df[left_columns]
+    # Offset the rows somewhat so that outer join can have an effect.
+    right = scalars_df[right_columns].assign(rowindex_2=scalars_df["rowindex_2"] + 2)
+
+    df = left.merge(right, "outer", left_on=left_on, right_on=right_on, sort=True)
+    bf_result = df.to_pandas()
+
+    pd_result = scalars_pandas_df[left_columns].merge(
+        scalars_pandas_df[right_columns].assign(
+            rowindex_2=scalars_pandas_df["rowindex_2"] + 2
+        ),
+        "outer",
+        left_on=left_on,
+        right_on=right_on,
         sort=True,
     )
 
@@ -1211,6 +1244,77 @@ def test_combine(
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
+@pytest.mark.parametrize(
+    ("overwrite", "filter_func"),
+    [
+        (True, None),
+        (False, None),
+        (True, lambda x: x.isna() | (x % 2 == 0)),
+    ],
+    ids=[
+        "default",
+        "overwritefalse",
+        "customfilter",
+    ],
+)
+def test_df_update(overwrite, filter_func):
+    if pd.__version__.startswith("1."):
+        pytest.skip("dtype handled differently in pandas 1.x.")
+    index1 = pandas.Index([1, 2, 3, 4], dtype="Int64")
+    index2 = pandas.Index([1, 2, 4, 5], dtype="Int64")
+    pd_df1 = pandas.DataFrame(
+        {"a": [1, None, 3, 4], "b": [5, 6, None, 8]}, dtype="Int64", index=index1
+    )
+    pd_df2 = pandas.DataFrame(
+        {"a": [None, 20, 30, 40], "c": [90, None, 110, 120]},
+        dtype="Int64",
+        index=index2,
+    )
+
+    bf_df1 = dataframe.DataFrame(pd_df1)
+    bf_df2 = dataframe.DataFrame(pd_df2)
+
+    bf_df1.update(bf_df2, overwrite=overwrite, filter_func=filter_func)
+    pd_df1.update(pd_df2, overwrite=overwrite, filter_func=filter_func)
+
+    pd.testing.assert_frame_equal(bf_df1.to_pandas(), pd_df1)
+
+
+@pytest.mark.parametrize(
+    ("join", "axis"),
+    [
+        ("outer", None),
+        ("outer", 0),
+        ("outer", 1),
+        ("left", 0),
+        ("right", 1),
+        ("inner", None),
+        ("inner", 1),
+    ],
+)
+def test_df_align(join, axis):
+    index1 = pandas.Index([1, 2, 3, 4], dtype="Int64")
+    index2 = pandas.Index([1, 2, 4, 5], dtype="Int64")
+    pd_df1 = pandas.DataFrame(
+        {"a": [1, None, 3, 4], "b": [5, 6, None, 8]}, dtype="Int64", index=index1
+    )
+    pd_df2 = pandas.DataFrame(
+        {"a": [None, 20, 30, 40], "c": [90, None, 110, 120]},
+        dtype="Int64",
+        index=index2,
+    )
+
+    bf_df1 = dataframe.DataFrame(pd_df1)
+    bf_df2 = dataframe.DataFrame(pd_df2)
+
+    bf_result1, bf_result2 = bf_df1.align(bf_df2, join=join, axis=axis)
+    pd_result1, pd_result2 = pd_df1.align(pd_df2, join=join, axis=axis)
+
+    # Don't check dtype as pandas does unnecessary float conversion
+    pd.testing.assert_frame_equal(bf_result1.to_pandas(), pd_result1, check_dtype=False)
+    pd.testing.assert_frame_equal(bf_result2.to_pandas(), pd_result2, check_dtype=False)
+
+
 def test_combine_first(
     scalars_df_index,
     scalars_df_2_index,
@@ -1231,11 +1335,6 @@ def test_combine_first(
     pd_df_b = scalars_pandas_df_index[columns].iloc[2:8]
     pd_df_b.columns = ["b", "a", "d"]
     pd_result = pd_df_a.combine_first(pd_df_b)
-
-    print("pandas")
-    print(pd_result.to_string())
-    print("bigframes")
-    print(bf_result.to_string())
 
     # Some dtype inconsistency for all-NULL columns
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -1705,6 +1804,26 @@ def test_df_stack(scalars_dfs):
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
+def test_df_unstack(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # To match bigquery dataframes
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_pandas_df.columns = scalars_pandas_df.columns.astype("string[pyarrow]")
+    # Can only stack identically-typed columns
+    columns = [
+        "rowindex_2",
+        "int64_col",
+        "int64_too",
+    ]
+
+    # unstack on mono-index produces series
+    bf_result = scalars_df[columns].unstack().to_pandas()
+    pd_result = scalars_pandas_df[columns].unstack()
+
+    # Pandas produces NaN, where bq dataframes produces pd.NA
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
 @pytest.mark.parametrize(
     ("values", "index", "columns"),
     [
@@ -1999,6 +2118,29 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
 
 
+@pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x: x.sum(axis=1, numeric_only=True)),
+        (lambda x: x.mean(axis=1, numeric_only=True)),
+        (lambda x: x.min(axis=1, numeric_only=True)),
+        (lambda x: x.max(axis=1, numeric_only=True)),
+        (lambda x: x.std(axis=1, numeric_only=True)),
+        (lambda x: x.var(axis=1, numeric_only=True)),
+    ],
+    ids=["sum", "mean", "min", "max", "std", "var"],
+)
+def test_dataframe_aggregates_axis_1(scalars_df_index, scalars_pandas_df_index, op):
+    col_names = ["int64_too", "int64_col", "float64_col", "bool_col", "string_col"]
+    bf_result = op(scalars_df_index[col_names]).to_pandas()
+    pd_result = op(scalars_pandas_df_index[col_names])
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+    # Pandas has object index type
+    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+
+
 def test_dataframe_aggregates_median(scalars_df_index, scalars_pandas_df_index):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col"]
     bf_result = scalars_df_index[col_names].median(numeric_only=True).to_pandas()
@@ -2019,11 +2161,16 @@ def test_dataframe_aggregates_median(scalars_df_index, scalars_pandas_df_index):
     [
         (lambda x: x.all(bool_only=True)),
         (lambda x: x.any(bool_only=True)),
+        (lambda x: x.all(axis=1, bool_only=True)),
+        (lambda x: x.any(axis=1, bool_only=True)),
     ],
-    ids=["all", "any"],
+    ids=["all_axis0", "any_axis0", "all_axis1", "any_axis1"],
 )
 def test_dataframe_bool_aggregates(scalars_df_index, scalars_pandas_df_index, op):
     # Pandas will drop nullable 'boolean' dtype so we convert first to bool, then cast back later
+    scalars_df_index = scalars_df_index.assign(
+        bool_col=scalars_df_index.bool_col.fillna(False)
+    )
     scalars_pandas_df_index = scalars_pandas_df_index.assign(
         bool_col=scalars_pandas_df_index.bool_col.fillna(False).astype("bool")
     )
@@ -2404,6 +2551,24 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
 
     bf_result = scalars_df_index.iloc[index_list]
     pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_iloc_list_multiindex(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    scalars_df = scalars_df.copy()
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_df = scalars_df.set_index(["bytes_col", "numeric_col"])
+    scalars_pandas_df = scalars_pandas_df.set_index(["bytes_col", "numeric_col"])
+
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df.iloc[index_list]
+    pd_result = scalars_pandas_df.iloc[index_list]
 
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
