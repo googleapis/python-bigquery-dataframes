@@ -1315,55 +1315,13 @@ class Session(
         cluster_cols: Iterable[str],
         api_name: str,
     ) -> bigquery.TableReference:
-        clusterable_cols = [
-            col for col in cluster_cols if _can_cluster(table[col].type())
-        ][:_MAX_CLUSTER_COLUMNS]
-        return self._query_to_session_table(
+        desination, _ = self._query_to_destination(
             self.ibis_client.compile(table),
-            cluster_cols=clusterable_cols,
+            index_cols=list(cluster_cols),
             api_name=api_name,
         )
-
-    def _query_to_session_table(
-        self,
-        query_text: str,
-        cluster_cols: Iterable[str],
-        api_name: str,
-    ) -> bigquery.TableReference:
-        if len(list(cluster_cols)) > _MAX_CLUSTER_COLUMNS:
-            raise ValueError(
-                f"Too many cluster columns: {list(cluster_cols)}, max {_MAX_CLUSTER_COLUMNS} allowed."
-            )
-        # Can't set a table in _SESSION as destination via query job API, so we
-        # run DDL, instead.
-        table = self._create_session_table()
-        cluster_cols_sql = ", ".join(f"`{cluster_col}`" for cluster_col in cluster_cols)
-
-        # TODO(swast): This might not support multi-statement SQL queries (scripts).
-        ddl_text = f"""
-        CREATE TEMP TABLE `_SESSION`.`{table.table_id}`
-        CLUSTER BY {cluster_cols_sql}
-        AS {query_text}
-        """
-
-        job_config = bigquery.QueryJobConfig()
-
-        # Include a label so that Dataplex Lineage can identify temporary
-        # tables that BigQuery DataFrames creates. Googlers: See internal issue
-        # 296779699. We're labeling the job instead of the table because
-        # otherwise we get `BadRequest: 400 OPTIONS on temporary tables are not
-        # supported`.
-        job_config.labels = {"source": "bigquery-dataframes-temp"}
-        job_config.labels["bigframes-api"] = api_name
-
-        try:
-            self._start_query(
-                ddl_text, job_config=job_config
-            )  # Wait for the job to complete
-        except google.api_core.exceptions.Conflict:
-            # Allow query retry to succeed.
-            pass
-        return table
+        # There should always be a destination table for this query type.
+        return typing.cast(bigquery.TableReference, desination)
 
     def remote_function(
         self,
