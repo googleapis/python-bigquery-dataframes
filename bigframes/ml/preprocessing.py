@@ -288,7 +288,7 @@ class KBinsDiscretizer(
     def __init__(
         self,
         n_bins: int = 5,
-        strategy: Literal["uniform", "quantile", "kmeans"] = "quantile",
+        strategy: Literal["uniform", "quantile"] = "quantile",
     ):
         if strategy != "uniform":
             raise NotImplementedError(
@@ -334,7 +334,7 @@ class KBinsDiscretizer(
                 max_value = X[column].max()
                 bin_size = (max_value - min_value) / self.n_bins
                 array_split_points[column] = [
-                    min_value + i * bin_size for i in range(self.n_bins)
+                    min_value + i * bin_size for i in range(self.n_bins - 1)
                 ]
 
         return [
@@ -359,7 +359,7 @@ class KBinsDiscretizer(
         s = sql[sql.find("(") + 1 : sql.find(")")]
         array_split_points = s[s.find("[") + 1 : s.find("]")]
         col_label = s[: s.find(",")]
-        n_bins = array_split_points.count(",") + 1
+        n_bins = array_split_points.count(",") + 2
         return cls(n_bins, "uniform"), col_label
 
     def fit(
