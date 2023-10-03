@@ -956,46 +956,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _drop_by_index(self, index: indexes.Index) -> DataFrame:
         block = index._data._get_block()
-        original_value_columns = list(block.value_columns)
-        original_index_columns = list(block.index_columns)
-        original_index_names = self.index.names
-        # move all the columns to value columns
-        block = blocks.Block(
-            block._expr, [], original_index_columns + original_value_columns
+        block, ordering_col = block.promote_offsets()
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            block.index
         )
-        # additionally restore index columns in order to join
-        block = block.set_index(original_index_columns, drop=False)
-        index_df = DataFrame(block)
-        index_df.index.names = original_index_names
-        original_isna = index_df[original_index_columns[0]].isna()
-        for index_name in original_index_columns[1:]:
-            original_isna = original_isna & index_df[index_name].isna()
-        # used to drop NA-labeled rows later
-        original_has_all_na_row = original_isna.any()
 
-        # value columns on the index argument are superfluous and could cause
-        # name conflicts, so we drop them
-        index_df = index_df.drop(columns=original_value_columns)
-        df_with_indices_to_drop = self.join(index_df)
-        # df_with_indices_to_drop has columns from the original index argument's
-        # index columns, and if all such columns are <NA> for a row, it means that
-        # row was not listed and therefore should be kept. All rows with entries in
-        # the original index argument should be dropped.
-        bool_series = df_with_indices_to_drop[original_index_columns[0]].isna()
-        for index_name in original_index_columns[1:]:
-            bool_series = bool_series & df_with_indices_to_drop[index_name].isna()
-        result = df_with_indices_to_drop[bool_series]
-        result = result.drop(columns=original_index_columns)
-        # if the user passed a <NA> label to drop, it will not be dropped yet,
-        # so we drop all <NA> labeled rows here if needed
-        if original_has_all_na_row:
-            num_keys = len(original_index_columns)
-            if num_keys == 1:
-                result = result.drop(index=[None])
-            else:
-                none_key = [tuple([None] * num_keys)]
-                result = result.drop(index=none_key)
-        return result
+        new_ordering_col = get_column_right(ordering_col)
+        drop_block = joined_index._block
+        drop_block, drop_col = drop_block.apply_unary_op(
+            new_ordering_col,
+            ops.isnull_op,
+        )
+
+        drop_block = drop_block.filter(drop_col)
+        original_columns = [
+            get_column_left(column) for column in self._block.value_columns
+        ]
+        drop_block = drop_block.select_columns(original_columns)
+        return DataFrame(drop_block)
 
     def droplevel(self, level: LevelsType, axis: int | str = 0):
         axis_n = utils.get_axis_number(axis)
