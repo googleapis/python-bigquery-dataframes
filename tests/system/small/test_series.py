@@ -118,7 +118,7 @@ def test_series_get_with_default_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].get(key)
     pd_result = scalars_pandas_df[col_name].get(key)
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
@@ -157,7 +157,7 @@ def test_series___getitem___with_default_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name][key]
     pd_result = scalars_pandas_df[col_name][key]
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
@@ -2468,6 +2468,18 @@ def test_argmax(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+def test_series_idxmin(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.idxmin()
+    pd_result = scalars_pandas_df_index.string_col.idxmin()
+    assert bf_result == pd_result
+
+
+def test_series_idxmax(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.int64_too.idxmax()
+    pd_result = scalars_pandas_df_index.int64_too.idxmax()
+    assert bf_result == pd_result
+
+
 def test_getattr_attribute_error_when_pandas_has(scalars_df_index):
     # asof is implemented in pandas but not in bigframes
     with pytest.raises(AttributeError):
@@ -2640,7 +2652,7 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
     index = -2345
     bf_result = scalars_df_index.date_col.loc[index]
     pd_result = scalars_pandas_df_index.date_col.loc[index]
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 def test_series_bool_interpretation_error(scalars_df_index):
