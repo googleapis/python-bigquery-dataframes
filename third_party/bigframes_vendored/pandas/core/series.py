@@ -473,6 +473,30 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def idxmin(self) -> Hashable:
+        """
+        Return the row label of the minimum value.
+
+        If multiple values equal the minimum, the first row label with that
+        value is returned.
+
+        Returns:
+            Index: Label of the minimum value.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def idxmax(self) -> Hashable:
+        """
+        Return the row label of the maximum value.
+
+        If multiple values equal the maximum, the first row label with that
+        value is returned.
+
+        Returns:
+            Index: Label of the maximum value.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def round(self, decimals: int = 0) -> Series:
         """
         Round each value in a Series to the given number of decimals.

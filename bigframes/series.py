@@ -51,6 +51,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
+import bigframes.operations.structs as structs
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
@@ -128,6 +129,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def transpose(self) -> Series:
         return self
+
+    def struct(self) -> structs.StructAccessor:
+        return structs.StructAccessor(self._block)
 
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
@@ -896,6 +900,34 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return typing.cast(
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
+
+    def idxmax(self) -> blocks.Label:
+        block = self._block.order_by(
+            [
+                OrderingColumnReference(
+                    self._value_column, direction=OrderingDirection.DESC
+                ),
+                *[
+                    OrderingColumnReference(idx_col)
+                    for idx_col in self._block.index_columns
+                ],
+            ]
+        )
+        block = block.slice(0, 1)
+        return indexes.Index._from_block(block).to_pandas()[0]
+
+    def idxmin(self) -> blocks.Label:
+        block = self._block.order_by(
+            [
+                OrderingColumnReference(self._value_column),
+                *[
+                    OrderingColumnReference(idx_col)
+                    for idx_col in self._block.index_columns
+                ],
+            ]
+        )
+        block = block.slice(0, 1)
+        return indexes.Index._from_block(block).to_pandas()[0]
 
     @property
     def is_monotonic_increasing(self) -> bool:

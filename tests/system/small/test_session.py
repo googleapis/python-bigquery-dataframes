@@ -57,6 +57,7 @@ def test_read_gbq_tokyo(
         ),
         pytest.param(
             """SELECT
+                t.int64_col + 1 as my_ints,
                 t.float64_col * 2 AS my_floats,
                 CONCAT(t.string_col, "_2") AS my_strings,
                 t.int64_col > 0 AS my_bools,
@@ -321,11 +322,10 @@ def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
 
 
 def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default_index):
-    scalars_pandas_df_default_index["rowid"] = np.arange(
-        scalars_pandas_df_default_index.shape[0]
-    )
+    pandas_df = scalars_pandas_df_default_index.copy()
+    pandas_df["rowid"] = np.arange(pandas_df.shape[0])
 
-    df = session.read_pandas(scalars_pandas_df_default_index)
+    df = session.read_pandas(pandas_df)
     total_order_col = df._block._expr._ordering.total_order_col
     assert total_order_col and total_order_col.column_id == "rowid_2"
 
