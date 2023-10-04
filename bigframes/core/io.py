@@ -17,7 +17,7 @@
 import datetime
 import textwrap
 import types
-from typing import Dict, Optional, Sequence, Union, Iterable
+from typing import Dict, Iterable, Optional, Sequence, Union
 
 import google.cloud.bigquery as bigquery
 
