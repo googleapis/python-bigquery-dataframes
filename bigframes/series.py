@@ -124,14 +124,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._query_job
 
     @property
+    def struct(self) -> structs.StructAccessor:
+        return structs.StructAccessor(self._block)
+
+    @property
     def T(self) -> Series:
         return self.transpose()
 
     def transpose(self) -> Series:
         return self
-
-    def struct(self) -> structs.StructAccessor:
-        return structs.StructAccessor(self._block)
 
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
