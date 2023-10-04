@@ -38,8 +38,9 @@ class PaLM2TextGenerator(base.Predictor):
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>.
-            if None, use default connection in session context.
+            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully setup.
     """
 
     def __init__(
