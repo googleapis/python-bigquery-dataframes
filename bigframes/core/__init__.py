@@ -337,7 +337,9 @@ class ArrayValue:
         .. warning::
             The row numbers of result is non-deterministic, avoid to use.
         """
-        table = self._to_ibis_expr(expose_hidden_cols=True, fraction=fraction)
+        table = self._to_ibis_expr(
+            "unordered", expose_hidden_cols=True, fraction=fraction
+        )
         columns = [table[column_name] for column_name in self._column_names]
         hidden_ordering_columns = [
             table[column_name] for column_name in self._hidden_ordering_column_names
@@ -440,7 +442,7 @@ class ArrayValue:
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.columns)
-        count_expr = self._to_ibis_expr().count()
+        count_expr = self._to_ibis_expr("unordered").count()
         sql = self._session.ibis_client.compile(count_expr)
 
         # Support in-memory engines for hermetic unit tests.
@@ -556,7 +558,7 @@ class ArrayValue:
             by_column_id: column id of the aggregation key, this is preserved through the transform
             dropna: whether null keys should be dropped
         """
-        table = self._to_ibis_expr()
+        table = self._to_ibis_expr("unordered")
         stats = {
             col_out: agg_op._as_ibis(table[col_in])
             for col_in, agg_op, col_out in aggregations
@@ -606,7 +608,7 @@ class ArrayValue:
         Arguments:
             corr_aggregations: left_column_id, right_column_id, output_column_id tuples
         """
-        table = self._to_ibis_expr()
+        table = self._to_ibis_expr("unordered")
         stats = {
             col_out: table[col_left].corr(table[col_right], how="pop")
             for col_left, col_right, col_out in corr_aggregations
@@ -700,18 +702,16 @@ class ArrayValue:
         if sorted:
             sql = textwrap.dedent(
                 f"""
-                SELECT * EXCEPT ({offsets_id})
+                SELECT * EXCEPT (`{offsets_id}`)
                 FROM ({sql})
-                ORDER BY {offsets_id}
+                ORDER BY `{offsets_id}`
                 """
             )
         return typing.cast(str, sql)
 
     def _to_ibis_expr(
         self,
-        ordering_mode: Literal[
-            "string_encoded", "offset_col", "unordered"
-        ] = "unordered",
+        ordering_mode: Literal["string_encoded", "offset_col", "unordered"],
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
         expose_hidden_cols: bool = False,
         fraction: Optional[float] = None,
@@ -864,8 +864,6 @@ class ArrayValue:
         # a LocalSession for unit testing.
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
-
-        # DO NOT COMMIT: Make this ordered
         sql = self.to_sql(sorted=True)  # type:ignore
         return self._session._start_query(
             sql=sql,
@@ -885,6 +883,7 @@ class ArrayValue:
         recursively in projections.
         """
         table = self._to_ibis_expr(
+            "unordered",
             expose_hidden_cols=True,
         )
         columns = [table[column_name] for column_name in self._column_names]
@@ -967,7 +966,7 @@ class ArrayValue:
         """
         if how not in ("left", "right"):
             raise ValueError("'how' must be 'left' or 'right'")
-        table = self._to_ibis_expr(expose_hidden_cols=True)
+        table = self._to_ibis_expr("unordered", expose_hidden_cols=True)
         row_n = len(row_labels)
         hidden_col_ids = self._hidden_ordering_column_names.keys()
         if not all(
@@ -1130,7 +1129,7 @@ class ArrayValue:
 
     def cached(self, cluster_cols: typing.Sequence[str]) -> ArrayValue:
         """Write the ArrayValue to a session table and create a new block object that references it."""
-        ibis_expr = self._to_ibis_expr(expose_hidden_cols=True)
+        ibis_expr = self._to_ibis_expr("unordered", expose_hidden_cols=True)
         destination = self._session._ibis_to_session_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cache"
         )

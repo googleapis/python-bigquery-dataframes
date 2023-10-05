@@ -138,10 +138,12 @@ def join_by_column(
             return rmapping[col_id]
 
         left_table = left._to_ibis_expr(
+            "unordered",
             expose_hidden_cols=True,
             col_id_overrides=lmapping,
         )
         right_table = right._to_ibis_expr(
+            "unordered",
             expose_hidden_cols=True,
             col_id_overrides=rmapping,
         )
