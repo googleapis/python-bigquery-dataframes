@@ -98,6 +98,18 @@ class IlocSeriesIndexer:
         return _iloc_getitem_series_or_dataframe(self._series, key)
 
 
+class IatSeriesIndexer:
+    def __init__(self, series: bigframes.series.Series):
+        self._series = series
+
+    def __getitem__(self, key: int) -> bigframes.core.scalar.Scalar:
+        if not isinstance(key, int):
+            raise ValueError(
+                "ValueError: iAt based indexing can only have integer indexers"
+            )
+        return self._series.iloc[key]
+
+
 class LocDataFrameIndexer:
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
@@ -183,6 +195,28 @@ class ILocDataFrameIndexer:
         Other key types are not yet supported.
         """
         return _iloc_getitem_series_or_dataframe(self._dataframe, key)
+
+
+class IatDataFrameIndexer:
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
+        self._dataframe = dataframe
+
+    def __getitem__(self, key: int) -> bigframes.core.scalar.Scalar:
+        error_message = "DataFrame.iat should be indexed by a tuple of ints"
+        # we raise TypeError or ValueError under the same conditions that pandas does
+        if isinstance(key, int):
+            raise TypeError(error_message)
+        if not isinstance(key, tuple):
+            raise ValueError(error_message)
+        key_values_are_ints = [isinstance(key_value, int) for key_value in key]
+        if not all(key_values_are_ints):
+            raise ValueError(error_message)
+        if len(key) != 2:
+            raise TypeError(error_message)
+        block = self._dataframe._block
+        column_block = block.select_columns(block.value_columns[key[1]])
+        column = bigframes.series.Series(column_block)
+        return column.iloc[key[0]]
 
 
 @typing.overload
