@@ -1750,9 +1750,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block
         # Special case, unstack with mono-index transpose into a series
         if self.index.nlevels == 1:
-            block = block.stack(
-                how="right", dropna=False, sort=False, levels=self.columns.nlevels
-            )
+            block = block.stack(how="right", levels=self.columns.nlevels)
             return bigframes.series.Series(block)
 
         # Pivot by last level of index

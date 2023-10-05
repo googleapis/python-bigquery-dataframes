@@ -1830,6 +1830,8 @@ def test_df_describe(scalars_dfs):
 
 
 def test_df_stack(scalars_dfs):
+    if pandas.__version__.startswith("1.") or pandas.__version__.startswith("2.0"):
+        pytest.skip("pandas <2.1 uses different stack implementation")
     scalars_df, scalars_pandas_df = scalars_dfs
     # To match bigquery dataframes
     scalars_pandas_df = scalars_pandas_df.copy()
