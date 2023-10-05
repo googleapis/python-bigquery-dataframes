@@ -558,7 +558,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block.index, how=how
         )
 
-        series_column_id = other._value.get_name()
+        series_column_id = other._value_column
         series_col = get_column_right(series_column_id)
         block = joined_index._block
         for column_id, label in zip(
@@ -1069,6 +1069,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             labels = [mapper]
         return DataFrame(self._block.with_index_labels(labels))
+
+    def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
+        # Must be same object type, same column dtypes, and same label values
+        if not isinstance(other, DataFrame):
+            return False
+        return block_ops.equals(self._block, other._block)
 
     def assign(self, **kwargs) -> DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
@@ -2386,13 +2392,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             return array_value.to_sql(
-                ordering_mode="offset_col",
+                offset_column=ordering_id,
                 col_id_overrides=id_overrides,
-                order_col_name=ordering_id,
             )
         else:
             return array_value.to_sql(
-                ordering_mode="unordered",
                 col_id_overrides=id_overrides,
             )
 
