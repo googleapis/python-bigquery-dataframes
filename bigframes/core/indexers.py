@@ -202,8 +202,8 @@ class IatDataFrameIndexer:
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         self._dataframe = dataframe
 
-    def __getitem__(self, key: int) -> bigframes.core.scalar.Scalar:
-        error_message = "DataFrame.iat should be indexed by a tuple of ints"
+    def __getitem__(self, key: tuple) -> bigframes.core.scalar.Scalar:
+        error_message = "DataFrame.iat should be indexed by a tuple of exactly 2 ints"
         # we raise TypeError or ValueError under the same conditions that pandas does
         if isinstance(key, int):
             raise TypeError(error_message)
@@ -388,6 +388,18 @@ def _iloc_getitem_series_or_dataframe(
         return result_pd_df.iloc[0]
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)
+    elif isinstance(key, tuple) and len(key) == 0:
+        return series_or_dataframe
+    elif isinstance(key, tuple) and len(key) == 1:
+        return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
+    elif (
+        isinstance(key, tuple)
+        and isinstance(series_or_dataframe, bigframes.dataframe.DataFrame)
+        and len(key) == 2
+    ):
+        return series_or_dataframe.iat[key]
+    elif isinstance(key, tuple):
+        raise pd.errors.IndexingError("Too many indexers")
     elif pd.api.types.is_list_like(key):
         if len(key) == 0:
             return typing.cast(
