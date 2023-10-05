@@ -972,7 +972,19 @@ def test_get_dtypes_array_struct(session):
     dtypes = df.dtypes
     pd.testing.assert_series_equal(
         dtypes,
-        pd.Series({"array_column": np.dtype("O"), "struct_column": np.dtype("O")}),
+        pd.Series(
+            {
+                "array_column": np.dtype("O"),
+                "struct_column": pd.ArrowDtype(
+                    pa.struct(
+                        [
+                            ("string_field", pa.string()),
+                            ("float_field", pa.float64()),
+                        ]
+                    )
+                ),
+            }
+        ),
     )
 
 
@@ -1333,6 +1345,34 @@ def test_df_update(overwrite, filter_func):
     pd_df1.update(pd_df2, overwrite=overwrite, filter_func=filter_func)
 
     pd.testing.assert_frame_equal(bf_df1.to_pandas(), pd_df1)
+
+
+def test_df_idxmin():
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3], "b": [7, None, 3], "c": [4, 4, 4]}, index=["x", "y", "z"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+
+    bf_result = bf_df.idxmin().to_pandas()
+    pd_result = pd_df.idxmin()
+
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_idxmax():
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3], "b": [7, None, 3], "c": [4, 4, 4]}, index=["x", "y", "z"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+
+    bf_result = bf_df.idxmax().to_pandas()
+    pd_result = pd_df.idxmax()
+
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -2096,7 +2136,7 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
     bf_result = scalars_df_index.loc[index]
     pd_result = scalars_pandas_df_index.loc[index]
     pd.testing.assert_series_equal(
-        bf_result.to_pandas().iloc[0, :],
+        bf_result,
         pd_result,
     )
 
