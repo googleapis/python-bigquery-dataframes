@@ -25,7 +25,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
 
-def equals(block1: blocks.Block, block2: blocks.Block):
+def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
     if not block1.column_labels.equals(block2.column_labels):
         return False
     if block1.dtypes != block2.dtypes:
