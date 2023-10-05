@@ -103,9 +103,7 @@ class IatSeriesIndexer:
 
     def __getitem__(self, key: int) -> bigframes.core.scalar.Scalar:
         if not isinstance(key, int):
-            raise ValueError(
-                "ValueError: iAt based indexing can only have integer indexers"
-            )
+            raise ValueError("Series iAt based indexing can only have integer indexers")
         return self._series.iloc[key]
 
 
@@ -217,7 +215,7 @@ class IatDataFrameIndexer:
         if len(key) != 2:
             raise TypeError(error_message)
         block = self._dataframe._block
-        column_block = block.select_columns(block.value_columns[key[1]])
+        column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
 
