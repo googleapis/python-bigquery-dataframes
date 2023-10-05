@@ -46,7 +46,6 @@ import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.io
-import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -161,7 +160,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns=columns,  # type:ignore
                 dtype=dtype,  # type:ignore
             )
-            if pd_dataframe.size < MAX_INLINE_DF_SIZE:
+            if (
+                pd_dataframe.size < MAX_INLINE_DF_SIZE
+                # TODO(swast): Workaround data types limitation in inline data.
+                and not any(
+                    dt.pyarrow_dtype
+                    for dt in pd_dataframe.dtypes
+                    if isinstance(dt, pandas.ArrowDtype)
+                )
+            ):
                 self._block = blocks.block_from_local(
                     pd_dataframe, session or bigframes.pandas.get_global_session()
                 )
@@ -934,7 +941,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns = labels
 
         block = self._block
-        if index:
+        if index is not None:
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
@@ -944,6 +951,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block, condition_id = block.apply_unary_op(
                     inverse_condition_id, ops.invert_op
                 )
+            elif isinstance(index, indexes.Index):
+                return self._drop_by_index(index)
             else:
                 block, condition_id = block.apply_unary_op(
                     level_id, ops.partial_right(ops.ne_op, index)
@@ -953,9 +962,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         if columns:
             block = block.drop_columns(self._sql_names(columns))
-        if not index and not columns:
+        if index is None and not columns:
             raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
+
+    def _drop_by_index(self, index: indexes.Index) -> DataFrame:
+        block = index._data._get_block()
+        block, ordering_col = block.promote_offsets()
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            block.index
+        )
+
+        new_ordering_col = get_column_right(ordering_col)
+        drop_block = joined_index._block
+        drop_block, drop_col = drop_block.apply_unary_op(
+            new_ordering_col,
+            ops.isnull_op,
+        )
+
+        drop_block = drop_block.filter(drop_col)
+        original_columns = [
+            get_column_left(column) for column in self._block.value_columns
+        ]
+        drop_block = drop_block.select_columns(original_columns)
+        return DataFrame(drop_block)
 
     def droplevel(self, level: LevelsType, axis: int | str = 0):
         axis_n = utils.get_axis_number(axis)
@@ -1639,6 +1669,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     aggregate = agg
 
+    def idxmin(self) -> bigframes.series.Series:
+        return bigframes.series.Series(block_ops.idxmin(self._block))
+
+    def idxmax(self) -> bigframes.series.Series:
+        return bigframes.series.Series(block_ops.idxmax(self._block))
+
     def describe(self) -> DataFrame:
         df_numeric = self._drop_non_numeric(keep_bool=False)
         if len(df_numeric.columns) == 0:
@@ -1783,12 +1819,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ] = "inner",
         # TODO(garrettwu): Currently can take inner, outer, left and right. To support
         # cross joins
-        # TODO(garrettwu): Support "on" list of columns and None. Currently a single
-        # column must be provided
-        on: Optional[str] = None,
+        on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         *,
-        left_on: Optional[str] = None,
-        right_on: Optional[str] = None,
+        left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+        right_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
@@ -1802,96 +1836,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             left_on, right_on = on, on
 
-        left = self
-        left_on_sql = self._sql_names(left_on)
-        # 0 elements already throws an exception
-        if len(left_on_sql) > 1:
-            raise ValueError(f"The column label {left_on} is not unique.")
-        left_on_sql = left_on_sql[0]
+        if utils.is_list_like(left_on):
+            left_on = list(left_on)  # type: ignore
+        else:
+            left_on = [left_on]
 
-        right_on_sql = right._sql_names(right_on)
-        if len(right_on_sql) > 1:
-            raise ValueError(f"The column label {right_on} is not unique.")
-        right_on_sql = right_on_sql[0]
+        if utils.is_list_like(right_on):
+            right_on = list(right_on)  # type: ignore
+        else:
+            right_on = [right_on]
 
-        (
-            joined_expr,
-            join_key_ids,
-            (get_column_left, get_column_right),
-        ) = joins.join_by_column(
-            left._block.expr,
-            [left_on_sql],
-            right._block.expr,
-            [right_on_sql],
-            how=how,
+        left_join_ids = []
+        for label in left_on:  # type: ignore
+            left_col_id = self._resolve_label_exact(label)
+            # 0 elements already throws an exception
+            if not left_col_id:
+                raise ValueError(f"No column {label} found in self.")
+            left_join_ids.append(left_col_id)
+
+        right_join_ids = []
+        for label in right_on:  # type: ignore
+            right_col_id = right._resolve_label_exact(label)
+            if not right_col_id:
+                raise ValueError(f"No column {label} found in other.")
+            right_join_ids.append(right_col_id)
+
+        block = self._block.merge(
+            right._block,
+            how,
+            left_join_ids,
+            right_join_ids,
             sort=sort,
-            # In merging on the same column, it only returns 1 key column from coalesced both.
-            # While if 2 different columns, both will be presented in the result.
-            coalesce_join_keys=(left_on == right_on),
-        )
-        # TODO(swast): Add suffixes to the column labels instead of reusing the
-        # column IDs as the new labels.
-        # Drop the index column(s) to be consistent with pandas.
-        left_columns = [
-            join_key_ids[0] if (col_id == left_on_sql) else get_column_left(col_id)
-            for col_id in left._block.value_columns
-        ]
-
-        right_columns = []
-        for col_id in right._block.value_columns:
-            if col_id == right_on_sql:
-                # When left_on == right_on
-                if len(join_key_ids) > 1:
-                    right_columns.append(join_key_ids[1])
-            else:
-                right_columns.append(get_column_right(col_id))
-
-        expr = joined_expr.select_columns([*left_columns, *right_columns])
-        labels = self._get_merged_col_labels(
-            right, left_on=left_on, right_on=right_on, suffixes=suffixes
-        )
-
-        # Constructs default index
-        expr, offset_index_id = expr.promote_offsets()
-        block = blocks.Block(
-            expr, index_columns=[offset_index_id], column_labels=labels
+            suffixes=suffixes,
         )
         return DataFrame(block)
-
-    def _get_merged_col_labels(
-        self,
-        right: DataFrame,
-        left_on: str,
-        right_on: str,
-        suffixes: tuple[str, str] = ("_x", "_y"),
-    ) -> List[blocks.Label]:
-        on_col_equal = left_on == right_on
-
-        left_col_labels: list[blocks.Label] = []
-        for col_label in self._block.column_labels:
-            if col_label in right._block.column_labels:
-                if on_col_equal and col_label == left_on:
-                    # Merging on the same column only returns 1 key column from coalesce both.
-                    # Take the left key column.
-                    left_col_labels.append(col_label)
-                else:
-                    left_col_labels.append(str(col_label) + suffixes[0])
-            else:
-                left_col_labels.append(col_label)
-
-        right_col_labels: list[blocks.Label] = []
-        for col_label in right._block.column_labels:
-            if col_label in self._block.column_labels:
-                if on_col_equal and col_label == left_on:
-                    # Merging on the same column only returns 1 key column from coalesce both.
-                    # Pass the right key column.
-                    pass
-                else:
-                    right_col_labels.append(str(col_label) + suffixes[1])
-            else:
-                right_col_labels.append(col_label)
-
-        return left_col_labels + right_col_labels
 
     def join(
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
