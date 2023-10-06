@@ -51,6 +51,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
+import bigframes.operations.structs as structs
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
@@ -99,6 +100,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.shape[0]
 
     @property
+    def ndim(self) -> int:
+        return 1
+
+    @property
     def empty(self) -> bool:
         return self.shape[0] == 0
 
@@ -117,6 +122,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
         return self._query_job
+
+    @property
+    def struct(self) -> structs.StructAccessor:
+        return structs.StructAccessor(self._block)
+
+    @property
+    def T(self) -> Series:
+        return self.transpose()
+
+    def transpose(self) -> Series:
+        return self
 
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
@@ -192,6 +208,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             labels = [mapper]
         return Series(self._block.with_index_labels(labels))
+
+    def equals(
+        self, other: typing.Union[Series, bigframes.dataframe.DataFrame]
+    ) -> bool:
+        # Must be same object type, same column dtypes, and same label values
+        if not isinstance(other, Series):
+            return False
+        return block_ops.equals(self._block, other._block)
 
     def reset_index(
         self,
@@ -356,6 +380,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
+
+    pad = ffill
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.WindowSpec(preceding=0, following=limit)
@@ -738,6 +764,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 agg_ops.lookup_agg_func(typing.cast(str, func))
             )
 
+    aggregate = agg
+
     def skew(self):
         count = self.count()
         if count < 3:
@@ -881,6 +909,34 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return typing.cast(
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
+
+    def idxmax(self) -> blocks.Label:
+        block = self._block.order_by(
+            [
+                OrderingColumnReference(
+                    self._value_column, direction=OrderingDirection.DESC
+                ),
+                *[
+                    OrderingColumnReference(idx_col)
+                    for idx_col in self._block.index_columns
+                ],
+            ]
+        )
+        block = block.slice(0, 1)
+        return indexes.Index._from_block(block).to_pandas()[0]
+
+    def idxmin(self) -> blocks.Label:
+        block = self._block.order_by(
+            [
+                OrderingColumnReference(self._value_column),
+                *[
+                    OrderingColumnReference(idx_col)
+                    for idx_col in self._block.index_columns
+                ],
+            ]
+        )
+        block = block.slice(0, 1)
+        return indexes.Index._from_block(block).to_pandas()[0]
 
     @property
     def is_monotonic_increasing(self) -> bool:
@@ -1102,7 +1158,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def apply(self, func) -> Series:
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
-        return self._apply_unary_op(ops.RemoteFunctionOp(func))
+        # Reproject as workaround to applying filter too late. This forces the filter
+        # to be applied before passing data to remote function, protecting from bad
+        # inputs causing errors.
+        reprojected_series = Series(self._block._force_reproject())
+        return reprojected_series._apply_unary_op(ops.RemoteFunctionOp(func))
 
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))

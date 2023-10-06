@@ -44,7 +44,6 @@ def join_by_column(
         "right",
     ],
     sort: bool = False,
-    coalesce_join_keys: bool = True,
     allow_row_identity_join: bool = True,
 ) -> Tuple[
     core.ArrayValue,
@@ -59,8 +58,6 @@ def join_by_column(
         right: Expression for right table to join.
         right_column_ids: Column IDs (not label) to join by.
         how: The type of join to perform.
-        coalesce_join_keys: if set to False, returned column ids will contain
-            both left and right join key columns.
         allow_row_identity_join (bool):
             If True, allow matching by row identity. Set to False to always
             perform a true JOIN in generated SQL.
@@ -71,22 +68,20 @@ def join_by_column(
         * Sequence[str]: Column IDs of the coalesced join columns. Sometimes either the
           left/right table will have missing rows. This column pulls the
           non-NULL value from either left/right.
-          If coalesce_join_keys is False, will return uncombined left and
-          right key columns.
         * Tuple[Callable, Callable]: For a given column ID from left or right,
           respectively, return the new column id from the combined expression.
     """
     if (
         allow_row_identity_join
         and how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
-        and left.table.equals(right.table)
+        and left._table.equals(right._table)
         # Make sure we're joining on exactly the same column(s), at least with
         # regards to value its possible that they both have the same names but
         # were modified in different ways. Ignore differences in the names.
         and all(
-            left.get_any_column(lcol)
+            left._get_any_column(lcol)
             .name("index")
-            .equals(right.get_any_column(rcol).name("index"))
+            .equals(right._get_any_column(rcol).name("index"))
             for lcol, rcol in zip(left_column_ids, right_column_ids)
         )
     ):
@@ -95,16 +90,16 @@ def join_by_column(
             get_column_right,
         ) = bigframes.core.joins.row_identity.join_by_row_identity(left, right, how=how)
         left_join_keys = [
-            combined_expr.get_column(get_column_left(col)) for col in left_column_ids
+            combined_expr._get_ibis_column(get_column_left(col))
+            for col in left_column_ids
         ]
         right_join_keys = [
-            combined_expr.get_column(get_column_right(col)) for col in right_column_ids
+            combined_expr._get_ibis_column(get_column_right(col))
+            for col in right_column_ids
         ]
-        join_key_cols = get_join_cols(
-            left_join_keys, right_join_keys, how, coalesce_join_keys
-        )
+        join_key_cols = get_coalesced_join_cols(left_join_keys, right_join_keys, how)
         join_key_ids = [col.get_name() for col in join_key_cols]
-        combined_expr = combined_expr.projection(
+        combined_expr = combined_expr._projection(
             [*join_key_cols, *combined_expr.columns]
         )
         if sort:
@@ -126,13 +121,13 @@ def join_by_column(
         lmapping = {
             col_id: guid.generate_guid()
             for col_id in itertools.chain(
-                left.column_names, left._hidden_ordering_column_names
+                left.column_ids, left._hidden_ordering_column_names
             )
         }
         rmapping = {
             col_id: guid.generate_guid()
             for col_id in itertools.chain(
-                right.column_names, right._hidden_ordering_column_names
+                right.column_ids, right._hidden_ordering_column_names
             )
         }
 
@@ -143,12 +138,12 @@ def join_by_column(
             return rmapping[col_id]
 
         left_table = left._to_ibis_expr(
-            ordering_mode="unordered",
+            "unordered",
             expose_hidden_cols=True,
             col_id_overrides=lmapping,
         )
         right_table = right._to_ibis_expr(
-            ordering_mode="unordered",
+            "unordered",
             expose_hidden_cols=True,
             col_id_overrides=rmapping,
         )
@@ -182,9 +177,7 @@ def join_by_column(
         right_join_keys = [
             combined_table[get_column_right(col)] for col in right_column_ids
         ]
-        join_key_cols = get_join_cols(
-            left_join_keys, right_join_keys, how, coalesce_join_keys
-        )
+        join_key_cols = get_coalesced_join_cols(left_join_keys, right_join_keys, how)
         # We could filter out the original join columns, but predicates/ordering
         # might still reference them in implicit joins.
         columns = (
@@ -226,46 +219,35 @@ def join_by_column(
         )
 
 
-def get_join_cols(
+def get_coalesced_join_cols(
     left_join_cols: typing.Iterable[ibis_types.Value],
     right_join_cols: typing.Iterable[ibis_types.Value],
     how: str,
-    coalesce_join_keys: bool = True,
 ) -> typing.List[ibis_types.Value]:
     join_key_cols: list[ibis_types.Value] = []
     for left_col, right_col in zip(left_join_cols, right_join_cols):
-        if not coalesce_join_keys:
+        if how == "left" or how == "inner":
             join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
+        elif how == "right":
             join_key_cols.append(right_col.name(guid.generate_guid(prefix="index_")))
-        else:
-            if how == "left" or how == "inner":
+        elif how == "outer":
+            # The left index and the right index might contain null values, for
+            # example due to an outer join with different numbers of rows. Coalesce
+            # these to take the index value from either column.
+            # Use a random name in case the left index and the right index have the
+            # same name. In such a case, _x and _y suffixes will already be used.
+            # Don't need to coalesce if they are exactly the same column.
+            if left_col.name("index").equals(right_col.name("index")):
                 join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
-            elif how == "right":
-                join_key_cols.append(
-                    right_col.name(guid.generate_guid(prefix="index_"))
-                )
-            elif how == "outer":
-                # The left index and the right index might contain null values, for
-                # example due to an outer join with different numbers of rows. Coalesce
-                # these to take the index value from either column.
-                # Use a random name in case the left index and the right index have the
-                # same name. In such a case, _x and _y suffixes will already be used.
-                # Don't need to coalesce if they are exactly the same column.
-                if left_col.name("index").equals(right_col.name("index")):
-                    join_key_cols.append(
-                        left_col.name(guid.generate_guid(prefix="index_"))
-                    )
-                else:
-                    join_key_cols.append(
-                        ibis.coalesce(
-                            left_col,
-                            right_col,
-                        ).name(guid.generate_guid(prefix="index_"))
-                    )
             else:
-                raise ValueError(
-                    f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}"
+                join_key_cols.append(
+                    ibis.coalesce(
+                        left_col,
+                        right_col,
+                    ).name(guid.generate_guid(prefix="index_"))
                 )
+        else:
+            raise ValueError(f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}")
     return join_key_cols
 
 

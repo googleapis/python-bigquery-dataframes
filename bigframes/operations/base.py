@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import typing
 
-import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.constants as constants
@@ -86,7 +85,15 @@ class SeriesMethods:
             if pd_series.name is None:
                 # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
                 pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            if pd_dataframe.size < MAX_INLINE_SERIES_SIZE:
+            if (
+                pd_dataframe.size < MAX_INLINE_SERIES_SIZE
+                # TODO(swast): Workaround data types limitation in inline data.
+                and not any(
+                    dt.pyarrow_dtype
+                    for dt in pd_dataframe.dtypes
+                    if isinstance(dt, pd.ArrowDtype)
+                )
+            ):
                 self._block = blocks.block_from_local(
                     pd_dataframe, session or bigframes.pandas.get_global_session()
                 )
@@ -97,11 +104,6 @@ class SeriesMethods:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
             if pd_series.name is None:
                 self._block = self._block.with_column_labels([None])
-
-    @property
-    def _value(self) -> ibis_types.Value:
-        """Private property to get Ibis expression for the value column."""
-        return self._block.expr.get_column(self._value_column)
 
     @property
     def _value_column(self) -> str:

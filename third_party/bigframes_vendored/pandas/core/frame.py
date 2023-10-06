@@ -399,6 +399,28 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # Unsorted
 
+    def equals(self, other) -> bool:
+        """
+        Test whether two objects contain the same elements.
+
+        This function allows two Series or DataFrames to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns must be of
+        the same dtype.
+
+        Args:
+            other (Series or DataFrame):
+                The other Series or DataFrame to be compared with the first.
+
+        Returns:
+            bool: True if all elements are the same in both objects, False
+            otherwise.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def assign(self, **kwargs) -> DataFrame:
         r"""
         Assign new columns to a DataFrame.
@@ -1468,14 +1490,14 @@ class DataFrame(NDFrame):
                 ``inner``: use intersection of keys from both frames, similar to a SQL inner
                 join; preserve the order of the left keys.
 
-            on:
-                Column join on. It must be found in both DataFrames. Either on or left_on + right_on
+            on (label or list of labels):
+                Columns to join on. It must be found in both DataFrames. Either on or left_on + right_on
                 must be passed in.
-            left_on:
-                Column join on in the left DataFrame. Either on or left_on + right_on
+            left_on (label or list of labels):
+                Columns to join on in the left DataFrame. Either on or left_on + right_on
                 must be passed in.
-            right_on:
-                Column join on in the right DataFrame. Either on or left_on + right_on
+            right_on (label or list of labels):
+                Columns to join on in the right DataFrame. Either on or left_on + right_on
                 must be passed in.
             sort:
                 Default False. Sort the join keys lexicographically in the
@@ -1802,6 +1824,28 @@ class DataFrame(NDFrame):
             This function cannot be used with all column types. For example, when
             specifying columns with `object` or `category` dtypes, ``TypeError`` is
             raised.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def idxmin(self):
+        """
+        Return index of first occurrence of minimum over requested axis.
+
+        NA/null values are excluded.
+
+        Returns:
+            Series: Indexes of minima along the specified axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def idxmax(self):
+        """
+        Return index of first occurrence of maximum over requested axis.
+
+        NA/null values are excluded.
+
+        Returns:
+            Series: Indexes of maxima along the specified axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
