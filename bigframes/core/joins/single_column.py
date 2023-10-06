@@ -16,9 +16,8 @@
 
 from __future__ import annotations
 
-import itertools
 import typing
-from typing import Callable, Literal, Tuple
+from typing import Literal, Mapping
 
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
@@ -27,6 +26,7 @@ import ibis.expr.types as ibis_types
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
+import bigframes.core.joins.name_resolution as naming
 import bigframes.core.joins.row_identity
 import bigframes.core.ordering
 
@@ -43,13 +43,8 @@ def join_by_column(
         "outer",
         "right",
     ],
-    sort: bool = False,
     allow_row_identity_join: bool = True,
-) -> Tuple[
-    core.ArrayValue,
-    typing.Sequence[str],
-    Tuple[Callable[[str], str], Callable[[str], str]],
-]:
+) -> core.ArrayValue:
     """Join two expressions by column equality.
 
     Arguments:
@@ -62,15 +57,12 @@ def join_by_column(
             If True, allow matching by row identity. Set to False to always
             perform a true JOIN in generated SQL.
     Returns:
-        The joined expression and the objects needed to interpret it.
-
-        * ArrayValue: Joined table with all columns from left and right.
-        * Sequence[str]: Column IDs of the coalesced join columns. Sometimes either the
-          left/right table will have missing rows. This column pulls the
-          non-NULL value from either left/right.
-        * Tuple[Callable, Callable]: For a given column ID from left or right,
-          respectively, return the new column id from the combined expression.
+        The joined expression. The resulting columns will be, in order,
+        first the coalesced join keys, then, all the left columns, and
+        finally, all the right columns.
     """
+    # Value column mapping must use JOIN_NAME_REMAPPER to stay in sync with consumers of join result
+    lmapping, rmapping = naming.JOIN_NAME_REMAPPER(left.column_ids, right.column_ids)
     if (
         allow_row_identity_join
         and how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
@@ -85,67 +77,23 @@ def join_by_column(
             for lcol, rcol in zip(left_column_ids, right_column_ids)
         )
     ):
-        combined_expr, (
-            get_column_left,
-            get_column_right,
-        ) = bigframes.core.joins.row_identity.join_by_row_identity(left, right, how=how)
-        left_join_keys = [
-            combined_expr._get_ibis_column(get_column_left(col))
-            for col in left_column_ids
-        ]
-        right_join_keys = [
-            combined_expr._get_ibis_column(get_column_right(col))
-            for col in right_column_ids
-        ]
-        join_key_cols = get_coalesced_join_cols(left_join_keys, right_join_keys, how)
-        join_key_ids = [col.get_name() for col in join_key_cols]
-        combined_expr = combined_expr._projection(
-            [*join_key_cols, *combined_expr.columns]
-        )
-        if sort:
-            combined_expr = combined_expr.order_by(
-                [
-                    core.OrderingColumnReference(join_col_id)
-                    for join_col_id in join_key_ids
-                ]
-            )
-        return (
-            combined_expr,
-            join_key_ids,
-            (
-                get_column_left,
-                get_column_right,
-            ),
+        return bigframes.core.joins.row_identity.join_by_row_identity(
+            left, right, how=how
         )
     else:
-        lmapping = {
-            col_id: guid.generate_guid()
-            for col_id in itertools.chain(
-                left.column_ids, left._hidden_ordering_column_names
-            )
-        }
-        rmapping = {
-            col_id: guid.generate_guid()
-            for col_id in itertools.chain(
-                right.column_ids, right._hidden_ordering_column_names
-            )
-        }
-
-        def get_column_left(col_id):
-            return lmapping[col_id]
-
-        def get_column_right(col_id):
-            return rmapping[col_id]
+        lhiddenmapping, rhiddenmapping = naming.JoinNameRemapper(namespace="hidden")(
+            left._hidden_column_ids, right._hidden_column_ids
+        )
 
         left_table = left._to_ibis_expr(
             "unordered",
             expose_hidden_cols=True,
-            col_id_overrides=lmapping,
+            col_id_overrides={**lmapping, **lhiddenmapping},
         )
         right_table = right._to_ibis_expr(
             "unordered",
             expose_hidden_cols=True,
-            col_id_overrides=rmapping,
+            col_id_overrides={**rmapping, **rhiddenmapping},
         )
         join_conditions = [
             value_to_join_key(left_table[lmapping[left_index]])
@@ -158,64 +106,38 @@ def join_by_column(
             right_table,
             predicates=join_conditions,
             how=how,
-            lname="{name}_x",
-            rname="{name}_y",
         )
 
         # Preserve ordering accross joins.
         ordering = join_orderings(
             left._ordering,
             right._ordering,
-            get_column_left,
-            get_column_right,
+            {**lmapping, **lhiddenmapping},
+            {**rmapping, **rhiddenmapping},
             left_order_dominates=(how != "right"),
         )
 
-        left_join_keys = [
-            combined_table[get_column_left(col)] for col in left_column_ids
-        ]
-        right_join_keys = [
-            combined_table[get_column_right(col)] for col in right_column_ids
-        ]
-        join_key_cols = get_coalesced_join_cols(left_join_keys, right_join_keys, how)
         # We could filter out the original join columns, but predicates/ordering
         # might still reference them in implicit joins.
-        columns = (
-            join_key_cols
-            + [combined_table[get_column_left(col.get_name())] for col in left.columns]
-            + [
-                combined_table[get_column_right(col.get_name())]
-                for col in right.columns
-            ]
-        )
+        columns = [combined_table[lmapping[col.get_name()]] for col in left.columns] + [
+            combined_table[rmapping[col.get_name()]] for col in right.columns
+        ]
         hidden_ordering_columns = [
             *[
-                combined_table[get_column_left(col.get_name())]
-                for col in left.hidden_ordering_columns
+                combined_table[lhiddenmapping[col.get_name()]]
+                for col in left._hidden_ordering_columns
             ],
             *[
-                combined_table[get_column_right(col.get_name())]
-                for col in right.hidden_ordering_columns
+                combined_table[rhiddenmapping[col.get_name()]]
+                for col in right._hidden_ordering_columns
             ],
         ]
-        combined_expr = core.ArrayValue(
+        return core.ArrayValue(
             left._session,
             combined_table,
             columns=columns,
             hidden_ordering_columns=hidden_ordering_columns,
             ordering=ordering,
-        )
-        if sort:
-            combined_expr = combined_expr.order_by(
-                [
-                    core.OrderingColumnReference(join_key_col.get_name())
-                    for join_key_col in join_key_cols
-                ]
-            )
-        return (
-            combined_expr,
-            [key.get_name() for key in join_key_cols],
-            (get_column_left, get_column_right),
         )
 
 
@@ -261,16 +183,16 @@ def value_to_join_key(value: ibis_types.Value):
 def join_orderings(
     left: core.ExpressionOrdering,
     right: core.ExpressionOrdering,
-    left_id_mapping: Callable[[str], str],
-    right_id_mapping: Callable[[str], str],
+    left_id_mapping: Mapping[str, str],
+    right_id_mapping: Mapping[str, str],
     left_order_dominates: bool = True,
 ) -> core.ExpressionOrdering:
     left_ordering_refs = [
-        ref.with_name(left_id_mapping(ref.column_id))
+        ref.with_name(left_id_mapping[ref.column_id])
         for ref in left.all_ordering_columns
     ]
     right_ordering_refs = [
-        ref.with_name(right_id_mapping(ref.column_id))
+        ref.with_name(right_id_mapping[ref.column_id])
         for ref in right.all_ordering_columns
     ]
     if left_order_dominates:
@@ -279,10 +201,10 @@ def join_orderings(
         joined_refs = [*right_ordering_refs, *left_ordering_refs]
 
     left_total_order_cols = frozenset(
-        [left_id_mapping(id) for id in left.total_ordering_columns]
+        [left_id_mapping[id] for id in left.total_ordering_columns]
     )
     right_total_order_cols = frozenset(
-        [right_id_mapping(id) for id in right.total_ordering_columns]
+        [right_id_mapping[id] for id in right.total_ordering_columns]
     )
     return core.ExpressionOrdering(
         ordering_value_columns=joined_refs,
