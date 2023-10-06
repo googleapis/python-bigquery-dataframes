@@ -872,6 +872,40 @@ def test_read_parquet_gcs_compressed(
     pd.testing.assert_frame_equal(pd_df_in, pd_df_out)
 
 
+@pytest.mark.parametrize(
+    "compression",
+    [
+        "brotli",
+        "lz4",
+        "zstd",
+        "unknown",
+    ],
+)
+def test_read_parquet_gcs_compression_not_supported(
+    session: bigframes.Session, scalars_dfs, gcs_folder, compression
+):
+    scalars_df, _ = scalars_dfs
+    # Include wildcard so that multiple files can be written/read if > 1 GB.
+    # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
+    path = (
+        gcs_folder
+        + test_read_parquet_gcs_compression_not_supported.__name__
+        + (f"_{compression}" if compression else "")
+        + "*.parquet"
+    )
+    df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
+    # GEOGRAPHY not supported in parquet export.
+    df_in = df_in.drop(columns="geography_col")
+    # Make sure we can also serialize the order.
+    df_write = df_in.reset_index(drop=False)
+    df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
+
+    with pytest.raises(
+        ValueError, match=f"'{compression}' is not valid for compression"
+    ):
+        df_write.to_parquet(path, compression=compression, index=True)
+
+
 def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     path = gcs_folder + "test_read_json_gcs_bq_engine_w_index*.json"

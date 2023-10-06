@@ -2261,7 +2261,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         if compression not in {None, "snappy", "gzip"}:
-            raise ValueError("'{0}' is not valid for if_exists".format(compression))
+            raise ValueError("'{0}' is not valid for compression".format(compression))
 
         export_options: Dict[str, Union[bool, str]] = {}
         if compression:
