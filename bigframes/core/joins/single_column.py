@@ -23,9 +23,7 @@ import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
-import bigframes.constants as constants
 import bigframes.core as core
-import bigframes.core.guid as guid
 import bigframes.core.joins.name_resolution as naming
 import bigframes.core.joins.row_identity
 import bigframes.core.ordering
@@ -61,8 +59,6 @@ def join_by_column(
         first the coalesced join keys, then, all the left columns, and
         finally, all the right columns.
     """
-    # Value column mapping must use JOIN_NAME_REMAPPER to stay in sync with consumers of join result
-    lmapping, rmapping = naming.JOIN_NAME_REMAPPER(left.column_ids, right.column_ids)
     if (
         allow_row_identity_join
         and how in bigframes.core.joins.row_identity.SUPPORTED_ROW_IDENTITY_HOW
@@ -81,23 +77,29 @@ def join_by_column(
             left, right, how=how
         )
     else:
-        lhiddenmapping, rhiddenmapping = naming.JoinNameRemapper(namespace="hidden")(
-            left._hidden_column_ids, right._hidden_column_ids
+        # Value column mapping must use JOIN_NAME_REMAPPER to stay in sync with consumers of join result
+        l_public_mapping, r_public_mapping = naming.JOIN_NAME_REMAPPER(
+            left.column_ids, right.column_ids
         )
+        l_hidden_mapping, r_hidden_mapping = naming.JoinNameRemapper(
+            namespace="hidden"
+        )(left._hidden_column_ids, right._hidden_column_ids)
+        l_mapping = {**l_public_mapping, **l_hidden_mapping}
+        r_mapping = {**r_public_mapping, **r_hidden_mapping}
 
         left_table = left._to_ibis_expr(
             "unordered",
             expose_hidden_cols=True,
-            col_id_overrides={**lmapping, **lhiddenmapping},
+            col_id_overrides=l_mapping,
         )
         right_table = right._to_ibis_expr(
             "unordered",
             expose_hidden_cols=True,
-            col_id_overrides={**rmapping, **rhiddenmapping},
+            col_id_overrides=r_mapping,
         )
         join_conditions = [
-            value_to_join_key(left_table[lmapping[left_index]])
-            == value_to_join_key(right_table[rmapping[right_index]])
+            value_to_join_key(left_table[l_mapping[left_index]])
+            == value_to_join_key(right_table[r_mapping[right_index]])
             for left_index, right_index in zip(left_column_ids, right_column_ids)
         ]
 
@@ -112,23 +114,23 @@ def join_by_column(
         ordering = join_orderings(
             left._ordering,
             right._ordering,
-            {**lmapping, **lhiddenmapping},
-            {**rmapping, **rhiddenmapping},
+            l_mapping,
+            r_mapping,
             left_order_dominates=(how != "right"),
         )
 
         # We could filter out the original join columns, but predicates/ordering
         # might still reference them in implicit joins.
-        columns = [combined_table[lmapping[col.get_name()]] for col in left.columns] + [
-            combined_table[rmapping[col.get_name()]] for col in right.columns
-        ]
+        columns = [
+            combined_table[l_mapping[col.get_name()]] for col in left.columns
+        ] + [combined_table[r_mapping[col.get_name()]] for col in right.columns]
         hidden_ordering_columns = [
             *[
-                combined_table[lhiddenmapping[col.get_name()]]
+                combined_table[l_hidden_mapping[col.get_name()]]
                 for col in left._hidden_ordering_columns
             ],
             *[
-                combined_table[rhiddenmapping[col.get_name()]]
+                combined_table[r_hidden_mapping[col.get_name()]]
                 for col in right._hidden_ordering_columns
             ],
         ]
@@ -139,38 +141,6 @@ def join_by_column(
             hidden_ordering_columns=hidden_ordering_columns,
             ordering=ordering,
         )
-
-
-def get_coalesced_join_cols(
-    left_join_cols: typing.Iterable[ibis_types.Value],
-    right_join_cols: typing.Iterable[ibis_types.Value],
-    how: str,
-) -> typing.List[ibis_types.Value]:
-    join_key_cols: list[ibis_types.Value] = []
-    for left_col, right_col in zip(left_join_cols, right_join_cols):
-        if how == "left" or how == "inner":
-            join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
-        elif how == "right":
-            join_key_cols.append(right_col.name(guid.generate_guid(prefix="index_")))
-        elif how == "outer":
-            # The left index and the right index might contain null values, for
-            # example due to an outer join with different numbers of rows. Coalesce
-            # these to take the index value from either column.
-            # Use a random name in case the left index and the right index have the
-            # same name. In such a case, _x and _y suffixes will already be used.
-            # Don't need to coalesce if they are exactly the same column.
-            if left_col.name("index").equals(right_col.name("index")):
-                join_key_cols.append(left_col.name(guid.generate_guid(prefix="index_")))
-            else:
-                join_key_cols.append(
-                    ibis.coalesce(
-                        left_col,
-                        right_col,
-                    ).name(guid.generate_guid(prefix="index_"))
-                )
-        else:
-            raise ValueError(f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}")
-    return join_key_cols
 
 
 def value_to_join_key(value: ibis_types.Value):

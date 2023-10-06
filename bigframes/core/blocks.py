@@ -1495,7 +1495,18 @@ class Block:
             self.expr.column_ids, other.expr.column_ids
         )
         result_columns = []
-        labels_to_coalesce = []
+        matching_join_labels = []
+
+        coalesced_ids = []
+        for left_id, right_id in zip(left_join_ids, right_join_ids):
+            coalesced_id = guid.generate_guid()
+            joined_expr = joined_expr.project_binary_op(
+                get_column_left[left_id],
+                get_column_right[right_id],
+                ops.coalesce_op,
+                coalesced_id,
+            )
+            coalesced_ids.append(coalesced_id)
 
         for col_id in self.value_columns:
             if col_id in left_join_ids:
@@ -1505,15 +1516,8 @@ class Block:
                     self.col_id_to_label[col_id]
                     == other.col_id_to_label[matching_right_id]
                 ):
-                    labels_to_coalesce.append(self.col_id_to_label[col_id])
-                    coalesced_id = guid.generate_guid()
-                    joined_expr = joined_expr.project_binary_op(
-                        get_column_left[col_id],
-                        get_column_right[matching_right_id],
-                        ops.coalesce_op,
-                        coalesced_id,
-                    )
-                    result_columns.append(coalesced_id)
+                    matching_join_labels.append(self.col_id_to_label[col_id])
+                    result_columns.append(coalesced_ids[key_part])
                 else:
                     result_columns.append(get_column_left[col_id])
             else:
@@ -1521,18 +1525,25 @@ class Block:
         for col_id in other.value_columns:
             if col_id in right_join_ids:
                 key_part = right_join_ids.index(col_id)
-                if other.col_id_to_label[matching_right_id] in labels_to_coalesce:
+                if other.col_id_to_label[matching_right_id] in matching_join_labels:
                     pass
                 else:
                     result_columns.append(get_column_right[col_id])
             else:
                 result_columns.append(get_column_right[col_id])
 
+        if sort:
+            # sort uses coalesced join keys always
+            joined_expr = joined_expr.order_by(
+                [ordering.OrderingColumnReference(col_id) for col_id in coalesced_ids],
+                stable=True,
+            )
+
         joined_expr = joined_expr.select_columns(result_columns)
         labels = utils.merge_column_labels(
             self.column_labels,
             other.column_labels,
-            coalesce_labels=labels_to_coalesce,
+            coalesce_labels=matching_join_labels,
             suffixes=suffixes,
         )
         # Constructs default index

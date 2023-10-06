@@ -1108,10 +1108,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # local_df is likely (but not guarunteed) to be cached locally
             # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            col_id = bigframes.core.guid.generate_guid()
-            this_expr, this_offsets_col_id = self._get_block()._expr.promote_offsets(
-                col_id
-            )
+            this_offsets_col_id = bigframes.core.guid.generate_guid()
+            this_expr = self._get_block()._expr.promote_offsets(this_offsets_col_id)
             block = blocks.Block(
                 expr=this_expr,
                 index_labels=self.index.names,
