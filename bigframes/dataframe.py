@@ -2566,12 +2566,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _cached(self) -> DataFrame:
         return DataFrame(self._block.cached())
 
-    def dot(self, other: DataFrame) -> DataFrame:
-        if not isinstance(other, DataFrame):
-            raise NotImplementedError("Only DataFrame operand is supported")
+    _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
-        # if not self.columns.equals(other.index):
-        #     raise ValueError("matrices are not aligned")
+    def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
+        if not isinstance(other, (DataFrame, bf_series.Series)):
+            raise NotImplementedError("Only DataFrame or Series operand is supported")
 
         # Convert the dataframes into cell-value-decomposed representation, i.e.
         # each cell value is present in a separate row
@@ -2588,10 +2587,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         def get_right_id(id):
             return f"{id}{right_suffix}"
 
+        other_frame = other if isinstance(other, DataFrame) else other.to_frame()
+
         left = self.stack().reset_index()
         left.columns = cvd_columns
 
-        right = other.stack().reset_index()
+        right = other_frame.stack().reset_index()
         right.columns = cvd_columns
 
         merged = left.merge(
@@ -2614,7 +2615,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         aggregated_noindex = aggregated.reset_index()
         aggregated_noindex.columns = cvd_columns
         result = aggregated_noindex._pivot(
-            columns=col_id, columns_unique_values=other.columns, index=row_id
+            columns=col_id, columns_unique_values=other_frame.columns, index=row_id
         )
 
         # Set the index names to match the left side matrix
@@ -2623,8 +2624,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Pivot has the result columns ordered alphabetically. It should still
         # match the columns in the right sided matrix. Let's reorder them as per
         # the right side matrix
-        if not result.columns.difference(other.columns).empty:
+        if not result.columns.difference(other_frame.columns).empty:
             raise RuntimeError("Could not construct all columns")
-        result = result[other.columns]
+        result = result[other_frame.columns]
+
+        if isinstance(other, bf_series.Series):
+            result = result[other.name].rename()
 
         return result

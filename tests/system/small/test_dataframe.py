@@ -2881,73 +2881,17 @@ def test_df_dot(
     )
 
 
-@pytest.mark.skipif(True, reason="Enable only for large scale local testing")
-def test_df_dot_bq_table_data_small(session):
-    square_bq_table = "bigframes-dev.zzz_shobs_us.matrix_int_100_by_100"
+def test_df_dot_series(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = matrix_2by3_df.dot(matrix_3by4_df["x"]).to_pandas()
+    pd_result = matrix_2by3_pandas_df.dot(matrix_3by4_pandas_df["x"])
 
-    # In the first variant, convert BigFrames dataframe to Pandas dataframe
-    # and then test parity
-    df1 = session.read_gbq(square_bq_table)
-    df2 = session.read_gbq(square_bq_table)
-    df1.columns = df2.index.to_pandas()
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    pd_result = pd_result.astype(pd.Int64Dtype())
 
-    bf_result = df1.dot(df2).to_pandas()
-    pd_result = df1.to_pandas().dot(df2.to_pandas())
-
-    # Ignore dtype parity, just compare the values
-    # TODO(shobs): See if we can achieve data type parity
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
-
-    # In the second variant, read Pandas dataframe directly and then test parity
-    df1 = pd.read_gbq(square_bq_table)
-    df2 = pd.read_gbq(square_bq_table)
-    df1.columns = df2.index
-
-    pd_result = df1.dot(df2)
-
-    # Ignore data type and index parity, just compare the values
-    # TODO(shobs): See if we can achieve data type and index parity
-    pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
     )
-
-
-@pytest.mark.parametrize(
-    ("left_matrix", "right_matrix", "result_matrix"),
-    [
-        (
-            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1kx1k_mul_1kx1k_bf",
-        ),
-        (
-            "bigframes-dev.zzz_shobs_us.matrix_100k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_100kx1k_mul_1kx1k_bf",
-        ),
-        (
-            "bigframes-dev.zzz_shobs_us.matrix_1m_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1mx1k_mul_1kx1k_bf",
-        ),
-        (
-            "bigframes-dev.zzz_shobs_us.matrix_10m_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_1k_by_1k",
-            "bigframes-dev.zzz_shobs_us.matrix_10mx1k_mul_1kx1k_bf",
-        ),
-    ],
-    ids=[
-        "1k",
-        "100k",
-        "1m",
-        "10m",
-    ],
-)
-@pytest.mark.skipif(True, reason="Enable only for large scale local testing")
-def test_df_dot_bq_1kx1k_mul_1kx1k(session, left_matrix, right_matrix, result_matrix):
-    df1 = session.read_gbq(left_matrix)
-    df2 = session.read_gbq(right_matrix)
-    df1.columns = df2.index.to_pandas()
-    bf_result = df1.dot(df2)
-    bf_result.to_gbq(result_matrix, if_exists="replace")
-    assert bf_result is not None
