@@ -52,6 +52,8 @@ def test_create_text_generator_model_default_session(bq_connection, llm_text_pan
 def test_create_text_generator_model_default_connection(llm_text_pandas_df):
     import bigframes.pandas as bpd
 
+    bpd.reset_session()
+
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
     model = llm.PaLM2TextGenerator()
