@@ -97,8 +97,6 @@ _BIGQUERY_REGIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
 _BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
-_BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
-
 _MAX_CLUSTER_COLUMNS = 4
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
@@ -323,10 +321,7 @@ class Session(
             ),
         )
 
-        self._bq_connection = (
-            context.bq_connection
-            or f"{self.bqclient.project}.{self._location}.{_BIGFRAMES_DEFAULT_CONNECTION_ID}"
-        )
+        self._bq_connection = context.bq_connection
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
@@ -355,9 +350,13 @@ class Session(
     @property
     def _session_dataset_id(self):
         """A dataset for storing temporary objects local to the session
-        This is a workaround for BQML models and remote functions that do not
+        This is a workaround for remote functions that do not
         yet support session-temporary instances."""
         return self._session_dataset.dataset_id
+
+    @property
+    def _project(self):
+        return self.bqclient.project
 
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:

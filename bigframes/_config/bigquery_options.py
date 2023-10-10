@@ -90,7 +90,7 @@ class BigQueryOptions:
         Admin role to enable the service to create the connection for you if you
         need it.
 
-        If this option isn't provided, session will use its default project/location/connection_id as default connection.
+        If this option isn't provided, or project or location aren't provided, session will use its default project/location/connection_id as default connection.
         """
         return self._bq_connection
 
