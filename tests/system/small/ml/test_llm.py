@@ -50,9 +50,11 @@ def test_create_text_generator_model_default_session(bq_connection, llm_text_pan
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_create_text_generator_model_default_connection(llm_text_pandas_df):
+    from bigframes import _config
     import bigframes.pandas as bpd
 
     bpd.reset_session()
+    _config.options = _config.Options()  # reset configs
 
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
