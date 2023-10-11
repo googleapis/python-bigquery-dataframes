@@ -40,8 +40,8 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
 
     equality_ids = []
     for lcol, rcol in zip(block1.value_columns, block2.value_columns):
-        lcolmapped = lmap(lcol)
-        rcolmapped = rmap(rcol)
+        lcolmapped = lmap[lcol]
+        rcolmapped = rmap[rcol]
         joined_block, result_id = joined_block.apply_binary_op(
             lcolmapped, rcolmapped, ops.eq_nulls_match_op
         )
