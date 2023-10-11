@@ -45,7 +45,7 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
         lcolmapped = lmap[lcol]
         rcolmapped = rmap[rcol]
         joined_block, result_id = joined_block.apply_binary_op(
-            lcolmapped, rcolmapped, ops.eq_nulls_match_op
+            lcolmapped, rcolmapped, ops.eq_null_match_op
         )
         joined_block, result_id = joined_block.apply_unary_op(
             result_id, ops.partial_right(ops.fillna_op, False)
@@ -444,7 +444,7 @@ def rank(
     if method in ["min", "max", "first", "dense"]:
         # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
         block = block.multi_apply_unary_op(
-            rownum_col_ids, ops.AsTypeOp(pd.Float64Dtype())
+            rownum_col_ids, ops.AsTypeOp(to_type=pd.Float64Dtype())
         )
     if na_option == "keep":
         # For na_option "keep", null inputs must produce null outputs

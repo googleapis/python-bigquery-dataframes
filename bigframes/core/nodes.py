@@ -159,27 +159,10 @@ class SelectNode(UnaryNode):
 
 
 @dataclass(frozen=True)
-class ProjectUnaryOpNode(UnaryNode):
-    input_id: str
-    op: ops.UnaryOp
+class ProjectRowOpNode(UnaryNode):
+    input_ids: typing.Tuple[str, ...]
+    op: ops.RowOp
     output_id: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class ProjectBinaryOpNode(UnaryNode):
-    left_input_id: str
-    right_input_id: str
-    op: ops.BinaryOp
-    output_id: str
-
-
-@dataclass(frozen=True)
-class ProjectTernaryOpNode(UnaryNode):
-    input_id1: str
-    input_id2: str
-    input_id3: str
-    op: ops.TernaryOp
-    output_id: str
 
 
 @dataclass(frozen=True)

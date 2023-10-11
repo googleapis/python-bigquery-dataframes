@@ -153,7 +153,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
                 block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(dtype)
+                    block.value_columns, ops.AsTypeOp(to_type=dtype)
                 )
             self._block = block
 
@@ -315,7 +315,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
-        return self._apply_unary_op(ops.AsTypeOp(dtype))
+        return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
 
     def _to_sql_query(
         self, include_index: bool
@@ -637,7 +637,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_scalar_binop(self, other: float | int, op: ops.BinaryOp) -> DataFrame:
         block = self._block
-        partial_op = ops.BinopPartialRight(op, other)
+        partial_op = ops.ApplyRight(base_op=op, right_scalar=other)
         for column_id, label in zip(
             self._block.value_columns, self._block.column_labels
         ):
@@ -1062,7 +1062,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             if utils.is_list_like(index):
                 block, inverse_condition_id = block.apply_unary_op(
-                    level_id, ops.IsInOp(index, match_nulls=True)
+                    level_id, ops.IsInOp(values=tuple(index), match_nulls=True)
                 )
                 block, condition_id = block.apply_unary_op(
                     inverse_condition_id, ops.invert_op
@@ -1422,16 +1422,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = self._block
             block, label_string_id = block.apply_unary_op(
                 self._block.index_columns[0],
-                ops.AsTypeOp(pandas.StringDtype(storage="pyarrow")),
+                ops.AsTypeOp(to_type=pandas.StringDtype(storage="pyarrow")),
             )
             if like is not None:
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsStringOp(pat=like)
+                    label_string_id, ops.StrContainsOp(pat=like)
                 )
             else:  # regex
                 assert regex is not None
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsRegexOp(pat=regex)
+                    label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
             block = block.filter(mask_id)
@@ -1441,7 +1441,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Behavior matches pandas 2.1+, older pandas versions would reindex
             block = self._block
             block, mask_id = block.apply_unary_op(
-                self._block.index_columns[0], ops.IsInOp(values=list(items))
+                self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
             block = block.filter(mask_id)
             block = block.select_columns(self._block.value_columns)
@@ -1577,7 +1577,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if label in values.keys():
                     value_for_key = values[label]
                     block, result_id = block.apply_unary_op(
-                        col, ops.IsInOp(value_for_key, match_nulls=True), label
+                        col,
+                        ops.IsInOp(values=tuple(value_for_key), match_nulls=True),
+                        label,
                     )
                     result_ids.append(result_id)
                 else:
@@ -1587,9 +1589,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     result_ids.append(result_id)
             return DataFrame(block.select_columns(result_ids)).fillna(value=False)
         elif utils.is_list_like(values):
-            return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
-                value=False
-            )
+            return self._apply_unary_op(
+                ops.IsInOp(values=tuple(values), match_nulls=True)
+            ).fillna(value=False)
         else:
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -2739,7 +2741,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # inputs causing errors.
         reprojected_df = DataFrame(self._block._force_reproject())
         return reprojected_df._apply_unary_op(
-            ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
+            ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
     def apply(self, func, *, args: typing.Tuple = (), **kwargs):
