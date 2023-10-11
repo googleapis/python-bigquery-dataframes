@@ -20,6 +20,7 @@ import pytest
 
 import bigframes
 from bigframes import remote_function as rf
+import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal_ignore_ordering
 
 
@@ -467,7 +468,7 @@ def test_remote_function_via_session_context_connection_setter(
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_default_connection(scalars_dfs, dataset_id):
-    @rf.remote_function([int], int, dataset=dataset_id)
+    @bpd.remote_function([int], int, dataset=dataset_id)
     def square(x):
         return x * x
 

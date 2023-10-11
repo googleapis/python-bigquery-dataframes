@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from bigframes import clients
 
 
@@ -43,3 +45,13 @@ def test_get_connection_name_full_all():
         default_location="us",
     )
     assert connection_name == "my-project.eu.connection-id"
+
+
+def test_get_connection_name_full_raise_value_error():
+
+    with pytest.raises(ValueError):
+        clients.get_connection_name_full(
+            "my-project.eu.connection-id.extra_field",
+            default_project="default-project",
+            default_location="us",
+        )

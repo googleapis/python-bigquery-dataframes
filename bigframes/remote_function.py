@@ -745,11 +745,6 @@ def remote_function(
         dataset_ref = bigquery.DatasetReference.from_string(
             session._session_dataset_id, default_project=bigquery_client.project
         )
-    if not dataset_ref:
-        raise ValueError(
-            "Project and dataset must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
 
     bq_location, cloud_function_region = get_remote_function_locations(
         bigquery_client.location
