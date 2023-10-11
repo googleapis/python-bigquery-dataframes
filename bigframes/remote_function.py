@@ -490,6 +490,8 @@ class RemoteFunctionClient:
                             bq_connection = os.path.basename(bq_connection)
                     break
         except google.api_core.exceptions.NotFound:
+            # The dataset might not exist, in which case the http_endpoint doesn't, either.
+            # Note: list_routines doesn't make an API request until we iterate on the response object.
             pass
         return (http_endpoint, bq_connection)
 
