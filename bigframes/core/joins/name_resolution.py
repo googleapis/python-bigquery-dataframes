@@ -23,8 +23,14 @@ class JoinNameRemapper:
     def __call__(
         self, left_column_ids: Sequence[str], right_column_ids: Sequence[str]
     ) -> Tuple[Mapping[str, str], Mapping[str, str]]:
-        """When joining column ids from different namespaces, this function defines how names are remapped. Map only non-hidden ids."""
-        # This naming strategy depends on the number of visible columns in source tables.
+        """
+        When joining column ids from different namespaces, this function defines how names are remapped.
+
+        Take care to map value column ids and hidden column ids in separate namespaces. This is important because value
+        column ids must be deterministic as they are referenced by dependent operators. The generation of hidden ids is
+        dependent on compilation context, and should be completely separated from value column id mappings.
+        """
+        # This naming strategy depends on the number of value columns in source tables.
         # This means column id mappings must be adjusted if pushing operations above or below join in transformation
         new_left_ids = {
             col: f"{self._namespace}_l_{i}" for i, col in enumerate(left_column_ids)
@@ -36,4 +42,5 @@ class JoinNameRemapper:
 
 
 # Defines how column ids are remapped, regardless of join strategy or ordering mode
+# Use this remapper for all value column remappings.
 JOIN_NAME_REMAPPER = JoinNameRemapper("bfjoin")
