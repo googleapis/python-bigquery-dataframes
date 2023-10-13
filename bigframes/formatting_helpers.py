@@ -155,7 +155,9 @@ def wait_for_query_job(
         raise
     except KeyboardInterrupt:
         query_job.cancel()
-        print(f"Requested cancelation for {query_job.job_type} {query_job.job_id}...")
+        print(
+            f"Requested cancellation for {query_job.job_type.capitalize()} job {query_job.job_id}..."
+        )
         # begin the cancel request before immediately rethrowing
         raise
 
@@ -197,7 +199,9 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
         raise
     except KeyboardInterrupt:
         job.cancel()
-        print(f"Requested cancelation for {job.job_type} {job.job_id}...")
+        print(
+            f"Requested cancellation for {job.job_type.capitalize()} job {job.job_id}..."
+        )
         # begin the cancel request before immediately rethrowing
         raise
 
