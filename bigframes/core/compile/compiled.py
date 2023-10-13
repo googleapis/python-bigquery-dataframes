@@ -17,9 +17,8 @@ import functools
 import math
 import textwrap
 import typing
-from typing import Collection, Iterable, Literal, Optional, Sequence, Tuple
+from typing import Collection, Iterable, Literal, Optional, Sequence
 
-from google.cloud import bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -402,16 +401,8 @@ class CompiledArrayValue:
         return expr_builder.build()
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> CompiledArrayValue:
-        return self._projection(
-            [self._get_ibis_column(col_id) for col_id in column_ids]
-        )
-
-    def _projection(self, columns: Iterable[ibis_types.Value]) -> CompiledArrayValue:
         """Creates a new expression based on this expression with new columns."""
-        # TODO(swast): We might want to do validation here that columns derive
-        # from the same table expression instead of (in addition to?) at
-        # construction time.
-
+        columns = [self._get_ibis_column(col_id) for col_id in column_ids]
         expr = self
         for ordering_column in set(self.column_ids).intersection(
             [col_ref.column_id for col_ref in self._ordering.ordering_value_columns]
@@ -422,23 +413,6 @@ class CompiledArrayValue:
         builder.columns = list(columns)
         new_expr = builder.build()
         return new_expr
-
-    def shape(self) -> typing.Tuple[int, int]:
-        """Returns dimensions as (length, width) tuple."""
-        width = len(self.columns)
-        count_expr = self._to_ibis_expr("unordered").count()
-        sql = self._session.ibis_client.compile(count_expr)
-
-        # Support in-memory engines for hermetic unit tests.
-        if not isinstance(sql, str):
-            length = self._session.ibis_client.execute(count_expr)
-        else:
-            row_iterator, _ = self._session._start_query(
-                sql=sql,
-                max_results=1,
-            )
-            length = next(row_iterator)[0]
-        return (length, width)
 
     def concat(self, other: typing.Sequence[CompiledArrayValue]) -> CompiledArrayValue:
         """Append together multiple ArrayValue objects."""
@@ -836,34 +810,6 @@ class CompiledArrayValue:
             )
             return encode_order_string(row_nums)
 
-    def start_query(
-        self,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
-        *,
-        sorted: bool = True,
-    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        """Execute a query and return metadata about the results."""
-        # TODO(swast): Cache the job ID so we can look it up again if they ask
-        # for the results? We'd need a way to invalidate the cache if DataFrame
-        # becomes mutable, though. Or move this method to the immutable
-        # expression class.
-        # TODO(swast): We might want to move this method to Session and/or
-        # provide our own minimal metadata class. Tight coupling to the
-        # BigQuery client library isn't ideal, especially if we want to support
-        # a LocalSession for unit testing.
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        sql = self.to_sql(sorted=True)  # type:ignore
-        return self._session._start_query(
-            sql=sql,
-            job_config=job_config,
-            max_results=max_results,
-        )
-
-    def _get_table_size(self, destination_table):
-        return self._session._get_table_size(destination_table)
-
     def _reproject_to_table(self) -> CompiledArrayValue:
         """
         Internal operators that projects the internal representation into a
@@ -1122,27 +1068,6 @@ class CompiledArrayValue:
         else:
             builder.columns = [*self.columns, new_value.name(id)]
         return builder.build()
-
-    def cached(self, cluster_cols: typing.Sequence[str]) -> CompiledArrayValue:
-        """Write the ArrayValue to a session table and create a new block object that references it."""
-        ibis_expr = self._to_ibis_expr("unordered", expose_hidden_cols=True)
-        destination = self._session._ibis_to_session_table(
-            ibis_expr, cluster_cols=cluster_cols, api_name="cache"
-        )
-        table_expression = self._session.ibis_client.table(
-            f"{destination.project}.{destination.dataset_id}.{destination.table_id}"
-        )
-        new_columns = [table_expression[column] for column in self.column_ids]
-        new_hidden_columns = [
-            table_expression[column] for column in self._hidden_ordering_column_names
-        ]
-        return CompiledArrayValue(
-            self._session,
-            table_expression,
-            columns=new_columns,
-            hidden_ordering_columns=new_hidden_columns,
-            ordering=self._ordering,
-        )
 
 
 class ArrayValueBuilder:

@@ -29,7 +29,6 @@ if typing.TYPE_CHECKING:
 @dataclasses.dataclass(frozen=True)
 class ArrayValueCompiler:
     # TODO: Enable unordered compilation
-    # Session must be compatible with session
     session: bigframes.session.Session
 
     def compile(
