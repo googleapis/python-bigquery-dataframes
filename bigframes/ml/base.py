@@ -104,7 +104,8 @@ class Predictor(BaseEstimator):
     def register(self: _T, vertex_ai_model_id: Optional[str] = None) -> _T:
         """Register the model to Vertex AI.
 
-        After register, go to https://pantheon.corp.google.com/vertex-ai/models to manage the model registries.
+        After register, go to Google Cloud Console (https://console.cloud.google.com/vertex-ai/models)
+        to manage the model registries.
         Refer to https://cloud.google.com/vertex-ai/docs/model-registry/introduction for more options.
 
         Args:
@@ -195,3 +196,23 @@ class Transformer(BaseEstimator):
         y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
     ) -> bpd.DataFrame:
         return self.fit(X, y).transform(X)
+
+
+class LabelTransformer(BaseEstimator):
+    """A BigQuery DataFrames Label Transformer base class that transforms data.
+
+    Also the transformers can be attached to a pipeline with a predictor."""
+
+    @abc.abstractmethod
+    def fit(self, y):
+        pass
+
+    @abc.abstractmethod
+    def transform(self, y):
+        pass
+
+    def fit_transform(
+        self,
+        y: Union[bpd.DataFrame, bpd.Series],
+    ) -> bpd.DataFrame:
+        return self.fit(y).transform(y)

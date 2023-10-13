@@ -57,6 +57,7 @@ def test_read_gbq_tokyo(
         ),
         pytest.param(
             """SELECT
+                t.int64_col + 1 as my_ints,
                 t.float64_col * 2 AS my_floats,
                 CONCAT(t.string_col, "_2") AS my_strings,
                 t.int64_col > 0 AS my_bools,
@@ -321,11 +322,10 @@ def test_read_pandas_multi_index(session, scalars_pandas_df_multi_index):
 
 
 def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default_index):
-    scalars_pandas_df_default_index["rowid"] = np.arange(
-        scalars_pandas_df_default_index.shape[0]
-    )
+    pandas_df = scalars_pandas_df_default_index.copy()
+    pandas_df["rowid"] = np.arange(pandas_df.shape[0])
 
-    df = session.read_pandas(scalars_pandas_df_default_index)
+    df = session.read_pandas(pandas_df)
     total_order_col = df._block._expr._ordering.total_order_col
     assert total_order_col and total_order_col.column_id == "rowid_2"
 
@@ -578,9 +578,12 @@ def test_read_csv_gcs_bq_engine_w_header(session, scalars_df_index, gcs_folder):
     path = gcs_folder + "test_read_csv_gcs_bq_engine_w_header*.csv"
     scalars_df_index.to_csv(path, index=False)
 
-    # Skip the header and the first 2 data rows. Without provided schema, the column names
-    # would be like `bool_field_0`, `string_field_1` and etc.
-    df = session.read_csv(path, header=2, engine="bigquery")
+    # Skip the header and the first 2 data rows. Note that one line of header
+    # also got added while writing the csv through `to_csv`, so we would have to
+    # pass headers=3 in the `read_csv` to skip reading the header and two rows.
+    # Without provided schema, the column names would be like `bool_field_0`,
+    # `string_field_1` and etc.
+    df = session.read_csv(path, header=3, engine="bigquery")
     assert df.shape[0] == scalars_df_index.shape[0] - 2
     assert len(df.columns) == len(scalars_df_index.columns)
 
@@ -609,9 +612,12 @@ def test_read_csv_local_bq_engine_w_header(session, scalars_pandas_df_index):
         # Using the pandas to_csv method because the BQ one does not support local write.
         scalars_pandas_df_index.to_csv(path, index=False)
 
-        # Skip the header and the first 2 data rows. Without provided schema, the column names
-        # would be like `bool_field_0`, `string_field_1` and etc.
-        df = session.read_csv(path, header=2, engine="bigquery")
+        # Skip the header and the first 2 data rows. Note that one line of
+        # header also got added while writing the csv through `to_csv`, so we
+        # would have to pass headers=3 in the `read_csv` to skip reading the
+        # header and two rows. Without provided schema, the column names would
+        # be like `bool_field_0`, `string_field_1` and etc.
+        df = session.read_csv(path, header=3, engine="bigquery")
         assert df.shape[0] == scalars_pandas_df_index.shape[0] - 2
         assert len(df.columns) == len(scalars_pandas_df_index.columns)
 
@@ -787,7 +793,7 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
-    path = gcs_folder + "test_read_parquet_gcs*.parquet"
+    path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     # GEOGRAPHY not supported in parquet export.
     df_in = df_in.drop(columns="geography_col")
@@ -815,6 +821,89 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     pd_df_in = df_in.to_pandas()
     pd_df_out = df_out.to_pandas()
     pd.testing.assert_frame_equal(pd_df_in, pd_df_out)
+
+
+@pytest.mark.parametrize(
+    "compression",
+    [
+        None,
+        "gzip",
+        "snappy",
+    ],
+)
+def test_read_parquet_gcs_compressed(
+    session: bigframes.Session, scalars_dfs, gcs_folder, compression
+):
+    scalars_df, _ = scalars_dfs
+    # Include wildcard so that multiple files can be written/read if > 1 GB.
+    # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
+    path = (
+        gcs_folder
+        + test_read_parquet_gcs_compressed.__name__
+        + (f"_{compression}" if compression else "")
+        + "*.parquet"
+    )
+    df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
+    # GEOGRAPHY not supported in parquet export.
+    df_in = df_in.drop(columns="geography_col")
+    # Make sure we can also serialize the order.
+    df_write = df_in.reset_index(drop=False)
+    df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
+    df_write.to_parquet(path, compression=compression, index=True)
+
+    df_out = (
+        session.read_parquet(path)
+        # Restore order.
+        .set_index(df_write.index.name).sort_index()
+        # Restore index.
+        .set_index(typing.cast(str, df_in.index.name))
+    )
+
+    # DATETIME gets loaded as TIMESTAMP in parquet. See:
+    # https://cloud.google.com/bigquery/docs/exporting-data#parquet_export_details
+    df_out = df_out.assign(
+        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]")
+    )
+
+    # Make sure we actually have at least some values before comparing.
+    assert df_out.size != 0
+    pd_df_in = df_in.to_pandas()
+    pd_df_out = df_out.to_pandas()
+    pd.testing.assert_frame_equal(pd_df_in, pd_df_out)
+
+
+@pytest.mark.parametrize(
+    "compression",
+    [
+        "brotli",
+        "lz4",
+        "zstd",
+        "unknown",
+    ],
+)
+def test_read_parquet_gcs_compression_not_supported(
+    session: bigframes.Session, scalars_dfs, gcs_folder, compression
+):
+    scalars_df, _ = scalars_dfs
+    # Include wildcard so that multiple files can be written/read if > 1 GB.
+    # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
+    path = (
+        gcs_folder
+        + test_read_parquet_gcs_compression_not_supported.__name__
+        + (f"_{compression}" if compression else "")
+        + "*.parquet"
+    )
+    df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
+    # GEOGRAPHY not supported in parquet export.
+    df_in = df_in.drop(columns="geography_col")
+    # Make sure we can also serialize the order.
+    df_write = df_in.reset_index(drop=False)
+    df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
+
+    with pytest.raises(
+        ValueError, match=f"'{compression}' is not valid for compression"
+    ):
+        df_write.to_parquet(path, compression=compression, index=True)
 
 
 def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
@@ -886,11 +975,6 @@ def test_session_id(session):
     assert query_job.session_info.session_id == session._session_id
 
     # TODO(chelsealin): Verify the session id can be binded with a load job.
-
-
-def test_session_dataset_exists_and_configured(session: bigframes.Session):
-    dataset = session.bqclient.get_dataset(session._session_dataset_id)
-    assert dataset.default_table_expiration_ms == 24 * 60 * 60 * 1000
 
 
 @pytest.mark.flaky(retries=2)

@@ -38,8 +38,9 @@ class PaLM2TextGenerator(base.Predictor):
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<REGION>.<CONNECTION_NAME>.
-            if None, use default connection in session context.
+            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully setup.
     """
 
     def __init__(
@@ -48,10 +49,17 @@ class PaLM2TextGenerator(base.Predictor):
         connection_name: Optional[str] = None,
     ):
         self.session = session or bpd.get_global_session()
-        self.connection_name = connection_name or self.session._bq_connection
         self._bq_connection_manager = clients.BqConnectionManager(
             self.session.bqconnectionclient, self.session.resourcemanagerclient
         )
+
+        connection_name = connection_name or self.session._bq_connection
+        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+            connection_name,
+            default_project=self.session._project,
+            default_location=self.session._location,
+        )
+
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
@@ -180,10 +188,17 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         connection_name: Optional[str] = None,
     ):
         self.session = session or bpd.get_global_session()
-        self.connection_name = connection_name or self.session._bq_connection
         self._bq_connection_manager = clients.BqConnectionManager(
             self.session.bqconnectionclient, self.session.resourcemanagerclient
         )
+
+        connection_name = connection_name or self.session._bq_connection
+        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+            connection_name,
+            default_project=self.session._project,
+            default_location=self.session._location,
+        )
+
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 

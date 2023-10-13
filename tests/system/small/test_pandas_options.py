@@ -26,7 +26,7 @@ import bigframes.pandas as bpd
 
 @pytest.fixture(autouse=True)
 def reset_default_session_and_location():
-    bpd.reset_session()
+    bpd.close_session()
     bpd.options.bigquery.location = None
 
 
@@ -75,12 +75,12 @@ def test_read_gbq_start_sets_session_location(
     # Now read_gbq* from another location should fail
     with pytest.raises(
         google.api_core.exceptions.NotFound,
-        match=f"404 Not found: Dataset {dataset_id_permanent} was not found in location {tokyo_location}",
+        match=dataset_id_permanent,
     ):
         read_method(query)
 
-    # Reset global session to start over
-    bpd.reset_session()
+    # Close global session to start over
+    bpd.close_session()
 
     # There should still be the previous location set in the bigquery options
     assert bpd.options.bigquery.location == tokyo_location
@@ -100,7 +100,7 @@ def test_read_gbq_start_sets_session_location(
     # Now read_gbq* from another location should fail
     with pytest.raises(
         google.api_core.exceptions.NotFound,
-        match=f"404 Not found: Dataset {dataset_id_permanent_tokyo} was not found in location US",
+        match=dataset_id_permanent_tokyo,
     ):
         read_method(query_tokyo)
 
@@ -146,7 +146,7 @@ def test_read_gbq_after_session_start_must_comply_with_default_location(
     # Doing read_gbq* from a table in another location should fail
     with pytest.raises(
         google.api_core.exceptions.NotFound,
-        match=f"404 Not found: Dataset {dataset_id_permanent_tokyo} was not found in location US",
+        match=dataset_id_permanent_tokyo,
     ):
         read_method(query_tokyo)
 
@@ -194,7 +194,7 @@ def test_read_gbq_must_comply_with_set_location_US(
     # Starting user journey with read_gbq* from another location should fail
     with pytest.raises(
         google.api_core.exceptions.NotFound,
-        match=f"404 Not found: Dataset {dataset_id_permanent_tokyo} was not found in location US",
+        match=dataset_id_permanent_tokyo,
     ):
         read_method(query_tokyo)
 
@@ -244,7 +244,7 @@ def test_read_gbq_must_comply_with_set_location_non_US(
     # Starting user journey with read_gbq* from another location should fail
     with pytest.raises(
         google.api_core.exceptions.NotFound,
-        match=f"404 Not found: Dataset {dataset_id_permanent} was not found in location {tokyo_location}",
+        match=dataset_id_permanent,
     ):
         read_method(query)
 
@@ -254,7 +254,7 @@ def test_read_gbq_must_comply_with_set_location_non_US(
     assert df is not None
 
 
-def test_reset_session_after_credentials_need_reauthentication(monkeypatch):
+def test_close_session_after_credentials_need_reauthentication(monkeypatch):
     # Use a simple test query to verify that default session works to interact
     # with BQ
     test_query = "SELECT 1"
@@ -288,8 +288,8 @@ def test_reset_session_after_credentials_need_reauthentication(monkeypatch):
         with pytest.raises(google.auth.exceptions.RefreshError):
             bpd.read_gbq(test_query)
 
-        # Now verify that resetting the session works
-        bpd.reset_session()
+        # Now verify that closing the session works
+        bpd.close_session()
         assert bigframes.core.global_session._global_session is None
 
     # Now verify that use is able to start over

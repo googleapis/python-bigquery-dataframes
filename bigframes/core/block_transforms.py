@@ -17,11 +17,45 @@ import typing
 
 import pandas as pd
 
+import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as ordering
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+
+
+def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
+    if not block1.column_labels.equals(block2.column_labels):
+        return False
+    if block1.dtypes != block2.dtypes:
+        return False
+    # TODO: More advanced expression tree traversals to short circuit actually querying data
+
+    block1 = block1.reset_index(drop=False)
+    block2 = block2.reset_index(drop=False)
+
+    joined, (lmap, rmap) = block1.index.join(block2.index, how="outer")
+    joined_block = joined._block
+
+    equality_ids = []
+    for lcol, rcol in zip(block1.value_columns, block2.value_columns):
+        lcolmapped = lmap[lcol]
+        rcolmapped = rmap[rcol]
+        joined_block, result_id = joined_block.apply_binary_op(
+            lcolmapped, rcolmapped, ops.eq_nulls_match_op
+        )
+        joined_block, result_id = joined_block.apply_unary_op(
+            result_id, ops.partial_right(ops.fillna_op, False)
+        )
+        equality_ids.append(result_id)
+
+    joined_block = joined_block.select_columns(equality_ids).with_column_labels(
+        list(range(len(equality_ids)))
+    )
+    stacked_block = joined_block.stack()
+    result = stacked_block.get_stat(stacked_block.value_columns[0], agg_ops.all_op)
+    return typing.cast(bool, result)
 
 
 def indicate_duplicates(
@@ -218,13 +252,17 @@ def rank(
     return block.select_columns(rownum_col_ids).with_column_labels(labels)
 
 
-def dropna(block: blocks.Block, how: typing.Literal["all", "any"] = "any"):
+def dropna(
+    block: blocks.Block,
+    column_ids: typing.Sequence[str],
+    how: typing.Literal["all", "any"] = "any",
+):
     """
     Drop na entries from block
     """
     if how == "any":
         filtered_block = block
-        for column in block.value_columns:
+        for column in column_ids:
             filtered_block, result_id = filtered_block.apply_unary_op(
                 column, ops.notnull_op
             )
@@ -234,7 +272,7 @@ def dropna(block: blocks.Block, how: typing.Literal["all", "any"] = "any"):
     else:  # "all"
         filtered_block = block
         predicate = None
-        for column in block.value_columns:
+        for column in column_ids:
             filtered_block, partial_predicate = filtered_block.apply_unary_op(
                 column, ops.notnull_op
             )
@@ -500,3 +538,125 @@ def _kurt_from_moments_and_count(
         kurt_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
     )
     return block, kurt_id
+
+
+def align(
+    left_block: blocks.Block,
+    right_block: blocks.Block,
+    join: str = "outer",
+    axis: typing.Union[str, int, None] = None,
+) -> typing.Tuple[blocks.Block, blocks.Block]:
+    axis_n = core.utils.get_axis_number(axis) if axis is not None else None
+    # Must align columns first as other way will likely create extra joins
+    if (axis_n is None) or axis_n == 1:
+        left_block, right_block = align_columns(left_block, right_block, join=join)
+    if (axis_n is None) or axis_n == 0:
+        left_block, right_block = align_rows(left_block, right_block, join=join)
+    return left_block, right_block
+
+
+def align_rows(
+    left_block: blocks.Block,
+    right_block: blocks.Block,
+    join: str = "outer",
+):
+    joined_index, (get_column_left, get_column_right) = left_block.index.join(
+        right_block.index, how=join
+    )
+    left_columns = [get_column_left[col] for col in left_block.value_columns]
+    right_columns = [get_column_right[col] for col in right_block.value_columns]
+
+    left_block = joined_index._block.select_columns(left_columns)
+    right_block = joined_index._block.select_columns(right_columns)
+    return left_block, right_block
+
+
+def align_columns(
+    left_block: blocks.Block,
+    right_block: blocks.Block,
+    join: str = "outer",
+):
+    columns, lcol_indexer, rcol_indexer = left_block.column_labels.join(
+        right_block.column_labels, how=join, return_indexers=True
+    )
+    column_indices = zip(
+        lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+        rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
+    )
+    left_column_ids = []
+    right_column_ids = []
+
+    original_left_block = left_block
+    original_right_block = right_block
+
+    for left_index, right_index in column_indices:
+        if left_index >= 0:
+            left_col_id = original_left_block.value_columns[left_index]
+        else:
+            dtype = right_block.dtypes[right_index]
+            left_block, left_col_id = left_block.create_constant(
+                None, dtype=dtype, label=original_right_block.column_labels[right_index]
+            )
+        left_column_ids.append(left_col_id)
+
+        if right_index >= 0:
+            right_col_id = original_right_block.value_columns[right_index]
+        else:
+            dtype = original_left_block.dtypes[left_index]
+            right_block, right_col_id = right_block.create_constant(
+                None, dtype=dtype, label=left_block.column_labels[left_index]
+            )
+        right_column_ids.append(right_col_id)
+    left_final = left_block.select_columns(left_column_ids)
+    right_final = right_block.select_columns(right_column_ids)
+    return left_final, right_final
+
+
+def idxmin(block: blocks.Block) -> blocks.Block:
+    return _idx_extrema(block, "min")
+
+
+def idxmax(block: blocks.Block) -> blocks.Block:
+    return _idx_extrema(block, "max")
+
+
+def _idx_extrema(
+    block: blocks.Block, min_or_max: typing.Literal["min", "max"]
+) -> blocks.Block:
+    if len(block.index_columns) != 1:
+        # TODO: Need support for tuple dtype
+        raise NotImplementedError(
+            f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"
+        )
+
+    original_block = block
+    result_cols = []
+    for value_col in original_block.value_columns:
+        direction = (
+            ordering.OrderingDirection.ASC
+            if min_or_max == "min"
+            else ordering.OrderingDirection.DESC
+        )
+        # Have to find the min for each
+        order_refs = [
+            ordering.OrderingColumnReference(value_col, direction),
+            *[
+                ordering.OrderingColumnReference(idx_col)
+                for idx_col in original_block.index_columns
+            ],
+        ]
+        window_spec = core.WindowSpec(ordering=order_refs)
+        idx_col = original_block.index_columns[0]
+        block, result_col = block.apply_window_op(
+            idx_col, agg_ops.first_op, window_spec
+        )
+        result_cols.append(result_col)
+
+    block = block.select_columns(result_cols).with_column_labels(
+        original_block.column_labels
+    )
+    # Stack the entire column axis to produce single-column result
+    # Assumption: uniform dtype for stackability
+    return block.aggregate_all_and_stack(
+        agg_ops.AnyValueOp(), dtype=block.dtypes[0]
+    ).with_column_labels([original_block.index.name])

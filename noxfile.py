@@ -362,7 +362,7 @@ def doctest(session: nox.sessions.Session):
     run_system(
         session=session,
         prefix_name="doctest",
-        extra_pytest_options=("--doctest-modules",),
+        extra_pytest_options=("--doctest-modules", "third_party"),
         test_folder="bigframes",
         check_cov=True,
     )
@@ -607,9 +607,12 @@ def notebook(session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-        "notebooks/getting_started/bq_dataframes_llm_code_generation.ipynb",
-        "notebooks/getting_started/bq_dataframes_ml_linear_regression.ipynb",
+        "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",
+        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",
+        "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",
+        "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",
+        "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",

@@ -15,11 +15,7 @@
 
 set -eo pipefail
 
-if [[ -z "${KOKORO_GOB_COMMIT}" ]]; then
-    PROJECT_SCM="github/python-bigquery-dataframes"
-else
-    PROJECT_SCM="git/bigframes"
-fi
+PROJECT_SCM="github/python-bigquery-dataframes"
 
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
     PROJECT_ROOT="${KOKORO_ARTIFACTS_DIR}/${PROJECT_SCM}"
@@ -29,6 +25,9 @@ cd "${PROJECT_ROOT}"
 
 # Disable buffering, so that the logs stream through.
 export PYTHONUNBUFFERED=1
+
+# Workaround https://github.com/pytest-dev/pytest/issues/9567
+export PY_IGNORE_IMPORTMISMATCH=1
 
 # Debug: show build environment
 env | grep KOKORO

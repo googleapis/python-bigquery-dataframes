@@ -11,7 +11,7 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Iterable, Literal, Mapping, Optional, Sequence, Union
+from typing import Literal, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
@@ -129,6 +129,7 @@ class DataFrame(NDFrame):
         self,
         path: str,
         *,
+        compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
     ) -> None:
         """Write a DataFrame to the binary Parquet format.
@@ -142,6 +143,10 @@ class DataFrame(NDFrame):
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
+
+            compression (str, default 'snappy'):
+                Name of the compression to use. Use ``None`` for no compression.
+                Supported options: ``'gzip'``, ``'snappy'``.
 
             index (bool, default True):
                 If ``True``, include the dataframe's index(es) in the file output.
@@ -399,6 +404,28 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # Unsorted
 
+    def equals(self, other) -> bool:
+        """
+        Test whether two objects contain the same elements.
+
+        This function allows two Series or DataFrames to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns must be of
+        the same dtype.
+
+        Args:
+            other (Series or DataFrame):
+                The other Series or DataFrame to be compared with the first.
+
+        Returns:
+            bool: True if all elements are the same in both objects, False
+            otherwise.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def assign(self, **kwargs) -> DataFrame:
         r"""
         Assign new columns to a DataFrame.
@@ -500,6 +527,35 @@ class DataFrame(NDFrame):
 
         Raises:
             KeyError: If any of the labels is not found in the selected axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def align(
+        self,
+        other,
+        join="outer",
+        axis=None,
+    ) -> tuple:
+        """
+        Align two objects on their axes with the specified join method.
+
+        Join method is specified for each axis Index.
+
+        Args:
+            other (DataFrame or Series):
+            join ({{'outer', 'inner', 'left', 'right'}}, default 'outer'):
+                Type of alignment to be performed.
+                left: use only keys from left frame, preserve key order.
+                right: use only keys from right frame, preserve key order.
+                outer: use union of keys from both frames, sort keys lexicographically.
+                inner: use intersection of keys from both frames,
+                preserve the order of the left keys.
+
+            axis (allowed axis of the other object, default None):
+                Align on index (0), columns (1), or both (None).
+
+        Returns:
+            tuple of (DataFrame, type of other): Aligned objects.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1265,6 +1321,39 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def update(
+        self, other, join: str = "left", overwrite: bool = True, filter_func=None
+    ) -> DataFrame:
+        """
+        Modify in place using non-NA values from another DataFrame.
+
+        Aligns on indices. There is no return value.
+
+        Args:
+            other (DataFrame, or object coercible into a DataFrame):
+                Should have at least one matching index/column label
+                with the original DataFrame. If a Series is passed,
+                its name attribute must be set, and that will be
+                used as the column name to align with the original DataFrame.
+            join ({'left'}, default 'left'):
+                Only left join is implemented, keeping the index and columns of the
+                original object.
+            overwrite (bool, default True):
+                How to handle non-NA values for overlapping keys:
+                True: overwrite original DataFrame's values
+                with values from `other`.
+                False: only update values that are NA in
+                the original DataFrame.
+
+            filter_func (callable(1d-array) -> bool 1d-array, optional):
+                Can choose to replace values other than NA. Return True for values
+                that should be updated.
+
+        Returns:
+            None: This method directly changes calling object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Data reshaping
 
@@ -1406,14 +1495,14 @@ class DataFrame(NDFrame):
                 ``inner``: use intersection of keys from both frames, similar to a SQL inner
                 join; preserve the order of the left keys.
 
-            on:
-                Column join on. It must be found in both DataFrames. Either on or left_on + right_on
+            on (label or list of labels):
+                Columns to join on. It must be found in both DataFrames. Either on or left_on + right_on
                 must be passed in.
-            left_on:
-                Column join on in the left DataFrame. Either on or left_on + right_on
+            left_on (label or list of labels):
+                Columns to join on in the left DataFrame. Either on or left_on + right_on
                 must be passed in.
-            right_on:
-                Column join on in the right DataFrame. Either on or left_on + right_on
+            right_on (label or list of labels):
+                Columns to join on in the right DataFrame. Either on or left_on + right_on
                 must be passed in.
             sort:
                 Default False. Sort the join keys lexicographically in the
@@ -1457,7 +1546,7 @@ class DataFrame(NDFrame):
     # ----------------------------------------------------------------------
     # ndarray-like stats methods
 
-    def any(self, *, bool_only: bool = False):
+    def any(self, *, axis=0, bool_only: bool = False):
         """
         Return whether any element is True, potentially over an axis.
 
@@ -1466,6 +1555,9 @@ class DataFrame(NDFrame):
         non-empty).
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             bool_only (bool. default False):
                 Include only boolean columns.
 
@@ -1474,7 +1566,7 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def all(self, *, bool_only: bool = False):
+    def all(self, axis=0, *, bool_only: bool = False):
         """
         Return whether all elements are True, potentially over an axis.
 
@@ -1483,6 +1575,9 @@ class DataFrame(NDFrame):
         empty).
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             bool_only (bool. default False):
                 Include only boolean columns.
 
@@ -1491,11 +1586,14 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def prod(self, *, numeric_only: bool = False):
+    def prod(self, axis=0, *, numeric_only: bool = False):
         """
         Return the product of the values over the requested axis.
 
         Args:
+            aßxis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool. default False):
                 Include only float, int, boolean columns.
 
@@ -1504,13 +1602,16 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def min(self, *, numeric_only: bool = False):
+    def min(self, axis=0, *, numeric_only: bool = False):
         """Return the minimum of the values over the requested axis.
 
         If you want the *index* of the minimum, use ``idxmin``. This is the
         equivalent of the ``numpy.ndarray`` method ``argmin``.
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool, default False):
                 Default False. Include only float, int, boolean columns.
 
@@ -1519,13 +1620,16 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def max(self, *, numeric_only: bool = False):
+    def max(self, axis=0, *, numeric_only: bool = False):
         """Return the maximum of the values over the requested axis.
 
         If you want the *index* of the maximum, use ``idxmax``. This is
         the equivalent of the ``numpy.ndarray`` method ``argmax``.
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool. default False):
                 Default False. Include only float, int, boolean columns.
 
@@ -1534,12 +1638,15 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def sum(self, *, numeric_only: bool = False):
+    def sum(self, axis=0, *, numeric_only: bool = False):
         """Return the sum of the values over the requested axis.
 
         This is equivalent to the method ``numpy.sum``.
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool. default False):
                 Default False. Include only float, int, boolean columns.
 
@@ -1548,10 +1655,13 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def mean(self, *, numeric_only: bool = False):
+    def mean(self, axis=0, *, numeric_only: bool = False):
         """Return the mean of the values over the requested axis.
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool. default False):
                 Default False. Include only float, int, boolean columns.
 
@@ -1575,12 +1685,15 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def var(self, *, numeric_only: bool = False):
+    def var(self, axis=0, *, numeric_only: bool = False):
         """Return unbiased variance over requested axis.
 
         Normalized by N-1 by default.
 
         Args:
+            axis ({index (0), columns (1)}):
+                Axis for the function to be applied on.
+                For Series this parameter is unused and defaults to 0.
             numeric_only (bool. default False):
                 Default False. Include only float, int, boolean columns.
 
@@ -1716,6 +1829,28 @@ class DataFrame(NDFrame):
             This function cannot be used with all column types. For example, when
             specifying columns with `object` or `category` dtypes, ``TypeError`` is
             raised.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def idxmin(self):
+        """
+        Return index of first occurrence of minimum over requested axis.
+
+        NA/null values are excluded.
+
+        Returns:
+            Series: Indexes of minima along the specified axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def idxmax(self):
+        """
+        Return index of first occurrence of maximum over requested axis.
+
+        NA/null values are excluded.
+
+        Returns:
+            Series: Indexes of maxima along the specified axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1886,6 +2021,21 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def unstack(self):
+        """
+        Pivot a level of the (necessarily hierarchical) index labels.
+
+        Returns a DataFrame having a new level of column labels whose inner-most level
+        consists of the pivoted index labels.
+
+        If the index is not a MultiIndex, the output will be a Series
+        (the analogue of stack when the columns are not a MultiIndex).
+
+        Returns:
+            DataFrame or Series
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Add index and columns
 
@@ -1951,4 +2101,14 @@ class DataFrame(NDFrame):
         Returns:
             DataFrame: Object with missing values filled
         """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def iloc(self):
+        """Purely integer-location based indexing for selection by position."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def iat(self):
+        """Access a single value for a row/column pair by integer position."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

@@ -112,13 +112,51 @@ def test_series_get_column_default(scalars_dfs):
     assert result == "default_val"
 
 
+def test_series_equals_identical(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.int64_col.equals(scalars_df_index.int64_col)
+    pd_result = scalars_pandas_df_index.int64_col.equals(
+        scalars_pandas_df_index.int64_col
+    )
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_df(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].equals(scalars_df_index[["int64_col"]])
+    pd_result = scalars_pandas_df_index["int64_col"].equals(
+        scalars_pandas_df_index[["int64_col"]]
+    )
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_different_dtype(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["int64_col"]
+    pd_series = scalars_pandas_df_index["int64_col"]
+
+    bf_result = bf_series.equals(bf_series.astype("Float64"))
+    pd_result = pd_series.equals(pd_series.astype("Float64"))
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_different_values(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["int64_col"]
+    pd_series = scalars_pandas_df_index["int64_col"]
+
+    bf_result = bf_series.equals(bf_series + 1)
+    pd_result = pd_series.equals(pd_series + 1)
+
+    assert pd_result == bf_result
+
+
 def test_series_get_with_default_index(scalars_dfs):
     col_name = "float64_col"
     key = 2
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].get(key)
     pd_result = scalars_pandas_df[col_name].get(key)
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
@@ -157,7 +195,7 @@ def test_series___getitem___with_default_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name][key]
     pd_result = scalars_pandas_df[col_name][key]
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
@@ -1915,6 +1953,20 @@ def test_series_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, ste
     )
 
 
+def test_iat(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].iat[3]
+    pd_result = scalars_pandas_df_index["int64_too"].iat[3]
+
+    assert bf_result == pd_result
+
+
+def test_iat_error(scalars_df_index, scalars_pandas_df_index):
+    with pytest.raises(ValueError):
+        scalars_pandas_df_index["int64_too"].iat["asd"]
+    with pytest.raises(ValueError):
+        scalars_df_index["int64_too"].iat["asd"]
+
+
 def test_series_add_prefix(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index["int64_too"].add_prefix("prefix_").to_pandas()
 
@@ -2389,6 +2441,29 @@ def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_string_astype_int():
+    pd_series = pd.Series(["4", "-7", "0", "    -03"])
+    bf_series = series.Series(pd_series)
+
+    pd_result = pd_series.astype("Int64")
+    bf_result = bf_series.astype("Int64").to_pandas()
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_string_astype_float():
+    pd_series = pd.Series(
+        ["1", "-1", "-0", "000", "    -03.235", "naN", "-inf", "INf", ".33", "7.235e-8"]
+    )
+
+    bf_series = series.Series(pd_series)
+
+    pd_result = pd_series.astype("Float64")
+    bf_result = bf_series.astype("Float64").to_pandas()
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+
+
 @pytest.mark.parametrize(
     "index",
     [0, 5, -2],
@@ -2442,6 +2517,18 @@ def test_argmin(scalars_df_index, scalars_pandas_df_index):
 def test_argmax(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.int64_too.argmax()
     pd_result = scalars_pandas_df_index.int64_too.argmax()
+    assert bf_result == pd_result
+
+
+def test_series_idxmin(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.string_col.idxmin()
+    pd_result = scalars_pandas_df_index.string_col.idxmin()
+    assert bf_result == pd_result
+
+
+def test_series_idxmax(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.int64_too.idxmax()
+    pd_result = scalars_pandas_df_index.int64_too.idxmax()
     assert bf_result == pd_result
 
 
@@ -2617,7 +2704,7 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
     index = -2345
     bf_result = scalars_df_index.date_col.loc[index]
     pd_result = scalars_pandas_df_index.date_col.loc[index]
-    assert bf_result.to_pandas().iloc[0] == pd_result
+    assert bf_result == pd_result
 
 
 def test_series_bool_interpretation_error(scalars_df_index):

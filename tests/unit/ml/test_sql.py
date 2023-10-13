@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import pytest
 
 import bigframes.ml.sql as ml_sql
+import bigframes.pandas as bpd
 
 
 @pytest.fixture(scope="session")
@@ -34,6 +37,15 @@ def model_manipulation_sql_generator() -> ml_sql.ModelManipulationSqlGenerator:
     )
 
 
+@pytest.fixture(scope="session")
+def mock_df():
+    mock_df = mock.create_autospec(spec=bpd.DataFrame)
+    mock_df.sql = "input_X_y_sql"
+    mock_df._to_sql_query.return_value = "input_X_sql", None, None
+
+    return mock_df
+
+
 def test_options_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenerator):
     sql = base_sql_generator.options(
         model_type="lin_reg", input_label_cols=["col_a"], l1_reg=0.6
@@ -51,12 +63,14 @@ def test_transform_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenera
     sql = base_sql_generator.transform(
         "ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a",
         "ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b",
+        "ML.LABEL_ENCODER(col_c) OVER(col_c) AS encoded_col_c",
     )
     assert (
         sql
         == """TRANSFORM(
   ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a,
-  ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b)"""
+  ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b,
+  ML.LABEL_ENCODER(col_c) OVER(col_c) AS encoded_col_c)"""
     )
 
 
@@ -65,6 +79,27 @@ def test_standard_scaler_produces_correct_sql(
 ):
     sql = base_sql_generator.ml_standard_scaler("col_a", "scaled_col_a")
     assert sql == "ML.STANDARD_SCALER(col_a) OVER() AS scaled_col_a"
+
+
+def test_max_abs_scaler_produces_correct_sql(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+):
+    sql = base_sql_generator.ml_max_abs_scaler("col_a", "scaled_col_a")
+    assert sql == "ML.MAX_ABS_SCALER(col_a) OVER() AS scaled_col_a"
+
+
+def test_min_max_scaler_produces_correct_sql(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+):
+    sql = base_sql_generator.ml_min_max_scaler("col_a", "scaled_col_a")
+    assert sql == "ML.MIN_MAX_SCALER(col_a) OVER() AS scaled_col_a"
+
+
+def test_k_bins_discretizer_produces_correct_sql(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+):
+    sql = base_sql_generator.ml_bucketize("col_a", [1, 2, 3, 4], "scaled_col_a")
+    assert sql == "ML.BUCKETIZE(col_a, [1, 2, 3, 4], FALSE) AS scaled_col_a"
 
 
 def test_one_hot_encoder_produces_correct_sql(
@@ -78,35 +113,53 @@ def test_one_hot_encoder_produces_correct_sql(
     )
 
 
+def test_label_encoder_produces_correct_sql(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+):
+    sql = base_sql_generator.ml_label_encoder("col_a", 1000000, 0, "encoded_col_a")
+    assert sql == "ML.LABEL_ENCODER(col_a, 1000000, 0) OVER() AS encoded_col_a"
+
+
 def test_create_model_produces_correct_sql(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+    mock_df: bpd.DataFrame,
 ):
     sql = model_creation_sql_generator.create_model(
-        source_sql="my_source_sql",
-        options_sql="my_options_sql",
+        source_df=mock_df,
+        options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
         == """CREATE TEMP MODEL `my_model_id`
-my_options_sql
-AS my_source_sql"""
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)
+AS input_X_y_sql"""
     )
 
 
 def test_create_model_transform_produces_correct_sql(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+    mock_df: bpd.DataFrame,
 ):
     sql = model_creation_sql_generator.create_model(
-        source_sql="my_source_sql",
-        options_sql="my_options_sql",
-        transform_sql="my_transform_sql",
+        source_df=mock_df,
+        options={"option_key1": "option_value1", "option_key2": 2},
+        transforms=[
+            "ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a",
+            "ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b",
+        ],
     )
     assert (
         sql
         == """CREATE TEMP MODEL `my_model_id`
-my_transform_sql
-my_options_sql
-AS my_source_sql"""
+TRANSFORM(
+  ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a,
+  ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b)
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)
+AS input_X_y_sql"""
     )
 
 
@@ -115,13 +168,15 @@ def test_create_remote_model_produces_correct_sql(
 ):
     sql = model_creation_sql_generator.create_remote_model(
         connection_name="my_project.us.my_connection",
-        options_sql="my_options_sql",
+        options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
         == """CREATE TEMP MODEL `my_model_id`
 REMOTE WITH CONNECTION `my_project.us.my_connection`
-my_options_sql"""
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
     )
 
 
@@ -129,12 +184,14 @@ def test_create_imported_model_produces_correct_sql(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
     sql = model_creation_sql_generator.create_imported_model(
-        options_sql="my_options_sql",
+        options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
         == """CREATE TEMP MODEL `my_model_id`
-my_options_sql"""
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
     )
 
 
@@ -142,38 +199,38 @@ def test_alter_model_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
     sql = model_manipulation_sql_generator.alter_model(
-        options_sql="my_options_sql",
+        options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
         == """ALTER MODEL `my_project_id.my_dataset_id.my_model_id`
-SET my_options_sql"""
+SET OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
     )
 
 
 def test_ml_predict_produces_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
 ):
-    sql = model_manipulation_sql_generator.ml_predict(
-        source_sql="SELECT * FROM my_table"
-    )
+    sql = model_manipulation_sql_generator.ml_predict(source_df=mock_df)
     assert (
         sql
         == """SELECT * FROM ML.PREDICT(MODEL `my_project_id.my_dataset_id.my_model_id`,
-  (SELECT * FROM my_table))"""
+  (input_X_sql))"""
     )
 
 
 def test_ml_evaluate_produces_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
 ):
-    sql = model_manipulation_sql_generator.ml_evaluate(
-        source_sql="SELECT * FROM my_table"
-    )
+    sql = model_manipulation_sql_generator.ml_evaluate(source_df=mock_df)
     assert (
         sql
         == """SELECT * FROM ML.EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
-  (SELECT * FROM my_table))"""
+  (input_X_sql))"""
     )
 
 
@@ -199,15 +256,35 @@ def test_ml_centroids_produces_correct_sql(
 
 def test_ml_generate_text_produces_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
 ):
     sql = model_manipulation_sql_generator.ml_generate_text(
-        source_sql="SELECT * FROM my_table",
-        struct_options="STRUCT(value AS item)",
+        source_df=mock_df,
+        struct_options={"option_key1": 1, "option_key2": 2.2},
     )
     assert (
         sql
         == """SELECT * FROM ML.GENERATE_TEXT(MODEL `my_project_id.my_dataset_id.my_model_id`,
-  (SELECT * FROM my_table), STRUCT(value AS item))"""
+  (input_X_sql), STRUCT(
+  1 AS option_key1,
+  2.2 AS option_key2))"""
+    )
+
+
+def test_ml_generate_text_embedding_produces_correct_sql(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ml_generate_text_embedding(
+        source_df=mock_df,
+        struct_options={"option_key1": 1, "option_key2": 2.2},
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `my_project_id.my_dataset_id.my_model_id`,
+  (input_X_sql), STRUCT(
+  1 AS option_key1,
+  2.2 AS option_key2))"""
     )
 
 

@@ -21,6 +21,7 @@ import textwrap
 import typing
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
     Literal,
@@ -46,7 +47,6 @@ import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.io
-import bigframes.core.joins as joins
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -161,7 +161,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns=columns,  # type:ignore
                 dtype=dtype,  # type:ignore
             )
-            if pd_dataframe.size < MAX_INLINE_DF_SIZE:
+            if (
+                pd_dataframe.size < MAX_INLINE_DF_SIZE
+                # TODO(swast): Workaround data types limitation in inline data.
+                and not any(
+                    dt.pyarrow_dtype
+                    for dt in pd_dataframe.dtypes
+                    if isinstance(dt, pandas.ArrowDtype)
+                )
+            ):
                 self._block = blocks.block_from_local(
                     pd_dataframe, session or bigframes.pandas.get_global_session()
                 )
@@ -246,6 +254,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def iloc(self) -> indexers.ILocDataFrameIndexer:
         return indexers.ILocDataFrameIndexer(self)
+
+    @property
+    def iat(self) -> indexers.IatDataFrameIndexer:
+        return indexers.IatDataFrameIndexer(self)
 
     @property
     def dtypes(self) -> pandas.Series:
@@ -407,7 +419,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             get_column_right,
         ) = self._block.index.join(key._block.index, how="left")
         block = combined_index._block
-        filter_col_id = get_column_right(key._value_column)
+        filter_col_id = get_column_right[key._value_column]
         block = block.filter(filter_col_id)
         block = block.drop_columns([filter_col_id])
         return DataFrame(block)
@@ -547,19 +559,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block.index, how=how
         )
 
-        series_column_id = other._value.get_name()
-        series_col = get_column_right(series_column_id)
+        series_column_id = other._value_column
+        series_col = get_column_right[series_column_id]
         block = joined_index._block
         for column_id, label in zip(
             self._block.value_columns, self._block.column_labels
         ):
             block, _ = block.apply_binary_op(
-                get_column_left(column_id),
+                get_column_left[column_id],
                 series_col,
                 op,
                 result_label=label,
             )
-            block = block.drop_columns([get_column_left(column_id)])
+            block = block.drop_columns([get_column_left[column_id]])
 
         block = block.drop_columns([series_col])
         block = block.with_index_labels(self.index.names)
@@ -591,22 +603,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 left_col_id = self._block.value_columns[left_index]
                 right_col_id = other._block.value_columns[right_index]
                 block, result_col_id = block.apply_binary_op(
-                    get_column_left(left_col_id),
-                    get_column_right(right_col_id),
+                    get_column_left[left_col_id],
+                    get_column_right[right_col_id],
                     op,
                 )
                 binop_result_ids.append(result_col_id)
             elif left_index >= 0:
                 left_col_id = self._block.value_columns[left_index]
                 block, result_col_id = block.apply_unary_op(
-                    get_column_left(left_col_id),
+                    get_column_left[left_col_id],
                     ops.partial_right(op, None),
                 )
                 binop_result_ids.append(result_col_id)
             elif right_index >= 0:
                 right_col_id = other._block.value_columns[right_index]
                 block, result_col_id = block.apply_unary_op(
-                    get_column_right(right_col_id),
+                    get_column_right[right_col_id],
                     ops.partial_left(op, None),
                 )
                 binop_result_ids.append(result_col_id)
@@ -745,6 +757,55 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __rpow__ = rpow
 
+    def align(
+        self,
+        other: typing.Union[DataFrame, bigframes.series.Series],
+        join: str = "outer",
+        axis: typing.Union[str, int, None] = None,
+    ) -> typing.Tuple[
+        typing.Union[DataFrame, bigframes.series.Series],
+        typing.Union[DataFrame, bigframes.series.Series],
+    ]:
+        axis_n = utils.get_axis_number(axis) if axis else None
+        if axis_n == 1 and isinstance(other, bigframes.series.Series):
+            raise NotImplementedError(
+                f"align with series and axis=1 not supported. {constants.FEEDBACK_LINK}"
+            )
+        left_block, right_block = block_ops.align(
+            self._block, other._block, join=join, axis=axis
+        )
+        return DataFrame(left_block), other.__class__(right_block)
+
+    def update(self, other, join: str = "left", overwrite=True, filter_func=None):
+        other = other if isinstance(other, DataFrame) else DataFrame(other)
+        if join != "left":
+            raise ValueError("Only 'left' join supported for update")
+
+        if filter_func is not None:  # Will always take other if possible
+
+            def update_func(
+                left: bigframes.series.Series, right: bigframes.series.Series
+            ) -> bigframes.series.Series:
+                return left.mask(right.notna() & filter_func(left), right)
+
+        elif overwrite:
+
+            def update_func(
+                left: bigframes.series.Series, right: bigframes.series.Series
+            ) -> bigframes.series.Series:
+                return left.mask(right.notna(), right)
+
+        else:
+
+            def update_func(
+                left: bigframes.series.Series, right: bigframes.series.Series
+            ) -> bigframes.series.Series:
+                return left.mask(left.isna(), right)
+
+        result = self.combine(other, update_func, how=join)
+
+        self._set_block(result._block)
+
     def combine(
         self,
         other: DataFrame,
@@ -753,56 +814,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ],
         fill_value=None,
         overwrite: bool = True,
+        *,
+        how: str = "outer",
     ) -> DataFrame:
-        # Join rows
-        joined_index, (get_column_left, get_column_right) = self._block.index.join(
-            other._block.index, how="outer"
-        )
-        columns, lcol_indexer, rcol_indexer = self.columns.join(
-            other.columns, how="outer", return_indexers=True
+        l_aligned, r_aligned = block_ops.align(self._block, other._block, join=how)
+
+        other_missing_labels = self._block.column_labels.difference(
+            other._block.column_labels
         )
 
-        column_indices = zip(
-            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-        )
-
-        block = joined_index._block
+        l_frame = DataFrame(l_aligned)
+        r_frame = DataFrame(r_aligned)
         results = []
-        for left_index, right_index in column_indices:
-            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
-                left_col_id = get_column_left(self._block.value_columns[left_index])
-                right_col_id = get_column_right(other._block.value_columns[right_index])
-                left_series = bigframes.series.Series(block.select_column(left_col_id))
-                right_series = bigframes.series.Series(
-                    block.select_column(right_col_id)
-                )
+        for (label, lseries), (_, rseries) in zip(l_frame.items(), r_frame.items()):
+            if not ((label in other_missing_labels) and not overwrite):
                 if fill_value is not None:
-                    left_series = left_series.fillna(fill_value)
-                    right_series = right_series.fillna(fill_value)
-                results.append(func(left_series, right_series))
-            elif left_index >= 0:
-                # Does not exist in other
-                if overwrite:
-                    dtype = self.dtypes[left_index]
-                    block, null_col_id = block.create_constant(None, dtype=dtype)
-                    result = bigframes.series.Series(block.select_column(null_col_id))
-                    results.append(result)
+                    result = func(
+                        lseries.fillna(fill_value), rseries.fillna(fill_value)
+                    )
                 else:
-                    left_col_id = get_column_left(self._block.value_columns[left_index])
-                    result = bigframes.series.Series(block.select_column(left_col_id))
-                    if fill_value is not None:
-                        result = result.fillna(fill_value)
-                    results.append(result)
-            elif right_index >= 0:
-                right_col_id = get_column_right(other._block.value_columns[right_index])
-                result = bigframes.series.Series(block.select_column(right_col_id))
-                if fill_value is not None:
-                    result = result.fillna(fill_value)
-                results.append(result)
+                    result = func(lseries, rseries)
             else:
-                # Should not be possible
-                raise ValueError("No right or left index.")
+                result = (
+                    lseries.fillna(fill_value) if fill_value is not None else lseries
+                )
+            results.append(result)
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
             import bigframes.core.reshape as rs
@@ -906,7 +942,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns = labels
 
         block = self._block
-        if index:
+        if index is not None:
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
@@ -916,6 +952,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block, condition_id = block.apply_unary_op(
                     inverse_condition_id, ops.invert_op
                 )
+            elif isinstance(index, indexes.Index):
+                return self._drop_by_index(index)
             else:
                 block, condition_id = block.apply_unary_op(
                     level_id, ops.partial_right(ops.ne_op, index)
@@ -925,9 +963,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         if columns:
             block = block.drop_columns(self._sql_names(columns))
-        if not index and not columns:
+        if index is None and not columns:
             raise ValueError("Must specify 'labels' or 'index'/'columns")
         return DataFrame(block)
+
+    def _drop_by_index(self, index: indexes.Index) -> DataFrame:
+        block = index._data._get_block()
+        block, ordering_col = block.promote_offsets()
+        joined_index, (get_column_left, get_column_right) = self._block.index.join(
+            block.index
+        )
+
+        new_ordering_col = get_column_right[ordering_col]
+        drop_block = joined_index._block
+        drop_block, drop_col = drop_block.apply_unary_op(
+            new_ordering_col,
+            ops.isnull_op,
+        )
+
+        drop_block = drop_block.filter(drop_col)
+        original_columns = [
+            get_column_left[column] for column in self._block.value_columns
+        ]
+        drop_block = drop_block.select_columns(original_columns)
+        return DataFrame(drop_block)
 
     def droplevel(self, level: LevelsType, axis: int | str = 0):
         axis_n = utils.get_axis_number(axis)
@@ -1012,6 +1071,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             labels = [mapper]
         return DataFrame(self._block.with_index_labels(labels))
 
+    def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
+        # Must be same object type, same column dtypes, and same label values
+        if not isinstance(other, DataFrame):
+            return False
+        return block_ops.equals(self._block, other._block)
+
     def assign(self, **kwargs) -> DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
@@ -1054,7 +1119,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # local_df is likely (but not guarunteed) to be cached locally
             # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            this_expr, this_offsets_col_id = self._get_block()._expr.promote_offsets()
+            this_offsets_col_id = bigframes.core.guid.generate_guid()
+            this_expr = self._get_block()._expr.promote_offsets(this_offsets_col_id)
             block = blocks.Block(
                 expr=this_expr,
                 index_labels=self.index.names,
@@ -1091,10 +1157,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         column_ids = [
-            get_column_left(col_id) for col_id in self._block.cols_matching_label(label)
+            get_column_left[col_id] for col_id in self._block.cols_matching_label(label)
         ]
         block = joined_index._block
-        source_column = get_column_right(series._value_column)
+        source_column = get_column_right[series._value_column]
 
         # Replace each column matching the label
         for column_id in column_ids:
@@ -1440,7 +1506,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         axis_n = utils.get_axis_number(axis)
 
         if axis_n == 0:
-            result = block_ops.dropna(self._block, how=how)  # type: ignore
+            result = block_ops.dropna(self._block, self._block.value_columns, how=how)  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
@@ -1462,41 +1528,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def any(
         self,
         *,
+        axis: typing.Union[str, int] = 0,
         bool_only: bool = False,
     ) -> bigframes.series.Series:
         if not bool_only:
             frame = self._raise_on_non_boolean("any")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_pivot(
-            agg_ops.any_op, dtype=pandas.BooleanDtype()
+        block = frame._block.aggregate_all_and_stack(
+            agg_ops.any_op, dtype=pandas.BooleanDtype(), axis=axis
         )
         return bigframes.series.Series(block.select_column("values"))
 
-    def all(self, *, bool_only: bool = False) -> bigframes.series.Series:
+    def all(
+        self, axis: typing.Union[str, int] = 0, *, bool_only: bool = False
+    ) -> bigframes.series.Series:
         if not bool_only:
             frame = self._raise_on_non_boolean("all")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_pivot(
-            agg_ops.all_op, dtype=pandas.BooleanDtype()
+        block = frame._block.aggregate_all_and_stack(
+            agg_ops.all_op, dtype=pandas.BooleanDtype(), axis=axis
         )
         return bigframes.series.Series(block.select_column("values"))
 
-    def sum(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def sum(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("sum")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.sum_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.sum_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def mean(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def mean(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("mean")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.mean_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.mean_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     def median(
@@ -1510,47 +1583,57 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self._raise_on_non_numeric("median")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.median_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.median_op)
         return bigframes.series.Series(block.select_column("values"))
 
-    def std(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def std(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("std")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.std_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.std_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def var(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def var(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("var")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.var_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.var_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def min(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def min(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("min")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.min_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.min_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def max(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def max(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("max")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.max_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.max_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
-    def prod(self, *, numeric_only: bool = False) -> bigframes.series.Series:
+    def prod(
+        self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
+    ) -> bigframes.series.Series:
         if not numeric_only:
             frame = self._raise_on_non_numeric("prod")
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.product_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.product_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     product = prod
@@ -1560,11 +1643,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self
         else:
             frame = self._drop_non_numeric()
-        block = frame._block.aggregate_all_and_pivot(agg_ops.count_op)
+        block = frame._block.aggregate_all_and_stack(agg_ops.count_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def nunique(self) -> bigframes.series.Series:
-        block = self._block.aggregate_all_and_pivot(agg_ops.nunique_op)
+        block = self._block.aggregate_all_and_stack(agg_ops.nunique_op)
         return bigframes.series.Series(block.select_column("values"))
 
     def agg(
@@ -1587,12 +1670,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         else:
             return bigframes.series.Series(
-                self._block.aggregate_all_and_pivot(
+                self._block.aggregate_all_and_stack(
                     agg_ops.lookup_agg_func(typing.cast(str, func))
                 )
             )
 
     aggregate = agg
+
+    def idxmin(self) -> bigframes.series.Series:
+        return bigframes.series.Series(block_ops.idxmin(self._block))
+
+    def idxmax(self) -> bigframes.series.Series:
+        return bigframes.series.Series(block_ops.idxmax(self._block))
 
     def describe(self) -> DataFrame:
         df_numeric = self._drop_non_numeric(keep_bool=False)
@@ -1654,13 +1743,62 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    def stack(self):
-        # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
-        # TODO: match impl to pandas future_stack as described in pandas 2.1 release notes
-        result_block = block_ops.dropna(self._block.stack(), how="all")
+    def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
-            return bigframes.series.Series(result_block)
-        return DataFrame(result_block)
+            if level not in [0, -1, self.columns.name]:
+                raise IndexError(f"Invalid level {level} for single-level index")
+            return self._stack_mono()
+        return self._stack_multi(level)
+
+    def _stack_mono(self):
+        result_block = self._block.stack()
+        return bigframes.series.Series(result_block)
+
+    def _stack_multi(self, level: LevelsType = -1):
+        n_levels = self.columns.nlevels
+        if isinstance(level, int) or isinstance(level, str):
+            level = [level]
+        level_indices = []
+        for level_ref in level:
+            if isinstance(level_ref, int):
+                if level_ref < 0:
+                    level_indices.append(n_levels + level_ref)
+                else:
+                    level_indices.append(level_ref)
+            else:  # str
+                level_indices.append(self.columns.names.index(level_ref))
+
+        new_order = [
+            *[i for i in range(n_levels) if i not in level_indices],
+            *level_indices,
+        ]
+
+        original_columns = typing.cast(pandas.MultiIndex, self.columns)
+        new_columns = original_columns.reorder_levels(new_order)
+
+        block = self._block.with_column_labels(new_columns)
+
+        block = block.stack(levels=len(level))
+        return DataFrame(block)
+
+    def unstack(self):
+        block = self._block
+        # Special case, unstack with mono-index transpose into a series
+        if self.index.nlevels == 1:
+            block = block.stack(how="right", levels=self.columns.nlevels)
+            return bigframes.series.Series(block)
+
+        # Pivot by last level of index
+        index_ids = block.index_columns
+        block = block.reset_index(drop=False)
+        block = block.set_index(index_ids[:-1])
+
+        pivot_block = block.pivot(
+            columns=[index_ids[-1]],
+            values=self._block.value_columns,
+            values_in_index=True,
+        )
+        return DataFrame(pivot_block)
 
     def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
         types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
@@ -1714,12 +1852,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ] = "inner",
         # TODO(garrettwu): Currently can take inner, outer, left and right. To support
         # cross joins
-        # TODO(garrettwu): Support "on" list of columns and None. Currently a single
-        # column must be provided
-        on: Optional[str] = None,
+        on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         *,
-        left_on: Optional[str] = None,
-        right_on: Optional[str] = None,
+        left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+        right_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
@@ -1733,96 +1869,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             left_on, right_on = on, on
 
-        left = self
-        left_on_sql = self._sql_names(left_on)
-        # 0 elements already throws an exception
-        if len(left_on_sql) > 1:
-            raise ValueError(f"The column label {left_on} is not unique.")
-        left_on_sql = left_on_sql[0]
+        if utils.is_list_like(left_on):
+            left_on = list(left_on)  # type: ignore
+        else:
+            left_on = [left_on]
 
-        right_on_sql = right._sql_names(right_on)
-        if len(right_on_sql) > 1:
-            raise ValueError(f"The column label {right_on} is not unique.")
-        right_on_sql = right_on_sql[0]
+        if utils.is_list_like(right_on):
+            right_on = list(right_on)  # type: ignore
+        else:
+            right_on = [right_on]
 
-        (
-            joined_expr,
-            join_key_ids,
-            (get_column_left, get_column_right),
-        ) = joins.join_by_column(
-            left._block.expr,
-            [left_on_sql],
-            right._block.expr,
-            [right_on_sql],
-            how=how,
+        left_join_ids = []
+        for label in left_on:  # type: ignore
+            left_col_id = self._resolve_label_exact(label)
+            # 0 elements already throws an exception
+            if not left_col_id:
+                raise ValueError(f"No column {label} found in self.")
+            left_join_ids.append(left_col_id)
+
+        right_join_ids = []
+        for label in right_on:  # type: ignore
+            right_col_id = right._resolve_label_exact(label)
+            if not right_col_id:
+                raise ValueError(f"No column {label} found in other.")
+            right_join_ids.append(right_col_id)
+
+        block = self._block.merge(
+            right._block,
+            how,
+            left_join_ids,
+            right_join_ids,
             sort=sort,
-            # In merging on the same column, it only returns 1 key column from coalesced both.
-            # While if 2 different columns, both will be presented in the result.
-            coalesce_join_keys=(left_on == right_on),
-        )
-        # TODO(swast): Add suffixes to the column labels instead of reusing the
-        # column IDs as the new labels.
-        # Drop the index column(s) to be consistent with pandas.
-        left_columns = [
-            join_key_ids[0] if (col_id == left_on_sql) else get_column_left(col_id)
-            for col_id in left._block.value_columns
-        ]
-
-        right_columns = []
-        for col_id in right._block.value_columns:
-            if col_id == right_on_sql:
-                # When left_on == right_on
-                if len(join_key_ids) > 1:
-                    right_columns.append(join_key_ids[1])
-            else:
-                right_columns.append(get_column_right(col_id))
-
-        expr = joined_expr.select_columns([*left_columns, *right_columns])
-        labels = self._get_merged_col_labels(
-            right, left_on=left_on, right_on=right_on, suffixes=suffixes
-        )
-
-        # Constructs default index
-        expr, offset_index_id = expr.promote_offsets()
-        block = blocks.Block(
-            expr, index_columns=[offset_index_id], column_labels=labels
+            suffixes=suffixes,
         )
         return DataFrame(block)
-
-    def _get_merged_col_labels(
-        self,
-        right: DataFrame,
-        left_on: str,
-        right_on: str,
-        suffixes: tuple[str, str] = ("_x", "_y"),
-    ) -> List[blocks.Label]:
-        on_col_equal = left_on == right_on
-
-        left_col_labels: list[blocks.Label] = []
-        for col_label in self._block.column_labels:
-            if col_label in right._block.column_labels:
-                if on_col_equal and col_label == left_on:
-                    # Merging on the same column only returns 1 key column from coalesce both.
-                    # Take the left key column.
-                    left_col_labels.append(col_label)
-                else:
-                    left_col_labels.append(str(col_label) + suffixes[0])
-            else:
-                left_col_labels.append(col_label)
-
-        right_col_labels: list[blocks.Label] = []
-        for col_label in right._block.column_labels:
-            if col_label in self._block.column_labels:
-                if on_col_equal and col_label == left_on:
-                    # Merging on the same column only returns 1 key column from coalesce both.
-                    # Pass the right key column.
-                    pass
-                else:
-                    right_col_labels.append(str(col_label) + suffixes[1])
-            else:
-                right_col_labels.append(col_label)
-
-        return left_col_labels + right_col_labels
 
     def join(
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
@@ -1953,8 +2033,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     key._block.index, how="inner" if dropna else "left"
                 )
                 col_ids = [
-                    *[get_column_left(value) for value in col_ids],
-                    get_column_right(key._value_column),
+                    *[get_column_left[value] for value in col_ids],
+                    get_column_right[key._value_column],
                 ]
                 block = combined_index._block
             else:
@@ -2192,7 +2272,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __array__ = to_numpy
 
-    def to_parquet(self, path: str, *, index: bool = True) -> None:
+    def to_parquet(
+        self,
+        path: str,
+        *,
+        compression: Optional[Literal["snappy", "gzip"]] = "snappy",
+        index: bool = True,
+    ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
@@ -2204,6 +2290,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
+        if compression not in {None, "snappy", "gzip"}:
+            raise ValueError("'{0}' is not valid for compression".format(compression))
+
+        export_options: Dict[str, Union[bool, str]] = {}
+        if compression:
+            export_options["compression"] = compression.upper()
+
         result_table = self._run_io_query(
             index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
         )
@@ -2211,7 +2304,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
             format="PARQUET",
-            export_options={},
+            export_options=export_options,
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
@@ -2339,13 +2432,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             return array_value.to_sql(
-                ordering_mode="offset_col",
+                offset_column=ordering_id,
                 col_id_overrides=id_overrides,
-                order_col_name=ordering_id,
             )
         else:
             return array_value.to_sql(
-                ordering_mode="unordered",
                 col_id_overrides=id_overrides,
             )
 
@@ -2480,3 +2571,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _get_block(self) -> blocks.Block:
         return self._block
+
+    def _cached(self) -> DataFrame:
+        return DataFrame(self._block.cached())
