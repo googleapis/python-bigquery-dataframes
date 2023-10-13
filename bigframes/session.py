@@ -70,6 +70,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
 import bigframes.core.io as bigframes_io
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
+import bigframes.core.ordering as orderings
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
@@ -644,7 +645,7 @@ class Session(
             distinct_count = row["distinct_count"]
             is_total_ordering = total_count == distinct_count
 
-            ordering = core.ExpressionOrdering(
+            ordering = orderings.ExpressionOrdering(
                 ordering_value_columns=[
                     core.OrderingColumnReference(column_id) for column_id in index_cols
                 ],
@@ -723,7 +724,7 @@ class Session(
         index_cols: Iterable[str] = (),
         index_labels: Iterable[Optional[str]] = (),
         hidden_cols: Iterable[str] = (),
-        ordering: core.ExpressionOrdering,
+        ordering: orderings.ExpressionOrdering,
         is_total_ordering: bool = False,
         api_name: str,
     ) -> dataframe.DataFrame:
@@ -836,7 +837,7 @@ class Session(
         index_labels: Iterable[blocks.Label],
         column_keys: Iterable[str],
         column_labels: Iterable[blocks.Label],
-        ordering: core.ExpressionOrdering,
+        ordering: orderings.ExpressionOrdering,
     ) -> dataframe.DataFrame:
         """Turns a table expression (plus index column) into a DataFrame."""
 
@@ -853,7 +854,7 @@ class Session(
                 hidden_ordering_columns.append(table_expression[ref.column_id])
 
         block = blocks.Block(
-            core.ArrayValue(
+            core.ArrayValue.from_ibis(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
             index_columns=[index_col.get_name() for index_col in index_cols],
@@ -943,7 +944,7 @@ class Session(
         )
         self._start_generic_job(load_job)
 
-        ordering = core.ExpressionOrdering(
+        ordering = orderings.ExpressionOrdering(
             ordering_value_columns=[OrderingColumnReference(ordering_col)],
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
@@ -1287,7 +1288,7 @@ class Session(
         table: ibis_types.Table,
         index_cols: Iterable[str] = (),
         api_name: str = "",
-    ) -> Tuple[ibis_types.Table, core.ExpressionOrdering]:
+    ) -> Tuple[ibis_types.Table, orderings.ExpressionOrdering]:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
         default_ordering_name = guid.generate_guid("bigframes_ordering_")
@@ -1304,7 +1305,7 @@ class Session(
             f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
         )
         ordering_reference = core.OrderingColumnReference(default_ordering_name)
-        ordering = core.ExpressionOrdering(
+        ordering = orderings.ExpressionOrdering(
             ordering_value_columns=[ordering_reference],
             total_ordering_columns=frozenset([default_ordering_name]),
             integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),

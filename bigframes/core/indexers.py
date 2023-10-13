@@ -214,7 +214,7 @@ class IatDataFrameIndexer:
             raise ValueError(error_message)
         if len(key) != 2:
             raise TypeError(error_message)
-        block = self._dataframe._block
+        block = self._dataframe._block  # type: ignore
         column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
@@ -274,7 +274,7 @@ def _loc_getitem_series_or_dataframe(
             index_name = "unnamed_col"
 
         keys_df = bigframes.dataframe.DataFrame(
-            {index_name: key}, session=series_or_dataframe._get_block().expr._session
+            {index_name: key}, session=series_or_dataframe._get_block().expr.session
         )
         keys_df = keys_df.set_index(index_name, drop=True)
 
@@ -294,7 +294,7 @@ def _loc_getitem_series_or_dataframe(
     elif pd.api.types.is_scalar(key):
         index_name = "unnamed_col"
         keys_df = bigframes.dataframe.DataFrame(
-            {index_name: [key]}, session=series_or_dataframe._get_block().expr._session
+            {index_name: [key]}, session=series_or_dataframe._get_block().expr.session
         )
         keys_df = keys_df.set_index(index_name, drop=True)
         keys_df.index.name = None

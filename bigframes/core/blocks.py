@@ -38,7 +38,6 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
-import bigframes.core.joins as joins
 import bigframes.core.joins.name_resolution as join_names
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
@@ -829,7 +828,7 @@ class Block:
             result_expr = self.expr.aggregate(aggregations, dropna=dropna).unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=["index"],
-                unpivot_columns=[(value_col_id, self.value_columns)],
+                unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
                 dtype=dtype,
             )
             return Block(result_expr, index_columns=["index"], column_labels=[None])
@@ -841,7 +840,7 @@ class Block:
             stacked_expr = expr_with_offsets.unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=[guid.generate_guid()],
-                unpivot_columns=[(value_col_id, self.value_columns)],
+                unpivot_columns=[(value_col_id, tuple(self.value_columns))],
                 passthrough_columns=[*self.index_columns, offset_col],
                 dtype=dtype,
             )
@@ -1029,13 +1028,13 @@ class Block:
             for col_id in column_ids
         ]
         columns = [
-            (col_id, [f"{col_id}-{stat.name}" for stat in stats])
+            (col_id, tuple([f"{col_id}-{stat.name}" for stat in stats]))
             for col_id in column_ids
         ]
         expr = self.expr.aggregate(aggregations).unpivot(
             labels,
-            unpivot_columns=columns,
-            index_col_ids=[label_col_id],
+            unpivot_columns=tuple(columns),
+            index_col_ids=tuple([label_col_id]),
         )
         labels = self._get_labels_for_columns(column_ids)
         return Block(expr, column_labels=labels, index_columns=[label_col_id])
@@ -1484,8 +1483,7 @@ class Block:
         sort: bool,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> Block:
-        joined_expr = joins.join_by_column(
-            self.expr,
+        joined_expr = self.expr.join(
             left_join_ids,
             other.expr,
             right_join_ids,
@@ -1699,7 +1697,7 @@ def block_from_local(data, session=None) -> Block:
     )
     index_ids = pd_data.columns[: len(index_labels)]
 
-    keys_expr = core.ArrayValue.mem_expr_from_pandas(pd_data, session)
+    keys_expr = core.ArrayValue.from_pandas(pd_data)
     return Block(
         keys_expr,
         column_labels=columns,
