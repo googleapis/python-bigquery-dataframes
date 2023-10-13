@@ -63,7 +63,7 @@ class ArrayValue:
     @classmethod
     def from_pandas(cls, pd_df: pandas.DataFrame):
         # Need to make immutable and hashable
-        local_array = tuple(tuple(val) for col, val in pd_df.items())
+        local_array = tuple(tuple(val) for col, val in pd_df.items())  # column-major
         column_ids = tuple(str(label) for label in pd_df.columns)
         node = nodes.ReadLocalNode(local_array, column_ids=column_ids)
         return cls(node)
@@ -83,7 +83,7 @@ class ArrayValue:
         return self.compile().get_column_type(key)
 
     def compile(self) -> compiled.CompiledArrayValue:
-        return compiled.ArrayValueCompiler(self.session).compile(self)
+        return compiled.ArrayValueCompiler().compile(self)
 
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
@@ -151,10 +151,10 @@ class ArrayValue:
         """Write the ArrayValue to a session table and create a new block object that references it."""
         compiled = self.compile()
         ibis_expr = compiled._to_ibis_expr("unordered", expose_hidden_cols=True)
-        destination = compiled._session._ibis_to_session_table(
+        destination = self.session._ibis_to_session_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cache"
         )
-        table_expression = compiled._session.ibis_client.table(
+        table_expression = self.session.ibis_client.table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}"
         )
         new_columns = [table_expression[column] for column in compiled.column_ids]

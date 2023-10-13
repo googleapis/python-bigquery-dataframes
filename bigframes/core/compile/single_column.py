@@ -135,7 +135,6 @@ def join_by_column(
             ],
         ]
         return compiled.CompiledArrayValue(
-            left._session,
             combined_table,
             columns=columns,
             hidden_ordering_columns=hidden_ordering_columns,

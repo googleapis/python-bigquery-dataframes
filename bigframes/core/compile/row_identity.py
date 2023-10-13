@@ -119,7 +119,6 @@ def join_by_row_identity(
     ]
 
     joined_expr = compiled.CompiledArrayValue(
-        left._session,
         left._table,
         columns=joined_columns,
         hidden_ordering_columns=hidden_ordering_columns,

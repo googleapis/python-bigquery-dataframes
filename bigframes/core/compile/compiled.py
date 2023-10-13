@@ -20,6 +20,7 @@ import typing
 from typing import Collection, Iterable, Literal, Optional, Sequence
 
 import ibis
+import ibis.backends.bigquery as ibis_bigquery
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -40,9 +41,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
-if typing.TYPE_CHECKING:
-    from bigframes.session import Session
-
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
@@ -59,9 +57,6 @@ class CompiledArrayValue:
     mixing and matching columns from different versions of a DataFrame.
 
     Args:
-        session:
-            A BigQuery DataFrames session to allow more flexibility in running
-            queries.
         table: An Ibis table expression.
         columns: Ibis value expressions that can be projected as columns.
         hidden_ordering_columns: Ibis value expressions to store ordering.
@@ -71,14 +66,12 @@ class CompiledArrayValue:
 
     def __init__(
         self,
-        session: Session,
         table: ibis_types.Table,
         columns: Sequence[ibis_types.Value],
         hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
         ordering: ExpressionOrdering = ExpressionOrdering(),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
-        self._session = session
         self._table = table
         self._predicates = tuple(predicates) if predicates is not None else ()
         # TODO: Validate ordering
@@ -122,13 +115,9 @@ class CompiledArrayValue:
     def mem_expr_from_pandas(
         cls,
         pd_df: pandas.DataFrame,
-        session: Optional[Session],
     ) -> CompiledArrayValue:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
-
-        Caution: If session is None, only a subset of expr functionality will
-        be available (null Session is usually not supported).
         """
         # We can't include any hidden columns in the ArrayValue constructor, so
         # grab the column names before we add the hidden ordering column.
@@ -171,7 +160,6 @@ class CompiledArrayValue:
         keys_memtable = ibis.memtable(pd_df, schema=ibis.schema(new_schema))
 
         return cls(
-            session,  # type: ignore # Session cannot normally be none, see "caution" above
             keys_memtable,
             columns=[
                 keys_memtable[f"col_{column_index}"].name(column)
@@ -221,7 +209,6 @@ class CompiledArrayValue:
         # potential opportunities for caching, though we might need to introduce
         # more node types for that to be useful), we create a builder class.
         return ArrayValueBuilder(
-            self._session,
             self._table,
             columns=self._columns,
             hidden_ordering_columns=self._hidden_ordering_columns,
@@ -329,7 +316,6 @@ class CompiledArrayValue:
             table[column_name] for column_name in self._hidden_ordering_column_names
         ]
         return CompiledArrayValue(
-            self._session,
             table,
             columns=columns,
             hidden_ordering_columns=hidden_ordering_columns,
@@ -364,7 +350,6 @@ class CompiledArrayValue:
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
         return CompiledArrayValue(
-            self._session,
             table,
             columns=columns,
             hidden_ordering_columns=[table[ORDER_ID_COLUMN]],
@@ -453,7 +438,6 @@ class CompiledArrayValue:
             string_encoding=StringEncoding(True, prefix_size + max_encoding_size),
         )
         return CompiledArrayValue(
-            self._session,
             combined_table,
             columns=[
                 combined_table[col]
@@ -534,9 +518,7 @@ class CompiledArrayValue:
                 total_ordering_columns=frozenset(by_column_ids),
             )
             columns = tuple(result[key] for key in result.columns)
-            expr = CompiledArrayValue(
-                self._session, result, columns=columns, ordering=ordering
-            )
+            expr = CompiledArrayValue(result, columns=columns, ordering=ordering)
             if dropna:
                 for column_id in by_column_ids:
                     expr = expr._filter(
@@ -556,7 +538,6 @@ class CompiledArrayValue:
                 integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
             )
             return CompiledArrayValue(
-                self._session,
                 result,
                 columns=[result[col_id] for col_id in [*stats.keys()]],
                 hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
@@ -586,7 +567,6 @@ class CompiledArrayValue:
             integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
         )
         return CompiledArrayValue(
-            self._session,
             result,
             columns=[result[col_id] for col_id in [*stats.keys()]],
             hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
@@ -654,7 +634,7 @@ class CompiledArrayValue:
     ) -> str:
         offsets_id = offset_column or ORDER_ID_COLUMN
 
-        sql = self._session.ibis_client.compile(
+        sql = ibis_bigquery.Backend().compile(
             self._to_ibis_expr(
                 ordering_mode="offset_col"
                 if (offset_column or sorted)
@@ -832,7 +812,6 @@ class CompiledArrayValue:
             if column_name in ordering_col_ids
         ]
         return CompiledArrayValue(
-            self._session,
             table,
             columns=columns,
             hidden_ordering_columns=hidden_ordering_columns,
@@ -1017,7 +996,6 @@ class CompiledArrayValue:
             *[unpivot_table[hidden_col] for hidden_col in hidden_col_ids],
         ]
         return CompiledArrayValue(
-            session=self._session,
             table=unpivot_table,
             columns=[
                 *[unpivot_table[col_id] for col_id in index_col_ids],
@@ -1077,14 +1055,12 @@ class ArrayValueBuilder:
 
     def __init__(
         self,
-        session: Session,
         table: ibis_types.Table,
         ordering: ExpressionOrdering,
         columns: Collection[ibis_types.Value] = (),
         hidden_ordering_columns: Collection[ibis_types.Value] = (),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
-        self.session = session
         self.table = table
         self.columns = list(columns)
         self.hidden_ordering_columns = list(hidden_ordering_columns)
@@ -1093,7 +1069,6 @@ class ArrayValueBuilder:
 
     def build(self) -> CompiledArrayValue:
         return CompiledArrayValue(
-            session=self.session,
             table=self.table,
             columns=self.columns,
             hidden_ordering_columns=self.hidden_ordering_columns,

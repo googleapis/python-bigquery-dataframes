@@ -93,6 +93,7 @@ class ConcatNode(BigFrameNode):
 # Input Nodex
 @dataclass(frozen=True)
 class ReadLocalNode(BigFrameNode):
+    # column major
     local_array: typing.Tuple[typing.Tuple[typing.Hashable, ...], ...]
     column_ids: typing.Tuple[str, ...]
 

@@ -31,7 +31,6 @@ if typing.TYPE_CHECKING:
 @dataclasses.dataclass(frozen=True)
 class ArrayValueCompiler:
     # TODO: Enable unordered compilation
-    session: bigframes.session.Session
 
     def compile(
         self, array_value: bigframes.core.ArrayValue
@@ -74,16 +73,15 @@ def compile_drop(node: nodes.DropColumnsNode, compiler: ArrayValueCompiler):
 
 @compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, compiler: ArrayValueCompiler):
-    array_as_pd = pd.DataFrame(node.local_array, columns=node.column_ids)
-    return compiled.CompiledArrayValue.mem_expr_from_pandas(
-        array_as_pd, compiler.session
+    array_as_pd = pd.DataFrame(
+        {col_id: column for col_id, column in zip(node.column_ids, node.local_array)}
     )
+    return compiled.CompiledArrayValue.mem_expr_from_pandas(array_as_pd)
 
 
 @compile_node.register
 def compile_readgbq(node: nodes.ReadGbqNode, compiler: ArrayValueCompiler):
     return compiled.CompiledArrayValue(
-        node.session,
         node.table,
         node.columns,
         node.hidden_ordering_columns,
