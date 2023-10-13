@@ -41,10 +41,10 @@ def test_arrayvalue_constructor_from_ibis_table_adds_all_columns():
         [core.OrderingColumnReference("col1")],
         total_ordering_columns=frozenset(["col1"]),
     )
-    actual = core.ArrayValue(
+    actual = core.ArrayValue.from_ibis(
         session=session, table=ibis_table, columns=columns, ordering=ordering
     )
-    assert actual._table is ibis_table
+    assert actual.compile()._table is ibis_table
     assert len(actual.columns) == 3
 
 
@@ -78,7 +78,7 @@ def test_arrayvalue_with_get_column():
         ),
         total_ordering_columns=["col1"],
     )
-    col1 = value._get_ibis_column("col1")
+    col1 = value.compile()._get_ibis_column("col1")
     assert isinstance(col1, ibis_types.Value)
     assert col1.get_name() == "col1"
     assert col1.type().is_int64()
@@ -95,7 +95,7 @@ def test_arrayvalues_to_ibis_expr_with_get_column():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value._get_ibis_column("col1")
+    expr = value.compile()._get_ibis_column("col1")
     assert expr.get_name() == "col1"
     assert expr.type().is_int64()
 
@@ -112,7 +112,7 @@ def test_arrayvalues_to_ibis_expr_with_concat():
         total_ordering_columns=["col1"],
     )
     expr = value.concat([value])
-    actual = expr._to_ibis_expr("unordered")
+    actual = expr.compile()._to_ibis_expr("unordered")
     assert len(actual.columns) == 3
     # TODO(ashleyxu, b/299631930): test out the union expression
     assert actual.columns[0] == "column_0"
@@ -131,8 +131,8 @@ def test_arrayvalues_to_ibis_expr_with_project_unary_op():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value.project_unary_op("col1", ops.AsTypeOp("string"))
-    assert value.columns[0].type().is_int64()
+    expr = value.project_unary_op("col1", ops.AsTypeOp("string")).compile()
+    assert value.compile().columns[0].type().is_int64()
     assert expr.columns[0].type().is_string()
 
 
@@ -147,7 +147,7 @@ def test_arrayvalues_to_ibis_expr_with_project_binary_op():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value.project_binary_op("col2", "col3", ops.add_op, "col4")
+    expr = value.project_binary_op("col2", "col3", ops.add_op, "col4").compile()
     assert expr.columns[3].type().is_float64()
     actual = expr._to_ibis_expr("unordered")
     assert len(expr.columns) == 4
@@ -166,7 +166,9 @@ def test_arrayvalues_to_ibis_expr_with_project_ternary_op():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value.project_ternary_op("col2", "col3", "col4", ops.where_op, "col5")
+    expr = value.project_ternary_op(
+        "col2", "col3", "col4", ops.where_op, "col5"
+    ).compile()
     assert expr.columns[4].type().is_float64()
     actual = expr._to_ibis_expr("unordered")
     assert len(expr.columns) == 5
@@ -188,7 +190,7 @@ def test_arrayvalue_to_ibis_expr_with_aggregate():
         aggregations=(("col1", agg_ops.sum_op, "col4"),),
         by_column_ids=["col1"],
         dropna=False,
-    )
+    ).compile()
     actual = expr._to_ibis_expr("unordered")
     assert len(expr.columns) == 2
     assert actual.columns[0] == "col1"
@@ -207,7 +209,7 @@ def test_arrayvalue_to_ibis_expr_with_corr_aggregate():
         ),
         total_ordering_columns=["col1"],
     )
-    expr = value.corr_aggregate(corr_aggregations=[("col1", "col3", "col4")])
+    expr = value.corr_aggregate(corr_aggregations=[("col1", "col3", "col4")]).compile()
     actual = expr._to_ibis_expr("unordered")
     assert len(expr.columns) == 1
     assert actual.columns[0] == "col4"

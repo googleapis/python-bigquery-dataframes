@@ -448,7 +448,7 @@ def _mean_delta_to_power(
     for val_id, mean_val_id in zip(column_ids, mean_ids):
         block, delta_id = block.apply_binary_op(val_id, mean_val_id, ops.sub_op)
         block, delta_power_id = block.apply_unary_op(delta_id, cube_op)
-        block = block.drop_columns(delta_id)
+        block = block.drop_columns([delta_id])
         delta_ids.append(delta_power_id)
     return block, delta_ids
 

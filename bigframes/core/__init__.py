@@ -67,9 +67,7 @@ class ArrayValue:
 
     @property
     def column_ids(self) -> typing.Sequence[str]:
-        compiled = self.compile()
-        tup = tuple(compiled.column_ids)
-        return tup
+        return self.compile().column_ids
 
     @property
     def session(self) -> Session:
