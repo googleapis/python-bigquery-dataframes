@@ -1675,7 +1675,7 @@ class Block:
         return result
 
 
-def block_from_local(data, session=None) -> Block:
+def block_from_local(data) -> Block:
     pd_data = pd.DataFrame(data)
     columns = pd_data.columns
 

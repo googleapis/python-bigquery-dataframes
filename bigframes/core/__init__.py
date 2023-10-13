@@ -18,6 +18,7 @@ import typing
 from typing import Iterable, Literal, Optional, Sequence, Tuple
 
 from google.cloud import bigquery
+import ibis
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -63,7 +64,7 @@ class ArrayValue:
     @classmethod
     def from_pandas(cls, pd_df: pandas.DataFrame):
         # Need to make immutable and hashable
-        local_array = tuple(tuple(val) for col, val in pd_df.items())  # column-major
+        local_array = tuple(tuple(val) for _, val in pd_df.items())  # column-major
         column_ids = tuple(str(label) for label in pd_df.columns)
         node = nodes.ReadLocalNode(local_array, column_ids=column_ids)
         return cls(node)
@@ -89,12 +90,12 @@ class ArrayValue:
         """Returns dimensions as (length, width) tuple."""
         width = len(self.compile().columns)
         count_expr = self.compile()._to_ibis_expr("unordered").count()
-        sql = self.session.ibis_client.compile(count_expr)
 
         # Support in-memory engines for hermetic unit tests.
-        if not isinstance(sql, str):
-            length = self.session.ibis_client.execute(count_expr)
+        if not self.node.sessions:
+            length = ibis.pandas.connect({}).execute(count_expr)
         else:
+            sql = self.session.ibis_client.compile(count_expr)
             row_iterator, _ = self.session._start_query(
                 sql=sql,
                 max_results=1,

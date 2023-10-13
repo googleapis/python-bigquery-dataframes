@@ -16,6 +16,7 @@ import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core as core
+import bigframes.core.ordering
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -37,15 +38,19 @@ def test_arrayvalue_constructor_from_ibis_table_adds_all_columns():
     )
     ibis_table = session.ibis_client.table("test_table")
     columns = (ibis_table["col1"], ibis_table["col2"], ibis_table["col3"])
-    ordering = core.ExpressionOrdering(
-        [core.OrderingColumnReference("col1")],
+    ordering = bigframes.core.ordering.ExpressionOrdering(
+        tuple([core.OrderingColumnReference("col1")]),
         total_ordering_columns=frozenset(["col1"]),
     )
     actual = core.ArrayValue.from_ibis(
-        session=session, table=ibis_table, columns=columns, ordering=ordering
+        session=session,
+        table=ibis_table,
+        columns=columns,
+        ordering=ordering,
+        hidden_ordering_columns=(),
     )
     assert actual.compile()._table is ibis_table
-    assert len(actual.columns) == 3
+    assert len(actual.column_ids) == 3
 
 
 def test_arrayvalue_with_get_column_type():
