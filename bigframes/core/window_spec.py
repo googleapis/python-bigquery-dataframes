@@ -28,8 +28,8 @@ class WindowSpec:
     ordering: List of columns ids and ordering direction to override base ordering
     """
 
-    grouping_keys: typing.Sequence[str] = tuple()
-    ordering: typing.Sequence[orderings.OrderingColumnReference] = tuple()
+    grouping_keys: typing.Tuple[str, ...] = tuple()
+    ordering: typing.Tuple[orderings.OrderingColumnReference, ...] = tuple()
     preceding: typing.Optional[int] = None
     following: typing.Optional[int] = None
     min_periods: int = 0

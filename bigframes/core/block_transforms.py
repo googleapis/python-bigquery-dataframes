@@ -230,7 +230,7 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.WindowSpec(grouping_keys=[columns[i]]),
+                window_spec=windows.WindowSpec(grouping_keys=(columns[i],)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
@@ -312,7 +312,7 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=order_refs),
+            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.apply_unary_op(
             counter, ops.partial_right(ops.le_op, n)
@@ -344,7 +344,7 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=order_refs),
+            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.apply_unary_op(
             counter, ops.partial_right(ops.le_op, n)
@@ -441,7 +441,7 @@ def _mean_delta_to_power(
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = windows.WindowSpec(grouping_keys=grouping_column_ids)
+    window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
     cube_op = ops.partial_right(ops.pow_op, n_power)
@@ -646,7 +646,7 @@ def _idx_extrema(
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = windows.WindowSpec(ordering=order_refs)
+        window_spec = windows.WindowSpec(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec

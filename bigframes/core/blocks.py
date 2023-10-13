@@ -818,7 +818,9 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype=pd.Float64Dtype(),
+        dtype: typing.Union[
+            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
+        ] = pd.Float64Dtype(),
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -1326,7 +1328,7 @@ class Block:
             passthrough_columns=self.index_columns,
             unpivot_columns=unpivot_columns,
             index_col_ids=added_index_columns,
-            dtype=dtypes,
+            dtype=tuple(dtypes),
             how=how,
         )
         new_index_level_names = self.column_labels.names[-levels:]
@@ -1366,7 +1368,7 @@ class Block:
                     dtype = self._column_type(input_id)
             input_columns.append(input_id)
             # Input column i is the first one that
-        return input_columns, dtype or pd.Float64Dtype()
+        return tuple(input_columns), dtype or pd.Float64Dtype()
 
     def _column_type(self, col_id: str) -> bigframes.dtypes.Dtype:
         col_offset = self.value_columns.index(col_id)

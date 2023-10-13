@@ -206,7 +206,7 @@ class UnpivotNode(UnaryNode):
     passthrough_columns: typing.Tuple[str, ...] = ()
     index_col_ids: typing.Tuple[str, ...] = ("index",)
     dtype: typing.Union[
-        bigframes.dtypes.Dtype, typing.Sequence[bigframes.dtypes.Dtype]
+        bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
     ] = (pandas.Float64Dtype(),)
     how: typing.Literal["left", "right"] = "left"
 
