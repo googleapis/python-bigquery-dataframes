@@ -93,25 +93,13 @@ class ConcatNode(BigFrameNode):
 # Input Nodex
 @dataclass(frozen=True)
 class ReadLocalNode(BigFrameNode):
-    pd_df: pandas.DataFrame
+    local_array: typing.Tuple[typing.Tuple[typing.Hashable, ...], ...]
+    column_ids: typing.Tuple[str, ...]
 
 
 # TODO: Refactor to take raw gbq object reference
 @dataclass(frozen=True)
 class ReadGbqNode(BigFrameNode):
-    table: ibis_types.Table = field()
-    session: bigframes.session.Session = field()
-    columns: Tuple[ibis_types.Value, ...] = field()
-    hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
-    ordering: orderings.ExpressionOrdering = field()
-
-    @property
-    def sessions(self):
-        return (self.session,)
-
-
-@dataclass(frozen=True)
-class ReadSqlNode(BigFrameNode):
     table: ibis_types.Table = field()
     session: bigframes.session.Session = field()
     columns: Tuple[ibis_types.Value, ...] = field()

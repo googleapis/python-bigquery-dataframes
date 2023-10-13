@@ -62,7 +62,10 @@ class ArrayValue:
 
     @classmethod
     def from_pandas(cls, pd_df: pandas.DataFrame):
-        node = nodes.ReadLocalNode(pd_df)
+        # Need to make immutable and hashable
+        local_array = tuple(tuple(val) for col, val in pd_df.items())
+        column_ids = tuple(str(label) for label in pd_df.columns)
+        node = nodes.ReadLocalNode(local_array, column_ids=column_ids)
         return cls(node)
 
     @property

@@ -17,6 +17,8 @@ import dataclasses
 import functools
 import typing
 
+import pandas as pd
+
 import bigframes.core.compile as compiled
 import bigframes.core.compile.single_column
 import bigframes.core.nodes as nodes
@@ -72,8 +74,9 @@ def compile_drop(node: nodes.DropColumnsNode, compiler: ArrayValueCompiler):
 
 @compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, compiler: ArrayValueCompiler):
+    array_as_pd = pd.DataFrame(node.local_array, columns=node.column_ids)
     return compiled.CompiledArrayValue.mem_expr_from_pandas(
-        node.pd_df, compiler.session
+        array_as_pd, compiler.session
     )
 
 
