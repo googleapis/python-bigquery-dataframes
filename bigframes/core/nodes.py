@@ -110,6 +110,19 @@ class ReadGbqNode(BigFrameNode):
         return (self.session,)
 
 
+@dataclass(frozen=True)
+class ReadSqlNode(BigFrameNode):
+    table: ibis_types.Table = field()
+    session: bigframes.session.Session = field()
+    columns: Tuple[ibis_types.Value, ...] = field()
+    hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
+    ordering: orderings.ExpressionOrdering = field()
+
+    @property
+    def sessions(self):
+        return (self.session,)
+
+
 # Unary nodes
 @dataclass(frozen=True)
 class DropColumnsNode(UnaryNode):

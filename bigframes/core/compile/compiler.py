@@ -26,7 +26,7 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ArrayValueCompiler:
     # TODO: Enable unordered compilation
     # Session must be compatible with session
@@ -37,6 +37,7 @@ class ArrayValueCompiler:
     ) -> compiled.CompiledArrayValue:
         return self.compile_node(array_value.node)
 
+    @functools.cache
     def compile_node(self, node: nodes.BigFrameNode) -> compiled.CompiledArrayValue:
         return compile_node(node, self)
 

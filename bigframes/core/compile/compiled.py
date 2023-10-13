@@ -179,7 +179,9 @@ class CompiledArrayValue:
                 for column_index, column in enumerate(column_names)
             ],
             ordering=ExpressionOrdering(
-                ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+                ordering_value_columns=tuple(
+                    [OrderingColumnReference(ORDER_ID_COLUMN)]
+                ),
                 total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             ),
             hidden_ordering_columns=(keys_memtable[ORDER_ID_COLUMN],),
@@ -358,7 +360,7 @@ class CompiledArrayValue:
         )
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
-            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            ordering_value_columns=tuple([OrderingColumnReference(ORDER_ID_COLUMN)]),
             total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
@@ -472,7 +474,7 @@ class CompiledArrayValue:
             tables.append(table)
         combined_table = ibis.union(*tables)
         ordering = ExpressionOrdering(
-            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            ordering_value_columns=tuple([OrderingColumnReference(ORDER_ID_COLUMN)]),
             total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             string_encoding=StringEncoding(True, prefix_size + max_encoding_size),
         )
@@ -549,10 +551,12 @@ class CompiledArrayValue:
             result = table.group_by(by_column_ids).aggregate(**stats)
             # Must have deterministic ordering, so order by the unique "by" column
             ordering = ExpressionOrdering(
-                [
-                    OrderingColumnReference(column_id=column_id)
-                    for column_id in by_column_ids
-                ],
+                tuple(
+                    [
+                        OrderingColumnReference(column_id=column_id)
+                        for column_id in by_column_ids
+                    ]
+                ),
                 total_ordering_columns=frozenset(by_column_ids),
             )
             columns = tuple(result[key] for key in result.columns)
@@ -571,7 +575,9 @@ class CompiledArrayValue:
             result = table.aggregate(**aggregates)
             # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
             ordering = ExpressionOrdering(
-                ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+                ordering_value_columns=tuple(
+                    [OrderingColumnReference(ORDER_ID_COLUMN)]
+                ),
                 total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
                 integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
             )
@@ -601,7 +607,7 @@ class CompiledArrayValue:
         result = table.aggregate(**aggregates)
         # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
         ordering = ExpressionOrdering(
-            ordering_value_columns=[OrderingColumnReference(ORDER_ID_COLUMN)],
+            ordering_value_columns=tuple([OrderingColumnReference(ORDER_ID_COLUMN)]),
             total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
         )
@@ -1034,20 +1040,24 @@ class CompiledArrayValue:
         old_ordering = self._ordering
         if how == "left":
             new_ordering = ExpressionOrdering(
-                ordering_value_columns=[
-                    *old_ordering.ordering_value_columns,
-                    OrderingColumnReference(unpivot_offset_id),
-                ],
+                ordering_value_columns=tuple(
+                    [
+                        *old_ordering.ordering_value_columns,
+                        OrderingColumnReference(unpivot_offset_id),
+                    ]
+                ),
                 total_ordering_columns=frozenset(
                     [*old_ordering.total_ordering_columns, unpivot_offset_id]
                 ),
             )
         else:  # how=="right"
             new_ordering = ExpressionOrdering(
-                ordering_value_columns=[
-                    OrderingColumnReference(unpivot_offset_id),
-                    *old_ordering.ordering_value_columns,
-                ],
+                ordering_value_columns=tuple(
+                    [
+                        OrderingColumnReference(unpivot_offset_id),
+                        *old_ordering.ordering_value_columns,
+                    ]
+                ),
                 total_ordering_columns=frozenset(
                     [*old_ordering.total_ordering_columns, unpivot_offset_id]
                 ),

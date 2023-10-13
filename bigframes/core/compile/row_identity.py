@@ -103,7 +103,7 @@ def join_by_row_identity(
         # Assume that left ordering is sufficient since 1:1 join over same base table
         join_total_order_cols = left_total_order_cols
         new_ordering = orderings.ExpressionOrdering(
-            ordering_columns, total_ordering_columns=join_total_order_cols
+            tuple(ordering_columns), total_ordering_columns=join_total_order_cols
         )
 
     hidden_ordering_columns = [

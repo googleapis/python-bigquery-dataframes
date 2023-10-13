@@ -361,6 +361,10 @@ class Session(
     def _project(self):
         return self.bqclient.project
 
+    def __hash__(self):
+        # Stable hash needed to use in expression tree
+        return hash(self._session_id)
+
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:
         go/bigframes-transient-data"""
@@ -646,9 +650,12 @@ class Session(
             is_total_ordering = total_count == distinct_count
 
             ordering = orderings.ExpressionOrdering(
-                ordering_value_columns=[
-                    core.OrderingColumnReference(column_id) for column_id in index_cols
-                ],
+                ordering_value_columns=tuple(
+                    [
+                        core.OrderingColumnReference(column_id)
+                        for column_id in index_cols
+                    ]
+                ),
                 total_ordering_columns=frozenset(index_cols),
             )
 
@@ -945,7 +952,7 @@ class Session(
         self._start_generic_job(load_job)
 
         ordering = orderings.ExpressionOrdering(
-            ordering_value_columns=[OrderingColumnReference(ordering_col)],
+            ordering_value_columns=tuple([OrderingColumnReference(ordering_col)]),
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
@@ -1306,7 +1313,7 @@ class Session(
         )
         ordering_reference = core.OrderingColumnReference(default_ordering_name)
         ordering = orderings.ExpressionOrdering(
-            ordering_value_columns=[ordering_reference],
+            ordering_value_columns=tuple([ordering_reference]),
             total_ordering_columns=frozenset([default_ordering_name]),
             integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
         )

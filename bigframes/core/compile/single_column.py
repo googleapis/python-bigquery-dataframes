@@ -177,6 +177,6 @@ def join_orderings(
         [right_id_mapping[id] for id in right.total_ordering_columns]
     )
     return orderings.ExpressionOrdering(
-        ordering_value_columns=joined_refs,
+        ordering_value_columns=tuple(joined_refs),
         total_ordering_columns=left_total_order_cols | right_total_order_cols,
     )
