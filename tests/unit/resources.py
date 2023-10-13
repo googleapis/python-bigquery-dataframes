@@ -66,7 +66,9 @@ def create_arrayvalue(
     ibis_table = session.ibis_client.table("test_table")
     columns = tuple(ibis_table[key] for key in ibis_table.columns)
     ordering = bigframes.core.ordering.ExpressionOrdering(
-        [core.OrderingColumnReference(column) for column in total_ordering_columns],
+        tuple(
+            [core.OrderingColumnReference(column) for column in total_ordering_columns]
+        ),
         total_ordering_columns=frozenset(total_ordering_columns),
     )
     return core.ArrayValue.from_ibis(
