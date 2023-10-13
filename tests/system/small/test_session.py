@@ -231,6 +231,45 @@ def test_read_gbq_w_anonymous_query_results_table(session: bigframes.Session):
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
+def test_read_gbq_w_primary_keys_table(session: bigframes.Session):
+    query = textwrap.dedent(
+        f"""
+        CREATE TEMP TABLE `pk{random.randrange(1_000_000_000)}`
+        (
+            total_people INT64,
+            name STRING,
+            gender STRING,
+            year INT64,
+            PRIMARY KEY(name, gender, year) NOT ENFORCED
+        )
+        AS
+        SELECT SUM(`number`) AS total_people, name, gender, year
+        FROM `bigquery-public-data.usa_names.usa_1910_2013`
+        GROUP BY name, gender, year
+        """
+    )
+    job = session.bqclient.query(query)
+    job.result()
+    table = session.bqclient.get_table(job.destination)
+    destination = f"{table.project}.{table.dataset_id}.{table.table_id}"
+
+    # TODO(b/305264153): Use public properties to fetch primary keys once
+    # added to google-cloud-bigquery.
+    primary_keys = (
+        table._properties.get("tableConstraints", {})
+        .get("primaryKey", {})
+        .get("columns")
+    )
+    assert len(primary_keys) == 3
+
+    df = session.read_gbq(destination)
+    result = df.head(100).to_pandas()
+
+    # Should be sorted by primary keys.
+    sorted_result = result.sort_values(["name", "gender", "year"])
+    pd.testing.assert_frame_equal(result, sorted_result)
+
+
 @pytest.mark.parametrize(
     ("query_or_table", "max_results"),
     [
