@@ -14,13 +14,20 @@
 
 """Private module: Helpers for I/O operations."""
 
+from __future__ import annotations
+
 import datetime
 import textwrap
 import types
+import typing
 from typing import Dict, Iterable, Union
 import uuid
 
 import google.cloud.bigquery as bigquery
+
+if typing.TYPE_CHECKING:
+    import bigframes.session
+
 
 IO_ORDERING_ID = "bqdf_row_nums"
 TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
@@ -69,27 +76,52 @@ def create_export_data_statement(
     )
 
 
-def create_snapshot_sql(
-    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
-) -> str:
-    """Query a table via 'time travel' for consistent reads."""
+def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    random_id = uuid.uuid4().hex
+    table_id = TEMP_TABLE_PREFIX.format(
+        date=now.strftime("%Y%m%d"), random_id=random_id
+    )
+    return dataset.table(table_id)
 
-    # If we have a _SESSION table, assume that it's already a copy. Nothing to do here.
-    if table_ref.dataset_id.upper() == "_SESSION":
-        return f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
 
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
+def table_ref_to_sql(table: bigquery.TableReference) -> str:
+    return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
-    return textwrap.dedent(
+
+def create_table_clone(
+    source: bigquery.TableReference,
+    dataset: bigquery.DatasetReference,
+    expiration: datetime.timedelta,
+    session: bigframes.session.Session,
+    api_name: str,
+) -> bigquery.TableReference:
+    """Create a table clone for consistent reads."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expiration_timestamp = now + expiration
+    fully_qualified_source_id = table_ref_to_sql(source)
+    destination = random_table(dataset)
+    fully_qualified_destination_id = table_ref_to_sql(destination)
+
+    # Include a label so that Dataplex Lineage can identify temporary
+    # tables that BigQuery DataFrames creates. Googlers: See internal issue
+    # 296779699.
+    ddl = textwrap.dedent(
         f"""
-        SELECT *
-        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
-        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
+        CREATE OR REPLACE TABLE
+        {fully_qualified_destination_id}
+        CLONE {fully_qualified_source_id}
+        OPTIONS(
+            expiration_timestamp=TIMESTAMP "{expiration_timestamp.isoformat()}",
+            labels=[
+                ("source", "bigquery-dataframes-temp"),
+                ("bigframes-api", {repr(api_name)})
+            ]
+        )
         """
     )
+    session._start_query(ddl)
+    return destination
 
 
 def create_temp_table(
@@ -98,13 +130,9 @@ def create_temp_table(
     expiration: datetime.timedelta,
 ) -> str:
     """Create an empty table with an expiration in the desired dataset."""
-    now = datetime.datetime.now(datetime.timezone.utc)
-    random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_PREFIX.format(
-        date=now.strftime("%Y%m%d"), random_id=random_id
-    )
-    table_ref = dataset.table(table_id)
+    table_ref = random_table(dataset)
     destination = bigquery.Table(table_ref)
+    now = datetime.datetime.now(datetime.timezone.utc)
     destination.expires = now + expiration
     bqclient.create_table(destination)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"

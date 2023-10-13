@@ -22,12 +22,12 @@ import pytest
 import bigframes.session._io.bigquery
 
 
-def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
+def test_create_table_clone_doesnt_timetravel_anonymous_datasets():
     table_ref = bigquery.TableReference.from_string(
         "my-test-project._e8166e0cdb.anonbb92cd"
     )
 
-    sql = bigframes.session._io.bigquery.create_snapshot_sql(
+    sql = bigframes.core.io.create_table_clone(
         table_ref, datetime.datetime.now(datetime.timezone.utc)
     )
 
@@ -38,10 +38,10 @@ def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
     assert "`my-test-project`.`_e8166e0cdb`.`anonbb92cd`" in sql
 
 
-def test_create_snapshot_sql_doesnt_timetravel_session_tables():
+def test_create_table_clone_doesnt_timetravel_session_datasets():
     table_ref = bigquery.TableReference.from_string("my-test-project._session.abcdefg")
 
-    sql = bigframes.session._io.bigquery.create_snapshot_sql(
+    sql = bigframes.core.io.create_table_clone(
         table_ref, datetime.datetime.now(datetime.timezone.utc)
     )
 

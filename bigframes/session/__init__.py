@@ -430,7 +430,9 @@ class Session(
             index_cols = list(index_col)
 
         destination, query_job = self._query_to_destination(
-            query, index_cols, api_name="read_gbq_query"
+            query,
+            index_cols,
+            api_name=api_name,
         )
 
         # If there was no destination table, that means the query must have
@@ -508,25 +510,29 @@ class Session(
         If we can get a total ordering from the table, such as via primary key
         column(s), then return those too so that ordering generation can be
         avoided.
-        """
-        if table_ref.dataset_id.upper() == "_SESSION":
-            # _SESSION tables aren't supported by the tables.get REST API.
-            return (
-                self.ibis_client.sql(
-                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
-                ),
-                None,
-            )
 
+        For tables that aren't already read-only, this creates Create a table
+        clone so that any changes to the underlying table don't affect the
+        DataFrame and break our assumptions, especially with regards to unique
+        index and ordering. See:
+        https://cloud.google.com/bigquery/docs/table-clones-create
+        """
+        destination = bigframes_io.create_table_clone(
+            table_ref,
+            self._anonymous_dataset,
+            constants.DEFAULT_EXPIRATION,
+            self,
+            api_name,
+        )
         table_expression = self.ibis_client.table(
-            table_ref.table_id,
-            database=f"{table_ref.project}.{table_ref.dataset_id}",
+            destination.table_id,
+            database=f"{destination.project}.{destination.dataset_id}",
         )
 
         # If there are primary keys defined, the query engine assumes these
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
-        table = self.bqclient.get_table(table_ref)
+        table = self.bqclient.get_table(destination)
 
         # TODO(b/305264153): Use public properties to fetch primary keys once
         # added to google-cloud-bigquery.
@@ -535,23 +541,7 @@ class Session(
             .get("primaryKey", {})
             .get("columns")
         )
-
-        if not primary_keys:
-            return table_expression, None
-        else:
-            # Read from a snapshot since we won't have to copy the table data to create a total ordering.
-            job_config = bigquery.QueryJobConfig()
-            job_config.labels["bigframes-api"] = api_name
-            current_timestamp = list(
-                self.bqclient.query(
-                    "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
-                    job_config=job_config,
-                ).result()
-            )[0][0]
-            table_expression = self.ibis_client.sql(
-                bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
-            )
-            return table_expression, primary_keys
+        return table_expression, primary_keys
 
     def _read_gbq_table(
         self,
@@ -672,9 +662,6 @@ class Session(
 
                 # The job finished, so we should have a start time.
                 assert current_timestamp is not None
-                table_expression = self.ibis_client.sql(
-                    bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
-                )
             else:
                 # Make sure when we generate an ordering, the row_number()
                 # coresponds to the index columns.
