@@ -97,6 +97,8 @@ _BIGQUERY_REGIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
 _BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
+_BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
+
 _MAX_CLUSTER_COLUMNS = 4
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
@@ -321,7 +323,7 @@ class Session(
             ),
         )
 
-        self._bq_connection = context.bq_connection
+        self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
@@ -350,9 +352,13 @@ class Session(
     @property
     def _session_dataset_id(self):
         """A dataset for storing temporary objects local to the session
-        This is a workaround for BQML models and remote functions that do not
+        This is a workaround for remote functions that do not
         yet support session-temporary instances."""
         return self._session_dataset.dataset_id
+
+    @property
+    def _project(self):
+        return self.bqclient.project
 
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:
@@ -377,17 +383,12 @@ class Session(
             ]
         )
 
-        # Dataset for storing BQML models and remote functions, which don't yet
+        # Dataset for storing remote functions, which don't yet
         # support proper session temporary storage yet
         self._session_dataset = bigquery.Dataset(
             f"{self.bqclient.project}.bigframes_temp_{self._location.lower().replace('-', '_')}"
         )
         self._session_dataset.location = self._location
-        self._session_dataset.default_table_expiration_ms = 24 * 60 * 60 * 1000
-
-        # TODO: handle case when the dataset does not exist and the user does
-        # not have permission to create one (bigquery.datasets.create IAM)
-        self.bqclient.create_dataset(self._session_dataset, exists_ok=True)
 
     def close(self):
         """Terminated the BQ session, otherwises the session will be terminated automatically after
