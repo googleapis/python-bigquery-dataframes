@@ -203,7 +203,8 @@ class RemoteFunctionClient:
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
             OPTIONS (
-              endpoint = "{endpoint}"
+              endpoint = "{endpoint}",
+              max_batching_rows = 1000
             )"""
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
         # TODO: Use session._start_query() so we get progress bar
@@ -388,6 +389,9 @@ class RemoteFunctionClient:
             function.build_config.source.storage_source.object_ = (
                 upload_url_response.storage_source.object_
             )
+            function.service_config = functions_v2.ServiceConfig()
+            function.service_config.available_memory = "1024M"
+            function.service_config.timeout_seconds = 600
             create_function_request.function = function
 
             # Create the cloud function and wait for it to be ready to use
