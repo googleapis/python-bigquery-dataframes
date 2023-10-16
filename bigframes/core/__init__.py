@@ -93,14 +93,19 @@ class ArrayValue:
 
         # Support in-memory engines for hermetic unit tests.
         if not self.node.sessions:
-            length = ibis.pandas.connect({}).execute(count_expr)
-        else:
-            sql = self.session.ibis_client.compile(count_expr)
-            row_iterator, _ = self.session._start_query(
-                sql=sql,
-                max_results=1,
-            )
-            length = next(row_iterator)[0]
+            try:
+                length = ibis.pandas.connect({}).execute(count_expr)
+                return (length, width)
+            except Exception:
+                # Not all cases can be handled by pandas engine
+                pass
+
+        sql = self.session.ibis_client.compile(count_expr)
+        row_iterator, _ = self.session._start_query(
+            sql=sql,
+            max_results=1,
+        )
+        length = next(row_iterator)[0]
         return (length, width)
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
