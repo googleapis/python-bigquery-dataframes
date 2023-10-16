@@ -1468,7 +1468,7 @@ class Session(
                 Name of the BigQuery connection. You should either have the
                 connection already created in the `location` you have chosen, or
                 you should have the Project IAM Admin role to enable the service
-                to create the connection for you if you need it.If this parameter is
+                to create the connection for you if you need it. If this parameter is
                 not provided then the BigQuery connection from the session is used.
             reuse (bool, Optional):
                 Reuse the remote function if already exists.
