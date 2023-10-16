@@ -241,8 +241,7 @@ class AtDataFrameIndexer:
             raise TypeError(
                 "DataFrame.at should be indexed by a (row label, column name) tuple."
             )
-        row_label, col = key
-        return self._dataframe[col].at[row_label]
+        return self._dataframe.loc[key]
 
 
 @typing.overload
