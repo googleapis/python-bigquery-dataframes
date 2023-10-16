@@ -17,6 +17,7 @@ import hashlib
 import logging
 import math
 import pathlib
+import textwrap
 import typing
 from typing import Dict, Optional
 
@@ -134,15 +135,28 @@ def cleanup_datasets(bigquery_client: bigquery.Client) -> None:
             )
 
 
+def get_dataset_id(project_id: str):
+    "Get a fully qualified dataset id belonging to the given project."
+    dataset_id = f"{project_id}.{prefixer.create_prefix()}_dataset_id"
+    return dataset_id
+
+
 @pytest.fixture(scope="session")
 def dataset_id(bigquery_client: bigquery.Client):
     """Create (and cleanup) a temporary dataset."""
-    project_id = bigquery_client.project
-    dataset_id = f"{project_id}.{prefixer.create_prefix()}_dataset_id"
-    dataset = bigquery.Dataset(dataset_id)
-    bigquery_client.create_dataset(dataset)
+    dataset_id = get_dataset_id(bigquery_client.project)
+    bigquery_client.create_dataset(dataset_id)
     yield dataset_id
-    bigquery_client.delete_dataset(dataset, delete_contents=True)
+    bigquery_client.delete_dataset(dataset_id, delete_contents=True)
+
+
+@pytest.fixture
+def dataset_id_not_created(bigquery_client: bigquery.Client):
+    """Return a temporary dataset object without creating it, and clean it up
+    after it has been used."""
+    dataset_id = get_dataset_id(bigquery_client.project)
+    yield dataset_id
+    bigquery_client.delete_dataset(dataset_id, delete_contents=True)
 
 
 @pytest.fixture(scope="session")
@@ -780,6 +794,36 @@ WHERE
         session.bqclient.query(sql).result()
     finally:
         return model_name
+
+
+@pytest.fixture(scope="session")
+def usa_names_grouped_table(
+    session: bigframes.Session, dataset_id_permanent
+) -> bigquery.Table:
+    """Provides a table with primary key(s) set."""
+    table_id = f"{dataset_id_permanent}.usa_names_grouped"
+    try:
+        return session.bqclient.get_table(table_id)
+    except google.cloud.exceptions.NotFound:
+        query = textwrap.dedent(
+            f"""
+            CREATE TABLE `{dataset_id_permanent}.usa_names_grouped`
+            (
+                total_people INT64,
+                name STRING,
+                gender STRING,
+                year INT64,
+                PRIMARY KEY(name, gender, year) NOT ENFORCED
+            )
+            AS
+            SELECT SUM(`number`) AS total_people, name, gender, year
+            FROM `bigquery-public-data.usa_names.usa_1910_2013`
+            GROUP BY name, gender, year
+            """
+        )
+        job = session.bqclient.query(query)
+        job.result()
+        return session.bqclient.get_table(table_id)
 
 
 @pytest.fixture()
