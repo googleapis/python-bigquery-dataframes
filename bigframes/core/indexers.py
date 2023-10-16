@@ -21,6 +21,7 @@ import ibis
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.blocks
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar
@@ -224,7 +225,7 @@ class IatDataFrameIndexer:
             raise ValueError(error_message)
         if len(key) != 2:
             raise TypeError(error_message)
-        block = self._dataframe._block
+        block: bigframes.core.blocks.Block = self._dataframe._block
         column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
