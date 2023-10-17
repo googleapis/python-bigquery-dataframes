@@ -51,6 +51,7 @@ import bigframes.core.reshape
 import bigframes.dataframe
 import bigframes.series
 import bigframes.session
+import bigframes.session.clients
 import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
@@ -180,7 +181,7 @@ def _set_default_session_location_if_possible(query):
     ):
         return
 
-    clients_provider = bigframes.session.ClientsProvider(
+    clients_provider = bigframes.session.clients.ClientsProvider(
         project=options.bigquery.project,
         location=options.bigquery.location,
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
