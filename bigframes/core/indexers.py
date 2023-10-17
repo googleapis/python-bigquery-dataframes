@@ -21,6 +21,7 @@ import ibis
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.blocks
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar
@@ -105,6 +106,16 @@ class IatSeriesIndexer:
         if not isinstance(key, int):
             raise ValueError("Series iAt based indexing can only have integer indexers")
         return self._series.iloc[key]
+
+
+class AtSeriesIndexer:
+    def __init__(self, series: bigframes.series.Series):
+        self._series = series
+
+    def __getitem__(
+        self, key: LocSingleKey
+    ) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
+        return self._series.loc[key]
 
 
 class LocDataFrameIndexer:
@@ -214,10 +225,24 @@ class IatDataFrameIndexer:
             raise ValueError(error_message)
         if len(key) != 2:
             raise TypeError(error_message)
-        block = self._dataframe._block  # type: ignore
+        block: bigframes.core.blocks.Block = self._dataframe._block
         column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
+
+
+class AtDataFrameIndexer:
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
+        self._dataframe = dataframe
+
+    def __getitem__(
+        self, key: tuple
+    ) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
+        if not isinstance(key, tuple):
+            raise TypeError(
+                "DataFrame.at should be indexed by a (row label, column name) tuple."
+            )
+        return self._dataframe.loc[key]
 
 
 @typing.overload
