@@ -22,6 +22,7 @@ import bigframes._config.bigquery_options as bigquery_options
 @pytest.mark.parametrize(
     ["attribute", "original_value", "new_value"],
     [
+        ("application_name", None, "test-partner"),
         # For credentials, the match is by reference.
         ("credentials", object(), object()),
         ("location", "us-east1", "us-central1"),
@@ -53,6 +54,7 @@ def test_setter_raises_if_session_started(attribute, original_value, new_value):
     [
         (attribute,)
         for attribute in [
+            "application_name",
             "credentials",
             "location",
             "project",
