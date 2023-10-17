@@ -940,11 +940,6 @@ def test_series_multi_index_unstack(hockey_df, hockey_pandas_df, level):
         "number"
     ].unstack(level=level)
 
-    print("pandas")
-    print(pd_result.to_string())
-    print("bigframes")
-    print(bf_result.to_string())
-
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
