@@ -13,6 +13,7 @@ BigQuery DataFrames is an open-source package. You can run
 Documentation
 -------------
 
+* `BigQuery DataFrames source code (GitHub) <https://github.com/googleapis/python-bigquery-dataframes>`_
 * `BigQuery DataFrames sample notebooks <https://github.com/googleapis/python-bigquery-dataframes/tree/main/notebooks>`_
 * `BigQuery DataFrames API reference <https://cloud.google.com/python/docs/reference/bigframes/latest>`_
 * `BigQuery documentation <https://cloud.google.com/bigquery/docs/>`_
@@ -63,7 +64,7 @@ auto-populates ``bf.options.bigquery.location`` if the user starts with
 directly or in a SQL statement.
 
 If you want to reset the location of the created DataFrame or Series objects,
-you can reset the session by executing ``bigframes.pandas.reset_session()``.
+you can close the session by executing ``bigframes.pandas.close_session()``.
 After that, you can reuse ``bigframes.pandas.options.bigquery.location`` to
 specify another location.
 
@@ -94,10 +95,18 @@ using the
 and the `bigframes.ml.compose module <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.compose>`_.
 BigQuery DataFrames offers the following transformations:
 
-* Use the `OneHotEncoder class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.OneHotEncoder>`_
-  in the ``bigframes.ml.preprocessing`` module to transform categorical values into numeric format.
+* Use the `KBinsDiscretizer class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.compose.ColumnTransformer>`_
+  in the ``bigframes.ml.preprocessing`` module to bin continuous data into intervals.
+* Use the `LabelEncoder class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.LabelEncoder>`_
+  in the ``bigframes.ml.preprocessing`` module to normalize the target labels as integer values.
+* Use the `MaxAbsScaler class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.MaxAbsScaler>`_
+  in the ``bigframes.ml.preprocessing`` module to scale each feature to the range ``[-1, 1]`` by its maximum absolute value.
+* Use the `MinMaxScaler class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.MinMaxScaler>`_
+  in the ``bigframes.ml.preprocessing`` module to standardize features by scaling each feature to the range ``[0, 1]``.
 * Use the `StandardScaler class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.StandardScaler>`_
   in the ``bigframes.ml.preprocessing`` module to standardize features by removing the mean and scaling to unit variance.
+* Use the `OneHotEncoder class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.preprocessing.OneHotEncoder>`_
+  in the ``bigframes.ml.preprocessing`` module to transform categorical values into numeric format.
 * Use the `ColumnTransformer class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.compose.ColumnTransformer>`_
   in the ``bigframes.ml.compose`` module to apply transformers to DataFrames columns.
 
@@ -335,7 +344,7 @@ sessions
 ; when this happens, you can’t use previously
 created DataFrame or Series objects and must re-create them using a new
 BigQuery DataFrames session. You can do this by running
-``bigframes.pandas.reset_session()`` and then re-running the BigQuery
+``bigframes.pandas.close_session()`` and then re-running the BigQuery
 DataFrames expressions.
 
 

@@ -39,6 +39,7 @@ import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.joins as joins
+import bigframes.core.joins.name_resolution as join_names
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
 import bigframes.core.utils as utils
@@ -97,7 +98,8 @@ class Block:
                     "'index_columns' and 'index_labels' must have equal length"
                 )
         if len(index_columns) == 0:
-            expr, new_index_col_id = expr.promote_offsets()
+            new_index_col_id = guid.generate_guid()
+            expr = expr.promote_offsets(new_index_col_id)
             index_columns = [new_index_col_id]
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
@@ -152,7 +154,7 @@ class Block:
         """All value columns, mutually exclusive with index columns."""
         return [
             column
-            for column in self._expr.column_names
+            for column in self._expr.column_ids
             if column not in self.index_columns
         ]
 
@@ -260,7 +262,8 @@ class Block:
             from Index classes that point to this block.
         """
         block = self
-        expr, new_index_col_id = self._expr.promote_offsets()
+        new_index_col_id = guid.generate_guid()
+        expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
             # Even though the index might be part of the ordering, keep that
             # ordering expression as reset_index shouldn't change the row
@@ -446,9 +449,7 @@ class Block:
         # TODO(swast): Allow for dry run and timeout.
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
-        results_iterator, query_job = expr.start_query(
-            max_results=max_results, expose_extra_columns=True
-        )
+        results_iterator, query_job = expr.start_query(max_results=max_results)
 
         table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
         fraction = (
@@ -485,12 +486,6 @@ class Block:
                 if self.index_columns:
                     df.set_index(list(self.index_columns), inplace=True)
                     df.index.names = self.index.names  # type: ignore
-
-                df.drop(
-                    [col for col in df.columns if col not in self.value_columns],
-                    axis=1,
-                    inplace=True,
-                )
             elif (sampling_method == _UNIFORM) and (random_state is None):
                 filtered_expr = self.expr._uniform_sampling(fraction)
                 block = Block(
@@ -521,12 +516,6 @@ class Block:
             if self.index_columns:
                 df.set_index(list(self.index_columns), inplace=True)
                 df.index.names = self.index.names  # type: ignore
-
-            df.drop(
-                [col for col in df.columns if col not in self.value_columns],
-                axis=1,
-                inplace=True,
-            )
 
         return df, total_rows, query_job
 
@@ -849,7 +838,8 @@ class Block:
         else:  # axis_n == 1
             # using offsets as identity to group on.
             # TODO: Allow to promote identity/total_order columns instead for better perf
-            expr_with_offsets, offset_col = self.expr.promote_offsets()
+            offset_col = guid.generate_guid()
+            expr_with_offsets = self.expr.promote_offsets(offset_col)
             stacked_expr = expr_with_offsets.unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=[guid.generate_guid()],
@@ -968,9 +958,10 @@ class Block:
             ]
             by_column_labels = self._get_labels_for_columns(by_value_columns)
             labels = (*by_column_labels, *aggregate_labels)
-            result_expr_pruned, offsets_id = result_expr.select_columns(
+            offsets_id = guid.generate_guid()
+            result_expr_pruned = result_expr.select_columns(
                 [*by_value_columns, *output_col_ids]
-            ).promote_offsets()
+            ).promote_offsets(offsets_id)
 
             return (
                 Block(
@@ -991,7 +982,8 @@ class Block:
 
         aggregations = [(column_id, stat, stat.name) for stat in stats_to_fetch]
         expr = self.expr.aggregate(aggregations)
-        expr, offset_index_id = expr.promote_offsets()
+        offset_index_id = guid.generate_guid()
+        expr = expr.promote_offsets(offset_index_id)
         block = Block(
             expr,
             index_columns=[offset_index_id],
@@ -1015,7 +1007,8 @@ class Block:
             )
         ]
         expr = self.expr.corr_aggregate(corr_aggregations)
-        expr, offset_index_id = expr.promote_offsets()
+        offset_index_id = guid.generate_guid()
+        expr = expr.promote_offsets(offset_index_id)
         block = Block(
             expr,
             index_columns=[offset_index_id],
@@ -1089,7 +1082,7 @@ class Block:
     ):
         """Normalizes expression by moving index columns to left."""
         value_columns = [
-            col_id for col_id in expr.column_names.keys() if col_id not in index_columns
+            col_id for col_id in expr.column_ids if col_id not in index_columns
         ]
         if (assert_value_size is not None) and (
             len(value_columns) != assert_value_size
@@ -1098,20 +1091,92 @@ class Block:
         return expr.select_columns([*index_columns, *value_columns])
 
     def slice(
-        self: bigframes.core.blocks.Block,
+        self,
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> bigframes.core.blocks.Block:
-        sliced_expr = self.expr.slice(start=start, stop=stop, step=step)
-        # since this is slice, return a copy even if unchanged
-        block = Block(
-            sliced_expr,
-            index_columns=self.index_columns,
-            column_labels=self.column_labels,
-            index_labels=self._index_labels,
+        if step is None:
+            step = 1
+        if step == 0:
+            raise ValueError("slice step cannot be zero")
+        if step < 0:
+            reverse_start = (-start - 1) if start else 0
+            reverse_stop = (-stop - 1) if stop else None
+            reverse_step = -step
+            return self.reversed()._forward_slice(
+                reverse_start, reverse_stop, reverse_step
+            )
+        return self._forward_slice(start or 0, stop, step)
+
+    def _forward_slice(self, start: int = 0, stop=None, step: int = 1):
+        """Performs slice but only for positive step size."""
+        if step <= 0:
+            raise ValueError("forward_slice only supports positive step size")
+
+        use_postive_offsets = (
+            (start > 0)
+            or ((stop is not None) and (stop >= 0))
+            or ((step > 1) and (start >= 0))
         )
-        return block
+        use_negative_offsets = (
+            (start < 0) or (stop and (stop < 0)) or ((step > 1) and (start < 0))
+        )
+
+        block = self
+
+        # only generate offsets that are used
+        positive_offsets = None
+        negative_offsets = None
+
+        if use_postive_offsets:
+            block, positive_offsets = self.promote_offsets()
+        if use_negative_offsets:
+            block, negative_offsets = block.reversed().promote_offsets()
+            block = block.reversed()
+
+        conditions = []
+        if start != 0:
+            if start > 0:
+                op = ops.partial_right(ops.ge_op, start)
+                assert positive_offsets
+                block, start_cond = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.le_op, -start - 1)
+                assert negative_offsets
+                block, start_cond = block.apply_unary_op(negative_offsets, op)
+            conditions.append(start_cond)
+        if stop is not None:
+            if stop >= 0:
+                op = ops.partial_right(ops.lt_op, stop)
+                assert positive_offsets
+                block, stop_cond = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.gt_op, -stop - 1)
+                assert negative_offsets
+                block, stop_cond = block.apply_unary_op(negative_offsets, op)
+            conditions.append(stop_cond)
+
+        if step > 1:
+            op = ops.partial_right(ops.mod_op, step)
+            if start >= 0:
+                op = ops.partial_right(ops.sub_op, start)
+                assert positive_offsets
+                block, start_diff = block.apply_unary_op(positive_offsets, op)
+            else:
+                op = ops.partial_right(ops.sub_op, -start + 1)
+                assert negative_offsets
+                block, start_diff = block.apply_unary_op(negative_offsets, op)
+            modulo_op = ops.partial_right(ops.mod_op, step)
+            block, mod = block.apply_unary_op(start_diff, modulo_op)
+            is_zero_op = ops.partial_right(ops.eq_op, 0)
+            block, step_cond = block.apply_unary_op(mod, is_zero_op)
+            conditions.append(step_cond)
+
+        for cond in conditions:
+            block = block.filter(cond)
+
+        return block.select_columns(self.value_columns)
 
     # Using cache to optimize for Jupyter Notebook's behavior where both '__repr__'
     # and '__repr_html__' are called in a single display action, reducing redundant
@@ -1141,7 +1206,8 @@ class Block:
         return formatted_df, count, query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
-        expr, result_id = self._expr.promote_offsets()
+        result_id = guid.generate_guid()
+        expr = self._expr.promote_offsets(result_id)
         return (
             Block(
                 expr,
@@ -1228,20 +1294,20 @@ class Block:
 
         return result_block.with_column_labels(column_index)
 
-    def stack(self, how="left", dropna=True, sort=True, levels: int = 1):
+    def stack(self, how="left", levels: int = 1):
         """Unpivot last column axis level into row axis"""
+        if levels == 0:
+            return self
+
         # These are the values that will be turned into rows
 
         col_labels, row_labels = utils.split_index(self.column_labels, levels=levels)
-        if dropna:
-            row_labels = row_labels.drop_duplicates()
-        if sort:
-            row_labels = row_labels.sort_values()
+        row_labels = row_labels.drop_duplicates()
 
         row_label_tuples = utils.index_as_tuples(row_labels)
 
         if col_labels is not None:
-            result_index = col_labels.drop_duplicates().sort_values().dropna(how="all")
+            result_index = col_labels.drop_duplicates().dropna(how="all")
             result_col_labels = utils.index_as_tuples(result_index)
         else:
             result_index = pd.Index([None])
@@ -1398,7 +1464,7 @@ class Block:
         )
         result_block = Block(
             result_expr,
-            index_columns=list(result_expr.column_names.keys())[:index_nlevels],
+            index_columns=list(result_expr.column_ids)[:index_nlevels],
             column_labels=aligned_blocks[0].column_labels,
             index_labels=result_labels,
         )
@@ -1415,67 +1481,76 @@ class Block:
             "outer",
             "right",
         ],
-        left_col_ids: typing.Sequence[str],
-        right_col_ids: typing.Sequence[str],
+        left_join_ids: typing.Sequence[str],
+        right_join_ids: typing.Sequence[str],
         sort: bool,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> Block:
-        (
-            joined_expr,
-            coalesced_join_cols,
-            (get_column_left, get_column_right),
-        ) = joins.join_by_column(
+        joined_expr = joins.join_by_column(
             self.expr,
-            left_col_ids,
+            left_join_ids,
             other.expr,
-            right_col_ids,
+            right_join_ids,
             how=how,
-            sort=sort,
         )
+        get_column_left, get_column_right = join_names.JOIN_NAME_REMAPPER(
+            self.expr.column_ids, other.expr.column_ids
+        )
+        result_columns = []
+        matching_join_labels = []
 
-        # which join key parts should be coalesced
-        merge_join_key_mask = [
-            str(self.col_id_to_label[left_id]) == str(other.col_id_to_label[right_id])
-            for left_id, right_id in zip(left_col_ids, right_col_ids)
-        ]
-        labels_to_coalesce = [
-            self.col_id_to_label[col_id]
-            for i, col_id in enumerate(left_col_ids)
-            if merge_join_key_mask[i]
-        ]
+        coalesced_ids = []
+        for left_id, right_id in zip(left_join_ids, right_join_ids):
+            coalesced_id = guid.generate_guid()
+            joined_expr = joined_expr.project_binary_op(
+                get_column_left[left_id],
+                get_column_right[right_id],
+                ops.coalesce_op,
+                coalesced_id,
+            )
+            coalesced_ids.append(coalesced_id)
 
-        def left_col_mapping(col_id: str) -> str:
-            if col_id in left_col_ids:
-                join_key_part = left_col_ids.index(col_id)
-                if merge_join_key_mask[join_key_part]:
-                    return coalesced_join_cols[join_key_part]
-            return get_column_left(col_id)
+        for col_id in self.value_columns:
+            if col_id in left_join_ids:
+                key_part = left_join_ids.index(col_id)
+                matching_right_id = right_join_ids[key_part]
+                if (
+                    self.col_id_to_label[col_id]
+                    == other.col_id_to_label[matching_right_id]
+                ):
+                    matching_join_labels.append(self.col_id_to_label[col_id])
+                    result_columns.append(coalesced_ids[key_part])
+                else:
+                    result_columns.append(get_column_left[col_id])
+            else:
+                result_columns.append(get_column_left[col_id])
+        for col_id in other.value_columns:
+            if col_id in right_join_ids:
+                key_part = right_join_ids.index(col_id)
+                if other.col_id_to_label[matching_right_id] in matching_join_labels:
+                    pass
+                else:
+                    result_columns.append(get_column_right[col_id])
+            else:
+                result_columns.append(get_column_right[col_id])
 
-        def right_col_mapping(col_id: str) -> typing.Optional[str]:
-            if col_id in right_col_ids:
-                join_key_part = right_col_ids.index(col_id)
-                if merge_join_key_mask[join_key_part]:
-                    return None
-            return get_column_right(col_id)
+        if sort:
+            # sort uses coalesced join keys always
+            joined_expr = joined_expr.order_by(
+                [ordering.OrderingColumnReference(col_id) for col_id in coalesced_ids],
+                stable=True,
+            )
 
-        left_columns = [left_col_mapping(col_id) for col_id in self.value_columns]
-
-        right_columns = [
-            typing.cast(str, right_col_mapping(col_id))
-            for col_id in other.value_columns
-            if right_col_mapping(col_id)
-        ]
-
-        expr = joined_expr.select_columns([*left_columns, *right_columns])
+        joined_expr = joined_expr.select_columns(result_columns)
         labels = utils.merge_column_labels(
             self.column_labels,
             other.column_labels,
-            coalesce_labels=labels_to_coalesce,
+            coalesce_labels=matching_join_labels,
             suffixes=suffixes,
         )
-
         # Constructs default index
-        expr, offset_index_id = expr.promote_offsets()
+        offset_index_id = guid.generate_guid()
+        expr = joined_expr.promote_offsets(offset_index_id)
         return Block(expr, index_columns=[offset_index_id], column_labels=labels)
 
     def _force_reproject(self) -> Block:
@@ -1532,9 +1607,7 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        sql = array_value.to_sql(
-            ordering_mode="unordered", col_id_overrides=substitutions
-        )
+        sql = array_value.to_sql(col_id_overrides=substitutions)
         return (
             sql,
             new_ids[: len(idx_labels)],

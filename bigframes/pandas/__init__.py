@@ -51,6 +51,7 @@ import bigframes.core.reshape
 import bigframes.dataframe
 import bigframes.series
 import bigframes.session
+import bigframes.session.clients
 import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
@@ -180,11 +181,12 @@ def _set_default_session_location_if_possible(query):
     ):
         return
 
-    clients_provider = bigframes.session.ClientsProvider(
+    clients_provider = bigframes.session.clients.ClientsProvider(
         project=options.bigquery.project,
         location=options.bigquery.location,
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
         credentials=options.bigquery.credentials,
+        application_name=options.bigquery.application_name,
     )
 
     bqclient = clients_provider.bqclient
@@ -400,6 +402,7 @@ def remote_function(
     bigquery_connection: Optional[str] = None,
     reuse: bool = True,
     name: Optional[str] = None,
+    packages: Optional[Sequence[str]] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -409,6 +412,7 @@ def remote_function(
         bigquery_connection=bigquery_connection,
         reuse=reuse,
         name=name,
+        packages=packages,
     )
 
 
@@ -447,7 +451,7 @@ options = config.options
 
 # Session management APIs
 get_global_session = global_session.get_global_session
-reset_session = global_session.reset_session
+close_session = global_session.close_session
 
 
 # Use __all__ to let type checkers know what is part of the public API.
@@ -478,5 +482,5 @@ __all___ = [
     "options",
     # Session management APIs
     "get_global_session",
-    "reset_session",
+    "close_session",
 ]

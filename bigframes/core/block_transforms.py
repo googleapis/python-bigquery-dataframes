@@ -25,6 +25,39 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
 
+def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
+    if not block1.column_labels.equals(block2.column_labels):
+        return False
+    if block1.dtypes != block2.dtypes:
+        return False
+    # TODO: More advanced expression tree traversals to short circuit actually querying data
+
+    block1 = block1.reset_index(drop=False)
+    block2 = block2.reset_index(drop=False)
+
+    joined, (lmap, rmap) = block1.index.join(block2.index, how="outer")
+    joined_block = joined._block
+
+    equality_ids = []
+    for lcol, rcol in zip(block1.value_columns, block2.value_columns):
+        lcolmapped = lmap[lcol]
+        rcolmapped = rmap[rcol]
+        joined_block, result_id = joined_block.apply_binary_op(
+            lcolmapped, rcolmapped, ops.eq_nulls_match_op
+        )
+        joined_block, result_id = joined_block.apply_unary_op(
+            result_id, ops.partial_right(ops.fillna_op, False)
+        )
+        equality_ids.append(result_id)
+
+    joined_block = joined_block.select_columns(equality_ids).with_column_labels(
+        list(range(len(equality_ids)))
+    )
+    stacked_block = joined_block.stack()
+    result = stacked_block.get_stat(stacked_block.value_columns[0], agg_ops.all_op)
+    return typing.cast(bool, result)
+
+
 def indicate_duplicates(
     block: blocks.Block, columns: typing.Sequence[str], keep: str = "first"
 ) -> typing.Tuple[blocks.Block, str]:
@@ -530,8 +563,8 @@ def align_rows(
     joined_index, (get_column_left, get_column_right) = left_block.index.join(
         right_block.index, how=join
     )
-    left_columns = [get_column_left(col) for col in left_block.value_columns]
-    right_columns = [get_column_right(col) for col in right_block.value_columns]
+    left_columns = [get_column_left[col] for col in left_block.value_columns]
+    right_columns = [get_column_right[col] for col in right_block.value_columns]
 
     left_block = joined_index._block.select_columns(left_columns)
     right_block = joined_index._block.select_columns(right_columns)

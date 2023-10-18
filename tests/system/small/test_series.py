@@ -112,6 +112,44 @@ def test_series_get_column_default(scalars_dfs):
     assert result == "default_val"
 
 
+def test_series_equals_identical(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.int64_col.equals(scalars_df_index.int64_col)
+    pd_result = scalars_pandas_df_index.int64_col.equals(
+        scalars_pandas_df_index.int64_col
+    )
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_df(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].equals(scalars_df_index[["int64_col"]])
+    pd_result = scalars_pandas_df_index["int64_col"].equals(
+        scalars_pandas_df_index[["int64_col"]]
+    )
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_different_dtype(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["int64_col"]
+    pd_series = scalars_pandas_df_index["int64_col"]
+
+    bf_result = bf_series.equals(bf_series.astype("Float64"))
+    pd_result = pd_series.equals(pd_series.astype("Float64"))
+
+    assert pd_result == bf_result
+
+
+def test_series_equals_different_values(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["int64_col"]
+    pd_series = scalars_pandas_df_index["int64_col"]
+
+    bf_result = bf_series.equals(bf_series + 1)
+    pd_result = pd_series.equals(pd_series + 1)
+
+    assert pd_result == bf_result
+
+
 def test_series_get_with_default_index(scalars_dfs):
     col_name = "float64_col"
     key = 2
@@ -1915,6 +1953,30 @@ def test_series_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, ste
     )
 
 
+def test_at(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.set_index("int64_too", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index("int64_too", drop=False)
+    index = -2345
+    bf_result = scalars_df_index["string_col"].at[index]
+    pd_result = scalars_pandas_df_index["string_col"].at[index]
+
+    assert bf_result == pd_result
+
+
+def test_iat(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_too"].iat[3]
+    pd_result = scalars_pandas_df_index["int64_too"].iat[3]
+
+    assert bf_result == pd_result
+
+
+def test_iat_error(scalars_df_index, scalars_pandas_df_index):
+    with pytest.raises(ValueError):
+        scalars_pandas_df_index["int64_too"].iat["asd"]
+    with pytest.raises(ValueError):
+        scalars_df_index["int64_too"].iat["asd"]
+
+
 def test_series_add_prefix(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index["int64_too"].add_prefix("prefix_").to_pandas()
 
@@ -2562,6 +2624,22 @@ def test_loc_list_integer_index(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_list_multiindex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+    index_list = [("Hello, World!", -234892), ("Hello, World!", 123456789)]
+
+    bf_result = scalars_df_multiindex.int64_too.loc[index_list]
+    pd_result = scalars_pandas_df_multiindex.int64_too.loc[index_list]
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     index_list = [0, 0, 0, 5, 4, 7]
 
@@ -2612,6 +2690,24 @@ def test_loc_bf_series_string_index(scalars_df_index, scalars_pandas_df_index):
 
     bf_result = scalars_df_index.date_col.loc[bf_string_series]
     pd_result = scalars_pandas_df_index.date_col.loc[pd_string_series]
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_loc_bf_series_multiindex(scalars_df_index, scalars_pandas_df_index):
+    pd_string_series = scalars_pandas_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+    bf_string_series = scalars_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+
+    bf_result = scalars_df_multiindex.int64_too.loc[bf_string_series]
+    pd_result = scalars_pandas_df_multiindex.int64_too.loc[pd_string_series]
 
     pd.testing.assert_series_equal(
         bf_result.to_pandas(),

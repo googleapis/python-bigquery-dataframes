@@ -89,7 +89,6 @@ nox.options.sessions = [
     "system",
     "doctest",
     "cover",
-    "release_dry_run",
 ]
 
 # Error if a python version is missing
@@ -607,8 +606,8 @@ def notebook(session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-        "notebooks/getting_started/bq_dataframes_llm_code_generation.ipynb",
-        "notebooks/getting_started/bq_dataframes_ml_linear_regression.ipynb",
+        "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",
+        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",

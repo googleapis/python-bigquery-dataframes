@@ -21,6 +21,7 @@ import textwrap
 import typing
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
     Literal,
@@ -255,6 +256,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.ILocDataFrameIndexer(self)
 
     @property
+    def iat(self) -> indexers.IatDataFrameIndexer:
+        return indexers.IatDataFrameIndexer(self)
+
+    @property
+    def at(self) -> indexers.AtDataFrameIndexer:
+        return indexers.AtDataFrameIndexer(self)
+
+    @property
     def dtypes(self) -> pandas.Series:
         return pandas.Series(data=self._block.dtypes, index=self._block.column_labels)
 
@@ -414,7 +423,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             get_column_right,
         ) = self._block.index.join(key._block.index, how="left")
         block = combined_index._block
-        filter_col_id = get_column_right(key._value_column)
+        filter_col_id = get_column_right[key._value_column]
         block = block.filter(filter_col_id)
         block = block.drop_columns([filter_col_id])
         return DataFrame(block)
@@ -554,19 +563,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block.index, how=how
         )
 
-        series_column_id = other._value.get_name()
-        series_col = get_column_right(series_column_id)
+        series_column_id = other._value_column
+        series_col = get_column_right[series_column_id]
         block = joined_index._block
         for column_id, label in zip(
             self._block.value_columns, self._block.column_labels
         ):
             block, _ = block.apply_binary_op(
-                get_column_left(column_id),
+                get_column_left[column_id],
                 series_col,
                 op,
                 result_label=label,
             )
-            block = block.drop_columns([get_column_left(column_id)])
+            block = block.drop_columns([get_column_left[column_id]])
 
         block = block.drop_columns([series_col])
         block = block.with_index_labels(self.index.names)
@@ -598,22 +607,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 left_col_id = self._block.value_columns[left_index]
                 right_col_id = other._block.value_columns[right_index]
                 block, result_col_id = block.apply_binary_op(
-                    get_column_left(left_col_id),
-                    get_column_right(right_col_id),
+                    get_column_left[left_col_id],
+                    get_column_right[right_col_id],
                     op,
                 )
                 binop_result_ids.append(result_col_id)
             elif left_index >= 0:
                 left_col_id = self._block.value_columns[left_index]
                 block, result_col_id = block.apply_unary_op(
-                    get_column_left(left_col_id),
+                    get_column_left[left_col_id],
                     ops.partial_right(op, None),
                 )
                 binop_result_ids.append(result_col_id)
             elif right_index >= 0:
                 right_col_id = other._block.value_columns[right_index]
                 block, result_col_id = block.apply_unary_op(
-                    get_column_right(right_col_id),
+                    get_column_right[right_col_id],
                     ops.partial_left(op, None),
                 )
                 binop_result_ids.append(result_col_id)
@@ -969,7 +978,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block.index
         )
 
-        new_ordering_col = get_column_right(ordering_col)
+        new_ordering_col = get_column_right[ordering_col]
         drop_block = joined_index._block
         drop_block, drop_col = drop_block.apply_unary_op(
             new_ordering_col,
@@ -978,7 +987,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         drop_block = drop_block.filter(drop_col)
         original_columns = [
-            get_column_left(column) for column in self._block.value_columns
+            get_column_left[column] for column in self._block.value_columns
         ]
         drop_block = drop_block.select_columns(original_columns)
         return DataFrame(drop_block)
@@ -1066,6 +1075,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             labels = [mapper]
         return DataFrame(self._block.with_index_labels(labels))
 
+    def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
+        # Must be same object type, same column dtypes, and same label values
+        if not isinstance(other, DataFrame):
+            return False
+        return block_ops.equals(self._block, other._block)
+
     def assign(self, **kwargs) -> DataFrame:
         # TODO(garrettwu) Support list-like values. Requires ordering.
         # TODO(garrettwu) Support callable values.
@@ -1108,7 +1123,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # local_df is likely (but not guarunteed) to be cached locally
             # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            this_expr, this_offsets_col_id = self._get_block()._expr.promote_offsets()
+            this_offsets_col_id = bigframes.core.guid.generate_guid()
+            this_expr = self._get_block()._expr.promote_offsets(this_offsets_col_id)
             block = blocks.Block(
                 expr=this_expr,
                 index_labels=self.index.names,
@@ -1145,10 +1161,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         column_ids = [
-            get_column_left(col_id) for col_id in self._block.cols_matching_label(label)
+            get_column_left[col_id] for col_id in self._block.cols_matching_label(label)
         ]
         block = joined_index._block
-        source_column = get_column_right(series._value_column)
+        source_column = get_column_right[series._value_column]
 
         # Replace each column matching the label
         for column_id in column_ids:
@@ -1731,24 +1747,49 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    def stack(self):
-        # TODO: support 'level' param by simply reordering levels such that selected level is last before passing to Block.stack.
-        # TODO: match impl to pandas future_stack as described in pandas 2.1 release notes
-        stack_block = self._block.stack()
-        result_block = block_ops.dropna(
-            stack_block, stack_block.value_columns, how="all"
-        )
+    def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
-            return bigframes.series.Series(result_block)
-        return DataFrame(result_block)
+            if level not in [0, -1, self.columns.name]:
+                raise IndexError(f"Invalid level {level} for single-level index")
+            return self._stack_mono()
+        return self._stack_multi(level)
+
+    def _stack_mono(self):
+        result_block = self._block.stack()
+        return bigframes.series.Series(result_block)
+
+    def _stack_multi(self, level: LevelsType = -1):
+        n_levels = self.columns.nlevels
+        if isinstance(level, int) or isinstance(level, str):
+            level = [level]
+        level_indices = []
+        for level_ref in level:
+            if isinstance(level_ref, int):
+                if level_ref < 0:
+                    level_indices.append(n_levels + level_ref)
+                else:
+                    level_indices.append(level_ref)
+            else:  # str
+                level_indices.append(self.columns.names.index(level_ref))
+
+        new_order = [
+            *[i for i in range(n_levels) if i not in level_indices],
+            *level_indices,
+        ]
+
+        original_columns = typing.cast(pandas.MultiIndex, self.columns)
+        new_columns = original_columns.reorder_levels(new_order)
+
+        block = self._block.with_column_labels(new_columns)
+
+        block = block.stack(levels=len(level))
+        return DataFrame(block)
 
     def unstack(self):
         block = self._block
         # Special case, unstack with mono-index transpose into a series
         if self.index.nlevels == 1:
-            block = block.stack(
-                how="right", dropna=False, sort=False, levels=self.columns.nlevels
-            )
+            block = block.stack(how="right", levels=self.columns.nlevels)
             return bigframes.series.Series(block)
 
         # Pivot by last level of index
@@ -1996,8 +2037,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     key._block.index, how="inner" if dropna else "left"
                 )
                 col_ids = [
-                    *[get_column_left(value) for value in col_ids],
-                    get_column_right(key._value_column),
+                    *[get_column_left[value] for value in col_ids],
+                    get_column_right[key._value_column],
                 ]
                 block = combined_index._block
             else:
@@ -2235,7 +2276,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __array__ = to_numpy
 
-    def to_parquet(self, path: str, *, index: bool = True) -> None:
+    def to_parquet(
+        self,
+        path: str,
+        *,
+        compression: Optional[Literal["snappy", "gzip"]] = "snappy",
+        index: bool = True,
+    ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
@@ -2247,6 +2294,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
+        if compression not in {None, "snappy", "gzip"}:
+            raise ValueError("'{0}' is not valid for compression".format(compression))
+
+        export_options: Dict[str, Union[bool, str]] = {}
+        if compression:
+            export_options["compression"] = compression.upper()
+
         result_table = self._run_io_query(
             index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
         )
@@ -2254,7 +2308,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
             format="PARQUET",
-            export_options={},
+            export_options=export_options,
         )
         _, query_job = self._block.expr._session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
@@ -2382,13 +2436,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             return array_value.to_sql(
-                ordering_mode="offset_col",
+                offset_column=ordering_id,
                 col_id_overrides=id_overrides,
-                order_col_name=ordering_id,
             )
         else:
             return array_value.to_sql(
-                ordering_mode="unordered",
                 col_id_overrides=id_overrides,
             )
 
