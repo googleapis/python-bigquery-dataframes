@@ -2600,15 +2600,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
         if not isinstance(other, (DataFrame, bf_series.Series)):
-            raise NotImplementedError("Only DataFrame or Series operand is supported")
+            raise NotImplementedError(
+                f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
+            )
 
         if len(self.index.names) > 1 or len(other.index.names) > 1:
-            raise NotImplementedError("Multi-index input is not supported")
+            raise NotImplementedError(
+                f"Multi-index input is not supported. {constants.FEEDBACK_LINK}"
+            )
 
         if len(self.columns.names) > 1 or (
             isinstance(other, DataFrame) and len(other.columns.names) > 1
         ):
-            raise NotImplementedError("Multi-level column input is not supported")
+            raise NotImplementedError(
+                f"Multi-level column input is not supported. {constants.FEEDBACK_LINK}"
+            )
 
         # Convert the dataframes into cell-value-decomposed representation, i.e.
         # each cell value is present in a separate row
@@ -2663,7 +2669,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # match the columns in the right sided matrix. Let's reorder them as per
         # the right side matrix
         if not result.columns.difference(other_frame.columns).empty:
-            raise RuntimeError("Could not construct all columns")
+            raise RuntimeError(
+                f"Could not construct all columns. {constants.FEEDBACK_LINK}"
+            )
         result = result[other_frame.columns]
 
         if isinstance(other, bf_series.Series):
