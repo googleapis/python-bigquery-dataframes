@@ -2602,6 +2602,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if not isinstance(other, (DataFrame, bf_series.Series)):
             raise NotImplementedError("Only DataFrame or Series operand is supported")
 
+        if len(self.index.names) > 1 or len(other.index.names) > 1:
+            raise NotImplementedError("Multi-index input is not supported")
+
+        if len(self.columns.names) > 1 or len(other.columns.names) > 1:
+            raise NotImplementedError("Multi-level column input is not supported")
+
         # Convert the dataframes into cell-value-decomposed representation, i.e.
         # each cell value is present in a separate row
         row_id = "row"
