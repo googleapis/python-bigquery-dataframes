@@ -3156,6 +3156,34 @@ def test_df_dot_inline(session):
     )
 
 
+def test_df_dot_inline_multiindex(session):
+    left_matrix = [[1, 2, 3], [2, 5, 7]]
+    right_matrix = [[2, 4, 8], [1, 5, 10], [3, 6, 9]]
+
+    left_index = pd.MultiIndex.from_tuples([("a", "aa"), ("a", "ab")])
+
+    df1 = pd.DataFrame(left_matrix, index=left_index)
+    df2 = pd.DataFrame(right_matrix)
+    pd_result = df1.dot(df2)
+
+    bf1 = dataframe.DataFrame(left_matrix, index=left_index)
+    bf2 = dataframe.DataFrame(right_matrix)
+    bf_result = bf1.dot(bf2).to_pandas()
+
+    # Patch pandas dtypes for testing parity
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+
+    # Ignore index type, as BigFrames sets the dtype "string[pyarrow]" while
+    # pandas sets it as "object" for the same index= argument above
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
 def test_df_dot(
     matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
 ):

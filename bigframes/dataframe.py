@@ -2619,7 +2619,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         other_frame = other if isinstance(other, DataFrame) else other.to_frame()
 
-        left = self.stack().reset_index()
+        # The input index may or may not have a name. Let's use explicit names
+        # internally
+        left_index_col_ids = [f"idx_level_{i}" for i in range(len(self.index.names))]
+        left_noindex = self.reset_index()
+        left_noindex.columns = [*left_index_col_ids, *self.columns]
+
+        left = left_noindex[self.columns].stack().reset_index()
         left.columns = cvd_columns
 
         right = other_frame.stack().reset_index()
@@ -2644,11 +2650,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         aggregated_noindex = aggregated.reset_index()
         aggregated_noindex.columns = cvd_columns
-        result = aggregated_noindex._pivot(
+        pivoted = aggregated_noindex._pivot(
             columns=col_id, columns_unique_values=other_frame.columns, index=row_id
         )
 
-        # Set the index names to match the left side matrix
+        # Set the index as per the original left sided matrix
+        result = pivoted.join(left_noindex[left_index_col_ids])
+        result = result.set_index(left_index_col_ids)
         result.index.names = self.index.names
 
         # Pivot has the result columns ordered alphabetically. It should still
