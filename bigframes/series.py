@@ -88,6 +88,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return bigframes.core.indexers.IlocSeriesIndexer(self)
 
     @property
+    def iat(self) -> bigframes.core.indexers.IatSeriesIndexer:
+        return bigframes.core.indexers.IatSeriesIndexer(self)
+
+    @property
+    def at(self) -> bigframes.core.indexers.AtSeriesIndexer:
+        return bigframes.core.indexers.AtSeriesIndexer(self)
+
+    @property
     def name(self) -> blocks.Label:
         return self._name
 
@@ -1132,10 +1140,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     key._block.index, how="inner" if dropna else "left"
                 )
 
-                value_col = get_column_left(self._value_column)
+                value_col = get_column_left[self._value_column]
                 grouping_cols = [
-                    *[get_column_left(value) for value in grouping_cols],
-                    get_column_right(key._value_column),
+                    *[get_column_left[value] for value in grouping_cols],
+                    get_column_right[key._value_column],
                 ]
                 block = combined_index._block
             else:

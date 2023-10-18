@@ -1885,6 +1885,8 @@ def test_df_describe(scalars_dfs):
 
 
 def test_df_stack(scalars_dfs):
+    if pandas.__version__.startswith("1.") or pandas.__version__.startswith("2.0"):
+        pytest.skip("pandas <2.1 uses different stack implementation")
     scalars_df, scalars_pandas_df = scalars_dfs
     # To match bigquery dataframes
     scalars_pandas_df = scalars_pandas_df.copy()
@@ -1893,7 +1895,7 @@ def test_df_stack(scalars_dfs):
     columns = ["int64_col", "int64_too", "rowindex_2"]
 
     bf_result = scalars_df[columns].stack().to_pandas()
-    pd_result = scalars_pandas_df[columns].stack()
+    pd_result = scalars_pandas_df[columns].stack(future_stack=True)
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -2077,7 +2079,7 @@ def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
 
 @pytest.mark.parametrize(
     "index",
-    [0, 5, -2],
+    [0, 5, -2, (2,)],
 )
 def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
     bf_result = scalars_df_index.iloc[index]
@@ -2087,6 +2089,59 @@ def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
         bf_result,
         pd_result,
     )
+
+
+@pytest.mark.parametrize(
+    "index",
+    [(2, 5), (5, 0), (0, 0)],
+)
+def test_iloc_tuple(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iloc[index]
+    pd_result = scalars_pandas_df_index.iloc[index]
+
+    assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    ("index", "error"),
+    [
+        ((1, 1, 1), pd.errors.IndexingError),
+        (("asd", "asd", "asd"), pd.errors.IndexingError),
+        (("asd"), TypeError),
+    ],
+)
+def test_iloc_tuple_errors(scalars_df_index, scalars_pandas_df_index, index, error):
+    with pytest.raises(error):
+        scalars_df_index.iloc[index]
+    with pytest.raises(error):
+        scalars_pandas_df_index.iloc[index]
+
+
+@pytest.mark.parametrize(
+    "index",
+    [(2, 5), (5, 0), (0, 0)],
+)
+def test_iat(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iat[index]
+    pd_result = scalars_pandas_df_index.iat[index]
+
+    assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    ("index", "error"),
+    [
+        (0, TypeError),
+        ("asd", ValueError),
+        ((1, 2, 3), TypeError),
+        (("asd", "asd"), ValueError),
+    ],
+)
+def test_iat_errors(scalars_df_index, scalars_pandas_df_index, index, error):
+    with pytest.raises(error):
+        scalars_pandas_df_index.iat[index]
+    with pytest.raises(error):
+        scalars_df_index.iat[index]
 
 
 def test_iloc_single_integer_out_of_bound_error(
@@ -2139,6 +2194,29 @@ def test_loc_single_index_no_duplicate(scalars_df_index, scalars_pandas_df_index
         bf_result,
         pd_result,
     )
+
+
+def test_at_with_duplicate(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(
+        "string_col", drop=False
+    )
+    index = "Hello, World!"
+    bf_result = scalars_df_index.at[index, "int64_too"]
+    pd_result = scalars_pandas_df_index.at[index, "int64_too"]
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_at_no_duplicate(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.set_index("int64_too", drop=False)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index("int64_too", drop=False)
+    index = -2345
+    bf_result = scalars_df_index.at[index, "string_col"]
+    pd_result = scalars_pandas_df_index.at[index, "string_col"]
+    assert bf_result == pd_result
 
 
 def test_loc_setitem_bool_series_scalar_new_col(scalars_dfs):
@@ -2709,6 +2787,22 @@ def test_loc_list_integer_index(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_list_multiindex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+    index_list = [("Hello, World!", -234892), ("Hello, World!", 123456789)]
+
+    bf_result = scalars_df_multiindex.loc[index_list]
+    pd_result = scalars_pandas_df_multiindex.loc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     index_list = [0, 0, 0, 5, 4, 7]
 
@@ -2778,6 +2872,24 @@ def test_loc_bf_series_string_index(scalars_df_index, scalars_pandas_df_index):
 
     bf_result = scalars_df_index.loc[bf_string_series]
     pd_result = scalars_pandas_df_index.loc[pd_string_series]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_loc_bf_series_multiindex(scalars_df_index, scalars_pandas_df_index):
+    pd_string_series = scalars_pandas_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+    bf_string_series = scalars_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+
+    bf_result = scalars_df_multiindex.loc[bf_string_series]
+    pd_result = scalars_pandas_df_multiindex.loc[pd_string_series]
 
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
