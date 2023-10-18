@@ -61,7 +61,6 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
-import pydata_google_auth
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.constants as constants
@@ -75,6 +74,7 @@ import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.remote_function import remote_function as bigframes_rf
+import bigframes.session.clients
 import bigframes.version
 
 # Even though the ibis.backends.bigquery.registry import is unused, it's needed
@@ -85,17 +85,7 @@ import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_pa
 import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import third_party.bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 
-_ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
-_APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}"
-_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
-
-# BigQuery is a REST API, which requires the protocol as part of the URL.
-_BIGQUERY_REGIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
-
-# BigQuery Connection and Storage are gRPC APIs, which don't support the
-# https:// protocol in the API endpoint URL.
-_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
-_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
+_BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
 _MAX_CLUSTER_COLUMNS = 4
 
@@ -120,149 +110,6 @@ def _is_query(query_or_table: str) -> bool:
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
-def _get_default_credentials_with_project():
-    return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
-
-
-class ClientsProvider:
-    """Provides client instances necessary to perform cloud operations."""
-
-    def __init__(
-        self,
-        project: Optional[str],
-        location: Optional[str],
-        use_regional_endpoints: Optional[bool],
-        credentials: Optional[google.auth.credentials.Credentials],
-    ):
-        credentials_project = None
-        if credentials is None:
-            credentials, credentials_project = _get_default_credentials_with_project()
-
-        # Prefer the project in this order:
-        # 1. Project explicitly specified by the user
-        # 2. Project set in the environment
-        # 3. Project associated with the default credentials
-        project = (
-            project
-            or os.getenv(_ENV_DEFAULT_PROJECT)
-            or typing.cast(Optional[str], credentials_project)
-        )
-
-        if not project:
-            raise ValueError(
-                "Project must be set to initialize BigQuery client. "
-                "Try setting `bigframes.options.bigquery.project` first."
-            )
-
-        self._project = project
-        self._location = location
-        self._use_regional_endpoints = use_regional_endpoints
-        self._credentials = credentials
-
-        # cloud clients initialized for lazy load
-        self._bqclient = None
-        self._bqconnectionclient = None
-        self._bqstorageclient = None
-        self._cloudfunctionsclient = None
-        self._resourcemanagerclient = None
-
-    @property
-    def bqclient(self):
-        if not self._bqclient:
-            bq_options = None
-            if self._use_regional_endpoints:
-                bq_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    ),
-                )
-            bq_info = google.api_core.client_info.ClientInfo(
-                user_agent=_APPLICATION_NAME
-            )
-            self._bqclient = bigquery.Client(
-                client_info=bq_info,
-                client_options=bq_options,
-                credentials=self._credentials,
-                project=self._project,
-                location=self._location,
-            )
-
-        return self._bqclient
-
-    @property
-    def bqconnectionclient(self):
-        if not self._bqconnectionclient:
-            bqconnection_options = None
-            if self._use_regional_endpoints:
-                bqconnection_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    )
-                )
-            bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=_APPLICATION_NAME
-            )
-            self._bqconnectionclient = (
-                google.cloud.bigquery_connection_v1.ConnectionServiceClient(
-                    client_info=bqconnection_info,
-                    client_options=bqconnection_options,
-                    credentials=self._credentials,
-                )
-            )
-
-        return self._bqconnectionclient
-
-    @property
-    def bqstorageclient(self):
-        if not self._bqstorageclient:
-            bqstorage_options = None
-            if self._use_regional_endpoints:
-                bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    )
-                )
-            bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=_APPLICATION_NAME
-            )
-            self._bqstorageclient = google.cloud.bigquery_storage_v1.BigQueryReadClient(
-                client_info=bqstorage_info,
-                client_options=bqstorage_options,
-                credentials=self._credentials,
-            )
-
-        return self._bqstorageclient
-
-    @property
-    def cloudfunctionsclient(self):
-        if not self._cloudfunctionsclient:
-            functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=_APPLICATION_NAME
-            )
-            self._cloudfunctionsclient = (
-                google.cloud.functions_v2.FunctionServiceClient(
-                    client_info=functions_info,
-                    credentials=self._credentials,
-                )
-            )
-
-        return self._cloudfunctionsclient
-
-    @property
-    def resourcemanagerclient(self):
-        if not self._resourcemanagerclient:
-            resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=_APPLICATION_NAME
-            )
-            self._resourcemanagerclient = (
-                google.cloud.resourcemanager_v3.ProjectsClient(
-                    credentials=self._credentials, client_info=resourcemanager_info
-                )
-            )
-
-        return self._resourcemanagerclient
-
-
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -277,14 +124,14 @@ class Session(
             Configuration adjusting how to connect to BigQuery and related
             APIs. Note that some options are ignored if ``clients_provider`` is
             set.
-        clients_provider (bigframes.session.ClientsProvider):
+        clients_provider (bigframes.session.bigframes.session.clients.ClientsProvider):
             An object providing client library objects.
     """
 
     def __init__(
         self,
         context: Optional[bigquery_options.BigQueryOptions] = None,
-        clients_provider: Optional[ClientsProvider] = None,
+        clients_provider: Optional[bigframes.session.clients.ClientsProvider] = None,
     ):
         if context is None:
             context = bigquery_options.BigQueryOptions()
@@ -304,11 +151,12 @@ class Session(
         if clients_provider:
             self._clients_provider = clients_provider
         else:
-            self._clients_provider = ClientsProvider(
+            self._clients_provider = bigframes.session.clients.ClientsProvider(
                 project=context.project,
                 location=self._location,
                 use_regional_endpoints=context.use_regional_endpoints,
                 credentials=context.credentials,
+                application_name=context.application_name,
             )
 
         self._create_and_bind_bq_session()
@@ -317,11 +165,11 @@ class Session(
             ibis.bigquery.connect(
                 project_id=context.project,
                 client=self.bqclient,
-                storage_client=self.bqstorageclient,
+                storage_client=self.bqstoragereadclient,
             ),
         )
 
-        self._bq_connection = context.bq_connection
+        self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
@@ -336,8 +184,8 @@ class Session(
         return self._clients_provider.bqconnectionclient
 
     @property
-    def bqstorageclient(self):
-        return self._clients_provider.bqstorageclient
+    def bqstoragereadclient(self):
+        return self._clients_provider.bqstoragereadclient
 
     @property
     def cloudfunctionsclient(self):
@@ -496,6 +344,8 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
         """
+        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
+        # these docstrings are inline.
         return self._read_gbq_query(
             query=query,
             index_col=index_col,
@@ -513,8 +363,6 @@ class Session(
         max_results: Optional[int] = None,
         api_name: str,
     ) -> dataframe.DataFrame:
-        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
-        # these docstrings are inline.
         if isinstance(index_col, str):
             index_cols = [index_col]
         else:
@@ -559,6 +407,8 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
         """
+        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
+        # these docstrings are inline.
         return self._read_gbq_table(
             query=query,
             index_col=index_col,
@@ -566,6 +416,62 @@ class Session(
             max_results=max_results,
             api_name="read_gbq_table",
         )
+
+    def _read_gbq_table_to_ibis_with_total_ordering(
+        self,
+        table_ref: bigquery.table.TableReference,
+        *,
+        api_name: str,
+    ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
+        """Create a read-only Ibis table expression representing a table.
+
+        If we can get a total ordering from the table, such as via primary key
+        column(s), then return those too so that ordering generation can be
+        avoided.
+        """
+        if table_ref.dataset_id.upper() == "_SESSION":
+            # _SESSION tables aren't supported by the tables.get REST API.
+            return (
+                self.ibis_client.sql(
+                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+                ),
+                None,
+            )
+
+        table_expression = self.ibis_client.table(
+            table_ref.table_id,
+            database=f"{table_ref.project}.{table_ref.dataset_id}",
+        )
+
+        # If there are primary keys defined, the query engine assumes these
+        # columns are unique, even if the constraint is not enforced. We make
+        # the same assumption and use these columns as the total ordering keys.
+        table = self.bqclient.get_table(table_ref)
+
+        # TODO(b/305264153): Use public properties to fetch primary keys once
+        # added to google-cloud-bigquery.
+        primary_keys = (
+            table._properties.get("tableConstraints", {})
+            .get("primaryKey", {})
+            .get("columns")
+        )
+
+        if not primary_keys:
+            return table_expression, None
+        else:
+            # Read from a snapshot since we won't have to copy the table data to create a total ordering.
+            job_config = bigquery.QueryJobConfig()
+            job_config.labels["bigframes-api"] = api_name
+            current_timestamp = list(
+                self.bqclient.query(
+                    "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+                    job_config=job_config,
+                ).result()
+            )[0][0]
+            table_expression = self.ibis_client.sql(
+                bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
+            )
+            return table_expression, primary_keys
 
     def _read_gbq_table(
         self,
@@ -579,24 +485,19 @@ class Session(
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
 
-        # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
-        # these docstrings are inline.
         # TODO(swast): Can we re-use the temp table from other reads in the
         # session, if the original table wasn't modified?
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
 
-        if table_ref.dataset_id.upper() == "_SESSION":
-            # _SESSION tables aren't supported by the tables.get REST API.
-            table_expression = self.ibis_client.sql(
-                f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
-            )
-        else:
-            table_expression = self.ibis_client.table(
-                table_ref.table_id,
-                database=f"{table_ref.project}.{table_ref.dataset_id}",
-            )
+        (
+            table_expression,
+            total_ordering_cols,
+        ) = self._read_gbq_table_to_ibis_with_total_ordering(
+            table_ref,
+            api_name=api_name,
+        )
 
         for key in col_order:
             if key not in table_expression.columns:
@@ -622,7 +523,34 @@ class Session(
         ordering = None
         is_total_ordering = False
 
-        if len(index_cols) != 0:
+        if total_ordering_cols is not None:
+            # Note: currently, this a table has a total ordering only when the
+            # primary key(s) are set on a table. The query engine assumes such
+            # columns are unique, even if not enforced.
+            is_total_ordering = True
+            ordering = core.ExpressionOrdering(
+                ordering_value_columns=[
+                    core.OrderingColumnReference(column_id)
+                    for column_id in total_ordering_cols
+                ],
+                total_ordering_columns=frozenset(total_ordering_cols),
+            )
+
+            if len(index_cols) != 0:
+                index_labels = typing.cast(List[Optional[str]], index_cols)
+            else:
+                # Use the total_ordering_cols to project offsets to use as the default index.
+                table_expression = table_expression.order_by(index_cols)
+                default_index_id = guid.generate_guid("bigframes_index_")
+                default_index_col = (
+                    ibis.row_number().cast(ibis_dtypes.int64).name(default_index_id)
+                )
+                table_expression = table_expression.mutate(
+                    **{default_index_id: default_index_col}
+                )
+                index_cols = [default_index_id]
+                index_labels = [None]
+        elif len(index_cols) != 0:
             index_labels = typing.cast(List[Optional[str]], index_cols)
             distinct_table = table_expression.select(*index_cols).distinct()
             is_unique_sql = f"""WITH full_table AS (
@@ -1331,6 +1259,7 @@ class Session(
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
         name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1385,7 +1314,7 @@ class Session(
                 Name of the BigQuery connection. You should either have the
                 connection already created in the `location` you have chosen, or
                 you should have the Project IAM Admin role to enable the service
-                to create the connection for you if you need it.If this parameter is
+                to create the connection for you if you need it. If this parameter is
                 not provided then the BigQuery connection from the session is used.
             reuse (bool, Optional):
                 Reuse the remote function if already exists.
@@ -1400,6 +1329,10 @@ class Session(
                 caution, because two users working in the same project and dataset
                 could overwrite each other's remote functions if they use the same
                 persistent name.
+            packages (str[], Optional):
+                Explicit name of the external package dependencies. Each dependency
+                is added to the `requirements.txt` as is, and can be of the form
+                supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1417,6 +1350,7 @@ class Session(
             bigquery_connection=bigquery_connection,
             reuse=reuse,
             name=name,
+            packages=packages,
         )
 
     def read_gbq_function(

@@ -153,6 +153,14 @@ def wait_for_query_job(
     except api_core_exceptions.GoogleAPICallError as exc:
         add_feedback_link(exc)
         raise
+    except KeyboardInterrupt:
+        query_job.cancel()
+        print(
+            f"Requested cancellation for {query_job.job_type.capitalize()}"
+            f" job {query_job.job_id} in location {query_job.location}..."
+        )
+        # begin the cancel request before immediately rethrowing
+        raise
 
 
 def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
@@ -189,6 +197,14 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
         raise
     except api_core_exceptions.GoogleAPICallError as exc:
         add_feedback_link(exc)
+        raise
+    except KeyboardInterrupt:
+        job.cancel()
+        print(
+            f"Requested cancellation for {job.job_type.capitalize()}"
+            f" job {job.job_id} in location {job.location}..."
+        )
+        # begin the cancel request before immediately rethrowing
         raise
 
 
