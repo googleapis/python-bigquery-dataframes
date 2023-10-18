@@ -44,6 +44,23 @@ class BqConnectionManager:
         self._bq_connection_client = bq_connection_client
         self._cloud_resource_manager_client = cloud_resource_manager_client
 
+    @classmethod
+    def resolve_full_connection_name(
+        cls, connection_name: str, default_project: str, default_location: str
+    ) -> str:
+        """Retrieve the full connection name of the form <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+        Use default project, location or connection_id when any of them are missing."""
+        if connection_name.count(".") == 2:
+            return connection_name
+
+        if connection_name.count(".") == 1:
+            return f"{default_project}.{connection_name}"
+
+        if connection_name.count(".") == 0:
+            return f"{default_project}.{default_location}.{connection_name}"
+
+        raise ValueError(f"Invalid connection name format: {connection_name}.")
+
     def create_bq_connection(
         self, project_id: str, location: str, connection_id: str, iam_role: str
     ):

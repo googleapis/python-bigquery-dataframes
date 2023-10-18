@@ -129,6 +129,7 @@ class DataFrame(NDFrame):
         self,
         path: str,
         *,
+        compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
     ) -> None:
         """Write a DataFrame to the binary Parquet format.
@@ -142,6 +143,10 @@ class DataFrame(NDFrame):
                 in format of ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
+
+            compression (str, default 'snappy'):
+                Name of the compression to use. Use ``None`` for no compression.
+                Supported options: ``'gzip'``, ``'snappy'``.
 
             index (bool, default True):
                 If ``True``, include the dataframe's index(es) in the file output.
@@ -2096,6 +2101,21 @@ class DataFrame(NDFrame):
         Returns:
             DataFrame: Object with missing values filled
         """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def iloc(self):
+        """Purely integer-location based indexing for selection by position."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def iat(self):
+        """Access a single value for a row/column pair by integer position."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def at(self):
+        """Access a single value for a row/column label pair."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def dot(self, other):

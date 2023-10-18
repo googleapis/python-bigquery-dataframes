@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
-
-from bigframes._config import options
-from bigframes._config.bigquery_options import BigQueryOptions
-from bigframes.core.global_session import close_session, get_global_session
-from bigframes.session import connect, Session
-from bigframes.version import __version__
-
-__all__ = [
-    "options",
-    "BigQueryOptions",
-    "get_global_session",
-    "close_session",
-    "connect",
-    "Session",
-    "__version__",
-]

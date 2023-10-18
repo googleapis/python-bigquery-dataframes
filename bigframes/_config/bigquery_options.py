@@ -23,7 +23,7 @@ import google.auth.credentials
 
 SESSION_STARTED_MESSAGE = (
     "Cannot change '{attribute}' once a session has started. "
-    "Call bigframes.pandas.reset_session() first, if you are using the bigframes.pandas API."
+    "Call bigframes.pandas.close_session() first, if you are using the bigframes.pandas API."
 )
 
 
@@ -37,13 +37,32 @@ class BigQueryOptions:
         location: Optional[str] = None,
         bq_connection: Optional[str] = None,
         use_regional_endpoints: bool = False,
+        application_name: Optional[str] = None,
     ):
         self._credentials = credentials
         self._project = project
         self._location = location
         self._bq_connection = bq_connection
         self._use_regional_endpoints = use_regional_endpoints
+        self._application_name = application_name
         self._session_started = False
+
+    @property
+    def application_name(self) -> Optional[str]:
+        """The application name to amend to the user-agent sent to Google APIs.
+
+        Recommended format is ``"appplication-name/major.minor.patch_version"``
+        or ``"(gpn:PartnerName;)"`` for official Google partners.
+        """
+        return self._application_name
+
+    @application_name.setter
+    def application_name(self, value: Optional[str]):
+        if self._session_started and self._application_name != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="application_name")
+            )
+        self._application_name = value
 
     @property
     def credentials(self) -> Optional[google.auth.credentials.Credentials]:
@@ -83,12 +102,14 @@ class BigQueryOptions:
 
     @property
     def bq_connection(self) -> Optional[str]:
-        """Name of the BigQuery connection to use.
+        """Name of the BigQuery connection to use. Should be of the form <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
 
         You should either have the connection already created in the
         <code>location</code> you have chosen, or you should have the Project IAM
         Admin role to enable the service to create the connection for you if you
         need it.
+
+        If this option isn't provided, or project or location aren't provided, session will use its default project/location/connection_id as default connection.
         """
         return self._bq_connection
 

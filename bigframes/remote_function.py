@@ -100,9 +100,12 @@ def get_remote_function_locations(bq_location):
     return bq_location, cloud_function_region
 
 
-def _get_hash(def_):
+def _get_hash(def_, package_requirements=None):
     "Get hash (32 digits alphanumeric) of a function."
     def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
+    if package_requirements:
+        for p in sorted(package_requirements):
+            def_repr += p.encode()
     return hashlib.md5(def_repr).hexdigest()
 
 
@@ -129,18 +132,18 @@ class IbisSignature(NamedTuple):
     output_type: IbisDataType
 
 
-def get_cloud_function_name(def_, uniq_suffix=None):
+def get_cloud_function_name(def_, uniq_suffix=None, package_requirements=None):
     "Get a name for the cloud function for the given user defined function."
-    cf_name = _get_hash(def_)
+    cf_name = _get_hash(def_, package_requirements)
     cf_name = f"bigframes-{cf_name}"  # for identification
     if uniq_suffix:
         cf_name = f"{cf_name}-{uniq_suffix}"
     return cf_name
 
 
-def get_remote_function_name(def_, uniq_suffix=None):
+def get_remote_function_name(def_, uniq_suffix=None, package_requirements=None):
     "Get a name for the BQ remote function for the given user defined function."
-    bq_rf_name = _get_hash(def_)
+    bq_rf_name = _get_hash(def_, package_requirements)
     bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
     if uniq_suffix:
         bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
@@ -200,12 +203,25 @@ class RemoteFunctionClient:
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
             OPTIONS (
-              endpoint = "{endpoint}"
+              endpoint = "{endpoint}",
+              max_batching_rows = 1000
             )"""
+
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
+
+        # Make sure the dataset exists
+        dataset = bigquery.Dataset(
+            bigquery.DatasetReference.from_string(
+                self._bq_dataset, default_project=self._gcp_project_id
+            )
+        )
+        dataset.location = self._bq_location
+        self._bq_client.create_dataset(dataset, exists_ok=True)
+
         # TODO: Use session._start_query() so we get progress bar
         query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
         query_job.result()  # Wait for the job to complete.
+
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_fully_qualified_parent(self):
@@ -308,11 +324,14 @@ class RemoteFunctionClient:
 
         return handler_func_name
 
-    def generate_cloud_function_code(self, def_, dir):
+    def generate_cloud_function_code(self, def_, dir, package_requirements=None):
         """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         requirements = ["cloudpickle >= 2.1.0"]
+        if package_requirements:
+            requirements.extend(package_requirements)
+        requirements = sorted(requirements)
         requirements_txt = os.path.join(dir, "requirements.txt")
         with open(requirements_txt, "w") as f:
             f.write("\n".join(requirements))
@@ -321,12 +340,14 @@ class RemoteFunctionClient:
         entry_point = self.generate_cloud_function_main_code(def_, dir)
         return entry_point
 
-    def create_cloud_function(self, def_, cf_name):
+    def create_cloud_function(self, def_, cf_name, package_requirements=None):
         """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as dir:
-            entry_point = self.generate_cloud_function_code(def_, dir)
+            entry_point = self.generate_cloud_function_code(
+                def_, dir, package_requirements
+            )
             archive_path = shutil.make_archive(dir, "zip", dir)
 
             # We are creating cloud function source code from the currently running
@@ -380,6 +401,9 @@ class RemoteFunctionClient:
             function.build_config.source.storage_source.object_ = (
                 upload_url_response.storage_source.object_
             )
+            function.service_config = functions_v2.ServiceConfig()
+            function.service_config.available_memory = "1024M"
+            function.service_config.timeout_seconds = 600
             create_function_request.function = function
 
             # Create the cloud function and wait for it to be ready to use
@@ -410,6 +434,7 @@ class RemoteFunctionClient:
         output_type,
         reuse,
         name,
+        package_requirements,
     ):
         """Provision a BigQuery remote function."""
         # If reuse of any existing function with the same name (indicated by the
@@ -423,19 +448,25 @@ class RemoteFunctionClient:
 
         # Derive the name of the cloud function underlying the intended BQ
         # remote function
-        cloud_function_name = get_cloud_function_name(def_, uniq_suffix)
+        cloud_function_name = get_cloud_function_name(
+            def_, uniq_suffix, package_requirements
+        )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
         # Create the cloud function if it does not exist
         if not cf_endpoint:
-            cf_endpoint = self.create_cloud_function(def_, cloud_function_name)
+            cf_endpoint = self.create_cloud_function(
+                def_, cloud_function_name, package_requirements
+            )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
 
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = get_remote_function_name(def_, uniq_suffix)
+            remote_function_name = get_remote_function_name(
+                def_, uniq_suffix, package_requirements
+            )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
 
         # Create the BQ remote function in following circumstances:
@@ -465,17 +496,22 @@ class RemoteFunctionClient:
         routines = self._bq_client.list_routines(
             f"{self._gcp_project_id}.{self._bq_dataset}"
         )
-        for routine in routines:
-            if routine.reference.routine_id == remote_function_name:
-                # TODO(shobs): Use first class properties when they are available
-                # https://github.com/googleapis/python-bigquery/issues/1552
-                rf_options = routine._properties.get("remoteFunctionOptions")
-                if rf_options:
-                    http_endpoint = rf_options.get("endpoint")
-                    bq_connection = rf_options.get("connection")
-                    if bq_connection:
-                        bq_connection = os.path.basename(bq_connection)
-                break
+        try:
+            for routine in routines:
+                if routine.reference.routine_id == remote_function_name:
+                    # TODO(shobs): Use first class properties when they are available
+                    # https://github.com/googleapis/python-bigquery/issues/1552
+                    rf_options = routine._properties.get("remoteFunctionOptions")
+                    if rf_options:
+                        http_endpoint = rf_options.get("endpoint")
+                        bq_connection = rf_options.get("connection")
+                        if bq_connection:
+                            bq_connection = os.path.basename(bq_connection)
+                    break
+        except google.api_core.exceptions.NotFound:
+            # The dataset might not exist, in which case the http_endpoint doesn't, either.
+            # Note: list_routines doesn't make an API request until we iterate on the response object.
+            pass
         return (http_endpoint, bq_connection)
 
 
@@ -602,6 +638,7 @@ def remote_function(
     bigquery_connection: Optional[str] = None,
     reuse: bool = True,
     name: Optional[str] = None,
+    packages: Optional[Sequence[str]] = None,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -693,11 +730,18 @@ def remote_function(
             caution, because two users working in the same project and dataset
             could overwrite each other's remote functions if they use the same
             persistent name.
+        packages (str[], Optional):
+            Explicit name of the external package dependencies. Each dependency
+            is added to the `requirements.txt` as is, and can be of the form
+            supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
 
     """
+    import bigframes.pandas as bpd
+
+    session = session or bpd.get_global_session()
 
     # A BigQuery client is required to perform BQ operations
-    if not bigquery_client and session:
+    if not bigquery_client:
         bigquery_client = session.bqclient
     if not bigquery_client:
         raise ValueError(
@@ -706,7 +750,7 @@ def remote_function(
         )
 
     # A BigQuery connection client is required to perform BQ connection operations
-    if not bigquery_connection_client and session:
+    if not bigquery_connection_client:
         bigquery_connection_client = session.bqconnectionclient
     if not bigquery_connection_client:
         raise ValueError(
@@ -716,8 +760,7 @@ def remote_function(
 
     # A cloud functions client is required to perform cloud functions operations
     if not cloud_functions_client:
-        if session:
-            cloud_functions_client = session.cloudfunctionsclient
+        cloud_functions_client = session.cloudfunctionsclient
     if not cloud_functions_client:
         raise ValueError(
             "A cloud functions client must be provided, either directly or via session. "
@@ -726,8 +769,7 @@ def remote_function(
 
     # A resource manager client is required to get/set IAM operations
     if not resource_manager_client:
-        if session:
-            resource_manager_client = session.resourcemanagerclient
+        resource_manager_client = session.resourcemanagerclient
     if not resource_manager_client:
         raise ValueError(
             "A resource manager client must be provided, either directly or via session. "
@@ -740,14 +782,9 @@ def remote_function(
         dataset_ref = bigquery.DatasetReference.from_string(
             dataset, default_project=bigquery_client.project
         )
-    elif session:
+    else:
         dataset_ref = bigquery.DatasetReference.from_string(
             session._session_dataset_id, default_project=bigquery_client.project
-        )
-    else:
-        raise ValueError(
-            "Project and dataset must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
         )
 
     bq_location, cloud_function_region = get_remote_function_locations(
@@ -756,40 +793,30 @@ def remote_function(
 
     # A connection is required for BQ remote function
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
-    if not bigquery_connection and session:
-        bigquery_connection = session._bq_connection  # type: ignore
     if not bigquery_connection:
-        raise ValueError(
-            "BigQuery connection must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
+        bigquery_connection = session._bq_connection  # type: ignore
 
-    # Check connection_id with `LOCATION.CONNECTION_ID` or `PROJECT_ID.LOCATION.CONNECTION_ID` format.
-    if bigquery_connection.count(".") == 1:
-        bq_connection_location, bq_connection_id = bigquery_connection.split(".")
-        if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
-                "The location does not match BigQuery connection location: "
-                f"{bq_location}."
-            )
-        bigquery_connection = bq_connection_id
-    elif bigquery_connection.count(".") == 2:
-        (
-            gcp_project_id,
-            bq_connection_location,
-            bq_connection_id,
-        ) = bigquery_connection.split(".")
-        if gcp_project_id.casefold() != dataset_ref.project.casefold():
-            raise ValueError(
-                "The project_id does not match BigQuery connection gcp_project_id: "
-                f"{dataset_ref.project}."
-            )
-        if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
-                "The location does not match BigQuery connection location: "
-                f"{bq_location}."
-            )
-        bigquery_connection = bq_connection_id
+    bigquery_connection = clients.BqConnectionManager.resolve_full_connection_name(
+        bigquery_connection,
+        default_project=dataset_ref.project,
+        default_location=bq_location,
+    )
+    # Guaranteed to be the form of <project>.<location>.<connection_id>
+    (
+        gcp_project_id,
+        bq_connection_location,
+        bq_connection_id,
+    ) = bigquery_connection.split(".")
+    if gcp_project_id.casefold() != dataset_ref.project.casefold():
+        raise ValueError(
+            "The project_id does not match BigQuery connection gcp_project_id: "
+            f"{dataset_ref.project}."
+        )
+    if bq_connection_location.casefold() != bq_location.casefold():
+        raise ValueError(
+            "The location does not match BigQuery connection location: "
+            f"{bq_location}."
+        )
 
     def wrapper(f):
         if not callable(f):
@@ -808,7 +835,7 @@ def remote_function(
             dataset_ref.dataset_id,
             bigquery_client,
             bigquery_connection_client,
-            bigquery_connection,
+            bq_connection_id,
             resource_manager_client,
         )
 
@@ -818,6 +845,7 @@ def remote_function(
             ibis_signature.output_type,
             reuse,
             name,
+            packages,
         )
 
         node = remote_function_node(dataset_ref.routine(rf_name), ibis_signature)
