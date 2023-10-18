@@ -20,7 +20,6 @@ from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery._pandas_helpers
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -29,6 +28,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
+import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -415,6 +415,6 @@ def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
             # better if we called `to_arrow()` and converted to a pandas
             # DataFrame ourselves from that.
             dtypes[field.name] = pd.ArrowDtype(
-                google.cloud.bigquery._pandas_helpers.bq_to_arrow_data_type(field)
+                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
             )
     return dtypes
