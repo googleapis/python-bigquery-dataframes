@@ -2604,9 +2604,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
             )
 
-        if len(self.index.names) > 1 or len(other.index.names) > 1:
+        if len(other.index.names) > 1:
             raise NotImplementedError(
-                f"Multi-index input is not supported. {constants.FEEDBACK_LINK}"
+                f"Multi-index `other` is not supported. {constants.FEEDBACK_LINK}"
             )
 
         if len(self.columns.names) > 1 or (

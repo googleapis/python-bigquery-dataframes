@@ -936,22 +936,45 @@ def test_column_multi_index_swaplevel(scalars_df_index, scalars_pandas_df_index)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_df_multi_index_dot_not_supported():
+def test_df_multi_index_dot():
     left_matrix = [[1, 2, 3], [2, 5, 7]]
     right_matrix = [[2, 4, 8], [1, 5, 10], [3, 6, 9]]
 
-    # Left multi-index
     left_index = pandas.MultiIndex.from_tuples([("a", "aa"), ("a", "ab")])
+
+    df1 = pandas.DataFrame(left_matrix, index=left_index)
+    df2 = pandas.DataFrame(right_matrix)
+    pd_result = df1.dot(df2)
+
     bf1 = bpd.DataFrame(left_matrix, index=left_index)
     bf2 = bpd.DataFrame(right_matrix)
-    with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
-        bf1.dot(bf2)
+    bf_result = bf1.dot(bf2).to_pandas()
+
+    # Patch pandas dtypes for testing parity
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pandas.Int64Dtype())
+
+    # Ignore index type, as BigFrames sets the dtype "string[pyarrow]" while
+    # pandas sets it as "object" for the same index= argument above
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+    )
+
+
+def test_df_multi_index_dot_not_supported():
+    left_matrix = [[1, 2, 3], [2, 5, 7]]
+    right_matrix = [[2, 4, 8], [1, 5, 10], [3, 6, 9]]
 
     # right multi-index
     right_index = pandas.MultiIndex.from_tuples([("a", "aa"), ("a", "ab"), ("b", "bb")])
     bf1 = bpd.DataFrame(left_matrix)
     bf2 = bpd.DataFrame(right_matrix, index=right_index)
-    with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
+    with pytest.raises(
+        NotImplementedError, match="Multi-index `other` is not supported"
+    ):
         bf1.dot(bf2)
 
 
