@@ -55,6 +55,13 @@ class ReaderIOMixin:
             file. Instead, set a serialized index column as the index and sort by
             that in the resulting DataFrame.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> filepath_or_buffer = ("gs://bigquery-public-data-ml-datasets/holidays_and_events_for_forecasting.csv")
+            >>> df = bpd.read_csv(filepath_or_buffer=filepath_or_buffer)
+
         Args:
             filepath_or_buffer (str):
                 A local or Google Cloud Storage (`gs://`) path with `engine="bigquery"`
@@ -64,7 +71,7 @@ class ReaderIOMixin:
                 can be any ISO-8859-1 single-byte character. To use a character in the range
                 128-255, you must encode the character as UTF-8. Both engines support
                 `sep="\t"` to specify tab character as separator. Default engine supports
-                having any number of spaces as separator by specifying `sep="\s+"`. Separators
+                having any number of spaces as separator by specifying `sep= "\ts+"`. Separators
                 longer than 1 character are interpreted as regular expressions by the default
                 engine. BigQuery engine only supports single character separators.
             header (Optional[int], default 0):
