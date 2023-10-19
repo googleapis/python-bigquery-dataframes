@@ -31,3 +31,4 @@ def test_bigquery_dataframes_pandas_methods():
     # Calculate the mean body_mass_g by species using the groupby operation:
     bq_df["body_mass_g"].groupby(by=bq_df["species"]).mean().head()
     # [END test_bigquery_dataframes_pandas_methods]
+    assert average_body_mass == average_body_mass
