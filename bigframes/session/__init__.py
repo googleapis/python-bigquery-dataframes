@@ -342,6 +342,37 @@ class Session(
         ``row_number() over ()`` if there is no natural unique index or you
         want to preserve ordering.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            Preserve ordering in a query input.
+
+            >>> bpd.read_gbq_query('''
+            ...    SELECT
+            ...       -- Instead of an ORDER BY clause on the query, use
+            ...       -- ROW_NUMBER() to create an ordered DataFrame.
+            ...       ROW_NUMBER() OVER (ORDER BY AVG(pitchSpeed) DESC)
+            ...         AS rowindex,
+            ...
+            ...       pitcherFirstName,
+            ...       pitcherLastName,
+            ...       AVG(pitchSpeed) AS averagePitchSpeed
+            ...     FROM `bigquery-public-data.baseball.games_wide`
+            ...     WHERE year = 2016
+            ...     GROUP BY pitcherFirstName, pitcherLastName
+            ... ''', index_col="rowindex").head(n=5)
+                     pitcherFirstName pitcherLastName  averagePitchSpeed
+            rowindex
+            1                Albertin         Chapman          96.514113
+            2                 Zachary         Britton          94.591039
+            3                  Trevor       Rosenthal          94.213953
+            4                    Jose          Torres          94.103448
+            5                  Tayron        Guerrero          93.863636
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
         See also: :meth:`Session.read_gbq`.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
@@ -404,6 +435,28 @@ class Session(
         max_results: Optional[int] = None,
     ) -> dataframe.DataFrame:
         """Turn a BigQuery table into a DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins").head(5)
+                                                 species island  culmen_length_mm  \\
+            0        Adelie Penguin (Pygoscelis adeliae)  Dream              36.6
+            1        Adelie Penguin (Pygoscelis adeliae)  Dream              39.8
+            2        Adelie Penguin (Pygoscelis adeliae)  Dream              40.9
+            3  Chinstrap penguin (Pygoscelis antarctica)  Dream              46.5
+            4        Adelie Penguin (Pygoscelis adeliae)  Dream              37.3
+            <BLANKLINE>
+               culmen_depth_mm  flipper_length_mm  body_mass_g     sex
+            0             18.4              184.0       3475.0  FEMALE
+            1             19.1              184.0       4650.0    MALE
+            2             18.9              184.0       3900.0    MALE
+            3             17.9              192.0       3500.0  FEMALE
+            4             16.8              192.0       3000.0  FEMALE
+            <BLANKLINE>
+            [5 rows x 7 columns]
 
         See also: :meth:`Session.read_gbq`.
         """
@@ -792,6 +845,15 @@ class Session(
     def read_gbq_model(self, model_name: str):
         """Loads a BigQuery ML model from BigQuery.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> model_name = "bigframes-dev.bqml_tutorial.penguins_model"
+            >>> bpd.read_gbq_model(model_name)
+            LinearRegression(optimize_strategy='NORMAL_EQUATION')
+
         Args:
             model_name (str):
                 the model's name in BigQuery in the format
@@ -814,6 +876,21 @@ class Session(
 
         The pandas DataFrame will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> d = {'col1': [1, 2], 'col2': [3, 4]}
+            >>> pandas_df = pd.DataFrame(data=d)
+            >>> bpd.read_pandas(pandas_df)
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Args:
             pandas_dataframe (pandas.DataFrame):
@@ -1364,6 +1441,16 @@ class Session(
         .. note::
             The return type of the function must be explicitly specified in the
             function's original definition even if not otherwise required.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> function_name = "bqutil.fn.cw_lower_case_ascii_only"
+        >>> func = bpd.read_gbq_function(function_name=function_name)
+        >>> func.bigframes_remote_function
+        'bqutil.fn.cw_lower_case_ascii_only'
 
         Args:
             function_name (str):
