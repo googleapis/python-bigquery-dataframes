@@ -60,14 +60,14 @@ class ReaderIOMixin:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> gcs_path = ("gs://bigquery-public-data-ml-datasets/holidays_and_events_for_forecasting.csv")
+            >>> gcs_path = "gs://cloud-samples-data/bigquery/us-states/us-states.csv"
             >>> df = bpd.read_csv(filepath_or_buffer=gcs_path)
             >>> df.head(2)
-            region   holiday_name primary_date  preholiday_days  postholiday_days
-            0     AU  AUNZ_AnzacDay   2000-04-25                1                 1
-            1     AU  AUNZ_AnzacDay   2001-04-25                1                 1
+                  name post_abbr
+            0  Alabama        AL
+            1   Alaska        AK
             <BLANKLINE>
-            [2 rows x 5 columns]
+            [2 rows x 2 columns]
 
         Args:
             filepath_or_buffer (str):

@@ -347,6 +347,22 @@ class Session(
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+            Simple query input:
+
+            >>> df = bpd.read_gbq_query('''
+            ...    SELECT
+            ...       pitcherFirstName,
+            ...       pitcherLastName,
+            ...       pitchSpeed,
+            ...    FROM `bigquery-public-data.baseball.games_wide`
+            ... ''')
+            >>> df.head(2)
+              pitcherFirstName pitcherLastName  pitchSpeed
+            0                                            0
+            1                                            0
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
             Preserve ordering in a query input.
 
             >>> df = bpd.read_gbq_query('''
@@ -438,6 +454,8 @@ class Session(
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
+        Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
             >>> df.head(2)
@@ -842,6 +860,8 @@ class Session(
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
+        Read an existing BigQuery ML model.
 
             >>> model_name = "bigframes-dev.bqml_tutorial.penguins_model"
             >>> model = bpd.read_gbq_model(model_name)
