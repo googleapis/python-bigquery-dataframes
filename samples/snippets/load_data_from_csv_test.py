@@ -17,9 +17,7 @@ def test_bigquery_dataframes_load_data_from_csv():
     # [START bigquery_dataframes_load_data_from_csv]
     import bigframes.pandas as bpd
 
-    filepath_or_buffer = (
-        "gs://bigquery-public-data-ml-datasets/holidays_and_events_for_forecasting.csv"
-    )
+    filepath_or_buffer = "gs://cloud-samples-data/bigquery/us-states/us-states.csv"
     df_from_gcs = bpd.read_csv(filepath_or_buffer)
     # Display the first few rows of the DataFrame:
     df_from_gcs.head()
