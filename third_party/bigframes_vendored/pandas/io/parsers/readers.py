@@ -62,6 +62,12 @@ class ReaderIOMixin:
 
             >>> gcs_path = ("gs://bigquery-public-data-ml-datasets/holidays_and_events_for_forecasting.csv")
             >>> df = bpd.read_csv(filepath_or_buffer=gcs_path)
+            >>> df.head(2)
+            region   holiday_name primary_date  preholiday_days  postholiday_days
+            0     AU  AUNZ_AnzacDay   2000-04-25                1                 1
+            1     AU  AUNZ_AnzacDay   2001-04-25                1                 1
+            <BLANKLINE>
+            [2 rows x 5 columns]
 
         Args:
             filepath_or_buffer (str):
@@ -160,13 +166,13 @@ class ReaderIOMixin:
             >>> bpd.options.display.progress_bar = None
 
             >>> gcs_path = "gs://bigframes-dev-testing/sample1.json"
-            >>> bpd.read_json(path_or_buf=gcs_path, lines=True, orient="records").head(n=5)
+            >>> df = bpd.read_json(path_or_buf=gcs_path, lines=True, orient="records")
+            >>> df.head(2)
                id   name
             0   1  Alice
             1   2    Bob
-            2   3  Carol
             <BLANKLINE>
-            [3 rows x 2 columns]
+            [2 rows x 2 columns]
 
         Args:
             path_or_buf (a valid JSON str, path object or file-like object):
