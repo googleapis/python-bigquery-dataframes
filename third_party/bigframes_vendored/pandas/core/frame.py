@@ -33,7 +33,18 @@ class DataFrame(NDFrame):
 
     @property
     def shape(self) -> tuple[int, int]:
-        """Return a tuple representing the dimensionality of the DataFrame."""
+        """
+        Return a tuple representing the dimensionality of the DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.shape
+            (2, 2)
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -44,20 +55,30 @@ class DataFrame(NDFrame):
         It has the row axis labels and column axis labels as the only members.
         They are returned in that order.
 
-        Examples
+        **Examples:**
 
-        .. code-block::
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-            df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            df.axes
-            [RangeIndex(start=0, stop=2, step=1), Index(['col1', 'col2'],
-            dtype='object')]
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.axes[1:]
+            [Index(['col1', 'col2'], dtype='object')]
         """
         return [self.index, self.columns]
 
     @property
     def values(self) -> np.ndarray:
         """Return the values of DataFrame in the form of a NumPy array.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.values
+            array([[1, 3],
+                   [2, 4]], dtype=object)
 
         Args:
             dytype (default None):
@@ -75,6 +96,16 @@ class DataFrame(NDFrame):
     def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_numpy()
+            array([[1, 3],
+                   [2, 4]], dtype=object)
 
         Args:
             dtype (None):
@@ -100,6 +131,15 @@ class DataFrame(NDFrame):
         ordering_id: Optional[str] = None,
     ) -> None:
         """Write a DataFrame to a BigQuery table.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> # destination_table = PROJECT_ID + "." + DATASET_ID + "." + TABLE_NAME
+            >>> df.to_gbq("bigframes-dev.birds.test-numbers", if_exists="replace")
 
         Args:
             destination_table (str):
@@ -137,6 +177,15 @@ class DataFrame(NDFrame):
         This function writes the dataframe as a `parquet file
         <https://parquet.apache.org/>`_ to Cloud Storage.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> gcs_bucket = "gs://bigframes-dev-testing/sample_parquet*.parquet"
+            >>> df.to_parquet(path=gcs_bucket)
+
         Args:
             path (str):
                 Destination URI(s) of Cloud Storage files(s) to store the extracted dataframe
@@ -170,6 +219,15 @@ class DataFrame(NDFrame):
 
         The type of the key-value pairs can be customized with the parameters
         (see below).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_dict()
+            {'col1': {0: 1, 1: 2}, 'col2': {0: 3, 1: 4}}
 
         Args:
             orient (str {'dict', 'list', 'series', 'split', 'tight', 'records', 'index'}):
@@ -213,6 +271,15 @@ class DataFrame(NDFrame):
         Note that creating an `ExcelWriter` object with a file name that already
         exists will result in the contents of the existing file being erased.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import tempfile
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_excel(tempfile.TemporaryFile())
+
         Args:
             excel_writer (path-like, file-like, or ExcelWriter object):
                 File path or existing ExcelWriter.
@@ -230,6 +297,16 @@ class DataFrame(NDFrame):
         Requires ``\usepackage{{booktabs}}``.  The output can be copy/pasted
         into a main LaTeX document or read from an external file
         with ``\input{{table.tex}}``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_latex()
+            '\\begin{tabular}{lrr}\n\\toprule\n & col1 & col2 \\\\\n\\midrule\n0 & 1 & 3 \\\\\n1 & 2 & 4 \\\\\n\\bottomrule\n\\end{tabular}\n'
+
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -252,6 +329,16 @@ class DataFrame(NDFrame):
 
         Index will be included as the first field of the record array if
         requested.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_records()
+            rec.array([(0, 1, 3), (1, 2, 4)],
+                      dtype=[('index', 'O'), ('col1', 'O'), ('col2', 'O')])
 
         Args:
             index (bool, default True):
@@ -297,6 +384,15 @@ class DataFrame(NDFrame):
         encoding: str | None = None,
     ):
         """Render a DataFrame to a console-friendly tabular output.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_string()
+            '   col1  col2\\n0     1     3\\n1     2     4'
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -363,6 +459,15 @@ class DataFrame(NDFrame):
     ):
         """Print DataFrame in Markdown-friendly format.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_string()
+            '   col1  col2\\n0     1     3\\n1     2     4'
+
         Args:
             buf (str, Path or StringIO-like, optional, default None):
                 Buffer to write to. If None, the output is returned as a string.
@@ -371,7 +476,7 @@ class DataFrame(NDFrame):
             index (bool, optional, default True):
                 Add index (row) labels.
             **kwargs
-                These parameters will be passed to `tabulate                 <https://pypi.org/project/tabulate>`_.
+                These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
         Returns:
             DataFrame in Markdown-friendly format.
@@ -380,6 +485,15 @@ class DataFrame(NDFrame):
 
     def to_pickle(self, path, **kwargs) -> None:
         """Pickle (serialize) object to file.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> gcs_bucket = "gs://bigframes-dev-testing/sample_pickle_gcs.pkl"
+            >>> df.to_pickle(path=gcs_bucket)
 
         Args:
             path (str):
@@ -390,6 +504,15 @@ class DataFrame(NDFrame):
     def to_orc(self, path=None, **kwargs) -> bytes | None:
         """
         Write a DataFrame to the ORC format.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> import tempfile
+            >>> df.to_orc(tempfile.TemporaryFile())
 
         Args:
             path (str, file-like object or None, default None):
