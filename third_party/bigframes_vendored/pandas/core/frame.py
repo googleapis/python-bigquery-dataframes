@@ -41,9 +41,10 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df = bpd.DataFrame({'col1': [1, 2, 3],
+            ...                     'col2': [4, 5, 6]})
             >>> df.shape
-            (2, 2)
+            (3, 2)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
