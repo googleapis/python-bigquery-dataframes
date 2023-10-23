@@ -230,6 +230,26 @@ class DataFrame(NDFrame):
             >>> df.to_dict()
             {'col1': {0: 1, 1: 2}, 'col2': {0: 3, 1: 4}}
 
+        You can specify the return orientation.
+
+            >>> df.to_dict('series')
+            {'col1': 0    1
+            1    2
+            Name: col1, dtype: Int64,
+            'col2': 0    3
+            1    4
+            Name: col2, dtype: Int64}
+
+            >>> df.to_dict('split')
+            {'index': [0, 1], 'columns': ['col1', 'col2'], 'data': [[1, 3], [2, 4]]}
+
+            >>> df.to_dict("tight")
+            {'index': [0, 1],
+            'columns': ['col1', 'col2'],
+            'data': [[1, 3], [2, 4]],
+            'index_names': [None],
+            'column_names': [None]}
+
         Args:
             orient (str {'dict', 'list', 'series', 'split', 'tight', 'records', 'index'}):
                 Determines the type of the values of the dictionary.
@@ -305,9 +325,16 @@ class DataFrame(NDFrame):
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            >>> df.to_latex()
-            '\\begin{tabular}{lrr}\n\\toprule\n & col1 & col2 \\\\\n\\midrule\n0 & 1 & 3 \\\\\n1 & 2 & 4 \\\\\n\\bottomrule\n\\end{tabular}\n'
-
+            >>> print(df.to_latex())
+            \begin{tabular}{lrr}
+            \toprule
+            & col1 & col2 \\
+            \midrule
+            0 & 1 & 3 \\
+            1 & 2 & 4 \\
+            \bottomrule
+            \end{tabular}
+            <BLANKLINE>
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -392,8 +419,10 @@ class DataFrame(NDFrame):
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            >>> df.to_string()
-            '   col1  col2\\n0     1     3\\n1     2     4'
+            >>> print(df.to_string())
+               col1  col2
+            0     1     3
+            1     2     4
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -466,8 +495,11 @@ class DataFrame(NDFrame):
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            >>> df.to_string()
-            '   col1  col2\\n0     1     3\\n1     2     4'
+            >>> print(df.to_markdown())
+            |    |   col1 |   col2 |
+            |---:|-------:|-------:|
+            |  0 |      1 |      3 |
+            |  1 |      2 |      4 |
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
