@@ -169,6 +169,10 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
 
+    # BigQuery only supports integers of size 64 bits.
+    if isinstance(ibis_dtype, ibis_dtypes.Integer):
+        return pd.Int64Dtype()
+
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     elif isinstance(ibis_dtype, ibis_dtypes.Null):
