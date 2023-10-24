@@ -39,7 +39,13 @@ def arrow_to_pandas(arrow_table: pyarrow.Table, dtypes: Dict):
                 crs="EPSG:4326",
             )
         else:
-            series = pandas.Series(column, dtype=dtype)
+            series = column.to_pandas(
+                # Construct Python objects to preserve NA/NaN. Note: This is
+                # currently needed, even for nullable Float64Dtype.
+                # https://github.com/pandas-dev/pandas/issues/55668
+                integer_object_nulls=True,
+                types_mapper=lambda _: dtype,
+            )
 
         serieses[column_name] = series
 
