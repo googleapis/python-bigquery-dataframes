@@ -28,6 +28,7 @@ import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
 import google.cloud.resourcemanager_v3
+import ibis
 import pydata_google_auth
 
 import bigframes.version
@@ -47,6 +48,18 @@ _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
 
 def _get_default_credentials_with_project():
     return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
+
+
+def _create_user_agent(application_name: str) -> str:
+    user_agent = []
+
+    if application_name:
+        user_agent.append(application_name)
+
+    user_agent_default_template = f"ibis/{ibis.__version__}"
+    user_agent.append(user_agent_default_template)
+
+    return " ".join(user_agent)
 
 
 class ClientsProvider:
@@ -108,7 +121,7 @@ class ClientsProvider:
                     ),
                 )
             bq_info = google.api_core.client_info.ClientInfo(
-                user_agent=self._application_name
+                user_agent=_create_user_agent(self._application_name)
             )
             self._bqclient = bigquery.Client(
                 client_info=bq_info,
@@ -131,7 +144,7 @@ class ClientsProvider:
                     )
                 )
             bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
+                user_agent=_create_user_agent(self._application_name)
             )
             self._bqconnectionclient = (
                 google.cloud.bigquery_connection_v1.ConnectionServiceClient(
@@ -154,7 +167,7 @@ class ClientsProvider:
                     )
                 )
             bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
+                user_agent=_create_user_agent(self._application_name)
             )
             self._bqstoragereadclient = (
                 google.cloud.bigquery_storage_v1.BigQueryReadClient(
@@ -170,7 +183,7 @@ class ClientsProvider:
     def cloudfunctionsclient(self):
         if not self._cloudfunctionsclient:
             functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
+                user_agent=_create_user_agent(self._application_name)
             )
             self._cloudfunctionsclient = (
                 google.cloud.functions_v2.FunctionServiceClient(
@@ -185,7 +198,7 @@ class ClientsProvider:
     def resourcemanagerclient(self):
         if not self._resourcemanagerclient:
             resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
+                user_agent=_create_user_agent(self._application_name)
             )
             self._resourcemanagerclient = (
                 google.cloud.resourcemanager_v3.ProjectsClient(
