@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.10.0"
+
+def test_bigquery_dataframes_load_data_from_csv():
+    # [START bigquery_dataframes_load_data_from_csv]
+    import bigframes.pandas as bpd
+
+    filepath_or_buffer = "gs://cloud-samples-data/bigquery/us-states/us-states.csv"
+    df_from_gcs = bpd.read_csv(filepath_or_buffer)
+    # Display the first few rows of the DataFrame:
+    df_from_gcs.head()
+    # [END bigquery_dataframes_load_data_from_csv]
+    assert df_from_gcs is not None

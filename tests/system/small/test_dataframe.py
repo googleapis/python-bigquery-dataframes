@@ -2826,6 +2826,22 @@ def test_loc_list_integer_index(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_list_multiindex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+    index_list = [("Hello, World!", -234892), ("Hello, World!", 123456789)]
+
+    bf_result = scalars_df_multiindex.loc[index_list]
+    pd_result = scalars_pandas_df_multiindex.loc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     index_list = [0, 0, 0, 5, 4, 7]
 
@@ -2895,6 +2911,24 @@ def test_loc_bf_series_string_index(scalars_df_index, scalars_pandas_df_index):
 
     bf_result = scalars_df_index.loc[bf_string_series]
     pd_result = scalars_pandas_df_index.loc[pd_string_series]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
+def test_loc_bf_series_multiindex(scalars_df_index, scalars_pandas_df_index):
+    pd_string_series = scalars_pandas_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+    bf_string_series = scalars_df_index.string_col.iloc[[0, 5, 1, 1, 5]]
+
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+
+    bf_result = scalars_df_multiindex.loc[bf_string_series]
+    pd_result = scalars_pandas_df_multiindex.loc[pd_string_series]
 
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
@@ -3172,3 +3206,57 @@ def test_df_cached(scalars_df_index):
 
     df_cached_copy = df._cached()
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
+def test_df_dot_inline(session):
+    df1 = pd.DataFrame([[1, 2, 3], [2, 5, 7]])
+    df2 = pd.DataFrame([[2, 4, 8], [1, 5, 10], [3, 6, 9]])
+
+    bf1 = session.read_pandas(df1)
+    bf2 = session.read_pandas(df2)
+    bf_result = bf1.dot(bf2).to_pandas()
+    pd_result = df1.dot(df2)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = matrix_2by3_df.dot(matrix_3by4_df).to_pandas()
+    pd_result = matrix_2by3_pandas_df.dot(matrix_3by4_pandas_df)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot_series(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = matrix_2by3_df.dot(matrix_3by4_df["x"]).to_pandas()
+    pd_result = matrix_2by3_pandas_df.dot(matrix_3by4_pandas_df["x"])
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    pd_result = pd_result.astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )

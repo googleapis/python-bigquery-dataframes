@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.10.0"
+
+def test_bigquery_dataframes_load_data_from_bigquery():
+    # [START bigquery_dataframes_load_data_from_bigquery]
+    # Create a DataFrame from a BigQuery table:
+    import bigframes.pandas as bpd
+
+    query_or_table = "bigquery-public-data.ml_datasets.penguins"
+    bq_df = bpd.read_gbq(query_or_table)
+    # [END bigquery_dataframes_load_data_from_bigquery]
+    assert bq_df is not None
