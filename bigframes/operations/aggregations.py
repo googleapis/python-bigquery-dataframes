@@ -264,24 +264,29 @@ class QcutOp(WindowOp):
         self, column: ibis_types.Column, window=None
     ) -> ibis_types.IntegerValue:
         if isinstance(self._quantiles, int):
+            quantiles_ibis = dtypes.literal_to_ibis_scalar(self._quantiles)
             percent_ranks = typing.cast(
                 ibis_types.FloatingColumn,
                 _apply_window_if_present(column.percent_rank(), window),
             )
             float_bucket = typing.cast(
-                ibis_types.FloatingColumn, (percent_ranks * self._quantiles)
+                ibis_types.FloatingColumn, (percent_ranks * quantiles_ibis)
             )
-            return float_bucket.ceil().clip(lower=1) - 1
+            return float_bucket.ceil().clip(lower=_ibis_num(1)) - _ibis_num(1)
         else:
             percent_ranks = typing.cast(
                 ibis_types.FloatingColumn,
                 _apply_window_if_present(column.percent_rank(), window),
             )
             out = ibis.case()
-            out = out.when(percent_ranks < self._quantiles[0], None)
+            first_ibis_quantile = dtypes.literal_to_ibis_scalar(self._quantiles[0])
+            out = out.when(percent_ranks < first_ibis_quantile, None)
             for bucket_n in range(len(self._quantiles) - 1):
+                ibis_quantile = dtypes.literal_to_ibis_scalar(
+                    self._quantiles[bucket_n + 1]
+                )
                 out = out.when(
-                    percent_ranks <= self._quantiles[bucket_n + 1],
+                    percent_ranks <= ibis_quantile,
                     dtypes.literal_to_ibis_scalar(bucket_n, force_dtype=Int64Dtype()),
                 )
             out = out.else_(None)
@@ -533,3 +538,7 @@ def lookup_agg_func(key: str) -> AggregateOp:
         return _AGGREGATIONS_LOOKUP[key]
     else:
         raise ValueError(f"Unrecognize aggregate function: {key}")
+
+
+def _ibis_num(number: float):
+    return typing.cast(ibis_types.NumericValue, ibis_types.literal(number))
