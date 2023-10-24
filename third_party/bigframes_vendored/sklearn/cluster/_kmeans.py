@@ -12,7 +12,6 @@
 # License: BSD 3 clause
 
 from abc import ABC
-from typing import List, Optional
 
 from bigframes import constants
 from third_party.bigframes_vendored.sklearn.base import BaseEstimator
@@ -83,7 +82,12 @@ class KMeans(_BaseKMeans):
         X,
         y=None,
     ):
-        """Metrics of the model.
+        """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
+            for evaluateing model metrics.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):

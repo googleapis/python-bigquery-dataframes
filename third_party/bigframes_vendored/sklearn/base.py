@@ -85,6 +85,11 @@ class ClassifierMixin:
         which is a harsh metric since you require for each sample that
         each label set be correctly predicted.
 
+        .. note::
+
+            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
+            for evaluateing model metrics.
+
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 DataFrame of shape (n_samples, n_features). Test samples.
@@ -105,7 +110,12 @@ class RegressorMixin:
     _estimator_type = "regressor"
 
     def score(self, X, y):
-        """Return the evaluation metrics of the model.
+        """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
+            for evaluateing model metrics.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):

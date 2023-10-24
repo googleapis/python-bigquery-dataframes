@@ -507,6 +507,11 @@ class RandomForestRegressor(
     ):
         """Calculate evaluation metrics of the model.
 
+        .. note::
+
+            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
+            for evaluateing model metrics.
+
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation data.
@@ -675,6 +680,11 @@ class RandomForestClassifier(
         y: Union[bpd.DataFrame, bpd.Series],
     ):
         """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
+            for evaluateing model metrics.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
