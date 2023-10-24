@@ -1,3 +1,4 @@
+# Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/_config/config.py
 import contextlib
 import operator
 
