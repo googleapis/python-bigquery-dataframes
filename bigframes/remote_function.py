@@ -53,7 +53,6 @@ import ibis.expr.rules as rlz
 from bigframes import clients
 import bigframes.constants as constants
 
-
 logger = logging.getLogger(__name__)
 
 # Protocol version 4 is available in python version 3.4 and above
