@@ -38,8 +38,57 @@ import bigframes.session._io.pandas
         pytest.param(
             pyarrow.Table.from_pydict(
                 {
-                    "bool": [True, None, True, False],
-                    "bytes": [b"123", None, b"abc", b"xyz"],
+                    "bool": pyarrow.array([None, None, None], type=pyarrow.bool_()),
+                    "float": pyarrow.array([None, None, None], type=pyarrow.float64()),
+                    "int": pyarrow.array([None, None, None], type=pyarrow.int64()),
+                    "string": pyarrow.array([None, None, None], type=pyarrow.string()),
+                    "time": pyarrow.array(
+                        [None, None, None], type=pyarrow.time64("us")
+                    ),
+                }
+            ),
+            {
+                "bool": "boolean",
+                "float": pandas.Float64Dtype(),
+                "int": pandas.Int64Dtype(),
+                "string": "string[pyarrow]",
+                "time": pandas.ArrowDtype(pyarrow.time64("us")),
+            },
+            pandas.DataFrame(
+                {
+                    "bool": pandas.Series([None, None, None], dtype="boolean"),
+                    "float": pandas.Series(
+                        pandas.arrays.FloatingArray(
+                            numpy.array(
+                                [float("nan"), float("nan"), float("nan")],
+                                dtype="float64",
+                            ),
+                            numpy.array([True, True, True], dtype="bool"),
+                        ),
+                        dtype=pandas.Float64Dtype(),
+                    ),
+                    "int": pandas.Series(
+                        [None, None, None],
+                        dtype=pandas.Int64Dtype(),
+                    ),
+                    "string": pandas.Series(
+                        [None, None, None], dtype="string[pyarrow]"
+                    ),
+                    "time": pandas.Series(
+                        [
+                            None,
+                            None,
+                            None,
+                        ],
+                        dtype=pandas.ArrowDtype(pyarrow.time64("us")),
+                    ),
+                }
+            ),
+            id="nulls-df",
+        ),
+        pytest.param(
+            pyarrow.Table.from_pydict(
+                {
                     "date": pyarrow.array(
                         [
                             datetime.date(2023, 8, 29),
@@ -57,14 +106,6 @@ import bigframes.session._io.pandas
                             datetime.datetime(1, 1, 1, 0, 0, 0, 1),
                         ],
                         type=pyarrow.timestamp("us"),
-                    ),
-                    "float": pyarrow.array(
-                        [1.0, None, float("nan"), -1.0],
-                        type=pyarrow.float64(),
-                    ),
-                    "int": pyarrow.array(
-                        [1, None, -1, 2**63 - 1],
-                        type=pyarrow.int64(),
                     ),
                     "string": ["123", None, "abc", "xyz"],
                     "time": pyarrow.array(
@@ -88,12 +129,8 @@ import bigframes.session._io.pandas
                 }
             ),
             {
-                "bool": "boolean",
-                "bytes": "object",
                 "date": pandas.ArrowDtype(pyarrow.date32()),
                 "datetime": pandas.ArrowDtype(pyarrow.timestamp("us")),
-                "float": pandas.Float64Dtype(),
-                "int": pandas.Int64Dtype(),
                 "string": "string[pyarrow]",
                 "time": pandas.ArrowDtype(pyarrow.time64("us")),
                 "timestamp": pandas.ArrowDtype(
@@ -102,8 +139,6 @@ import bigframes.session._io.pandas
             },
             pandas.DataFrame(
                 {
-                    "bool": pandas.Series([True, None, True, False], dtype="boolean"),
-                    "bytes": [b"123", None, b"abc", b"xyz"],
                     "date": pandas.Series(
                         [
                             datetime.date(2023, 8, 29),
@@ -121,19 +156,6 @@ import bigframes.session._io.pandas
                             datetime.datetime(1, 1, 1, 0, 0, 0, 1),
                         ],
                         dtype=pandas.ArrowDtype(pyarrow.timestamp("us")),
-                    ),
-                    "float": pandas.Series(
-                        pandas.arrays.FloatingArray(
-                            numpy.array(
-                                [1.0, float("nan"), float("nan"), -1.0], dtype="float64"
-                            ),
-                            numpy.array([False, True, False, False], dtype="bool"),
-                        ),
-                        dtype=pandas.Float64Dtype(),
-                    ),
-                    "int": pandas.Series(
-                        [1, None, -1, 2**63 - 1],
-                        dtype=pandas.Int64Dtype(),
                     ),
                     "string": pandas.Series(
                         ["123", None, "abc", "xyz"], dtype="string[pyarrow]"
@@ -157,6 +179,53 @@ import bigframes.session._io.pandas
                         dtype=pandas.ArrowDtype(
                             pyarrow.timestamp("us", datetime.timezone.utc)
                         ),
+                    ),
+                }
+            ),
+            id="arrow-dtypes",
+        ),
+        pytest.param(
+            pyarrow.Table.from_pydict(
+                {
+                    "bool": [True, None, True, False],
+                    "bytes": [b"123", None, b"abc", b"xyz"],
+                    "float": pyarrow.array(
+                        [1.0, None, float("nan"), -1.0],
+                        type=pyarrow.float64(),
+                    ),
+                    "int": pyarrow.array(
+                        [1, None, -1, 2**63 - 1],
+                        type=pyarrow.int64(),
+                    ),
+                    "string": ["123", None, "abc", "xyz"],
+                }
+            ),
+            {
+                "bool": "boolean",
+                "bytes": "object",
+                "float": pandas.Float64Dtype(),
+                "int": pandas.Int64Dtype(),
+                "string": "string[pyarrow]",
+            },
+            pandas.DataFrame(
+                {
+                    "bool": pandas.Series([True, None, True, False], dtype="boolean"),
+                    "bytes": [b"123", None, b"abc", b"xyz"],
+                    "float": pandas.Series(
+                        pandas.arrays.FloatingArray(
+                            numpy.array(
+                                [1.0, float("nan"), float("nan"), -1.0], dtype="float64"
+                            ),
+                            numpy.array([False, True, False, False], dtype="bool"),
+                        ),
+                        dtype=pandas.Float64Dtype(),
+                    ),
+                    "int": pandas.Series(
+                        [1, None, -1, 2**63 - 1],
+                        dtype=pandas.Int64Dtype(),
+                    ),
+                    "string": pandas.Series(
+                        ["123", None, "abc", "xyz"], dtype="string[pyarrow]"
                     ),
                 }
             ),
@@ -191,7 +260,18 @@ def test_arrow_to_pandas(
     expected: pandas.DataFrame,
 ):
     actual = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
-    pandas.testing.assert_frame_equal(actual, expected)
+    pandas.testing.assert_series_equal(actual.dtypes, expected.dtypes)
+
+    # assert_frame_equal is converting to numpy internally, which causes some
+    # loss of precision with the extreme values in this test.
+    for column in actual.columns:
+        assert tuple(
+            (index, value) if (value is pandas.NA or value == value) else (index, "nan")
+            for index, value in actual[column].items()
+        ) == tuple(
+            (index, value) if (value is pandas.NA or value == value) else (index, "nan")
+            for index, value in expected[column].items()
+        )
 
 
 @pytest.mark.parametrize(
