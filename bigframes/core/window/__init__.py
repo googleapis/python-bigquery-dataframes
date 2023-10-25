@@ -19,9 +19,11 @@ import typing
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.operations.aggregations as agg_ops
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
 
 
+@log_adapter.class_logger
 class Window(vendored_pandas_rolling.Window):
     __doc__ = vendored_pandas_rolling.Window.__doc__
 

@@ -75,6 +75,7 @@ from bigframes.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
+from bigframes.utils import log_adapter
 import bigframes.version
 
 # Even though the ibis.backends.bigquery.registry import is unused, it's needed
@@ -110,6 +111,7 @@ def _is_query(query_or_table: str) -> bool:
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
+@log_adapter.class_logger
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -1496,10 +1498,19 @@ class Session(
         """
         Starts query job and waits for results
         """
+        api_methods = log_adapter._api_methods
         if job_config is not None:
-            query_job = self.bqclient.query(sql, job_config=job_config)
+            job_config.labels = bigframes_io.create_job_configs_labels(
+                job_configs_labels=job_config.labels, api_methods=api_methods
+            )
         else:
-            query_job = self.bqclient.query(sql)
+            job_config = bigquery.QueryJobConfig()
+            job_config.labels = bigframes_io.create_job_configs_labels(
+                job_configs_labels=None, api_methods=api_methods
+            )
+        query_job = self.bqclient.query(sql, job_config=job_config)
+        # Clear out the global api logger
+        log_adapter._api_methods = []
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:

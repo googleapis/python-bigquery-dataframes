@@ -22,6 +22,7 @@ import bigframes.dataframe as df
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.strings.accessor as vendorstr
 
 # Maps from python to re2
@@ -32,6 +33,7 @@ REGEXP_FLAGS = {
 }
 
 
+@log_adapter.class_logger
 class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMethods):
     __doc__ = vendorstr.StringMethods.__doc__
 

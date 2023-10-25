@@ -52,6 +52,7 @@ dependencies = [
     "sqlalchemy >=1.4,<3.0dev",
     "ipywidgets >=7.7.1",
     "humanize >= 4.6.0",
+    "logruru >=0.6.0",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.

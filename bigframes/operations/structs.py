@@ -22,6 +22,7 @@ import bigframes.dataframe
 import bigframes.operations
 import bigframes.operations.base
 import bigframes.series
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.arrays.arrow.accessors as vendoracessors
 
 
@@ -38,6 +39,7 @@ class _StructField(bigframes.operations.UnaryOp):
         return struct_value[name].name(name)
 
 
+@log_adapter.class_logger
 class StructAccessor(
     bigframes.operations.base.SeriesMethods, vendoracessors.StructAccessor
 ):

@@ -17,11 +17,41 @@
 import datetime
 import textwrap
 import types
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Optional, Sequence, Union
 
 import google.cloud.bigquery as bigquery
 
 IO_ORDERING_ID = "bqdf_row_nums"
+MAX_LABELS_COUNT = 64
+
+
+def create_job_configs_labels(
+    job_configs_labels: Optional[Dict[str, str]],
+    api_methods: Sequence[str],
+) -> Dict[str, str]:
+    # If there is no label set
+    if job_configs_labels is None:
+        labels = {}
+        label_values = list(api_methods)
+    else:
+        labels = job_configs_labels.copy()
+        cur_labels_len = len(job_configs_labels)
+        api_methods_len = len(api_methods)
+        # If the total number of labels is under the limit of labels count
+        if cur_labels_len + api_methods_len <= MAX_LABELS_COUNT:
+            label_values = list(api_methods)
+        # We capture the latest label if it is out of the length limit of labels count
+        else:
+            added_api_len = cur_labels_len + api_methods_len - MAX_LABELS_COUNT
+            label_values = list(api_methods)[-added_api_len:]
+
+    for i, label_value in enumerate(label_values):
+        if job_configs_labels is not None:
+            label_key = "bigframes-api-" + str(i + len(job_configs_labels))
+        else:
+            label_key = "bigframes-api-" + str(i)
+        labels[label_key] = label_value
+    return labels
 
 
 def create_export_csv_statement(

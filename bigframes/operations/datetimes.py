@@ -17,9 +17,11 @@ from __future__ import annotations
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 
+@log_adapter.class_logger
 class DatetimeMethods(
     bigframes.operations.base.SeriesMethods, vendordt.DatetimeProperties
 ):

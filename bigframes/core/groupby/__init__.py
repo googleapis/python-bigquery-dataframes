@@ -30,9 +30,11 @@ import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 
+@log_adapter.class_logger
 class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     __doc__ = vendored_pandas_groupby.GroupBy.__doc__
 
@@ -408,6 +410,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return col_ids[0]
 
 
+@log_adapter.class_logger
 class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     __doc__ = vendored_pandas_groupby.GroupBy.__doc__
 

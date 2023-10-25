@@ -56,6 +56,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
+from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
@@ -80,6 +81,7 @@ ERROR_IO_REQUIRES_WILDCARD = (
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
+@log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
 
