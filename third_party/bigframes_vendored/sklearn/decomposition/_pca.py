@@ -55,12 +55,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def score(self, X=None, y=None):
-        """Calculate evaluation metrics of the model.
-
-        .. note::
-
-            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
-            for evaluateing model metrics.
+        """Return the metrics of the model.
 
         Args:
             X (default None):

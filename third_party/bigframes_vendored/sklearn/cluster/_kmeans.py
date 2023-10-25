@@ -82,12 +82,7 @@ class KMeans(_BaseKMeans):
         X,
         y=None,
     ):
-        """Calculate evaluation metrics of the model.
-
-        .. note::
-
-            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
-            for evaluateing model metrics.
+        """Metrics of the model.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
