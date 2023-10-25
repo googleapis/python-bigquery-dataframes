@@ -40,7 +40,7 @@ def test_bqml_getting_started():
     # Columns to indicate whether there was purchase
     label = transactions.notnull().map({True: 1, False: 0})
 
-    # Operating systems of users
+    # Operating systems of users, extracting child field as a struct series
     operatingSystem = df["device"].struct.field("operatingSystem")
     operatingSystem = operatingSystem.fillna("")
 
