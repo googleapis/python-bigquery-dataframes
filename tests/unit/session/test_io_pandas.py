@@ -58,7 +58,7 @@ import bigframes.session._io.pandas
                 {
                     "bool": pandas.Series([None, None, None], dtype="boolean"),
                     "float": pandas.Series(
-                        pandas.arrays.FloatingArray(
+                        pandas.arrays.FloatingArray(  # type: ignore
                             numpy.array(
                                 [float("nan"), float("nan"), float("nan")],
                                 dtype="float64",
@@ -212,7 +212,7 @@ import bigframes.session._io.pandas
                     "bool": pandas.Series([True, None, True, False], dtype="boolean"),
                     "bytes": [b"123", None, b"abc", b"xyz"],
                     "float": pandas.Series(
-                        pandas.arrays.FloatingArray(
+                        pandas.arrays.FloatingArray(  # type: ignore
                             numpy.array(
                                 [1.0, float("nan"), float("nan"), -1.0], dtype="float64"
                             ),
