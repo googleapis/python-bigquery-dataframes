@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Dict, Union
 
 import geopandas  # type: ignore
 import pandas
@@ -23,7 +23,9 @@ import pyarrow.compute  # type: ignore
 import bigframes.constants
 
 
-def arrow_to_pandas(arrow_table: pyarrow.Table, dtypes: Dict):
+def arrow_to_pandas(
+    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch], dtypes: Dict
+):
     if len(dtypes) != arrow_table.num_columns:
         raise ValueError(
             f"Number of types {len(dtypes)} doesn't match number of columns "
@@ -31,8 +33,8 @@ def arrow_to_pandas(arrow_table: pyarrow.Table, dtypes: Dict):
         )
 
     serieses = {}
-    for column_name, column in zip(arrow_table.column_names, arrow_table):
-        dtype = dtypes[column_name]
+    for field, column in zip(arrow_table.schema, arrow_table):
+        dtype = dtypes[field.name]
 
         if dtype == geopandas.array.GeometryDtype():
             series = geopandas.GeoSeries.from_wkt(
@@ -52,9 +54,24 @@ def arrow_to_pandas(arrow_table: pyarrow.Table, dtypes: Dict):
                 pyarrow.compute.is_null(column).to_numpy(),
             )
             series = pandas.Series(pd_array, dtype=dtype)
+        elif dtype == pandas.Int64Dtype():
+            # Avoid out-of-bounds errors in Pandas 1.5.x, which incorrectly
+            # casts to float64 in an intermediate step.
+            pd_array = pandas.arrays.IntegerArray(
+                pyarrow.compute.fill_null(column, 0).to_numpy(),
+                pyarrow.compute.is_null(column).to_numpy(),
+            )
+            series = pandas.Series(pd_array, dtype=dtype)
+        elif isinstance(dtype, pandas.ArrowDtype):
+            # Avoid conversion logic if we are backing the pandas Series by the
+            # arrow array.
+            series = pandas.Series(
+                pandas.arrays.ArrowExtensionArray(column),  # type: ignore
+                dtype=dtype,
+            )
         else:
             series = column.to_pandas(types_mapper=lambda _: dtype)
 
-        serieses[column_name] = series
+        serieses[field.name] = series
 
     return pandas.DataFrame(serieses)
