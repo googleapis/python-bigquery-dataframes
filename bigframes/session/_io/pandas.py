@@ -44,7 +44,10 @@ def arrow_to_pandas(arrow_table: pyarrow.Table, dtypes: Dict):
             # Preserve NA/NaN distinction. Note: This is currently needed, even if we use
             # nullable Float64Dtype in the types_mapper. See:
             # https://github.com/pandas-dev/pandas/issues/55668
-            pd_array = pandas.arrays.FloatingArray(
+            # Regarding type: ignore, this class has been public at this
+            # location since pandas 1.2.0. See:
+            # https://pandas.pydata.org/docs/dev/reference/api/pandas.arrays.FloatingArray.html
+            pd_array = pandas.arrays.FloatingArray(  # type: ignore
                 column.to_numpy(),
                 pyarrow.compute.is_null(column).to_numpy(),
             )
