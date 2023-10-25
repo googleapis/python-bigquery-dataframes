@@ -39,7 +39,7 @@ def test_bqml_getting_started():
     #Columns to indicate whether there was purchase 
     label = transactions.notnull().map({True: 1, False: 0})
 
-    #Operating systems of users
+    #Operating systems of users, extracting child fields of a struct as a Series
     operatingSystem = df['device'].struct.field("operatingSystem")
     operatingSystem = operatingSystem.fillna("")
 
@@ -49,7 +49,7 @@ def test_bqml_getting_started():
     #Country from which the sessions originate, IP address based 
     country = df['geoNetwork'].struct.field("country").fillna("")
 
-    #Total number of pageviews within the session
+    #Total number of pageviews within the session,
     pageviews = totals.struct.field("pageviews").fillna(0)
 
     #Setting features for dataframe, 
