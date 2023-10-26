@@ -575,9 +575,15 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
 )
 def test_mods(scalars_dfs, col_x, col_y, method):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_series = getattr(scalars_df[col_x], method)(scalars_df[col_y])
-    # BigQuery's mod functions return NUMERIC values.
-    bf_result = bf_series.astype("Float64").to_pandas()
+    x_bf = scalars_df[col_x]
+    y_bf = scalars_df[col_y]
+    bf_series = getattr(x_bf, method)(y_bf)
+    # BigQuery's mod functions return [BIG]NUMERIC values unless both arguments are integers.
+    # https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#mod
+    if x_bf.dtype == pd.Int64Dtype() and y_bf.dtype == pd.Int64Dtype():
+        bf_result = bf_series.to_pandas()
+    else:
+        bf_result = bf_series.astype("Float64").to_pandas()
     pd_result = getattr(scalars_pandas_df[col_x], method)(scalars_pandas_df[col_y])
     pd.testing.assert_series_equal(pd_result, bf_result)
 
