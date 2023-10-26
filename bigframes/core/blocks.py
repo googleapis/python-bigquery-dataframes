@@ -421,7 +421,7 @@ class Block:
         dtypes.update(zip(self.value_columns, self.dtypes))
         results_iterator, _ = self._expr.start_query()
         for arrow_table in results_iterator.to_arrow_iterable(
-            bqstorage_client=self._expr._session.bqstoragereadclient
+            bqstorage_client=self._expr.session.bqstoragereadclient
         ):
             df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
             self._copy_index_to_pandas(df)
