@@ -196,10 +196,7 @@ def get_dummies(
     if prefix_sep is None:
         prefix_sep = ["_"] * len(columns)
     prefix = parse_prefix_kwarg(prefix, "prefix")
-    if prefix is None and isinstance(data, Series):
-        prefix = [""] * len(columns)
-        prefix_sep = [""] * len(columns)
-    elif prefix is None:
+    if prefix is None:
         prefix = columns
 
     max_unique_value = (
