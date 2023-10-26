@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from bigframes.core.compile.compiled import CompiledArrayValue
-from bigframes.core.compile.compiler import ArrayValueCompiler
+from bigframes.core.compile.compiler import compile_node
 
 __all__ = [
-    "ArrayValueCompiler",
+    "compile_node",
     "CompiledArrayValue",
 ]

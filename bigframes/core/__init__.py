@@ -41,6 +41,10 @@ PREDICATE_COLUMN = "bigframes_predicate"
 
 @dataclass(frozen=True)
 class ArrayValue:
+    """
+    ArrayValue is an immutable type representing a 2D array with per-column types.
+    """
+
     node: nodes.BigFrameNode
 
     @classmethod
@@ -54,7 +58,7 @@ class ArrayValue:
     ):
         node = nodes.ReadGbqNode(
             table=table,
-            session=session,
+            table_session=session,
             columns=tuple(columns),
             hidden_ordering_columns=tuple(hidden_ordering_columns),
             ordering=ordering,
@@ -75,16 +79,16 @@ class ArrayValue:
 
     @property
     def session(self) -> Session:
-        required_session = self.node.sessions
+        required_session = self.node.session
         from bigframes import get_global_session
 
-        return self.node.sessions[0] if required_session else get_global_session()
+        return self.node.session[0] if required_session else get_global_session()
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self.compile().get_column_type(key)
 
     def compile(self) -> compiled.CompiledArrayValue:
-        return compiled.ArrayValueCompiler().compile(self)
+        return compiled.compile_node(self.node)
 
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
@@ -92,7 +96,7 @@ class ArrayValue:
         count_expr = self.compile()._to_ibis_expr("unordered").count()
 
         # Support in-memory engines for hermetic unit tests.
-        if not self.node.sessions:
+        if not self.node.session:
             try:
                 length = ibis.pandas.connect({}).execute(count_expr)
                 return (length, width)
@@ -107,14 +111,6 @@ class ArrayValue:
         )
         length = next(row_iterator)[0]
         return (length, width)
-
-    def _uniform_sampling(self, fraction: float) -> ArrayValue:
-        """Sampling the table on given fraction.
-
-        .. warning::
-            The row numbers of result is non-deterministic, avoid to use.
-        """
-        return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
 
     def to_sql(
         self,
@@ -431,3 +427,11 @@ class ArrayValue:
                 allow_row_identity_join=allow_row_identity_join,
             )
         )
+
+    def _uniform_sampling(self, fraction: float) -> ArrayValue:
+        """Sampling the table on given fraction.
+
+        .. warning::
+            The row numbers of result is non-deterministic, avoid to use.
+        """
+        return ArrayValue(nodes.RandomSampleNode(self.node, fraction))

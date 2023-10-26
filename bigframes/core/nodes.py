@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import functools
 import typing
 from typing import Optional, Tuple
 
@@ -35,22 +36,34 @@ if typing.TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class BigFrameNode:
-    pass
+    """
+    Immutable node for representing 2D typed array as a tree of operators.
+
+    All subclasses must be hashable so as to be usable as caching key.
+    """
 
     @property
     def deterministic(self) -> bool:
+        """Whether this node will evaluates deterministically."""
         return True
 
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
+        """Direct children of this node"""
         return tuple([])
 
-    @property
-    def sessions(self):
+    @functools.cached_property
+    def session(self):
         sessions = []
         for child in self.child_nodes:
-            sessions.extend(child.sessions)
-        return sessions
+            if child.session is not None:
+                sessions.append(child.session)
+        unique_sessions = len(set(sessions))
+        if unique_sessions > 1:
+            raise ValueError("Cannot use combine sources from multiple sessions.")
+        elif unique_sessions == 1:
+            return sessions[0]
+        return None
 
 
 @dataclass(frozen=True)
@@ -102,14 +115,14 @@ class ReadLocalNode(BigFrameNode):
 @dataclass(frozen=True)
 class ReadGbqNode(BigFrameNode):
     table: ibis_types.Table = field()
-    session: bigframes.session.Session = field()
+    table_session: bigframes.session.Session = field()
     columns: Tuple[ibis_types.Value, ...] = field()
     hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
     ordering: orderings.ExpressionOrdering = field()
 
     @property
-    def sessions(self):
-        return (self.session,)
+    def session(self):
+        return (self.table_session,)
 
 
 # Unary nodes

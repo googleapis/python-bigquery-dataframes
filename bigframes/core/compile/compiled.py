@@ -45,7 +45,6 @@ ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
 
-# TODO(swast): We might want to move this to it's own sub-module.
 class CompiledArrayValue:
     """Immutable BigQuery DataFrames expression tree.
 
