@@ -431,6 +431,9 @@ class Block:
         """
         if self.index_columns:
             df.set_index(list(self.index_columns), inplace=True)
+            # Pandas names is annotated as list[str] rather than the more
+            # general Sequence[Label] that BigQuery DataFrames has.
+            # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
 
     def _compute_and_count(
