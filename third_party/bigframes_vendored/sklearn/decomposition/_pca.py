@@ -59,8 +59,9 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
         .. note::
 
-            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
-            for evaluateing model metrics.
+            Output matches that of the BigQuery ML.EVALUTE function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#pca_models
+            for the outputs relevant to this model type.
 
         Args:
             X (default None):

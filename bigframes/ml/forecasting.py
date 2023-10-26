@@ -114,8 +114,9 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
         .. note::
 
-            We're using BigQuery ML.EVALUATE function (https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate)
-            for evaluateing model metrics.
+            Output matches that of the BigQuery ML.EVALUTE function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#time_series_models
+            for the outputs relevant to this model type.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
