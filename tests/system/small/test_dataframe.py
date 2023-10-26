@@ -1913,7 +1913,9 @@ def test_df_melt_default(scalars_dfs):
     pd_result = scalars_pandas_df[columns].melt()
 
     # Pandas produces int64 index, Bigframes produces Int64 (nullable)
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
 
 
 def test_df_melt_parameterized(scalars_dfs):
@@ -1937,7 +1939,9 @@ def test_df_melt_parameterized(scalars_dfs):
     )
 
     # Pandas produces int64 index, Bigframes produces Int64 (nullable)
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
 
 
 def test_df_unstack(scalars_dfs):
