@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import functools
+import io
 import typing
 
 import pandas as pd
@@ -65,9 +66,7 @@ def compile_drop(node: nodes.DropColumnsNode):
 
 @_compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode):
-    array_as_pd = pd.DataFrame(
-        {col_id: column for col_id, column in zip(node.column_ids, node.local_array)}
-    )
+    array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
     return compiled.CompiledArrayValue.mem_expr_from_pandas(array_as_pd)
 
 

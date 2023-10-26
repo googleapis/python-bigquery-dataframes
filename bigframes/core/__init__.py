@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import io
 import typing
 from typing import Iterable, Literal, Optional, Sequence, Tuple
 
@@ -67,10 +68,11 @@ class ArrayValue:
 
     @classmethod
     def from_pandas(cls, pd_df: pandas.DataFrame):
-        # Need to make immutable and hashable
-        local_array = tuple(tuple(val) for _, val in pd_df.items())  # column-major
+        iobytes = io.BytesIO()
+        # Discard row labels and use simple string ids for columns
         column_ids = tuple(str(label) for label in pd_df.columns)
-        node = nodes.ReadLocalNode(local_array, column_ids=column_ids)
+        pd_df.reset_index(drop=True).set_axis(column_ids, axis=1).to_feather(iobytes)
+        node = nodes.ReadLocalNode(iobytes.getvalue(), column_ids=column_ids)
         return cls(node)
 
     @property
@@ -171,9 +173,6 @@ class ArrayValue:
             hidden_ordering_columns=new_hidden_columns,
             ordering=compiled._ordering,
         )
-
-    def _get_table_size(self, destination_table):
-        return self.session._get_table_size(destination_table)
 
     # Operations
 

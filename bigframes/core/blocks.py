@@ -450,7 +450,9 @@ class Block:
 
         results_iterator, query_job = expr.start_query(max_results=max_results)
 
-        table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+        table_size = (
+            expr.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+        )
         fraction = (
             max_download_size / table_size
             if (max_download_size is not None) and (table_size != 0)
@@ -1032,7 +1034,7 @@ class Block:
             for col_id in column_ids
         ]
         columns = [
-            (col_id, tuple([f"{col_id}-{stat.name}" for stat in stats]))
+            (col_id, tuple(f"{col_id}-{stat.name}" for stat in stats))
             for col_id in column_ids
         ]
         expr = self.expr.aggregate(aggregations).unpivot(
