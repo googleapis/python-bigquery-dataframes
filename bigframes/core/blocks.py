@@ -28,11 +28,8 @@ import typing
 from typing import Iterable, List, Optional, Sequence, Tuple
 import warnings
 
-import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import numpy
 import pandas as pd
-import pyarrow as pa  # type: ignore
 
 import bigframes.constants as constants
 import bigframes.core as core
@@ -46,6 +43,7 @@ import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.session._io.pandas
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 # Type constraint for wherever column labels are used
@@ -67,6 +65,10 @@ _SAMPLING_METHODS = (_HEAD, _UNIFORM)
 # Monotonic Cache Names
 _MONOTONIC_INCREASING = "monotonic_increasing"
 _MONOTONIC_DECREASING = "monotonic_decreasing"
+
+
+LevelType = typing.Union[str, int]
+LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
 class BlockHolder(typing.Protocol):
@@ -372,34 +374,11 @@ class Block:
         level_names = [self.col_id_to_index_name[index_id] for index_id in ids]
         return Block(self.expr, ids, self.column_labels, level_names)
 
-    @classmethod
-    def _to_dataframe(
-        cls, result, schema: typing.Mapping[str, bigframes.dtypes.Dtype]
-    ) -> pd.DataFrame:
+    def _to_dataframe(self, result) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
-        dtypes = bigframes.dtypes.to_pandas_dtypes_overrides(result.schema)
-        df = result.to_dataframe(
-            dtypes=dtypes,
-            bool_dtype=pd.BooleanDtype(),
-            int_dtype=pd.Int64Dtype(),
-            float_dtype=pd.Float64Dtype(),
-            string_dtype=pd.StringDtype(storage="pyarrow"),
-            date_dtype=pd.ArrowDtype(pa.date32()),
-            datetime_dtype=pd.ArrowDtype(pa.timestamp("us")),
-            time_dtype=pd.ArrowDtype(pa.time64("us")),
-            timestamp_dtype=pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
-        )
-
-        # Convert Geography column from StringDType to GeometryDtype.
-        for column_name, dtype in schema.items():
-            if dtype == gpd.array.GeometryDtype():
-                df[column_name] = gpd.GeoSeries.from_wkt(
-                    # https://github.com/geopandas/geopandas/issues/1879
-                    df[column_name].replace({numpy.nan: None}),
-                    # BigQuery geography type is based on the WGS84 reference ellipsoid.
-                    crs="EPSG:4326",
-                )
-        return df
+        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes.update(zip(self.value_columns, self.dtypes))
+        return self._expr._session._rows_to_dataframe(result, dtypes)
 
     def to_pandas(
         self,
@@ -480,8 +459,7 @@ class Block:
             if sampling_method == _HEAD:
                 total_rows = int(results_iterator.total_rows * fraction)
                 results_iterator.max_results = total_rows
-                schema = dict(zip(self.value_columns, self.dtypes))
-                df = self._to_dataframe(results_iterator, schema)
+                df = self._to_dataframe(results_iterator)
 
                 if self.index_columns:
                     df.set_index(list(self.index_columns), inplace=True)
@@ -510,8 +488,7 @@ class Block:
                 )
         else:
             total_rows = results_iterator.total_rows
-            schema = dict(zip(self.value_columns, self.dtypes))
-            df = self._to_dataframe(results_iterator, schema)
+            df = self._to_dataframe(results_iterator)
 
             if self.index_columns:
                 df.set_index(list(self.index_columns), inplace=True)
@@ -1450,9 +1427,7 @@ class Block:
             raise ValueError(f"Too many unique values: {pd_values}")
 
         if len(columns) > 1:
-            return pd.MultiIndex.from_frame(
-                pd_values.sort_values(by=list(pd_values.columns), na_position="first")
-            )
+            return pd.MultiIndex.from_frame(pd_values)
         else:
             return pd.Index(pd_values.squeeze(axis=1).sort_values(na_position="first"))
 
@@ -1637,6 +1612,24 @@ class Block:
             column_labels=self.column_labels,
             index_labels=self.index_labels,
         )
+
+    def resolve_index_level(self, level: LevelsType) -> typing.Sequence[str]:
+        if utils.is_list_like(level):
+            levels = list(level)
+        else:
+            levels = [level]
+        resolved_level_ids = []
+        for level_ref in levels:
+            if isinstance(level_ref, int):
+                resolved_level_ids.append(self.index_columns[level_ref])
+            elif isinstance(level_ref, typing.Hashable):
+                matching_ids = self.index_name_to_col_id.get(level_ref, [])
+                if len(matching_ids) != 1:
+                    raise ValueError("level name cannot be found or is ambiguous")
+                resolved_level_ids.append(matching_ids[0])
+            else:
+                raise ValueError(f"Unexpected level: {level_ref}")
+        return resolved_level_ids
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
