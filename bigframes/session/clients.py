@@ -34,7 +34,7 @@ import pydata_google_auth
 import bigframes.version
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
-_APPLICATION_NAME = f"bigframes/{bigframes.version.__version__}/ibis/{ibis.__version__}"
+_APPLICATION_NAME = f"bigframes/{bigframes.version.__version__} ibis/{ibis.__version__}"
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 # BigQuery is a REST API, which requires the protocol as part of the URL.
