@@ -50,16 +50,16 @@ def arrow_to_pandas(
             # location since pandas 1.2.0. See:
             # https://pandas.pydata.org/docs/dev/reference/api/pandas.arrays.FloatingArray.html
             pd_array = pandas.arrays.FloatingArray(  # type: ignore
-                column.to_numpy(),
-                pyarrow.compute.is_null(column).to_numpy(),
+                column.to_numpy(zero_copy_only=False),
+                pyarrow.compute.is_null(column).to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
         elif dtype == pandas.Int64Dtype():
             # Avoid out-of-bounds errors in Pandas 1.5.x, which incorrectly
             # casts to float64 in an intermediate step.
             pd_array = pandas.arrays.IntegerArray(
-                pyarrow.compute.fill_null(column, 0).to_numpy(),
-                pyarrow.compute.is_null(column).to_numpy(),
+                pyarrow.compute.fill_null(column, 0).to_numpy(zero_copy_only=False),
+                pyarrow.compute.is_null(column).to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
         elif isinstance(dtype, pandas.ArrowDtype):
