@@ -15,10 +15,10 @@
 
 def test_bqml_getting_started():
     # [START bigquery_getting_Started_bqml_tutorial]
-    import bigframes.pandas as bpd
     from bigframes.ml.linear_model import LogisticRegression
+    import bigframes.pandas as bpd
 
-    #EXPLANATION - REFERENCE GBQ DOCS! 
+    # EXPLANATION - REFERENCE GBQ DOCS!
     df = bpd.read_gbq(
         """
         SELECT GENERATE_UUID() AS rowindex, *
@@ -29,18 +29,18 @@ def test_bqml_getting_started():
         """,
         index_col="rowindex",
     )
-    
+
     # Extract the total number of transactions within
     # the Google Analytics session.
     #
     # Because the totals column is a STRUCT data type, we need to call
-    # Series.struct.field("transactions") to extract the transactions field. 
-    # See the reference documentation below: 
+    # Series.struct.field("transactions") to extract the transactions field.
+    # See the reference documentation below:
     # https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.structs.StructAccessor#bigframes_operations_structs_StructAccessor_field
-    transactions = df['totals'].struct.field("transactions")
+    transactions = df["totals"].struct.field("transactions")
 
-    # If the number of transactions is NULL, the value in the label 
-    # column is set to 0. Otherwise, it is set to 1. These values 
+    # If the number of transactions is NULL, the value in the label
+    # column is set to 0. Otherwise, it is set to 1. These values
     # represent the possible outcomes.
     label = transactions.notnull().map({True: 1, False: 0})
 
@@ -55,7 +55,7 @@ def test_bqml_getting_started():
     country = df["geoNetwork"].struct.field("country").fillna("")
 
     # Total number of pageviews within the session.
-    pageviews = df['totals'].struct.field("pageviews").fillna(0)
+    pageviews = df["totals"].struct.field("pageviews").fillna(0)
 
     # Selecting values to represent data in columns in DataFrames.
     features = bpd.DataFrame(
@@ -63,10 +63,10 @@ def test_bqml_getting_started():
     )
 
     # Logistic Regression model splits data into two classes, giving the
-    # probablity the data is in one of the classes. 
-    model = LogisticRegression() 
+    # probablity the data is in one of the classes.
+    model = LogisticRegression()
     model.fit(features, label)
 
-    # When writing a DataFrame to a BigQuery table, include destinaton table 
-    # and parameters, index defaults to "True". 
-    model.to_gbq("bqml_tutorial.sample_model", replace=True) 
+    # When writing a DataFrame to a BigQuery table, include destinaton table
+    # and parameters, index defaults to "True".
+    model.to_gbq("bqml_tutorial.sample_model", replace=True)
