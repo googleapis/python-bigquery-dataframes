@@ -377,7 +377,7 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self._expr._session._rows_to_dataframe(result, dtypes)
+        return self._expr.session._rows_to_dataframe(result, dtypes)
 
     def to_pandas(
         self,
