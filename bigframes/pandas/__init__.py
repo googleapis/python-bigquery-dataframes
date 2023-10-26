@@ -45,14 +45,18 @@ from pandas._typing import (
 )
 
 import bigframes._config as config
+import bigframes.constants as constants
+import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
 import bigframes.core.reshape
 import bigframes.dataframe
+import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
 import bigframes.session.clients
 import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
+import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 
@@ -132,6 +136,140 @@ def cut(
 
 
 cut.__doc__ = vendored_pandas_tile.cut.__doc__
+
+
+def get_dummies(
+    data: Union[DataFrame, Series],
+    prefix: Union[List, str, None] = None,
+    prefix_sep: Union[List, str, None] = "_",
+    dummy_na: bool = False,
+    columns: Optional[List] = None,
+    sparse: bool = False,
+    drop_first: bool = False,
+    dtype: Any = None,
+) -> DataFrame:
+    block = data._block
+
+    if isinstance(data, Series):
+        columns = [block.value_columns[0]]
+    if columns is not None and not pandas.api.types.is_list_like(columns):
+        raise TypeError("Input must be a list-like for parameter `columns`")
+    if dtype is not None and dtype not in [
+        pandas.BooleanDtype,
+        bool,
+        "Boolean",
+        "boolean",
+        "bool",
+    ]:
+        raise NotImplementedError(
+            f"Only Boolean dtype is currently supported. {constants.FEEDBACK_LINK}"
+        )
+
+    if columns is None:
+        default_dummy_types = [pandas.StringDtype]
+        columns = [
+            col_id
+            for col_id in block.value_columns
+            if block.expr.get_column_type(col_id) in default_dummy_types
+        ]
+
+    prefix_given = prefix is not None
+
+    def parse_prefix_kwarg(kwarg, kwarg_name):
+        if pandas.api.types.is_list_like(kwarg) and len(kwarg) != len(columns):
+            raise ValueError(
+                f"Length of '{kwarg_name}' ({len(kwarg)}) did not match "
+                f"the length of the columns being encoded ({len(columns)})."
+            )
+        elif pandas.api.types.is_list_like(kwarg):
+            return list(map(str, kwarg))
+        elif isinstance(kwarg, str):
+            return [kwarg] * len(columns)
+        elif isinstance(kwarg, dict):
+            return [kwarg[column] for column in columns]
+        elif kwarg is None:
+            return None
+        else:
+            raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
+
+    prefix_sep = parse_prefix_kwarg(prefix_sep, "prefix_sep")
+    if prefix_sep is None:
+        prefix_sep = ["_"] * len(columns)
+    prefix = parse_prefix_kwarg(prefix, "prefix")
+    if prefix is None and isinstance(data, Series):
+        prefix = [""] * len(columns)
+        prefix_sep = [""] * len(columns)
+    elif prefix is None:
+        prefix = columns
+
+    max_unique_value = (
+        bigframes.core.blocks._BQ_MAX_COLUMNS
+        - len(block.value_columns)
+        - len(block.index_columns)
+        - 1
+    ) // len(columns)
+    columns_ids = []
+    full_prefixes_with_duplicity = []
+    for i in range(len(columns)):
+        label = columns[i]
+        full_prefix = prefix[i] + prefix_sep[i]
+        for col_id in block.label_to_col_id[label]:
+            columns_ids.append(col_id)
+            full_prefixes_with_duplicity.append(full_prefix)
+
+    columns_values = block._get_unique_values(columns_ids, max_unique_value)
+
+    result = block.drop_columns(columns_ids)
+    for i in range(columns_values.nlevels):
+        level = columns_values.get_level_values(i).sort_values()
+        column_label = full_prefixes_with_duplicity[i]
+        column_id = columns_ids[i]
+
+        already_seen = set()
+        for value in level:
+            if pandas.isna(value):
+                continue
+            if value in already_seen:
+                continue
+            already_seen.add(value)
+            if drop_first and len(already_seen) == 1:
+                continue
+
+            new_column_label = f"{column_label}{value}"
+            if isinstance(data, Series) and not prefix_given:
+                # in this special case, the columns are labeled with
+                # the scalar itself, not a string
+                new_column_label = value
+
+            new_block, new_id = block.apply_unary_op(
+                column_id, ops.BinopPartialLeft(ops.eq_op, value)
+            )
+            new_block, new_id = new_block.apply_unary_op(
+                new_id, ops.BinopPartialRight(ops.fillna_op, False)
+            )
+
+            new_block = new_block.select_column(new_id)
+            new_block = new_block.with_column_labels([new_column_label])
+            result_index, _ = result.index.join(
+                new_block.index, how="left", block_identity_join=True
+            )
+            result = result_index._block
+        if dummy_na:
+            # dummy column name for na depends on the dtype
+            na_string = str(pandas.Index([None], dtype=level.dtype)[0])
+            new_column_label = f"{column_label}{na_string}"
+            new_block, new_id = block.apply_unary_op(column_id, ops.isnull_op)
+            new_block = new_block.select_column(new_id)
+            new_block = new_block.with_column_labels([new_column_label])
+            result_index, _ = result.index.join(
+                new_block.index, how="left", block_identity_join=True
+            )
+            result = result_index._block
+
+    return DataFrame(result)
+
+
+get_dummies.__doc__ = vendored_pandas_encoding.get_dummies.__doc__
 
 
 def merge(

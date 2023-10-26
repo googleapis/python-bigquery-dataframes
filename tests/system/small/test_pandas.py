@@ -46,6 +46,56 @@ def test_concat_series(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("args"),
+    [
+        [["prefix1", "prefix2"], "_", None, ["bool_col", "int64_col"], False],
+        ["prefix", ["_", ","], False, ["int64_too", "string_col"], False],
+        [None, ".", True, ["time_col", "float64_col"], True],
+    ],
+)
+def test_get_dummies_dataframe(scalars_dfs, args):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    prefix, prefix_sep, dummy_na, columns, drop_first = args
+
+    bf_result = bpd.get_dummies(
+        scalars_df,
+        prefix=prefix,
+        prefix_sep=prefix_sep,
+        dummy_na=dummy_na,
+        columns=columns,
+        drop_first=drop_first,
+    )
+    pd_result = pd.get_dummies(
+        scalars_pandas_df,
+        prefix=prefix,
+        prefix_sep=prefix_sep,
+        dummy_na=dummy_na,
+        columns=columns,
+        drop_first=drop_first,
+    )
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(), pd_result, check_dtype=False
+    )  # dtype differences are expected
+
+
+def test_get_dummies_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series = scalars_df.date_col
+    pd_series = scalars_pandas_df.date_col
+
+    bf_result = bpd.get_dummies(bf_series)
+    pd_result = pd.get_dummies(pd_series)
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+        check_dtype=False,
+        check_column_type=False,
+    )  # dtype differences are expected
+
+
+@pytest.mark.parametrize(
     ("how"),
     [
         ("inner"),
