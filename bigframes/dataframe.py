@@ -46,7 +46,6 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
-import bigframes.core.io
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -56,6 +55,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
+import bigframes.session._io.bigquery
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
@@ -893,6 +893,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
+    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame"""
+        return self._block.to_pandas_batches()
+
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
 
@@ -1038,22 +1042,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError("Columns must be a multiindex to reorder levels.")
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        if utils.is_list_like(level):
-            levels = list(level)
-        else:
-            levels = [level]
-        resolved_level_ids = []
-        for level_ref in levels:
-            if isinstance(level_ref, int):
-                resolved_level_ids.append(self._block.index_columns[level_ref])
-            elif isinstance(level_ref, typing.Hashable):
-                matching_ids = self._block.index_name_to_col_id.get(level_ref, [])
-                if len(matching_ids) != 1:
-                    raise ValueError("level name cannot be found or is ambiguous")
-                resolved_level_ids.append(matching_ids[0])
-            else:
-                raise ValueError(f"Unexpected level: {level_ref}")
-        return resolved_level_ids
+        return self._block.resolve_index_level(level)
 
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
@@ -1802,20 +1791,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
-    def unstack(self):
+    def unstack(self, level: LevelsType = -1):
+        if isinstance(level, int) or isinstance(level, str):
+            level = [level]
+
         block = self._block
         # Special case, unstack with mono-index transpose into a series
         if self.index.nlevels == 1:
             block = block.stack(how="right", levels=self.columns.nlevels)
             return bigframes.series.Series(block)
 
-        # Pivot by last level of index
-        index_ids = block.index_columns
+        # Pivot by index levels
+        unstack_ids = self._resolve_levels(level)
         block = block.reset_index(drop=False)
-        block = block.set_index(index_ids[:-1])
+        block = block.set_index(
+            [col for col in self._block.index_columns if col not in unstack_ids]
+        )
 
         pivot_block = block.pivot(
-            columns=[index_ids[-1]],
+            columns=unstack_ids,
             values=self._block.value_columns,
             values_in_index=True,
         )
@@ -2201,9 +2195,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_csv_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_csv_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             field_delimiter=sep,
@@ -2243,9 +2237,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_data_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             format="JSON",
@@ -2319,9 +2313,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options["compression"] = compression.upper()
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_data_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
             format="PARQUET",

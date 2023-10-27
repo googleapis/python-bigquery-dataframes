@@ -1949,8 +1949,14 @@ def test_df_pivot(scalars_dfs, values, index, columns):
     ],
 )
 def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
-    bf_result = hockey_df.pivot(values=values, index=index, columns=columns).to_pandas()
-    pd_result = hockey_pandas_df.pivot(values=values, index=index, columns=columns)
+    bf_result = (
+        hockey_df.reset_index()
+        .pivot(values=values, index=index, columns=columns)
+        .to_pandas()
+    )
+    pd_result = hockey_pandas_df.reset_index().pivot(
+        values=values, index=index, columns=columns
+    )
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -2046,16 +2052,6 @@ def test__dir__with_rename(scalars_dfs):
 def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
-
-    # Pandas may assign non-object dtype to empty series and series index
-    # dtypes of empty columns are a known area of divergence from pandas
-    for column in pd_result.columns:
-        if (
-            pd_result[column].empty and column != "geography_col"
-        ):  # for empty geography_col, bigframes assigns non-object dtype
-            pd_result[column] = pd_result[column].astype("object")
-            pd_result.index = pd_result.index.astype("object")
-
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
