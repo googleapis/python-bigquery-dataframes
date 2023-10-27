@@ -24,8 +24,7 @@ def test_maximum_bytes_option():
         session.bqclient.method_calls = []
         session._start_query("query")
         for call in session.bqclient.method_calls:
-            name, _, kwargs = call
-            if name == "query":
-                num_query_calls = +1
-                assert kwargs["job_config"].maximum_bytes_billed == 10000
+            _, _, kwargs = call
+            num_query_calls += 1
+            assert kwargs["job_config"].maximum_bytes_billed == 10000
     assert num_query_calls > 0
