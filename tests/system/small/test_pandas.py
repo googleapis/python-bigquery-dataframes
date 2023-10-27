@@ -74,8 +74,8 @@ def test_concat_series(scalars_dfs):
 def test_get_dummies_dataframe(scalars_dfs, kwargs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    bf_result = bpd.get_dummies(scalars_df, **kwargs)
-    pd_result = pd.get_dummies(scalars_pandas_df, **kwargs)
+    bf_result = bpd.get_dummies(scalars_df, **kwargs, dtype=bool)
+    pd_result = pd.get_dummies(scalars_pandas_df, **kwargs, dtype=bool)
 
     # adjust for expected dtype differences
     for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
@@ -90,8 +90,8 @@ def test_get_dummies_series(scalars_dfs):
     bf_series = scalars_df.date_col
     pd_series = scalars_pandas_df.date_col
 
-    bf_result = bpd.get_dummies(bf_series)
-    pd_result = pd.get_dummies(pd_series)
+    bf_result = bpd.get_dummies(bf_series, dtype=bool)
+    pd_result = pd.get_dummies(pd_series, dtype=bool)
 
     # adjust for expected dtype differences
     for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
