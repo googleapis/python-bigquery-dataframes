@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
+from tests.system.utils import assert_pandas_df_equal
 
 
 def test_concat_dataframe(scalars_dfs):
@@ -140,7 +140,7 @@ def test_merge(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -174,7 +174,7 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -208,7 +208,7 @@ def test_merge_series(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_cut(scalars_dfs):

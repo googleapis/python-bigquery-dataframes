@@ -25,7 +25,7 @@ import pytest
 import bigframes.pandas
 import bigframes.series as series
 from tests.system.utils import (
-    assert_pandas_df_equal_ignore_ordering,
+    assert_pandas_df_equal,
     assert_series_equal_ignoring_order,
 )
 
@@ -2256,7 +2256,7 @@ def test_to_frame(scalars_dfs):
     bf_result = scalars_df["int64_col"].to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].to_frame()
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_to_json(scalars_df_index, scalars_pandas_df_index):
@@ -2424,7 +2424,7 @@ def test_mask_default_value(scalars_dfs):
     pd_col_masked = pd_col.mask(pd_col % 2 == 1)
     pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_mask_custom_value(scalars_dfs):
@@ -2442,7 +2442,7 @@ def test_mask_custom_value(scalars_dfs):
     # odd so should be left as is, but it is being masked in pandas.
     # Accidentally the bigframes bahavior matches, but it should be updated
     # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -2538,7 +2538,7 @@ def test_loc_bool_series_default_index(
         scalars_pandas_df_default_index.bool_col
     ]
 
-    assert_pandas_df_equal_ignore_ordering(
+    assert_pandas_df_equal(
         bf_result.to_frame(),
         pd_result.to_frame(),
     )
@@ -2858,7 +2858,7 @@ def test_map_series_input(scalars_dfs):
     pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
     pd_map_series.index = new_index
     bf_map_series = series.Series(
-        pd_map_series, session=scalars_df._get_block().expr._session
+        pd_map_series, session=scalars_df._get_block().expr.session
     )
 
     pd_result = scalars_pandas_df.int64_too.map(pd_map_series)
@@ -2877,7 +2877,7 @@ def test_map_series_input_duplicates_error(scalars_dfs):
     pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
     pd_map_series.index = new_index
     bf_map_series = series.Series(
-        pd_map_series, session=scalars_df._get_block().expr._session
+        pd_map_series, session=scalars_df._get_block().expr.session
     )
 
     with pytest.raises(pd.errors.InvalidIndexError):

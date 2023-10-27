@@ -29,7 +29,7 @@ import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
 import bigframes.series as series
 from tests.system.utils import (
-    assert_pandas_df_equal_ignore_ordering,
+    assert_pandas_df_equal,
     assert_series_equal_ignoring_order,
 )
 
@@ -246,7 +246,7 @@ def test_drop_with_custom_column_labels(scalars_dfs):
     pd_result = scalars_pandas_df.rename(columns=rename_mapping).drop(
         columns=dropped_columns
     )
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_drop_index(scalars_dfs):
@@ -420,7 +420,7 @@ def test_filter_df(scalars_dfs):
     pd_bool_series = scalars_pandas_df["bool_col"]
     pd_result = scalars_pandas_df[pd_bool_series]
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_new_column(scalars_dfs):
@@ -433,7 +433,7 @@ def test_assign_new_column(scalars_dfs):
     # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_new_column_w_loc(scalars_dfs):
@@ -546,7 +546,7 @@ def test_assign_existing_column(scalars_dfs):
     # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["int64_col"] = pd_result["int64_col"].astype("Int64")
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_series(scalars_dfs):
@@ -556,7 +556,7 @@ def test_assign_series(scalars_dfs):
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.assign(new_col=scalars_pandas_df[column_name])
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_series_overwrite(scalars_dfs):
@@ -568,7 +568,7 @@ def test_assign_series_overwrite(scalars_dfs):
         **{column_name: scalars_pandas_df[column_name] + 3}
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_sequential(scalars_dfs):
@@ -583,7 +583,7 @@ def test_assign_sequential(scalars_dfs):
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
     pd_result["new_col2"] = pd_result["new_col2"].astype("Int64")
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 # Require an index so that the self-join is consistent each time.
@@ -617,7 +617,7 @@ def test_assign_different_df(
         new_col=scalars_pandas_df_index[column_name]
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_assign_different_df_w_loc(
@@ -668,7 +668,7 @@ def test_assign_callable_lambda(scalars_dfs):
     # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
     pd_result["new_col"] = pd_result["new_col"].astype("Int64")
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -834,7 +834,7 @@ def test_df_merge(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -867,7 +867,7 @@ def test_df_merge_multi_key(scalars_dfs, left_on, right_on):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -897,7 +897,7 @@ def test_merge_custom_col_name(scalars_dfs, merge_how):
     pandas_right_df = scalars_pandas_df[right_columns]
     pd_result = pandas_left_df.merge(pandas_right_df, merge_how, on, sort=True)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -930,7 +930,7 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_get_dtypes(scalars_df_default_index):
@@ -1222,7 +1222,7 @@ def test_df_abs(scalars_dfs):
     bf_result = scalars_df[columns].abs().to_pandas()
     pd_result = scalars_pandas_df[columns].abs()
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_df_isnull(scalars_dfs):
@@ -1239,7 +1239,7 @@ def test_df_isnull(scalars_dfs):
     pd_result["string_col"] = pd_result["string_col"].astype(pd.BooleanDtype())
     pd_result["bool_col"] = pd_result["bool_col"].astype(pd.BooleanDtype())
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_df_notnull(scalars_dfs):
@@ -1256,7 +1256,7 @@ def test_df_notnull(scalars_dfs):
     pd_result["string_col"] = pd_result["string_col"].astype(pd.BooleanDtype())
     pd_result["bool_col"] = pd_result["bool_col"].astype(pd.BooleanDtype())
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -1476,7 +1476,7 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
     bf_result = maybe_reversed_op(scalars_df[columns], other_scalar).to_pandas()
     pd_result = maybe_reversed_op(scalars_pandas_df[columns], other_scalar)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(("other_scalar"), [1, -2])
@@ -1488,7 +1488,7 @@ def test_mod(scalars_dfs, other_scalar):
     bf_result = (scalars_df[["int64_col", "int64_too"]] % other_scalar).to_pandas()
     pd_result = scalars_pandas_df[["int64_col", "int64_too"]] % other_scalar
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_scalar_binop_str_exception(scalars_dfs):
@@ -1544,7 +1544,7 @@ def test_series_binop_axis_index(
     bf_result = op(scalars_df[df_columns], scalars_df[series_column]).to_pandas()
     pd_result = op(scalars_pandas_df[df_columns], scalars_pandas_df[series_column])
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -1605,7 +1605,7 @@ def test_series_binop_add_different_table(
         scalars_pandas_df_index[series_column], axis="index"
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 # TODO(garrettwu): Test series binop with different index
@@ -1631,7 +1631,7 @@ def test_join_same_table(scalars_dfs, how):
     pd_df_a = pd_df.set_index("int64_too")[["string_col", "int64_col"]]
     pd_df_b = pd_df.set_index("int64_too")[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, how=how)
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @all_joins
@@ -1644,7 +1644,7 @@ def test_join_different_table(
     pd_df_a = scalars_pandas_df_index[["string_col", "int64_col"]]
     pd_df_b = scalars_pandas_df_index.dropna()[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, how=how)
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
@@ -1668,7 +1668,7 @@ def test_join_param_on(scalars_dfs, how):
     pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
     pd_df_b = pd_df[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -2535,7 +2535,7 @@ def test_df_rows_filter_items(scalars_df_index, scalars_pandas_df_index):
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     # Ignore ordering as pandas order differently depending on version
-    assert_pandas_df_equal_ignore_ordering(
+    assert_pandas_df_equal(
         bf_result,
         pd_result,
         check_names=False,
