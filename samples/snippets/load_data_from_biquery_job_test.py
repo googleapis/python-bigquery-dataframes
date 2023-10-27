@@ -16,9 +16,6 @@
 def test_bigquery_dataframes_load_data_from_bigquery_job():
     import bigframes.pandas as bpd
 
-    bpd.options.bigquery.project = "bigframes-dev"
-    bpd.options.bigquery.location = "us"
-
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     df = bpd.read_gbq(query_or_table)
     df.to_pandas()
