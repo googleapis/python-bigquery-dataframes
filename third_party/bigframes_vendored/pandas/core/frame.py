@@ -1020,6 +1020,8 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        You can use method name:
+
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
             ...       index=['circle', 'triangle', 'rectangle'])
@@ -1029,15 +1031,8 @@ class DataFrame(NDFrame):
             rectangle     True
             Name: degrees, dtype: boolean
 
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
-            ...        'degrees': [360, 180, 360]},
-            ...       index=['circle', 'triangle', 'rectangle'])
-            >>> df["degrees"].eq(360)
+        You can also use arithmetic operator ``==``:
+            >>> df["degrees"] == 360
             circle        True
             triangle     False
             rectangle     True
@@ -1070,6 +1065,8 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        You can use method name:
+
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
             ...       index=['circle', 'triangle', 'rectangle'])
@@ -1079,15 +1076,9 @@ class DataFrame(NDFrame):
             rectangle    False
             Name: degrees, dtype: boolean
 
-        **Examples:**
+        You can also use arithmetic operator ``!=``:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
-            ...        'degrees': [360, 180, 360]},
-            ...       index=['circle', 'triangle', 'rectangle'])
-            >>> df["degrees"].ne(360)
+            >>> df["degrees"] != 360
             circle       False
             triangle      True
             rectangle    False
@@ -1123,6 +1114,8 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        You can use method name:
+
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
             ...       index=['circle', 'triangle', 'rectangle'])
@@ -1132,15 +1125,9 @@ class DataFrame(NDFrame):
             rectangle    False
             Name: degrees, dtype: boolean
 
-        **Examples:**
+        You can also use arithmetic operator ``<=``:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
-            ...        'degrees': [360, 180, 360]},
-            ...       index=['circle', 'triangle', 'rectangle'])
-            >>> df["degrees"].le(180)
+            >>> df["degrees"] <= 180
             circle       False
             triangle      True
             rectangle    False
@@ -1177,6 +1164,8 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        You can use method name:
+
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
             ...       index=['circle', 'triangle', 'rectangle'])
@@ -1186,15 +1175,9 @@ class DataFrame(NDFrame):
             rectangle    False
             Name: degrees, dtype: boolean
 
-        **Examples:**
+        You can also use arithmetic operator ``<``:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
-            ...        'degrees': [360, 180, 360]},
-            ...       index=['circle', 'triangle', 'rectangle'])
-            >>> df["degrees"].lt(180)
+            >>> df["degrees"] < 180
             circle       False
             triangle     False
             rectangle    False
@@ -1231,20 +1214,7 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
-            ...        'degrees': [360, 180, 360]},
-            ...       index=['circle', 'triangle', 'rectangle'])
-            >>> df["degrees"].ge(360)
-            circle        True
-            triangle     False
-            rectangle     True
-            Name: degrees, dtype: boolean
-
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
+        You can use method name:
 
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
@@ -1255,6 +1225,13 @@ class DataFrame(NDFrame):
             rectangle     True
             Name: degrees, dtype: boolean
 
+        You can also use arithmetic operator ``>=``:
+
+            >>> df["degrees"] >= 360
+            circle        True
+            triangle     False
+            rectangle     True
+            Name: degrees, dtype: boolean
 
         Args:
             other (scalar, sequence, Series, or DataFrame):
@@ -1291,6 +1268,14 @@ class DataFrame(NDFrame):
             ...        'degrees': [360, 180, 360]},
             ...       index=['circle', 'triangle', 'rectangle'])
             >>> df["degrees"].gt(360)
+            circle       False
+            triangle     False
+            rectangle    False
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``>``:
+
+            >>> df["degrees"] > 360
             circle       False
             triangle     False
             rectangle    False
@@ -1367,32 +1352,6 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-
-        You can use method name:
-
-            >>> df['A'].sub(df['B'])
-            0    -3
-            1    -3
-            2    -3
-            dtype: Int64
-
-        You can also use arithmetic operator ``-``:
-
-            >>> df['A'] - (df['B'])
-            0    -3
-            1    -3
-            2    -3
-            dtype: Int64
 
         **Examples:**
 
@@ -1564,32 +1523,6 @@ class DataFrame(NDFrame):
             2     0.5
             dtype: Float64
 
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-
-        You can use method name:
-
-            >>> df['A'].truediv(df['B'])
-            0    0.25
-            1     0.4
-            2     0.5
-            dtype: Float64
-
-        You can also use arithmetic operator ``/``:
-
-            >>> df['A'] / (df['B'])
-            0    0.25
-            1     0.4
-            2     0.5
-            dtype: Float64
-
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1612,29 +1545,6 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> df['A'].rtruediv(df['B'])
-            0    4.0
-            1    2.5
-            2    2.0
-            dtype: Float64
-
-        It's equivalent to using arithmetic operator: ``/``:
-
-            >>> df['B'] / (df['A'])
-            0    4.0
-            1    2.5
-            2    2.0
-            dtype: Float64
 
         **Examples:**
 
@@ -1708,32 +1618,6 @@ class DataFrame(NDFrame):
             2    0
             dtype: Int64
 
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-
-        You can use method name:
-
-            >>> df['A'].floordiv(df['B'])
-            0    0
-            1    0
-            2    0
-            dtype: Int64
-
-        You can also use arithmetic operator ``//``:
-
-            >>> df['A'] // (df['B'])
-            0    0
-            1    0
-            2    0
-            dtype: Int64
-
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1756,29 +1640,6 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> df['A'].rfloordiv(df['B'])
-            0    4
-            1    2
-            2    2
-            dtype: Int64
-
-        It's equivalent to using arithmetic operator: ``//``:
-
-            >>> df['B'] // (df['A'])
-            0    4
-            1    2
-            2    2
-            dtype: Int64
 
         **Examples:**
 
@@ -1852,32 +1713,6 @@ class DataFrame(NDFrame):
             2    3
             dtype: Int64
 
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-
-        You can use method name:
-
-            >>> df['A'].mod(df['B'])
-            0    1
-            1    2
-            2    3
-            dtype: Int64
-
-        You can also use arithmetic operator ``%``:
-
-            >>> df['A'] % (df['B'])
-            0    1
-            1    2
-            2    3
-            dtype: Int64
-
         Args:
             other:
                 Any single or multiple element data structure, or list-like object.
@@ -1900,29 +1735,6 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> df['A'].rmod(df['B'])
-            0    0
-            1    1
-            2    0
-            dtype: Int64
-
-        It's equivalent to using arithmetic operator: ``%``:
-
-            >>> df['B'] % (df['A'])
-            0    0
-            1    1
-            2    0
-            dtype: Int64
 
         **Examples:**
 
