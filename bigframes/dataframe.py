@@ -170,9 +170,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     if isinstance(dt, pandas.ArrowDtype)
                 )
             ):
-                self._block = blocks.block_from_local(
-                    pd_dataframe, session or bigframes.pandas.get_global_session()
-                )
+                self._block = blocks.block_from_local(pd_dataframe)
             elif session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
@@ -299,7 +297,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def _session(self) -> bigframes.Session:
-        return self._get_block().expr._session
+        return self._get_block().expr.session
 
     def __len__(self):
         rows, _ = self.shape
@@ -893,6 +891,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
+    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame"""
+        return self._block.to_pandas_batches()
+
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
 
@@ -1038,22 +1040,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError("Columns must be a multiindex to reorder levels.")
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        if utils.is_list_like(level):
-            levels = list(level)
-        else:
-            levels = [level]
-        resolved_level_ids = []
-        for level_ref in levels:
-            if isinstance(level_ref, int):
-                resolved_level_ids.append(self._block.index_columns[level_ref])
-            elif isinstance(level_ref, typing.Hashable):
-                matching_ids = self._block.index_name_to_col_id.get(level_ref, [])
-                if len(matching_ids) != 1:
-                    raise ValueError("level name cannot be found or is ambiguous")
-                resolved_level_ids.append(matching_ids[0])
-            else:
-                raise ValueError(f"Unexpected level: {level_ref}")
-        return resolved_level_ids
+        return self._block.resolve_index_level(level)
 
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
@@ -1118,24 +1105,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
 
             local_df = bigframes.dataframe.DataFrame(
-                {k: v}, session=self._get_block().expr._session
+                {k: v}, session=self._get_block().expr.session
             )
             # local_df is likely (but not guarunteed) to be cached locally
             # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            this_offsets_col_id = bigframes.core.guid.generate_guid()
-            this_expr = self._get_block()._expr.promote_offsets(this_offsets_col_id)
-            block = blocks.Block(
-                expr=this_expr,
-                index_labels=self.index.names,
-                index_columns=self._block.index_columns,
-                column_labels=[this_offsets_col_id] + list(self._block.value_columns),
-            )  # offsets are temporarily the first value column, label set to id
-            this_df_with_offsets = DataFrame(data=block)
-            join_result = this_df_with_offsets.join(
-                other=local_df, on=this_offsets_col_id, how="left"
+            new_column_block = local_df._block
+            original_index_column_ids = self._block.index_columns
+            self_block = self._block.reset_index(drop=False)
+            result_index, (get_column_left, get_column_right) = self_block.index.join(
+                new_column_block.index, how="left", block_identity_join=True
             )
-            return join_result.drop(columns=[this_offsets_col_id])
+            result_block = result_index._block
+            result_block = result_block.set_index(
+                [get_column_left[col_id] for col_id in original_index_column_ids],
+                index_labels=self._block.index_labels,
+            )
+            return DataFrame(result_block)
         else:
             return self._assign_scalar(k, v)
 
@@ -1802,20 +1788,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
-    def unstack(self):
+    def unstack(self, level: LevelsType = -1):
+        if isinstance(level, int) or isinstance(level, str):
+            level = [level]
+
         block = self._block
         # Special case, unstack with mono-index transpose into a series
         if self.index.nlevels == 1:
             block = block.stack(how="right", levels=self.columns.nlevels)
             return bigframes.series.Series(block)
 
-        # Pivot by last level of index
-        index_ids = block.index_columns
+        # Pivot by index levels
+        unstack_ids = self._resolve_levels(level)
         block = block.reset_index(drop=False)
-        block = block.set_index(index_ids[:-1])
+        block = block.set_index(
+            [col for col in self._block.index_columns if col not in unstack_ids]
+        )
 
         pivot_block = block.pivot(
-            columns=[index_ids[-1]],
+            columns=unstack_ids,
             values=self._block.value_columns,
             values_in_index=True,
         )
@@ -2209,7 +2200,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             field_delimiter=sep,
             header=header,
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_json(
@@ -2251,7 +2242,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="JSON",
             export_options={},
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_gbq(
@@ -2280,7 +2271,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
                 destination_table,
-                default_project=self._block.expr._session.bqclient.project,
+                default_project=self._block.expr.session.bqclient.project,
             ),
         )
 
@@ -2327,7 +2318,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="PARQUET",
             export_options=export_options,
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_dict(
@@ -2470,7 +2461,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         expr = self._block.expr
-        session = expr._session
+        session = expr.session
         sql = self._create_io_query(index=index, ordering_id=ordering_id)
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
