@@ -505,14 +505,32 @@ def test_assign_new_column_w_setitem_list(scalars_dfs):
     pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_assign_new_column_w_setitem_list_repeated(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    pd_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    bf_df["new_col_2"] = [1, 3, 2, 5, 4, 7, 6, 9, 8]
+    pd_df["new_col_2"] = [1, 3, 2, 5, 4, 7, 6, 9, 8]
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+    pd_result["new_col_2"] = pd_result["new_col_2"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_assign_new_column_w_setitem_list_custom_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_df = scalars_df.copy()
     pd_df = scalars_pandas_df.copy()
 
     # set the custom index
-    pd_df = pd_df.set_index("string_col")
-    bf_df = bf_df.set_index("string_col")
+    pd_df = pd_df.set_index(["string_col", "int64_col"])
+    bf_df = bf_df.set_index(["string_col", "int64_col"])
 
     bf_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
     pd_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
@@ -1949,8 +1967,14 @@ def test_df_pivot(scalars_dfs, values, index, columns):
     ],
 )
 def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
-    bf_result = hockey_df.pivot(values=values, index=index, columns=columns).to_pandas()
-    pd_result = hockey_pandas_df.pivot(values=values, index=index, columns=columns)
+    bf_result = (
+        hockey_df.reset_index()
+        .pivot(values=values, index=index, columns=columns)
+        .to_pandas()
+    )
+    pd_result = hockey_pandas_df.reset_index().pivot(
+        values=values, index=index, columns=columns
+    )
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -2046,16 +2070,6 @@ def test__dir__with_rename(scalars_dfs):
 def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
-
-    # Pandas may assign non-object dtype to empty series and series index
-    # dtypes of empty columns are a known area of divergence from pandas
-    for column in pd_result.columns:
-        if (
-            pd_result[column].empty and column != "geography_col"
-        ):  # for empty geography_col, bigframes assigns non-object dtype
-            pd_result[column] = pd_result[column].astype("object")
-            pd_result.index = pd_result.index.astype("object")
-
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
