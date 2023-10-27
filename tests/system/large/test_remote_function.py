@@ -31,7 +31,7 @@ from bigframes.remote_function import (
     get_cloud_function_name,
     get_remote_function_locations,
 )
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
+from tests.system.utils import assert_pandas_df_equal
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
@@ -356,7 +356,7 @@ def test_remote_function_decorator_with_bigframes_series(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(session.bqclient, functions_client, square)
@@ -400,7 +400,7 @@ def test_remote_function_explicit_with_bigframes_series(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -445,7 +445,7 @@ def test_remote_function_explicit_dataset_not_created(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(session.bqclient, functions_client, square)
@@ -496,7 +496,7 @@ def test_remote_udf_referring_outside_var(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(session.bqclient, functions_client, remote_sign)
@@ -541,7 +541,7 @@ def test_remote_udf_referring_outside_import(
         pd_result_col = pd_result_col.astype(pandas.Float64Dtype())
         pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -590,7 +590,7 @@ def test_remote_udf_referring_global_var_and_import(
         pd_result_col = pd_result_col.astype(pandas.StringDtype(storage="pyarrow"))
         pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -674,7 +674,7 @@ def test_remote_function_restore_with_bigframes_series(
             pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
             pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-            assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+            assert_pandas_df_equal(bf_result, pd_result)
 
         # Test that the remote function works as expected
         inner_test()
@@ -764,7 +764,7 @@ def test_remote_udf_mask_default_value(
         pd_result_col = pd_int64_col.mask(is_odd)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -807,7 +807,7 @@ def test_remote_udf_mask_custom_value(
         pd_result_col = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -851,7 +851,7 @@ def test_remote_udf_lambda(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -908,7 +908,7 @@ def test_remote_function_with_explicit_name(
         pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -953,7 +953,7 @@ def test_remote_function_with_external_package_dependencies(
         # comparing for the purpose of this test
         pd_result.result = pd_result.result.astype(pandas.Float64Dtype())
 
-        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+        assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -997,7 +997,7 @@ def test_remote_function_with_explicit_name_reuse(
             pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
             pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
-            assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+            assert_pandas_df_equal(bf_result, pd_result)
 
         # Create an explicit name for the remote function
         prefixer = test_utils.prefixer.Prefixer("foo", "")

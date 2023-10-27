@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from bigframes.core.compile.compiled import CompiledArrayValue
-from bigframes.core.compile.compiler import compile_node
+from bigframes.core.compile.compiler import compile_ordered
 
 __all__ = [
-    "compile_node",
+    "compile_ordered",
     "CompiledArrayValue",
 ]

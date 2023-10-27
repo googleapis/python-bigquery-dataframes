@@ -599,10 +599,8 @@ class Session(
             is_total_ordering = True
             ordering = orderings.ExpressionOrdering(
                 ordering_value_columns=tuple(
-                    [
-                        core.OrderingColumnReference(column_id)
-                        for column_id in total_ordering_cols
-                    ]
+                    core.OrderingColumnReference(column_id)
+                    for column_id in total_ordering_cols
                 ),
                 total_ordering_columns=frozenset(total_ordering_cols),
             )

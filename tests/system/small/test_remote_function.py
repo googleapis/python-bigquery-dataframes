@@ -21,7 +21,7 @@ import pytest
 import bigframes
 from bigframes import remote_function as rf
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
+from tests.system.utils import assert_pandas_df_equal
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +155,7 @@ def test_remote_function_direct_no_session_param(
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -204,7 +204,7 @@ def test_remote_function_direct_no_session_param_location_specified(
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -280,7 +280,7 @@ def test_remote_function_direct_no_session_param_location_project_specified(
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -341,7 +341,7 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -378,7 +378,7 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -417,7 +417,7 @@ def test_remote_function_via_session_with_overrides(
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -463,7 +463,7 @@ def test_remote_function_via_session_context_connection_setter(
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -493,7 +493,7 @@ def test_remote_function_default_connection(scalars_dfs, dataset_id):
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -520,7 +520,7 @@ def test_dataframe_applymap(session_with_bq_connection, scalars_dfs):
     for col in pd_result:
         pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -545,7 +545,7 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
     for col in pd_result:
         pd_result[col] = pd_result[col].astype(pd_int64_df[col].dtype)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -631,7 +631,7 @@ def test_read_gbq_function_like_original(
     s2_result_col = int64_col_filtered.apply(square2)
     s2_result = int64_col_filtered.to_frame().assign(result=s2_result_col)
 
-    assert_pandas_df_equal_ignore_ordering(s1_result.to_pandas(), s2_result.to_pandas())
+    assert_pandas_df_equal(s1_result.to_pandas(), s2_result.to_pandas())
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -679,7 +679,7 @@ def test_read_gbq_function_reads_udfs(bigquery_client, scalars_dfs, dataset_id):
         indirect_df = indirect_df.assign(y=indirect_df.x.apply(square))
         indirect_df = indirect_df.to_pandas()
 
-        assert_pandas_df_equal_ignore_ordering(direct_df, indirect_df)
+        assert_pandas_df_equal(direct_df, indirect_df)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
