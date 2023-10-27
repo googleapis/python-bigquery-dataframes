@@ -46,37 +46,46 @@ def test_concat_series(scalars_dfs):
 
 
 @pytest.mark.parametrize(
-    ("args"),
+    ("kwargs"),
     [
-        [["prefix1", "prefix2"], "_", None, ["bool_col", "int64_col"], False],
-        ["prefix", ["_", ","], False, ["int64_too", "string_col"], False],
-        [None, ".", True, ["time_col", "float64_col"], True],
+        {
+            "prefix": ["prefix1", "prefix2"],
+            "prefix_sep": "_",
+            "dummy_na": None,
+            "columns": ["bool_col", "int64_col"],
+            "drop_first": False,
+        },
+        {
+            "prefix": "prefix",
+            "prefix_sep": ["_", ","],
+            "dummy_na": False,
+            "columns": ["int64_too", "string_col"],
+            "drop_first": False,
+        },
+        {
+            "prefix": None,
+            "prefix_sep": ".",
+            "dummy_na": True,
+            "columns": ["time_col", "float64_col"],
+            "drop_first": True,
+        },
     ],
 )
-def test_get_dummies_dataframe(scalars_dfs, args):
+def test_get_dummies_dataframe(scalars_dfs, kwargs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    prefix, prefix_sep, dummy_na, columns, drop_first = args
 
-    bf_result = bpd.get_dummies(
-        scalars_df,
-        prefix=prefix,
-        prefix_sep=prefix_sep,
-        dummy_na=dummy_na,
-        columns=columns,
-        drop_first=drop_first,
-    )
-    pd_result = pd.get_dummies(
-        scalars_pandas_df,
-        prefix=prefix,
-        prefix_sep=prefix_sep,
-        dummy_na=dummy_na,
-        columns=columns,
-        drop_first=drop_first,
+    bf_result = bpd.get_dummies(scalars_df, **kwargs)
+    pd_result = pd.get_dummies(scalars_pandas_df, **kwargs)
+
+    # adjust for expected dtype differences
+    pd_result = pd_result.astype(
+        [
+            (name, typ if typ is not bool else "Boolean")
+            for (name, typ) in zip(pd_result.columns, pd_result.dtypes)
+        ]
     )
 
-    pd.testing.assert_frame_equal(
-        bf_result.to_pandas(), pd_result, check_dtype=False
-    )  # dtype differences are expected
+    pd.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
 
 def test_get_dummies_series(scalars_dfs):
