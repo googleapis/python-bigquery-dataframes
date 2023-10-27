@@ -144,7 +144,6 @@ def get_dummies(
     prefix_sep: Union[List, str, None] = "_",
     dummy_na: bool = False,
     columns: Optional[List] = None,
-    sparse: bool = False,
     drop_first: bool = False,
     dtype: Any = None,
 ) -> DataFrame:

@@ -13,7 +13,6 @@ def get_dummies(
     prefix_sep="_",
     dummy_na=False,
     columns=None,
-    sparse=False,
     drop_first=False,
     dtype=None,
 ):
@@ -26,7 +25,7 @@ def get_dummies(
     prepended to the value.
 
     Args:
-      data (array-like, Series, or DataFrame):
+      data (Series or DataFrame):
         Data of which to get dummy indicators.
 
       prefix (str, list of str, or dict of str, default None):
@@ -35,8 +34,8 @@ def get_dummies(
         DataFrame. Alternatively, prefix can be a dictionary mapping column
         names to prefixes.
 
-      prefix_sep (str, default '_'):
-        appending prefix, separator/delimiter to use. Or pass a list or
+      prefix_sep (str, list of str, or dict of str, default '_'):
+        Separator/delimiter to use, appended to prefix. Or pass a list or
         dictionary as with prefix.
 
       dummy_na (bool, default False):
@@ -45,9 +44,6 @@ def get_dummies(
       columns (list-like, default None):
         Column names in the DataFrame to be encoded. If columns is None
         then only the columns with string dtype will be converted.
-
-      sparse (bool, default False):
-        All BigQuery DataFrames have the same backing- sparse arg not supported.
 
       drop_first (bool, default False):
         Whether to get k-1 dummies out of k categorical levels by removing the
