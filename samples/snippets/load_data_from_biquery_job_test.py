@@ -14,6 +14,16 @@
 
 
 def test_bigquery_dataframes_load_data_from_bigquery_job():
+    import bigframes.pandas as bpd
+
+    bpd.options.bigquery.project = "bigframes-dev"
+    bpd.options.bigquery.location = "us"
+
+    query_or_table = "bigquery-public-data.ml_datasets.penguins"
+    df = bpd.read_gbq(query_or_table)
+    df.to_pandas()
+    JOB_ID = df.query_job.job_id
+
     # [START bigquery_dataframes_load_data_from_bigquery_job]
     from google.cloud import bigquery
 
@@ -26,7 +36,7 @@ def test_bigquery_dataframes_load_data_from_bigquery_job():
     client = bigquery.Client(project=project, location=location)
 
     # Job ID inserted based on the query results selcted to explore
-    job_id = "a9dbb6a9-db2d-46a5-a497-8cca2159ddeb"
+    job_id = JOB_ID
     job = client.get_job(job_id)
     destination = str(job.destination)
 
