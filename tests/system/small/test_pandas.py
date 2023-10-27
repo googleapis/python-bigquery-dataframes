@@ -102,7 +102,7 @@ def test_get_dummies_series(scalars_dfs):
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
         pd_result,
-    )  # dtype differences are expected
+    )
 
 
 @pytest.mark.parametrize(
