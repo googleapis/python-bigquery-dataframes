@@ -67,6 +67,10 @@ _MONOTONIC_INCREASING = "monotonic_increasing"
 _MONOTONIC_DECREASING = "monotonic_decreasing"
 
 
+LevelType = typing.Union[str, int]
+LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
+
+
 class BlockHolder(typing.Protocol):
     """Interface for mutable objects with state represented by a block value object."""
 
@@ -412,6 +416,30 @@ class Block:
         )
         return df, query_job
 
+    def to_pandas_batches(self):
+        """Download results one message at a time."""
+        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes.update(zip(self.value_columns, self.dtypes))
+        results_iterator, _ = self._expr.start_query()
+        for arrow_table in results_iterator.to_arrow_iterable(
+            bqstorage_client=self._expr._session.bqstoragereadclient
+        ):
+            df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+            self._copy_index_to_pandas(df)
+            yield df
+
+    def _copy_index_to_pandas(self, df: pd.DataFrame):
+        """Set the index on pandas DataFrame to match this block.
+
+        Warning: This method modifies ``df`` inplace.
+        """
+        if self.index_columns:
+            df.set_index(list(self.index_columns), inplace=True)
+            # Pandas names is annotated as list[str] rather than the more
+            # general Sequence[Label] that BigQuery DataFrames has.
+            # See: https://github.com/pandas-dev/pandas-stubs/issues/804
+            df.index.names = self.index.names  # type: ignore
+
     def _compute_and_count(
         self,
         value_keys: Optional[Iterable[str]] = None,
@@ -485,10 +513,7 @@ class Block:
         else:
             total_rows = results_iterator.total_rows
             df = self._to_dataframe(results_iterator)
-
-            if self.index_columns:
-                df.set_index(list(self.index_columns), inplace=True)
-                df.index.names = self.index.names  # type: ignore
+            self._copy_index_to_pandas(df)
 
         return df, total_rows, query_job
 
@@ -1423,9 +1448,7 @@ class Block:
             raise ValueError(f"Too many unique values: {pd_values}")
 
         if len(columns) > 1:
-            return pd.MultiIndex.from_frame(
-                pd_values.sort_values(by=list(pd_values.columns), na_position="first")
-            )
+            return pd.MultiIndex.from_frame(pd_values)
         else:
             return pd.Index(pd_values.squeeze(axis=1).sort_values(na_position="first"))
 
@@ -1610,6 +1633,24 @@ class Block:
             column_labels=self.column_labels,
             index_labels=self.index_labels,
         )
+
+    def resolve_index_level(self, level: LevelsType) -> typing.Sequence[str]:
+        if utils.is_list_like(level):
+            levels = list(level)
+        else:
+            levels = [level]
+        resolved_level_ids = []
+        for level_ref in levels:
+            if isinstance(level_ref, int):
+                resolved_level_ids.append(self.index_columns[level_ref])
+            elif isinstance(level_ref, typing.Hashable):
+                matching_ids = self.index_name_to_col_id.get(level_ref, [])
+                if len(matching_ids) != 1:
+                    raise ValueError("level name cannot be found or is ambiguous")
+                resolved_level_ids.append(matching_ids[0])
+            else:
+                raise ValueError(f"Unexpected level: {level_ref}")
+        return resolved_level_ids
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
