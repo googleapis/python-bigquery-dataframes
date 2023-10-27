@@ -78,12 +78,9 @@ def test_get_dummies_dataframe(scalars_dfs, kwargs):
     pd_result = pd.get_dummies(scalars_pandas_df, **kwargs)
 
     # adjust for expected dtype differences
-    pd_result = pd_result.astype(
-        [
-            (name, typ if typ is not bool else "Boolean")
-            for (name, typ) in zip(pd_result.columns, pd_result.dtypes)
-        ]
-    )
+    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+        if type_name == "bool":
+            pd_result[column_name] = pd_result[column_name].astype("boolean")
 
     pd.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
@@ -96,11 +93,15 @@ def test_get_dummies_series(scalars_dfs):
     bf_result = bpd.get_dummies(bf_series)
     pd_result = pd.get_dummies(pd_series)
 
+    # adjust for expected dtype differences
+    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+        if type_name == "bool":
+            pd_result[column_name] = pd_result[column_name].astype("boolean")
+    pd_result.columns = pd_result.columns.astype(object)
+
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
         pd_result,
-        check_dtype=False,
-        check_column_type=False,
     )  # dtype differences are expected
 
 
