@@ -1277,11 +1277,11 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         )
         if sorted:
             sql = textwrap.dedent(
-                f"""
-                SELECT * EXCEPT (`{offsets_id}`)
-                FROM ({sql})
-                ORDER BY `{offsets_id}`
-                """
+                f"SELECT * EXCEPT (`{offsets_id}`)\n"
+                "FROM (\n"
+                f"{sql}\n"
+                ")\n"
+                f"ORDER BY `{offsets_id}`\n"
             )
         return typing.cast(str, sql)
 

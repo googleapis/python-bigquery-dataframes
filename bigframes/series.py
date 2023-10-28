@@ -287,8 +287,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
             ordered (bool, default True):
-                Determines whether the resulting pandas series will be ordered. In some cases,
-                unordered may result in a faster-executing query.
+                Determines whether the resulting pandas series will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query.
 
 
         Returns:
