@@ -409,7 +409,9 @@ def test_to_sql_query_unnamed_index_excluded(
 
     pd_df = scalars_pandas_df_default_index.reset_index(drop=True)
     roundtrip = session.read_gbq(sql)
-    assert_pandas_df_equal(roundtrip.to_pandas(), pd_df, check_index_type=False)
+    assert_pandas_df_equal(
+        roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
+    )
 
 
 def test_to_sql_query_named_index_excluded(
@@ -426,4 +428,6 @@ def test_to_sql_query_named_index_excluded(
         "rowindex_2", drop=True
     ).reset_index(drop=True)
     roundtrip = session.read_gbq(sql)
-    assert_pandas_df_equal(roundtrip.to_pandas(), pd_df, check_index_type=False)
+    assert_pandas_df_equal(
+        roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
+    )

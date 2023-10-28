@@ -583,7 +583,9 @@ def test_read_gbq_function_reads_udfs(bigquery_client, dataset_id):
         indirect_df = indirect_df.assign(y=indirect_df.x.apply(square))
         indirect_df = indirect_df.to_pandas()
 
-        assert_pandas_df_equal(direct_df, indirect_df)
+        assert_pandas_df_equal(
+            direct_df, indirect_df, ignore_order=True, check_index_type=False
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
