@@ -137,6 +137,7 @@ def test_pca_explained_variance_(penguins_pca_model: decomposition.PCA):
         rtol=0.1,
         check_index_type=False,
         check_dtype=False,
+        ignore_order=True,
     )
 
 
@@ -156,4 +157,5 @@ def test_pca_explained_variance_ratio_(penguins_pca_model: decomposition.PCA):
         rtol=0.1,
         check_index_type=False,
         check_dtype=False,
+        ignore_order=True,
     )

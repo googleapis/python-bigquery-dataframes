@@ -879,8 +879,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
             ordered (bool, default True):
-                Determines whether the resulting dataframe will be sorted. In some cases,
-                unordered may result in a faster-executing query.
+                Determines whether the resulting pandas dataframe will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the

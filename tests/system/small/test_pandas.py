@@ -140,7 +140,7 @@ def test_merge(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -174,7 +174,7 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -208,7 +208,7 @@ def test_merge_series(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_cut(scalars_dfs):

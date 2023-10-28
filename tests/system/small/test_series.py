@@ -2036,11 +2036,7 @@ def test_series_filter_items(scalars_df_index, scalars_pandas_df_index):
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     # Ignore ordering as pandas order differently depending on version
-    assert_series_equal(
-        bf_result,
-        pd_result,
-        check_names=False,
-    )
+    assert_series_equal(bf_result, pd_result, check_names=False, ignore_order=True)
 
 
 def test_series_filter_like(scalars_df_index, scalars_pandas_df_index):

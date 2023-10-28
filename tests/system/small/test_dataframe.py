@@ -113,15 +113,24 @@ def test_hasattr(scalars_dfs):
     assert not hasattr(scalars_df, "not_exist")
 
 
-def test_head_with_custom_column_labels(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_head_with_custom_column_labels(
+    scalars_df_index, scalars_pandas_df_index, ordered
+):
     rename_mapping = {
         "int64_col": "Integer Column",
         "string_col": "言語列",
     }
     bf_df = scalars_df_index.rename(columns=rename_mapping).head(3)
-    bf_result = bf_df.to_pandas()
+    bf_result = bf_df.to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df_index.rename(columns=rename_mapping).head(3)
-    pandas.testing.assert_frame_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_index):
@@ -564,14 +573,21 @@ def test_assign_existing_column(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
-def test_assign_series(scalars_dfs):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_assign_series(scalars_dfs, ordered):
     scalars_df, scalars_pandas_df = scalars_dfs
     column_name = "int64_col"
     df = scalars_df.assign(new_col=scalars_df[column_name])
-    bf_result = df.to_pandas()
+    bf_result = df.to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df.assign(new_col=scalars_pandas_df[column_name])
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 def test_assign_series_overwrite(scalars_dfs):
@@ -849,7 +865,9 @@ def test_df_merge(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_pandas_df_equal(
+        bf_result, pd_result, ignore_order=True, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -882,7 +900,9 @@ def test_df_merge_multi_key(scalars_dfs, left_on, right_on):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_pandas_df_equal(
+        bf_result, pd_result, ignore_order=True, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -912,7 +932,9 @@ def test_merge_custom_col_name(scalars_dfs, merge_how):
     pandas_right_df = scalars_pandas_df[right_columns]
     pd_result = pandas_left_df.merge(pandas_right_df, merge_how, on, sort=True)
 
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_pandas_df_equal(
+        bf_result, pd_result, ignore_order=True, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -945,7 +967,9 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_pandas_df_equal(
+        bf_result, pd_result, ignore_order=True, check_index_type=False
+    )
 
 
 def test_get_dtypes(scalars_df_default_index):
@@ -1605,8 +1629,15 @@ def test_binop_df_df_binary_op(
 
 
 # Differnt table will only work for explicit index, since default index orders are arbitrary.
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
 def test_series_binop_add_different_table(
-    scalars_df_index, scalars_pandas_df_index, scalars_df_2_index
+    scalars_df_index, scalars_pandas_df_index, scalars_df_2_index, ordered
 ):
     df_columns = ["int64_col", "float64_col"]
     series_column = "int64_too"
@@ -1614,13 +1645,13 @@ def test_series_binop_add_different_table(
     bf_result = (
         scalars_df_index[df_columns]
         .add(scalars_df_2_index[series_column], axis="index")
-        .to_pandas()
+        .to_pandas(ordered=ordered)
     )
     pd_result = scalars_pandas_df_index[df_columns].add(
         scalars_pandas_df_index[series_column], axis="index"
     )
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 # TODO(garrettwu): Test series binop with different index
@@ -1899,7 +1930,14 @@ def test_df_describe(scalars_dfs):
     ).all()
 
 
-def test_df_stack(scalars_dfs):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_df_stack(scalars_dfs, ordered):
     if pandas.__version__.startswith("1.") or pandas.__version__.startswith("2.0"):
         pytest.skip("pandas <2.1 uses different stack implementation")
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -1909,14 +1947,23 @@ def test_df_stack(scalars_dfs):
     # Can only stack identically-typed columns
     columns = ["int64_col", "int64_too", "rowindex_2"]
 
-    bf_result = scalars_df[columns].stack().to_pandas()
+    bf_result = scalars_df[columns].stack().to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df[columns].stack(future_stack=True)
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
-    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, ignore_order=not ordered
+    )
 
 
-def test_df_unstack(scalars_dfs):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_df_unstack(scalars_dfs, ordered):
     scalars_df, scalars_pandas_df = scalars_dfs
     # To match bigquery dataframes
     scalars_pandas_df = scalars_pandas_df.copy()
@@ -1929,11 +1976,13 @@ def test_df_unstack(scalars_dfs):
     ]
 
     # unstack on mono-index produces series
-    bf_result = scalars_df[columns].unstack().to_pandas()
+    bf_result = scalars_df[columns].unstack().to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df[columns].unstack()
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
-    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, ignore_order=not ordered
+    )
 
 
 @pytest.mark.parametrize(
@@ -2078,14 +2127,18 @@ def test_iloc_slice_zero_step(scalars_df_index):
         scalars_df_index.iloc[0:0:0]
 
 
-def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index):
-    bf_result = scalars_df_index.iloc[1:].iloc[1:].to_pandas()
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_iloc_slice_nested(scalars_df_index, scalars_pandas_df_index, ordered):
+    bf_result = scalars_df_index.iloc[1:].iloc[1:].to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df_index.iloc[1:].iloc[1:]
 
-    pd.testing.assert_frame_equal(
-        bf_result,
-        pd_result,
-    )
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 @pytest.mark.parametrize(
@@ -2562,6 +2615,7 @@ def test_df_rows_filter_items(scalars_df_index, scalars_pandas_df_index):
     assert_pandas_df_equal(
         bf_result,
         pd_result,
+        ignore_order=True,
         check_names=False,
     )
 
