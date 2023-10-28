@@ -772,7 +772,6 @@ def test_column_multi_index_melt():
     bf_df = bpd.DataFrame(pd_df)
 
     bf_result = bf_df.melt().to_pandas()
-    # BigFrames emulates future_stack impl
     pd_result = pd_df.melt()
 
     # BigFrames uses different string and int types, but values are identical
