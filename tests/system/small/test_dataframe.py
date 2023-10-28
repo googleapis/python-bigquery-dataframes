@@ -28,10 +28,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
 import bigframes.series as series
-from tests.system.utils import (
-    assert_pandas_df_equal,
-    assert_series_equal_ignoring_order,
-)
+from tests.system.utils import assert_pandas_df_equal, assert_series_equal
 
 
 def test_df_construct_copy(scalars_dfs):
@@ -98,7 +95,7 @@ def test_get_column(scalars_dfs):
     series = scalars_df[col_name]
     bf_result = series.to_pandas()
     pd_result = scalars_pandas_df[col_name]
-    assert_series_equal_ignoring_order(bf_result, pd_result)
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_get_column_nonstring(scalars_dfs):
@@ -106,7 +103,7 @@ def test_get_column_nonstring(scalars_dfs):
     series = scalars_df.rename(columns={"int64_col": 123.1})[123.1]
     bf_result = series.to_pandas()
     pd_result = scalars_pandas_df.rename(columns={"int64_col": 123.1})[123.1]
-    assert_series_equal_ignoring_order(bf_result, pd_result)
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_hasattr(scalars_dfs):
@@ -183,7 +180,7 @@ def test_get_column_by_attr(scalars_dfs):
     series = scalars_df.int64_col
     bf_result = series.to_pandas()
     pd_result = scalars_pandas_df.int64_col
-    assert_series_equal_ignoring_order(bf_result, pd_result)
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_get_columns(scalars_dfs):
@@ -2280,6 +2277,13 @@ def test_loc_setitem_bool_series_scalar_type_error(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+@pytest.mark.parametrize(
     ("op"),
     [
         (lambda x: x.sum(numeric_only=True)),
@@ -2293,16 +2297,18 @@ def test_loc_setitem_bool_series_scalar_type_error(scalars_dfs):
     ],
     ids=["sum", "mean", "min", "max", "std", "var", "count", "nunique"],
 )
-def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op):
+def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op, ordered):
     col_names = ["int64_too", "float64_col", "string_col", "int64_col", "bool_col"]
     bf_series = op(scalars_df_index[col_names])
     pd_series = op(scalars_pandas_df_index[col_names])
-    bf_result = bf_series.to_pandas()
+    bf_result = bf_series.to_pandas(ordered=ordered)
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
     pd_series = pd_series.astype("Float64")
     # Pandas has object index type
-    pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
+    assert_series_equal(
+        pd_series, bf_result, check_index_type=False, ignore_order=not ordered
+    )
 
 
 @pytest.mark.parametrize(

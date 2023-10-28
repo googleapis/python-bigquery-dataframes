@@ -219,6 +219,12 @@ class ArrayValue:
             nodes.SelectNode(child=self.node, column_ids=tuple(column_ids))
         )
 
+    def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
+        """Append together multiple ArrayValue objects."""
+        return ArrayValue(
+            nodes.ConcatNode(children=tuple([self.node, *[val.node for val in other]]))
+        )
+
     def project_unary_op(
         self, column_name: str, op: ops.UnaryOp, output_name=None
     ) -> ArrayValue:

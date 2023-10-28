@@ -265,6 +265,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         max_download_size: Optional[int] = None,
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
+        *,
+        ordered: bool = True,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -294,6 +296,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
+            ordered=ordered,
         )
         self._set_internal_query_job(query_job)
         series = df[self._value_column]
