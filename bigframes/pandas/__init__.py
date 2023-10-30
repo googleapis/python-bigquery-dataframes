@@ -168,11 +168,16 @@ def get_dummies(
 
     if columns is None:
         default_dummy_types = [pandas.StringDtype, "string[pyarrow]"]
+        columns = []
         columns_set = set()
         for col_id in block.value_columns:
-            if block.expr.get_column_type(col_id) in default_dummy_types:
-                columns_set.add(block.col_id_to_label[col_id])
-        columns = list(columns_set)
+            label = block.col_id_to_label[col_id]
+            if (
+                label not in columns_set
+                and block.expr.get_column_type(col_id) in default_dummy_types
+            ):
+                columns.append(label)
+                columns_set.add(label)
 
     column_labels: List = typing.cast(List, columns)
     prefix_given = prefix is not None
