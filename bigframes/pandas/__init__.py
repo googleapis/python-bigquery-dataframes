@@ -192,12 +192,12 @@ def get_dummies(
             return list(map(str, kwarg))
         raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
 
-    prefix_sep = parse_prefix_kwarg(prefix_sep, "prefix_sep")
-    if prefix_sep is None:
-        prefix_sep = ["_"] * len(column_labels)
-    prefix = parse_prefix_kwarg(prefix, "prefix")
-    if prefix is None:
-        prefix = column_labels
+    prefix_seps = parse_prefix_kwarg(prefix_sep or "_", "prefix_sep")
+    prefix_seps = typing.cast(List, prefix_seps)
+    prefixes = parse_prefix_kwarg(prefix, "prefix")
+    if prefixes is None:
+        prefixes = column_labels
+    prefixes = typing.cast(List, prefixes)
 
     max_unique_value = (
         bigframes.core.blocks._BQ_MAX_COLUMNS
@@ -209,16 +209,18 @@ def get_dummies(
     full_prefixes_with_duplicity = []
     for i in range(len(column_labels)):
         label = column_labels[i]
-        full_prefix = "" if label is None else prefix[i] + prefix_sep[i]
+        full_prefix = "" if label is None else prefixes[i] + prefix_seps[i]
         for col_id in block.label_to_col_id[label]:
             columns_ids.append(col_id)
             full_prefixes_with_duplicity.append(full_prefix)
 
-    columns_values = block._get_unique_values(columns_ids, max_unique_value)
+    columns_values = [
+        block._get_unique_values([col_id], max_unique_value) for col_id in columns_ids
+    ]
 
     result = block.drop_columns(columns_ids)
-    for i in range(columns_values.nlevels):
-        level = columns_values.get_level_values(i).sort_values()
+    for i in range(len(columns_values)):
+        level = columns_values[i].get_level_values(0).sort_values()
         column_label = full_prefixes_with_duplicity[i]
         column_id = columns_ids[i]
 
