@@ -140,8 +140,8 @@ cut.__doc__ = vendored_pandas_tile.cut.__doc__
 
 def get_dummies(
     data: Union[DataFrame, Series],
-    prefix: Union[List, str, None] = None,
-    prefix_sep: Union[List, str, None] = "_",
+    prefix: Union[List, dict, str, None] = None,
+    prefix_sep: Union[List, dict, str, None] = "_",
     dummy_na: bool = False,
     columns: Optional[List] = None,
     drop_first: bool = False,
@@ -150,7 +150,7 @@ def get_dummies(
     block = data._block
 
     if isinstance(data, Series):
-        columns = [block.value_columns[0]]
+        columns = [block.column_labels[0]]
     if columns is not None and not pandas.api.types.is_list_like(columns):
         raise TypeError("Input must be a list-like for parameter `columns`")
     if dtype is not None and dtype not in [
@@ -165,50 +165,51 @@ def get_dummies(
         )
 
     if columns is None:
-        default_dummy_types = [pandas.StringDtype]
-        columns = [
-            col_id
-            for col_id in block.value_columns
-            if block.expr.get_column_type(col_id) in default_dummy_types
-        ]
+        default_dummy_types = [pandas.StringDtype, "string[pyarrow]"]
+        columns_set = set()
+        for col_id in block.value_columns:
+            if block.expr.get_column_type(col_id) in default_dummy_types:
+                columns_set.add(block.col_id_to_label[col_id])
+        columns = list(columns_set)
 
+    column_labels: List = typing.cast(List, columns)
     prefix_given = prefix is not None
 
-    def parse_prefix_kwarg(kwarg, kwarg_name):
-        if pandas.api.types.is_list_like(kwarg) and len(kwarg) != len(columns):
+    def parse_prefix_kwarg(kwarg, kwarg_name) -> Optional[List[str]]:
+        if kwarg is None:
+            return None
+        if isinstance(kwarg, str):
+            return [kwarg] * len(column_labels)
+        if isinstance(kwarg, dict):
+            return [kwarg[column] for column in column_labels]
+        kwarg = typing.cast(List, kwarg)
+        if pandas.api.types.is_list_like(kwarg) and len(kwarg) != len(column_labels):
             raise ValueError(
                 f"Length of '{kwarg_name}' ({len(kwarg)}) did not match "
-                f"the length of the columns being encoded ({len(columns)})."
+                f"the length of the columns being encoded ({len(column_labels)})."
             )
-        elif pandas.api.types.is_list_like(kwarg):
+        if pandas.api.types.is_list_like(kwarg):
             return list(map(str, kwarg))
-        elif isinstance(kwarg, str):
-            return [kwarg] * len(columns)
-        elif isinstance(kwarg, dict):
-            return [kwarg[column] for column in columns]
-        elif kwarg is None:
-            return None
-        else:
-            raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
+        raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
 
     prefix_sep = parse_prefix_kwarg(prefix_sep, "prefix_sep")
     if prefix_sep is None:
-        prefix_sep = ["_"] * len(columns)
+        prefix_sep = ["_"] * len(column_labels)
     prefix = parse_prefix_kwarg(prefix, "prefix")
     if prefix is None:
-        prefix = columns
+        prefix = column_labels
 
     max_unique_value = (
         bigframes.core.blocks._BQ_MAX_COLUMNS
         - len(block.value_columns)
         - len(block.index_columns)
         - 1
-    ) // len(columns)
+    ) // len(column_labels)
     columns_ids = []
     full_prefixes_with_duplicity = []
-    for i in range(len(columns)):
-        label = columns[i]
-        full_prefix = prefix[i] + prefix_sep[i]
+    for i in range(len(column_labels)):
+        label = column_labels[i]
+        full_prefix = "" if label is None else prefix[i] + prefix_sep[i]
         for col_id in block.label_to_col_id[label]:
             columns_ids.append(col_id)
             full_prefixes_with_duplicity.append(full_prefix)
@@ -232,8 +233,8 @@ def get_dummies(
                 continue
 
             new_column_label = f"{column_label}{value}"
-            if isinstance(data, Series) and not prefix_given:
-                # in this special case, the columns are labeled with
+            if column_label == "" or isinstance(data, Series) and not prefix_given:
+                # in these special cases, the columns are labeled with
                 # the scalar itself, not a string
                 new_column_label = value
 
