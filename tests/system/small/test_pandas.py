@@ -87,6 +87,9 @@ def test_get_dummies_dataframe(scalars_dfs, kwargs):
 
 
 def test_get_dummies_dataframe_duplicate_labels(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas has different behavior in 1.x")
+
     scalars_df, scalars_pandas_df = scalars_dfs
 
     scalars_renamed_df = scalars_df.rename(
