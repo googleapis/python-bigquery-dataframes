@@ -224,14 +224,12 @@ def get_dummies(
         column_label = full_prefixes_with_duplicity[i]
         column_id = columns_ids[i]
 
-        already_seen = set()
+        skip_next = drop_first
         for value in level:
             if pandas.isna(value):
                 continue
-            if value in already_seen:
-                continue
-            already_seen.add(value)
-            if drop_first and len(already_seen) == 1:
+            if skip_next:
+                skip_next = False
                 continue
 
             new_column_label = f"{column_label}{value}"
