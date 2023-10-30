@@ -26,6 +26,7 @@ def test_bigquery_dataframes_load_data_from_bigquery_job():
     """
     query_job = client.query(query)
     JOB_ID = query_job.job_id
+    your_project_id = "bigframes-dev"
 
     # [START bigquery_dataframes_load_data_from_bigquery_job]
     from google.cloud import bigquery
@@ -33,7 +34,7 @@ def test_bigquery_dataframes_load_data_from_bigquery_job():
     import bigframes.pandas as bpd
 
     # Project ID inserted based on the query results selected to explore
-    project = "bigframes-dev"
+    project = your_project_id
     # Location inserted based on the query results selected to explore
     location = "us"
     client = bigquery.Client(project=project, location=location)
