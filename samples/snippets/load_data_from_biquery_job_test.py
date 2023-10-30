@@ -14,12 +14,18 @@
 
 
 def test_bigquery_dataframes_load_data_from_bigquery_job():
-    import bigframes.pandas as bpd
+    from google.cloud import bigquery
 
-    query_or_table = "bigquery-public-data.ml_datasets.penguins"
-    df = bpd.read_gbq(query_or_table)
-    df.to_pandas()
-    JOB_ID = df.query_job.job_id
+    # Construct a BigQuery client object.
+    client = bigquery.Client(project="bigframes-dev", location="us")
+
+    query = """
+        SELECT *
+        FROM `bigquery-public-data.ml_datasets.penguins`
+        LIMIT 20
+    """
+    query_job = client.query(query)
+    JOB_ID = query_job.job_id
 
     # [START bigquery_dataframes_load_data_from_bigquery_job]
     from google.cloud import bigquery
