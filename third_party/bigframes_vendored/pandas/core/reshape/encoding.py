@@ -25,6 +25,7 @@ def get_dummies(
     prepended to the value.
 
     **Examples:**
+        >>> import bigframes.pandas as pd
         >>> s = pd.Series(list('abca'))
         >>> pd.get_dummies(s)
               a      b      c

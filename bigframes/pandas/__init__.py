@@ -148,6 +148,8 @@ def get_dummies(
     dtype: Any = None,
 ) -> DataFrame:
     block = data._block
+    original_value_columns_ids = block.value_columns
+    original_value_columns_labels = block.column_labels
 
     if isinstance(data, Series):
         columns = [block.column_labels[0]]
@@ -218,7 +220,8 @@ def get_dummies(
         block._get_unique_values([col_id], max_unique_value) for col_id in columns_ids
     ]
 
-    result = block.drop_columns(columns_ids)
+    dummy_columns_ids = []
+    dummy_columns_labels = []
     for i in range(len(columns_values)):
         level = columns_values[i].get_level_values(0).sort_values()
         column_label = full_prefixes_with_duplicity[i]
@@ -241,29 +244,31 @@ def get_dummies(
             new_block, new_id = block.apply_unary_op(
                 column_id, ops.BinopPartialLeft(ops.eq_op, value)
             )
-            new_block, new_id = new_block.apply_unary_op(
+            block, new_id = new_block.apply_unary_op(
                 new_id, ops.BinopPartialRight(ops.fillna_op, False)
             )
-
-            new_block = new_block.select_column(new_id)
-            new_block = new_block.with_column_labels([new_column_label])
-            result_index, _ = result.index.join(
-                new_block.index, how="left", block_identity_join=True
-            )
-            result = result_index._block
+            dummy_columns_ids.append(new_id)
+            dummy_columns_labels.append(new_column_label)
         if dummy_na:
             # dummy column name for na depends on the dtype
             na_string = str(pandas.Index([None], dtype=level.dtype)[0])
             new_column_label = f"{column_label}{na_string}"
-            new_block, new_id = block.apply_unary_op(column_id, ops.isnull_op)
-            new_block = new_block.select_column(new_id)
-            new_block = new_block.with_column_labels([new_column_label])
-            result_index, _ = result.index.join(
-                new_block.index, how="left", block_identity_join=True
-            )
-            result = result_index._block
+            block, new_id = block.apply_unary_op(column_id, ops.isnull_op)
+            dummy_columns_ids.append(new_id)
+            dummy_columns_labels.append(new_column_label)
 
-    return DataFrame(result)
+    dummified_col_ids = set(columns_ids)
+    carried_over_ids = []
+    carried_over_labels = []
+    for i in range(len(original_value_columns_ids)):
+        col_id = original_value_columns_ids[i]
+        if col_id not in dummified_col_ids:
+            carried_over_ids.append(col_id)
+            carried_over_labels.append(original_value_columns_labels[i])
+    block = block.select_columns(carried_over_ids + dummy_columns_ids)
+    block = block.with_column_labels(carried_over_labels + dummy_columns_labels)
+
+    return DataFrame(block)
 
 
 get_dummies.__doc__ = vendored_pandas_encoding.get_dummies.__doc__
