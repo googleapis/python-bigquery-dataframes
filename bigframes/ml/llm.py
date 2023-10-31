@@ -26,10 +26,11 @@ import bigframes.pandas as bpd
 
 _REMOTE_TEXT_GENERATOR_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
 _REMOTE_TEXT_GENERATOR_32K_MODEL_CODE = "text-bison-32k"
+_REMOTE_TEXT_GENERATOR_32K_MODEL_CODE = "text-bison-32k"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
 _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE = "CLOUD_AI_TEXT_EMBEDDING_MODEL_V1"
-_REMOTE_EMBEDDING_GENERATOR_32K_MODEL_CODE = "textembedding-gecko-multilingual"
+_REMOTE_EMBEDDING_GENERATOR_MUlTILINGUAL_MODEL_CODE = "textembedding-gecko-multilingual"
 _EMBED_TEXT_RESULT_COLUMN = "text_embedding"
 
 
@@ -37,10 +38,14 @@ class PaLM2TextGenerator(base.Predictor):
     """PaLM2 text generator LLM model.
 
     Args:
+        model_name (str, Default to "text-bison"):
+            The model for natural language tasks. “text-bison” returns model fine-tuned to follow natural language instructions
+            and is suitable for a variety of language tasks. "text-bison-32k" supports up to 32k tokens per request.
+            Default to "text-bison".
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
             if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
             permission if the connection isn't fully setup.
     """
@@ -48,9 +53,11 @@ class PaLM2TextGenerator(base.Predictor):
     def __init__(
         self,
         model_name: Literal["text-bison", "text-bison-32k"] = "text-bison-32k",
+        model_name: Literal["text-bison", "text-bison-32k"] = "text-bison-32k",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
+        self.model_name = model_name
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
         self._bq_connection_manager = clients.BqConnectionManager(
@@ -84,6 +91,14 @@ class PaLM2TextGenerator(base.Predictor):
             connection_id=connection_name_parts[2],
             iam_role="aiplatform.user",
         )
+        if self.model_name == "text-bison":
+            options = {
+                "remote_service_type": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
+            }
+        else:
+            options = {
+                "endpoint": _REMOTE_TEXT_GENERATOR_32K_MODEL_CODE,
+            }
         if self.model_name == "text-bison":
             options = {
                 "remote_service_type": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
@@ -126,6 +141,7 @@ class PaLM2TextGenerator(base.Predictor):
 
             top_k (int, default 40):
                 Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
+                in the model's vocabulary (also called greedy decoding), while a top-k of 3 means that the next token is selected from among the 3 most probable tokens (using temperature).
                 in the model's vocabulary (also called greedy decoding), while a top-k of 3 means that the next token is selected from among the 3 most probable tokens (using temperature).
                 For each token selection step, the top K tokens with the highest probabilities are sampled. Then tokens are further filtered based on topP with the final token selected using temperature sampling.
                 Specify a lower value for less random responses and a higher value for more random responses.
@@ -183,6 +199,10 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
     """PaLM2 text embedding generator LLM model.
 
     Args:
+        model_name (str, Default to "textembedding-gecko"):
+            The model for text embedding. “textembedding-gecko” returns model embeddings for text inputs.
+            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages
+            Default to "textembedding-gecko".
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -195,9 +215,13 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         model_name: Literal[
             "textembedding-gecko", "textembedding-gecko-multilingual"
         ] = "textembedding-gecko",
+        model_name: Literal[
+            "textembedding-gecko", "textembedding-gecko-multilingual"
+        ] = "textembedding-gecko",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
+        self.model_name = model_name
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
         self._bq_connection_manager = clients.BqConnectionManager(
@@ -237,7 +261,7 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             }
         else:
             options = {
-                "endpoint": _REMOTE_EMBEDDING_GENERATOR_32K_MODEL_CODE,
+                "endpoint": _REMOTE_EMBEDDING_GENERATOR_MUlTILINGUAL_MODEL_CODE,
             }
 
         return self._bqml_model_factory.create_remote_model(
