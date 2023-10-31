@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import google.cloud.bigquery
 import pytest
 
 from . import resources
@@ -41,3 +42,18 @@ def test_dataframe_to_gbq_invalid_if_exists_no_destination(
 
     with pytest.raises(ValueError, match="append"):
         dataframe.to_gbq(if_exists="append")
+
+
+def test_dataframe_to_gbq_writes_to_anonymous_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    anonymous_dataset_id = "my-anonymous-project.my_anonymous_dataset"
+    anonymous_dataset = google.cloud.bigquery.DatasetReference.from_string(
+        anonymous_dataset_id
+    )
+    session = resources.create_bigquery_session(anonymous_dataset=anonymous_dataset)
+    dataframe = resources.create_dataframe(monkeypatch, session=session)
+
+    destination = dataframe.to_gbq()
+
+    assert destination.startswith(anonymous_dataset_id)

@@ -70,8 +70,11 @@ def create_bigquery_session(
     return session
 
 
-def create_dataframe(monkeypatch: pytest.MonkeyPatch) -> bigframes.dataframe.DataFrame:
-    session = create_bigquery_session()
+def create_dataframe(
+    monkeypatch: pytest.MonkeyPatch, session: Optional[bigframes.Session] = None
+) -> bigframes.dataframe.DataFrame:
+    if session is None:
+        session = create_bigquery_session()
 
     # Since this may create a ReadLocalNode, the session we explicitly pass in
     # might not actually be used. Mock out the global session, too.
