@@ -28,60 +28,47 @@ def get_dummies(
         >>> import bigframes.pandas as pd
         >>> s = pd.Series(list('abca'))
         >>> pd.get_dummies(s)
-               a      b      c
-        0   True  False  False
-        1  False   True  False
-        2  False  False   True
-        3   True  False  False
+        >>> #        a      b      c
+        >>> # 0   True  False  False
+        >>> # 1  False   True  False
+        >>> # 2  False  False   True
+        >>> # 3   True  False  False
 
         >>> s1 = pd.Series(['a', 'b', None])
-
         >>> pd.get_dummies(s1)
-               a      b
-        0   True  False
-        1  False   True
-        2  False  False
-
-        [3 rows x 2 columns]
+        >>> #        a      b
+        >>> # 0   True  False
+        >>> # 1  False   True
+        >>> # 2  False  False
 
         >>> pd.get_dummies(s1, dummy_na=True)
-               a      b   <NA>
-        0   True  False  False
-        1  False   True  False
-        2  False  False   True
+        >>> #        a      b   <NA>
+        >>> # 0   True  False  False
+        >>> # 1  False   True  False
+        >>> # 2  False  False   True
 
-        [3 rows x 3 columns]
-
-        >>> df = pd.DataFrame({'A': ['a', 'b', 'a'], 'B': ['b', 'a', 'c'],
-        ...                    'C': [1, 2, 3]})
-
+        >>> df = pd.DataFrame({'A': ['a', 'b', 'a'], 'B': ['b', 'a', 'c'], 'C': [1, 2, 3]})
         >>> pd.get_dummies(df, prefix=['col1', 'col2'])
-           C  col1_a  col1_b  col2_a  col2_b  col2_c
-        0  1    True   False   False    True   False
-        1  2   False    True    True   False   False
-        2  3    True   False   False   False    True
-
-        [3 rows x 6 columns]
+        >>> #    C  col1_a  col1_b  col2_a  col2_b  col2_c
+        >>> # 0  1    True   False   False    True   False
+        >>> # 1  2   False    True    True   False   False
+        >>> # 2  3    True   False   False   False    True
 
         >>> pd.get_dummies(pd.Series(list('abcaa')))
-               a      b      c
-        0   True  False  False
-        1  False   True  False
-        2  False  False   True
-        3   True  False  False
-        4   True  False  False
-
-        [5 rows x 3 columns]
+        >>> #        a      b      c
+        >>> # 0   True  False  False
+        >>> # 1  False   True  False
+        >>> # 2  False  False   True
+        >>> # 3   True  False  False
+        >>> # 4   True  False  False
 
         >>> pd.get_dummies(pd.Series(list('abcaa')), drop_first=True)
-               b      c
-        0  False  False
-        1   True  False
-        2  False   True
-        3  False  False
-        4  False  False
-
-        [5 rows x 2 columns]
+        >>> #        b      c
+        >>> # 0  False  False
+        >>> # 1   True  False
+        >>> # 2  False   True
+        >>> # 3  False  False
+        >>> # 4  False  False
 
     Args:
       data (Series or DataFrame):
