@@ -2765,6 +2765,9 @@ class DataFrame(NDFrame):
                 Interpolation technique to use. Only 'linear' supported.
                 'linear': Ignore the index and treat the values as equally spaced.
                 This is the only method supported on MultiIndexes.
+                'index', 'values': use the actual numerical values of the index.
+                'pad': Fill in NaNs using existing values.
+                'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
 
         Returns:
             DataFrame:
