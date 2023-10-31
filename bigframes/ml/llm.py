@@ -53,11 +53,9 @@ class PaLM2TextGenerator(base.Predictor):
     def __init__(
         self,
         model_name: Literal["text-bison", "text-bison-32k"] = "text-bison-32k",
-        model_name: Literal["text-bison", "text-bison-32k"] = "text-bison-32k",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        self.model_name = model_name
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
         self._bq_connection_manager = clients.BqConnectionManager(
@@ -99,15 +97,6 @@ class PaLM2TextGenerator(base.Predictor):
             options = {
                 "endpoint": _REMOTE_TEXT_GENERATOR_32K_MODEL_CODE,
             }
-        if self.model_name == "text-bison":
-            options = {
-                "remote_service_type": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
-            }
-        else:
-            options = {
-                "endpoint": _REMOTE_TEXT_GENERATOR_32K_MODEL_CODE,
-            }
-
         return self._bqml_model_factory.create_remote_model(
             session=self.session, connection_name=self.connection_name, options=options
         )
@@ -215,13 +204,9 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         model_name: Literal[
             "textembedding-gecko", "textembedding-gecko-multilingual"
         ] = "textembedding-gecko",
-        model_name: Literal[
-            "textembedding-gecko", "textembedding-gecko-multilingual"
-        ] = "textembedding-gecko",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        self.model_name = model_name
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
         self._bq_connection_manager = clients.BqConnectionManager(
