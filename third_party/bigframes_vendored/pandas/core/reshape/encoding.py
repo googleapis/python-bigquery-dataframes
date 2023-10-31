@@ -26,61 +26,62 @@ def get_dummies(
 
     **Examples:**
         >>> import bigframes.pandas as pd
+        >>> pd.options.display.progress_bar = None
         >>> s = pd.Series(list('abca'))
         >>> pd.get_dummies(s)
-        ...
                a      b      c
         0   True  False  False
         1  False   True  False
         2  False  False   True
         3   True  False  False
-        ...
+        <BLANKLINE>
+        [4 rows x 3 columns]
 
         >>> s1 = pd.Series(['a', 'b', None])
         >>> pd.get_dummies(s1)
-        ...
                a      b
         0   True  False
         1  False   True
         2  False  False
-        ...
+        <BLANKLINE>
+        [3 rows x 2 columns]
 
         >>> pd.get_dummies(s1, dummy_na=True)
-        ...
                a      b   <NA>
         0   True  False  False
         1  False   True  False
         2  False  False   True
-        ...
+        <BLANKLINE>
+        [3 rows x 3 columns]
 
         >>> df = pd.DataFrame({'A': ['a', 'b', 'a'], 'B': ['b', 'a', 'c'], 'C': [1, 2, 3]})
         >>> pd.get_dummies(df, prefix=['col1', 'col2'])
-        ...
            C  col1_a  col1_b  col2_a  col2_b  col2_c
         0  1    True   False   False    True   False
         1  2   False    True    True   False   False
         2  3    True   False   False   False    True
-        ...
+        <BLANKLINE>
+        [3 rows x 6 columns]
 
         >>> pd.get_dummies(pd.Series(list('abcaa')))
-        ...
                a      b      c
         0   True  False  False
         1  False   True  False
         2  False  False   True
         3   True  False  False
         4   True  False  False
-        ...
+        <BLANKLINE>
+        [5 rows x 3 columns]
 
         >>> pd.get_dummies(pd.Series(list('abcaa')), drop_first=True)
-        ...
                b      c
         0  False  False
         1   True  False
         2  False   True
         3  False  False
         4  False  False
-        ...
+        <BLANKLINE>
+        [5 rows x 2 columns]
 
     Args:
       data (Series or DataFrame):
