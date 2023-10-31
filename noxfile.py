@@ -377,7 +377,7 @@ def e2e(session: nox.sessions.Session):
     run_system(
         session=session,
         prefix_name="e2e",
-        test_folder=os.path.join("tests", "system", "large"),
+        test_folder=[os.path.join("tests", "system", "large")],
         print_duration=True,
     )
 

@@ -14,13 +14,14 @@
 
 
 def test_clustering_model():
+    # [START bigquery_dataframes_clustering_model]
     from bigframes.ml.cluster import KMeans
     import bigframes.pandas as bpd
 
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
-    # [START bigquery_dataframes_clustering_model]
+
     # Create the KMeans model
     cluster_model = KMeans(n_clusters=10)
     cluster_model.fit(bq_df["culmen_length_mm"], bq_df["sex"])

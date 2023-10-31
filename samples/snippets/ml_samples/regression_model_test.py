@@ -13,13 +13,15 @@
 # limitations under the License.
 
 
-def test_clean_and_prep_ml_data():
+def test_regression_model():
+    # [START bigquery_dataframes_regression_model]
+    from bigframes.ml.linear_model import LinearRegression
     import bigframes.pandas as bpd
 
+    # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
 
-    # [START bigquery_dataframes_clean_and_prep_data]
     # Filter down to the data to the Adelie Penguin species
     adelie_data = bq_df[bq_df.species == "Adelie Penguin (Pygoscelis adeliae)"]
 
@@ -36,7 +38,20 @@ def test_clean_and_prep_ml_data():
     label_columns = training_data[["body_mass_g"]]
 
     test_data = adelie_data[adelie_data.body_mass_g.isnull()]
-    # [END bigquery_dataframes_clean_and_prep_data]
+
+    # Create the linear model
+    model = LinearRegression()
+    model.fit(feature_columns, label_columns)
+
+    # Score the model
+    score = model.score(feature_columns, label_columns)
+
+    # Predict using the model
+    result = model.predict(test_data)
+    # [END bigquery_dataframes_regression_model]
     assert test_data is not None
     assert feature_columns is not None
     assert label_columns is not None
+    assert model is not None
+    assert score is not None
+    assert result is not None
