@@ -34,8 +34,6 @@ def get_dummies(
         2  False  False   True
         3   True  False  False
 
-        [4 rows x 3 columns]
-
         >>> s1 = pd.Series(['a', 'b', None])
 
         >>> pd.get_dummies(s1)
