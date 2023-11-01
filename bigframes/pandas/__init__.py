@@ -150,61 +150,11 @@ def get_dummies(
     block = data._block
     original_value_columns_ids = block.value_columns
     original_value_columns_labels = block.column_labels
-
-    if isinstance(data, Series):
-        columns = [block.column_labels[0]]
-    if columns is not None and not pandas.api.types.is_list_like(columns):
-        raise TypeError("Input must be a list-like for parameter `columns`")
-    if dtype is not None and dtype not in [
-        pandas.BooleanDtype,
-        bool,
-        "Boolean",
-        "boolean",
-        "bool",
-    ]:
-        raise NotImplementedError(
-            f"Only Boolean dtype is currently supported. {constants.FEEDBACK_LINK}"
-        )
-
-    if columns is None:
-        default_dummy_types = [pandas.StringDtype, "string[pyarrow]"]
-        columns = []
-        columns_set = set()
-        for col_id in block.value_columns:
-            label = block.col_id_to_label[col_id]
-            if (
-                label not in columns_set
-                and block.expr.get_column_type(col_id) in default_dummy_types
-            ):
-                columns.append(label)
-                columns_set.add(label)
-
-    column_labels: List = typing.cast(List, columns)
     prefix_given = prefix is not None
 
-    def parse_prefix_kwarg(kwarg, kwarg_name) -> Optional[List[str]]:
-        if kwarg is None:
-            return None
-        if isinstance(kwarg, str):
-            return [kwarg] * len(column_labels)
-        if isinstance(kwarg, dict):
-            return [kwarg[column] for column in column_labels]
-        kwarg = typing.cast(List, kwarg)
-        if pandas.api.types.is_list_like(kwarg) and len(kwarg) != len(column_labels):
-            raise ValueError(
-                f"Length of '{kwarg_name}' ({len(kwarg)}) did not match "
-                f"the length of the columns being encoded ({len(column_labels)})."
-            )
-        if pandas.api.types.is_list_like(kwarg):
-            return list(map(str, kwarg))
-        raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
-
-    prefix_seps = parse_prefix_kwarg(prefix_sep or "_", "prefix_sep")
-    prefix_seps = typing.cast(List, prefix_seps)
-    prefixes = parse_prefix_kwarg(prefix, "prefix")
-    if prefixes is None:
-        prefixes = column_labels
-    prefixes = typing.cast(List, prefixes)
+    column_labels, prefixes, prefix_seps = _standardize_get_dummies_params(
+        data, prefix, prefix_sep, dummy_na, columns, drop_first, dtype
+    )
 
     max_unique_value = (
         bigframes.core.blocks._BQ_MAX_COLUMNS
@@ -277,6 +227,74 @@ def get_dummies(
 
 
 get_dummies.__doc__ = vendored_pandas_encoding.get_dummies.__doc__
+
+
+def _standardize_get_dummies_params(
+    data: Union[DataFrame, Series],
+    prefix: Union[List, dict, str, None],
+    prefix_sep: Union[List, dict, str, None],
+    dummy_na: bool,
+    columns: Optional[List],
+    drop_first: bool,
+    dtype: Any,
+) -> Tuple[List, List[str], List[str]]:
+    block = data._block
+
+    if isinstance(data, Series):
+        columns = [block.column_labels[0]]
+    if columns is not None and not pandas.api.types.is_list_like(columns):
+        raise TypeError("Input must be a list-like for parameter `columns`")
+    if dtype is not None and dtype not in [
+        pandas.BooleanDtype,
+        bool,
+        "Boolean",
+        "boolean",
+        "bool",
+    ]:
+        raise NotImplementedError(
+            f"Only Boolean dtype is currently supported. {constants.FEEDBACK_LINK}"
+        )
+
+    if columns is None:
+        default_dummy_types = [pandas.StringDtype, "string[pyarrow]"]
+        columns = []
+        columns_set = set()
+        for col_id in block.value_columns:
+            label = block.col_id_to_label[col_id]
+            if (
+                label not in columns_set
+                and block.expr.get_column_type(col_id) in default_dummy_types
+            ):
+                columns.append(label)
+                columns_set.add(label)
+
+    column_labels: List = typing.cast(List, columns)
+
+    def parse_prefix_kwarg(kwarg, kwarg_name) -> Optional[List[str]]:
+        if kwarg is None:
+            return None
+        if isinstance(kwarg, str):
+            return [kwarg] * len(column_labels)
+        if isinstance(kwarg, dict):
+            return [kwarg[column] for column in column_labels]
+        kwarg = typing.cast(List, kwarg)
+        if pandas.api.types.is_list_like(kwarg) and len(kwarg) != len(column_labels):
+            raise ValueError(
+                f"Length of '{kwarg_name}' ({len(kwarg)}) did not match "
+                f"the length of the columns being encoded ({len(column_labels)})."
+            )
+        if pandas.api.types.is_list_like(kwarg):
+            return list(map(str, kwarg))
+        raise TypeError(f"{kwarg_name} kwarg must be a string, list, or dictionary")
+
+    prefix_seps = parse_prefix_kwarg(prefix_sep or "_", "prefix_sep")
+    prefix_seps = typing.cast(List, prefix_seps)
+    prefixes = parse_prefix_kwarg(prefix, "prefix")
+    if prefixes is None:
+        prefixes = column_labels
+    prefixes = typing.cast(List, prefixes)
+
+    return column_labels, prefixes, prefix_seps
 
 
 def qcut(
