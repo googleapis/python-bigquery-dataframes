@@ -752,6 +752,34 @@ def test_column_multi_index_stack(level):
     )
 
 
+def test_column_multi_index_melt():
+    if pandas.__version__.startswith("1.") or pandas.__version__.startswith("2.0"):
+        pytest.skip("pandas <2.1 uses different stack implementation")
+
+    level1 = pandas.Index(["b", "a", "b"])
+    level2 = pandas.Index(["a", "b", "b"])
+    level3 = pandas.Index(["b", "b", "a"])
+
+    multi_columns = pandas.MultiIndex.from_arrays(
+        [level1, level2, level3], names=["l1", "l2", "l3"]
+    )
+    pd_df = pandas.DataFrame(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        index=[5, 2, None],
+        columns=multi_columns,
+        dtype="Int64",
+    )
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.melt().to_pandas()
+    pd_result = pd_df.melt()
+
+    # BigFrames uses different string and int types, but values are identical
+    pandas.testing.assert_frame_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
+
+
 def test_column_multi_index_unstack(scalars_df_index, scalars_pandas_df_index):
     columns = ["int64_too", "int64_col", "rowindex_2"]
     level1 = pandas.Index(["b", "a", "b"], dtype="string[pyarrow]")
@@ -970,12 +998,18 @@ def test_df_multi_index_dot_not_supported():
     with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
         bf1.dot(bf2)
 
+    with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
+        bf1 @ bf2
+
     # right multi-index
     right_index = pandas.MultiIndex.from_tuples([("a", "aa"), ("a", "ab"), ("b", "bb")])
     bf1 = bpd.DataFrame(left_matrix)
     bf2 = bpd.DataFrame(right_matrix, index=right_index)
     with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
         bf1.dot(bf2)
+
+    with pytest.raises(NotImplementedError, match="Multi-index input is not supported"):
+        bf1 @ bf2
 
 
 def test_column_multi_index_dot_not_supported():
@@ -994,6 +1028,11 @@ def test_column_multi_index_dot_not_supported():
     ):
         bf1.dot(bf2)
 
+    with pytest.raises(
+        NotImplementedError, match="Multi-level column input is not supported"
+    ):
+        bf1 @ bf2
+
     # right multi-columns
     bf1 = bpd.DataFrame(left_matrix)
     bf2 = bpd.DataFrame(right_matrix, columns=multi_level_columns)
@@ -1001,3 +1040,8 @@ def test_column_multi_index_dot_not_supported():
         NotImplementedError, match="Multi-level column input is not supported"
     ):
         bf1.dot(bf2)
+
+    with pytest.raises(
+        NotImplementedError, match="Multi-level column input is not supported"
+    ):
+        bf1 @ bf2

@@ -639,6 +639,9 @@ NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
 options = config.options
 """Global :class:`~bigframes._config.Options` to configure BigQuery DataFrames."""
 
+option_context = config.option_context
+"""Global :class:`~bigframes._config.option_context` to configure BigQuery DataFrames."""
+
 # Session management APIs
 get_global_session = global_session.get_global_session
 close_session = global_session.close_session
@@ -671,6 +674,7 @@ __all___ = [
     # Other public pandas attributes
     "NamedAgg",
     "options",
+    "option_context",
     # Session management APIs
     "get_global_session",
     "close_session",

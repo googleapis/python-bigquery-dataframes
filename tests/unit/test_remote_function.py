@@ -12,21 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
+from ibis.backends.bigquery import datatypes as bq_types
+from ibis.expr import datatypes as ibis_types
 
-from bigframes._config import option_context, options
-from bigframes._config.bigquery_options import BigQueryOptions
-from bigframes.core.global_session import close_session, get_global_session
-from bigframes.session import connect, Session
-from bigframes.version import __version__
+from bigframes import remote_function as rf
 
-__all__ = [
-    "options",
-    "BigQueryOptions",
-    "get_global_session",
-    "close_session",
-    "connect",
-    "Session",
-    "__version__",
-    "option_context",
-]
+
+def test_supported_types_correspond():
+    # The same types should be representable by the supported Python and BigQuery types.
+    ibis_types_from_python = {ibis_types.dtype(t) for t in rf.SUPPORTED_IO_PYTHON_TYPES}
+    ibis_types_from_bigquery = {
+        bq_types.BigQueryType.to_ibis(tk) for tk in rf.SUPPORTED_IO_BIGQUERY_TYPEKINDS
+    }
+
+    assert ibis_types_from_python == ibis_types_from_bigquery
