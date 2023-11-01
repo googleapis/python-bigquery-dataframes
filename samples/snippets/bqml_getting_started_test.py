@@ -14,12 +14,17 @@
 
 
 def test_bqml_getting_started():
-    # [START bigquery_getting_Started_bqml_tutorial]
+    # [start bigquery_getting_Started_bqml_tutorial]
     import bigframes.pandas as bpd
     from bigframes.ml.linear_model import LogisticRegression
 
-    #EXPLANATION - REFERENCE GBQ DOCS! 
+    # Read_gbq loads a DataFrame from BiqQuery and gives an unordered, 
+    # unindexed data source. The default DataFrame will have an arbitary 
+    # index and ordering. 
+
     df = bpd.read_gbq(
+    # Generate_UUID produces a random universally uniquee identifier
+    # as a STRING value.
         """
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
@@ -44,17 +49,17 @@ def test_bqml_getting_started():
     # represent the possible outcomes.
     label = transactions.notnull().map({True: 1, False: 0})
 
-    # Operating systems of users, extracting child field as a struct.
+    # Choosing the operating system of the users devices.
     operatingSystem = df["device"].struct.field("operatingSystem")
     operatingSystem = operatingSystem.fillna("")
 
-    # Indicates whether the users devices are mobile.
+    # Extract whether the visitor's device is a mobile device.
     isMobile = df["device"].struct.field("isMobile")
 
-    # Country from which the sessions originate, IP address based.
+    # Extract where the visitors country of origin is. 
     country = df["geoNetwork"].struct.field("country").fillna("")
 
-    # Total number of pageviews within the session.
+    # Extract the total pageviews from the totals column.
     pageviews = df['totals'].struct.field("pageviews").fillna(0)
 
     # Selecting values to represent data in columns in DataFrames.
@@ -62,11 +67,12 @@ def test_bqml_getting_started():
         {"os": operatingSystem, "is_mobile": isMobile, "pageviews": pageviews}
     )
 
-    # Logistic Regression model splits data into two classes, giving the
+    # Logistic Regression model splits data into two classes,giving the
     # probablity the data is in one of the classes. 
     model = LogisticRegression() 
     model.fit(features, label)
 
-    # When writing a DataFrame to a BigQuery table, include destinaton table 
-    # and parameters, index defaults to "True". 
+    # 
+    # 
     model.to_gbq("bqml_tutorial.sample_model", replace=True) 
+    # [END bigquery_getting_started_bqml_tutorial]
