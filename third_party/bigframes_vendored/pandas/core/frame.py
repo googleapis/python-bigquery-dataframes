@@ -150,7 +150,7 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> destination = df.to_gbq(ordering_id="ordering_id")
             >>> # The table created can be read outside of the current session.
-            >>> bpd.reset_session()  # For demonstration, only.
+            >>> bpd.close_session()  # For demonstration, only.
             >>> bpd.read_gbq(destination, index_col="ordering_id")
                          col1  col2
             ordering_id
@@ -167,8 +167,11 @@ class DataFrame(NDFrame):
                 If no ``destination_table`` is set, a new temporary table is
                 created in the BigQuery anonymous dataset.
 
-            if_exists (Optional[str], default 'fail'):
-                Behavior when the destination table exists. Value can be one of:
+            if_exists (Optional[str]):
+                Behavior when the destination table exists. When
+                ``destination_table`` is set, this defaults to ``'fail'``. When
+                ``destination_table`` is not set, this field is not applicable.
+                A new table is always created. Value can be one of:
 
                 ``'fail'``
                     If table exists raise pandas_gbq.gbq.TableCreationError.
