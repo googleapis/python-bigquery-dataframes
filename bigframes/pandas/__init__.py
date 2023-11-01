@@ -147,82 +147,44 @@ def get_dummies(
     drop_first: bool = False,
     dtype: Any = None,
 ) -> DataFrame:
-    block = data._block
-    original_value_columns_ids = block.value_columns
-    original_value_columns_labels = block.column_labels
-    prefix_given = prefix is not None
-
+    # simplify input parameters into per-input-label lists
+    # also raise errors for invalid parameters
     column_labels, prefixes, prefix_seps = _standardize_get_dummies_params(
-        data, prefix, prefix_sep, dummy_na, columns, drop_first, dtype
+        data, prefix, prefix_sep, columns, dtype
     )
 
+    # combine prefixes into per-column-id list
+    full_columns_prefixes, columns_ids = _determine_get_dummies_columns_from_labels(
+        data, column_labels, prefix is not None, prefixes, prefix_seps
+    )
+
+    # run queries to compute unique values
+    block = data._block
     max_unique_value = (
         bigframes.core.blocks._BQ_MAX_COLUMNS
         - len(block.value_columns)
         - len(block.index_columns)
         - 1
     ) // len(column_labels)
-    columns_ids = []
-    full_prefixes_with_duplicity = []
-    for i in range(len(column_labels)):
-        label = column_labels[i]
-        full_prefix = "" if label is None else prefixes[i] + prefix_seps[i]
-        for col_id in block.label_to_col_id[label]:
-            columns_ids.append(col_id)
-            full_prefixes_with_duplicity.append(full_prefix)
-
     columns_values = [
         block._get_unique_values([col_id], max_unique_value) for col_id in columns_ids
     ]
 
-    dummy_columns_ids = []
-    dummy_columns_labels = []
+    # for each dummified column, add the content of the output columns via block operations
+    intermediate_col_ids = []
     for i in range(len(columns_values)):
-        level = columns_values[i].get_level_values(0).sort_values()
-        column_label = full_prefixes_with_duplicity[i]
+        level = columns_values[i].get_level_values(0).sort_values().dropna()
+        if drop_first:
+            level = level[1:]
+        column_label = full_columns_prefixes[i]
         column_id = columns_ids[i]
+        block, new_intermediate_col_ids = _perform_get_dummies_block_operations(
+            block, level, column_label, column_id, dummy_na
+        )
+        intermediate_col_ids.extend(new_intermediate_col_ids)
 
-        skip_next = drop_first
-        for value in level:
-            if pandas.isna(value):
-                continue
-            if skip_next:
-                skip_next = False
-                continue
-
-            new_column_label = f"{column_label}{value}"
-            if column_label == "" or isinstance(data, Series) and not prefix_given:
-                # in these special cases, the columns are labeled with
-                # the scalar itself, not a string
-                new_column_label = value
-
-            new_block, new_id = block.apply_unary_op(
-                column_id, ops.BinopPartialLeft(ops.eq_op, value)
-            )
-            block, new_id = new_block.apply_unary_op(
-                new_id, ops.BinopPartialRight(ops.fillna_op, False)
-            )
-            dummy_columns_ids.append(new_id)
-            dummy_columns_labels.append(new_column_label)
-        if dummy_na:
-            # dummy column name for na depends on the dtype
-            na_string = str(pandas.Index([None], dtype=level.dtype)[0])
-            new_column_label = f"{column_label}{na_string}"
-            block, new_id = block.apply_unary_op(column_id, ops.isnull_op)
-            dummy_columns_ids.append(new_id)
-            dummy_columns_labels.append(new_column_label)
-
-    dummified_col_ids = set(columns_ids)
-    carried_over_ids = []
-    carried_over_labels = []
-    for i in range(len(original_value_columns_ids)):
-        col_id = original_value_columns_ids[i]
-        if col_id not in dummified_col_ids:
-            carried_over_ids.append(col_id)
-            carried_over_labels.append(original_value_columns_labels[i])
-    block = block.select_columns(carried_over_ids + dummy_columns_ids)
-    block = block.with_column_labels(carried_over_labels + dummy_columns_labels)
-
+    # drop dummified columns (and the intermediate columns we added)
+    block = block.drop_columns(columns_ids + intermediate_col_ids)
     return DataFrame(block)
 
 
@@ -233,9 +195,7 @@ def _standardize_get_dummies_params(
     data: Union[DataFrame, Series],
     prefix: Union[List, dict, str, None],
     prefix_sep: Union[List, dict, str, None],
-    dummy_na: bool,
     columns: Optional[List],
-    drop_first: bool,
     dtype: Any,
 ) -> Tuple[List, List[str], List[str]]:
     block = data._block
@@ -295,6 +255,60 @@ def _standardize_get_dummies_params(
     prefixes = typing.cast(List, prefixes)
 
     return column_labels, prefixes, prefix_seps
+
+
+def _determine_get_dummies_columns_from_labels(
+    data: Union[DataFrame, Series],
+    column_labels: List,
+    prefix_given: bool,
+    prefixes: List[str],
+    prefix_seps: List[str],
+) -> Tuple[List[str], List[str]]:
+    block = data._block
+
+    columns_ids = []
+    columns_prefixes = []
+    for i in range(len(column_labels)):
+        label = column_labels[i]
+        empty_prefix = label is None or (isinstance(data, Series) and not prefix_given)
+        full_prefix = "" if empty_prefix else prefixes[i] + prefix_seps[i]
+
+        for col_id in block.label_to_col_id[label]:
+            columns_ids.append(col_id)
+            columns_prefixes.append(full_prefix)
+
+    return columns_prefixes, columns_ids
+
+
+def _perform_get_dummies_block_operations(
+    block: bigframes.core.blocks.Block,
+    level: pandas.Index,
+    column_label: str,
+    column_id: str,
+    dummy_na: bool,
+) -> Tuple[bigframes.core.blocks.Block, List[str]]:
+    intermediate_col_ids = []
+    for value in level:
+        new_column_label = f"{column_label}{value}"
+        if column_label == "":
+            new_column_label = value
+        new_block, new_id = block.apply_unary_op(
+            column_id, ops.BinopPartialLeft(ops.eq_op, value)
+        )
+        intermediate_col_ids.append(new_id)
+        block, _ = new_block.apply_unary_op(
+            new_id,
+            ops.BinopPartialRight(ops.fillna_op, False),
+            result_label=new_column_label,
+        )
+    if dummy_na:
+        # dummy column name for na depends on the dtype
+        na_string = str(pandas.Index([None], dtype=level.dtype)[0])
+        new_column_label = f"{column_label}{na_string}"
+        block, _ = block.apply_unary_op(
+            column_id, ops.isnull_op, result_label=new_column_label
+        )
+    return block, intermediate_col_ids
 
 
 def qcut(
