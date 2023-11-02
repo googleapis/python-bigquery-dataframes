@@ -223,6 +223,17 @@ class Session(
         query_job.result()  # blocks until finished
         self._session_id = query_job.session_info.session_id
 
+        # The anonymous dataset is used by BigQuery to write query results and
+        # session tables. BigQuery DataFrames also writes temp tables directly
+        # to the dataset, no BigQuery Session required. Note: there is a
+        # different anonymous dataset per location. See:
+        # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+        query_destination = query_job.destination
+        self._anonymous_dataset = bigquery.DatasetReference(
+            query_destination.project,
+            query_destination.dataset_id,
+        )
+
         self.bqclient.default_query_job_config = bigquery.QueryJobConfig(
             connection_properties=[
                 bigquery.ConnectionProperty("session_id", self._session_id)
@@ -352,7 +363,7 @@ class Session(
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            Simple query input:
+        Simple query input:
 
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
@@ -368,7 +379,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            Preserve ordering in a query input.
+        Preserve ordering in a query input.
 
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
@@ -1465,13 +1476,13 @@ class Session(
 
         **Examples:**
 
-        >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-        >>> function_name = "bqutil.fn.cw_lower_case_ascii_only"
-        >>> func = bpd.read_gbq_function(function_name=function_name)
-        >>> func.bigframes_remote_function
-        'bqutil.fn.cw_lower_case_ascii_only'
+            >>> function_name = "bqutil.fn.cw_lower_case_ascii_only"
+            >>> func = bpd.read_gbq_function(function_name=function_name)
+            >>> func.bigframes_remote_function
+            'bqutil.fn.cw_lower_case_ascii_only'
 
         Args:
             function_name (str):
@@ -1502,12 +1513,10 @@ class Session(
         max_results: Optional[int] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts query job and waits for results
+        Starts query job and waits for results.
         """
-        if job_config is not None:
-            query_job = self.bqclient.query(sql, job_config=job_config)
-        else:
-            query_job = self.bqclient.query(sql)
+        job_config = self._prepare_job_config(job_config)
+        query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
@@ -1535,6 +1544,17 @@ class Session(
             )  # Wait for the job to complete
         else:
             job.result()
+
+    def _prepare_job_config(
+        self, job_config: Optional[bigquery.QueryJobConfig] = None
+    ) -> bigquery.QueryJobConfig:
+        if job_config is None:
+            job_config = self.bqclient.default_query_job_config
+        if bigframes.options.compute.maximum_bytes_billed is not None:
+            job_config.maximum_bytes_billed = (
+                bigframes.options.compute.maximum_bytes_billed
+            )
+        return job_config
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
