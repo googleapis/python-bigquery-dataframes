@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import re
@@ -517,10 +518,12 @@ class Session(
         index and ordering. See:
         https://cloud.google.com/bigquery/docs/table-clones-create
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
         destination = bigframes_io.create_table_clone(
             table_ref,
             self._anonymous_dataset,
-            constants.DEFAULT_EXPIRATION,
+            # TODO(swast): Allow the default expiration to be configured.
+            now + constants.DEFAULT_EXPIRATION,
             self,
             api_name,
         )
