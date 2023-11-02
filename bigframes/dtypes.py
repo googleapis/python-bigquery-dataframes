@@ -19,6 +19,7 @@ import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
 import geopandas as gpd  # type: ignore
+import google.cloud.bigquery as bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -27,6 +28,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
+import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -166,6 +168,10 @@ def ibis_dtype_to_bigframes_dtype(
 
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
+
+    # BigQuery only supports integers of size 64 bits.
+    if isinstance(ibis_dtype, ibis_dtypes.Integer):
+        return pd.Int64Dtype()
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
@@ -370,6 +376,8 @@ def cast_ibis_value(
         ibis_dtypes.float64: (ibis_dtypes.string, ibis_dtypes.int64),
         ibis_dtypes.string: (ibis_dtypes.int64, ibis_dtypes.float64),
         ibis_dtypes.date: (),
+        ibis_dtypes.Decimal(precision=38, scale=9): (ibis_dtypes.float64,),
+        ibis_dtypes.Decimal(precision=76, scale=38): (ibis_dtypes.float64,),
         ibis_dtypes.time: (),
         ibis_dtypes.timestamp: (ibis_dtypes.Timestamp(timezone="UTC"),),
         ibis_dtypes.Timestamp(timezone="UTC"): (ibis_dtypes.timestamp,),
@@ -401,3 +409,18 @@ def cast_ibis_value(
     raise TypeError(
         f"Unsupported cast {value.type()} to {to_type}. {constants.FEEDBACK_LINK}"
     )
+
+
+def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
+    """For each STRUCT field, make sure we specify the full type to use."""
+    # TODO(swast): Also override ARRAY fields.
+    dtypes = {}
+    for field in schema:
+        if field.field_type == "RECORD" and field.mode != "REPEATED":
+            # TODO(swast): We're using a private API here. Would likely be
+            # better if we called `to_arrow()` and converted to a pandas
+            # DataFrame ourselves from that.
+            dtypes[field.name] = pd.ArrowDtype(
+                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
+            )
+    return dtypes

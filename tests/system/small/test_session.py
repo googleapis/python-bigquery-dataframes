@@ -20,6 +20,7 @@ import typing
 from typing import List
 
 import google.api_core.exceptions
+import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
 import pytest
@@ -231,6 +232,30 @@ def test_read_gbq_w_anonymous_query_results_table(session: bigframes.Session):
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
+def test_read_gbq_w_primary_keys_table(
+    session: bigframes.Session, usa_names_grouped_table: bigquery.Table
+):
+    table = usa_names_grouped_table
+    # TODO(b/305264153): Use public properties to fetch primary keys once
+    # added to google-cloud-bigquery.
+    primary_keys = (
+        table._properties.get("tableConstraints", {})
+        .get("primaryKey", {})
+        .get("columns")
+    )
+    assert len(primary_keys) != 0
+
+    df = session.read_gbq(f"{table.project}.{table.dataset_id}.{table.table_id}")
+    result = df.head(100).to_pandas()
+
+    # Verify that the DataFrame is already sorted by primary keys.
+    sorted_result = result.sort_values(primary_keys)
+    pd.testing.assert_frame_equal(result, sorted_result)
+
+    # Verify that we're working from a snapshot rather than a copy of the table.
+    assert "FOR SYSTEM_TIME AS OF TIMESTAMP" in df.sql
+
+
 @pytest.mark.parametrize(
     ("query_or_table", "max_results"),
     [
@@ -293,7 +318,6 @@ def test_read_pandas(session, scalars_dfs):
     _, scalars_pandas_df = scalars_dfs
 
     df = session.read_pandas(scalars_pandas_df)
-    assert df._block._expr._ordering is not None
 
     result = df.to_pandas()
     expected = scalars_pandas_df
@@ -325,9 +349,8 @@ def test_read_pandas_rowid_exists_adds_suffix(session, scalars_pandas_df_default
     pandas_df = scalars_pandas_df_default_index.copy()
     pandas_df["rowid"] = np.arange(pandas_df.shape[0])
 
-    df = session.read_pandas(pandas_df)
-    total_order_col = df._block._expr._ordering.total_order_col
-    assert total_order_col and total_order_col.column_id == "rowid_2"
+    df_roundtrip = session.read_pandas(pandas_df).to_pandas()
+    pd.testing.assert_frame_equal(df_roundtrip, pandas_df, check_dtype=False)
 
 
 def test_read_pandas_tokyo(
@@ -360,7 +383,6 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
     )
-    assert df._block._expr._ordering is not None
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
     pd.testing.assert_index_equal(df.columns, scalars_df.columns)
@@ -416,7 +438,6 @@ def test_read_csv_local_default_engine(session, scalars_dfs, sep):
             # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
             dtype=dtype,
         )
-        assert df._block._expr._ordering is not None
 
         # TODO(chelsealin): If we serialize the index, can more easily compare values.
         pd.testing.assert_index_equal(df.columns, scalars_df.columns)
@@ -951,7 +972,6 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
         orient="records",
     )
 
-    assert df._block._expr._ordering is not None
     pd.testing.assert_index_equal(df.columns, scalars_df.columns)
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,

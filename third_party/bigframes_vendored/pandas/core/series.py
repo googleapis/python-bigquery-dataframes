@@ -22,6 +22,23 @@ class Series(NDFrame):  # type: ignore[misc]
     def dt(self):
         """
         Accessor object for datetime-like properties of the Series values.
+
+        Returns:
+            bigframes.operations.datetimes.DatetimeMethods:
+                An accessor containing datetime methods.
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def struct(self):
+        """
+        Accessor object for struct properties of the Series values.
+
+        Returns:
+            bigframes.operations.structs.StructAccessor:
+                An accessor containing struct methods.
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -899,6 +916,38 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def interpolate(self, method: str = "linear"):
+        """
+        Fill NaN values using an interpolation method.
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+
+        Returns:
+            Series:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> series = bpd.Series([1, 2, 3, None, None, 6])
+            >>> series.interpolate()
+            0    1.0
+            1    2.0
+            2    3.0
+            3    4.0
+            4    5.0
+            5    6.0
+            dtype: Float64
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def fillna(
         self,
         value=None,
@@ -1637,6 +1686,19 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def unstack(self, level):
+        """
+        Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
+
+        Args:
+            level (int, str, or list of these, default last level):
+                Level(s) to unstack, can pass level name.
+
+        Returns:
+            DataFrame: Unstacked Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def argmax(self):
         """
         Return int position of the smallest value in the Series.
@@ -1733,6 +1795,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
         NAs stay NA unless handled otherwise by a particular method. Patterned
         after Python’s string methods, with some inspiration from R’s stringr package.
+
+        Returns:
+            bigframes.operations.strings.StringMethods:
+                An accessor containing string methods.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1832,4 +1898,9 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def iat(self):
         """Access a single value for a row/column pair by integer position."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def at(self):
+        """Access a single value for a row/column label pair."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

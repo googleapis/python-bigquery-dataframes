@@ -17,6 +17,7 @@ import hashlib
 import logging
 import math
 import pathlib
+import textwrap
 import typing
 from typing import Dict, Optional
 
@@ -234,6 +235,8 @@ def load_test_data_tables(
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
+        ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
+        ("matrix_3by4", "matrix_3by4.json", "matrix_3by4.jsonl"),
     ]:
         test_data_hash = hashlib.md5()
         _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
@@ -301,6 +304,16 @@ def penguins_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def time_series_table_id(test_data_tables) -> str:
     return test_data_tables["time_series"]
+
+
+@pytest.fixture(scope="session")
+def matrix_2by3_table_id(test_data_tables) -> str:
+    return test_data_tables["matrix_2by3"]
+
+
+@pytest.fixture(scope="session")
+def matrix_3by4_table_id(test_data_tables) -> str:
+    return test_data_tables["matrix_3by4"]
 
 
 @pytest.fixture(scope="session")
@@ -387,7 +400,11 @@ def hockey_df(
     hockey_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(hockey_table_id)
+    return (
+        session.read_gbq(hockey_table_id)
+        .set_index(["player_name", "season"])
+        .sort_index()
+    )
 
 
 @pytest.fixture(scope="session")
@@ -406,7 +423,63 @@ def hockey_pandas_df() -> pd.DataFrame:
             "season": pd.Int64Dtype(),
         },
     )
+    df = df.set_index(["player_name", "season"]).sort_index()
+    return df
+
+
+@pytest.fixture(scope="session")
+def matrix_2by3_df(
+    matrix_2by3_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at a test 2-by-3 matrix data."""
+    df = session.read_gbq(matrix_2by3_table_id)
+    df = df.set_index("rowindex").sort_index()
+    return df
+
+
+@pytest.fixture(scope="session")
+def matrix_2by3_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at a test 2-by-3 matrix data."""
+    df = pd.read_json(
+        DATA_DIR / "matrix_2by3.jsonl",
+        lines=True,
+        dtype={
+            "rowindex": pd.Int64Dtype(),
+            "a": pd.Int64Dtype(),
+            "b": pd.Int64Dtype(),
+            "c": pd.Int64Dtype(),
+        },
+    )
+    df = df.set_index("rowindex").sort_index()
     df.index = df.index.astype("Int64")
+    return df
+
+
+@pytest.fixture(scope="session")
+def matrix_3by4_df(
+    matrix_3by4_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at a test 3-by-4 matrix data."""
+    df = session.read_gbq(matrix_3by4_table_id)
+    df = df.set_index("rowindex").sort_index()
+    return df
+
+
+@pytest.fixture(scope="session")
+def matrix_3by4_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at a test 3-by-4 matrix data."""
+    df = pd.read_json(
+        DATA_DIR / "matrix_3by4.jsonl",
+        lines=True,
+        dtype={
+            "rowindex": pd.StringDtype(storage="pyarrow"),
+            "w": pd.Int64Dtype(),
+            "x": pd.Int64Dtype(),
+            "y": pd.Int64Dtype(),
+            "z": pd.Int64Dtype(),
+        },
+    )
+    df = df.set_index("rowindex").sort_index()
     return df
 
 
@@ -795,11 +868,34 @@ WHERE
         return model_name
 
 
-@pytest.fixture()
-def deferred_repr():
-    bigframes.options.display.repr_mode = "deferred"
-    yield
-    bigframes.options.display.repr_mode = "head"
+@pytest.fixture(scope="session")
+def usa_names_grouped_table(
+    session: bigframes.Session, dataset_id_permanent
+) -> bigquery.Table:
+    """Provides a table with primary key(s) set."""
+    table_id = f"{dataset_id_permanent}.usa_names_grouped"
+    try:
+        return session.bqclient.get_table(table_id)
+    except google.cloud.exceptions.NotFound:
+        query = textwrap.dedent(
+            f"""
+            CREATE TABLE `{dataset_id_permanent}.usa_names_grouped`
+            (
+                total_people INT64,
+                name STRING,
+                gender STRING,
+                year INT64,
+                PRIMARY KEY(name, gender, year) NOT ENFORCED
+            )
+            AS
+            SELECT SUM(`number`) AS total_people, name, gender, year
+            FROM `bigquery-public-data.usa_names.usa_1910_2013`
+            GROUP BY name, gender, year
+            """
+        )
+        job = session.bqclient.query(query)
+        job.result()
+        return session.bqclient.get_table(table_id)
 
 
 @pytest.fixture()

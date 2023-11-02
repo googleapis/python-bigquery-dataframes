@@ -46,7 +46,6 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
-import bigframes.core.io
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -56,6 +55,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
+import bigframes.session._io.bigquery
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
@@ -170,9 +170,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     if isinstance(dt, pandas.ArrowDtype)
                 )
             ):
-                self._block = blocks.block_from_local(
-                    pd_dataframe, session or bigframes.pandas.get_global_session()
-                )
+                self._block = blocks.block_from_local(pd_dataframe)
             elif session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
@@ -260,6 +258,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.IatDataFrameIndexer(self)
 
     @property
+    def at(self) -> indexers.AtDataFrameIndexer:
+        return indexers.AtDataFrameIndexer(self)
+
+    @property
     def dtypes(self) -> pandas.Series:
         return pandas.Series(data=self._block.dtypes, index=self._block.column_labels)
 
@@ -295,7 +297,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def _session(self) -> bigframes.Session:
-        return self._get_block().expr._session
+        return self._get_block().expr.session
 
     def __len__(self):
         rows, _ = self.shape
@@ -889,6 +891,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
+    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame"""
+        return self._block.to_pandas_batches()
+
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
 
@@ -1034,22 +1040,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError("Columns must be a multiindex to reorder levels.")
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        if utils.is_list_like(level):
-            levels = list(level)
-        else:
-            levels = [level]
-        resolved_level_ids = []
-        for level_ref in levels:
-            if isinstance(level_ref, int):
-                resolved_level_ids.append(self._block.index_columns[level_ref])
-            elif isinstance(level_ref, typing.Hashable):
-                matching_ids = self._block.index_name_to_col_id.get(level_ref, [])
-                if len(matching_ids) != 1:
-                    raise ValueError("level name cannot be found or is ambiguous")
-                resolved_level_ids.append(matching_ids[0])
-            else:
-                raise ValueError(f"Unexpected level: {level_ref}")
-        return resolved_level_ids
+        return self._block.resolve_index_level(level)
 
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
@@ -1114,24 +1105,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
 
             local_df = bigframes.dataframe.DataFrame(
-                {k: v}, session=self._get_block().expr._session
+                {k: v}, session=self._get_block().expr.session
             )
             # local_df is likely (but not guarunteed) to be cached locally
             # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            this_offsets_col_id = bigframes.core.guid.generate_guid()
-            this_expr = self._get_block()._expr.promote_offsets(this_offsets_col_id)
-            block = blocks.Block(
-                expr=this_expr,
-                index_labels=self.index.names,
-                index_columns=self._block.index_columns,
-                column_labels=[this_offsets_col_id] + list(self._block.value_columns),
-            )  # offsets are temporarily the first value column, label set to id
-            this_df_with_offsets = DataFrame(data=block)
-            join_result = this_df_with_offsets.join(
-                other=local_df, on=this_offsets_col_id, how="left"
+            new_column_block = local_df._block
+            original_index_column_ids = self._block.index_columns
+            self_block = self._block.reset_index(drop=False)
+            result_index, (get_column_left, get_column_right) = self_block.index.join(
+                new_column_block.index, how="left", block_identity_join=True
             )
-            return join_result.drop(columns=[this_offsets_col_id])
+            result_block = result_index._block
+            result_block = result_block.set_index(
+                [get_column_left[col_id] for col_id in original_index_column_ids],
+                index_labels=self._block.index_labels,
+            )
+            return DataFrame(result_block)
         else:
             return self._assign_scalar(k, v)
 
@@ -1444,6 +1434,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
+    def interpolate(self, method: str = "linear") -> DataFrame:
+        result = block_ops.interpolate(self._block, method)
+        return DataFrame(result)
+
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
@@ -1683,6 +1677,44 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
 
+    def melt(
+        self,
+        id_vars: typing.Optional[typing.Iterable[typing.Hashable]] = None,
+        value_vars: typing.Optional[typing.Iterable[typing.Hashable]] = None,
+        var_name: typing.Union[
+            typing.Hashable, typing.Sequence[typing.Hashable]
+        ] = None,
+        value_name: typing.Hashable = "value",
+    ):
+        if var_name is None:
+            # Determine default var_name. Attempt to use column labels if they are unique
+            if self.columns.nlevels > 1:
+                if len(set(self.columns.names)) == len(self.columns.names):
+                    var_name = self.columns.names
+                else:
+                    var_name = [f"variable_{i}" for i in range(len(self.columns.names))]
+            else:
+                var_name = self.columns.name or "variable"
+
+        var_name = tuple(var_name) if utils.is_list_like(var_name) else (var_name,)
+
+        if id_vars is not None:
+            id_col_ids = [self._resolve_label_exact(col) for col in id_vars]
+        else:
+            id_col_ids = []
+        if value_vars is not None:
+            val_col_ids = [self._resolve_label_exact(col) for col in value_vars]
+        else:
+            val_col_ids = [
+                col_id
+                for col_id in self._block.value_columns
+                if col_id not in id_col_ids
+            ]
+
+        return DataFrame(
+            self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
+        )
+
     def describe(self) -> DataFrame:
         df_numeric = self._drop_non_numeric(keep_bool=False)
         if len(df_numeric.columns) == 0:
@@ -1712,10 +1744,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     kurtosis = kurt
 
-    def pivot(
+    def _pivot(
         self,
         *,
         columns: typing.Union[blocks.Label, Sequence[blocks.Label]],
+        columns_unique_values: typing.Optional[
+            typing.Union[pandas.Index, Sequence[object]]
+        ] = None,
         index: typing.Optional[
             typing.Union[blocks.Label, Sequence[blocks.Label]]
         ] = None,
@@ -1739,9 +1774,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pivot_block = block.pivot(
             columns=column_ids,
             values=value_col_ids,
+            columns_unique_values=columns_unique_values,
             values_in_index=utils.is_list_like(values),
         )
         return DataFrame(pivot_block)
+
+    def pivot(
+        self,
+        *,
+        columns: typing.Union[blocks.Label, Sequence[blocks.Label]],
+        index: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+        values: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+    ) -> DataFrame:
+        return self._pivot(columns=columns, index=index, values=values)
 
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
@@ -1781,20 +1830,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
-    def unstack(self):
+    def unstack(self, level: LevelsType = -1):
+        if isinstance(level, int) or isinstance(level, str):
+            level = [level]
+
         block = self._block
         # Special case, unstack with mono-index transpose into a series
         if self.index.nlevels == 1:
             block = block.stack(how="right", levels=self.columns.nlevels)
             return bigframes.series.Series(block)
 
-        # Pivot by last level of index
-        index_ids = block.index_columns
+        # Pivot by index levels
+        unstack_ids = self._resolve_levels(level)
         block = block.reset_index(drop=False)
-        block = block.set_index(index_ids[:-1])
+        block = block.set_index(
+            [col for col in self._block.index_columns if col not in unstack_ids]
+        )
 
         pivot_block = block.pivot(
-            columns=[index_ids[-1]],
+            columns=unstack_ids,
             values=self._block.value_columns,
             values_in_index=True,
         )
@@ -2180,15 +2234,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_csv_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_csv_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             field_delimiter=sep,
             header=header,
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_json(
@@ -2222,48 +2276,75 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_data_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             format="JSON",
             export_options={},
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_gbq(
         self,
-        destination_table: str,
+        destination_table: Optional[str] = None,
         *,
-        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
-    ) -> None:
-        if "." not in destination_table:
-            raise ValueError(
-                "Invalid Table Name. Should be of the form 'datasetId.tableId' or "
-                "'projectId.datasetId.tableId'"
-            )
-
+    ) -> str:
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
             "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
             "append": bigquery.WriteDisposition.WRITE_APPEND,
         }
+
+        if destination_table is None:
+            # TODO(swast): If there have been no modifications to the DataFrame
+            # since the last time it was written (cached), then return that.
+            # For `read_gbq` nodes, return the underlying table clone.
+            destination_table = bigframes.session._io.bigquery.create_temp_table(
+                self._session.bqclient,
+                self._session._anonymous_dataset,
+                # TODO(swast): allow custom expiration times, probably via session configuration.
+                constants.DEFAULT_EXPIRATION,
+            )
+
+            if if_exists is not None and if_exists != "replace":
+                raise ValueError(
+                    f"Got invalid value {repr(if_exists)} for if_exists. "
+                    "When no destination table is specified, a new table is always created. "
+                    "None or 'replace' are the only valid options in this case."
+                )
+            if_exists = "replace"
+
+        if "." not in destination_table:
+            raise ValueError(
+                f"Got invalid value for destination_table {repr(destination_table)}. "
+                "Should be of the form 'datasetId.tableId' or 'projectId.datasetId.tableId'."
+            )
+
+        if if_exists is None:
+            if_exists = "fail"
+
         if if_exists not in dispositions:
-            raise ValueError("'{0}' is not valid for if_exists".format(if_exists))
+            raise ValueError(
+                f"Got invalid value {repr(if_exists)} for if_exists. "
+                f"Valid options include None or one of {dispositions.keys()}."
+            )
 
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
                 destination_table,
-                default_project=self._block.expr._session.bqclient.project,
+                default_project=self._block.expr.session.bqclient.project,
             ),
         )
 
         self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
+        return destination_table
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
@@ -2298,15 +2379,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options["compression"] = compression.upper()
 
         result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.core.io.IO_ORDERING_ID
+            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
         )
-        export_data_statement = bigframes.core.io.create_export_data_statement(
+        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
             format="PARQUET",
             export_options=export_options,
         )
-        _, query_job = self._block.expr._session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
 
     def to_dict(
@@ -2449,7 +2530,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         expr = self._block.expr
-        session = expr._session
+        session = expr.session
         sql = self._create_io_query(index=index, ordering_id=ordering_id)
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
@@ -2574,3 +2655,88 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _cached(self) -> DataFrame:
         return DataFrame(self._block.cached())
+
+    _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
+
+    def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
+        if not isinstance(other, (DataFrame, bf_series.Series)):
+            raise NotImplementedError(
+                f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
+            )
+
+        if len(self.index.names) > 1 or len(other.index.names) > 1:
+            raise NotImplementedError(
+                f"Multi-index input is not supported. {constants.FEEDBACK_LINK}"
+            )
+
+        if len(self.columns.names) > 1 or (
+            isinstance(other, DataFrame) and len(other.columns.names) > 1
+        ):
+            raise NotImplementedError(
+                f"Multi-level column input is not supported. {constants.FEEDBACK_LINK}"
+            )
+
+        # Convert the dataframes into cell-value-decomposed representation, i.e.
+        # each cell value is present in a separate row
+        row_id = "row"
+        col_id = "col"
+        val_id = "val"
+        left_suffix = "_left"
+        right_suffix = "_right"
+        cvd_columns = [row_id, col_id, val_id]
+
+        def get_left_id(id):
+            return f"{id}{left_suffix}"
+
+        def get_right_id(id):
+            return f"{id}{right_suffix}"
+
+        other_frame = other if isinstance(other, DataFrame) else other.to_frame()
+
+        left = self.stack().reset_index()
+        left.columns = cvd_columns
+
+        right = other_frame.stack().reset_index()
+        right.columns = cvd_columns
+
+        merged = left.merge(
+            right,
+            left_on=col_id,
+            right_on=row_id,
+            suffixes=(left_suffix, right_suffix),
+        )
+
+        left_row_id = get_left_id(row_id)
+        right_col_id = get_right_id(col_id)
+
+        aggregated = (
+            merged.assign(
+                val=merged[get_left_id(val_id)] * merged[get_right_id(val_id)]
+            )[[left_row_id, right_col_id, val_id]]
+            .groupby([left_row_id, right_col_id])
+            .sum(numeric_only=True)
+        )
+        aggregated_noindex = aggregated.reset_index()
+        aggregated_noindex.columns = cvd_columns
+        result = aggregated_noindex._pivot(
+            columns=col_id, columns_unique_values=other_frame.columns, index=row_id
+        )
+
+        # Set the index names to match the left side matrix
+        result.index.names = self.index.names
+
+        # Pivot has the result columns ordered alphabetically. It should still
+        # match the columns in the right sided matrix. Let's reorder them as per
+        # the right side matrix
+        if not result.columns.difference(other_frame.columns).empty:
+            raise RuntimeError(
+                f"Could not construct all columns. {constants.FEEDBACK_LINK}"
+            )
+        result = result[other_frame.columns]
+
+        if isinstance(other, bf_series.Series):
+            result = result[other.name].rename()
+
+        return result
+
+    __matmul__ = dot

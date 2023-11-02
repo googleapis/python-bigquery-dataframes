@@ -33,7 +33,19 @@ class DataFrame(NDFrame):
 
     @property
     def shape(self) -> tuple[int, int]:
-        """Return a tuple representing the dimensionality of the DataFrame."""
+        """
+        Return a tuple representing the dimensionality of the DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2, 3],
+            ...                     'col2': [4, 5, 6]})
+            >>> df.shape
+            (3, 2)
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -44,20 +56,30 @@ class DataFrame(NDFrame):
         It has the row axis labels and column axis labels as the only members.
         They are returned in that order.
 
-        Examples
+        **Examples:**
 
-        .. code-block::
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-            df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            df.axes
-            [RangeIndex(start=0, stop=2, step=1), Index(['col1', 'col2'],
-            dtype='object')]
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.axes[1:]
+            [Index(['col1', 'col2'], dtype='object')]
         """
         return [self.index, self.columns]
 
     @property
     def values(self) -> np.ndarray:
         """Return the values of DataFrame in the form of a NumPy array.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.values
+            array([[1, 3],
+                   [2, 4]], dtype=object)
 
         Args:
             dytype (default None):
@@ -76,6 +98,16 @@ class DataFrame(NDFrame):
         """
         Convert the DataFrame to a NumPy array.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_numpy()
+            array([[1, 3],
+                   [2, 4]], dtype=object)
+
         Args:
             dtype (None):
                 The dtype to pass to `numpy.asarray()`.
@@ -93,21 +125,53 @@ class DataFrame(NDFrame):
 
     def to_gbq(
         self,
-        destination_table: str,
+        destination_table: Optional[str],
         *,
-        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
-    ) -> None:
+    ) -> str:
         """Write a DataFrame to a BigQuery table.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Write a DataFrame to a BigQuery table.
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> # destination_table = PROJECT_ID + "." + DATASET_ID + "." + TABLE_NAME
+            >>> df.to_gbq("bigframes-dev.birds.test-numbers", if_exists="replace")
+            'bigframes-dev.birds.test-numbers'
+
+        Write a DataFrame to a temporary BigQuery table in the anonymous dataset.
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> destination = df.to_gbq(ordering_id="ordering_id")
+            >>> # The table created can be read outside of the current session.
+            >>> bpd.close_session()  # For demonstration, only.
+            >>> bpd.read_gbq(destination, index_col="ordering_id")
+                         col1  col2
+            ordering_id
+            0               1     3
+            1               2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
         Args:
-            destination_table (str):
+            destination_table (Optional[str]):
                 Name of table to be written, in the form ``dataset.tablename``
                 or ``project.dataset.tablename``.
 
-            if_exists (str, default 'fail'):
-                Behavior when the destination table exists. Value can be one of:
+                If no ``destination_table`` is set, a new temporary table is
+                created in the BigQuery anonymous dataset.
+
+            if_exists (Optional[str]):
+                Behavior when the destination table exists. When
+                ``destination_table`` is set, this defaults to ``'fail'``. When
+                ``destination_table`` is not set, this field is not applicable.
+                A new table is always created. Value can be one of:
 
                 ``'fail'``
                     If table exists raise pandas_gbq.gbq.TableCreationError.
@@ -122,6 +186,11 @@ class DataFrame(NDFrame):
             ordering_id (Optional[str], default None):
                 If set, write the ordering of the DataFrame as a column in the
                 result table with this name.
+
+        Returns:
+            str:
+                The fully-qualified ID for the written table, in the form
+                ``project.dataset.tablename``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -136,6 +205,15 @@ class DataFrame(NDFrame):
 
         This function writes the dataframe as a `parquet file
         <https://parquet.apache.org/>`_ to Cloud Storage.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> gcs_bucket = "gs://bigframes-dev-testing/sample_parquet*.parquet"
+            >>> df.to_parquet(path=gcs_bucket)
 
         Args:
             path (str):
@@ -170,6 +248,35 @@ class DataFrame(NDFrame):
 
         The type of the key-value pairs can be customized with the parameters
         (see below).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_dict()
+            {'col1': {0: 1, 1: 2}, 'col2': {0: 3, 1: 4}}
+
+        You can specify the return orientation.
+
+            >>> df.to_dict('series')
+            {'col1': 0    1
+            1    2
+            Name: col1, dtype: Int64,
+            'col2': 0    3
+            1    4
+            Name: col2, dtype: Int64}
+
+            >>> df.to_dict('split')
+            {'index': [0, 1], 'columns': ['col1', 'col2'], 'data': [[1, 3], [2, 4]]}
+
+            >>> df.to_dict("tight")
+            {'index': [0, 1],
+            'columns': ['col1', 'col2'],
+            'data': [[1, 3], [2, 4]],
+            'index_names': [None],
+            'column_names': [None]}
 
         Args:
             orient (str {'dict', 'list', 'series', 'split', 'tight', 'records', 'index'}):
@@ -213,6 +320,15 @@ class DataFrame(NDFrame):
         Note that creating an `ExcelWriter` object with a file name that already
         exists will result in the contents of the existing file being erased.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import tempfile
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_excel(tempfile.TemporaryFile())
+
         Args:
             excel_writer (path-like, file-like, or ExcelWriter object):
                 File path or existing ExcelWriter.
@@ -230,6 +346,23 @@ class DataFrame(NDFrame):
         Requires ``\usepackage{{booktabs}}``.  The output can be copy/pasted
         into a main LaTeX document or read from an external file
         with ``\input{{table.tex}}``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> print(df.to_latex())
+            \begin{tabular}{lrr}
+            \toprule
+            & col1 & col2 \\
+            \midrule
+            0 & 1 & 3 \\
+            1 & 2 & 4 \\
+            \bottomrule
+            \end{tabular}
+            <BLANKLINE>
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -252,6 +385,16 @@ class DataFrame(NDFrame):
 
         Index will be included as the first field of the record array if
         requested.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.to_records()
+            rec.array([(0, 1, 3), (1, 2, 4)],
+                      dtype=[('index', 'O'), ('col1', 'O'), ('col2', 'O')])
 
         Args:
             index (bool, default True):
@@ -297,6 +440,17 @@ class DataFrame(NDFrame):
         encoding: str | None = None,
     ):
         """Render a DataFrame to a console-friendly tabular output.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> print(df.to_string())
+               col1  col2
+            0     1     3
+            1     2     4
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -363,6 +517,18 @@ class DataFrame(NDFrame):
     ):
         """Print DataFrame in Markdown-friendly format.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> print(df.to_markdown())
+            |    |   col1 |   col2 |
+            |---:|-------:|-------:|
+            |  0 |      1 |      3 |
+            |  1 |      2 |      4 |
+
         Args:
             buf (str, Path or StringIO-like, optional, default None):
                 Buffer to write to. If None, the output is returned as a string.
@@ -371,7 +537,7 @@ class DataFrame(NDFrame):
             index (bool, optional, default True):
                 Add index (row) labels.
             **kwargs
-                These parameters will be passed to `tabulate                 <https://pypi.org/project/tabulate>`_.
+                These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
         Returns:
             DataFrame in Markdown-friendly format.
@@ -380,6 +546,15 @@ class DataFrame(NDFrame):
 
     def to_pickle(self, path, **kwargs) -> None:
         """Pickle (serialize) object to file.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> gcs_bucket = "gs://bigframes-dev-testing/sample_pickle_gcs.pkl"
+            >>> df.to_pickle(path=gcs_bucket)
 
         Args:
             path (str):
@@ -390,6 +565,15 @@ class DataFrame(NDFrame):
     def to_orc(self, path=None, **kwargs) -> bytes | None:
         """
         Write a DataFrame to the ORC format.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> import tempfile
+            >>> df.to_orc(tempfile.TemporaryFile())
 
         Args:
             path (str, file-like object or None, default None):
@@ -540,6 +724,7 @@ class DataFrame(NDFrame):
         Align two objects on their axes with the specified join method.
 
         Join method is specified for each axis Index.
+
 
         Args:
             other (DataFrame or Series):
@@ -822,9 +1007,9 @@ class DataFrame(NDFrame):
                 Sort ascending vs. descending. Specify list for multiple sort
                 orders.  If this is a list of bools, must match the length of
                 the by.
-            kind (str, default `quicksort`):
-                Choice of sorting algorithm. Accepts 'quicksort’, ‘mergesort’,
-                ‘heapsort’, ‘stable’. Ignored except when determining whether to
+            kind (str, default 'quicksort'):
+                Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
+                'heapsort', 'stable'. Ignored except when determining whether to
                 sort stably. 'mergesort' or 'stable' will result in stable reorder.
             na_position ({'first', 'last'}, default `last`):
              ``{'first', 'last'}``, default 'last' Puts NaNs at the beginning
@@ -858,6 +1043,29 @@ class DataFrame(NDFrame):
         Equivalent to `==`, `!=`, `<=`, `<`, `>=`, `>` with support to choose axis
         (rows or columns) and level for comparison.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can use method name:
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].eq(360)
+            circle        True
+            triangle     False
+            rectangle     True
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``==``:
+            >>> df["degrees"] == 360
+            circle        True
+            triangle     False
+            rectangle     True
+            Name: degrees, dtype: boolean
+
         Args:
             other (scalar, sequence, Series, or DataFrame):
                 Any single or multiple element data structure, or list-like object.
@@ -879,6 +1087,30 @@ class DataFrame(NDFrame):
 
         Equivalent to `==`, `!=`, `<=`, `<`, `>=`, `>` with support to choose axis
         (rows or columns) and level for comparison.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can use method name:
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].ne(360)
+            circle       False
+            triangle      True
+            rectangle    False
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``!=``:
+
+            >>> df["degrees"] != 360
+            circle       False
+            triangle      True
+            rectangle    False
+            Name: degrees, dtype: boolean
 
         Args:
             other (scalar, sequence, Series, or DataFrame):
@@ -904,6 +1136,30 @@ class DataFrame(NDFrame):
             Mismatched indices will be unioned together. `NaN` values in
             floating point columns are considered different
             (i.e. `NaN` != `NaN`).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can use method name:
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].le(180)
+            circle       False
+            triangle      True
+            rectangle    False
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``<=``:
+
+            >>> df["degrees"] <= 180
+            circle       False
+            triangle      True
+            rectangle    False
+            Name: degrees, dtype: boolean
 
         Args:
             other (scalar, sequence, Series, or DataFrame):
@@ -931,6 +1187,30 @@ class DataFrame(NDFrame):
             floating point columns are considered different
             (i.e. `NaN` != `NaN`).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can use method name:
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].lt(180)
+            circle       False
+            triangle     False
+            rectangle    False
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``<``:
+
+            >>> df["degrees"] < 180
+            circle       False
+            triangle     False
+            rectangle    False
+            Name: degrees, dtype: boolean
+
         Args:
             other (scalar, sequence, Series, or DataFrame):
                 Any single or multiple element data structure, or list-like object.
@@ -956,6 +1236,30 @@ class DataFrame(NDFrame):
             Mismatched indices will be unioned together. `NaN` values in
             floating point columns are considered different
             (i.e. `NaN` != `NaN`).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can use method name:
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].ge(360)
+            circle        True
+            triangle     False
+            rectangle     True
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``>=``:
+
+            >>> df["degrees"] >= 360
+            circle        True
+            triangle     False
+            rectangle     True
+            Name: degrees, dtype: boolean
 
         Args:
             other (scalar, sequence, Series, or DataFrame):
@@ -983,6 +1287,28 @@ class DataFrame(NDFrame):
             floating point columns are considered different
             (i.e. `NaN` != `NaN`).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'angles': [0, 3, 4],
+            ...        'degrees': [360, 180, 360]},
+            ...       index=['circle', 'triangle', 'rectangle'])
+            >>> df["degrees"].gt(360)
+            circle       False
+            triangle     False
+            rectangle    False
+            Name: degrees, dtype: boolean
+
+        You can also use arithmetic operator ``>``:
+
+            >>> df["degrees"] > 360
+            circle       False
+            triangle     False
+            rectangle    False
+            Name: degrees, dtype: boolean
+
         Args:
             other (scalar, sequence, Series, or DataFrame):
                 Any single or multiple element data structure, or list-like object.
@@ -1005,6 +1331,32 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].add(df['B'])
+            0    5
+            1    7
+            2    9
+            dtype: Int64
+
+        You can also use arithmetic operator ``+``:
+
+            >>> df['A'] + (df['B'])
+            0    5
+            1    7
+            2    9
+            dtype: Int64
 
         Args:
             other (float, int, or Series):
@@ -1029,6 +1381,32 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].sub(df['B'])
+            0    -3
+            1    -3
+            2    -3
+            dtype: Int64
+
+        You can also use arithmetic operator ``-``:
+
+            >>> df['A'] - (df['B'])
+            0    -3
+            1    -3
+            2    -3
+            dtype: Int64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1051,6 +1429,29 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df['A'].rsub(df['B'])
+            0    3
+            1    3
+            2    3
+            dtype: Int64
+
+        It's equivalent to using arithmetic operator: ``-``:
+
+            >>> df['B'] - (df['A'])
+            0    3
+            1    3
+            2    3
+            dtype: Int64
 
         Args:
             other (float, int, or Series):
@@ -1075,6 +1476,32 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].mul(df['B'])
+            0     4
+            1    10
+            2    18
+            dtype: Int64
+
+        You can also use arithmetic operator ``*``:
+
+            >>> df['A'] * (df['B'])
+            0     4
+            1    10
+            2    18
+            dtype: Int64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1097,6 +1524,32 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].truediv(df['B'])
+            0    0.25
+            1     0.4
+            2     0.5
+            dtype: Float64
+
+        You can also use arithmetic operator ``/``:
+
+            >>> df['A'] / (df['B'])
+            0    0.25
+            1     0.4
+            2     0.5
+            dtype: Float64
 
         Args:
             other (float, int, or Series):
@@ -1121,6 +1574,29 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df['A'].rtruediv(df['B'])
+            0    4.0
+            1    2.5
+            2    2.0
+            dtype: Float64
+
+        It's equivalent to using arithmetic operator: ``/``:
+
+            >>> df['B'] / (df['A'])
+            0    4.0
+            1    2.5
+            2    2.0
+            dtype: Float64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1143,6 +1619,32 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].floordiv(df['B'])
+            0    0
+            1    0
+            2    0
+            dtype: Int64
+
+        You can also use arithmetic operator ``//``:
+
+            >>> df['A'] // (df['B'])
+            0    0
+            1    0
+            2    0
+            dtype: Int64
 
         Args:
             other (float, int, or Series):
@@ -1167,6 +1669,29 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df['A'].rfloordiv(df['B'])
+            0    4
+            1    2
+            2    2
+            dtype: Int64
+
+        It's equivalent to using arithmetic operator: ``//``:
+
+            >>> df['B'] // (df['A'])
+            0    4
+            1    2
+            2    2
+            dtype: Int64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1189,6 +1714,32 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].mod(df['B'])
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        You can also use arithmetic operator ``%``:
+
+            >>> df['A'] % (df['B'])
+            0    1
+            1    2
+            2    3
+            dtype: Int64
 
         Args:
             other:
@@ -1213,6 +1764,29 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df['A'].rmod(df['B'])
+            0    0
+            1    1
+            2    0
+            dtype: Int64
+
+        It's equivalent to using arithmetic operator: ``%``:
+
+            >>> df['B'] % (df['A'])
+            0    0
+            1    1
+            2    0
+            dtype: Int64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1226,7 +1800,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def pow(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get Exponential power of dataframe and other, element-wise (binary operator `pow`).
+        """Get Exponential power of dataframe and other, element-wise (binary operator `**`).
 
         Equivalent to ``dataframe ** other``, but with support to substitute a fill_value
         for missing data in one of the inputs. With reverse version, `rpow`.
@@ -1236,6 +1810,32 @@ class DataFrame(NDFrame):
 
         .. note::
             Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].pow(df['B'])
+            0      1
+            1     32
+            2    729
+            dtype: Int64
+
+        You can also use arithmetic operator ``**``:
+
+            >>> df['A'] ** (df['B'])
+            0      1
+            1     32
+            2    729
+            dtype: Int64
 
         Args:
             other (float, int, or Series):
@@ -1261,6 +1861,29 @@ class DataFrame(NDFrame):
         .. note::
             Mismatched indices will be unioned together.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df['A'].rpow(df['B'])
+            0      4
+            1     25
+            2    216
+            dtype: Int64
+
+        It's equivalent to using arithmetic operator: ``**``:
+
+            >>> df['B'] ** (df['A'])
+            0      4
+            1     25
+            2    216
+            dtype: Int64
+
         Args:
             other (float, int, or Series):
                 Any single or multiple element data structure, or list-like object.
@@ -1281,6 +1904,21 @@ class DataFrame(NDFrame):
         Combines a DataFrame with `other` DataFrame using `func`
         to element-wise combine columns. The row and column indexes of the
         resulting DataFrame will be the union of the two.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df1 = bpd.DataFrame({'A': [0, 0], 'B': [4, 4]})
+            >>> df2 = bpd.DataFrame({'A': [1, 1], 'B': [3, 3]})
+            >>> take_smaller = lambda s1, s2: s1 if s1.sum() < s2.sum() else s2
+            >>> df1.combine(df2, take_smaller)
+               A  B
+            0  0  3
+            1  0  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Args:
             other (DataFrame):
@@ -1312,6 +1950,20 @@ class DataFrame(NDFrame):
         second.loc[index, col] are not missing values, upon calling
         first.combine_first(second).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df1 = bpd.DataFrame({'A': [None, 0], 'B': [None, 4]})
+            >>> df2 = bpd.DataFrame({'A': [1, 1], 'B': [3, 3]})
+            >>> df1.combine_first(df2)
+                 A    B
+            0  1.0  3.0
+            1  0.0  4.0
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
         Args:
             other (DataFrame):
                 Provided DataFrame to use to fill null values.
@@ -1328,6 +1980,24 @@ class DataFrame(NDFrame):
         Modify in place using non-NA values from another DataFrame.
 
         Aligns on indices. There is no return value.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600]})
+            >>> new_df = bpd.DataFrame({'B': [4, 5, 6],
+            ...                        'C': [7, 8, 9]})
+            >>> df.update(new_df)
+            >>> df
+               A  B
+            0  1  4
+            1  2  5
+            2  3  6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Args:
             other (DataFrame, or object coercible into a DataFrame):
@@ -1854,6 +2524,34 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def melt(self, id_vars, value_vars, var_name, value_name):
+        """
+        Unpivot a DataFrame from wide to long format, optionally leaving identifiers set.
+
+        This function is useful to massage a DataFrame into a format where one
+        or more columns are identifier variables (`id_vars`), while all other
+        columns, considered measured variables (`value_vars`), are "unpivoted" to
+        the row axis, leaving just two non-identifier columns, 'variable' and
+        'value'.
+
+        Parameters
+        ----------
+        id_vars (tuple, list, or ndarray, optional):
+            Column(s) to use as identifier variables.
+        value_vars (tuple, list, or ndarray, optional):
+            Column(s) to unpivot. If not specified, uses all columns that
+            are not set as `id_vars`.
+        var_name (scalar):
+            Name to use for the 'variable' column. If None it uses
+            ``frame.columns.name`` or 'variable'.
+        value_name (scalar, default 'value'):
+            Name to use for the 'value' column.
+
+        Returns:
+            DataFrame: Unpivoted DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def nunique(self):
         """
         Count number of distinct elements in specified axis.
@@ -2086,6 +2784,43 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def interpolate(self, method: str = "linear"):
+        """
+        Fill NaN values using an interpolation method.
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+
+        Returns:
+            DataFrame:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3, None, None, 6],
+            ...     'B': [None, 6, None, 2, None, 3],
+            ...     })
+            >>> df.interpolate()
+                 A     B
+            0  1.0  <NA>
+            1  2.0   6.0
+            2  3.0   4.0
+            3  4.0   2.0
+            4  5.0   2.5
+            5  6.0   3.0
+            <BLANKLINE>
+            [6 rows x 2 columns]
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def fillna(self, value):
         """
         Fill NA/NaN values using the specified method.
@@ -2111,4 +2846,39 @@ class DataFrame(NDFrame):
     @property
     def iat(self):
         """Access a single value for a row/column pair by integer position."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def at(self):
+        """Access a single value for a row/column label pair."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def dot(self, other):
+        """
+        Compute the matrix multiplication between the DataFrame and other.
+
+        This method computes the matrix product between the DataFrame and the
+        values of an other Series or DataFrame.
+
+        It can also be called using `self @ other`.
+
+        .. note::
+            The dimensions of DataFrame and other must be compatible in order to
+            compute the matrix multiplication. In addition, the column names of
+            DataFrame and the index of other must contain the same values, as they
+            will be aligned prior to the multiplication.
+
+            The dot method for Series computes the inner product, instead of the
+            matrix product here.
+
+        Args:
+            other (Series or DataFrame):
+                The other object to compute the matrix product with.
+
+        Returns:
+            Series or DataFrame
+                If `other` is a Series, return the matrix product between self and
+                other as a Series. If other is a DataFrame, return
+                the matrix product of self and other in a DataFrame.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

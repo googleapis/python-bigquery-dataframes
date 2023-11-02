@@ -11,7 +11,7 @@ from bigframes import constants
 class GBQIOMixin:
     def read_gbq(
         self,
-        query: str,
+        query_or_table: str,
         *,
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
@@ -42,9 +42,23 @@ class GBQIOMixin:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        If the input is a table ID:
+
+            >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
+            >>> df.head(2)
+                                                 species island  culmen_length_mm  \\
+            0        Adelie Penguin (Pygoscelis adeliae)  Dream              36.6
+            1        Adelie Penguin (Pygoscelis adeliae)  Dream              39.8
+            <BLANKLINE>
+               culmen_depth_mm  flipper_length_mm  body_mass_g     sex
+            0             18.4              184.0       3475.0  FEMALE
+            1             19.1              184.0       4650.0    MALE
+            <BLANKLINE>
+            [2 rows x 7 columns]
+
         Preserve ordering in a query input.
 
-            >>> bpd.read_gbq('''
+            >>> df = bpd.read_gbq('''
             ...    SELECT
             ...       -- Instead of an ORDER BY clause on the query, use
             ...       -- ROW_NUMBER() to create an ordered DataFrame.
@@ -57,19 +71,17 @@ class GBQIOMixin:
             ...     FROM `bigquery-public-data.baseball.games_wide`
             ...     WHERE year = 2016
             ...     GROUP BY pitcherFirstName, pitcherLastName
-            ... ''', index_col="rowindex").head(n=5)
+            ... ''', index_col="rowindex")
+            >>> df.head(2)
                      pitcherFirstName pitcherLastName  averagePitchSpeed
             rowindex
             1                Albertin         Chapman          96.514113
             2                 Zachary         Britton          94.591039
-            3                  Trevor       Rosenthal          94.213953
-            4                    Jose          Torres          94.103448
-            5                  Tayron        Guerrero          93.863636
             <BLANKLINE>
-            [5 rows x 3 columns]
+            [2 rows x 3 columns]
 
         Args:
-            query (str):
+            query_or_table (str):
                 A SQL string to be executed or a BigQuery table to be read. The
                 table must be specified in the format of
                 `project.dataset.tablename` or `dataset.tablename`.

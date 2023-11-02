@@ -21,6 +21,7 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as ordering
+import bigframes.core.window_spec as windows
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -68,21 +69,21 @@ def indicate_duplicates(
     if keep == "first":
         # Count how many copies occur up to current copy of value
         # Discard this value if there are copies BEFORE
-        window_spec = core.WindowSpec(
+        window_spec = windows.WindowSpec(
             grouping_keys=tuple(columns),
             following=0,
         )
     elif keep == "last":
         # Count how many copies occur up to current copy of values
         # Discard this value if there are copies AFTER
-        window_spec = core.WindowSpec(
+        window_spec = windows.WindowSpec(
             grouping_keys=tuple(columns),
             preceding=0,
         )
     else:  # keep == False
         # Count how many copies of the value occur in entire series.
         # Discard this value if there are copies ANYWHERE
-        window_spec = core.WindowSpec(grouping_keys=tuple(columns))
+        window_spec = windows.WindowSpec(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
     block, val_count_col_id = block.apply_window_op(
         dummy,
@@ -102,6 +103,97 @@ def indicate_duplicates(
         ),
         duplicate_indicator,
     )
+
+
+def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
+    if method != "linear":
+        raise NotImplementedError(
+            f"Only 'linear' interpolate method supported. {constants.FEEDBACK_LINK}"
+        )
+    backwards_window = windows.WindowSpec(following=0)
+    forwards_window = windows.WindowSpec(preceding=0)
+
+    output_column_ids = []
+
+    original_columns = block.value_columns
+    original_labels = block.column_labels
+    block, offsets = block.promote_offsets()
+    for column in original_columns:
+        # null in same places column is null
+        should_interpolate = block._column_type(column) in [
+            pd.Float64Dtype(),
+            pd.Int64Dtype(),
+        ]
+        if should_interpolate:
+            block, notnull = block.apply_unary_op(column, ops.notnull_op)
+            block, masked_offsets = block.apply_binary_op(
+                offsets, notnull, ops.partial_arg3(ops.where_op, None)
+            )
+
+            block, previous_value = block.apply_window_op(
+                column, agg_ops.LastNonNullOp(), backwards_window
+            )
+            block, next_value = block.apply_window_op(
+                column, agg_ops.FirstNonNullOp(), forwards_window
+            )
+            block, previous_value_offset = block.apply_window_op(
+                masked_offsets,
+                agg_ops.LastNonNullOp(),
+                backwards_window,
+                skip_reproject_unsafe=True,
+            )
+            block, next_value_offset = block.apply_window_op(
+                masked_offsets,
+                agg_ops.FirstNonNullOp(),
+                forwards_window,
+                skip_reproject_unsafe=True,
+            )
+
+            block, prediction_id = _interpolate(
+                block,
+                previous_value_offset,
+                previous_value,
+                next_value_offset,
+                next_value,
+                offsets,
+            )
+
+            block, interpolated_column = block.apply_binary_op(
+                column, prediction_id, ops.fillna_op
+            )
+            # Pandas performs ffill-like behavior to extrapolate forwards
+            block, interpolated_and_ffilled = block.apply_binary_op(
+                interpolated_column, previous_value, ops.fillna_op
+            )
+
+            output_column_ids.append(interpolated_and_ffilled)
+        else:
+            output_column_ids.append(column)
+
+    # Force reproject since used `skip_project_unsafe` perviously
+    block = block.select_columns(output_column_ids)._force_reproject()
+    return block.with_column_labels(original_labels)
+
+
+def _interpolate(
+    block: blocks.Block,
+    x0_id: str,
+    y0_id: str,
+    x1_id: str,
+    y1_id: str,
+    xpredict_id: str,
+) -> typing.Tuple[blocks.Block, str]:
+    """Applies linear interpolation equation to predict y values for xpredict."""
+    block, x1x0diff = block.apply_binary_op(x1_id, x0_id, ops.sub_op)
+    block, y1y0diff = block.apply_binary_op(y1_id, y0_id, ops.sub_op)
+    block, xpredictx0diff = block.apply_binary_op(xpredict_id, x0_id, ops.sub_op)
+
+    block, y1_weight = block.apply_binary_op(y1y0diff, x1x0diff, ops.div_op)
+    block, y1_part = block.apply_binary_op(xpredictx0diff, y1_weight, ops.mul_op)
+
+    block, prediction_id = block.apply_binary_op(y0_id, y1_part, ops.add_op)
+    block = block.drop_columns([x1x0diff, y1y0diff, xpredictx0diff, y1_weight, y1_part])
+    return block, prediction_id
 
 
 def drop_duplicates(
@@ -131,7 +223,7 @@ def value_counts(
     )
     count_id = agg_ids[0]
     if normalize:
-        unbound_window = core.WindowSpec()
+        unbound_window = windows.WindowSpec()
         block, total_count_id = block.apply_window_op(
             count_id, agg_ops.sum_op, unbound_window
         )
@@ -153,7 +245,7 @@ def value_counts(
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = core.WindowSpec(
+    window_spec = windows.WindowSpec(
         preceding=periods if periods > 0 else None,
         following=-periods if periods < 0 else None,
     )
@@ -195,7 +287,7 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = core.WindowSpec(
+        window = windows.WindowSpec(
             # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
             ordering=(
                 ordering.OrderingColumnReference(
@@ -229,7 +321,7 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=core.WindowSpec(grouping_keys=[columns[i]]),
+                window_spec=windows.WindowSpec(grouping_keys=(columns[i],)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
@@ -311,7 +403,7 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=core.WindowSpec(ordering=order_refs),
+            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.apply_unary_op(
             counter, ops.partial_right(ops.le_op, n)
@@ -343,7 +435,7 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=core.WindowSpec(ordering=order_refs),
+            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.apply_unary_op(
             counter, ops.partial_right(ops.le_op, n)
@@ -440,14 +532,14 @@ def _mean_delta_to_power(
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = core.WindowSpec(grouping_keys=grouping_column_ids)
+    window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
     cube_op = ops.partial_right(ops.pow_op, n_power)
     for val_id, mean_val_id in zip(column_ids, mean_ids):
         block, delta_id = block.apply_binary_op(val_id, mean_val_id, ops.sub_op)
         block, delta_power_id = block.apply_unary_op(delta_id, cube_op)
-        block = block.drop_columns(delta_id)
+        block = block.drop_columns([delta_id])
         delta_ids.append(delta_power_id)
     return block, delta_ids
 
@@ -645,7 +737,7 @@ def _idx_extrema(
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = core.WindowSpec(ordering=order_refs)
+        window_spec = windows.WindowSpec(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec

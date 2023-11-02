@@ -89,7 +89,6 @@ nox.options.sessions = [
     "system_prerelease",
     "doctest",
     "cover",
-    "release_dry_run",
 ]
 
 # Error if a python version is missing
@@ -186,6 +185,7 @@ def run_unit(session, install_test_extra):
 
     # Run py.test against the unit tests.
     tests_path = os.path.join("tests", "unit")
+    third_party_tests_path = os.path.join("third_party", "bigframes_vendored")
     session.run(
         "py.test",
         "--quiet",
@@ -197,6 +197,7 @@ def run_unit(session, install_test_extra):
         "--cov-report=term-missing",
         "--cov-fail-under=0",
         tests_path,
+        third_party_tests_path,
         *session.posargs,
     )
 
@@ -304,8 +305,10 @@ def run_system(
         "py.test",
         "--quiet",
         "-n=20",
-        # Any individual test taking longer than 10 mins will be terminated.
+        # Any individual test taking longer than 15 mins will be terminated.
         "--timeout=900",
+        # Log 20 slowest tests
+        "--durations=20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
     ]
     if print_duration:

@@ -14,11 +14,12 @@
 
 import datetime
 from typing import Iterable
+import unittest.mock as mock
 
 import google.cloud.bigquery as bigquery
 import pytest
 
-import bigframes.core.io
+import bigframes.session._io.bigquery
 
 
 def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
@@ -26,7 +27,7 @@ def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
         "my-test-project._e8166e0cdb.anonbb92cd"
     )
 
-    sql = bigframes.core.io.create_snapshot_sql(
+    sql = bigframes.session._io.bigquery.create_snapshot_sql(
         table_ref, datetime.datetime.now(datetime.timezone.utc)
     )
 
@@ -37,10 +38,10 @@ def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
     assert "`my-test-project`.`_e8166e0cdb`.`anonbb92cd`" in sql
 
 
-def test_create_snapshot_sql_doesnt_timetravel_session_datasets():
+def test_create_snapshot_sql_doesnt_timetravel_session_tables():
     table_ref = bigquery.TableReference.from_string("my-test-project._session.abcdefg")
 
-    sql = bigframes.core.io.create_snapshot_sql(
+    sql = bigframes.session._io.bigquery.create_snapshot_sql(
         table_ref, datetime.datetime.now(datetime.timezone.utc)
     )
 
@@ -49,6 +50,29 @@ def test_create_snapshot_sql_doesnt_timetravel_session_datasets():
 
     # Don't need the project ID for _SESSION tables.
     assert "my-test-project" not in sql
+
+
+def test_create_temp_table_default_expiration():
+    """Make sure the created table has an expiration."""
+    bqclient = mock.create_autospec(bigquery.Client)
+    dataset = bigquery.DatasetReference("test-project", "test_dataset")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expiration = datetime.timedelta(days=3)
+    expected_expires = now + expiration
+
+    bigframes.session._io.bigquery.create_temp_table(bqclient, dataset, expiration)
+
+    bqclient.create_table.assert_called_once()
+    call_args = bqclient.create_table.call_args
+    table = call_args.args[0]
+    assert table.project == "test-project"
+    assert table.dataset_id == "test_dataset"
+    assert table.table_id.startswith("bqdf")
+    assert (
+        (expected_expires - datetime.timedelta(minutes=1))
+        < table.expires
+        < (expected_expires + datetime.timedelta(minutes=1))
+    )
 
 
 @pytest.mark.parametrize(
@@ -101,4 +125,5 @@ def test_create_snapshot_sql_doesnt_timetravel_session_datasets():
     ),
 )
 def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str):
-    pass
+    sql = bigframes.session._io.bigquery.bq_schema_to_sql(schema)
+    assert sql == expected
