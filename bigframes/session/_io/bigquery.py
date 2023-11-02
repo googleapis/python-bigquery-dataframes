@@ -18,11 +18,13 @@ import datetime
 import textwrap
 import types
 from typing import Dict, Iterable, Optional, Sequence, Union
+import uuid
 
 import google.cloud.bigquery as bigquery
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
+TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
 
 
 def create_job_configs_labels(
@@ -118,6 +120,24 @@ def create_snapshot_sql(
         FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
         """
     )
+
+
+def create_temp_table(
+    bqclient: bigquery.Client,
+    dataset: bigquery.DatasetReference,
+    expiration: datetime.timedelta,
+) -> str:
+    """Create an empty table with an expiration in the desired dataset."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    random_id = uuid.uuid4().hex
+    table_id = TEMP_TABLE_PREFIX.format(
+        date=now.strftime("%Y%m%d"), random_id=random_id
+    )
+    table_ref = dataset.table(table_id)
+    destination = bigquery.Table(table_ref)
+    destination.expires = now + expiration
+    bqclient.create_table(destination)
+    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 
 
 # BigQuery REST API returns types in Legacy SQL format
