@@ -294,6 +294,11 @@ def test_series_interpolate(method):
     pd_result = pd_series.astype("float64").interpolate(method=method)
     bf_result = bf_series.interpolate(method=method).to_pandas()
 
+    print("pandas")
+    print(pd_result.to_string())
+    print("bigframes")
+    print(bf_result.to_string())
+
     # pd uses non-null types, while bf uses nullable types
     pd.testing.assert_series_equal(
         pd_result,

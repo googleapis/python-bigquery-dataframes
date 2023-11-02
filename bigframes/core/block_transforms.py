@@ -22,6 +22,7 @@ import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as ordering
 import bigframes.core.window_spec as windows
+import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -113,7 +114,6 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         "nearest",
         "zero",
         "slinear",
-        "pad",
     ]
     if method not in supported_methods:
         raise NotImplementedError(
@@ -131,7 +131,9 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         if len(index_columns) != 1:
             raise ValueError("only method 'linear' support multi-index")
         xvalues = block.index_columns[0]
-        # TODO: verify numeric
+        dtypes.NUMERIC_BIGFRAMES_TYPES
+        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES:
+            raise ValueError("Can only interpolate on numeric index.")
 
     for column in original_columns:
         # null in same places column is null
@@ -145,21 +147,20 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
                 "values": "linear",
                 "index": "linear",
                 "slinear": "linear",
-                "pad": "ffill",
                 "zero": "ffill",
                 "nearest": "nearest",
             }
             extrapolating_methods = ["linear", "values", "index"]
             interpolate_method = interpolate_method_map[method]
             do_extrapolate = method in extrapolating_methods
-            block, interpolated_and_ffilled = _interpolate_column(
+            block, interpolated = _interpolate_column(
                 block,
                 column,
                 xvalues,
                 interpolate_method=interpolate_method,
                 do_extrapolate=do_extrapolate,
             )
-            output_column_ids.append(interpolated_and_ffilled)
+            output_column_ids.append(interpolated)
         else:
             output_column_ids.append(column)
 
