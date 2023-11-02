@@ -1488,7 +1488,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         for col_id, col_label in zip(column_ids, column_labels):
             yield col_label, bigframes.series.Series(self._block.select_column(col_id))
 
-    def iterrows(self) -> Iterable[tuple[typing.Hashable, bigframes.series.Series]]:
+    def iterrows(self) -> Iterable[tuple[typing.Any, bigframes.series.Series]]:
         for df in self.to_pandas_batches():
             for item in df.iterrows():
                 yield item

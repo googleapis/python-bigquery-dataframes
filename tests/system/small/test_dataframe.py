@@ -816,9 +816,8 @@ def test_df_iter(
     scalars_df_index,
     scalars_pandas_df_index,
 ):
-    pandas.testing.assert_index_equal(
-        list(scalars_df_index), list(scalars_pandas_df_index)
-    )
+    for bf_i, df_i in zip(scalars_df_index, scalars_pandas_df_index):
+        assert bf_i == df_i
 
 
 def test_iterrows(
