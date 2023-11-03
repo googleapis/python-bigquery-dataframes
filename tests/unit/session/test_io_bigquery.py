@@ -19,7 +19,6 @@ import unittest.mock as mock
 import google.cloud.bigquery as bigquery
 import pytest
 
-
 import bigframes
 from bigframes.core import log_adapter
 import bigframes.pandas as bpd
@@ -169,7 +168,6 @@ def test_create_table_clone_doesnt_clone_anonymous_datasets():
     # Anonymous query results tables don't support CLONE
     assert destination is source
     session._start_query.assert_not_called()
-
 
 
 def test_create_table_clone_sets_expiration():
