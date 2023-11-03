@@ -1100,7 +1100,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif utils.is_list_like(v):
             given_rows = len(v)
             actual_rows = len(self)
-            if given_rows != actual_rows:
+            assigning_to_empty_df = len(self.columns) == 0 and actual_rows == 0
+            if not assigning_to_empty_df and given_rows != actual_rows:
                 raise ValueError(
                     f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
                 )
@@ -1114,14 +1115,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             new_column_block = local_df._block
             original_index_column_ids = self._block.index_columns
             self_block = self._block.reset_index(drop=False)
-            result_index, (get_column_left, get_column_right) = self_block.index.join(
-                new_column_block.index, how="left", block_identity_join=True
-            )
-            result_block = result_index._block
-            result_block = result_block.set_index(
-                [get_column_left[col_id] for col_id in original_index_column_ids],
-                index_labels=self._block.index_labels,
-            )
+            if assigning_to_empty_df:
+                if len(self._block.index_columns) > 1:
+                    # match error raised by pandas here
+                    raise ValueError(
+                        "Assigning listlike to a first column under multiindex is not supported."
+                    )
+                result_block = local_df._block
+                result_block = result_block.with_index_labels(self._block.index_labels)
+            else:
+                result_index, (
+                    get_column_left,
+                    get_column_right,
+                ) = self_block.index.join(
+                    new_column_block.index, how="left", block_identity_join=True
+                )
+                result_block = result_index._block
+                result_block = result_block.set_index(
+                    [get_column_left[col_id] for col_id in original_index_column_ids],
+                    index_labels=self._block.index_labels,
+                )
             return DataFrame(result_block)
         else:
             return self._assign_scalar(k, v)
