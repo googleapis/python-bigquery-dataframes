@@ -518,6 +518,15 @@ class Session(
         index and ordering. See:
         https://cloud.google.com/bigquery/docs/table-clones-create
         """
+        if table_ref.dataset_id.upper() == "_SESSION":
+            # _SESSION tables aren't supported by the tables.get REST API.
+            return (
+                self.ibis_client.sql(
+                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+                ),
+                None,
+            )
+
         now = datetime.datetime.now(datetime.timezone.utc)
         destination = bigframes_io.create_table_clone(
             table_ref,
