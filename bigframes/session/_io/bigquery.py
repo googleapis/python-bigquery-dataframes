@@ -15,6 +15,7 @@
 """Private module: Helpers for I/O operations."""
 
 import datetime
+import itertools
 import textwrap
 import types
 from typing import Dict, Iterable, Optional, Sequence, Union
@@ -33,27 +34,16 @@ def create_job_configs_labels(
 ) -> Dict[str, str]:
     # If there is no label set
     if job_configs_labels is None:
-        labels = {}
-        label_values = list(api_methods)
-    else:
-        labels = job_configs_labels.copy()
-        cur_labels_len = len(job_configs_labels)
-        api_methods_len = len(api_methods)
-        # If the total number of labels is under the limit of labels count
-        if cur_labels_len + api_methods_len <= MAX_LABELS_COUNT:
-            label_values = list(api_methods)
-        # We capture the latest label if it is out of the length limit of labels count
-        else:
-            added_api_len = cur_labels_len + api_methods_len - MAX_LABELS_COUNT
-            label_values = list(api_methods)[-added_api_len:]
+        job_configs_labels = {}
 
-    for i, label_value in enumerate(label_values):
-        if job_configs_labels is not None:
-            label_key = "bigframes-api-" + str(i + len(job_configs_labels))
-        else:
-            label_key = "bigframes-api-" + str(i)
-        labels[label_key] = label_value
-    return labels
+    labels = list(
+        itertools.chain(
+            job_configs_labels.keys(),
+            (f"bigframes-api-{i}" for i in range(len(api_methods))),
+        )
+    )
+    values = list(itertools.chain(job_configs_labels.values(), api_methods))
+    return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
 
 
 def create_export_csv_statement(
