@@ -664,17 +664,7 @@ class Session(
                 total_ordering_columns=frozenset(index_cols),
             )
 
-            # We have a total ordering, so query via "time travel" so that
-            # the underlying data doesn't mutate.
-            if is_total_ordering:
-                # Get the timestamp from the job metadata rather than the query
-                # text so that the query for determining uniqueness of the ID
-                # columns can be cached.
-                current_timestamp = query_job.started
-
-                # The job finished, so we should have a start time.
-                assert current_timestamp is not None
-            else:
+            if not is_total_ordering:
                 # Make sure when we generate an ordering, the row_number()
                 # coresponds to the index columns.
                 table_expression = table_expression.order_by(index_cols)
