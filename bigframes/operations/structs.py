@@ -18,11 +18,11 @@ import typing
 
 import ibis.expr.types as ibis_types
 
+from bigframes.core import log_adapter
 import bigframes.dataframe
 import bigframes.operations
 import bigframes.operations.base
 import bigframes.series
-from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.arrays.arrow.accessors as vendoracessors
 
 

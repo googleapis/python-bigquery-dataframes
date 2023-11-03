@@ -20,9 +20,9 @@ import google.cloud.bigquery as bigquery
 import pytest
 
 import bigframes
+from bigframes.core import log_adapter
 import bigframes.pandas as bpd
 import bigframes.session._io.bigquery as io_bq
-from bigframes.utils import log_adapter
 
 
 def test_create_job_configs_labels_is_none():
