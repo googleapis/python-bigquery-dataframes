@@ -19,6 +19,7 @@ import typing
 import pandas as pd
 
 import bigframes.constants as constants
+from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
@@ -30,7 +31,6 @@ import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
-from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 

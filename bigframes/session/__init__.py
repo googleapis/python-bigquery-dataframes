@@ -64,6 +64,7 @@ from pandas._typing import (
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.constants as constants
+from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
@@ -76,7 +77,6 @@ from bigframes.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
-from bigframes.utils import log_adapter
 import bigframes.version
 
 # Even though the ibis.backends.bigquery.registry import is unused, it's needed

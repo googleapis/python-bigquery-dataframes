@@ -14,10 +14,10 @@
 
 from __future__ import annotations
 
+from bigframes.core import log_adapter
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
-from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 

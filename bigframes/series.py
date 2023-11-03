@@ -29,6 +29,7 @@ import typing_extensions
 
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
@@ -52,7 +53,6 @@ import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
-from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]

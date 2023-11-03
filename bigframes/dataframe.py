@@ -40,6 +40,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
@@ -56,7 +57,6 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
-from bigframes.utils import log_adapter
 import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
