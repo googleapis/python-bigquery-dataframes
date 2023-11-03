@@ -77,6 +77,17 @@ def create_export_data_statement(
 
 
 def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
+    """Generate a random table ID with BigQuery DataFrames prefix.
+
+    Args:
+        dataset (google.cloud.bigquery.DatasetReference):
+            The dataset to make the table reference in. Usually the anonymous
+            dataset for the session.
+
+    Returns:
+        google.cloud.bigquery.TableReference:
+            Fully qualified table ID of a table that doesn't exist.
+    """
     now = datetime.datetime.now(datetime.timezone.utc)
     random_id = uuid.uuid4().hex
     table_id = TEMP_TABLE_PREFIX.format(
@@ -86,6 +97,7 @@ def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
 
 
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
+    """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
@@ -124,7 +136,10 @@ def create_table_clone(
         """
     )
     job_config = bigquery.QueryJobConfig()
-    job_config.labels = {"bigframes-api": api_name}
+    job_config.labels = {
+        "source": "bigquery-dataframes-temp",
+        "bigframes-api": api_name,
+    }
     session._start_query(ddl, job_config=job_config)
     return destination
 
