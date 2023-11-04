@@ -159,11 +159,18 @@ Running System Tests
   the environment variable $GOOGLE_CLOUD_PROJECT. If not, the project property
   set in the `Google Cloud CLI <https://cloud.google.com/sdk/gcloud/reference/config/get>`__
   will be effective, which can be peeked into via ``gcloud config get project``,
-  or set via ``gcloud config set project <project-name>``. You should have the
-  following roles in the project
+  or set via ``gcloud config set project <project-name>``. The following roles
+  carry all the permissions to run the system tests in the project:
 
   - `BigQuery User <https://cloud.google.com/bigquery/docs/access-control#bigquery.user>`__
     to be able to create test datasets in the project.
+
+- You can run the script ``scripts/setup-project-for-testing.sh <project-id>``
+  to set up a project for running system tests. You need to have the following
+  IAM permission to be able to run it successfully:
+
+  - ``serviceusage.services.enable``
+  - ``bigquery.connections.create``
 
 - You should use local credentials from gcloud when possible. See `Best practices for application authentication <https://cloud.google.com/docs/authentication/best-practices-applications#local_development_and_testing_with_the>`__. Some tests require a service account. For those tests see `Authenticating as a service account <https://cloud.google.com/docs/authentication/production>`__.
 
