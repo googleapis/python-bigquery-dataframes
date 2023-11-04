@@ -1018,7 +1018,7 @@ def test_at_setitem_row_label_scalar(scalars_df_index, scalars_pandas_df_index):
     bf_series.at[1] = 1000
     pd_series.at[1] = 1000
     bf_result = bf_series.to_pandas()
-    pd_result = pd_series.astype("Float64")  # type difference is due to NA treatment
+    pd_result = pd_series.astype("Int64")
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
