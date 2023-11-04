@@ -59,23 +59,26 @@ class LocSeriesIndexer:
 
         # Assume the key is for the index label.
         block = self._series._block
-        value_column = self._series._value_column
+        original_column = self._series
         index_column = block.index_columns[0]
-
-        # if index == key return value else value_colum
         block, insert_cond = block.apply_unary_op(
-            index_column, ops.partial_right(ops.eq_op, key)
+            index_column,
+            ops.partial_right(ops.eq_op, key),
+            result_label=self._series.name,
         )
-        block, result_id = block.apply_binary_op(
-            insert_cond,
-            self._series._value_column,
-            ops.partial_arg1(ops.where_op, value),
+        insert_cond_bool_series = bigframes.series.Series(
+            block.select_column(insert_cond)
         )
-        block = block.copy_values(result_id, value_column).drop_columns(
-            [insert_cond, result_id]
+        new_column = insert_cond_bool_series.map(
+            {True: value, False: None}, verify_integrity=False
         )
-
-        self._series._set_block(block)
+        try:
+            new_column = new_column.fillna(self._series)
+        except ibis.common.exceptions.IbisTypeError:
+            raise TypeError(
+                f"Cannot assign scalar of type {type(value)} to column of type {original_column.dtype}."
+            )
+        self._series._set_block(new_column._block)
 
 
 class IlocSeriesIndexer:
@@ -116,6 +119,20 @@ class AtSeriesIndexer:
         self, key: LocSingleKey
     ) -> Union[bigframes.core.scalar.Scalar, bigframes.series.Series]:
         return self._series.loc[key]
+
+    def __setitem__(
+        self,
+        key: LocSingleKey,
+        value,
+    ):
+        if pd.api.types.is_list_like(value) or isinstance(
+            value, bigframes.series.Series
+        ):
+            raise NotImplementedError(
+                "series.at.__setitem__ only supports scalar right-hand values. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+        self._series.loc[key] = value
 
 
 class LocDataFrameIndexer:
