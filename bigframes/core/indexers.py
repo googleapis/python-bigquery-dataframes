@@ -59,26 +59,23 @@ class LocSeriesIndexer:
 
         # Assume the key is for the index label.
         block = self._series._block
-        original_column = self._series
+        value_column = self._series._value_column
         index_column = block.index_columns[0]
+
+        # if index == key return value else value_colum
         block, insert_cond = block.apply_unary_op(
-            index_column,
-            ops.partial_right(ops.eq_op, key),
-            result_label=self._series.name,
+            index_column, ops.partial_right(ops.eq_op, key)
         )
-        insert_cond_bool_series = bigframes.series.Series(
-            block.select_column(insert_cond)
+        block, result_id = block.apply_binary_op(
+            insert_cond,
+            self._series._value_column,
+            ops.partial_arg1(ops.where_op, value),
         )
-        new_column = insert_cond_bool_series.map(
-            {True: value, False: None}, verify_integrity=False
+        block = block.copy_values(result_id, value_column).drop_columns(
+            [insert_cond, result_id]
         )
-        try:
-            new_column = new_column.fillna(self._series)
-        except ibis.common.exceptions.IbisTypeError:
-            raise TypeError(
-                f"Cannot assign scalar of type {type(value)} to column of type {original_column.dtype}."
-            )
-        self._series._set_block(new_column._block)
+
+        self._series._set_block(block)
 
 
 class IlocSeriesIndexer:
