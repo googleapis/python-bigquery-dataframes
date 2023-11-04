@@ -120,11 +120,9 @@ class AtSeriesIndexer:
     def __setitem__(
         self,
         key: LocSingleKey,
-        value,
+        value: bigframes.core.scalar.Scalar,
     ):
-        if pd.api.types.is_list_like(value) or isinstance(
-            value, bigframes.series.Series
-        ):
+        if not pd.api.types.is_scalar(value):
             raise NotImplementedError(
                 "series.at.__setitem__ only supports scalar right-hand values. "
                 f"{constants.FEEDBACK_LINK}"
