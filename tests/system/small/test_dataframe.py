@@ -567,7 +567,7 @@ def test_assign_existing_column(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
-def test_assign_to_empty_df(session):
+def test_assign_listlike_to_empty_df(session):
     empty_df = dataframe.DataFrame(session=session)
     empty_pandas_df = pd.DataFrame()
 
