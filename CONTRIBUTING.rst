@@ -160,17 +160,36 @@ Running System Tests
   set in the `Google Cloud CLI <https://cloud.google.com/sdk/gcloud/reference/config/get>`__
   will be effective, which can be peeked into via ``gcloud config get project``,
   or set via ``gcloud config set project <project-name>``. The following roles
-  carry all the permissions to run the system tests in the project:
+  carry the permissions to run the system tests in the project:
 
   - `BigQuery User <https://cloud.google.com/bigquery/docs/access-control#bigquery.user>`__
-    to be able to create test datasets in the project.
+    to be able to create test datasets and run BigQuery jobs in the project.
 
-- You can run the script ``scripts/setup-project-for-testing.sh <project-id>``
-  to set up a project for running system tests. You need to have the following
-  IAM permission to be able to run it successfully:
+  - `BigQuery Connection User <https://cloud.google.com/bigquery/docs/access-control#bigquery.connectionUser>`__
+    to be able to use BigQuery connections in the project.
+
+  - `BigQuery Data Editor <https://cloud.google.com/bigquery/docs/access-control#bigquery.dataEditor>`__
+    to be able to create BigQuery remote functions in the project.
+
+  - `Browser <https://cloud.google.com/resource-manager/docs/access-control-proj#browser>`
+    to be able to get current IAM policy for the service accounts of the BigQuery connections in the project.
+
+  - `Cloud Functions Developer <https://cloud.google.com/functions/docs/reference/iam/roles#cloudfunctions.developer>`
+    to be able to create cloud functions to support BigQuery DataFrames remote functions.
+
+  - `Service Account User <https://cloud.google.com/iam/docs/service-account-permissions#user-role>`
+    to be able to use the project's service accounts.
+
+  - `Vertex AI User <https://cloud.google.com/vertex-ai/docs/general/access-control#aiplatform.user>`
+    to be able to use the BigQuery DataFrames' ML integration with Vertex AI.
+
+- You can run the script ``scripts/setup-project-for-testing.sh <project-id> <principal>``
+  to set up a project for running system tests for a principal (user/group/service-account). You need to have the following
+  IAM permission to be able to run the set up script successfully:
 
   - ``serviceusage.services.enable``
   - ``bigquery.connections.create``
+  - ``resourcemanager.projects.setIamPolicy``
 
 - You should use local credentials from gcloud when possible. See `Best practices for application authentication <https://cloud.google.com/docs/authentication/best-practices-applications#local_development_and_testing_with_the>`__. Some tests require a service account. For those tests see `Authenticating as a service account <https://cloud.google.com/docs/authentication/production>`__.
 

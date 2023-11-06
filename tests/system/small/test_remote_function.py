@@ -46,11 +46,11 @@ def bq_cf_connection_location_mismatched() -> str:
 
 
 @pytest.fixture(scope="module")
-def bq_cf_connection_location_project() -> str:
+def bq_cf_connection_location_project(bigquery_client) -> str:
     """Pre-created BQ connection to invoke cloud function for bigframes-dev
     $ bq show --connection --location=us --project_id=bigframes-dev bigframes-rf-conn
     """
-    return "bigframes-dev.us.bigframes-rf-conn"
+    return f"{bigquery_client.project}.us.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="module")

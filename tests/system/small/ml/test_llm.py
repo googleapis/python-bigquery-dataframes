@@ -27,7 +27,9 @@ def test_create_text_generator_model(palm2_text_generator_model):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_create_text_generator_model_default_session(bq_connection, llm_text_pandas_df):
+def test_create_text_generator_model_default_session(
+    bq_connection, llm_text_pandas_df, bigquery_client
+):
     import bigframes.pandas as bpd
 
     bpd.close_session()
@@ -37,7 +39,10 @@ def test_create_text_generator_model_default_session(bq_connection, llm_text_pan
     model = llm.PaLM2TextGenerator()
     assert model is not None
     assert model._bqml_model is not None
-    assert model.connection_name.casefold() == "bigframes-dev.us.bigframes-rf-conn"
+    assert (
+        model.connection_name.casefold()
+        == f"{bigquery_client.project}.us.bigframes-rf-conn"
+    )
 
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
@@ -49,7 +54,9 @@ def test_create_text_generator_model_default_session(bq_connection, llm_text_pan
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_create_text_generator_model_default_connection(llm_text_pandas_df):
+def test_create_text_generator_model_default_connection(
+    llm_text_pandas_df, bigquery_client
+):
     from bigframes import _config
     import bigframes.pandas as bpd
 
@@ -63,7 +70,7 @@ def test_create_text_generator_model_default_connection(llm_text_pandas_df):
     assert model._bqml_model is not None
     assert (
         model.connection_name.casefold()
-        == "bigframes-dev.us.bigframes-default-connection"
+        == f"{bigquery_client.project}.us.bigframes-default-connection"
     )
 
     df = model.predict(llm_text_df).to_pandas()

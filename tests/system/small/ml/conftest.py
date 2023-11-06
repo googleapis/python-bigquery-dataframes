@@ -33,8 +33,8 @@ from bigframes.ml import (
 
 
 @pytest.fixture(scope="session")
-def bq_connection() -> str:
-    return "bigframes-dev.us.bigframes-rf-conn"
+def bq_connection(bigquery_client) -> str:
+    return f"{bigquery_client.project}.us.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="session")
