@@ -40,6 +40,7 @@ def join_by_column(
         "left",
         "outer",
         "right",
+        "cross",
     ],
     allow_row_identity_join: bool = True,
 ) -> compiled.CompiledArrayValue:

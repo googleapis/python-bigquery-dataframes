@@ -886,6 +886,26 @@ def test_df_isin_dict(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
 
 
+def test_df_cross_merge(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    left_columns = ["int64_col", "float64_col", "rowindex_2"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
+
+    left = scalars_df[left_columns]
+    # Offset the rows somewhat so that outer join can have an effect.
+    right = scalars_df[right_columns].assign(rowindex_2=scalars_df["rowindex_2"] + 2)
+
+    bf_result = left.merge(right, "cross").to_pandas()
+
+    pd_result = scalars_pandas_df[left_columns].merge(
+        scalars_pandas_df[right_columns].assign(
+            rowindex_2=scalars_pandas_df["rowindex_2"] + 2
+        ),
+        "cross",
+    )
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
 @pytest.mark.parametrize(
     ("merge_how",),
     [
@@ -1695,12 +1715,7 @@ def test_series_binop_add_different_table(
 
 all_joins = pytest.mark.parametrize(
     ("how",),
-    (
-        ("outer",),
-        ("left",),
-        ("right",),
-        ("inner",),
-    ),
+    (("outer",), ("left",), ("right",), ("inner",), ("cross",)),
 )
 
 
@@ -1740,6 +1755,8 @@ def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
 
 @all_joins
 def test_join_param_on(scalars_dfs, how):
+    if how == "cross":
+        pytest.skip("cross join not supported with 'on' param")
     bf_df, pd_df = scalars_dfs
 
     bf_df_a = bf_df[["string_col", "int64_col", "rowindex_2"]]

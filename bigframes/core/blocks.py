@@ -35,6 +35,7 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
+import bigframes.core.joins as joining
 import bigframes.core.joins.name_resolution as join_names
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
@@ -1531,6 +1532,7 @@ class Block:
             "left",
             "outer",
             "right",
+            "cross",
         ],
         left_join_ids: typing.Sequence[str],
         right_join_ids: typing.Sequence[str],
@@ -1690,6 +1692,34 @@ class Block:
             else:
                 raise ValueError(f"Unexpected level: {level_ref}")
         return resolved_level_ids
+
+    def cross_join(
+        self, other: Block, left_suffix: str = "", right_suffix: str = ""
+    ) -> Block:
+        # Separate api for cross join as it doesn't utilize index.
+        left_expr = self._expr
+        right_expr = other._expr
+        get_column_left, get_column_right = joining.JOIN_NAME_REMAPPER(
+            left_expr.column_ids, right_expr.column_ids
+        )
+        combined_expr = left_expr.join(
+            self_column_ids=(),
+            other=right_expr,
+            other_column_ids=(),
+            how="cross",
+        )
+        left_cols = [get_column_left[col] for col in self.value_columns]
+        right_cols = [get_column_right[col] for col in other.value_columns]
+        offsets_id = guid.generate_guid()
+        expr_with_offsets = combined_expr.select_columns(
+            [*left_cols, *right_cols]
+        ).promote_offsets(offsets_id)
+
+        return Block(
+            expr_with_offsets,
+            index_columns=(offsets_id,),
+            column_labels=[*self.column_labels, *other.column_labels],
+        )
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
