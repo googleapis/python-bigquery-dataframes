@@ -803,7 +803,7 @@ class Session(
     def _read_bigquery_load_job(
         self,
         filepath_or_buffer: str | IO["bytes"],
-        table: bigquery.Table,
+        table: Union[bigquery.Table, bigquery.TableReference],
         *,
         job_config: bigquery.LoadJobConfig,
         index_col: Iterable[str] | str = (),
@@ -1039,7 +1039,7 @@ class Session(
         encoding: Optional[str] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
-        table = bigquery.Table(self._create_session_table())
+        table = bigframes_io.random_table(self._anonymous_dataset)
 
         if engine is not None and engine == "bigquery":
             if any(param is not None for param in (dtype, names)):
@@ -1153,7 +1153,7 @@ class Session(
         # Note: "engine" is omitted because it is redundant. Loading a table
         # from a pandas DataFrame will just create another parquet file + load
         # job anyway.
-        table = bigquery.Table(self._create_session_table())
+        table = bigframes_io.random_table(self._anonymous_dataset)
 
         job_config = bigquery.LoadJobConfig()
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
@@ -1176,7 +1176,7 @@ class Session(
         engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
         **kwargs,
     ) -> dataframe.DataFrame:
-        table = bigquery.Table(self._create_session_table())
+        table = bigframes_io.random_table(self._anonymous_dataset)
 
         if engine == "bigquery":
 
