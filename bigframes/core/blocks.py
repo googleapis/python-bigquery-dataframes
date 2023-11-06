@@ -28,17 +28,13 @@ import typing
 from typing import Iterable, List, Optional, Sequence, Tuple
 import warnings
 
-import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import numpy
 import pandas as pd
-import pyarrow as pa  # type: ignore
 
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
-import bigframes.core.joins as joins
 import bigframes.core.joins.name_resolution as join_names
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
@@ -46,6 +42,7 @@ import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.session._io.pandas
 import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 # Type constraint for wherever column labels are used
@@ -67,6 +64,10 @@ _SAMPLING_METHODS = (_HEAD, _UNIFORM)
 # Monotonic Cache Names
 _MONOTONIC_INCREASING = "monotonic_increasing"
 _MONOTONIC_DECREASING = "monotonic_decreasing"
+
+
+LevelType = typing.Union[str, int]
+LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
 class BlockHolder(typing.Protocol):
@@ -372,34 +373,11 @@ class Block:
         level_names = [self.col_id_to_index_name[index_id] for index_id in ids]
         return Block(self.expr, ids, self.column_labels, level_names)
 
-    @classmethod
-    def _to_dataframe(
-        cls, result, schema: typing.Mapping[str, bigframes.dtypes.Dtype]
-    ) -> pd.DataFrame:
+    def _to_dataframe(self, result) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
-        dtypes = bigframes.dtypes.to_pandas_dtypes_overrides(result.schema)
-        df = result.to_dataframe(
-            dtypes=dtypes,
-            bool_dtype=pd.BooleanDtype(),
-            int_dtype=pd.Int64Dtype(),
-            float_dtype=pd.Float64Dtype(),
-            string_dtype=pd.StringDtype(storage="pyarrow"),
-            date_dtype=pd.ArrowDtype(pa.date32()),
-            datetime_dtype=pd.ArrowDtype(pa.timestamp("us")),
-            time_dtype=pd.ArrowDtype(pa.time64("us")),
-            timestamp_dtype=pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
-        )
-
-        # Convert Geography column from StringDType to GeometryDtype.
-        for column_name, dtype in schema.items():
-            if dtype == gpd.array.GeometryDtype():
-                df[column_name] = gpd.GeoSeries.from_wkt(
-                    # https://github.com/geopandas/geopandas/issues/1879
-                    df[column_name].replace({numpy.nan: None}),
-                    # BigQuery geography type is based on the WGS84 reference ellipsoid.
-                    crs="EPSG:4326",
-                )
-        return df
+        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes.update(zip(self.value_columns, self.dtypes))
+        return self._expr.session._rows_to_dataframe(result, dtypes)
 
     def to_pandas(
         self,
@@ -437,6 +415,30 @@ class Block:
         )
         return df, query_job
 
+    def to_pandas_batches(self):
+        """Download results one message at a time."""
+        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes.update(zip(self.value_columns, self.dtypes))
+        results_iterator, _ = self._expr.start_query()
+        for arrow_table in results_iterator.to_arrow_iterable(
+            bqstorage_client=self._expr.session.bqstoragereadclient
+        ):
+            df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+            self._copy_index_to_pandas(df)
+            yield df
+
+    def _copy_index_to_pandas(self, df: pd.DataFrame):
+        """Set the index on pandas DataFrame to match this block.
+
+        Warning: This method modifies ``df`` inplace.
+        """
+        if self.index_columns:
+            df.set_index(list(self.index_columns), inplace=True)
+            # Pandas names is annotated as list[str] rather than the more
+            # general Sequence[Label] that BigQuery DataFrames has.
+            # See: https://github.com/pandas-dev/pandas-stubs/issues/804
+            df.index.names = self.index.names  # type: ignore
+
     def _compute_and_count(
         self,
         value_keys: Optional[Iterable[str]] = None,
@@ -451,7 +453,9 @@ class Block:
 
         results_iterator, query_job = expr.start_query(max_results=max_results)
 
-        table_size = expr._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+        table_size = (
+            expr.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+        )
         fraction = (
             max_download_size / table_size
             if (max_download_size is not None) and (table_size != 0)
@@ -480,8 +484,7 @@ class Block:
             if sampling_method == _HEAD:
                 total_rows = int(results_iterator.total_rows * fraction)
                 results_iterator.max_results = total_rows
-                schema = dict(zip(self.value_columns, self.dtypes))
-                df = self._to_dataframe(results_iterator, schema)
+                df = self._to_dataframe(results_iterator)
 
                 if self.index_columns:
                     df.set_index(list(self.index_columns), inplace=True)
@@ -510,12 +513,8 @@ class Block:
                 )
         else:
             total_rows = results_iterator.total_rows
-            schema = dict(zip(self.value_columns, self.dtypes))
-            df = self._to_dataframe(results_iterator, schema)
-
-            if self.index_columns:
-                df.set_index(list(self.index_columns), inplace=True)
-                df.index.names = self.index.names  # type: ignore
+            df = self._to_dataframe(results_iterator)
+            self._copy_index_to_pandas(df)
 
         return df, total_rows, query_job
 
@@ -821,7 +820,9 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype=pd.Float64Dtype(),
+        dtype: typing.Union[
+            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
+        ] = pd.Float64Dtype(),
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -831,7 +832,7 @@ class Block:
             result_expr = self.expr.aggregate(aggregations, dropna=dropna).unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=["index"],
-                unpivot_columns=[(value_col_id, self.value_columns)],
+                unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
                 dtype=dtype,
             )
             return Block(result_expr, index_columns=["index"], column_labels=[None])
@@ -843,7 +844,7 @@ class Block:
             stacked_expr = expr_with_offsets.unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=[guid.generate_guid()],
-                unpivot_columns=[(value_col_id, self.value_columns)],
+                unpivot_columns=[(value_col_id, tuple(self.value_columns))],
                 passthrough_columns=[*self.index_columns, offset_col],
                 dtype=dtype,
             )
@@ -1031,13 +1032,13 @@ class Block:
             for col_id in column_ids
         ]
         columns = [
-            (col_id, [f"{col_id}-{stat.name}" for stat in stats])
+            (col_id, tuple(f"{col_id}-{stat.name}" for stat in stats))
             for col_id in column_ids
         ]
         expr = self.expr.aggregate(aggregations).unpivot(
             labels,
-            unpivot_columns=columns,
-            index_col_ids=[label_col_id],
+            unpivot_columns=tuple(columns),
+            index_col_ids=tuple([label_col_id]),
         )
         labels = self._get_labels_for_columns(column_ids)
         return Block(expr, column_labels=labels, index_columns=[label_col_id])
@@ -1344,7 +1345,7 @@ class Block:
             passthrough_columns=self.index_columns,
             unpivot_columns=unpivot_columns,
             index_col_ids=added_index_columns,
-            dtype=dtypes,
+            dtype=tuple(dtypes),
             how=how,
         )
         new_index_level_names = self.column_labels.names[-levels:]
@@ -1355,13 +1356,50 @@ class Block:
             index_columns = [*added_index_columns, *self.index_columns]
             index_labels = [*new_index_level_names, *self._index_labels]
 
-        block = Block(
+        return Block(
             unpivot_expr,
             index_columns=index_columns,
             column_labels=result_index,
             index_labels=index_labels,
         )
-        return block
+
+    def melt(
+        self,
+        id_vars=typing.Sequence[str],
+        value_vars=typing.Sequence[str],
+        var_names=typing.Sequence[typing.Hashable],
+        value_name: typing.Hashable = "value",
+    ):
+        # TODO: Implement col_level and ignore_index
+        unpivot_col_id = guid.generate_guid()
+        var_col_ids = tuple([guid.generate_guid() for _ in var_names])
+        # single unpivot col
+        unpivot_col = (unpivot_col_id, tuple(value_vars))
+        value_labels = [self.col_id_to_label[col_id] for col_id in value_vars]
+        id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
+
+        dtype = self._expr.get_column_type(value_vars[0])
+
+        unpivot_expr = self._expr.unpivot(
+            row_labels=value_labels,
+            passthrough_columns=id_vars,
+            unpivot_columns=(unpivot_col,),
+            index_col_ids=var_col_ids,
+            dtype=dtype,
+            how="right",
+        )
+        index_id = guid.generate_guid()
+        unpivot_expr = unpivot_expr.promote_offsets(index_id)
+        # Need to reorder to get id_vars before var_col and unpivot_col
+        unpivot_expr = unpivot_expr.select_columns(
+            [index_id, *id_vars, *var_col_ids, unpivot_col_id]
+        )
+
+        return Block(
+            unpivot_expr,
+            column_labels=[*id_labels, *var_names, value_name],
+            index_columns=[index_id],
+        )
 
     def _create_stack_column(
         self, col_label: typing.Tuple, stack_labels: typing.Sequence[typing.Tuple]
@@ -1384,7 +1422,7 @@ class Block:
                     dtype = self._column_type(input_id)
             input_columns.append(input_id)
             # Input column i is the first one that
-        return input_columns, dtype or pd.Float64Dtype()
+        return tuple(input_columns), dtype or pd.Float64Dtype()
 
     def _column_type(self, col_id: str) -> bigframes.dtypes.Dtype:
         col_offset = self.value_columns.index(col_id)
@@ -1450,9 +1488,7 @@ class Block:
             raise ValueError(f"Too many unique values: {pd_values}")
 
         if len(columns) > 1:
-            return pd.MultiIndex.from_frame(
-                pd_values.sort_values(by=list(pd_values.columns), na_position="first")
-            )
+            return pd.MultiIndex.from_frame(pd_values)
         else:
             return pd.Index(pd_values.squeeze(axis=1).sort_values(na_position="first"))
 
@@ -1501,8 +1537,7 @@ class Block:
         sort: bool,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> Block:
-        joined_expr = joins.join_by_column(
-            self.expr,
+        joined_expr = self.expr.join(
             left_join_ids,
             other.expr,
             right_join_ids,
@@ -1638,6 +1673,24 @@ class Block:
             index_labels=self.index_labels,
         )
 
+    def resolve_index_level(self, level: LevelsType) -> typing.Sequence[str]:
+        if utils.is_list_like(level):
+            levels = list(level)
+        else:
+            levels = [level]
+        resolved_level_ids = []
+        for level_ref in levels:
+            if isinstance(level_ref, int):
+                resolved_level_ids.append(self.index_columns[level_ref])
+            elif isinstance(level_ref, typing.Hashable):
+                matching_ids = self.index_name_to_col_id.get(level_ref, [])
+                if len(matching_ids) != 1:
+                    raise ValueError("level name cannot be found or is ambiguous")
+                resolved_level_ids.append(matching_ids[0])
+            else:
+                raise ValueError(f"Unexpected level: {level_ref}")
+        return resolved_level_ids
+
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
     ) -> bool:
@@ -1694,7 +1747,7 @@ class Block:
         return result
 
 
-def block_from_local(data, session=None) -> Block:
+def block_from_local(data) -> Block:
     pd_data = pd.DataFrame(data)
     columns = pd_data.columns
 
@@ -1716,7 +1769,7 @@ def block_from_local(data, session=None) -> Block:
     )
     index_ids = pd_data.columns[: len(index_labels)]
 
-    keys_expr = core.ArrayValue.mem_expr_from_pandas(pd_data, session)
+    keys_expr = core.ArrayValue.from_pandas(pd_data)
     return Block(
         keys_expr,
         column_labels=columns,

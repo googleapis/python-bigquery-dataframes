@@ -505,14 +505,32 @@ def test_assign_new_column_w_setitem_list(scalars_dfs):
     pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_assign_new_column_w_setitem_list_repeated(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    pd_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    bf_df["new_col_2"] = [1, 3, 2, 5, 4, 7, 6, 9, 8]
+    pd_df["new_col_2"] = [1, 3, 2, 5, 4, 7, 6, 9, 8]
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+
+    # Convert default pandas dtypes `int64` to match BigQuery DataFrames dtypes.
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+    pd_result["new_col_2"] = pd_result["new_col_2"].astype("Int64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_assign_new_column_w_setitem_list_custom_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_df = scalars_df.copy()
     pd_df = scalars_pandas_df.copy()
 
     # set the custom index
-    pd_df = pd_df.set_index("string_col")
-    bf_df = bf_df.set_index("string_col")
+    pd_df = pd_df.set_index(["string_col", "int64_col"])
+    bf_df = bf_df.set_index(["string_col", "int64_col"])
 
     bf_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
     pd_df["new_col"] = [9, 8, 7, 6, 5, 4, 3, 2, 1]
@@ -693,6 +711,22 @@ def test_df_dropna(scalars_dfs, axis, how, ignore_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_interpolate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    columns = ["int64_col", "int64_too", "float64_col"]
+    bf_result = scalars_df[columns].interpolate().to_pandas()
+    # Pandas can only interpolate on "float64" columns
+    # https://github.com/pandas-dev/pandas/issues/40252
+    pd_result = scalars_pandas_df[columns].astype("float64").interpolate()
+
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
 def test_df_fillna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df[["int64_col", "float64_col"]].fillna(3)
@@ -767,6 +801,55 @@ def test_apply_series_scalar_callable(
     pd_result = scalars_pandas_df_index[columns].apply(lambda x: x.sum())
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_df_keys(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    pandas.testing.assert_index_equal(
+        scalars_df_index.keys(), scalars_pandas_df_index.keys()
+    )
+
+
+def test_df_iter(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for bf_i, df_i in zip(scalars_df_index, scalars_pandas_df_index):
+        assert bf_i == df_i
+
+
+def test_iterrows(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for (bf_index, bf_series), (pd_index, pd_series) in zip(
+        scalars_df_index.iterrows(), scalars_pandas_df_index.iterrows()
+    ):
+        assert bf_index == pd_index
+        pandas.testing.assert_series_equal(bf_series, pd_series)
+
+
+@pytest.mark.parametrize(
+    (
+        "index",
+        "name",
+    ),
+    [
+        (
+            True,
+            "my_df",
+        ),
+        (False, None),
+    ],
+)
+def test_itertuples(scalars_df_index, index, name):
+    # Numeric has slightly different representation as a result of conversions.
+    bf_tuples = scalars_df_index.itertuples(index, name)
+    pd_tuples = scalars_df_index.to_pandas().itertuples(index, name)
+    for bf_tuple, pd_tuple in zip(bf_tuples, pd_tuples):
+        assert bf_tuple == pd_tuple
 
 
 def test_df_isin_list(scalars_dfs):
@@ -1901,6 +1984,49 @@ def test_df_stack(scalars_dfs):
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
+def test_df_melt_default(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # To match bigquery dataframes
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_pandas_df.columns = scalars_pandas_df.columns.astype("string[pyarrow]")
+    # Can only stack identically-typed columns
+    columns = ["int64_col", "int64_too", "rowindex_2"]
+
+    bf_result = scalars_df[columns].melt().to_pandas()
+    pd_result = scalars_pandas_df[columns].melt()
+
+    # Pandas produces int64 index, Bigframes produces Int64 (nullable)
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_melt_parameterized(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # To match bigquery dataframes
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_pandas_df.columns = scalars_pandas_df.columns.astype("string[pyarrow]")
+    # Can only stack identically-typed columns
+
+    bf_result = scalars_df.melt(
+        var_name="alice",
+        value_name="bob",
+        id_vars=["string_col"],
+        value_vars=["int64_col", "int64_too"],
+    ).to_pandas()
+    pd_result = scalars_pandas_df.melt(
+        var_name="alice",
+        value_name="bob",
+        id_vars=["string_col"],
+        value_vars=["int64_col", "int64_too"],
+    )
+
+    # Pandas produces int64 index, Bigframes produces Int64 (nullable)
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_index_type=False, check_dtype=False
+    )
+
+
 def test_df_unstack(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     # To match bigquery dataframes
@@ -1949,8 +2075,14 @@ def test_df_pivot(scalars_dfs, values, index, columns):
     ],
 )
 def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
-    bf_result = hockey_df.pivot(values=values, index=index, columns=columns).to_pandas()
-    pd_result = hockey_pandas_df.pivot(values=values, index=index, columns=columns)
+    bf_result = (
+        hockey_df.reset_index()
+        .pivot(values=values, index=index, columns=columns)
+        .to_pandas()
+    )
+    pd_result = hockey_pandas_df.reset_index().pivot(
+        values=values, index=index, columns=columns
+    )
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -2046,16 +2178,6 @@ def test__dir__with_rename(scalars_dfs):
 def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
-
-    # Pandas may assign non-object dtype to empty series and series index
-    # dtypes of empty columns are a known area of divergence from pandas
-    for column in pd_result.columns:
-        if (
-            pd_result[column].empty and column != "geography_col"
-        ):  # for empty geography_col, bigframes assigns non-object dtype
-            pd_result[column] = pd_result[column].astype("object")
-            pd_result.index = pd_result.index.astype("object")
-
     pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
@@ -3207,11 +3329,44 @@ def test_df_dot(
     )
 
 
+def test_df_dot_operator(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = (matrix_2by3_df @ matrix_3by4_df).to_pandas()
+    pd_result = matrix_2by3_pandas_df @ matrix_3by4_pandas_df
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    for name in pd_result.columns:
+        pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_dot_series(
     matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
 ):
     bf_result = matrix_2by3_df.dot(matrix_3by4_df["x"]).to_pandas()
     pd_result = matrix_2by3_pandas_df.dot(matrix_3by4_pandas_df["x"])
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is object instead of Int64 (nullable) dtype.
+    pd_result = pd_result.astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot_operator_series(
+    matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
+):
+    bf_result = (matrix_2by3_df @ matrix_3by4_df["x"]).to_pandas()
+    pd_result = matrix_2by3_pandas_df @ matrix_3by4_pandas_df["x"]
 
     # Patch pandas dtypes for testing parity
     # Pandas result is object instead of Int64 (nullable) dtype.

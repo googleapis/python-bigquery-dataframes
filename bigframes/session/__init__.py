@@ -68,6 +68,7 @@ import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
+import bigframes.core.ordering as orderings
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
@@ -206,6 +207,10 @@ class Session(
     def _project(self):
         return self.bqclient.project
 
+    def __hash__(self):
+        # Stable hash needed to use in expression tree
+        return hash(self._session_id)
+
     def _create_and_bind_bq_session(self):
         """Create a BQ session and bind the session id with clients to capture BQ activities:
         go/bigframes-transient-data"""
@@ -217,6 +222,17 @@ class Session(
         )
         query_job.result()  # blocks until finished
         self._session_id = query_job.session_info.session_id
+
+        # The anonymous dataset is used by BigQuery to write query results and
+        # session tables. BigQuery DataFrames also writes temp tables directly
+        # to the dataset, no BigQuery Session required. Note: there is a
+        # different anonymous dataset per location. See:
+        # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+        query_destination = query_job.destination
+        self._anonymous_dataset = bigquery.DatasetReference(
+            query_destination.project,
+            query_destination.dataset_id,
+        )
 
         self.bqclient.default_query_job_config = bigquery.QueryJobConfig(
             connection_properties=[
@@ -347,7 +363,7 @@ class Session(
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            Simple query input:
+        Simple query input:
 
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
@@ -363,7 +379,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            Preserve ordering in a query input.
+        Preserve ordering in a query input.
 
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
@@ -414,7 +430,9 @@ class Session(
             index_cols = list(index_col)
 
         destination, query_job = self._query_to_destination(
-            query, index_cols, api_name="read_gbq_query"
+            query,
+            index_cols,
+            api_name=api_name,
         )
 
         # If there was no destination table, that means the query must have
@@ -592,11 +610,13 @@ class Session(
             # primary key(s) are set on a table. The query engine assumes such
             # columns are unique, even if not enforced.
             is_total_ordering = True
-            ordering = core.ExpressionOrdering(
-                ordering_value_columns=[
-                    core.OrderingColumnReference(column_id)
-                    for column_id in total_ordering_cols
-                ],
+            ordering = orderings.ExpressionOrdering(
+                ordering_value_columns=tuple(
+                    [
+                        core.OrderingColumnReference(column_id)
+                        for column_id in total_ordering_cols
+                    ]
+                ),
                 total_ordering_columns=frozenset(total_ordering_cols),
             )
 
@@ -634,10 +654,13 @@ class Session(
             distinct_count = row["distinct_count"]
             is_total_ordering = total_count == distinct_count
 
-            ordering = core.ExpressionOrdering(
-                ordering_value_columns=[
-                    core.OrderingColumnReference(column_id) for column_id in index_cols
-                ],
+            ordering = orderings.ExpressionOrdering(
+                ordering_value_columns=tuple(
+                    [
+                        core.OrderingColumnReference(column_id)
+                        for column_id in index_cols
+                    ]
+                ),
                 total_ordering_columns=frozenset(index_cols),
             )
 
@@ -713,7 +736,7 @@ class Session(
         index_cols: Iterable[str] = (),
         index_labels: Iterable[Optional[str]] = (),
         hidden_cols: Iterable[str] = (),
-        ordering: core.ExpressionOrdering,
+        ordering: orderings.ExpressionOrdering,
         is_total_ordering: bool = False,
         api_name: str,
     ) -> dataframe.DataFrame:
@@ -826,7 +849,7 @@ class Session(
         index_labels: Iterable[blocks.Label],
         column_keys: Iterable[str],
         column_labels: Iterable[blocks.Label],
-        ordering: core.ExpressionOrdering,
+        ordering: orderings.ExpressionOrdering,
     ) -> dataframe.DataFrame:
         """Turns a table expression (plus index column) into a DataFrame."""
 
@@ -843,7 +866,7 @@ class Session(
                 hidden_ordering_columns.append(table_expression[ref.column_id])
 
         block = blocks.Block(
-            core.ArrayValue(
+            core.ArrayValue.from_ibis(
                 self, table_expression, columns, hidden_ordering_columns, ordering
             ),
             index_columns=[index_col.get_name() for index_col in index_cols],
@@ -959,8 +982,8 @@ class Session(
         )
         self._start_generic_job(load_job)
 
-        ordering = core.ExpressionOrdering(
-            ordering_value_columns=[OrderingColumnReference(ordering_col)],
+        ordering = orderings.ExpressionOrdering(
+            ordering_value_columns=tuple([OrderingColumnReference(ordering_col)]),
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
@@ -1303,7 +1326,7 @@ class Session(
         table: ibis_types.Table,
         index_cols: Iterable[str] = (),
         api_name: str = "",
-    ) -> Tuple[ibis_types.Table, core.ExpressionOrdering]:
+    ) -> Tuple[ibis_types.Table, orderings.ExpressionOrdering]:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
         default_ordering_name = guid.generate_guid("bigframes_ordering_")
@@ -1320,8 +1343,8 @@ class Session(
             f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
         )
         ordering_reference = core.OrderingColumnReference(default_ordering_name)
-        ordering = core.ExpressionOrdering(
-            ordering_value_columns=[ordering_reference],
+        ordering = orderings.ExpressionOrdering(
+            ordering_value_columns=tuple([ordering_reference]),
             total_ordering_columns=frozenset([default_ordering_name]),
             integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
         )
@@ -1457,13 +1480,13 @@ class Session(
 
         **Examples:**
 
-        >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-        >>> function_name = "bqutil.fn.cw_lower_case_ascii_only"
-        >>> func = bpd.read_gbq_function(function_name=function_name)
-        >>> func.bigframes_remote_function
-        'bqutil.fn.cw_lower_case_ascii_only'
+            >>> function_name = "bqutil.fn.cw_lower_case_ascii_only"
+            >>> func = bpd.read_gbq_function(function_name=function_name)
+            >>> func.bigframes_remote_function
+            'bqutil.fn.cw_lower_case_ascii_only'
 
         Args:
             function_name (str):
@@ -1494,12 +1517,10 @@ class Session(
         max_results: Optional[int] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts query job and waits for results
+        Starts query job and waits for results.
         """
-        if job_config is not None:
-            query_job = self.bqclient.query(sql, job_config=job_config)
-        else:
-            query_job = self.bqclient.query(sql)
+        job_config = self._prepare_job_config(job_config)
+        query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
@@ -1515,14 +1536,10 @@ class Session(
         return table.num_bytes
 
     def _rows_to_dataframe(
-        self, row_iterator: bigquery.table.RowIterator
+        self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
     ) -> pandas.DataFrame:
-        return row_iterator.to_dataframe(
-            bool_dtype=pandas.BooleanDtype(),
-            int_dtype=pandas.Int64Dtype(),
-            float_dtype=pandas.Float64Dtype(),
-            string_dtype=pandas.StringDtype(storage="pyarrow"),
-        )
+        arrow_table = row_iterator.to_arrow()
+        return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
         if bigframes.options.display.progress_bar is not None:
@@ -1531,6 +1548,17 @@ class Session(
             )  # Wait for the job to complete
         else:
             job.result()
+
+    def _prepare_job_config(
+        self, job_config: Optional[bigquery.QueryJobConfig] = None
+    ) -> bigquery.QueryJobConfig:
+        if job_config is None:
+            job_config = self.bqclient.default_query_job_config
+        if bigframes.options.compute.maximum_bytes_billed is not None:
+            job_config.maximum_bytes_billed = (
+                bigframes.options.compute.maximum_bytes_billed
+            )
+        return job_config
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:

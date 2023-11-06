@@ -273,6 +273,32 @@ def test_series_replace_list_scalar(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("values",),
+    (
+        ([None, 1, 2, None, None, 16, None],),
+        ([None, None, 3.6, None],),
+        ([403.2, None, 352.1, None, None, 111.9],),
+    ),
+)
+def test_series_interpolate(values):
+    pd_series = pd.Series(values)
+    bf_series = series.Series(pd_series)
+
+    # Pandas can only interpolate on "float64" columns
+    # https://github.com/pandas-dev/pandas/issues/40252
+    pd_result = pd_series.astype("float64").interpolate()
+    bf_result = bf_series.interpolate().to_pandas()
+
+    # pd uses non-null types, while bf uses nullable types
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
+@pytest.mark.parametrize(
     ("ignore_index",),
     (
         (True,),
@@ -575,7 +601,15 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
 )
 def test_mods(scalars_dfs, col_x, col_y, method):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = getattr(scalars_df[col_x], method)(scalars_df[col_y]).to_pandas()
+    x_bf = scalars_df[col_x]
+    y_bf = scalars_df[col_y]
+    bf_series = getattr(x_bf, method)(y_bf)
+    # BigQuery's mod functions return [BIG]NUMERIC values unless both arguments are integers.
+    # https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions#mod
+    if x_bf.dtype == pd.Int64Dtype() and y_bf.dtype == pd.Int64Dtype():
+        bf_result = bf_series.to_pandas()
+    else:
+        bf_result = bf_series.astype("Float64").to_pandas()
     pd_result = getattr(scalars_pandas_df[col_x], method)(scalars_pandas_df[col_y])
     pd.testing.assert_series_equal(pd_result, bf_result)
 
@@ -620,8 +654,20 @@ def test_divmods_series(scalars_dfs, col_x, col_y, method):
     pd_div_result, pd_mod_result = getattr(scalars_pandas_df[col_x], method)(
         scalars_pandas_df[col_y]
     )
-    pd.testing.assert_series_equal(pd_div_result, bf_div_result.to_pandas())
-    pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.to_pandas())
+    # BigQuery's mod functions return NUMERIC values for non-INT64 inputs.
+    if bf_div_result.dtype == pd.Int64Dtype():
+        pd.testing.assert_series_equal(pd_div_result, bf_div_result.to_pandas())
+    else:
+        pd.testing.assert_series_equal(
+            pd_div_result, bf_div_result.astype("Float64").to_pandas()
+        )
+
+    if bf_mod_result.dtype == pd.Int64Dtype():
+        pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.to_pandas())
+    else:
+        pd.testing.assert_series_equal(
+            pd_mod_result, bf_mod_result.astype("Float64").to_pandas()
+        )
 
 
 @pytest.mark.parametrize(
@@ -649,8 +695,20 @@ def test_divmods_scalars(scalars_dfs, col_x, other, method):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_div_result, bf_mod_result = getattr(scalars_df[col_x], method)(other)
     pd_div_result, pd_mod_result = getattr(scalars_pandas_df[col_x], method)(other)
-    pd.testing.assert_series_equal(pd_div_result, bf_div_result.to_pandas())
-    pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.to_pandas())
+    # BigQuery's mod functions return NUMERIC values for non-INT64 inputs.
+    if bf_div_result.dtype == pd.Int64Dtype():
+        pd.testing.assert_series_equal(pd_div_result, bf_div_result.to_pandas())
+    else:
+        pd.testing.assert_series_equal(
+            pd_div_result, bf_div_result.astype("Float64").to_pandas()
+        )
+
+    if bf_mod_result.dtype == pd.Int64Dtype():
+        pd.testing.assert_series_equal(pd_mod_result, bf_mod_result.to_pandas())
+    else:
+        pd.testing.assert_series_equal(
+            pd_mod_result, bf_mod_result.astype("Float64").to_pandas()
+        )
 
 
 @pytest.mark.parametrize(
@@ -1941,12 +1999,6 @@ def test_iloc_nested(scalars_df_index, scalars_pandas_df_index):
 def test_series_iloc(scalars_df_index, scalars_pandas_df_index, start, stop, step):
     bf_result = scalars_df_index["string_col"].iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index["string_col"].iloc[start:stop:step]
-
-    # Pandas may assign non-object dtype to empty series and series index
-    if pd_result.empty:
-        pd_result = pd_result.astype("object")
-        pd_result.index = pd_result.index.astype("object")
-
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
@@ -2832,7 +2884,7 @@ def test_map_series_input(scalars_dfs):
     pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
     pd_map_series.index = new_index
     bf_map_series = series.Series(
-        pd_map_series, session=scalars_df._get_block().expr._session
+        pd_map_series, session=scalars_df._get_block().expr.session
     )
 
     pd_result = scalars_pandas_df.int64_too.map(pd_map_series)
@@ -2851,7 +2903,7 @@ def test_map_series_input_duplicates_error(scalars_dfs):
     pd_map_series = scalars_pandas_df.string_col.iloc[0 : len(new_index)]
     pd_map_series.index = new_index
     bf_map_series = series.Series(
-        pd_map_series, session=scalars_df._get_block().expr._session
+        pd_map_series, session=scalars_df._get_block().expr.session
     )
 
     with pytest.raises(pd.errors.InvalidIndexError):

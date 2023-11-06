@@ -305,8 +305,10 @@ def run_system(
         "py.test",
         "--quiet",
         "-n=20",
-        # Any individual test taking longer than 10 mins will be terminated.
+        # Any individual test taking longer than 15 mins will be terminated.
         "--timeout=900",
+        # Log 20 slowest tests
+        "--durations=20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
     ]
     if print_duration:
@@ -449,9 +451,7 @@ def docs(session):
     )
 
 
-# docfx doesn't yet support Python 3.10.
-# https://github.com/googleapis/sphinx-docfx-yaml/issues/305
-@nox.session(python="3.9")
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
