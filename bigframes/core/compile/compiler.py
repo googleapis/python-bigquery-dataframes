@@ -92,10 +92,11 @@ def compile_drop(node: nodes.DropColumnsNode, ordered: bool = True):
 @_compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
     array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
+    ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd)
     if ordered:
-        return compiled.OrderedIR.from_pandas(array_as_pd)
+        return ordered_ir
     else:
-        return compiled.UnorderedIR.from_pandas(array_as_pd)
+        ordered_ir.to_unordered()
 
 
 @_compile_node.register
@@ -116,7 +117,7 @@ def compile_readgbq(node: nodes.ReadGbqNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_promote_offsets(node: nodes.PromoteOffsetsNode, ordered: bool = True):
-    result = compile_node(node.child, True).promote_offsets(node.col_id)
+    result = compile_ordered(node.child).promote_offsets(node.col_id)
     return result if ordered else result.to_unordered()
 
 
@@ -127,12 +128,18 @@ def compile_filter(node: nodes.FilterNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_orderby(node: nodes.OrderByNode, ordered: bool = True):
-    return compile_node(node.child, ordered).order_by(node.by, node.stable)
+    if ordered:
+        return compile_ordered(node.child).order_by(node.by, node.stable)
+    else:
+        return compile_unordered(node.child)
 
 
 @_compile_node.register
 def compile_reversed(node: nodes.ReversedNode, ordered: bool = True):
-    return compile_node(node.child, ordered).reversed()
+    if ordered:
+        return compile_ordered(node.child).reversed()
+    else:
+        return compile_unordered(node.child)
 
 
 @_compile_node.register
@@ -168,7 +175,7 @@ def compile_concat(node: nodes.ConcatNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_aggregate(node: nodes.AggregateNode, ordered: bool = True):
-    result = compile_node(node.child, False).aggregate(
+    result = compile_unordered(node.child).aggregate(
         node.aggregations, node.by_column_ids, node.dropna
     )
     return result if ordered else result.to_unordered()
@@ -176,13 +183,13 @@ def compile_aggregate(node: nodes.AggregateNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_corr(node: nodes.CorrNode, ordered: bool = True):
-    result = compile_node(node.child, False).corr_aggregate(node.corr_aggregations)
+    result = compile_unordered(node.child).corr_aggregate(node.corr_aggregations)
     return result if ordered else result.to_unordered()
 
 
 @_compile_node.register
 def compile_window(node: nodes.WindowOpNode, ordered: bool = True):
-    result = compile_node(node.child, True).project_window_op(
+    result = compile_ordered(node.child).project_window_op(
         node.column_name,
         node.op,
         node.window_spec,

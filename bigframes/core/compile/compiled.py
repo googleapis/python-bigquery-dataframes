@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import abc
 import functools
 import textwrap
 import typing
@@ -41,183 +42,10 @@ import bigframes.operations.aggregations as agg_ops
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
-
-class CompiledArrayValue(typing.Protocol):
-    @property
-    def column_ids(self) -> typing.Sequence[str]:
-        ...
-
-    def to_sql(self) -> str:
-        ...
-
-    def _to_ibis_expr(self, *args, **kwargs) -> str:
-        """Exposed for testing purposes only."""
-        ...
-
-    def select_columns(self, column_ids: typing.Sequence[str]) -> CompiledArrayValue:
-        ...
-
-    def drop_columns(self, columns: Iterable[str]) -> CompiledArrayValue:
-        return self.select_columns(
-            [col for col in self.column_ids if col not in columns]
-        )
-
-    def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        ...
-
-    def filter(self, predicate_id: str, keep_null: bool = False) -> CompiledArrayValue:
-        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        ...
-
-    def order_by(
-        self, by: Sequence[OrderingColumnReference], stable: bool = False
-    ) -> CompiledArrayValue:
-        ...
-
-    def reversed(self) -> CompiledArrayValue:
-        ...
-
-    def project_unary_op(
-        self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> CompiledArrayValue:
-        """Creates a new expression based on this expression with unary operation applied to one column."""
-        ...
-
-    def project_binary_op(
-        self,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> CompiledArrayValue:
-        """Creates a new expression based on this expression with binary operation applied to two columns."""
-        ...
-
-    def project_ternary_op(
-        self,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
-    ) -> CompiledArrayValue:
-        """Creates a new expression based on this expression with ternary operation applied to three columns."""
-        ...
-
-    def aggregate(
-        self,
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
-        by_column_ids: typing.Sequence[str] = (),
-        dropna: bool = True,
-    ) -> CompiledArrayValue:
-        """
-        Apply aggregations to the expression.
-        Arguments:
-            aggregations: input_column_id, operation, output_column_id tuples
-            by_column_id: column id of the aggregation key, this is preserved through the transform
-            dropna: whether null keys should be dropped
-        """
-        ...
-
-    def corr_aggregate(
-        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
-    ) -> CompiledArrayValue:
-        """
-        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
-        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
-        Arguments:
-            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
-        """
-        ...
-
-    def assign(self, source_id: str, destination_id: str) -> CompiledArrayValue:
-        ...
-
-    def assign_constant(
-        self,
-        destination_id: str,
-        value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> CompiledArrayValue:
-        ...
-
-    def unpivot(
-        self,
-        row_labels: typing.Sequence[typing.Hashable],
-        unpivot_columns: typing.Sequence[
-            typing.Tuple[str, typing.Sequence[typing.Optional[str]]]
-        ],
-        *,
-        passthrough_columns: typing.Sequence[str] = (),
-        index_col_ids: typing.Sequence[str] = ["index"],
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Sequence[bigframes.dtypes.Dtype]
-        ] = pandas.Float64Dtype(),
-        how="left",
-    ) -> CompiledArrayValue:
-        """
-        Unpivot ArrayValue columns.
-
-        Args:
-            row_labels: Identifies the source of the row. Must be equal to length to source column list in unpivot_columns argument.
-            unpivot_columns: Mapping of column id to list of input column ids. Lists of input columns may use None.
-            passthrough_columns: Columns that will not be unpivoted. Column id will be preserved.
-            index_col_id (str): The column id to be used for the row labels.
-            dtype (dtype or list of dtype): Dtype to use for the unpivot columns. If list, must be equal in number to unpivot_columns.
-
-        Returns:
-            ArrayValue: The unpivoted ArrayValue
-        """
-        ...
-
-    def _reproject_to_table(self) -> CompiledArrayValue:
-        """
-        Internal operators that projects the internal representation into a
-        new ibis table expression where each value column is a direct
-        reference to a column in that table expression. Needed after
-        some operations such as window operations that cannot be used
-        recursively in projections.
-        """
-        ...
-
-    def _uniform_sampling(self, fraction: float) -> CompiledArrayValue:
-        """Sampling the table on given fraction.
-
-        .. warning::
-            The row numbers of result is non-deterministic, avoid to use.
-        """
-        ...
-
-    # Always ordered operations
-    def project_window_op(
-        self,
-        column_name: str,
-        op: agg_ops.WindowOp,
-        window_spec: WindowSpec,
-        output_name=None,
-        *,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
-    ) -> OrderedIR:
-        """
-        Creates a new expression based on this expression with unary operation applied to one column.
-        column_name: the id of the input column present in the expression
-        op: the windowable operator to apply to the input column
-        window_spec: a specification of the window over which to apply the operator
-        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
-        never_skip_nulls: will disable null skipping for operators that would otherwise do so
-        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
-        """
-        ...
-
-    def promote_offsets(self, col_id: str):
-        """
-        Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
-        """
-        ...
+T = typing.TypeVar("T", bound="BaseIbisIR")
 
 
-class BaseIbisIR:
+class BaseIbisIR(abc.ABC):
     """Implementation detail, contains common logic between ordered and unordered IR"""
 
     def __init__(
@@ -253,6 +81,123 @@ class BaseIbisIR:
             else None
         )
 
+    @abc.abstractmethod
+    def select_columns(self: T, column_ids: typing.Sequence[str]) -> T:
+        """Creates a new expression based on this expression with new columns."""
+        ...
+
+    def drop_columns(self: T, columns: Iterable[str]) -> T:
+        return self.select_columns(
+            [col for col in self.column_ids if col not in columns]
+        )
+
+    @abc.abstractmethod
+    def filter(self: T, predicate_id: str, keep_null: bool = False) -> T:
+        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
+        ...
+
+    @abc.abstractmethod
+    def unpivot(
+        self: T,
+        row_labels: typing.Sequence[typing.Hashable],
+        unpivot_columns: typing.Sequence[
+            typing.Tuple[str, typing.Sequence[typing.Optional[str]]]
+        ],
+        *,
+        passthrough_columns: typing.Sequence[str] = (),
+        index_col_ids: typing.Sequence[str] = ["index"],
+        dtype: typing.Union[
+            bigframes.dtypes.Dtype, typing.Sequence[bigframes.dtypes.Dtype]
+        ] = pandas.Float64Dtype(),
+        how="left",
+    ) -> T:
+        """
+        Unpivot ArrayValue columns.
+
+        Args:
+            row_labels: Identifies the source of the row. Must be equal to length to source column list in unpivot_columns argument.
+            unpivot_columns: Mapping of column id to list of input column ids. Lists of input columns may use None.
+            passthrough_columns: Columns that will not be unpivoted. Column id will be preserved.
+            index_col_id (str): The column id to be used for the row labels.
+            dtype (dtype or list of dtype): Dtype to use for the unpivot columns. If list, must be equal in number to unpivot_columns.
+
+        Returns:
+            ArrayValue: The unpivoted ArrayValue
+        """
+        ...
+
+    @abc.abstractmethod
+    def _reproject_to_table(self: T) -> T:
+        """
+        Internal operators that projects the internal representation into a
+        new ibis table expression where each value column is a direct
+        reference to a column in that table expression. Needed after
+        some operations such as window operations that cannot be used
+        recursively in projections.
+        """
+        ...
+
+    def project_unary_op(
+        self: T, column_name: str, op: ops.UnaryOp, output_name=None
+    ) -> T:
+        """Creates a new expression based on this expression with unary operation applied to one column."""
+        value = op._as_ibis(self._get_ibis_column(column_name)).name(output_name)
+        return self._set_or_replace_by_id(output_name, value)
+
+    def project_binary_op(
+        self: T,
+        left_column_id: str,
+        right_column_id: str,
+        op: ops.BinaryOp,
+        output_column_id: str,
+    ) -> T:
+        """Creates a new expression based on this expression with binary operation applied to two columns."""
+        value = op(
+            self._get_ibis_column(left_column_id),
+            self._get_ibis_column(right_column_id),
+        ).name(output_column_id)
+        return self._set_or_replace_by_id(output_column_id, value)
+
+    def project_ternary_op(
+        self: T,
+        col_id_1: str,
+        col_id_2: str,
+        col_id_3: str,
+        op: ops.TernaryOp,
+        output_column_id: str,
+    ) -> T:
+        """Creates a new expression based on this expression with ternary operation applied to three columns."""
+        value = op(
+            self._get_ibis_column(col_id_1),
+            self._get_ibis_column(col_id_2),
+            self._get_ibis_column(col_id_3),
+        ).name(output_column_id)
+        return self._set_or_replace_by_id(output_column_id, value)
+
+    def assign(self: T, source_id: str, destination_id: str) -> T:
+        return self._set_or_replace_by_id(
+            destination_id, self._get_ibis_column(source_id)
+        )
+
+    def assign_constant(
+        self: T,
+        destination_id: str,
+        value: typing.Any,
+        dtype: typing.Optional[bigframes.dtypes.Dtype],
+    ) -> T:
+        # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
+        ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
+        if ibis_value is None:
+            raise NotImplementedError(
+                f"Type not supported as scalar value {type(value)}. {constants.FEEDBACK_LINK}"
+            )
+        expr = self._set_or_replace_by_id(destination_id, ibis_value)
+        return expr._reproject_to_table()
+
+    @abc.abstractmethod
+    def _set_or_replace_by_id(self: T, id: str, new_value: ibis_types.Value) -> T:
+        ...
+
     def _get_ibis_column(self, key: str) -> ibis_types.Value:
         """Gets the Ibis expression for a given column."""
         if key not in self.column_ids:
@@ -272,7 +217,7 @@ class BaseIbisIR:
 
 
 # Ibis Implementations
-class UnorderedIR(BaseIbisIR, CompiledArrayValue):
+class UnorderedIR(BaseIbisIR):
     def __init__(
         self,
         table: ibis_types.Table,
@@ -280,58 +225,6 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         super().__init__(table, columns, predicates)
-
-    @classmethod
-    def from_pandas(
-        cls,
-        pd_df: pandas.DataFrame,
-    ) -> UnorderedIR:
-        """
-        Builds an in-memory only (SQL only) expr from a pandas dataframe.
-        """
-        # We can't include any hidden columns in the ArrayValue constructor, so
-        # grab the column names before we add the hidden ordering column.
-        column_names = [str(column) for column in pd_df.columns]
-        # Make sure column names are all strings.
-        pd_df = pd_df.set_axis(column_names, axis="columns")
-
-        # ibis memtable cannot handle NA, must convert to None
-        pd_df = pd_df.astype("object")  # type: ignore
-        pd_df = pd_df.where(pandas.notnull(pd_df), None)
-
-        # NULL type isn't valid in BigQuery, so retry with an explicit schema in these cases.
-        keys_memtable = ibis.memtable(pd_df)
-        schema = keys_memtable.schema()
-        new_schema = []
-        for column_index, column in enumerate(schema):
-            column_type = schema[column]
-            # The autodetected type might not be one we can support, such
-            # as NULL type for empty rows, so convert to a type we do
-            # support.
-            new_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(
-                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(column_type)
-            )
-            # TODO(swast): Ibis memtable doesn't use backticks in struct
-            # field names, so spaces and other characters aren't allowed in
-            # the memtable context. Blocked by
-            # https://github.com/ibis-project/ibis/issues/7187
-            column = f"col_{column_index}"
-            new_schema.append((column, new_type))
-
-        # must set non-null column labels. these are not the user-facing labels
-        pd_df = pd_df.set_axis(
-            [column for column, _ in new_schema],
-            axis="columns",
-        )
-        keys_memtable = ibis.memtable(pd_df, schema=ibis.schema(new_schema))
-
-        return cls(
-            keys_memtable,
-            columns=[
-                keys_memtable[f"col_{column_index}"].name(column)
-                for column_index, column in enumerate(column_names)
-            ],
-        )
 
     def builder(self):
         """Creates a mutable builder for expressions."""
@@ -432,7 +325,7 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
         new_expr = builder.build()
         return new_expr
 
-    def filter(self, predicate_id: str, keep_null: bool = False) -> CompiledArrayValue:
+    def filter(self, predicate_id: str, keep_null: bool = False) -> UnorderedIR:
         condition = typing.cast(
             ibis_types.BooleanValue, self._get_ibis_column(predicate_id)
         )
@@ -445,75 +338,11 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
             )
         return self._filter(condition)
 
-    def _filter(self, predicate_value: ibis_types.BooleanValue) -> CompiledArrayValue:
+    def _filter(self, predicate_value: ibis_types.BooleanValue) -> UnorderedIR:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
         expr = self.builder()
         expr.predicates = [*self._predicates, predicate_value]
         return expr.build()
-
-    def order_by(
-        self, by: Sequence[OrderingColumnReference], stable: bool = False
-    ) -> UnorderedIR:
-        return self
-
-    def reversed(self) -> UnorderedIR:
-        return self
-
-    def project_unary_op(
-        self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> UnorderedIR:
-        value = op._as_ibis(self._get_ibis_column(column_name)).name(
-            output_name or column_name
-        )
-        return self._set_or_replace_by_id(output_name or column_name, value)
-
-    def project_binary_op(
-        self,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> UnorderedIR:
-        value = op(
-            self._get_ibis_column(left_column_id),
-            self._get_ibis_column(right_column_id),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
-
-    def project_ternary_op(
-        self,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
-    ) -> UnorderedIR:
-        value = op(
-            self._get_ibis_column(col_id_1),
-            self._get_ibis_column(col_id_2),
-            self._get_ibis_column(col_id_3),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
-
-    def assign(self, source_id: str, destination_id: str) -> UnorderedIR:
-        return self._set_or_replace_by_id(
-            destination_id, self._get_ibis_column(source_id)
-        )
-
-    def assign_constant(
-        self,
-        destination_id: str,
-        value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> UnorderedIR:
-        # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
-        ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
-        if ibis_value is None:
-            raise NotImplementedError(
-                f"Type not supported as scalar value {type(value)}. {constants.FEEDBACK_LINK}"
-            )
-        expr = self._set_or_replace_by_id(destination_id, ibis_value)
-        return expr._reproject_to_table()
 
     def unpivot(
         self,
@@ -628,6 +457,13 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> OrderedIR:
+        """
+        Apply aggregations to the expression.
+        Arguments:
+            aggregations: input_column_id, operation, output_column_id tuples
+            by_column_id: column id of the aggregation key, this is preserved through the transform
+            dropna: whether null keys should be dropped
+        """
         table = self._to_ibis_expr()
         stats = {
             col_out: agg_op._as_ibis(table[col_in])
@@ -675,6 +511,12 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
     def corr_aggregate(
         self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
     ) -> OrderedIR:
+        """
+        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
+        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
+        Arguments:
+            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
+        """
         table = self._to_ibis_expr()
         stats = {
             col_out: table[col_left].corr(table[col_right], how="pop")
@@ -708,27 +550,10 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
             columns=columns,
         )
 
-    # Unsupported operations, need ordering
-    def project_window_op(
-        self,
-        column_name: str,
-        op: agg_ops.WindowOp,
-        window_spec: WindowSpec,
-        output_name=None,
-        *,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
-    ) -> OrderedIR:
-        raise ValueError("Window ops must be compiled in ordered mode")
-
-    def promote_offsets(self, col_id: str):
-        raise ValueError("Window ops must be compiled in ordered mode")
-
     ## Helpers
     def _set_or_replace_by_id(
         self, id: str, new_value: ibis_types.Value
     ) -> UnorderedIR:
-        """Safely assign by id while maintaining ordering integrity."""
         builder = self.builder()
         if id in self.column_ids:
             builder.columns = [
@@ -773,7 +598,7 @@ class UnorderedIR(BaseIbisIR, CompiledArrayValue):
             )
 
 
-class OrderedIR(BaseIbisIR, CompiledArrayValue):
+class OrderedIR(BaseIbisIR):
     """Immutable BigQuery DataFrames expression tree.
 
     Note: Usage of this class is considered to be private and subject to change
@@ -935,62 +760,6 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
 
-    def project_unary_op(
-        self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> OrderedIR:
-        value = op._as_ibis(self._get_ibis_column(column_name)).name(
-            output_name or column_name
-        )
-        return self._set_or_replace_by_id(output_name or column_name, value)
-
-    def project_binary_op(
-        self,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> OrderedIR:
-        value = op(
-            self._get_ibis_column(left_column_id),
-            self._get_ibis_column(right_column_id),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
-
-    def project_ternary_op(
-        self,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
-    ) -> OrderedIR:
-        value = op(
-            self._get_ibis_column(col_id_1),
-            self._get_ibis_column(col_id_2),
-            self._get_ibis_column(col_id_3),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
-
-    def assign(self, source_id: str, destination_id: str) -> OrderedIR:
-        return self._set_or_replace_by_id(
-            destination_id, self._get_ibis_column(source_id)
-        )
-
-    def assign_constant(
-        self,
-        destination_id: str,
-        value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> OrderedIR:
-        # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
-        ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
-        if ibis_value is None:
-            raise NotImplementedError(
-                f"Type not supported as scalar value {type(value)}. {constants.FEEDBACK_LINK}"
-            )
-        expr = self._set_or_replace_by_id(destination_id, ibis_value)
-        return expr._reproject_to_table()
-
     def _uniform_sampling(self, fraction: float) -> OrderedIR:
         """Sampling the table on given fraction.
 
@@ -1012,6 +781,9 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         )
 
     def promote_offsets(self, col_id: str) -> OrderedIR:
+        """
+        Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
+        """
         # Special case: offsets already exist
         ordering = self._ordering
 
@@ -1038,19 +810,6 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         new_expr = builder.build()
         return new_expr
 
-    def aggregate(
-        self,
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
-        by_column_ids: typing.Sequence[str] = (),
-        dropna: bool = True,
-    ) -> OrderedIR:
-        return self.to_unordered().aggregate(aggregations, by_column_ids, dropna)
-
-    def corr_aggregate(
-        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
-    ) -> OrderedIR:
-        return self.to_unordered().corr_aggregate(corr_aggregations)
-
     ## Methods that only work with ordering
     def project_window_op(
         self,
@@ -1062,6 +821,15 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         never_skip_nulls=False,
         skip_reproject_unsafe: bool = False,
     ) -> OrderedIR:
+        """
+        Creates a new expression based on this expression with unary operation applied to one column.
+        column_name: the id of the input column present in the expression
+        op: the windowable operator to apply to the input column
+        window_spec: a specification of the window over which to apply the operator
+        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
+        never_skip_nulls: will disable null skipping for operators that would otherwise do so
+        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
+        """
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
 
@@ -1373,26 +1141,7 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
             table = table.filter(ibis.random() < ibis.literal(fraction))
         return table
 
-    def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value) -> OrderedIR:
-        """Safely assign by id while maintaining ordering integrity."""
-        # TODO: Split into explicit set and replace methods
-        ordering_col_ids = [
-            col_ref.column_id for col_ref in self._ordering.ordering_value_columns
-        ]
-        if id in ordering_col_ids:
-            return self._hide_column(id)._set_or_replace_by_id(id, new_value)
-
-        builder = self.builder()
-        if id in self.column_ids:
-            builder.columns = [
-                val if (col_id != id) else new_value.name(id)
-                for col_id, val in zip(self.column_ids, self._columns)
-            ]
-        else:
-            builder.columns = [*self.columns, new_value.name(id)]
-        return builder.build()
-
-    def filter(self, predicate_id: str, keep_null: bool = False) -> CompiledArrayValue:
+    def filter(self, predicate_id: str, keep_null: bool = False) -> OrderedIR:
         condition = typing.cast(
             ibis_types.BooleanValue, self._get_ibis_column(predicate_id)
         )
@@ -1411,6 +1160,25 @@ class OrderedIR(BaseIbisIR, CompiledArrayValue):
         expr.ordering = expr.ordering.with_non_sequential()
         expr.predicates = [*self._predicates, predicate_value]
         return expr.build()
+
+    def _set_or_replace_by_id(self, id: str, new_value: ibis_types.Value) -> OrderedIR:
+        """Safely assign by id while maintaining ordering integrity."""
+        # TODO: Split into explicit set and replace methods
+        ordering_col_ids = [
+            col_ref.column_id for col_ref in self._ordering.ordering_value_columns
+        ]
+        if id in ordering_col_ids:
+            return self._hide_column(id)._set_or_replace_by_id(id, new_value)
+
+        builder = self.builder()
+        if id in self.column_ids:
+            builder.columns = [
+                val if (col_id != id) else new_value.name(id)
+                for col_id, val in zip(self.column_ids, self._columns)
+            ]
+        else:
+            builder.columns = [*self.columns, new_value.name(id)]
+        return builder.build()
 
     ## Ordering specific helpers
     def _get_any_column(self, key: str) -> ibis_types.Value:
