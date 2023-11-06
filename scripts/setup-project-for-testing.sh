@@ -38,7 +38,7 @@ done
 # Set up IAM roles
 for role in aiplatform.user \
             bigquery.user \
-            bigquery.connectionUser \
+            bigquery.connectionAdmin \
             bigquery.dataEditor \
             browser \
             cloudfunctions.developer \
