@@ -15,7 +15,7 @@
 
 def test_bqml_getting_started():
 <<<<<<< HEAD
-    # [start bigquery_getting_Started_bqml_tutorial]
+    # [START bigquery_getting_started_bqml_tutorial]
     import bigframes.pandas as bpd
 =======
     # [START bigquery_getting_Started_bqml_tutorial]
@@ -32,8 +32,14 @@ def test_bqml_getting_started():
     # EXPLANATION - REFERENCE GBQ DOCS!
 >>>>>>> 9ec139e7e275e8082379022e3eb1ce06e9664c2e
     df = bpd.read_gbq(
-    # Generate_UUID produces a random universally uniquee identifier
-    # as a STRING value.
+    #  Start by selecting the data you'll use for training. `read_gbq` accepts
+    # either a SQL query or a table ID. Since this example selects from multiple
+    # tables via a wildcard, use SQL to define this data. Watch issue
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
+    # for updates to `read_gbq` to support wildcard tables.
+    #
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
+    
         """
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
