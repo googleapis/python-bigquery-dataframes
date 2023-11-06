@@ -156,7 +156,7 @@ Running System Tests
   run all the tests.
 
 - System tests will be run against an actual project. A project can be set in
-  the environment variable $GOOGLE_CLOUD_PROJECT. If not, the project property
+  the environment variable ``$GOOGLE_CLOUD_PROJECT``. If not, the project property
   set in the `Google Cloud CLI <https://cloud.google.com/sdk/gcloud/reference/config/get>`__
   will be effective, which can be peeked into via ``gcloud config get project``,
   or set via ``gcloud config set project <project-name>``. The following roles
