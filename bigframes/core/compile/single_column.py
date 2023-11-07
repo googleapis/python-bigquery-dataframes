@@ -108,7 +108,7 @@ def join_by_column(
             left_table,
             right_table,
             predicates=join_conditions,
-            how=how,
+            how=how,  # type: ignore
         )
 
         # Preserve ordering accross joins.
