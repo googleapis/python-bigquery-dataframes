@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ibis.expr.datatypes as dt
+from ibis.expr.operations.core import Value
 from ibis.expr.operations.reductions import Filterable, Reduction
 import ibis.expr.rules as rlz
 
@@ -13,8 +14,8 @@ class ApproximateMultiQuantile(Filterable, Reduction):
     See: https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggregate_functions#approx_quantiles
     """
 
-    arg = rlz.any
-    num_bins = rlz.value(dt.int64)
+    arg: Value
+    num_bins = rlz.ValueOf(dt.int64)
     output_dtype = dt.Array(dt.float64)
 
 
