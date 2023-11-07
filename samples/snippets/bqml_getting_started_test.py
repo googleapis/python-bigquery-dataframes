@@ -17,16 +17,16 @@ def test_bqml_getting_started():
     # [START bigquery_getting_Started_bqml_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
-
-    # EXPLANATION - REFERENCE GBQ DOCS!
+  
+    # Start by selecting the data you'll use for training. `read_gbq` accepts
+    # either a SQL query or a table ID. Since this example selects from multiple
+    # tables via a wildcard, use SQL to define this data. Watch issue
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
+    # for updates to `read_gbq` to support wildcard tables.
+    #
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
+   
     df = bpd.read_gbq(
-        #  Start by selecting the data you'll use for training. `read_gbq` accepts
-        # either a SQL query or a table ID. Since this example selects from multiple
-        # tables via a wildcard, use SQL to define this data. Watch issue
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-        # for updates to `read_gbq` to support wildcard tables.
-        #
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/169
         """
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
@@ -66,7 +66,7 @@ def test_bqml_getting_started():
 
     # Selecting values to represent data in columns in DataFrames.
     features = bpd.DataFrame(
-        {"os": operatingSystem, "is_mobile": isMobile, "pageviews": pageviews}
+        {"os": operatingSystem, "is_mobile": isMobile, "country": country, "pageviews": pageviews}
     )
 
     # Logistic Regression model splits data into two classes, giving the
@@ -77,3 +77,4 @@ def test_bqml_getting_started():
     # When writing a DataFrame to a BigQuery table, include destinaton table
     # and parameters, index defaults to "True".
     model.to_gbq("bqml_tutorial.sample_model", replace=True)
+    # [END bigquery_getting_Started_bqml_tutorial]
