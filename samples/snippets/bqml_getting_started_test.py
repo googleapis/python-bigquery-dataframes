@@ -17,7 +17,7 @@ def test_bqml_getting_started():
     # [START bigquery_getting_started_bqml_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
-  
+
     # Start by selecting the data you'll use for training. `read_gbq` accepts
     # either a SQL query or a table ID. Since this example selects from multiple
     # tables via a wildcard, use SQL to define this data. Watch issue
@@ -25,7 +25,7 @@ def test_bqml_getting_started():
     # for updates to `read_gbq` to support wildcard tables.
     #
     # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-   
+
     df = bpd.read_gbq(
         """
         SELECT GENERATE_UUID() AS rowindex, *
@@ -66,7 +66,12 @@ def test_bqml_getting_started():
 
     # Selecting values to represent data in columns in DataFrames.
     features = bpd.DataFrame(
-        {"os": operatingSystem, "is_mobile": isMobile, "country": country, "pageviews": pageviews}
+        {
+            "os": operatingSystem,
+            "is_mobile": isMobile,
+            "country": country,
+            "pageviews": pageviews,
+        }
     )
 
     # Logistic Regression model splits data into two classes, giving the
