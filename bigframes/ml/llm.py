@@ -24,11 +24,11 @@ from bigframes.core import blocks
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
-_REMOTE_TEXT_GENERATOR_MODEL_CODE = "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1"
+_REMOTE_TEXT_GENERATOR_MODEL_CODE = "text-bison"
 _REMOTE_TEXT_GENERATOR_32K_MODEL_CODE = "text-bison-32k"
 _TEXT_GENERATE_RESULT_COLUMN = "ml_generate_text_llm_result"
 
-_REMOTE_EMBEDDING_GENERATOR_MODEL_CODE = "CLOUD_AI_TEXT_EMBEDDING_MODEL_V1"
+_REMOTE_EMBEDDING_GENERATOR_MODEL_CODE = "textembedding-gecko"
 _REMOTE_EMBEDDING_GENERATOR_MUlTILINGUAL_MODEL_CODE = "textembedding-gecko-multilingual"
 _EMBED_TEXT_RESULT_COLUMN = "text_embedding"
 
@@ -90,7 +90,7 @@ class PaLM2TextGenerator(base.Predictor):
         )
         if self.model_name == "text-bison":
             options = {
-                "remote_service_type": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
+                "endpoint": _REMOTE_TEXT_GENERATOR_MODEL_CODE,
             }
         else:
             options = {
@@ -240,7 +240,7 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         )
         if self.model_name == "textembedding-gecko":
             options = {
-                "remote_service_type": _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE,
+                "endpoint": _REMOTE_EMBEDDING_GENERATOR_MODEL_CODE,
             }
         else:
             options = {
