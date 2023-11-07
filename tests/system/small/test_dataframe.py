@@ -2560,16 +2560,25 @@ def test_df_skew_too_few_values(scalars_dfs):
     pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
 
 
-def test_df_skew(scalars_dfs):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_df_skew(scalars_dfs, ordered):
     columns = ["float64_col", "int64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df[columns].skew().to_pandas()
+    bf_result = scalars_df[columns].skew().to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df[columns].skew()
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
     pd_result = pd_result.astype("Float64")
 
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    assert_series_equal(
+        pd_result, bf_result, check_index_type=False, ignore_order=not ordered
+    )
 
 
 def test_df_kurt_too_few_values(scalars_dfs):

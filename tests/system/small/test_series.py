@@ -2188,21 +2188,25 @@ def test_where_with_default(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_clip(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_clip(scalars_df_index, scalars_pandas_df_index, ordered):
     col_bf = scalars_df_index["int64_col"]
     lower_bf = scalars_df_index["int64_too"] - 1
     upper_bf = scalars_df_index["int64_too"] + 1
-    bf_result = col_bf.clip(lower_bf, upper_bf).to_pandas()
+    bf_result = col_bf.clip(lower_bf, upper_bf).to_pandas(ordered=ordered)
 
     col_pd = scalars_pandas_df_index["int64_col"]
     lower_pd = scalars_pandas_df_index["int64_too"] - 1
     upper_pd = scalars_pandas_df_index["int64_too"] + 1
     pd_result = col_pd.clip(lower_pd, upper_pd)
 
-    pd.testing.assert_series_equal(
-        bf_result,
-        pd_result,
-    )
+    assert_series_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
