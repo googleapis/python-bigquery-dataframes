@@ -20,14 +20,13 @@ def test_bqml_getting_started():
 
     # EXPLANATION - REFERENCE GBQ DOCS!
     df = bpd.read_gbq(
-    #  Start by selecting the data you'll use for training. `read_gbq` accepts
-    # either a SQL query or a table ID. Since this example selects from multiple
-    # tables via a wildcard, use SQL to define this data. Watch issue
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-    # for updates to `read_gbq` to support wildcard tables.
-    #
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-    
+        #  Start by selecting the data you'll use for training. `read_gbq` accepts
+        # either a SQL query or a table ID. Since this example selects from multiple
+        # tables via a wildcard, use SQL to define this data. Watch issue
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/169
+        # for updates to `read_gbq` to support wildcard tables.
+        #
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/169
         """
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
@@ -59,7 +58,7 @@ def test_bqml_getting_started():
     # Extract whether the visitor's device is a mobile device.
     isMobile = df["device"].struct.field("isMobile")
 
-    # Extract where the visitors country of origin is. 
+    # Extract where the visitors country of origin is.
     country = df["geoNetwork"].struct.field("country").fillna("")
 
     # Total number of pageviews within the session.
