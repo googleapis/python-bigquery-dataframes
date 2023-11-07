@@ -1116,7 +1116,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         local_df = bigframes.dataframe.DataFrame(
             {k: v}, session=self._get_block().expr.session
         )
-        # local_df is likely (but not guarunteed) to be cached locally
+        # local_df is likely (but not guaranteed) to be cached locally
         # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
         new_column_block = local_df._block
