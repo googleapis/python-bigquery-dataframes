@@ -14,7 +14,7 @@
 
 
 def test_bqml_getting_started():
-    # [START bigquery_getting_Started_bqml_tutorial]
+    # [START bigquery_getting_started_bqml_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
   
