@@ -99,9 +99,7 @@ class ArrayValue:
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
         width = len(self._compile().columns)
-        count_expr = (
-            self._compile_unordered()._to_ibis_expr(ordering_mode="unordered").count()
-        )
+        count_expr = self._compile_unordered()._to_ibis_expr().count()
 
         # Support in-memory engines for hermetic unit tests.
         if not self.node.session:

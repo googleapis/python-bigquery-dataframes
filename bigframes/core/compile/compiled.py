@@ -138,11 +138,17 @@ class BaseIbisIR(abc.ABC):
         ...
 
     def project_unary_op(
-        self: T, column_name: str, op: ops.UnaryOp, output_name=None
+        self: T,
+        input_column_id: str,
+        op: ops.UnaryOp,
+        output_column_id: typing.Optional[str] = None,
     ) -> T:
         """Creates a new expression based on this expression with unary operation applied to one column."""
-        value = op._as_ibis(self._get_ibis_column(column_name)).name(output_name)
-        return self._set_or_replace_by_id(output_name, value)
+        result_id = (
+            output_column_id or input_column_id
+        )  # overwrite input if not output id provided
+        value = op._as_ibis(self._get_ibis_column(input_column_id)).name(result_id)
+        return self._set_or_replace_by_id(result_id, value)
 
     def project_binary_op(
         self: T,
@@ -258,7 +264,6 @@ class UnorderedIR(BaseIbisIR):
         expose_hidden_cols: bool = False,
         fraction: Optional[float] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
-        **kwargs,
     ):
         """
         Creates an Ibis table expression representing the DataFrame.
@@ -1061,7 +1066,6 @@ class OrderedIR(BaseIbisIR):
         col_id_overrides: typing.Mapping[str, str] = {},
         ordering_mode: Literal["string_encoded", "offset_col", "unordered"],
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
-        **kwargs,
     ):
         """
         Creates an Ibis table expression representing the DataFrame.

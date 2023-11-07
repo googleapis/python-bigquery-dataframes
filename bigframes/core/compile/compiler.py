@@ -50,7 +50,7 @@ def _compile_node(
     node: nodes.BigFrameNode, ordered: bool = True
 ) -> compiled.UnorderedIR:
     """Defines transformation but isn't cached, always use compile_node instead"""
-    raise ValueError(f"Can't compile unnrecognized node: {node}")
+    raise ValueError(f"Can't compile unrecognized node: {node}")
 
 
 @_compile_node.register
