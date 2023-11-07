@@ -14,23 +14,11 @@
 
 
 def test_bqml_getting_started():
-<<<<<<< HEAD
-    # [START bigquery_getting_started_bqml_tutorial]
-    import bigframes.pandas as bpd
-=======
     # [START bigquery_getting_Started_bqml_tutorial]
->>>>>>> 9ec139e7e275e8082379022e3eb1ce06e9664c2e
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
 
-<<<<<<< HEAD
-    # Read_gbq loads a DataFrame from BiqQuery and gives an unordered, 
-    # unindexed data source. The default DataFrame will have an arbitary 
-    # index and ordering. 
-
-=======
     # EXPLANATION - REFERENCE GBQ DOCS!
->>>>>>> 9ec139e7e275e8082379022e3eb1ce06e9664c2e
     df = bpd.read_gbq(
     #  Start by selecting the data you'll use for training. `read_gbq` accepts
     # either a SQL query or a table ID. Since this example selects from multiple
@@ -74,30 +62,14 @@ def test_bqml_getting_started():
     # Extract where the visitors country of origin is. 
     country = df["geoNetwork"].struct.field("country").fillna("")
 
-<<<<<<< HEAD
-    # Extract the total pageviews from the totals column.
-    pageviews = df['totals'].struct.field("pageviews").fillna(0)
-=======
     # Total number of pageviews within the session.
     pageviews = df["totals"].struct.field("pageviews").fillna(0)
->>>>>>> 9ec139e7e275e8082379022e3eb1ce06e9664c2e
 
     # Selecting values to represent data in columns in DataFrames.
     features = bpd.DataFrame(
         {"os": operatingSystem, "is_mobile": isMobile, "pageviews": pageviews}
     )
 
-<<<<<<< HEAD
-    # Logistic Regression model splits data into two classes,giving the
-    # probablity the data is in one of the classes. 
-    model = LogisticRegression() 
-    model.fit(features, label)
-
-    # 
-    # 
-    model.to_gbq("bqml_tutorial.sample_model", replace=True) 
-    # [END bigquery_getting_started_bqml_tutorial]
-=======
     # Logistic Regression model splits data into two classes, giving the
     # probablity the data is in one of the classes.
     model = LogisticRegression()
@@ -106,4 +78,3 @@ def test_bqml_getting_started():
     # When writing a DataFrame to a BigQuery table, include destinaton table
     # and parameters, index defaults to "True".
     model.to_gbq("bqml_tutorial.sample_model", replace=True)
->>>>>>> 9ec139e7e275e8082379022e3eb1ce06e9664c2e
