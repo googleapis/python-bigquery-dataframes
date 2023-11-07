@@ -130,7 +130,8 @@ def create_temp_table(
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
     destination.schema = schema
-    destination.clustering_fields = cluster_columns
+    if cluster_columns:
+        destination.clustering_fields = cluster_columns
     bqclient.create_table(destination)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 
