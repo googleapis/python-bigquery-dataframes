@@ -96,7 +96,7 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
     if ordered:
         return ordered_ir
     else:
-        ordered_ir.to_unordered()
+        return ordered_ir.to_unordered()
 
 
 @_compile_node.register
