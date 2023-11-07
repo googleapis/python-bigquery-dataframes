@@ -1,8 +1,9 @@
 #!/bin/bash
 
-if [ $# -ne 2 ]; then
-  echo "USAGE: `basename $0` <project-id> <principal>"
+if [ $# -ne 1 ]; then
+  echo "USAGE: `basename $0` <project-id> [<principal>]"
   echo "EXAMPLES:"
+  echo "       `basename $0` my-project"
   echo "       `basename $0` my-project user:user_id@example.com"
   echo "       `basename $0` my-project group:group_id@example.com"
   echo "       `basename $0` my-project serviceAccount:service_account_id@example.com"
@@ -28,23 +29,12 @@ for service in aiplatform.googleapis.com \
                bigquery.googleapis.com \
                bigqueryconnection.googleapis.com \
                bigquerystorage.googleapis.com \
+               cloudbuild.googleapis.com \
                cloudfunctions.googleapis.com \
                cloudresourcemanager.googleapis.com \
                run.googleapis.com \
   ; do
   log_and_execute gcloud --project=$PROJECT_ID services enable $service
-done
-
-# Set up IAM roles
-for role in aiplatform.user \
-            bigquery.user \
-            bigquery.connectionAdmin \
-            bigquery.dataEditor \
-            browser \
-            cloudfunctions.developer \
-            iam.serviceAccountUser \
-  ; do
-  log_and_execute gcloud projects add-iam-policy-binding $PROJECT_ID --member=$PRINCIPAL --role=roles/$role
 done
 
 # Create BQ connections
@@ -85,3 +75,17 @@ for location in asia-southeast1 \
                       --role=roles/$role
   done
 done
+
+# Set up IAM roles for principal
+if [ "$PRINCIPAL" != "" ]; then
+  for role in aiplatform.user \
+              bigquery.user \
+              bigquery.connectionAdmin \
+              bigquery.dataEditor \
+              browser \
+              cloudfunctions.developer \
+              iam.serviceAccountUser \
+    ; do
+    log_and_execute gcloud projects add-iam-policy-binding $PROJECT_ID --member=$PRINCIPAL --role=roles/$role
+  done
+fi
