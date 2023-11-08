@@ -40,6 +40,7 @@ def join_by_column_ordered(
         "left",
         "outer",
         "right",
+        "cross",
     ],
     allow_row_identity_join: bool = True,
 ) -> compiled.OrderedIR:
@@ -107,7 +108,7 @@ def join_by_column_ordered(
             left_table,
             right_table,
             predicates=join_conditions,
-            how=how,
+            how=how,  # type: ignore
         )
 
         # Preserve ordering accross joins.
@@ -153,6 +154,7 @@ def join_by_column_unordered(
         "left",
         "outer",
         "right",
+        "cross",
     ],
     allow_row_identity_join: bool = True,
 ) -> compiled.UnorderedIR:
