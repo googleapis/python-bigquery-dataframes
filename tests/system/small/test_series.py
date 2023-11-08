@@ -1009,6 +1009,17 @@ def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_series_equal(bf_original.to_pandas(), pd_original)
 
 
+def test_at_setitem_row_label_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"].copy()
+    bf_series.at[1] = 1000
+    pd_series.at[1] = 1000
+    bf_result = bf_series.to_pandas()
+    pd_result = pd_series.astype("Int64")
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_ne_obj_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -2482,6 +2493,7 @@ def test_mask_custom_value(scalars_dfs):
         # with timezone conversions, so we'll allow it.
         ("timestamp_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("datetime_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
+        ("date_col", "string[pyarrow]"),
         # TODO(bmil): fix Ibis bug: BigQuery backend rounds to nearest int
         # ("float64_col", "Int64"),
         # TODO(bmil): decide whether to fix Ibis bug: BigQuery backend
