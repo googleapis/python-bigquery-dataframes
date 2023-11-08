@@ -567,6 +567,34 @@ def test_assign_existing_column(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_assign_listlike_to_empty_df(session):
+    empty_df = dataframe.DataFrame(session=session)
+    empty_pandas_df = pd.DataFrame()
+
+    bf_result = empty_df.assign(new_col=[1, 2, 3])
+    pd_result = empty_pandas_df.assign(new_col=[1, 2, 3])
+
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+    pd_result.index = pd_result.index.astype("Int64")
+    assert_pandas_df_equal_ignore_ordering(bf_result.to_pandas(), pd_result)
+
+
+def test_assign_to_empty_df_multiindex_error(session):
+    empty_df = dataframe.DataFrame(session=session)
+    empty_pandas_df = pd.DataFrame()
+    empty_df["empty_col_1"] = []
+    empty_df["empty_col_2"] = []
+    empty_pandas_df["empty_col_1"] = []
+    empty_pandas_df["empty_col_2"] = []
+    empty_df = empty_df.set_index(["empty_col_1", "empty_col_2"])
+    empty_pandas_df = empty_pandas_df.set_index(["empty_col_1", "empty_col_2"])
+
+    with pytest.raises(ValueError):
+        empty_df.assign(new_col=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+    with pytest.raises(ValueError):
+        empty_pandas_df.assign(new_col=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+
 def test_assign_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     column_name = "int64_col"
@@ -801,6 +829,55 @@ def test_apply_series_scalar_callable(
     pd_result = scalars_pandas_df_index[columns].apply(lambda x: x.sum())
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_df_keys(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    pandas.testing.assert_index_equal(
+        scalars_df_index.keys(), scalars_pandas_df_index.keys()
+    )
+
+
+def test_df_iter(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for bf_i, df_i in zip(scalars_df_index, scalars_pandas_df_index):
+        assert bf_i == df_i
+
+
+def test_iterrows(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for (bf_index, bf_series), (pd_index, pd_series) in zip(
+        scalars_df_index.iterrows(), scalars_pandas_df_index.iterrows()
+    ):
+        assert bf_index == pd_index
+        pandas.testing.assert_series_equal(bf_series, pd_series)
+
+
+@pytest.mark.parametrize(
+    (
+        "index",
+        "name",
+    ),
+    [
+        (
+            True,
+            "my_df",
+        ),
+        (False, None),
+    ],
+)
+def test_itertuples(scalars_df_index, index, name):
+    # Numeric has slightly different representation as a result of conversions.
+    bf_tuples = scalars_df_index.itertuples(index, name)
+    pd_tuples = scalars_df_index.to_pandas().itertuples(index, name)
+    for bf_tuple, pd_tuple in zip(bf_tuples, pd_tuples):
+        assert bf_tuple == pd_tuple
 
 
 def test_df_isin_list(scalars_dfs):
@@ -1156,6 +1233,28 @@ def test_reset_index_with_unnamed_index(
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_with_unnamed_multiindex(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    bf_df = dataframe.DataFrame(
+        ([1, 2, 3], [2, 5, 7]),
+        index=pd.MultiIndex.from_tuples([("a", "aa"), ("a", "aa")]),
+    )
+    pd_df = pd.DataFrame(
+        ([1, 2, 3], [2, 5, 7]),
+        index=pd.MultiIndex.from_tuples([("a", "aa"), ("a", "aa")]),
+    )
+
+    bf_df = bf_df.reset_index()
+    pd_df = pd_df.reset_index()
+
+    assert pd_df.columns[0] == "level_0"
+    assert bf_df.columns[0] == "level_0"
+    assert pd_df.columns[1] == "level_1"
+    assert bf_df.columns[1] == "level_1"
 
 
 def test_reset_index_with_unnamed_index_and_index_column(
