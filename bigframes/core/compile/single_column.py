@@ -212,7 +212,7 @@ def join_by_column_unordered(
             left_table,
             right_table,
             predicates=join_conditions,
-            how=how,
+            how=how,  # type: ignore
         )
         # We could filter out the original join columns, but predicates/ordering
         # might still reference them in implicit joins.
