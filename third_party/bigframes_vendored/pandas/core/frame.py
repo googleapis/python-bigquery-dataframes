@@ -2788,20 +2788,6 @@ class DataFrame(NDFrame):
         """
         Fill NaN values using an interpolation method.
 
-        Args:
-            method (str, default 'linear'):
-                Interpolation technique to use. Only 'linear' supported.
-                'linear': Ignore the index and treat the values as equally spaced.
-                This is the only method supported on MultiIndexes.
-                'index', 'values': use the actual numerical values of the index.
-                'pad': Fill in NaNs using existing values.
-                'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
-
-        Returns:
-            DataFrame:
-                Returns the same object type as the caller, interpolated at
-                some or all ``NaN`` values
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -2831,6 +2817,20 @@ class DataFrame(NDFrame):
             1.0       6.0       3.0
             <BLANKLINE>
             [6 rows x 2 columns]
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+                'index', 'values': use the actual numerical values of the index.
+                'pad': Fill in NaNs using existing values.
+                'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
+
+        Returns:
+            DataFrame:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
