@@ -735,7 +735,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> @bpd.remote_function([int], float)
+            Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+            is created every time we run the following code, but you can skip it
+            to potentially reuse a previously deployed ``remote_function`` from
+            the same user defined function.
+
+            >>> @bpd.remote_function([int], float, reuse=False)
             ... def minutes_to_hours(x):
             ...     return x/60
 
@@ -764,7 +769,6 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> @bpd.remote_function(
             ...     [str],
             ...     str,
-            ...     bigquery_connection="bigframes-rf-conn",
             ...     reuse=False,
             ...     packages=["cryptography"],
             ... )
