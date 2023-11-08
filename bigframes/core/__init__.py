@@ -79,7 +79,7 @@ class ArrayValue:
 
     @property
     def column_ids(self) -> typing.Sequence[str]:
-        return self._compile().column_ids
+        return self._compile_ordered().column_ids
 
     @property
     def session(self) -> Session:
@@ -89,9 +89,9 @@ class ArrayValue:
         return self.node.session[0] if required_session else get_global_session()
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        return self._compile().get_column_type(key)
+        return self._compile_ordered().get_column_type(key)
 
-    def _compile(self) -> compiled.OrderedIR:
+    def _compile_ordered(self) -> compiled.OrderedIR:
         return compiler.compile_ordered(self.node)
 
     def _compile_unordered(self) -> compiled.UnorderedIR:
@@ -99,7 +99,7 @@ class ArrayValue:
 
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-        width = len(self._compile().columns)
+        width = len(self._compile_unordered().columns)
         count_expr = self._compile_unordered()._to_ibis_expr().count()
 
         # Support in-memory engines for hermetic unit tests.
@@ -126,7 +126,7 @@ class ArrayValue:
         sorted: bool = False,
     ) -> str:
         if sorted or offset_column:
-            return self._compile().to_sql(
+            return self._compile_ordered().to_sql(
                 offset_column=offset_column,
                 col_id_overrides=col_id_overrides,
                 sorted=sorted,
@@ -161,7 +161,7 @@ class ArrayValue:
 
     def cached(self, cluster_cols: typing.Sequence[str]) -> ArrayValue:
         """Write the ArrayValue to a session table and create a new block object that references it."""
-        compiled_value = self._compile()
+        compiled_value = self._compile_ordered()
         ibis_expr = compiled_value._to_ibis_expr(
             ordering_mode="unordered", expose_hidden_cols=True
         )
