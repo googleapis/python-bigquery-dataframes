@@ -861,6 +861,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_download_size: Optional[int] = None,
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
+        *,
+        ordered: bool = True,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -880,6 +882,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
+            ordered (bool, default True):
+                Determines whether the resulting pandas dataframe will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
@@ -891,6 +896,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
+            ordered=ordered,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
@@ -1450,6 +1456,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
     def interpolate(self, method: str = "linear") -> DataFrame:
+        if method == "pad":
+            return self.ffill()
         result = block_ops.interpolate(self._block, method)
         return DataFrame(result)
 
@@ -1933,6 +1941,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "left",
             "outer",
             "right",
+            "cross",
         ] = "inner",
         # TODO(garrettwu): Currently can take inner, outer, left and right. To support
         # cross joins
@@ -1943,6 +1952,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
+        if how == "cross":
+            if on is not None:
+                raise ValueError("'on' is not supported for cross join.")
+            result_block = self._block.merge(
+                right._block,
+                left_join_ids=[],
+                right_join_ids=[],
+                suffixes=suffixes,
+                how=how,
+                sort=True,
+            )
+            return DataFrame(result_block)
+
         if on is None:
             if left_on is None or right_on is None:
                 raise ValueError("Must specify `on` or `left_on` + `right_on`.")
@@ -1996,6 +2018,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
             )
+        if how == "cross":
+            if on is not None:
+                raise ValueError("'on' is not supported for cross join.")
+            result_block = left._block.merge(
+                right._block,
+                left_join_ids=[],
+                right_join_ids=[],
+                suffixes=("", ""),
+                how="cross",
+                sort=True,
+            )
+            return DataFrame(result_block)
 
         # Join left columns with right index
         if on is not None:
