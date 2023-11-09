@@ -735,10 +735,10 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            Let's use ``reuse=False`` flag to make sure a new ``remote_function``
-            is created every time we run the following code, but you can skip it
-            to potentially reuse a previously deployed ``remote_function`` from
-            the same user defined function.
+        Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+        is created every time we run the following code, but you can skip it
+        to potentially reuse a previously deployed ``remote_function`` from
+        the same user defined function.
 
             >>> @bpd.remote_function([int], float, reuse=False)
             ... def minutes_to_hours(x):
@@ -762,9 +762,9 @@ class Series(NDFrame):  # type: ignore[misc]
             4    2.0
             dtype: Float64
 
-            You could turn a user defined function with external package
-            dependencies into a BigQuery DataFrames remote function. You would
-            provide the names of the packages via ``packages`` param.
+        You could turn a user defined function with external package
+        dependencies into a BigQuery DataFrames remote function. You would
+        provide the names of the packages via ``packages`` param.
 
             >>> @bpd.remote_function(
             ...     [str],

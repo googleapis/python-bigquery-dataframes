@@ -2164,10 +2164,10 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            Let's use ``reuse=False`` flag to make sure a new ``remote_function``
-            is created every time we run the following code, but you can skip it
-            to potentially reuse a previously deployed ``remote_function`` from
-            the same user defined function.
+        Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+        is created every time we run the following code, but you can skip it
+        to potentially reuse a previously deployed ``remote_function`` from
+        the same user defined function.
 
             >>> @bpd.remote_function([int], float, reuse=False)
             ... def minutes_to_hours(x):
@@ -2197,9 +2197,9 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [5 rows x 2 columns]
 
-            If there are ``NA``/``None`` values in the data, you can ignore
-            applying the remote function on such values by specifying
-            ``na_action='ignore'``.
+        If there are ``NA``/``None`` values in the data, you can ignore
+        applying the remote function on such values by specifying
+        ``na_action='ignore'``.
 
             >>> df_minutes = bpd.DataFrame(
             ...     {
