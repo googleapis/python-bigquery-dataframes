@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import datetime
 import re
 import textwrap
 import typing
@@ -302,6 +303,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __len__(self):
         rows, _ = self.shape
         return rows
+
+    def __iter__(self):
+        return iter(self.columns)
 
     def astype(
         self,
@@ -1097,23 +1101,38 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             copy[k] = v(copy)
             return copy
         elif utils.is_list_like(v):
-            given_rows = len(v)
-            actual_rows = len(self)
-            if given_rows != actual_rows:
-                raise ValueError(
-                    f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
-                )
+            return self._assign_single_item_listlike(k, v)
+        else:
+            return self._assign_scalar(k, v)
 
-            local_df = bigframes.dataframe.DataFrame(
-                {k: v}, session=self._get_block().expr.session
+    def _assign_single_item_listlike(self, k: str, v: Sequence) -> DataFrame:
+        given_rows = len(v)
+        actual_rows = len(self)
+        assigning_to_empty_df = len(self.columns) == 0 and actual_rows == 0
+        if not assigning_to_empty_df and given_rows != actual_rows:
+            raise ValueError(
+                f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
             )
-            # local_df is likely (but not guarunteed) to be cached locally
-            # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
-            new_column_block = local_df._block
-            original_index_column_ids = self._block.index_columns
-            self_block = self._block.reset_index(drop=False)
-            result_index, (get_column_left, get_column_right) = self_block.index.join(
+        local_df = bigframes.dataframe.DataFrame(
+            {k: v}, session=self._get_block().expr.session
+        )
+        # local_df is likely (but not guaranteed) to be cached locally
+        # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
+
+        new_column_block = local_df._block
+        original_index_column_ids = self._block.index_columns
+        self_block = self._block.reset_index(drop=False)
+        if assigning_to_empty_df:
+            if len(self._block.index_columns) > 1:
+                # match error raised by pandas here
+                raise ValueError(
+                    "Assigning listlike to a first column under multiindex is not supported."
+                )
+            result_block = new_column_block.with_index_labels(self._block.index_labels)
+            result_block = result_block.with_column_labels([k])
+        else:
+            result_index, (get_column_left, get_column_right,) = self_block.index.join(
                 new_column_block.index, how="left", block_identity_join=True
             )
             result_block = result_index._block
@@ -1121,13 +1140,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 [get_column_left[col_id] for col_id in original_index_column_ids],
                 index_labels=self._block.index_labels,
             )
-            return DataFrame(result_block)
-        else:
-            return self._assign_scalar(k, v)
+        return DataFrame(result_block)
 
     def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
-        # TODO(swast): Make sure that k is the ID / SQL name, not a label,
-        # which could be invalid SQL.
         col_ids = self._block.cols_matching_label(label)
 
         block, constant_col_id = self._block.create_constant(value, label)
@@ -1434,6 +1449,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
+    def interpolate(self, method: str = "linear") -> DataFrame:
+        result = block_ops.interpolate(self._block, method)
+        return DataFrame(result)
+
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
@@ -1472,11 +1491,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"isin(), you passed a [{type(values).__name__}]"
             )
 
+    def keys(self) -> pandas.Index:
+        return self.columns
+
     def items(self):
         column_ids = self._block.value_columns
         column_labels = self._block.column_labels
         for col_id, col_label in zip(column_ids, column_labels):
             yield col_label, bigframes.series.Series(self._block.select_column(col_id))
+
+    def iterrows(self) -> Iterable[tuple[typing.Any, pandas.Series]]:
+        for df in self.to_pandas_batches():
+            for item in df.iterrows():
+                yield item
+
+    def itertuples(
+        self, index: bool = True, name: typing.Optional[str] = "Pandas"
+    ) -> Iterable[tuple[typing.Any, ...]]:
+        for df in self.to_pandas_batches():
+            for item in df.itertuples(index=index, name=name):
+                yield item
 
     def dropna(
         self,
@@ -1899,6 +1933,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "left",
             "outer",
             "right",
+            "cross",
         ] = "inner",
         # TODO(garrettwu): Currently can take inner, outer, left and right. To support
         # cross joins
@@ -1909,6 +1944,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
+        if how == "cross":
+            if on is not None:
+                raise ValueError("'on' is not supported for cross join.")
+            result_block = self._block.merge(
+                right._block,
+                left_join_ids=[],
+                right_join_ids=[],
+                suffixes=suffixes,
+                how=how,
+                sort=True,
+            )
+            return DataFrame(result_block)
+
         if on is None:
             if left_on is None or right_on is None:
                 raise ValueError("Must specify `on` or `left_on` + `right_on`.")
@@ -1962,6 +2010,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
             )
+        if how == "cross":
+            if on is not None:
+                raise ValueError("'on' is not supported for cross join.")
+            result_block = left._block.merge(
+                right._block,
+                left_join_ids=[],
+                right_join_ids=[],
+                suffixes=("", ""),
+                how="cross",
+                sort=True,
+            )
+            return DataFrame(result_block)
 
         # Join left columns with right index
         if on is not None:
@@ -2285,25 +2345,52 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def to_gbq(
         self,
-        destination_table: str,
+        destination_table: Optional[str] = None,
         *,
-        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
-    ) -> None:
-        if "." not in destination_table:
-            raise ValueError(
-                "Invalid Table Name. Should be of the form 'datasetId.tableId' or "
-                "'projectId.datasetId.tableId'"
-            )
-
+    ) -> str:
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
             "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
             "append": bigquery.WriteDisposition.WRITE_APPEND,
         }
+
+        if destination_table is None:
+            # TODO(swast): If there have been no modifications to the DataFrame
+            # since the last time it was written (cached), then return that.
+            # For `read_gbq` nodes, return the underlying table clone.
+            destination_table = bigframes.session._io.bigquery.create_temp_table(
+                self._session.bqclient,
+                self._session._anonymous_dataset,
+                # TODO(swast): allow custom expiration times, probably via session configuration.
+                datetime.datetime.now(datetime.timezone.utc)
+                + constants.DEFAULT_EXPIRATION,
+            )
+
+            if if_exists is not None and if_exists != "replace":
+                raise ValueError(
+                    f"Got invalid value {repr(if_exists)} for if_exists. "
+                    "When no destination table is specified, a new table is always created. "
+                    "None or 'replace' are the only valid options in this case."
+                )
+            if_exists = "replace"
+
+        if "." not in destination_table:
+            raise ValueError(
+                f"Got invalid value for destination_table {repr(destination_table)}. "
+                "Should be of the form 'datasetId.tableId' or 'projectId.datasetId.tableId'."
+            )
+
+        if if_exists is None:
+            if_exists = "fail"
+
         if if_exists not in dispositions:
-            raise ValueError("'{0}' is not valid for if_exists".format(if_exists))
+            raise ValueError(
+                f"Got invalid value {repr(if_exists)} for if_exists. "
+                f"Valid options include None or one of {dispositions.keys()}."
+            )
 
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
@@ -2314,6 +2401,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
+        return destination_table
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs

@@ -54,6 +54,33 @@ def test_create_text_generator_model_default_session(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_create_text_generator_32k_model_default_session(
+    bq_connection, llm_text_pandas_df, bigquery_client
+):
+    import bigframes.pandas as bpd
+
+    bpd.close_session()
+    bpd.options.bigquery.bq_connection = bq_connection
+    bpd.options.bigquery.location = "us"
+
+    model = llm.PaLM2TextGenerator(model_name="text-bison-32k")
+    assert model is not None
+    assert model._bqml_model is not None
+    assert (
+        model.connection_name.casefold()
+        == f"{bigquery_client.project}.us.bigframes-rf-conn"
+    )
+
+    llm_text_df = bpd.read_pandas(llm_text_pandas_df)
+
+    df = model.predict(llm_text_df).to_pandas()
+    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert "ml_generate_text_llm_result" in df.columns
+    series = df["ml_generate_text_llm_result"]
+    assert all(series.str.len() > 20)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_create_text_generator_model_default_connection(
     llm_text_pandas_df, bigquery_client
 ):
@@ -134,6 +161,14 @@ def test_create_embedding_generator_model(palm2_embedding_generator_model):
     assert palm2_embedding_generator_model._bqml_model is not None
 
 
+def test_create_embedding_generator_multilingual_model(
+    palm2_embedding_generator_multilingual_model,
+):
+    # Model creation doesn't return error
+    assert palm2_embedding_generator_multilingual_model is not None
+    assert palm2_embedding_generator_multilingual_model._bqml_model is not None
+
+
 def test_create_text_embedding_generator_model_defaults(bq_connection):
     import bigframes.pandas as bpd
 
@@ -146,11 +181,38 @@ def test_create_text_embedding_generator_model_defaults(bq_connection):
     assert model._bqml_model is not None
 
 
+def test_create_text_embedding_generator_multilingual_model_defaults(bq_connection):
+    import bigframes.pandas as bpd
+
+    bpd.close_session()
+    bpd.options.bigquery.bq_connection = bq_connection
+    bpd.options.bigquery.location = "us"
+
+    model = llm.PaLM2TextEmbeddingGenerator(
+        model_name="textembedding-gecko-multilingual"
+    )
+    assert model is not None
+    assert model._bqml_model is not None
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_embedding_generator_predict_success(
     palm2_embedding_generator_model, llm_text_df
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df).to_pandas()
+    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
+    value = series[0]
+    assert isinstance(value, np.ndarray)
+    assert value.size == 768
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_embedding_generator_multilingual_predict_success(
+    palm2_embedding_generator_multilingual_model, llm_text_df
+):
+    df = palm2_embedding_generator_multilingual_model.predict(llm_text_df).to_pandas()
     TestCase().assertSequenceEqual(df.shape, (3, 1))
     assert "text_embedding" in df.columns
     series = df["text_embedding"]

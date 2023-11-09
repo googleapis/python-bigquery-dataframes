@@ -125,12 +125,12 @@ class DataFrame(NDFrame):
 
     def to_gbq(
         self,
-        destination_table: str,
+        destination_table: Optional[str],
         *,
-        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
-    ) -> None:
+    ) -> str:
         """Write a DataFrame to a BigQuery table.
 
         **Examples:**
@@ -138,17 +138,40 @@ class DataFrame(NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        Write a DataFrame to a BigQuery table.
+
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> # destination_table = PROJECT_ID + "." + DATASET_ID + "." + TABLE_NAME
             >>> df.to_gbq("bigframes-dev.birds.test-numbers", if_exists="replace")
+            'bigframes-dev.birds.test-numbers'
+
+        Write a DataFrame to a temporary BigQuery table in the anonymous dataset.
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> destination = df.to_gbq(ordering_id="ordering_id")
+            >>> # The table created can be read outside of the current session.
+            >>> bpd.close_session()  # For demonstration, only.
+            >>> bpd.read_gbq(destination, index_col="ordering_id")
+                         col1  col2
+            ordering_id
+            0               1     3
+            1               2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Args:
-            destination_table (str):
+            destination_table (Optional[str]):
                 Name of table to be written, in the form ``dataset.tablename``
                 or ``project.dataset.tablename``.
 
-            if_exists (str, default 'fail'):
-                Behavior when the destination table exists. Value can be one of:
+                If no ``destination_table`` is set, a new temporary table is
+                created in the BigQuery anonymous dataset.
+
+            if_exists (Optional[str]):
+                Behavior when the destination table exists. When
+                ``destination_table`` is set, this defaults to ``'fail'``. When
+                ``destination_table`` is not set, this field is not applicable.
+                A new table is always created. Value can be one of:
 
                 ``'fail'``
                     If table exists raise pandas_gbq.gbq.TableCreationError.
@@ -163,6 +186,11 @@ class DataFrame(NDFrame):
             ordering_id (Optional[str], default None):
                 If set, write the ordering of the DataFrame as a column in the
                 result table with this name.
+
+        Returns:
+            str:
+                The fully-qualified ID for the written table, in the form
+                ``project.dataset.tablename``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -944,6 +972,85 @@ class DataFrame(NDFrame):
         Returns:
             DataFrame: DataFrame of booleans showing whether each element
             in the DataFrame is contained in values.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def keys(self):
+        """
+        Get the 'info axis'.
+
+        This is index for Series, columns for DataFrame.
+
+        Returns:
+            Index: Info axis.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df.keys()
+            Index(['A', 'B'], dtype='object')
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def iterrows(self):
+        """
+        Iterate over DataFrame rows as (index, Series) pairs.
+
+        Yields:
+            a tuple (index, data) where data contains row values as a Series
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> index, row = next(df.iterrows())
+            >>> index
+            0
+            >>> row
+            A    1
+            B    4
+            Name: 0, dtype: object
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def itertuples(self, index: bool = True, name: str | None = "Pandas"):
+        """
+        Iterate over DataFrame rows as namedtuples.
+
+        Args:
+            index (bool, default True):
+                If True, return the index as the first element of the tuple.
+            name (str or None, default "Pandas"):
+                The name of the returned namedtuples or None to return regular
+                tuples.
+
+        Returns:
+            iterator:
+                An object to iterate over namedtuples for each row in the
+                DataFrame with the first field possibly being the index and
+                following fields being the column values.
+
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> next(df.itertuples(name="Pair"))
+            Pair(Index=0, A=1, B=4)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2087,6 +2194,8 @@ class DataFrame(NDFrame):
                 and sort it lexicographically. ``inner``: form intersection of
                 calling frame's index (or column if on is specified) with `other`'s
                 index, preserving the order of the calling's one.
+                ``cross``: creates the cartesian product from both frames, preserves
+                the order of the left keys.
 
         Returns:
             bigframes.dataframe.DataFrame: A dataframe containing columns from both the caller and `other`.
@@ -2101,6 +2210,7 @@ class DataFrame(NDFrame):
             "left",
             "outer",
             "right",
+            "cross",
         ] = "inner",
         on: Optional[str] = None,
         *,
@@ -2136,6 +2246,8 @@ class DataFrame(NDFrame):
                 join; sort keys lexicographically.
                 ``inner``: use intersection of keys from both frames, similar to a SQL inner
                 join; preserve the order of the left keys.
+                ``cross``: creates the cartesian product from both frames, preserves the order
+                of the left keys.
 
             on (label or list of labels):
                 Columns to join on. It must be found in both DataFrames. Either on or left_on + right_on
@@ -2753,6 +2865,43 @@ class DataFrame(NDFrame):
 
         Returns:
             Series: Series containing counts of unique rows in the DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def interpolate(self, method: str = "linear"):
+        """
+        Fill NaN values using an interpolation method.
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+
+        Returns:
+            DataFrame:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3, None, None, 6],
+            ...     'B': [None, 6, None, 2, None, 3],
+            ...     })
+            >>> df.interpolate()
+                 A     B
+            0  1.0  <NA>
+            1  2.0   6.0
+            2  3.0   4.0
+            3  4.0   2.0
+            4  5.0   2.5
+            5  6.0   3.0
+            <BLANKLINE>
+            [6 rows x 2 columns]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

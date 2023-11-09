@@ -567,6 +567,34 @@ def test_assign_existing_column(scalars_dfs):
     assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
+def test_assign_listlike_to_empty_df(session):
+    empty_df = dataframe.DataFrame(session=session)
+    empty_pandas_df = pd.DataFrame()
+
+    bf_result = empty_df.assign(new_col=[1, 2, 3])
+    pd_result = empty_pandas_df.assign(new_col=[1, 2, 3])
+
+    pd_result["new_col"] = pd_result["new_col"].astype("Int64")
+    pd_result.index = pd_result.index.astype("Int64")
+    assert_pandas_df_equal_ignore_ordering(bf_result.to_pandas(), pd_result)
+
+
+def test_assign_to_empty_df_multiindex_error(session):
+    empty_df = dataframe.DataFrame(session=session)
+    empty_pandas_df = pd.DataFrame()
+    empty_df["empty_col_1"] = []
+    empty_df["empty_col_2"] = []
+    empty_pandas_df["empty_col_1"] = []
+    empty_pandas_df["empty_col_2"] = []
+    empty_df = empty_df.set_index(["empty_col_1", "empty_col_2"])
+    empty_pandas_df = empty_pandas_df.set_index(["empty_col_1", "empty_col_2"])
+
+    with pytest.raises(ValueError):
+        empty_df.assign(new_col=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+    with pytest.raises(ValueError):
+        empty_pandas_df.assign(new_col=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+
 def test_assign_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     column_name = "int64_col"
@@ -711,6 +739,22 @@ def test_df_dropna(scalars_dfs, axis, how, ignore_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_interpolate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    columns = ["int64_col", "int64_too", "float64_col"]
+    bf_result = scalars_df[columns].interpolate().to_pandas()
+    # Pandas can only interpolate on "float64" columns
+    # https://github.com/pandas-dev/pandas/issues/40252
+    pd_result = scalars_pandas_df[columns].astype("float64").interpolate()
+
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
 def test_df_fillna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df[["int64_col", "float64_col"]].fillna(3)
@@ -787,6 +831,55 @@ def test_apply_series_scalar_callable(
     pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_df_keys(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    pandas.testing.assert_index_equal(
+        scalars_df_index.keys(), scalars_pandas_df_index.keys()
+    )
+
+
+def test_df_iter(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for bf_i, df_i in zip(scalars_df_index, scalars_pandas_df_index):
+        assert bf_i == df_i
+
+
+def test_iterrows(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for (bf_index, bf_series), (pd_index, pd_series) in zip(
+        scalars_df_index.iterrows(), scalars_pandas_df_index.iterrows()
+    ):
+        assert bf_index == pd_index
+        pandas.testing.assert_series_equal(bf_series, pd_series)
+
+
+@pytest.mark.parametrize(
+    (
+        "index",
+        "name",
+    ),
+    [
+        (
+            True,
+            "my_df",
+        ),
+        (False, None),
+    ],
+)
+def test_itertuples(scalars_df_index, index, name):
+    # Numeric has slightly different representation as a result of conversions.
+    bf_tuples = scalars_df_index.itertuples(index, name)
+    pd_tuples = scalars_df_index.to_pandas().itertuples(index, name)
+    for bf_tuple, pd_tuple in zip(bf_tuples, pd_tuples):
+        assert bf_tuple == pd_tuple
+
+
 def test_df_isin_list(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     values = ["Hello, World!", 55555, 2.51, pd.NA, True]
@@ -819,6 +912,26 @@ def test_df_isin_dict(scalars_dfs):
     ].isin(values)
 
     pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
+
+
+def test_df_cross_merge(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    left_columns = ["int64_col", "float64_col", "rowindex_2"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
+
+    left = scalars_df[left_columns]
+    # Offset the rows somewhat so that outer join can have an effect.
+    right = scalars_df[right_columns].assign(rowindex_2=scalars_df["rowindex_2"] + 2)
+
+    bf_result = left.merge(right, "cross").to_pandas()
+
+    pd_result = scalars_pandas_df[left_columns].merge(
+        scalars_pandas_df[right_columns].assign(
+            rowindex_2=scalars_pandas_df["rowindex_2"] + 2
+        ),
+        "cross",
+    )
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -1140,6 +1253,28 @@ def test_reset_index_with_unnamed_index(
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_with_unnamed_multiindex(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    bf_df = dataframe.DataFrame(
+        ([1, 2, 3], [2, 5, 7]),
+        index=pd.MultiIndex.from_tuples([("a", "aa"), ("a", "aa")]),
+    )
+    pd_df = pd.DataFrame(
+        ([1, 2, 3], [2, 5, 7]),
+        index=pd.MultiIndex.from_tuples([("a", "aa"), ("a", "aa")]),
+    )
+
+    bf_df = bf_df.reset_index()
+    pd_df = pd_df.reset_index()
+
+    assert pd_df.columns[0] == "level_0"
+    assert bf_df.columns[0] == "level_0"
+    assert pd_df.columns[1] == "level_1"
+    assert bf_df.columns[1] == "level_1"
 
 
 def test_reset_index_with_unnamed_index_and_index_column(
@@ -1630,12 +1765,7 @@ def test_series_binop_add_different_table(
 
 all_joins = pytest.mark.parametrize(
     ("how",),
-    (
-        ("outer",),
-        ("left",),
-        ("right",),
-        ("inner",),
-    ),
+    (("outer",), ("left",), ("right",), ("inner",), ("cross",)),
 )
 
 
@@ -1680,13 +1810,18 @@ def test_join_param_on(scalars_dfs, how):
     bf_df_a = bf_df[["string_col", "int64_col", "rowindex_2"]]
     bf_df_a = bf_df_a.assign(rowindex_2=bf_df_a["rowindex_2"] + 2)
     bf_df_b = bf_df[["float64_col"]]
-    bf_result = bf_df_a.join(bf_df_b, on="rowindex_2", how=how).to_pandas()
 
-    pd_df_a = pd_df[["string_col", "int64_col", "rowindex_2"]]
-    pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
-    pd_df_b = pd_df[["float64_col"]]
-    pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    if how == "cross":
+        with pytest.raises(ValueError):
+            bf_df_a.join(bf_df_b, on="rowindex_2", how=how)
+    else:
+        bf_result = bf_df_a.join(bf_df_b, on="rowindex_2", how=how).to_pandas()
+
+        pd_df_a = pd_df[["string_col", "int64_col", "rowindex_2"]]
+        pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
+        pd_df_b = pd_df[["float64_col"]]
+        pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
+        assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
