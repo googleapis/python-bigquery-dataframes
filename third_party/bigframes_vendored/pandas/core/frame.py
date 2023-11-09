@@ -2254,6 +2254,8 @@ class DataFrame(NDFrame):
                 and sort it lexicographically. ``inner``: form intersection of
                 calling frame's index (or column if on is specified) with `other`'s
                 index, preserving the order of the calling's one.
+                ``cross``: creates the cartesian product from both frames, preserves
+                the order of the left keys.
 
         Returns:
             bigframes.dataframe.DataFrame: A dataframe containing columns from both the caller and `other`.
@@ -2268,6 +2270,7 @@ class DataFrame(NDFrame):
             "left",
             "outer",
             "right",
+            "cross",
         ] = "inner",
         on: Optional[str] = None,
         *,
@@ -2303,6 +2306,8 @@ class DataFrame(NDFrame):
                 join; sort keys lexicographically.
                 ``inner``: use intersection of keys from both frames, similar to a SQL inner
                 join; preserve the order of the left keys.
+                ``cross``: creates the cartesian product from both frames, preserves the order
+                of the left keys.
 
             on (label or list of labels):
                 Columns to join on. It must be found in both DataFrames. Either on or left_on + right_on
@@ -2927,17 +2932,6 @@ class DataFrame(NDFrame):
         """
         Fill NaN values using an interpolation method.
 
-        Args:
-            method (str, default 'linear'):
-                Interpolation technique to use. Only 'linear' supported.
-                'linear': Ignore the index and treat the values as equally spaced.
-                This is the only method supported on MultiIndexes.
-
-        Returns:
-            DataFrame:
-                Returns the same object type as the caller, interpolated at
-                some or all ``NaN`` values
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -2946,17 +2940,41 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3, None, None, 6],
             ...     'B': [None, 6, None, 2, None, 3],
-            ...     })
+            ...     }, index=[0, 0.1, 0.3, 0.7, 0.9, 1.0])
             >>> df.interpolate()
-                 A     B
-            0  1.0  <NA>
-            1  2.0   6.0
-            2  3.0   4.0
-            3  4.0   2.0
-            4  5.0   2.5
-            5  6.0   3.0
+                   A     B
+            0.0  1.0  <NA>
+            0.1  2.0   6.0
+            0.3  3.0   4.0
+            0.7  4.0   2.0
+            0.9  5.0   2.5
+            1.0  6.0   3.0
             <BLANKLINE>
             [6 rows x 2 columns]
+            >>> df.interpolate(method="values")
+                        A         B
+            0.0       1.0      <NA>
+            0.1       2.0       6.0
+            0.3       3.0  4.666667
+            0.7  4.714286       2.0
+            0.9  5.571429  2.666667
+            1.0       6.0       3.0
+            <BLANKLINE>
+            [6 rows x 2 columns]
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+                'index', 'values': use the actual numerical values of the index.
+                'pad': Fill in NaNs using existing values.
+                'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
+
+        Returns:
+            DataFrame:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
