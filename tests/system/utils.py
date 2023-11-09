@@ -173,7 +173,7 @@ def assert_pandas_df_equal_pca_components(actual, expected, **kwargs):
 
             # Allow for sign difference per numeric/categorical column
             if column == "numerical_value":
-                actual = -actual[column]
+                actual_ = -actual[column]
                 expected_ = expected[column]
             else:
                 # In this column each element is an array of objects, where the
@@ -188,10 +188,10 @@ def assert_pandas_df_equal_pca_components(actual, expected, **kwargs):
                         newarr.append(newelement)
                     return sorted(newarr, key=lambda d: d["category"])
 
-                actual = actual[column].apply(normalize_array_of_objects, args=(True,))
+                actual_ = actual[column].apply(normalize_array_of_objects, args=(True,))
                 expected_ = expected[column].apply(normalize_array_of_objects)
 
-            pd.testing.assert_series_equal(actual, expected_, **kwargs)
+            pd.testing.assert_series_equal(actual_, expected_, **kwargs)
 
 
 def assert_pandas_df_equal_pca(actual, expected, **kwargs):
