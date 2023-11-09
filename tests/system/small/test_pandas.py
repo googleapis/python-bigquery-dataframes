@@ -16,16 +16,23 @@ import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal_ignore_ordering
+from tests.system.utils import assert_pandas_df_equal
 
 
-def test_concat_dataframe(scalars_dfs):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_concat_dataframe(scalars_dfs, ordered):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = bpd.concat(11 * [scalars_df])
-    bf_result = bf_result.to_pandas()
+    bf_result = bf_result.to_pandas(ordered=ordered)
     pd_result = pd.concat(11 * [scalars_pandas_df])
 
-    pd.testing.assert_frame_equal(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 def test_concat_series(scalars_dfs):
@@ -252,7 +259,7 @@ def test_merge(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 @pytest.mark.parametrize(
@@ -286,7 +293,28 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
+def test_pd_merge_cross(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    left_columns = ["int64_col", "float64_col", "int64_too"]
+    right_columns = ["int64_col", "bool_col", "string_col", "rowindex_2"]
+
+    left = scalars_df[left_columns]
+    right = scalars_df[right_columns]
+
+    df = bpd.merge(left, right, "cross", sort=True)
+    bf_result = df.to_pandas()
+
+    pd_result = pd.merge(
+        scalars_pandas_df[left_columns],
+        scalars_pandas_df[right_columns],
+        "cross",
+        sort=True,
+    )
+
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -320,7 +348,7 @@ def test_merge_series(scalars_dfs, merge_how):
         sort=True,
     )
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_cut(scalars_dfs):

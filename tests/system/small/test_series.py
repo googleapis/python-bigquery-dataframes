@@ -24,10 +24,7 @@ import pytest
 
 import bigframes.pandas
 import bigframes.series as series
-from tests.system.utils import (
-    assert_pandas_df_equal_ignore_ordering,
-    assert_series_equal_ignoring_order,
-)
+from tests.system.utils import assert_pandas_df_equal, assert_series_equal
 
 
 def test_series_construct_copy(scalars_dfs):
@@ -210,7 +207,7 @@ def test_abs(scalars_dfs, col_name):
     bf_result = scalars_df[col_name].abs().to_pandas()
     pd_result = scalars_pandas_df[col_name].abs()
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_fillna(scalars_dfs):
@@ -218,7 +215,7 @@ def test_fillna(scalars_dfs):
     col_name = "string_col"
     bf_result = scalars_df[col_name].fillna("Missing").to_pandas()
     pd_result = scalars_pandas_df[col_name].fillna("Missing")
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -273,21 +270,26 @@ def test_series_replace_list_scalar(scalars_dfs):
 
 
 @pytest.mark.parametrize(
-    ("values",),
+    ("method",),
     (
-        ([None, 1, 2, None, None, 16, None],),
-        ([None, None, 3.6, None],),
-        ([403.2, None, 352.1, None, None, 111.9],),
+        ("linear",),
+        ("values",),
+        ("slinear",),
+        ("nearest",),
+        ("zero",),
+        ("pad",),
     ),
 )
-def test_series_interpolate(values):
-    pd_series = pd.Series(values)
+def test_series_interpolate(method):
+    values = [None, 1, 2, None, None, 16, None]
+    index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
+    pd_series = pd.Series(values, index)
     bf_series = series.Series(pd_series)
 
     # Pandas can only interpolate on "float64" columns
     # https://github.com/pandas-dev/pandas/issues/40252
-    pd_result = pd_series.astype("float64").interpolate()
-    bf_result = bf_series.interpolate().to_pandas()
+    pd_result = pd_series.astype("float64").interpolate(method=method)
+    bf_result = bf_series.interpolate(method=method).to_pandas()
 
     # pd uses non-null types, while bf uses nullable types
     pd.testing.assert_series_equal(
@@ -491,7 +493,7 @@ def test_series_int_int_operators_scalar(
     bf_result = maybe_reversed_op(scalars_df["int64_col"], other_scalar).to_pandas()
     pd_result = maybe_reversed_op(scalars_pandas_df["int64_col"], other_scalar)
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_series_pow_scalar(scalars_dfs):
@@ -500,7 +502,7 @@ def test_series_pow_scalar(scalars_dfs):
     bf_result = (scalars_df["int64_col"] ** 2).to_pandas()
     pd_result = scalars_pandas_df["int64_col"] ** 2
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_series_pow_scalar_reverse(scalars_dfs):
@@ -509,7 +511,7 @@ def test_series_pow_scalar_reverse(scalars_dfs):
     bf_result = (0.8 ** scalars_df["int64_col"]).to_pandas()
     pd_result = 0.8 ** scalars_pandas_df["int64_col"]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -535,7 +537,7 @@ def test_series_bool_bool_operators_scalar(
     bf_result = maybe_reversed_op(scalars_df["bool_col"], other_scalar).to_pandas()
     pd_result = maybe_reversed_op(scalars_pandas_df["bool_col"], other_scalar)
 
-    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
+    assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 @pytest.mark.parametrize(
@@ -573,7 +575,7 @@ def test_series_int_int_operators_series(scalars_dfs, operator):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = operator(scalars_df["int64_col"], scalars_df["int64_too"]).to_pandas()
     pd_result = operator(scalars_pandas_df["int64_col"], scalars_pandas_df["int64_too"])
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -723,7 +725,7 @@ def test_series_add_scalar(scalars_dfs, other):
     bf_result = (scalars_df["float64_col"] + other).to_pandas()
     pd_result = scalars_pandas_df["float64_col"] + other
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -739,7 +741,7 @@ def test_series_add_bigframes_series(scalars_dfs, left_col, right_col):
     bf_result = (scalars_df[left_col] + scalars_df[right_col]).to_pandas()
     pd_result = scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -761,7 +763,7 @@ def test_series_add_bigframes_series_nested(
         scalars_pandas_df[left_col] + scalars_pandas_df[right_col]
     ) + scalars_pandas_df[righter_col]
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_series_add_different_table_default_index(
@@ -919,7 +921,7 @@ def test_isnull(scalars_dfs):
 
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    assert_series_equal_ignoring_order(pd_series.astype(pd.BooleanDtype()), bf_series)
+    assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_notnull(scalars_dfs):
@@ -930,7 +932,7 @@ def test_notnull(scalars_dfs):
 
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    assert_series_equal_ignoring_order(pd_series.astype(pd.BooleanDtype()), bf_series)
+    assert_series_equal(pd_series.astype(pd.BooleanDtype()), bf_series)
 
 
 def test_round(scalars_dfs):
@@ -939,7 +941,7 @@ def test_round(scalars_dfs):
     bf_result = scalars_df[col_name].round().to_pandas()
     pd_result = scalars_pandas_df[col_name].round()
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_eq_scalar(scalars_dfs):
@@ -948,7 +950,7 @@ def test_eq_scalar(scalars_dfs):
     bf_result = scalars_df[col_name].eq(0).to_pandas()
     pd_result = scalars_pandas_df[col_name].eq(0)
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_eq_wider_type_scalar(scalars_dfs):
@@ -957,7 +959,7 @@ def test_eq_wider_type_scalar(scalars_dfs):
     bf_result = scalars_df[col_name].eq(1.0).to_pandas()
     pd_result = scalars_pandas_df[col_name].eq(1.0)
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_ne_scalar(scalars_dfs):
@@ -966,7 +968,7 @@ def test_ne_scalar(scalars_dfs):
     bf_result = (scalars_df[col_name] != 0).to_pandas()
     pd_result = scalars_pandas_df[col_name] != 0
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 def test_eq_int_scalar(scalars_dfs):
@@ -975,7 +977,7 @@ def test_eq_int_scalar(scalars_dfs):
     bf_result = (scalars_df[col_name] == 0).to_pandas()
     pd_result = scalars_pandas_df[col_name] == 0
 
-    assert_series_equal_ignoring_order(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result)
 
 
 @pytest.mark.parametrize(
@@ -994,7 +996,7 @@ def test_eq_same_type_series(scalars_dfs, col_name):
 
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
+    assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
@@ -1012,6 +1014,17 @@ def test_loc_setitem_cell(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_series_equal(bf_original.to_pandas(), pd_original)
 
 
+def test_at_setitem_row_label_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"].copy()
+    bf_series.at[1] = 1000
+    pd_series.at[1] = 1000
+    bf_result = bf_series.to_pandas()
+    pd_result = pd_series.astype("Int64")
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_ne_obj_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -1020,7 +1033,7 @@ def test_ne_obj_series(scalars_dfs):
 
     # One of dtype mismatches to be documented. Here, the `bf_series.dtype` is `BooleanDtype` but
     # the `pd_series.dtype` is `bool`.
-    assert_series_equal_ignoring_order(pd_result.astype(pd.BooleanDtype()), bf_result)
+    assert_series_equal(pd_result.astype(pd.BooleanDtype()), bf_result)
 
 
 def test_indexing_using_unselected_series(scalars_dfs):
@@ -1029,7 +1042,7 @@ def test_indexing_using_unselected_series(scalars_dfs):
     bf_result = scalars_df[col_name][scalars_df["int64_too"].eq(0)].to_pandas()
     pd_result = scalars_pandas_df[col_name][scalars_pandas_df["int64_too"].eq(0)]
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -1045,7 +1058,7 @@ def test_indexing_using_selected_series(scalars_dfs):
         scalars_pandas_df["string_col"].eq("Hello, World!")
     ]
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -1067,7 +1080,7 @@ def test_nested_filter(scalars_dfs):
     )  # Convert from nullable bool to nonnullable bool usable as indexer
     pd_result = pd_string_col[pd_int64_too == 0][~pd_bool_col]
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -1086,7 +1099,7 @@ def test_binop_repeated_application_does_row_identity_joins(scalars_dfs):
 
     bf_result = bf_series.to_pandas()
     pd_result = pd_series
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         bf_result,
         pd_result,
     )
@@ -1108,10 +1121,9 @@ def test_binop_opposite_filters(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"]
     pd_result = pd_int64_col1[pd_bool_col] + pd_int64_col2[pd_bool_col.__invert__()]
 
-    assert_series_equal_ignoring_order(
-        bf_result,
-        pd_result,
-    )
+    # Passes with ignore_order=False only with some dependency sets
+    # TODO: Determine desired behavior and make test more strict
+    assert_series_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_binop_left_filtered(scalars_dfs):
@@ -1126,10 +1138,9 @@ def test_binop_left_filtered(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"]
     pd_result = pd_int64_col[pd_bool_col] + pd_float64_col
 
-    assert_series_equal_ignoring_order(
-        bf_result,
-        pd_result,
-    )
+    # Passes with ignore_order=False only with some dependency sets
+    # TODO: Determine desired behavior and make test more strict
+    assert_series_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_binop_right_filtered(scalars_dfs):
@@ -1144,7 +1155,7 @@ def test_binop_right_filtered(scalars_dfs):
     pd_bool_col = scalars_pandas_df["bool_col"]
     pd_result = pd_float64_col + pd_int64_col[pd_bool_col]
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         bf_result,
         pd_result,
     )
@@ -1249,7 +1260,7 @@ def test_groupby_sum(scalars_dfs):
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.to_pandas()
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_series,
         bf_result,
         check_exact=False,
@@ -1267,7 +1278,7 @@ def test_groupby_std(scalars_dfs):
         .astype(pd.Float64Dtype())
     )
     bf_result = bf_series.to_pandas()
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_series,
         bf_result,
         check_exact=False,
@@ -1282,7 +1293,7 @@ def test_groupby_var(scalars_dfs):
         scalars_pandas_df[col_name].groupby(scalars_pandas_df["string_col"]).var()
     )
     bf_result = bf_series.to_pandas()
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_series,
         bf_result,
         check_exact=False,
@@ -1334,7 +1345,7 @@ def test_groupby_mean(scalars_dfs):
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.to_pandas()
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_series,
         bf_result,
     )
@@ -1372,7 +1383,7 @@ def test_groupby_prod(scalars_dfs):
     )
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.to_pandas()
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_series,
         bf_result,
     )
@@ -1582,7 +1593,7 @@ def test_head(scalars_dfs):
     bf_result = scalars_df["string_col"].head(2).to_pandas()
     pd_result = scalars_pandas_df["string_col"].head(2)
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -1597,7 +1608,7 @@ def test_tail(scalars_dfs):
     bf_result = scalars_df["string_col"].tail(2).to_pandas()
     pd_result = scalars_pandas_df["string_col"].tail(2)
 
-    assert_series_equal_ignoring_order(
+    assert_series_equal(
         pd_result,
         bf_result,
     )
@@ -2065,11 +2076,7 @@ def test_series_filter_items(scalars_df_index, scalars_pandas_df_index):
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     # Ignore ordering as pandas order differently depending on version
-    assert_series_equal_ignoring_order(
-        bf_result,
-        pd_result,
-        check_names=False,
-    )
+    assert_series_equal(bf_result, pd_result, check_names=False, ignore_order=True)
 
 
 def test_series_filter_like(scalars_df_index, scalars_pandas_df_index):
@@ -2197,21 +2204,25 @@ def test_where_with_default(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_clip(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("ordered"),
+    [
+        (True),
+        (False),
+    ],
+)
+def test_clip(scalars_df_index, scalars_pandas_df_index, ordered):
     col_bf = scalars_df_index["int64_col"]
     lower_bf = scalars_df_index["int64_too"] - 1
     upper_bf = scalars_df_index["int64_too"] + 1
-    bf_result = col_bf.clip(lower_bf, upper_bf).to_pandas()
+    bf_result = col_bf.clip(lower_bf, upper_bf).to_pandas(ordered=ordered)
 
     col_pd = scalars_pandas_df_index["int64_col"]
     lower_pd = scalars_pandas_df_index["int64_too"] - 1
     upper_pd = scalars_pandas_df_index["int64_too"] + 1
     pd_result = col_pd.clip(lower_pd, upper_pd)
 
-    pd.testing.assert_series_equal(
-        bf_result,
-        pd_result,
-    )
+    assert_series_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
 def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
@@ -2282,7 +2293,7 @@ def test_to_frame(scalars_dfs):
     bf_result = scalars_df["int64_col"].to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].to_frame()
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_to_json(scalars_df_index, scalars_pandas_df_index):
@@ -2450,7 +2461,7 @@ def test_mask_default_value(scalars_dfs):
     pd_col_masked = pd_col.mask(pd_col % 2 == 1)
     pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
 
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_mask_custom_value(scalars_dfs):
@@ -2468,7 +2479,7 @@ def test_mask_custom_value(scalars_dfs):
     # odd so should be left as is, but it is being masked in pandas.
     # Accidentally the bigframes bahavior matches, but it should be updated
     # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
-    assert_pandas_df_equal_ignore_ordering(bf_result, pd_result)
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -2487,6 +2498,7 @@ def test_mask_custom_value(scalars_dfs):
         # with timezone conversions, so we'll allow it.
         ("timestamp_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("datetime_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
+        ("date_col", "string[pyarrow]"),
         # TODO(bmil): fix Ibis bug: BigQuery backend rounds to nearest int
         # ("float64_col", "Int64"),
         # TODO(bmil): decide whether to fix Ibis bug: BigQuery backend
@@ -2564,7 +2576,7 @@ def test_loc_bool_series_default_index(
         scalars_pandas_df_default_index.bool_col
     ]
 
-    assert_pandas_df_equal_ignore_ordering(
+    assert_pandas_df_equal(
         bf_result.to_frame(),
         pd_result.to_frame(),
     )
