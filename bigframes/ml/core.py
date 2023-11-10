@@ -232,10 +232,12 @@ class BqmlModelFactory:
         Returns: a BqmlModel, wrapping a trained model in BigQuery
         """
         options = dict(options)
+        # Cache dataframes to make sure base table is not a snapshot
+        # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train
+            input_data = X_train._cached()
         else:
-            input_data = X_train.join(y_train, how="outer")
+            input_data = X_train._cached().join(y_train._cached(), how="outer")
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
