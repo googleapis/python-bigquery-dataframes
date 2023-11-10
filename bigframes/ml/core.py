@@ -126,7 +126,7 @@ class BqmlModel:
 
     def forecast(self) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast()
-        return self._session.read_gbq(sql)
+        return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         # TODO: validate input data schema
@@ -139,14 +139,18 @@ class BqmlModel:
 
         sql = self._model_manipulation_sql_generator.ml_centroids()
 
-        return self._session.read_gbq(sql)
+        return self._session.read_gbq(
+            sql, index_col=["centroid_id", "feature"]
+        ).reset_index()
 
     def principal_components(self) -> bpd.DataFrame:
         assert self._model.model_type == "PCA"
 
         sql = self._model_manipulation_sql_generator.ml_principal_components()
 
-        return self._session.read_gbq(sql)
+        return self._session.read_gbq(
+            sql, index_col=["principal_component_id", "feature"]
+        ).reset_index()
 
     def principal_component_info(self) -> bpd.DataFrame:
         assert self._model.model_type == "PCA"

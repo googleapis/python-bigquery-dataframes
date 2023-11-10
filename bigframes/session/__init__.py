@@ -538,7 +538,7 @@ class Session(
         table = self.bqclient.get_table(table_ref)
 
         if enforce_region:
-            if table.location != self._location:
+            if table.location.casefold() != self._location.casefold():
                 raise ValueError(
                     f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
                 )
