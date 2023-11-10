@@ -1186,7 +1186,6 @@ class Session(
         # Used to disambiguate between identical rows (which will have identical hash)
         random_value = ibis.random().name(ordering_rand_part)
 
-        # Might need to actually reselect here?
         original_column_ids = table.columns
         table_with_ordering = table.select(
             itertools.chain(original_column_ids, [full_row_hash, random_value])
