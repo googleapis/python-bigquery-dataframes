@@ -36,7 +36,6 @@ from typing import (
     Tuple,
     Union,
 )
-import uuid
 import warnings
 
 import google.api_core.client_info
@@ -727,11 +726,20 @@ class Session(
             )
 
         self._start_generic_job(load_job)
+        table_id = f"{table.project}.{table.dataset_id}.{table.table_id}"
+
+        # Update the table expiration so we aren't limited to the default 24
+        # hours of the anonymous dataset.
+        table_expiration = bigquery.Table(table_id)
+        table_expiration.expires = (
+            datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
+        )
+        self.bqclient.update_table(table_expiration, ["expires"])
 
         # The BigQuery REST API for tables.get doesn't take a session ID, so we
         # can't get the schema for a temp table that way.
         return self.read_gbq_table(
-            f"{table.project}.{table.dataset_id}.{table.table_id}",
+            table_id,
             index_col=index_col,
             col_order=col_order,
         )
@@ -834,7 +842,7 @@ class Session(
         job_config.clustering_fields = cluster_cols
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = self._create_session_table()
+        load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -847,8 +855,9 @@ class Session(
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
-        table_expression = self.ibis_client.sql(
-            f"SELECT * FROM `{load_table_destination.table_id}`"
+        table_expression = self.ibis_client.table(
+            load_table_destination.table_id,
+            database=f"{load_table_destination.project}.{load_table_destination.dataset_id}",
         )
 
         # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
@@ -1134,13 +1143,6 @@ class Session(
                 "It is recommended to use engine='bigquery' "
                 "for large files to avoid loading the file into local memory."
             )
-
-    def _create_session_table(self) -> bigquery.TableReference:
-        table_name = f"{uuid.uuid4().hex}"
-        dataset = bigquery.Dataset(
-            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
-        )
-        return dataset.table(table_name)
 
     def _create_empty_temp_table(
         self,
