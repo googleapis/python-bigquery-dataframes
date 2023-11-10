@@ -82,6 +82,7 @@ import bigframes.version
 # Even though the ibis.backends.bigquery.registry import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
 import third_party.bigframes_vendored.ibis.backends.bigquery.registry  # noqa
+import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
@@ -1444,14 +1445,10 @@ def _can_cluster_bq(field: bigquery.SchemaField):
 def _convert_to_string(column: ibis_types.Column) -> ibis_types.StringColumn:
     # Some of these probably don't work
     col_type = column.type()
-    if col_type.is_array():
-        result = column.cast(ibis_dtypes.String(nullable=True))
-    elif col_type.is_struct():
-        result = column.cast(ibis_dtypes.String(nullable=True))
+    if col_type.is_array() or col_type.is_struct():
+        result = vendored_ibis_ops.ToJsonString(column).to_expr()
     elif col_type.is_geospatial():
         result = typing.cast(ibis_types.GeoSpatialColumn, column).as_text()
-    elif col_type.is_json():
-        result = column.cast(ibis_dtypes.String(nullable=True))
     elif col_type.is_string():
         result = column
     else:
