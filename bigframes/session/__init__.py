@@ -36,6 +36,7 @@ from typing import (
     Tuple,
     Union,
 )
+import uuid
 import warnings
 
 import google.api_core.client_info
@@ -517,6 +518,14 @@ class Session(
         column(s), then return those too so that ordering generation can be
         avoided.
         """
+        if table_ref.dataset_id.upper() == "_SESSION":
+            # _SESSION tables aren't supported by the tables.get REST API.
+            return (
+                self.ibis_client.sql(
+                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+                ),
+                None,
+            )
         table_expression = self.ibis_client.table(
             table_ref.table_id,
             database=f"{table_ref.project}.{table_ref.dataset_id}",
@@ -829,7 +838,7 @@ class Session(
         job_config.clustering_fields = cluster_cols
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
+        load_table_destination = self._create_session_table()
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -1129,6 +1138,13 @@ class Session(
                 "It is recommended to use engine='bigquery' "
                 "for large files to avoid loading the file into local memory."
             )
+
+    def _create_session_table(self) -> bigquery.TableReference:
+        table_name = f"{uuid.uuid4().hex}"
+        dataset = bigquery.Dataset(
+            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
+        )
+        return dataset.table(table_name)
 
     def _create_empty_temp_table(
         self,
