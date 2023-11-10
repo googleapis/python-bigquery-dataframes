@@ -65,6 +65,9 @@ class BigFrameNode:
             return sessions[0]
         return None
 
+    # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
+    # Each subclass of BigFrameNode should use this property to implement __hash__
+    # The default dataclass-generated __hash__ method is not cached
     @functools.cached_property
     def _node_hash(self):
         return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
