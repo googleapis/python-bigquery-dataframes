@@ -265,7 +265,9 @@ class BqmlModelFactory:
         ), "Time stamp data input must only contain 1 column."
 
         options = dict(options)
-        input_data = X_train.join(y_train, how="outer")
+        # Cache dataframes to make sure base table is not a snapshot
+        # cached dataframe creates a full copy, never uses snapshot
+        input_data = X_train._cached().join(y_train._cached(), how="outer")
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 
