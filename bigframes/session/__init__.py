@@ -998,8 +998,9 @@ class Session(
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
-        table_expression = self.ibis_client.sql(
-            f"SELECT * FROM `{load_table_destination.table_id}`"
+        table_expression = self.ibis_client.table(
+            load_table_destination.table_id,
+            database=f"{load_table_destination.project}.{load_table_destination.dataset_id}",
         )
 
         # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
