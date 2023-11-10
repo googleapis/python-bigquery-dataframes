@@ -14,7 +14,7 @@
 
 
 def test_bqml_getting_started():
-    # [START bigquery_getting_Started_bqml_tutorial]
+    # [START bigquery_getting_started_bqml_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
 
@@ -23,11 +23,11 @@ def test_bqml_getting_started():
     # tables via a wildcard, use SQL to define this data. Watch issue
     # https://github.com/googleapis/python-bigquery-dataframes/issues/169
     # for updates to `read_gbq` to support wildcard tables.
-    #
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
 
     df = bpd.read_gbq(
         """
+        -- Since the order of rows isn't useful for the model training,
+        -- generate a random ID to use as the index for the DataFrame.
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
         `bigquery-public-data.google_analytics_sample.ga_sessions_*`
@@ -46,25 +46,28 @@ def test_bqml_getting_started():
     # https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.structs.StructAccessor#bigframes_operations_structs_StructAccessor_field
     transactions = df["totals"].struct.field("transactions")
 
+    # The "label" values represent the outcome of the model's
+    # prediction. In this case, the model predicts if there are any
+    # ecommerce transactions within the Google Analytics session.
     # If the number of transactions is NULL, the value in the label
-    # column is set to 0. Otherwise, it is set to 1. These values
-    # represent the possible outcomes.
+    # column is set to 0. Otherwise, it is set to 1.
     label = transactions.notnull().map({True: 1, False: 0})
 
-    # Choosing the operating system of the users devices.
+    # Extract the operating system of the visitor's device.
     operatingSystem = df["device"].struct.field("operatingSystem")
     operatingSystem = operatingSystem.fillna("")
 
     # Extract whether the visitor's device is a mobile device.
     isMobile = df["device"].struct.field("isMobile")
 
-    # Extract where the visitors country of origin is.
+    # Extract the country from which the sessions originated, based on the IP address.
     country = df["geoNetwork"].struct.field("country").fillna("")
 
-    # Total number of pageviews within the session.
+    # Extract the total number of page views within the session.
     pageviews = df["totals"].struct.field("pageviews").fillna(0)
 
-    # Selecting values to represent data in columns in DataFrames.
+    # Combine all the feature columns into a single DataFrame
+    # to use as training data.
     features = bpd.DataFrame(
         {
             "os": operatingSystem,
@@ -79,7 +82,7 @@ def test_bqml_getting_started():
     model = LogisticRegression()
     model.fit(features, label)
 
-    # When writing a DataFrame to a BigQuery table, include destinaton table
-    # and parameters, index defaults to "True".
+    # The model.fit() call above created a temporary model.
+    # Use the to_gbq() method to write to a permanent location.
     model.to_gbq("bqml_tutorial.sample_model", replace=True)
-    # [END bigquery_getting_Started_bqml_tutorial]
+    # [END bigquery_getting_started_bqml_tutorial]
