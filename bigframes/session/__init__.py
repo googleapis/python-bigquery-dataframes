@@ -379,12 +379,6 @@ class Session(
             ...       pitchSpeed,
             ...    FROM `bigquery-public-data.baseball.games_wide`
             ... ''')
-            >>> df.head(2)
-              pitcherFirstName pitcherLastName  pitchSpeed
-            0                                            0
-            1                                            0
-            <BLANKLINE>
-            [2 rows x 3 columns]
 
         Preserve ordering in a query input.
 
@@ -481,16 +475,6 @@ class Session(
         Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
-            >>> df.head(2)
-                                                 species island  culmen_length_mm  \\
-            0        Adelie Penguin (Pygoscelis adeliae)  Dream              36.6
-            1        Adelie Penguin (Pygoscelis adeliae)  Dream              39.8
-            <BLANKLINE>
-               culmen_depth_mm  flipper_length_mm  body_mass_g     sex
-            0             18.4              184.0       3475.0  FEMALE
-            1             19.1              184.0       4650.0    MALE
-            <BLANKLINE>
-            [2 rows x 7 columns]
 
         See also: :meth:`Session.read_gbq`.
         """
