@@ -510,7 +510,6 @@ class Session(
         table_ref: bigquery.table.TableReference,
         *,
         api_name: str,
-        enforce_region: bool = False,
     ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
         """Create a read-only Ibis table expression representing a table.
 
@@ -536,11 +535,10 @@ class Session(
         # the same assumption and use these columns as the total ordering keys.
         table = self.bqclient.get_table(table_ref)
 
-        if enforce_region:
-            if table.location.casefold() != self._location.casefold():
-                raise ValueError(
-                    f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
-                )
+        if table.location.casefold() != self._location.casefold():
+            raise ValueError(
+                f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+            )
 
         # TODO(b/305264153): Use public properties to fetch primary keys once
         # added to google-cloud-bigquery.
@@ -584,9 +582,7 @@ class Session(
         (
             table_expression,
             total_ordering_cols,
-        ) = self._get_snapshot_sql_and_primary_key(
-            table_ref, api_name=api_name, enforce_region=True
-        )
+        ) = self._get_snapshot_sql_and_primary_key(table_ref, api_name=api_name)
 
         for key in col_order:
             if key not in table_expression.columns:
@@ -604,6 +600,9 @@ class Session(
                 raise ValueError(
                     f"Column `{key}` of `index_col` not found in this table."
                 )
+
+        if col_order:
+            table_expression = table_expression.select([*index_cols, *col_order])
 
         # If the index is unique and sortable, then we don't need to generate
         # an ordering column.
@@ -657,9 +656,6 @@ class Session(
                 array_value = self._create_total_ordering(table_expression)
         else:
             array_value = self._create_total_ordering(table_expression)
-
-        if col_order:
-            array_value = array_value.select_columns(tuple(col_order))
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(
@@ -1213,7 +1209,7 @@ class Session(
             ordering=ordering,
         )
 
-    def _ibis_to_session_table(
+    def _ibis_to_temp_table(
         self,
         table: ibis_types.Table,
         cluster_cols: Iterable[str],
@@ -1449,14 +1445,20 @@ def _can_cluster_bq(field: bigquery.SchemaField):
 
 
 def _convert_to_string(column: ibis_types.Column) -> ibis_types.StringColumn:
-    # Some of these probably don't work
     col_type = column.type()
-    if col_type.is_array() or col_type.is_struct():
-        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
+    if (
+        col_type.is_numeric()
+        or col_type.is_boolean()
+        or col_type.is_binary()
+        or col_type.is_temporal()
+    ):
+        result = column.cast(ibis_dtypes.String(nullable=True))
     elif col_type.is_geospatial():
         result = typing.cast(ibis_types.GeoSpatialColumn, column).as_text()
     elif col_type.is_string():
         result = column
     else:
-        result = column.cast(ibis_dtypes.String(nullable=True))
+        # TO_JSON_STRING works with all data types, but isn't the most efficient
+        # Needed for JSON, STRUCT and ARRAY datatypes
+        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
     return typing.cast(ibis_types.StringColumn, result)

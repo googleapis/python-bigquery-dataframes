@@ -132,7 +132,10 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         transforms: Optional[Iterable[str]] = None,
     ) -> str:
         """Encode the CREATE TEMP MODEL statement for BQML"""
-        source_sql = source_df.sql
+        # TODO: Compile unordered sql here instead of ordered sql
+        # Cache as underlying table may use snapshot, which is incompatible with model generation
+        # Cached df creates a non-snapshot copy.
+        source_sql = source_df._cached().sql
         transform_sql = self.transform(*transforms) if transforms is not None else None
         options_sql = self.options(**options)
 
