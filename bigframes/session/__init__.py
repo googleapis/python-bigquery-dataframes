@@ -36,7 +36,6 @@ from typing import (
     Tuple,
     Union,
 )
-import uuid
 import warnings
 
 import google.api_core.client_info
@@ -505,7 +504,7 @@ class Session(
             api_name="read_gbq_table",
         )
 
-    def _read_gbq_table_to_ibis_with_total_ordering(
+    def _get_snapshot_sql_and_primary_key(
         self,
         table_ref: bigquery.table.TableReference,
         *,
@@ -518,15 +517,6 @@ class Session(
         column(s), then return those too so that ordering generation can be
         avoided.
         """
-        if table_ref.dataset_id.upper() == "_SESSION":
-            # _SESSION tables aren't supported by the tables.get REST API.
-            return (
-                self.ibis_client.sql(
-                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
-                ),
-                None,
-            )
-
         table_expression = self.ibis_client.table(
             table_ref.table_id,
             database=f"{table_ref.project}.{table_ref.dataset_id}",
@@ -551,22 +541,18 @@ class Session(
             .get("columns")
         )
 
-        if not primary_keys:
-            return table_expression, None
-        else:
-            # Read from a snapshot since we won't have to copy the table data to create a total ordering.
-            job_config = bigquery.QueryJobConfig()
-            job_config.labels["bigframes-api"] = api_name
-            current_timestamp = list(
-                self.bqclient.query(
-                    "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
-                    job_config=job_config,
-                ).result()
-            )[0][0]
-            table_expression = self.ibis_client.sql(
-                bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
-            )
-            return table_expression, primary_keys
+        job_config = bigquery.QueryJobConfig()
+        job_config.labels["bigframes-api"] = api_name
+        current_timestamp = list(
+            self.bqclient.query(
+                "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+                job_config=job_config,
+            ).result()
+        )[0][0]
+        table_expression = self.ibis_client.sql(
+            bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
+        )
+        return table_expression, primary_keys
 
     def _read_gbq_table(
         self,
@@ -589,7 +575,7 @@ class Session(
         (
             table_expression,
             total_ordering_cols,
-        ) = self._read_gbq_table_to_ibis_with_total_ordering(
+        ) = self._get_snapshot_sql_and_primary_key(
             table_ref, api_name=api_name, enforce_region=True
         )
 
@@ -843,7 +829,7 @@ class Session(
         job_config.clustering_fields = cluster_cols
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = self._create_session_table()
+        load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -1143,13 +1129,6 @@ class Session(
                 "It is recommended to use engine='bigquery' "
                 "for large files to avoid loading the file into local memory."
             )
-
-    def _create_session_table(self) -> bigquery.TableReference:
-        table_name = f"{uuid.uuid4().hex}"
-        dataset = bigquery.Dataset(
-            bigquery.DatasetReference(self.bqclient.project, "_SESSION")
-        )
-        return dataset.table(table_name)
 
     def _create_empty_temp_table(
         self,
@@ -1457,7 +1436,7 @@ def _convert_to_string(column: ibis_types.Column) -> ibis_types.StringColumn:
     # Some of these probably don't work
     col_type = column.type()
     if col_type.is_array() or col_type.is_struct():
-        result = vendored_ibis_ops.ToJsonString(column).to_expr()
+        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
     elif col_type.is_geospatial():
         result = typing.cast(ibis_types.GeoSpatialColumn, column).as_text()
     elif col_type.is_string():
