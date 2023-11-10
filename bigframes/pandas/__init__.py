@@ -333,6 +333,7 @@ def merge(
         "left",
         "outer",
         "right",
+        "cross",
     ] = "inner",
     on: Optional[str] = None,
     *,
