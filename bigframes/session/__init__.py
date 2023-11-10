@@ -608,7 +608,7 @@ class Session(
         # an ordering column.
         ordering = None
         if total_ordering_cols is not None:
-            # Note: currently, this a table has a total ordering only when the
+            # Note: currently, a table has a total ordering only when the
             # primary key(s) are set on a table. The query engine assumes such
             # columns are unique, even if not enforced.
             ordering = orderings.ExpressionOrdering(
