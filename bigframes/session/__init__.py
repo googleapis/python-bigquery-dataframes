@@ -510,6 +510,7 @@ class Session(
         table_ref: bigquery.table.TableReference,
         *,
         api_name: str,
+        enforce_region: bool = False,
     ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
         """Create a read-only Ibis table expression representing a table.
 
@@ -535,6 +536,12 @@ class Session(
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
         table = self.bqclient.get_table(table_ref)
+
+        if enforce_region:
+            if table.location != self._location:
+                raise ValueError(
+                    f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+                )
 
         # TODO(b/305264153): Use public properties to fetch primary keys once
         # added to google-cloud-bigquery.
@@ -583,8 +590,7 @@ class Session(
             table_expression,
             total_ordering_cols,
         ) = self._read_gbq_table_to_ibis_with_total_ordering(
-            table_ref,
-            api_name=api_name,
+            table_ref, api_name=api_name, enforce_region=True
         )
 
         for key in col_order:
@@ -669,7 +675,12 @@ class Session(
         )
         if max_results:
             block = block.slice(stop=max_results)
-        return dataframe.DataFrame(block)
+        df = dataframe.DataFrame(block)
+
+        # If user provided index columns, should sort over it
+        if len(index_cols) > 0:
+            df.sort_index()
+        return df
 
     def _check_index_uniqueness(
         self, table: ibis_types.Table, index_cols: List[str]
