@@ -129,6 +129,7 @@ class NDFrame(indexing.IndexingMixin):
         *,
         index: bool = True,
         lines: bool = False,
+        ordered: Optional[bool] = None,
     ) -> str | None:
         """Convert the object to a JSON string, written to Cloud Storage.
 
@@ -181,13 +182,19 @@ class NDFrame(indexing.IndexingMixin):
                 If 'orient' is 'records' write out line-delimited json format. Will
                 throw ValueError if incorrect 'orient' since others are not
                 list-like.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             None: String output not yet supported.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
+    def to_csv(
+        self, path_or_buf: str, *, index: bool = True, ordered: Optional[bool] = None
+    ) -> str | None:
         """Write object to a comma-separated values (csv) file on Cloud Storage.
 
         Args:
@@ -203,6 +210,11 @@ class NDFrame(indexing.IndexingMixin):
 
             index (bool, default True):
                 If True, write row names (index).
+
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             None: String output not yet supported.

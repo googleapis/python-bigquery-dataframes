@@ -149,9 +149,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __len__(self):
         return self.shape[0]
 
-    def __iter__(self) -> typing.Iterator:
+    def __iter__(self, *, ordered: Optional[bool] = None) -> typing.Iterator:
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
         return itertools.chain.from_iterable(
-            map(lambda x: x.index, self._block.to_pandas_batches())
+            map(lambda x: x.index, self._block.to_pandas_batches(ordered=ordered))
         )
 
     def copy(self) -> Series:
@@ -272,7 +273,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
         *,
-        ordered: bool = True,
+        ordered: Optional[bool] = True,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -301,6 +302,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
         df, query_job = self._block.to_pandas(
             (self._value_column,),
             max_download_size=max_download_size,
@@ -1314,7 +1316,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         return self.where(~cond, other)
 
-    def to_frame(self, name: blocks.Label = None) -> bigframes.dataframe.DataFrame:
+    def to_frame(
+        self,
+        name: blocks.Label = None,
+    ) -> bigframes.dataframe.DataFrame:
         provided_name = name if name else self.name
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels(
@@ -1322,15 +1327,28 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return bigframes.dataframe.DataFrame(block)
 
-    def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
+    def to_csv(
+        self, path_or_buf=None, *, ordered: Optional[bool] = None, **kwargs
+    ) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_csv(path_or_buf, **kwargs)
+        return self.to_pandas(ordered=ordered).to_csv(path_or_buf, **kwargs)
 
-    def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas().to_dict(into))
+    def to_dict(
+        self, into: type[dict] = dict, *, ordered: Optional[bool] = None
+    ) -> typing.Mapping:
+        return typing.cast(dict, self.to_pandas(ordered=ordered).to_dict(into))
 
-    def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+    def to_excel(
+        self,
+        excel_writer,
+        sheet_name="Sheet1",
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
+    ) -> None:
+        return self.to_pandas(ordered=ordered).to_excel(
+            excel_writer, sheet_name, **kwargs
+        )
 
     def to_json(
         self,
@@ -1338,20 +1356,29 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         orient: typing.Literal[
             "split", "records", "index", "columns", "values", "table"
         ] = "columns",
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_json(path_or_buf, **kwargs)
+        return self.to_pandas(ordered=ordered).to_json(path_or_buf, **kwargs)
 
     def to_latex(
-        self, buf=None, columns=None, header=True, index=True, **kwargs
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_latex(
+        return self.to_pandas(ordered=ordered).to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
-    def tolist(self) -> list:
-        return self.to_pandas().to_list()
+    def tolist(self, *, ordered: Optional[bool] = None) -> list:
+        return self.to_pandas(ordered=ordered).to_list()
 
     to_list = tolist
 
@@ -1360,19 +1387,27 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         buf: typing.IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
+        return self.to_pandas(ordered=ordered).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas(ordered=ordered).to_numpy(dtype, copy, na_value, **kwargs)
 
     __array__ = to_numpy
 
-    def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+    def to_pickle(self, path, *, ordered: Optional[bool] = None, **kwargs) -> None:
+        return self.to_pandas(ordered=ordered).to_pickle(path, **kwargs)
 
     def to_string(
         self,
@@ -1386,8 +1421,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         name=False,
         max_rows=None,
         min_rows=None,
+        *,
+        ordered: Optional[bool] = None,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_string(
+        return self.to_pandas(ordered=ordered).to_string(
             buf,
             na_rep,
             float_format,
@@ -1400,8 +1437,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             min_rows,
         )
 
-    def to_xarray(self):
-        return self.to_pandas().to_xarray()
+    def to_xarray(self, *, ordered: Optional[bool] = None):
+        return self.to_pandas(ordered=ordered).to_xarray()
 
     def _throw_if_index_contains_duplicates(
         self, error_message: typing.Optional[str] = None

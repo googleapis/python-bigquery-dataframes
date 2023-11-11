@@ -862,7 +862,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
         *,
-        ordered: bool = True,
+        ordered: Optional[bool] = None,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -882,9 +882,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
-            ordered (bool, default True):
+            ordered (bool, default None):
                 Determines whether the resulting pandas dataframe will be deterministically ordered.
-                In some cases, unordered may result in a faster-executing query.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
@@ -896,14 +897,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
-            ordered=ordered,
+            ordered=ordered
+            if ordered is not None
+            else bigframes.options.ordering.enabled,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
+    def to_pandas_batches(
+        self, *, ordered: Optional[bool] = None
+    ) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame"""
-        return self._block.to_pandas_batches()
+        return self._block.to_pandas_batches(ordered=ordered)
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
@@ -1508,15 +1513,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         for col_id, col_label in zip(column_ids, column_labels):
             yield col_label, bigframes.series.Series(self._block.select_column(col_id))
 
-    def iterrows(self) -> Iterable[tuple[typing.Any, pandas.Series]]:
-        for df in self.to_pandas_batches():
+    def iterrows(
+        self, *, ordered: Optional[bool] = None
+    ) -> Iterable[tuple[typing.Any, pandas.Series]]:
+        for df in self.to_pandas_batches(ordered=ordered):
             for item in df.iterrows():
                 yield item
 
     def itertuples(
-        self, index: bool = True, name: typing.Optional[str] = "Pandas"
+        self,
+        index: bool = True,
+        name: typing.Optional[str] = "Pandas",
+        *,
+        ordered: Optional[bool] = None,
     ) -> Iterable[tuple[typing.Any, ...]]:
-        for df in self.to_pandas_batches():
+        for df in self.to_pandas_batches(ordered=ordered):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
@@ -2285,7 +2296,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return [DataFrame(block) for block in blocks]
 
     def to_csv(
-        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
+        self,
+        path_or_buf: str,
+        sep=",",
+        *,
+        header: bool = True,
+        index: bool = True,
+        ordered: Optional[bool] = None,
     ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -2297,14 +2314,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
-        )
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
+        result_table = self._run_io_query(index=index, ordered=ordered)
         export_data_statement = bigframes.session._io.bigquery.create_export_csv_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             field_delimiter=sep,
             header=header,
+            ordered=ordered,
         )
         _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
@@ -2318,6 +2335,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         lines: bool = False,
         index: bool = True,
+        ordered: Optional[bool] = None,
     ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -2339,14 +2357,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
             )
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
-        )
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
+        result_table = self._run_io_query(index=index, ordered=ordered)
         export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path_or_buf,
             format="JSON",
             export_options={},
+            ordered=ordered,
         )
         _, query_job = self._block.expr.session._start_query(export_data_statement)
         self._set_internal_query_job(query_job)
@@ -2408,13 +2426,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ),
         )
 
-        self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
+        if ordering_id:
+            self._run_io_query(
+                index=index,
+                ordered=ordering_id is not None,
+                ordering_id=ordering_id,
+                job_config=job_config,
+            )
+        else:
+            self._run_io_query(
+                index=index,
+                ordered=False,
+                job_config=job_config,
+            )
         return destination_table
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+
+        return self.to_pandas(ordered=ordered).to_numpy(dtype, copy, na_value, **kwargs)
 
     __array__ = to_numpy
 
@@ -2424,6 +2461,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
+        ordered: Optional[bool] = None,
     ) -> None:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -2443,9 +2481,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if compression:
             export_options["compression"] = compression.upper()
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
-        )
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
+        result_table = self._run_io_query(index=index, ordered=ordered)
         export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=path,
@@ -2461,9 +2498,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "dict", "list", "series", "split", "tight", "records", "index"
         ] = "dict",
         into: type[dict] = dict,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
-        return self.to_pandas().to_dict(orient, into, **kwargs)  # type: ignore
+        return self.to_pandas(ordered=ordered).to_dict(orient, into, **kwargs)  # type: ignore
 
     def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
         return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
@@ -2474,16 +2513,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         columns: Sequence | None = None,
         header: bool | Sequence[str] = True,
         index: bool = True,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_latex(
+        return self.to_pandas(ordered=ordered).to_latex(
             buf, columns=columns, header=header, index=index, **kwargs  # type: ignore
         )
 
     def to_records(
-        self, index: bool = True, column_dtypes=None, index_dtypes=None
+        self,
+        index: bool = True,
+        column_dtypes=None,
+        index_dtypes=None,
+        *,
+        ordered: Optional[bool] = None,
     ) -> numpy.recarray:
-        return self.to_pandas().to_records(index, column_dtypes, index_dtypes)
+        return self.to_pandas(ordered=ordered).to_records(
+            index, column_dtypes, index_dtypes
+        )
 
     def to_string(
         self,
@@ -2506,8 +2554,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
+        *,
+        ordered: Optional[bool] = None,
     ) -> str | None:
-        return self.to_pandas().to_string(
+        return self.to_pandas(ordered=ordered).to_string(
             buf,
             columns,  # type: ignore
             col_space,
@@ -2534,15 +2584,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         buf=None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_markdown(buf, mode, index, **kwargs)  # type: ignore
+        return self.to_pandas(ordered=ordered).to_markdown(buf, mode, index, **kwargs)  # type: ignore
 
-    def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+    def to_pickle(self, path, *, ordered: Optional[bool] = None, **kwargs) -> None:
+        return self.to_pandas(ordered=ordered).to_pickle(path, **kwargs)
 
-    def to_orc(self, path=None, **kwargs) -> bytes | None:
-        as_pandas = self.to_pandas()
+    def to_orc(
+        self, path=None, *, ordered: Optional[bool] = None, **kwargs
+    ) -> bytes | None:
+        as_pandas = self.to_pandas(ordered=ordered)
         # to_orc only works with default index
         as_pandas_default_index = as_pandas.reset_index()
         return as_pandas_default_index.to_orc(path, **kwargs)
@@ -2589,14 +2643,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _run_io_query(
         self,
         index: bool,
-        ordering_id: Optional[str] = None,
+        ordered: Optional[bool] = None,
+        ordering_id: str = bigframes.session._io.bigquery.IO_ORDERING_ID,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
     ) -> bigquery.TableReference:
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         expr = self._block.expr
         session = expr.session
-        sql = self._create_io_query(index=index, ordering_id=ordering_id)
+        is_ordered = (
+            ordered if ordered is not None else bigframes.options.ordering.enabled
+        )
+        sql = self._create_io_query(
+            index=index, ordering_id=ordering_id if is_ordered else None
+        )
         _, query_job = session._start_query(
             sql=sql, job_config=job_config  # type: ignore
         )

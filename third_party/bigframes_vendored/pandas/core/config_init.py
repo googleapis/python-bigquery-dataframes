@@ -57,3 +57,14 @@ Attributes:
         the uniform method may take longer to execute and require more
         computation.
 """
+
+ordering_options_doc = """
+Encapsulates configuration for dataframe ordering
+
+Attributes:
+    enabled (bool, default True):
+        Determines whether dataframes will produce ordered results. This is more
+        compute-intensive than unordered results. If disabled, ordering will only
+        be calculate where windowed operations are used, default index is generated,
+        or offset indexing (e.g. df.iloc) is used.
+"""

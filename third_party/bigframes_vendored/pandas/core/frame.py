@@ -94,7 +94,15 @@ class DataFrame(NDFrame):
 
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
-    def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
+    def to_numpy(
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
+    ) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
 
@@ -117,6 +125,11 @@ class DataFrame(NDFrame):
             na_value (Any, default None):
                 The value to use for missing values. The default value
                 depends on dtype and the dtypes of the DataFrame columns.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
+
 
         Returns:
             numpy.ndarray: The converted NumPy array.
@@ -200,6 +213,7 @@ class DataFrame(NDFrame):
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
+        ordered: Optional[bool] = None,
     ) -> None:
         """Write a DataFrame to the binary Parquet format.
 
@@ -230,6 +244,11 @@ class DataFrame(NDFrame):
                 If ``True``, include the dataframe's index(es) in the file output.
                 If ``False``, they will not be written to the file.
 
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
+
         Returns:
             None.
         """
@@ -241,6 +260,8 @@ class DataFrame(NDFrame):
             "dict", "list", "series", "split", "tight", "records", "index"
         ] = "dict",
         into: type[dict] = dict,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
         """
@@ -299,6 +320,10 @@ class DataFrame(NDFrame):
                 Whether to include the index item (and index_names item if `orient`
                 is 'tight') in the returned dictionary. Can only be ``False``
                 when `orient` is 'split' or 'tight'.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             dict or list of dict: Return a collections.abc.Mapping object representing the DataFrame.
@@ -306,7 +331,14 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
+    def to_excel(
+        self,
+        excel_writer,
+        sheet_name: str = "Sheet1",
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
+    ) -> None:
         """
         Write DataFrame to an Excel sheet.
 
@@ -334,11 +366,22 @@ class DataFrame(NDFrame):
                 File path or existing ExcelWriter.
             sheet_name (str, default 'Sheet1'):
                 Name of sheet which will contain DataFrame.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_latex(
-        self, buf=None, columns=None, header=True, index=True, **kwargs
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
     ) -> str | None:
         r"""
         Render object to a LaTeX tabular, longtable, or nested table.
@@ -374,11 +417,20 @@ class DataFrame(NDFrame):
                 it is assumed to be aliases for the column names.
             index (bool, default True):
                 Write row names (index).
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_records(
-        self, index: bool = True, column_dtypes=None, index_dtypes=None
+        self,
+        index: bool = True,
+        column_dtypes=None,
+        index_dtypes=None,
+        *,
+        ordered: Optional[bool] = None,
     ) -> np.recarray:
         """
         Convert DataFrame to a NumPy record array.
@@ -410,6 +462,10 @@ class DataFrame(NDFrame):
                 (zero-indexed) to specific data types.
 
                 This mapping is applied only if `index=True`.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             np.recarray: NumPy ndarray with the DataFrame labels as fields and each row
@@ -438,6 +494,8 @@ class DataFrame(NDFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
+        *,
+        ordered: Optional[bool] = None,
     ):
         """Render a DataFrame to a console-friendly tabular output.
 
@@ -501,6 +559,10 @@ class DataFrame(NDFrame):
                 Max width to truncate each column in characters. By default, no limit.
             encoding (str, default "utf-8"):
                 Set character encoding.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             str or None: If buf is None, returns the result as a string. Otherwise returns
@@ -513,6 +575,8 @@ class DataFrame(NDFrame):
         buf=None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ):
         """Print DataFrame in Markdown-friendly format.
@@ -536,15 +600,20 @@ class DataFrame(NDFrame):
                 Mode in which file is opened.
             index (bool, optional, default True):
                 Add index (row) labels.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
             **kwargs
                 These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
+
 
         Returns:
             DataFrame in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs) -> None:
+    def to_pickle(self, path, *, ordered: Optional[bool] = None, **kwargs) -> None:
         """Pickle (serialize) object to file.
 
         **Examples:**
@@ -559,10 +628,16 @@ class DataFrame(NDFrame):
         Args:
             path (str):
                 File path where the pickled object will be stored.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_orc(self, path=None, **kwargs) -> bytes | None:
+    def to_orc(
+        self, path=None, *, ordered: Optional[bool] = None, **kwargs
+    ) -> bytes | None:
         """
         Write a DataFrame to the ORC format.
 
@@ -582,6 +657,10 @@ class DataFrame(NDFrame):
                 we refer to objects with a write() method, such as a file handle
                 (e.g. via builtin open function). If path is None,
                 a bytes object is returned.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1002,6 +1081,12 @@ class DataFrame(NDFrame):
         """
         Iterate over DataFrame rows as (index, Series) pairs.
 
+        Args:
+            ordered (bool, default None):
+                Determines whether the resulting row iterator will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
+
         Yields:
             a tuple (index, data) where data contains row values as a Series
 
@@ -1023,7 +1108,13 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def itertuples(self, index: bool = True, name: str | None = "Pandas"):
+    def itertuples(
+        self,
+        index: bool = True,
+        name: str | None = "Pandas",
+        *,
+        ordered: Optional[bool] = None,
+    ):
         """
         Iterate over DataFrame rows as namedtuples.
 
@@ -1033,6 +1124,10 @@ class DataFrame(NDFrame):
             name (str or None, default "Pandas"):
                 The name of the returned namedtuples or None to return regular
                 tuples.
+            ordered (bool, default None):
+                Determines whether the resulting row iterator will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             iterator:

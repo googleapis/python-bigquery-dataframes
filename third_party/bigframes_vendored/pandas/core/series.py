@@ -3,7 +3,7 @@ Data structure for 1-dimensional cross-sectional and time series data
 """
 from __future__ import annotations
 
-from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
+from typing import Hashable, IO, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
 
 import numpy as np
 from pandas._libs import lib
@@ -148,6 +148,8 @@ class Series(NDFrame):  # type: ignore[misc]
         name: bool = False,
         max_rows: int | None = None,
         min_rows: int | None = None,
+        *,
+        ordered: Optional[bool] = None,
     ) -> str | None:
         """
         Render a string representation of the Series.
@@ -176,6 +178,10 @@ class Series(NDFrame):  # type: ignore[misc]
             min_rows (int, optional):
                 The number of rows to display in a truncated repr (when number
                 of rows is above `max_rows`).
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             str or None: String representation of Series if ``buf=None``,
@@ -188,6 +194,8 @@ class Series(NDFrame):  # type: ignore[misc]
         buf: IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        ordered: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
         """
@@ -200,13 +208,19 @@ class Series(NDFrame):  # type: ignore[misc]
                 Mode in which file is opened, "wt" by default.
             index (bool, optional, default True):
                 Add index (row) labels.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             str: {klass} in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_dict(self, into: type[dict] = dict) -> Mapping:
+    def to_dict(
+        self, into: type[dict] = dict, *, ordered: Optional[bool] = None
+    ) -> Mapping:
         """
         Convert Series to {label -> value} dict or dict-like object.
 
@@ -216,7 +230,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 object. Can be the actual class or an empty
                 instance of the mapping type you want.  If you want a
                 collections.defaultdict, you must pass it initialized.
-
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         Returns:
             collections.abc.Mapping: Key-value representation of Series.
         """
@@ -237,7 +254,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_excel(self, excel_writer, sheet_name):
+    def to_excel(self, excel_writer, sheet_name, *, ordered: Optional[bool] = None):
         """
         Write Series to an Excel sheet.
 
@@ -256,10 +273,23 @@ class Series(NDFrame):  # type: ignore[misc]
                 File path or existing ExcelWriter.
             sheet_name (str, default 'Sheet1'):
                 Name of sheet to contain Series.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_latex(self, buf=None, columns=None, header=True, index=True, **kwargs):
+    def to_latex(
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        ordered: Optional[bool] = None,
+        **kwargs,
+    ):
         """
         Render object to a LaTeX tabular, longtable, or nested table.
 
@@ -273,6 +303,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 it is assumed to be aliases for the column names.
             index (bool, default True):
                 Write row names (index).
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             str or None: If buf is None, returns the result as a string.
@@ -280,7 +314,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def tolist(self) -> list:
+    def tolist(self, *, ordered: Optional[bool] = None) -> list:
         """
         Return a list of the values.
 
@@ -290,12 +324,18 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             list: list of the values
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     to_list = tolist
 
-    def to_numpy(self, dtype, copy=False, na_value=None):
+    def to_numpy(
+        self, dtype, copy=False, na_value=None, *, ordered: Optional[bool] = None
+    ):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
@@ -310,6 +350,10 @@ class Series(NDFrame):  # type: ignore[misc]
             na_value (Any, optional):
                 The value to use for missing values. The default value depends
                 on `dtype` and the type of the array.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
             ``**kwargs``:
                 Additional keywords passed through to the ``to_numpy`` method
                 of the underlying array (for extension arrays).
@@ -320,7 +364,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs):
+    def to_pickle(self, path, *, ordered: Optional[bool] = None, **kwargs):
         """
         Pickle (serialize) object to file.
 
@@ -329,17 +373,28 @@ class Series(NDFrame):  # type: ignore[misc]
                 String, path object (implementing ``os.PathLike[str]``), or file-like
                 object implementing a binary ``write()`` function. File path where
                 the pickled object will be stored.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_xarray(self):
+    def to_xarray(self, *, ordered: Optional[bool] = None):
         """
         Return an xarray object from the pandas object.
+
+        Args;
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             xarray.DataArray or xarray.Dataset: Data in the pandas structure
                 converted to Dataset if the object is a DataFrame, or a DataArray if
                 the object is a Series.
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -349,6 +404,8 @@ class Series(NDFrame):  # type: ignore[misc]
         orient: Literal[
             "split", "records", "index", "columns", "values", "table"
         ] = "columns",
+        *,
+        ordered: Optional[bool] = None,
         **kwarg,
     ) -> str | None:
         """
@@ -371,6 +428,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 'values' : just the values array
                 'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
                 Describing the data, where data component is like ``orient='records'``.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting json format as a
@@ -378,7 +439,9 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
+    def to_csv(
+        self, path_or_buf: str, *, index: bool = True, ordered: Optional[bool] = None
+    ) -> str | None:
         """
         Write object to a comma-separated values (csv) file.
 
@@ -389,6 +452,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 returned as a string. If a non-binary file object is passed, it should
                 be opened with `newline=''`, disabling universal newlines. If a binary
                 file object is passed, `mode` might need to contain a `'b'`.
+            ordered (bool, default None):
+                Determines whether the resulting object will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query. Default is configured
+                by bigframes.options.ordering.enabled global configuration.
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting csv format

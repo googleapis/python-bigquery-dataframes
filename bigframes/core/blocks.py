@@ -418,11 +418,12 @@ class Block:
         )
         return df, query_job
 
-    def to_pandas_batches(self):
+    def to_pandas_batches(self, *, ordered: Optional[bool] = None):
         """Download results one message at a time."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        results_iterator, _ = self._expr.start_query()
+        ordered = ordered if ordered is not None else bigframes.options.ordering.enabled
+        results_iterator, _ = self._expr.start_query(sorted=ordered)
         for arrow_table in results_iterator.to_arrow_iterable(
             bqstorage_client=self._expr.session.bqstoragereadclient
         ):

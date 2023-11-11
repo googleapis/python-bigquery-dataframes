@@ -20,6 +20,7 @@ DataFrames from this package.
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes._config.compute_options as compute_options
 import bigframes._config.display_options as display_options
+import bigframes._config.ordering_options as ordering_options
 import bigframes._config.sampling_options as sampling_options
 import third_party.bigframes_vendored.pandas._config.config as pandas_config
 
@@ -32,6 +33,7 @@ class Options:
         self._display_options = display_options.DisplayOptions()
         self._sampling_options = sampling_options.SamplingOptions()
         self._compute_options = compute_options.ComputeOptions()
+        self._ordering_options = ordering_options.OrderingOptions()
 
     @property
     def bigquery(self) -> bigquery_options.BigQueryOptions:
@@ -56,6 +58,11 @@ class Options:
     def compute(self) -> compute_options.ComputeOptions:
         """Options controlling object computation."""
         return self._compute_options
+
+    @property
+    def ordering(self) -> ordering_options.OrderingOptions:
+        """Options controlling dataframe ordering."""
+        return self._ordering_options
 
 
 options = Options()

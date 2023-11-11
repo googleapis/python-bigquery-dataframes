@@ -153,6 +153,46 @@ def test_to_csv_index(
     pd.testing.assert_frame_equal(gcs_df, scalars_pandas_df)
 
 
+def test_to_csv_unordered(
+    scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
+    gcs_folder: str,
+):
+    if pd.__version__.startswith("1."):
+        pytest.skip("date_format parameter not supported in pandas 1.x.")
+    """Test the `to_csv` API with the `index` parameter."""
+    scalars_df, scalars_pandas_df = scalars_dfs
+    index_col = None
+    if scalars_df.index.name is not None:
+        path = gcs_folder + "test_index_df_to_csv_unordered*.csv"
+        index_col = typing.cast(str, scalars_df.index.name)
+    else:
+        path = gcs_folder + "test_default_index_df_to_csv_unordered*.csv"
+
+    # TODO(swast): Support "date_format" parameter and make sure our
+    # DATETIME/TIMESTAMP column export is the same format as pandas by default.
+    scalars_df.to_csv(path, index=True, ordered=False)
+
+    # Pandas dataframes dtypes from read_csv are not fully compatible with
+    # BigQuery-backed dataframes, so manually convert the dtypes specifically
+    # here.
+    dtype = scalars_df.reset_index().dtypes.to_dict()
+    dtype.pop("geography_col")
+    dtype.pop("rowindex")
+    gcs_df = pd.read_csv(
+        path,
+        dtype=dtype,
+        date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
+        index_col=index_col,
+    )
+    convert_pandas_dtypes(gcs_df, bytes_col=True)
+    gcs_df.index.name = scalars_df.index.name
+
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_pandas_df.index = scalars_pandas_df.index.astype("int64")
+
+    assert_pandas_df_equal(gcs_df, scalars_pandas_df, ignore_order=True)
+
+
 def test_to_csv_tabs(
     scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,

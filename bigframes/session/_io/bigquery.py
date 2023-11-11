@@ -29,7 +29,7 @@ TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
 
 
 def create_export_csv_statement(
-    table_id: str, uri: str, field_delimiter: str, header: bool
+    table_id: str, uri: str, field_delimiter: str, header: bool, ordered: bool = True
 ) -> str:
     return create_export_data_statement(
         table_id,
@@ -39,11 +39,16 @@ def create_export_csv_statement(
             "field_delimiter": field_delimiter,
             "header": header,
         },
+        ordered=ordered,
     )
 
 
 def create_export_data_statement(
-    table_id: str, uri: str, format: str, export_options: Dict[str, Union[bool, str]]
+    table_id: str,
+    uri: str,
+    format: str,
+    export_options: Dict[str, Union[bool, str]],
+    ordered: bool = True,
 ) -> str:
     all_options: Dict[str, Union[bool, str]] = {
         "uri": uri,
@@ -58,17 +63,28 @@ def create_export_data_statement(
     # Manually generate ORDER BY statement since ibis will not always generate
     # it in the top level statement. This causes BigQuery to then run
     # non-distributed sort and run out of memory.
-    return textwrap.dedent(
-        f"""
-        EXPORT DATA
-        OPTIONS (
-            {export_options_str}
-        ) AS
-        SELECT * EXCEPT ({IO_ORDERING_ID})
-        FROM `{table_id}`
-        ORDER BY {IO_ORDERING_ID}
-        """
-    )
+    if ordered:
+        return textwrap.dedent(
+            f"""
+            EXPORT DATA
+            OPTIONS (
+                {export_options_str}
+            ) AS
+            SELECT * EXCEPT ({IO_ORDERING_ID})
+            FROM `{table_id}`
+            ORDER BY {IO_ORDERING_ID}
+            """
+        )
+    else:
+        return textwrap.dedent(
+            f"""
+            EXPORT DATA
+            OPTIONS (
+                {export_options_str}
+            ) AS
+            SELECT * FROM `{table_id}`
+            """
+        )
 
 
 def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:

@@ -893,6 +893,16 @@ def test_itertuples(scalars_df_index, index, name):
         assert bf_tuple == pd_tuple
 
 
+def test_itertuples_unordered(scalars_df_index):
+    # Numeric has slightly different representation as a result of conversions.
+    bf_tuples = scalars_df_index.itertuples(ordered=False)
+    pd_tuples = scalars_df_index.to_pandas().itertuples()
+
+    assert_pandas_df_equal(
+        pd.DataFrame(bf_tuples), pd.DataFrame(pd_tuples), ignore_order=True
+    )
+
+
 def test_df_isin_list(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     values = ["Hello, World!", 55555, 2.51, pd.NA, True]
