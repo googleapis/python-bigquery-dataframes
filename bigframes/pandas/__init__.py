@@ -486,6 +486,7 @@ def read_gbq(
     index_col: Iterable[str] | str = (),
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
+    filters: Optional[List[Tuple]] = None,
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
@@ -494,6 +495,7 @@ def read_gbq(
         index_col=index_col,
         col_order=col_order,
         max_results=max_results,
+        filters=filters,
     )
 
 
