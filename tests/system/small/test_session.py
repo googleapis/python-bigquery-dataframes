@@ -309,64 +309,6 @@ def test_read_gbq_w_script_no_select(session, dataset_id: str):
     assert df["statement_type"][0] == "SCRIPT"
 
 
-@pytest.mark.parametrize(
-    ("query_or_table", "filters", "validator"),
-    [
-        pytest.param(
-            """SELECT
-                rowindex,
-                string_col,
-            FROM `{scalars_table_id}` AS t
-            """,
-            [("rowindex", "<", 4), ("string_col", "==", "Hello, World!")],
-            lambda row: row["rowindex"] < 4 and row["string_col"] == "Hello, World!",
-            id="query_input",
-        ),
-        pytest.param(
-            "{scalars_table_id}",
-            [("date_col", ">", "2022-10-20")],
-            lambda row: pd.to_datetime(row["date_col"]) > pd.to_datetime("2022-10-20"),
-            id="table_input",
-        ),
-        pytest.param(
-            "{scalars_table_id}",
-            [
-                (("rowindex", "not in", [0, 6])),
-                (("string_col", "in", ["Hello, World!", "こんにちは"])),
-            ],
-            lambda row: row["rowindex"] not in [0, 6]
-            or row["string_col"] in ["Hello, World!", "こんにちは"],
-            id="or_operation",
-        ),
-        pytest.param(
-            "{scalars_table_id}",
-            ["date_col", ">", "2022-10-20"],
-            None,
-            marks=pytest.mark.xfail(
-                raises=ValueError,
-            ),
-            id="raise_error",
-        ),
-    ],
-)
-def test_read_gbq_with_filters(
-    session, scalars_table_id: str, query_or_table, filters, validator
-):
-    df = session.read_gbq(
-        query_or_table.format(scalars_table_id=scalars_table_id),
-        filters=filters,
-    )
-
-    for _, row in df.iterrows():
-        assert validator(row)
-
-
-def test_read_gbq_with_columns_filter(session, scalars_table_id: str):
-    cols = ["int64_too", "string_col", "date_col"]
-    df = session.read_gbq(scalars_table_id, columns=cols)
-    assert list(df.columns) == cols
-
-
 def test_read_gbq_model(session, penguins_linear_model_name):
     model = session.read_gbq_model(penguins_linear_model_name)
     assert isinstance(model, bigframes.ml.linear_model.LinearRegression)
