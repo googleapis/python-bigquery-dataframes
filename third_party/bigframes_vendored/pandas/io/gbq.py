@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, List, Optional, Tuple, Tuple
 
 from bigframes import constants
 
@@ -85,7 +85,7 @@ class GBQIOMixin:
                 If set, limit the maximum number of rows to fetch from the
                 query results.
             filters (List[Tuple], default []): To filter out data. Filter syntax:
-            [[(column, op, val), …],…] where op is [==, =, >, >=, <, <=, !=, in,
+            [[(column, op, val), …],…] where op is [=, >, >=, <, <=, !=, in,
             not in] The innermost tuples are transposed into a set of filters
             applied through an AND operation. The outer list combines these sets
             of filters through an OR operation. A single list of tuples can also
