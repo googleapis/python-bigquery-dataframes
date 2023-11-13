@@ -75,6 +75,18 @@ class GBQIOMixin:
             <BLANKLINE>
             [2 rows x 3 columns]
 
+        Reading data with `columns` and `filters` parameters:
+
+            >>> columns = ['pitcherFirstName', 'pitcherLastName', 'year', 'pitchSpeed']
+            >>> filters = [('year', '==', 2016), ('pitcherFirstName', 'in', ['John', 'Doe'])]
+            >>> df = bpd.read_gbq("bigquery-public-data.baseball.games_wide", columns=columns, filters=filters)
+            >>> df.head(1)
+
+                    pitcherFirstName	pitcherLastName     year	pitchSpeed
+            0	                John	         Axford	    2016            98
+            <BLANKLINE>
+            [1 rows x 4 columns in total]
+
         Args:
             query_or_table (str):
                 A SQL string to be executed or a BigQuery table to be read. The
@@ -90,13 +102,14 @@ class GBQIOMixin:
                 query results.
             columns (Iterable[str], default ()): If not empty, only these columns
                 will be read from table.
-            filters (Iterable[Iterable[[Tuple]], default ()): To filter out data.
-                Filter syntax: [[(column, op, val), …],…] where op is [==, >, >=,
-                <, <=, !=, in, not in] The innermost tuples are transposed into a
-                set of filters applied through an AND operation. The outer list
-                combines these sets of filters through an OR operation. A single
-                list of tuples can also be used, meaning that no OR operation
-                between set of filters is to be conducted.
+            filters (Iterable[Union[Tuple, Iterable[Tuple]]], default ()): To
+                filter out data. Filter syntax: [[(column, op, val), …],…] where
+                op is [==, >, >=, <, <=, !=, in, not in]. The innermost tuples
+                are transposed into a set of filters applied through an AND
+                operation. The outer Iterable combines these sets of filters
+                through an OR operation. A single Iterable of tuples can also
+                be used, meaning that no OR operation between set of filters
+                is to be conducted.
 
         Returns:
             bigframes.dataframe.DataFrame: A DataFrame representing results of the query or table.
