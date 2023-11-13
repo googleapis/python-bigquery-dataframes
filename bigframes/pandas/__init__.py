@@ -59,7 +59,7 @@ import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pan
 import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
-from third_party.bigframes_vendored.pandas.io.gbq import FiltersType
+import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
 # Include method definition so that the method appears in our docs for
@@ -488,7 +488,7 @@ def read_gbq(
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
     columns: Iterable[str] = (),
-    filters: FiltersType = (),
+    filters: vendored_pandas_gbq.FiltersType = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
