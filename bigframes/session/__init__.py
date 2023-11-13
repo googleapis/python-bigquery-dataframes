@@ -286,13 +286,11 @@ class Session(
         max_results: Optional[int] = None,
         columns: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
-        columns: Iterable[str] = (),
-        filters: third_party_pandas_gbq.FiltersType = (),
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         query_or_table = self._filters_to_query(query_or_table, columns, filters)
-        query_or_table = self._filters_to_query(query_or_table, columns, filters)
+
         if _is_query(query_or_table):
             return self._read_gbq_query(
                 query_or_table,
@@ -314,18 +312,14 @@ class Session(
             )
 
     def _filters_to_query(self, query_or_table, columns, filters):
-    def _filters_to_query(self, query_or_table, columns, filters):
         """Convert filters to query"""
-        if len(filters) == 0 and len(columns) == 0:
         if len(filters) == 0 and len(columns) == 0:
             return query_or_table
 
         sub_query = (
             f"({query_or_table})" if _is_query(query_or_table) else query_or_table
         )
-        select_clause = "SELECT " + (
-            ", ".join(f"`{column}`" for column in columns) if columns else "*"
-        )
+
         select_clause = "SELECT " + (
             ", ".join(f"`{column}`" for column in columns) if columns else "*"
         )
@@ -348,25 +342,8 @@ class Session(
                 and isinstance(filters[0], Tuple)
                 and (len(filters[0]) == 0 or not isinstance(filters[0][0], Tuple))
             ):
-            valid_operators = {
-                "in": "IN",
-                "not in": "NOT IN",
-                "==": "=",
-                ">": ">",
-                "<": "<",
-                ">=": ">=",
-                "<=": "<=",
-                "!=": "!=",
-            }
-
-            if (
-                isinstance(filters, Iterable)
-                and isinstance(filters[0], Tuple)
-                and (len(filters[0]) == 0 or not isinstance(filters[0][0], Tuple))
-            ):
                 filters = [filters]
 
-            or_expressions = []
             or_expressions = []
             for group in filters:
                 if not isinstance(group, Iterable):
@@ -374,7 +351,6 @@ class Session(
                         f"Filter group should be a iterable, {group} is not valid."
                     )
 
-                and_expressions = []
                 and_expressions = []
                 for filter_item in group:
                     if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
@@ -394,28 +370,18 @@ class Session(
 
                     operator = valid_operators[operator]
 
-                    operator = valid_operators[operator]
-
                     if operator in ["IN", "NOT IN"]:
-                        value_list = ", ".join([repr(v) for v in value])
-                        expression = f"`{column}` {operator} ({value_list})"
                         value_list = ", ".join([repr(v) for v in value])
                         expression = f"`{column}` {operator} ({value_list})"
                     else:
                         expression = f"`{column}` {operator} {repr(value)}"
                     and_expressions.append(expression)
-                        expression = f"`{column}` {operator} {repr(value)}"
-                    and_expressions.append(expression)
 
-                or_expressions.append(" AND ".join(and_expressions))
                 or_expressions.append(" AND ".join(and_expressions))
 
             if or_expressions:
                 where_clause = " WHERE " + " OR ".join(or_expressions)
-            if or_expressions:
-                where_clause = " WHERE " + " OR ".join(or_expressions)
 
-        full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
         full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
         return full_query
 
