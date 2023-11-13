@@ -19,10 +19,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from tests.system.utils import (
-    assert_pandas_df_equal_ignore_ordering,
-    convert_pandas_dtypes,
-)
+from tests.system.utils import assert_pandas_df_equal, convert_pandas_dtypes
 
 try:
     import pandas_gbq  # type: ignore
@@ -81,6 +78,24 @@ def test_to_pandas_array_struct_correct_result(session):
     pd.testing.assert_series_equal(
         result["struct_column"].astype("O"), expected["struct_column"].astype("O")
     )
+
+
+def test_load_json(session):
+    df = session.read_gbq(
+        """SELECT
+        JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_column
+        """
+    )
+
+    result = df.to_pandas()
+    expected = pd.DataFrame(
+        {
+            "json_column": ['{"bar":true,"foo":10}'],
+        }
+    )
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(result.dtypes, expected.dtypes)
+    pd.testing.assert_series_equal(result["json_column"], expected["json_column"])
 
 
 def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
@@ -380,7 +395,7 @@ def test_to_sql_query_unnamed_index_included(
     pd_df = scalars_pandas_df_default_index.reset_index(drop=True)
     roundtrip = session.read_gbq(sql, index_col=idx_ids)
     roundtrip.index.names = [None]
-    assert_pandas_df_equal_ignore_ordering(roundtrip.to_pandas(), pd_df)
+    assert_pandas_df_equal(roundtrip.to_pandas(), pd_df, check_index_type=False)
 
 
 def test_to_sql_query_named_index_included(
@@ -397,7 +412,7 @@ def test_to_sql_query_named_index_included(
 
     pd_df = scalars_pandas_df_default_index.set_index("rowindex_2", drop=True)
     roundtrip = session.read_gbq(sql, index_col=idx_ids)
-    assert_pandas_df_equal_ignore_ordering(roundtrip.to_pandas(), pd_df)
+    assert_pandas_df_equal(roundtrip.to_pandas(), pd_df)
 
 
 def test_to_sql_query_unnamed_index_excluded(
@@ -412,7 +427,9 @@ def test_to_sql_query_unnamed_index_excluded(
 
     pd_df = scalars_pandas_df_default_index.reset_index(drop=True)
     roundtrip = session.read_gbq(sql)
-    assert_pandas_df_equal_ignore_ordering(roundtrip.to_pandas(), pd_df)
+    assert_pandas_df_equal(
+        roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
+    )
 
 
 def test_to_sql_query_named_index_excluded(
@@ -429,4 +446,6 @@ def test_to_sql_query_named_index_excluded(
         "rowindex_2", drop=True
     ).reset_index(drop=True)
     roundtrip = session.read_gbq(sql)
-    assert_pandas_df_equal_ignore_ordering(roundtrip.to_pandas(), pd_df)
+    assert_pandas_df_equal(
+        roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
+    )

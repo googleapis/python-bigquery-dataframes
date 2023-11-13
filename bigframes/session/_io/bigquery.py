@@ -20,15 +20,10 @@ import datetime
 import itertools
 import textwrap
 import types
-import typing
 from typing import Dict, Iterable, Optional, Sequence, Union
 import uuid
 
 import google.cloud.bigquery as bigquery
-
-if typing.TYPE_CHECKING:
-    import bigframes.session
-
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
@@ -98,12 +93,10 @@ def create_export_data_statement(
 
 def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
     """Generate a random table ID with BigQuery DataFrames prefix.
-
     Args:
         dataset (google.cloud.bigquery.DatasetReference):
             The dataset to make the table reference in. Usually the anonymous
             dataset for the session.
-
     Returns:
         google.cloud.bigquery.TableReference:
             Fully qualified table ID of a table that doesn't exist.
@@ -121,58 +114,44 @@ def table_ref_to_sql(table: bigquery.TableReference) -> str:
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
-def create_table_clone(
-    source: bigquery.TableReference,
-    dataset: bigquery.DatasetReference,
-    expiration: datetime.datetime,
-    session: bigframes.session.Session,
-    api_name: str,
-) -> bigquery.TableReference:
-    """Create a table clone for consistent reads."""
+def create_snapshot_sql(
+    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
+) -> str:
+    """Query a table via 'time travel' for consistent reads."""
+
+    # If we have a _SESSION table, assume that it's already a copy. Nothing to do here.
+    if table_ref.dataset_id.upper() == "_SESSION":
+        return f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
+
     # If we have an anonymous query results table, it can't be modified and
     # there isn't any BigQuery time travel.
-    if source.dataset_id.startswith("_"):
-        return source
+    if table_ref.dataset_id.startswith("_"):
+        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
 
-    fully_qualified_source_id = table_ref_to_sql(source)
-    destination = random_table(dataset)
-    fully_qualified_destination_id = table_ref_to_sql(destination)
-
-    # Include a label so that Dataplex Lineage can identify temporary
-    # tables that BigQuery DataFrames creates. Googlers: See internal issue
-    # 296779699.
-    ddl = textwrap.dedent(
+    return textwrap.dedent(
         f"""
-        CREATE OR REPLACE TABLE
-        {fully_qualified_destination_id}
-        CLONE {fully_qualified_source_id}
-        OPTIONS(
-            expiration_timestamp=TIMESTAMP "{expiration.isoformat()}",
-            labels=[
-                ("source", "bigquery-dataframes-temp"),
-                ("bigframes-api", {repr(api_name)})
-            ]
-        )
+        SELECT *
+        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
+        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
         """
     )
-    job_config = bigquery.QueryJobConfig()
-    job_config.labels = {
-        "source": "bigquery-dataframes-temp",
-        "bigframes-api": api_name,
-    }
-    session._start_query(ddl, job_config=job_config)
-    return destination
 
 
 def create_temp_table(
     bqclient: bigquery.Client,
     dataset: bigquery.DatasetReference,
     expiration: datetime.datetime,
+    *,
+    schema: Optional[Iterable[bigquery.SchemaField]] = None,
+    cluster_columns: Optional[list[str]] = None,
 ) -> str:
     """Create an empty table with an expiration in the desired dataset."""
     table_ref = random_table(dataset)
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
+    destination.schema = schema
+    if cluster_columns:
+        destination.clustering_fields = cluster_columns
     bqclient.create_table(destination)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 

@@ -975,6 +975,85 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def keys(self):
+        """
+        Get the 'info axis'.
+
+        This is index for Series, columns for DataFrame.
+
+        Returns:
+            Index: Info axis.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> df.keys()
+            Index(['A', 'B'], dtype='object')
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def iterrows(self):
+        """
+        Iterate over DataFrame rows as (index, Series) pairs.
+
+        Yields:
+            a tuple (index, data) where data contains row values as a Series
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> index, row = next(df.iterrows())
+            >>> index
+            0
+            >>> row
+            A    1
+            B    4
+            Name: 0, dtype: object
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def itertuples(self, index: bool = True, name: str | None = "Pandas"):
+        """
+        Iterate over DataFrame rows as namedtuples.
+
+        Args:
+            index (bool, default True):
+                If True, return the index as the first element of the tuple.
+            name (str or None, default "Pandas"):
+                The name of the returned namedtuples or None to return regular
+                tuples.
+
+        Returns:
+            iterator:
+                An object to iterate over namedtuples for each row in the
+                DataFrame with the first field possibly being the index and
+                following fields being the column values.
+
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> next(df.itertuples(name="Pair"))
+            Pair(Index=0, A=1, B=4)
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def items(self):
         """
         Iterate over (column name, Series) pairs.
@@ -2080,8 +2159,68 @@ class DataFrame(NDFrame):
            In pandas 2.1.0, DataFrame.applymap is deprecated and renamed to
            DataFrame.map.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+        is created every time we run the following code, but you can skip it
+        to potentially reuse a previously deployed ``remote_function`` from
+        the same user defined function.
+
+            >>> @bpd.remote_function([int], float, reuse=False)
+            ... def minutes_to_hours(x):
+            ...     return x/60
+
+            >>> df_minutes = bpd.DataFrame(
+            ...     {"system_minutes" : [0, 30, 60, 90, 120],
+            ...      "user_minutes" : [0, 15, 75, 90, 6]})
+            >>> df_minutes
+            system_minutes  user_minutes
+            0               0             0
+            1              30            15
+            2              60            75
+            3              90            90
+            4             120             6
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+            >>> df_hours = df_minutes.map(minutes_to_hours)
+            >>> df_hours
+            system_minutes  user_minutes
+            0             0.0           0.0
+            1             0.5          0.25
+            2             1.0          1.25
+            3             1.5           1.5
+            4             2.0           0.1
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+        If there are ``NA``/``None`` values in the data, you can ignore
+        applying the remote function on such values by specifying
+        ``na_action='ignore'``.
+
+            >>> df_minutes = bpd.DataFrame(
+            ...     {
+            ...         "system_minutes" : [0, 30, 60, None, 90, 120, bpd.NA],
+            ...         "user_minutes" : [0, 15, 75, 90, 6, None, bpd.NA]
+            ...     }, dtype="Int64")
+            >>> df_hours = df_minutes.map(minutes_to_hours, na_action='ignore')
+            >>> df_hours
+            system_minutes  user_minutes
+            0             0.0           0.0
+            1             0.5          0.25
+            2             1.0          1.25
+            3            <NA>           1.5
+            4             1.5           0.1
+            5             2.0          <NA>
+            6            <NA>          <NA>
+            <BLANKLINE>
+            [7 rows x 2 columns]
+
         Args:
-            func:
+            func (function):
                 Python function wrapped by ``remote_function`` decorator,
                 returns a single value from a single value.
             na_action (Optional[str], default None):
@@ -2115,6 +2254,8 @@ class DataFrame(NDFrame):
                 and sort it lexicographically. ``inner``: form intersection of
                 calling frame's index (or column if on is specified) with `other`'s
                 index, preserving the order of the calling's one.
+                ``cross``: creates the cartesian product from both frames, preserves
+                the order of the left keys.
 
         Returns:
             bigframes.dataframe.DataFrame: A dataframe containing columns from both the caller and `other`.
@@ -2129,6 +2270,7 @@ class DataFrame(NDFrame):
             "left",
             "outer",
             "right",
+            "cross",
         ] = "inner",
         on: Optional[str] = None,
         *,
@@ -2164,6 +2306,8 @@ class DataFrame(NDFrame):
                 join; sort keys lexicographically.
                 ``inner``: use intersection of keys from both frames, similar to a SQL inner
                 join; preserve the order of the left keys.
+                ``cross``: creates the cartesian product from both frames, preserves the order
+                of the left keys.
 
             on (label or list of labels):
                 Columns to join on. It must be found in both DataFrames. Either on or left_on + right_on
@@ -2788,17 +2932,6 @@ class DataFrame(NDFrame):
         """
         Fill NaN values using an interpolation method.
 
-        Args:
-            method (str, default 'linear'):
-                Interpolation technique to use. Only 'linear' supported.
-                'linear': Ignore the index and treat the values as equally spaced.
-                This is the only method supported on MultiIndexes.
-
-        Returns:
-            DataFrame:
-                Returns the same object type as the caller, interpolated at
-                some or all ``NaN`` values
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -2807,17 +2940,41 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3, None, None, 6],
             ...     'B': [None, 6, None, 2, None, 3],
-            ...     })
+            ...     }, index=[0, 0.1, 0.3, 0.7, 0.9, 1.0])
             >>> df.interpolate()
-                 A     B
-            0  1.0  <NA>
-            1  2.0   6.0
-            2  3.0   4.0
-            3  4.0   2.0
-            4  5.0   2.5
-            5  6.0   3.0
+                   A     B
+            0.0  1.0  <NA>
+            0.1  2.0   6.0
+            0.3  3.0   4.0
+            0.7  4.0   2.0
+            0.9  5.0   2.5
+            1.0  6.0   3.0
             <BLANKLINE>
             [6 rows x 2 columns]
+            >>> df.interpolate(method="values")
+                        A         B
+            0.0       1.0      <NA>
+            0.1       2.0       6.0
+            0.3       3.0  4.666667
+            0.7  4.714286       2.0
+            0.9  5.571429  2.666667
+            1.0       6.0       3.0
+            <BLANKLINE>
+            [6 rows x 2 columns]
+
+        Args:
+            method (str, default 'linear'):
+                Interpolation technique to use. Only 'linear' supported.
+                'linear': Ignore the index and treat the values as equally spaced.
+                This is the only method supported on MultiIndexes.
+                'index', 'values': use the actual numerical values of the index.
+                'pad': Fill in NaNs using existing values.
+                'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
+
+        Returns:
+            DataFrame:
+                Returns the same object type as the caller, interpolated at
+                some or all ``NaN`` values
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
