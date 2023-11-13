@@ -16,12 +16,14 @@
 
 from __future__ import annotations
 
+import datetime
 from typing import Callable, cast, Iterable, Mapping, Optional, Union
 import uuid
 
 from google.cloud import bigquery
 
 import bigframes
+import bigframes.constants as constants
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
 
@@ -206,8 +208,12 @@ class BqmlModelFactory:
         _, job = session._start_query(sql)
 
         # real model path in the session specific hidden dataset and table prefix
-        model_name_full = f"{job.destination.dataset_id}.{job.destination.table_id}"
-        model = session.bqclient.get_model(model_name_full)
+        model_name_full = f"{job.destination.project}.{job.destination.dataset_id}.{job.destination.table_id}"
+        model = bigquery.Model(model_name_full)
+        model.expires = (
+            datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
+        )
+        model = session.bqclient.update_model(model, ["expires"])
 
         self._reset_model_id()
         return BqmlModel(session, model)
@@ -244,6 +250,7 @@ class BqmlModelFactory:
 
         sql = self._model_creation_sql_generator.create_model(
             source_df=input_data,
+            dataset=session._anonymous_dataset,
             transforms=transforms,
             options=options,
         )
@@ -275,6 +282,7 @@ class BqmlModelFactory:
 
         sql = self._model_creation_sql_generator.create_model(
             source_df=input_data,
+            dataset=session._anonymous_dataset,
             transforms=transforms,
             options=options,
         )
@@ -300,6 +308,7 @@ class BqmlModelFactory:
         """
         sql = self._model_creation_sql_generator.create_remote_model(
             connection_name=connection_name,
+            dataset=session._anonymous_dataset,
             options=options,
         )
 
@@ -319,6 +328,7 @@ class BqmlModelFactory:
         Returns: a BqmlModel, wrapping a trained model in BigQuery
         """
         sql = self._model_creation_sql_generator.create_imported_model(
+            dataset=session._anonymous_dataset,
             options=options,
         )
 

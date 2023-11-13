@@ -14,6 +14,7 @@
 
 from unittest import mock
 
+import google.cloud.bigquery as bigquery
 import pytest
 
 import bigframes.ml.sql as ml_sql
@@ -126,11 +127,12 @@ def test_create_model_produces_correct_sql(
 ):
     sql = model_creation_sql_generator.create_model(
         source_df=mock_df,
+        dataset=bigquery.DatasetReference("test-proj", "_anonXYZ"),
         options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
-        == """CREATE TEMP MODEL `my_model_id`
+        == """CREATE MODEL `test-proj`.`_anonXYZ`.`my_model_id`
 OPTIONS(
   option_key1="option_value1",
   option_key2=2)
@@ -144,6 +146,7 @@ def test_create_model_transform_produces_correct_sql(
 ):
     sql = model_creation_sql_generator.create_model(
         source_df=mock_df,
+        dataset=bigquery.DatasetReference("test-project", "_anon123"),
         options={"option_key1": "option_value1", "option_key2": 2},
         transforms=[
             "ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a",
@@ -152,7 +155,7 @@ def test_create_model_transform_produces_correct_sql(
     )
     assert (
         sql
-        == """CREATE TEMP MODEL `my_model_id`
+        == """CREATE MODEL `test-project`.`_anon123`.`my_model_id`
 TRANSFORM(
   ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a,
   ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b)
@@ -168,11 +171,12 @@ def test_create_remote_model_produces_correct_sql(
 ):
     sql = model_creation_sql_generator.create_remote_model(
         connection_name="my_project.us.my_connection",
+        dataset=bigquery.DatasetReference("testprj", "_anonABC"),
         options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
-        == """CREATE TEMP MODEL `my_model_id`
+        == """CREATE MODEL `testprj`.`_anonABC`.`my_model_id`
 REMOTE WITH CONNECTION `my_project.us.my_connection`
 OPTIONS(
   option_key1="option_value1",
@@ -184,11 +188,12 @@ def test_create_imported_model_produces_correct_sql(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
     sql = model_creation_sql_generator.create_imported_model(
+        dataset=bigquery.DatasetReference("a-project", "a-dataset"),
         options={"option_key1": "option_value1", "option_key2": 2},
     )
     assert (
         sql
-        == """CREATE TEMP MODEL `my_model_id`
+        == """CREATE MODEL `a-project`.`a-dataset`.`my_model_id`
 OPTIONS(
   option_key1="option_value1",
   option_key2=2)"""
