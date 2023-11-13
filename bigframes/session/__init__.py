@@ -161,7 +161,7 @@ class Session(
                 application_name=context.application_name,
             )
 
-        self._create_and_bind_bq_session()
+        self._create_bq_datasets()
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
             ibis.bigquery.connect(
@@ -212,7 +212,7 @@ class Session(
         # Stable hash needed to use in expression tree
         return hash(str(self._anonymous_dataset))
 
-    def _create_and_bind_bq_session(self):
+    def _create_bq_datasets(self):
         """Create and identify dataset(s) for temporary BQ resources."""
         query_job = self.bqclient.query("SELECT 1", location=self._location)
         query_job.result()  # blocks until finished
