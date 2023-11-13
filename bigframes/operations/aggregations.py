@@ -290,7 +290,7 @@ class QcutOp(WindowOp):
                     dtypes.literal_to_ibis_scalar(bucket_n, force_dtype=Int64Dtype()),
                 )
             out = out.else_(None)
-            return out.end()
+            return out.end()  # type: ignore
 
     @property
     def skips_nulls(self):
@@ -482,7 +482,7 @@ def _map_to_literal(
     original: ibis_types.Value, literal: ibis_types.Scalar
 ) -> ibis_types.Column:
     # Hack required to perform aggregations on literals in ibis, even though bigquery will let you directly aggregate literals (eg. 'SELECT COUNT(1) from table1')
-    return ibis.ifelse(original.isnull(), literal, literal)
+    return ibis.ifelse(original.isnull(), literal, literal)  # type: ignore
 
 
 sum_op = SumOp()

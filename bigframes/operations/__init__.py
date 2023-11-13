@@ -353,14 +353,23 @@ class StrPadOp(UnaryOp):
         str_val = typing.cast(ibis_types.StringValue, x)
 
         # SQL pad operations will truncate, we do not want to truncate though.
-        pad_length = ibis.greatest(str_val.length(), self._length)
+        pad_length = typing.cast(
+            ibis_types.IntegerValue, ibis.greatest(str_val.length(), self._length)
+        )
         if self._side == "left":
             return str_val.lpad(pad_length, self._fillchar)
         elif self._side == "right":
             return str_val.rpad(pad_length, self._fillchar)
         else:  # side == both
             # Pad more on right side if can't pad both sides equally
-            lpad_amount = ((pad_length - str_val.length()) // 2) + str_val.length()
+            lpad_amount = typing.cast(
+                ibis_types.IntegerValue,
+                (
+                    (pad_length - str_val.length())
+                    // typing.cast(ibis_types.NumericValue, ibis.literal(2))
+                )
+                + str_val.length(),
+            )
             return str_val.lpad(lpad_amount, self._fillchar).rpad(
                 pad_length, self._fillchar
             )
@@ -1054,7 +1063,7 @@ def where_op(
     replacement: ibis_types.Value,
 ) -> ibis_types.Value:
     """Returns x if y is true, otherwise returns z."""
-    return ibis.case().when(condition, original).else_(replacement).end()
+    return ibis.case().when(condition, original).else_(replacement).end()  # type: ignore
 
 
 def clip_op(
@@ -1067,7 +1076,7 @@ def clip_op(
         not isinstance(upper, ibis_types.NullScalar)
     ):
         return (
-            ibis.case()
+            ibis.case()  # type: ignore
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)
             .end()
@@ -1076,7 +1085,7 @@ def clip_op(
         upper, ibis_types.NullScalar
     ):
         return (
-            ibis.case()
+            ibis.case()  # type: ignore
             .when(lower.isnull() | (original < lower), lower)
             .else_(original)
             .end()
@@ -1086,9 +1095,11 @@ def clip_op(
     ):
         return original
     else:
-        # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
+        # Note: Pandas has unchanged behavior when upper bound and lower bound
+        # are flipped.
+        # This implementation requires that lower_bound < upper_bound.
         return (
-            ibis.case()
+            ibis.case()  # type: ignore
             .when(lower.isnull() | (original < lower), lower)
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)

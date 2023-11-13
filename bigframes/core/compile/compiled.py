@@ -862,7 +862,7 @@ class OrderedIR(BaseIbisIR):
             case_statement = ibis.case()
             for clause in clauses:
                 case_statement = case_statement.when(clause[0], clause[1])
-            case_statement = case_statement.else_(window_op).end()
+            case_statement = case_statement.else_(window_op).end()  # type: ignore
             window_op = case_statement
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
