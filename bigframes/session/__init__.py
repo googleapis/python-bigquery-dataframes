@@ -355,7 +355,7 @@ class Session(
                 for filter_item in group:
                     if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
                         raise ValueError(
-                            "Filter condition should be a tuple of length 3, {filter_item} is not valid."
+                            f"Filter condition should be a tuple of length 3, {filter_item} is not valid."
                         )
 
                     column, operator, value = filter_item
