@@ -451,9 +451,7 @@ def docs(session):
     )
 
 
-# docfx doesn't yet support Python 3.10.
-# https://github.com/googleapis/sphinx-docfx-yaml/issues/305
-@nox.session(python="3.9")
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
@@ -611,6 +609,7 @@ def notebook(session):
         # our test infrastructure.
         "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",
+        "notebooks/generative_ai/bq_dataframes_llm_kmeans.ipynb",
         "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",
