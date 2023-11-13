@@ -80,16 +80,15 @@ class GBQIOMixin:
             >>> columns = ['pitcherFirstName', 'pitcherLastName', 'year', 'pitchSpeed']
             >>> filters = [('year', '==', 2016), ('pitcherFirstName', 'in', ['John', 'Doe'])]
             >>> df = bpd.read_gbq(
-            ...             "bigquery-public-data.baseball.games_wide",
-            ...             columns=columns,
+            ...             "bigquery-public-data.baseball.games_wide", 
+            ...             columns=columns, 
             ...             filters=filters,
             ...         )
             >>> df.head(1)
-
-                    pitcherFirstName	pitcherLastName     year	pitchSpeed
-            0	                John	         Axford	    2016            98
+                     pitcherFirstName	pitcherLastName     year	pitchSpeed
+            0	                 John	         Axford	    2016            98
             <BLANKLINE>
-            [1 rows x 4 columns in total]
+            [1 rows x 4 columns]
 
         Args:
             query_or_table (str):
