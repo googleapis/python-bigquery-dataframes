@@ -284,11 +284,12 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
-        filters: Optional[List[Tuple]] = None
+        columns: Iterable[str] = (),
+        filters: third_party_pandas_gbq.FiltersType = (),
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
-        query_or_table = self._filters_to_query(query_or_table, filters)
+        query_or_table = self._filters_to_query(query_or_table, columns, filters)
         if _is_query(query_or_table):
             return self._read_gbq_query(
                 query_or_table,
@@ -309,70 +310,70 @@ class Session(
                 api_name="read_gbq",
             )
 
-    def _filters_to_query(self, query_or_table, filters):
+    def _filters_to_query(self, query_or_table, columns, filters):
         """Convert filters to query"""
-
-        if (filters is None) or (len(filters) == 0):
+        if len(filters) == 0 and len(columns) == 0:
             return query_or_table
-
-        valid_operators = ["IN", "NOT IN", "=", ">", "<", ">=", "<=", "!="]
 
         sub_query = (
             f"({query_or_table})" if _is_query(query_or_table) else query_or_table
         )
+        select_clause = "SELECT " + (
+            ", ".join(f"`{column}`" for column in columns) if columns else "*"
+        )
 
         where_clause = ""
         if filters:
-            if not isinstance(filters, list):
-                raise ValueError("Filters should be a list.")
+            valid_operators = {
+                "in": "IN",
+                "not in": "NOT IN",
+                "==": "=",
+                ">": ">",
+                "<": "<",
+                ">=": ">=",
+                "<=": "<=",
+                "!=": "!=",
+            }
 
-            if not (
-                all(isinstance(item, list) for item in filters)
-                or all(isinstance(item, tuple) for item in filters)
+            if (
+                isinstance(filters, Iterable)
+                and isinstance(filters[0], Tuple)
+                and (len(filters[0]) == 0 or not isinstance(filters[0][0], Tuple))
             ):
-                raise ValueError(
-                    "All items in filters should be either all lists or all tuples."
-                )
-
-            if all(isinstance(sub_filter, tuple) for sub_filter in filters):
                 filters = [filters]
 
-            grouped_expressions = []
+            or_expressions = []
             for group in filters:
-                if not isinstance(group, list):
-                    raise ValueError("Each filter group should be a list.")
+                if not isinstance(group, Iterable):
+                    raise ValueError("Each filter group should be a iterable.")
 
-                group_expressions = []
+                and_expressions = []
                 for filter_item in group:
                     if not isinstance(filter_item, tuple):
                         raise ValueError("Each filter condition should be a tuple.")
 
                     column, operator, value = filter_item
-                    operator = operator.upper()
 
                     if operator not in valid_operators:
                         raise ValueError(f"Operator {operator} is not valid.")
 
+                    operator = valid_operators[operator]
+
                     if operator in ["IN", "NOT IN"]:
-                        if not isinstance(value, list):
-                            raise ValueError(
-                                f"Value for operator {operator} should be a list."
-                            )
                         value_list = ", ".join(
-                            [f'"{v}"' if isinstance(v, str) else str(v) for v in value]
+                            [repr(v) for v in value]
                         )
-                        expression = f"{column} {operator} ({value_list})"
+                        expression = f"`{column}` {operator} ({value_list})"
                     else:
-                        value = f'"{value}"' if isinstance(value, str) else value
-                        expression = f"{column} {operator} {value}"
-                    group_expressions.append(expression)
+                        expression = f"`{column}` {operator} {repr(value)}"
+                    and_expressions.append(expression)
 
-                grouped_expressions.append(" AND ".join(group_expressions))
+                or_expressions.append(" AND ".join(and_expressions))
 
-            where_clause = " WHERE " + " OR ".join(grouped_expressions)
+            if or_expressions:
+                where_clause = " WHERE " + " OR ".join(or_expressions)
 
-        full_query = f"SELECT * FROM {sub_query} AS sub{where_clause}"
-
+        full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
         return full_query
 
     def _query_to_destination(
