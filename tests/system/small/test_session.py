@@ -331,11 +331,11 @@ def test_read_gbq_w_script_no_select(session, dataset_id: str):
         pytest.param(
             "{scalars_table_id}",
             [
-                ("rowindex", "not in", [0, 6]),
-                ("string_col", "in", ["Hello, World!", "こんにちは"]),
+                (("rowindex", "not in", [0, 6])),
+                (("string_col", "in", ["Hello, World!", "こんにちは"])),
             ],
             lambda row: row["rowindex"] not in [0, 6]
-            and row["string_col"] in ["Hello, World!", "こんにちは"],
+            or row["string_col"] in ["Hello, World!", "こんにちは"],
             id="or_operation",
         ),
         pytest.param(
