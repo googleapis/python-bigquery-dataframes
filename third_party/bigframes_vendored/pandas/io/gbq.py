@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, List, Optional, Tuple, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from bigframes import constants
 
