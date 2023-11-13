@@ -1456,14 +1456,14 @@ class Session(
             The return type of the function must be explicitly specified in the
             function's original definition even if not otherwise required.
 
-        BigQuery UDFs has many public functions under the ``bqutil`` project on publicly shared datasets
+        BigQuery Utils provides many public functions under the ``bqutil`` project on Google Cloud Platform project
         (See: https://github.com/GoogleCloudPlatform/bigquery-utils/tree/master/udfs#using-the-udfs).
         You can checkout Community UDFs to use community-contributed functions.
         (See: https://github.com/GoogleCloudPlatform/bigquery-utils/tree/master/udfs/community#community-udfs).
 
         **Examples:**
 
-        Using the ``cw_lower_case_ascii_only`` function from Community UDFs.
+        Use the ``cw_lower_case_ascii_only`` function from Community UDFs.
         (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/cw_lower_case_ascii_only.sqlx)
 
             >>> import bigframes.pandas as bpd
