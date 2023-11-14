@@ -437,9 +437,23 @@ class Block:
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
-        enable_downsampling = bigframes.options.sampling.enable_downsampling
-        if max_download_size is None:
-            max_download_size = bigframes.options.sampling.max_download_size
+        enable_downsampling = (
+            True
+            if sampling_method is not None
+            else bigframes.options.sampling.enable_downsampling
+        )
+
+        max_download_size = (
+            max_download_size
+            if max_download_size is not None
+            else bigframes.options.sampling.max_download_size
+        )
+
+        random_state = (
+            random_state
+            if random_state is not None
+            else bigframes.options.sampling.random_state
+        )
 
         if sampling_method is None:
             sampling_method = (
@@ -447,13 +461,8 @@ class Block:
                 if bigframes.options.sampling.sampling_method is not None
                 else _UNIFORM
             )
-        else:
-            enable_downsampling = True
-
-        if random_state is None:
-            random_state = bigframes.options.sampling.random_state
-
         sampling_method = sampling_method.lower()
+
         if sampling_method not in _SAMPLING_METHODS:
             raise NotImplementedError(
                 f"The downsampling method {sampling_method} is not implemented, "
