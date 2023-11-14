@@ -444,23 +444,13 @@ class Block:
         )
 
         max_download_size = (
-            max_download_size
-            if max_download_size is not None
-            else bigframes.options.sampling.max_download_size
+            max_download_size or bigframes.options.sampling.max_download_size
         )
 
-        random_state = (
-            random_state
-            if random_state is not None
-            else bigframes.options.sampling.random_state
-        )
+        random_state = random_state or bigframes.options.sampling.random_state
 
         if sampling_method is None:
-            sampling_method = (
-                bigframes.options.sampling.sampling_method
-                if bigframes.options.sampling.sampling_method is not None
-                else _UNIFORM
-            )
+            sampling_method = bigframes.options.sampling.sampling_method or _UNIFORM
         sampling_method = sampling_method.lower()
 
         if sampling_method not in _SAMPLING_METHODS:
