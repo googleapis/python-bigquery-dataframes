@@ -132,7 +132,7 @@ def test_create_model_produces_correct_sql(
     )
     assert (
         sql
-        == """CREATE MODEL `test-proj`.`_anonXYZ`.`my_model_id`
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`my_model_id`
 OPTIONS(
   option_key1="option_value1",
   option_key2=2)
@@ -155,7 +155,7 @@ def test_create_model_transform_produces_correct_sql(
     )
     assert (
         sql
-        == """CREATE MODEL `test-project`.`_anon123`.`my_model_id`
+        == """CREATE OR REPLACE MODEL `test-project`.`_anon123`.`my_model_id`
 TRANSFORM(
   ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a,
   ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b)
@@ -176,7 +176,7 @@ def test_create_remote_model_produces_correct_sql(
     )
     assert (
         sql
-        == """CREATE MODEL `testprj`.`_anonABC`.`my_model_id`
+        == """CREATE OR REPLACE MODEL `testprj`.`_anonABC`.`my_model_id`
 REMOTE WITH CONNECTION `my_project.us.my_connection`
 OPTIONS(
   option_key1="option_value1",
@@ -193,7 +193,7 @@ def test_create_imported_model_produces_correct_sql(
     )
     assert (
         sql
-        == """CREATE MODEL `a-project`.`a-dataset`.`my_model_id`
+        == """CREATE OR REPLACE MODEL `a-project`.`a-dataset`.`my_model_id`
 OPTIONS(
   option_key1="option_value1",
   option_key2=2)"""

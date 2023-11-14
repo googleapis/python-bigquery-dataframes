@@ -225,7 +225,7 @@ class BqmlModelFactory:
         transforms: Optional[Iterable[str]] = None,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> BqmlModel:
-        """Create a session-temporary BQML model with the CREATE MODEL statement
+        """Create a session-temporary BQML model with the CREATE OR REPLACE MODEL statement
 
         Args:
             X_train: features columns for training
@@ -295,7 +295,7 @@ class BqmlModelFactory:
         connection_name: str,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> BqmlModel:
-        """Create a session-temporary BQML remote model with the CREATE MODEL statement
+        """Create a session-temporary BQML remote model with the CREATE OR REPLACE MODEL statement
 
         Args:
             connection_name:
@@ -319,7 +319,7 @@ class BqmlModelFactory:
         session: bigframes.Session,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> BqmlModel:
-        """Create a session-temporary BQML imported model with the CREATE MODEL statement
+        """Create a session-temporary BQML imported model with the CREATE OR REPLACE MODEL statement
 
         Args:
             options: a dict of options to configure the model. Generates a BQML OPTIONS

@@ -140,12 +140,12 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
         transforms: Optional[Iterable[str]] = None,
     ) -> str:
-        """Encode the CREATE MODEL statement for BQML"""
+        """Encode the CREATE OR REPLACE MODEL statement for BQML"""
         source_sql = source_df.sql
         transform_sql = self.transform(*transforms) if transforms is not None else None
         options_sql = self.options(**options)
 
-        parts = [f"CREATE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
         if transform_sql:
             parts.append(transform_sql)
         if options_sql:
@@ -159,10 +159,10 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         dataset: google.cloud.bigquery.DatasetReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
-        """Encode the CREATE MODEL statement for BQML remote model."""
+        """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
         options_sql = self.options(**options)
 
-        parts = [f"CREATE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
         parts.append(self.connection(connection_name))
         if options_sql:
             parts.append(options_sql)
@@ -173,10 +173,10 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         dataset: google.cloud.bigquery.DatasetReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
-        """Encode the CREATE MODEL statement for BQML remote model."""
+        """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
         options_sql = self.options(**options)
 
-        parts = [f"CREATE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
         if options_sql:
             parts.append(options_sql)
         return "\n".join(parts)
