@@ -23,24 +23,39 @@ import bigframes
 from bigframes.ml import core, linear_model
 import bigframes.pandas as bpd
 
+TEMP_MODEL_ID = bigquery.ModelReference.from_string(
+    "test-project._anon123.temp_model_id"
+)
+
 
 @pytest.fixture
 def mock_session():
     mock_session = mock.create_autospec(spec=bigframes.Session)
 
     mock_session._anonymous_dataset = bigquery.DatasetReference(
-        "test-project", "_anon123"
+        TEMP_MODEL_ID.project, TEMP_MODEL_ID.dataset_id
     )
 
     query_job = mock.create_autospec(bigquery.QueryJob)
     type(query_job).destination = mock.PropertyMock(
         return_value=bigquery.TableReference(
-            mock_session._anonymous_dataset, "some_model"
+            mock_session._anonymous_dataset, TEMP_MODEL_ID.model_id
         )
     )
     mock_session._start_query.return_value = (None, query_job)
 
     return mock_session
+
+
+@pytest.fixture
+def bqml_model_factory(mocker: pytest_mock.MockerFixture):
+    mocker.patch(
+        "bigframes.ml.core.BqmlModelFactory._create_model_ref",
+        return_value=TEMP_MODEL_ID,
+    )
+    bqml_model_factory = core.BqmlModelFactory()
+
+    return bqml_model_factory
 
 
 @pytest.fixture
@@ -70,17 +85,6 @@ def mock_X(mock_y, mock_session):
     mock_X._cached.return_value = mock_X
 
     return mock_X
-
-
-@pytest.fixture
-def bqml_model_factory(mocker: pytest_mock.MockerFixture):
-    mocker.patch(
-        "bigframes.ml.core.BqmlModelFactory._create_temp_model_id",
-        return_value="temp_model_id",
-    )
-    bqml_model_factory = core.BqmlModelFactory()
-
-    return bqml_model_factory
 
 
 @pytest.fixture

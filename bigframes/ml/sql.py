@@ -123,20 +123,17 @@ class BaseSqlGenerator:
 class ModelCreationSqlGenerator(BaseSqlGenerator):
     """Sql generator for creating a model entity. Model id is the standalone id without project id and dataset id."""
 
-    def __init__(self, model_id: str):
-        self._model_id = model_id
-
     def _model_id_sql(
         self,
-        dataset: google.cloud.bigquery.DatasetReference,
+        model_ref: google.cloud.bigquery.ModelReference,
     ):
-        return f"`{dataset.project}`.`{dataset.dataset_id}`.`{self._model_id}`"
+        return f"`{model_ref.project}`.`{model_ref.dataset_id}`.`{model_ref.model_id}`"
 
     # Model create and alter
     def create_model(
         self,
         source_df: bpd.DataFrame,
-        dataset: google.cloud.bigquery.DatasetReference,
+        model_ref: google.cloud.bigquery.ModelReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
         transforms: Optional[Iterable[str]] = None,
     ) -> str:
@@ -145,7 +142,7 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         transform_sql = self.transform(*transforms) if transforms is not None else None
         options_sql = self.options(**options)
 
-        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
         if transform_sql:
             parts.append(transform_sql)
         if options_sql:
@@ -156,13 +153,13 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
     def create_remote_model(
         self,
         connection_name: str,
-        dataset: google.cloud.bigquery.DatasetReference,
+        model_ref: google.cloud.bigquery.ModelReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
         options_sql = self.options(**options)
 
-        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
         parts.append(self.connection(connection_name))
         if options_sql:
             parts.append(options_sql)
@@ -170,13 +167,13 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
 
     def create_imported_model(
         self,
-        dataset: google.cloud.bigquery.DatasetReference,
+        model_ref: google.cloud.bigquery.ModelReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
         options_sql = self.options(**options)
 
-        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(dataset)}"]
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
         if options_sql:
             parts.append(options_sql)
         return "\n".join(parts)
