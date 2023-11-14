@@ -100,6 +100,13 @@ s.replace(
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
+# Update the contributing guide to reflect some differences in this repo.
+s.replace(
+    ["CONTRIBUTING.rst"],
+    re.escape("blacken"),
+    "format",
+)
+
 # ----------------------------------------------------------------------------
 # Samples templates
 # ----------------------------------------------------------------------------
@@ -111,5 +118,3 @@ python.py_samples(skip_readmes=True)
 # ----------------------------------------------------------------------------
 
 s.shell.run(["nox", "-s", "format"], hide_output=False)
-for noxfile in REPO_ROOT.glob("samples/**/noxfile.py"):
-    s.shell.run(["nox", "-s", "blacken"], cwd=noxfile.parent, hide_output=False)
