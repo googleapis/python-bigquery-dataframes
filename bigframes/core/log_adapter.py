@@ -24,8 +24,11 @@ def class_logger(api_methods=None):
 
     def decorator(decorated_cls):
         for attr_name, attr_value in decorated_cls.__dict__.items():
+
             if callable(attr_value):
-                setattr(decorated_cls, attr_name, method_logger(attr_value))
+                setattr(
+                    decorated_cls, attr_name, method_logger(attr_value, decorated_cls)
+                )
 
         # Initialize or extend _api_methods attribute
         decorated_cls._api_methods = getattr(decorated_cls, "_api_methods", [])
