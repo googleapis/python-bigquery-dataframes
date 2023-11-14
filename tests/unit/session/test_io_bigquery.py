@@ -20,6 +20,8 @@ import google.cloud.bigquery as bigquery
 import pytest
 
 import bigframes
+from bigframes.core import log_adapter
+import bigframes.pandas as bpd
 import bigframes.session._io.bigquery as io_bq
 
 
@@ -56,6 +58,50 @@ def test_create_job_configs_labels_length_limit_not_met():
     assert labels == expected_dict
 
 
+def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
+    cur_labels = {
+        "bigframes-api": "read_pandas",
+        "source": "bigquery-dataframes-temp",
+    }
+    df = bpd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    # Test running two methods
+    df.head()
+    df.max()
+    api_methods = log_adapter._api_methods
+
+    labels = io_bq.create_job_configs_labels(
+        job_configs_labels=cur_labels, api_methods=api_methods
+    )
+    expected_dict = {
+        "bigframes-api": "read_pandas",
+        "source": "bigquery-dataframes-temp",
+        "recent-bigframes-api-0": "__init__",
+        "recent-bigframes-api-1": "max",
+        "recent-bigframes-api-2": "__init__",
+        "recent-bigframes-api-3": "head",
+        "recent-bigframes-api-4": "__init__",
+    }
+    assert labels is not None
+    assert len(labels) == 7
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
+    df = bpd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    # Test running methods more than the labels' length limit
+    for i in range(66):
+        df.head()
+    api_methods = log_adapter._api_methods
+
+    labels = io_bq.create_job_configs_labels(
+        job_configs_labels=None, api_methods=api_methods
+    )
+    assert labels is not None
+    assert len(labels) == 64
+    assert "head" in labels.values()
+    assert "__init__" in labels.values()
+
+
 def test_create_job_configs_labels_length_limit_met():
     cur_labels = {
         "bigframes-api": "read_pandas",
@@ -66,14 +112,19 @@ def test_create_job_configs_labels_length_limit_met():
         value = f"test{i}"
         cur_labels[key] = value
     # If cur_labels length is 62, we can only add one label from api_methods
-    api_methods = ["agg", "series-mode", "head"]
+    df = bpd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    # Test running two methods
+    df.head()
+    df.max()
+    api_methods = log_adapter._api_methods
 
     labels = io_bq.create_job_configs_labels(
         job_configs_labels=cur_labels, api_methods=api_methods
     )
     assert labels is not None
     assert len(labels) == 64
-    assert "agg" in labels.values()
+    assert "max" in labels.values()
+    assert "__init__" in labels.values()
     assert "head" not in labels.values()
     assert "bigframes-api" in labels.keys()
     assert "source" in labels.keys()

@@ -113,7 +113,6 @@ def _is_query(query_or_table: str) -> bool:
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
 
 
-@log_adapter.class_logger
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -1387,7 +1386,7 @@ class Session(
         """
         Starts query job and waits for results.
         """
-        api_methods = log_adapter.get_and_reset_api_methods(self)
+        api_methods = log_adapter.get_and_reset_api_methods()
         job_config = self._prepare_job_config(job_config)
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
