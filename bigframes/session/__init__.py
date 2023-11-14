@@ -360,9 +360,7 @@ class Session(
                     operator = valid_operators[operator]
 
                     if operator in ["IN", "NOT IN"]:
-                        value_list = ", ".join(
-                            [repr(v) for v in value]
-                        )
+                        value_list = ", ".join([repr(v) for v in value])
                         expression = f"`{column}` {operator} ({value_list})"
                     else:
                         expression = f"`{column}` {operator} {repr(value)}"

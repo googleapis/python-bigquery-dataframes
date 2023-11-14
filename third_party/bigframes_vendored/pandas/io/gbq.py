@@ -100,14 +100,14 @@ class GBQIOMixin:
             max_results (Optional[int], default None):
                 If set, limit the maximum number of rows to fetch from the
                 query results.
-            columns(Iterable[str], default ()): If not empty, only these columns 
+            columns(Iterable[str], default ()): If not empty, only these columns
                 will be read from table.
             filters (List[Tuple], default ()): To filter out data. Filter syntax:
                 [[(column, op, val), …],…] where op is [==, >, >=, <, <=, !=, in,
                 not in] The innermost tuples are transposed into a set of filters
-                applied through an AND operation. The outer list combines these 
-                sets of filters through an OR operation. A single list of tuples 
-                can also be used, meaning that no OR operation between set of 
+                applied through an AND operation. The outer list combines these
+                sets of filters through an OR operation. A single list of tuples
+                can also be used, meaning that no OR operation between set of
                 filters is to be conducted.
 
         Returns:
