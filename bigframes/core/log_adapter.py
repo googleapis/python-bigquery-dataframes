@@ -38,11 +38,6 @@ def method_logger(method):
         # Track regular and "dunder" methods
         if api_method_name.startswith("__") or not api_method_name.startswith("_"):
             add_api_method(api_method_name)
-        try:
-            result = method(*args, **kwargs)
-            return result
-        except Exception as e:
-            raise e
 
     return wrapper
 

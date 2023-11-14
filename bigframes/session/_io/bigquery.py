@@ -34,7 +34,6 @@ def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
     api_methods: Sequence[str],
 ) -> Dict[str, str]:
-    # If there is no label set
     if job_configs_labels is None:
         job_configs_labels = {}
 
