@@ -181,11 +181,7 @@ class PaLM2TextGenerator(base.Predictor):
             "top_p": top_p,
             "flatten_json_output": True,
         }
-        df = self._bqml_model.generate_text(X, options)
-        return cast(
-            bpd.DataFrame,
-            df[[_TEXT_GENERATE_RESULT_COLUMN]],
-        )
+        return self._bqml_model.generate_text(X, options)
 
 
 class PaLM2TextEmbeddingGenerator(base.Predictor):
@@ -287,8 +283,4 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         options = {
             "flatten_json_output": True,
         }
-        df = self._bqml_model.generate_text_embedding(X, options)
-        return cast(
-            bpd.DataFrame,
-            df[[_EMBED_TEXT_RESULT_COLUMN]],
-        )
+        return self._bqml_model.generate_text_embedding(X, options)
