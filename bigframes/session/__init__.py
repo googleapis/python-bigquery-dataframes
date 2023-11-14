@@ -21,6 +21,7 @@ import itertools
 import logging
 import os
 import re
+import threading
 import typing
 from typing import (
     Any,
@@ -90,6 +91,8 @@ import third_party.bigframes_vendored.pandas.io.pickle as third_party_pandas_pic
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
 _MAX_CLUSTER_COLUMNS = 4
+
+_lock = threading.Lock()
 
 # TODO(swast): Need to connect to regional endpoints when performing remote
 # functions operations (BQ Connection IAM, Cloud Run / Cloud Functions).
@@ -162,6 +165,7 @@ class Session(
             )
 
         self._create_and_bind_bq_session()
+        self._api_methods: List = []
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
             ibis.bigquery.connect(
@@ -1385,7 +1389,14 @@ class Session(
         """
         Starts query job and waits for results.
         """
+        with _lock:
+            previous_api_methods = list(self._api_methods)
+            self._api_methods.clear()
+
         job_config = self._prepare_job_config(job_config)
+        job_config.labels = bigframes_io.create_job_configs_labels(
+            job_configs_labels=job_config.labels, api_methods=previous_api_methods
+        )
         query_job = self.bqclient.query(sql, job_config=job_config)
 
         opts = bigframes.options.display

@@ -19,7 +19,64 @@ import unittest.mock as mock
 import google.cloud.bigquery as bigquery
 import pytest
 
-import bigframes.session._io.bigquery
+import bigframes
+import bigframes.session._io.bigquery as io_bq
+
+
+def test_create_job_configs_labels_is_none():
+    api_methods = ["agg", "series-mode"]
+    labels = io_bq.create_job_configs_labels(
+        job_configs_labels=None, api_methods=api_methods
+    )
+    expected_dict = {
+        "recent-bigframes-api-0": "agg",
+        "recent-bigframes-api-1": "series-mode",
+    }
+    assert labels is not None
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_length_limit_not_met():
+    cur_labels = {
+        "bigframes-api": "read_pandas",
+        "source": "bigquery-dataframes-temp",
+    }
+    api_methods = ["agg", "series-mode"]
+    labels = io_bq.create_job_configs_labels(
+        job_configs_labels=cur_labels, api_methods=api_methods
+    )
+    expected_dict = {
+        "bigframes-api": "read_pandas",
+        "source": "bigquery-dataframes-temp",
+        "recent-bigframes-api-0": "agg",
+        "recent-bigframes-api-1": "series-mode",
+    }
+    assert labels is not None
+    assert len(labels) == 4
+    assert labels == expected_dict
+
+
+def test_create_job_configs_labels_length_limit_met():
+    cur_labels = {
+        "bigframes-api": "read_pandas",
+        "source": "bigquery-dataframes-temp",
+    }
+    for i in range(60):
+        key = f"bigframes-api-test-{i}"
+        value = f"test{i}"
+        cur_labels[key] = value
+    # If cur_labels length is 62, we can only add one label from api_methods
+    api_methods = ["agg", "series-mode", "head"]
+
+    labels = io_bq.create_job_configs_labels(
+        job_configs_labels=cur_labels, api_methods=api_methods
+    )
+    assert labels is not None
+    assert len(labels) == 64
+    assert "agg" in labels.values()
+    assert "head" not in labels.values()
+    assert "bigframes-api" in labels.keys()
+    assert "source" in labels.keys()
 
 
 def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
@@ -125,5 +182,5 @@ def test_create_temp_table_default_expiration():
     ),
 )
 def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str):
-    sql = bigframes.session._io.bigquery.bq_schema_to_sql(schema)
+    sql = io_bq.bq_schema_to_sql(schema)
     assert sql == expected
