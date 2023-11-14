@@ -41,7 +41,7 @@ def create_job_configs_labels(
     labels = list(
         itertools.chain(
             job_configs_labels.keys(),
-            (f"bigframes-api-{i}" for i in range(len(api_methods))),
+            (f"recent-bigframes-api-{i}" for i in range(len(api_methods))),
         )
     )
     values = list(itertools.chain(job_configs_labels.values(), api_methods))

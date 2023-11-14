@@ -1365,14 +1365,12 @@ class Session(
         """
         Starts query job and waits for results.
         """
-        api_methods = log_adapter._api_methods
+        api_methods = log_adapter.get_and_reset_api_methods(self)
         job_config = self._prepare_job_config(job_config)
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
         )
         query_job = self.bqclient.query(sql, job_config=job_config)
-        # Clear out the global api logger
-        log_adapter._api_methods = []
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:

@@ -26,7 +26,6 @@ import pandas
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.compiler as compiler
 import bigframes.core.guid
-from bigframes.core.log_adapter import class_logger, method_logger
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.ordering as orderings
@@ -41,8 +40,6 @@ if typing.TYPE_CHECKING:
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
-
-__all__ = ["class_logger", "method_logger"]
 
 
 @dataclass(frozen=True)
