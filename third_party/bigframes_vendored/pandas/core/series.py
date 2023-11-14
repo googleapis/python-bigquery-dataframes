@@ -322,12 +322,14 @@ class Series(NDFrame):  # type: ignore[misc]
         (for str, int, float) or a pandas scalar
         (for Timestamp/Timedelta/Interval/Period).
 
-        Returns:
-            list: list of the values
+        Args:
             ordered (bool, default None):
                 Determines whether the resulting object will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query. Default is configured
                 by bigframes.options.ordering.enabled global configuration.
+
+        Returns:
+            list: list of the values
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
