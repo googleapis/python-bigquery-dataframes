@@ -19,25 +19,13 @@ _lock = threading.Lock()
 MAX_LABELS_COUNT = 64
 
 
-def class_logger(api_methods=None):
+def class_logger(decorated_cls):
     """Decorator that adds logging functionality to each method of the class."""
 
-    def decorator(decorated_cls):
-        for attr_name, attr_value in decorated_cls.__dict__.items():
-
-            if callable(attr_value):
-                setattr(
-                    decorated_cls, attr_name, method_logger(attr_value, decorated_cls)
-                )
-
-        # Initialize or extend _api_methods attribute
-        decorated_cls._api_methods = getattr(decorated_cls, "_api_methods", [])
-        if api_methods:
-            decorated_cls._api_methods.extend(api_methods)
-
-        return decorated_cls
-
-    return decorator
+    for attr_name, attr_value in decorated_cls.__dict__.items():
+        if callable(attr_value):
+            setattr(decorated_cls, attr_name, method_logger(attr_value, decorated_cls))
+    return decorated_cls
 
 
 def method_logger(method, cls):
@@ -62,14 +50,6 @@ def add_api_method(api_method_name, cls):
     global _lock
     with _lock:
         # Push the method to the front of the _api_methods list
-        cls._api_methods.insert(0, api_method_name)
+        cls._session_api_methods.insert(0, api_method_name)
         # Keep the list length within the maximum limit (adjust MAX_LABELS_COUNT as needed)
-        cls._api_methods = cls._api_methods[:MAX_LABELS_COUNT]
-
-
-def get_and_reset_api_methods(cls):
-    global _lock
-    with _lock:
-        previous_api_methods = list(cls._api_methods)
-        cls._api_methods.clear()
-    return previous_api_methods
+        cls._session_api_methods = cls._api_methods[:MAX_LABELS_COUNT]
