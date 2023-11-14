@@ -75,14 +75,12 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
     expected_dict = {
         "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
-        "recent-bigframes-api-0": "__init__",
-        "recent-bigframes-api-1": "max",
+        "recent-bigframes-api-0": "max",
+        "recent-bigframes-api-1": "head",
         "recent-bigframes-api-2": "__init__",
-        "recent-bigframes-api-3": "head",
-        "recent-bigframes-api-4": "__init__",
     }
     assert labels is not None
-    assert len(labels) == 7
+    assert len(labels) == 5
     assert labels == expected_dict
 
 
@@ -99,7 +97,6 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
     assert labels is not None
     assert len(labels) == 64
     assert "head" in labels.values()
-    assert "__init__" in labels.values()
 
 
 def test_create_job_configs_labels_length_limit_met():
@@ -114,6 +111,7 @@ def test_create_job_configs_labels_length_limit_met():
     # If cur_labels length is 62, we can only add one label from api_methods
     df = bpd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
     # Test running two methods
+    df.agg()
     df.head()
     df.max()
     api_methods = log_adapter._api_methods
@@ -124,8 +122,7 @@ def test_create_job_configs_labels_length_limit_met():
     assert labels is not None
     assert len(labels) == 64
     assert "max" in labels.values()
-    assert "__init__" in labels.values()
-    assert "head" not in labels.values()
+    assert "agg" not in labels.values()
     assert "bigframes-api" in labels.keys()
     assert "source" in labels.keys()
 
