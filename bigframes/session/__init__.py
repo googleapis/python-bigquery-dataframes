@@ -1386,6 +1386,8 @@ class Session(
     ) -> bigquery.QueryJobConfig:
         if job_config is None:
             job_config = self.bqclient.default_query_job_config
+        if job_config is None:
+            job_config = bigquery.QueryJobConfig()
         if bigframes.options.compute.maximum_bytes_billed is not None:
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
