@@ -1267,9 +1267,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     column_id, direction=direction, na_last=na_last
                 )
             )
-        return DataFrame(
-            self._block.order_by(ordering, stable=kind in order.STABLE_SORTS)
-        )
+        return DataFrame(self._block.order_by(ordering))
 
     def value_counts(
         self,
