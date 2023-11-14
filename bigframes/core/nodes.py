@@ -146,7 +146,6 @@ class FilterNode(UnaryNode):
 @dataclass(frozen=True)
 class OrderByNode(UnaryNode):
     by: Tuple[OrderingColumnReference, ...]
-    stable: bool = False
 
 
 @dataclass(frozen=True)
