@@ -30,16 +30,13 @@ import typing_extensions
 
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
-from bigframes.core.ordering import (
-    OrderingColumnReference,
-    OrderingDirection,
-    STABLE_SORTS,
-)
+from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -59,6 +56,7 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
+@log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
@@ -1067,7 +1065,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     na_last=(na_position == "last"),
                 )
             ],
-            stable=kind in STABLE_SORTS,
         )
         return Series(block)
 
