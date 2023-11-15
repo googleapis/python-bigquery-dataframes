@@ -610,7 +610,7 @@ def get_routine_reference(
             raise DatasetMissingError
 
         dataset_ref = bigquery.DatasetReference(
-            bigquery_client.project, session._session_dataset_id
+            bigquery_client.project, session._anonymous_dataset.dataset_id
         )
         return dataset_ref.routine(routine_ref_str)
 
@@ -778,9 +778,7 @@ def remote_function(
             dataset, default_project=bigquery_client.project
         )
     else:
-        dataset_ref = bigquery.DatasetReference.from_string(
-            session._session_dataset_id, default_project=bigquery_client.project
-        )
+        dataset_ref = session._anonymous_dataset
 
     bq_location, cloud_function_region = get_remote_function_locations(
         bigquery_client.location
