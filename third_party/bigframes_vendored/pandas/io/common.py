@@ -13,7 +13,7 @@ def dedup_names(
     """
     Rename column names if duplicates exist.
 
-    Currently the renaming is done by appending a underscore and an 
+    Currently the renaming is done by appending a underscore and an
     autonumeric, but a custom pattern may be supported in the future.
 
     Examples
