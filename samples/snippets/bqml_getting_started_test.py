@@ -40,7 +40,7 @@ def test_bqml_getting_started():
     # Extract the total number of transactions within
     # the Google Analytics session.
     #
-    # Because the totals column is a STRUCT data type, we need to call
+    # Because the totals column is a STRUCT data type, call
     # Series.struct.field("transactions") to extract the transactions field.
     # See the reference documentation below:
     # https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.structs.StructAccessor#bigframes_operations_structs_StructAccessor_field
@@ -78,7 +78,7 @@ def test_bqml_getting_started():
     )
 
     # Logistic Regression model splits data into two classes, giving the
-    # probablity the data is in one of the classes.
+    # a confidence score that the data is in one of the classes.
     model = LogisticRegression()
     model.fit(features, label)
 
