@@ -26,6 +26,8 @@ def test_bqml_getting_started():
 
     df = bpd.read_gbq(
         """
+        -- Since the order of rows isn't useful for the model training,
+        -- generate a random ID to use as the index for the DataFrame.
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
         `bigquery-public-data.google_analytics_sample.ga_sessions_*`
