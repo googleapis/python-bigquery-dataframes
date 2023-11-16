@@ -2144,6 +2144,40 @@ class DataFrame(NDFrame):
             Parrot     25.0
             Name: Max Speed, dtype: Float64
 
+        We can also choose to include NA in group keys or not by setting `dropna`
+        parameter, the default setting is `True`:
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[1, 2, 3],[1, None, 4], [2, 1, 3], [1, 2, 2]],
+            ...                    columns=["a", "b", "c"])
+            >>> df.groupby(by=["b"]).sum()
+                 a  c
+            b
+            1.0  2  3
+            2.0  2  5
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.groupby(by=["b"], dropna=False).sum()
+                  a  c
+            b
+            1.0   2  3
+            2.0   2  5
+            <NA>  1  4
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        We can also choose to return object with group labels or not by setting `as_index`.
+
+            >>> df.groupby(by=["b"], as_index=False).sum()
+                 b  a  c
+            0  1.0  2  3
+            1  2.0  2  5
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
         Args:
             by (str, Sequence[str]):
                 A label or list of labels may be passed to group by the columns
@@ -2270,35 +2304,66 @@ class DataFrame(NDFrame):
 
         Join two DataFrames by specifying how to handle the operation:
 
-            >>> df1 = bpd.DataFrame({'col1': ['foo', 'bar'], 'col2': [1, 2]})
+            >>> df1 = bpd.DataFrame({'col1': ['foo', 'bar'], 'col2': [1, 2]}, index=[10, 11])
             >>> df1
                col1  col2
-            0   foo     1
-            1   bar     2
+            10  foo     1
+            11  bar     2
             <BLANKLINE>
             [2 rows x 2 columns]
 
-            >>> df2 = bpd.DataFrame({'col3': ['foo', 'baz'], 'col4': [3, 4]})
+            >>> df2 = bpd.DataFrame({'col3': ['foo', 'baz'], 'col4': [3, 4]}, index=[21, 22])
             >>> df2
                col3  col4
-            0   foo     3
-            1   baz     4
+            21  foo     3
+            22  baz     4
             <BLANKLINE>
             [2 rows x 2 columns]
 
-            >>> df1.join(df2, how="outer")
-              col1  col2 col3  col4
-            0  foo     1  foo     3
-            1  bar     2  baz     4
+            >>> df1.join(df2)
+               col1  col2  col3  col4
+            10  foo     1  <NA>  <NA>
+            11  bar     2  <NA>  <NA>
             <BLANKLINE>
             [2 rows x 4 columns]
+
+            >>> df1.join(df2, how="left")
+               col1  col2  col3  col4
+            10  foo     1  <NA>  <NA>
+            11  bar     2  <NA>  <NA>
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+            >>> df1.join(df2, how="right")
+                col1  col2 col3  col4
+            21  <NA>  <NA>  foo     3
+            22  <NA>  <NA>  baz     4
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+            >>> df1.join(df2, how="outer")
+                col1  col2  col3  col4
+            10   foo     1  <NA>  <NA>
+            11   bar     2  <NA>  <NA>
+            21  <NA>  <NA>   foo     3
+            22  <NA>  <NA>   baz     4
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+            >>> df1.join(df2, how="inner")
+            Empty DataFrame
+            Columns: [col1, col2, col3, col4]
+            Index: []
+            <BLANKLINE>
+            [0 rows x 4 columns]
+
 
         Another option to join using the key columns is to use the on parameter:
 
             >>> df1.join(df2, on="col1", how="right")
-                  col1  col2 col3  col4
-            <NA>     0  <NA>  foo     3
-            <NA>     1  <NA>  baz     4
+                   col1  col2 col3  col4
+            <NA>     21  <NA>  foo     3
+            <NA>     22  <NA>  baz     4
             <BLANKLINE>
             [2 rows x 4 columns]
 
@@ -2382,6 +2447,13 @@ class DataFrame(NDFrame):
             0  foo  1  3
             <BLANKLINE>
             [1 rows x 3 columns]
+
+            >>> df1.merge(df2, how='left', on='a')
+                 a  b     c
+            0  foo  1     3
+            1  bar  2  <NA>
+            <BLANKLINE>
+            [2 rows x 3 columns]
 
         Merge df1 and df2 on the lkey and rkey columns. The value columns have
         the default suffixes, _x and _y, appended.
