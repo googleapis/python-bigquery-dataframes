@@ -14,16 +14,37 @@
 
 """Private module: Helpers for I/O operations."""
 
+from __future__ import annotations
+
 import datetime
+import itertools
 import textwrap
 import types
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Optional, Sequence, Union
 import uuid
 
 import google.cloud.bigquery as bigquery
 
 IO_ORDERING_ID = "bqdf_row_nums"
+MAX_LABELS_COUNT = 64
 TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+
+
+def create_job_configs_labels(
+    job_configs_labels: Optional[Dict[str, str]],
+    api_methods: Sequence[str],
+) -> Dict[str, str]:
+    if job_configs_labels is None:
+        job_configs_labels = {}
+
+    labels = list(
+        itertools.chain(
+            job_configs_labels.keys(),
+            (f"recent-bigframes-api-{i}" for i in range(len(api_methods))),
+        )
+    )
+    values = list(itertools.chain(job_configs_labels.values(), api_methods))
+    return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
 
 
 def create_export_csv_statement(
@@ -69,6 +90,29 @@ def create_export_data_statement(
     )
 
 
+def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
+    """Generate a random table ID with BigQuery DataFrames prefix.
+    Args:
+        dataset (google.cloud.bigquery.DatasetReference):
+            The dataset to make the table reference in. Usually the anonymous
+            dataset for the session.
+    Returns:
+        google.cloud.bigquery.TableReference:
+            Fully qualified table ID of a table that doesn't exist.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    random_id = uuid.uuid4().hex
+    table_id = TEMP_TABLE_PREFIX.format(
+        date=now.strftime("%Y%m%d"), random_id=random_id
+    )
+    return dataset.table(table_id)
+
+
+def table_ref_to_sql(table: bigquery.TableReference) -> str:
+    """Format a table reference as escaped SQL."""
+    return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
+
+
 def create_snapshot_sql(
     table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
 ) -> str:
@@ -95,17 +139,18 @@ def create_snapshot_sql(
 def create_temp_table(
     bqclient: bigquery.Client,
     dataset: bigquery.DatasetReference,
-    expiration: datetime.timedelta,
+    expiration: datetime.datetime,
+    *,
+    schema: Optional[Iterable[bigquery.SchemaField]] = None,
+    cluster_columns: Optional[list[str]] = None,
 ) -> str:
     """Create an empty table with an expiration in the desired dataset."""
-    now = datetime.datetime.now(datetime.timezone.utc)
-    random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_PREFIX.format(
-        date=now.strftime("%Y%m%d"), random_id=random_id
-    )
-    table_ref = dataset.table(table_id)
+    table_ref = random_table(dataset)
     destination = bigquery.Table(table_ref)
-    destination.expires = now + expiration
+    destination.expires = expiration
+    destination.schema = schema
+    if cluster_columns:
+        destination.clustering_fields = cluster_columns
     bqclient.create_table(destination)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 

@@ -30,16 +30,13 @@ import typing_extensions
 
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
-from bigframes.core.ordering import (
-    OrderingColumnReference,
-    OrderingDirection,
-    STABLE_SORTS,
-)
+from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
 import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -59,6 +56,7 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
+@log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
@@ -271,6 +269,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         max_download_size: Optional[int] = None,
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
+        *,
+        ordered: bool = True,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -290,6 +290,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
+            ordered (bool, default True):
+                Determines whether the resulting pandas series will be deterministically ordered.
+                In some cases, unordered may result in a faster-executing query.
+
 
         Returns:
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
@@ -300,6 +304,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
+            ordered=ordered,
         )
         self._set_internal_query_job(query_job)
         series = df[self._value_column]
@@ -475,6 +480,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return Series(block.select_column(result_col))
 
     def interpolate(self, method: str = "linear") -> Series:
+        if method == "pad":
+            return self.ffill()
         result = block_ops.interpolate(self._block, method)
         return Series(result)
 
@@ -1058,7 +1065,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     na_last=(na_position == "last"),
                 )
             ],
-            stable=kind in STABLE_SORTS,
         )
         return Series(block)
 
@@ -1438,6 +1444,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         result_df = self_df.join(map_df, on="series")
         return result_df[self.name]
 
+    def sample(
+        self,
+        n: Optional[int] = None,
+        frac: Optional[float] = None,
+        *,
+        random_state: Optional[int] = None,
+    ) -> Series:
+        if n is not None and frac is not None:
+            raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
+
+        ns = (n,) if n is not None else ()
+        fracs = (frac,) if frac is not None else ()
+        return Series(
+            self._block._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+        )
+
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
     ) -> Series:
@@ -1478,7 +1500,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def _cached(self) -> Series:
-        return Series(self._block.cached())
+        self._set_block(self._block.cached())
+        return self
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
