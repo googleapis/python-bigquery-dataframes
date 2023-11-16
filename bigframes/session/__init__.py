@@ -1420,7 +1420,7 @@ def _can_cluster_bq(field: bigquery.SchemaField):
     )
 
 
-def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringColumn:
+def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringValue:
     col_type = column.type()
     if (
         col_type.is_numeric()
@@ -1438,7 +1438,5 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringCo
         # Needed for JSON, STRUCT and ARRAY datatypes
         result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
     # Escape backslashes and use backslash as delineator
-    escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace(
-        "\\", "\\\\"
-    )
-    return typing.cast(ibis_types.StringColumn, ibis.literal("\\") + escaped)
+    escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace("\\", "\\\\")  # type: ignore
+    return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
