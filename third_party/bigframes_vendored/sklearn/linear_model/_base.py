@@ -49,8 +49,7 @@ class LinearClassifierMixin(ClassifierMixin):
                 which we want to get the predictions.
 
         Returns:
-            bigframes.dataframe.DataFrame:  DataFrame of shape (n_samples,), containing
-                the class labels for each sample.
+            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
