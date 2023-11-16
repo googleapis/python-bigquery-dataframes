@@ -22,6 +22,8 @@ import pytz
 def test_model_predict(time_series_arima_plus_model):
     utc = pytz.utc
     predictions = time_series_arima_plus_model.predict().to_pandas()
+    assert predictions.shape == (3, 8)
+    result = predictions[["forecast_timestamp", "forecast_value"]]
     expected = pd.DataFrame(
         {
             "forecast_timestamp": [
@@ -36,8 +38,9 @@ def test_model_predict(time_series_arima_plus_model):
     expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
+
     pd.testing.assert_frame_equal(
-        predictions,
+        result,
         expected,
         rtol=0.1,
         check_index_type=False,

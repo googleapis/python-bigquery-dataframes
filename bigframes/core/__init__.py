@@ -165,7 +165,7 @@ class ArrayValue:
         ibis_expr = compiled_value._to_ibis_expr(
             ordering_mode="unordered", expose_hidden_cols=True
         )
-        tmp_table = self.session._ibis_to_session_table(
+        tmp_table = self.session._ibis_to_temp_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cached"
         )
 
@@ -200,12 +200,8 @@ class ArrayValue:
             )
         )
 
-    def order_by(
-        self, by: Sequence[OrderingColumnReference], stable: bool = False
-    ) -> ArrayValue:
-        return ArrayValue(
-            nodes.OrderByNode(child=self.node, by=tuple(by), stable=stable)
-        )
+    def order_by(self, by: Sequence[OrderingColumnReference]) -> ArrayValue:
+        return ArrayValue(nodes.OrderByNode(child=self.node, by=tuple(by)))
 
     def reversed(self) -> ArrayValue:
         return ArrayValue(nodes.ReversedNode(child=self.node))

@@ -41,6 +41,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
@@ -81,6 +82,7 @@ ERROR_IO_REQUIRES_WILDCARD = (
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
+@log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
 
@@ -1262,9 +1264,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     column_id, direction=direction, na_last=na_last
                 )
             )
-        return DataFrame(
-            self._block.order_by(ordering, stable=kind in order.STABLE_SORTS)
-        )
+        return DataFrame(self._block.order_by(ordering))
 
     def value_counts(
         self,
@@ -2719,7 +2719,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._block
 
     def _cached(self) -> DataFrame:
-        return DataFrame(self._block.cached())
+        self._set_block(self._block.cached())
+        return self
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
