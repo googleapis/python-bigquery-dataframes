@@ -1806,7 +1806,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
         You can also use a remote function to evaluate the mask condition. This
-        is useful in situation such as the following, where the the mask
+        is useful in situation such as the following, where the mask
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
