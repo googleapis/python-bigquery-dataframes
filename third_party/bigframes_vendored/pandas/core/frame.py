@@ -2144,8 +2144,7 @@ class DataFrame(NDFrame):
             Parrot     25.0
             Name: Max Speed, dtype: Float64
 
-        We can also choose to include NA in group keys or not by setting `dropna`
-        parameter, the default setting is `True`:
+        We can also choose to include NA in group keys or not by setting `dropna`:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -2312,10 +2311,10 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-            >>> df2 = bpd.DataFrame({'col3': ['foo', 'baz'], 'col4': [3, 4]}, index=[21, 22])
+            >>> df2 = bpd.DataFrame({'col3': ['foo', 'baz'], 'col4': [3, 4]}, index=[11, 22])
             >>> df2
                col3  col4
-            21  foo     3
+            11  foo     3
             22  baz     4
             <BLANKLINE>
             [2 rows x 2 columns]
@@ -2323,20 +2322,20 @@ class DataFrame(NDFrame):
             >>> df1.join(df2)
                col1  col2  col3  col4
             10  foo     1  <NA>  <NA>
-            11  bar     2  <NA>  <NA>
+            11  bar     2   foo     3
             <BLANKLINE>
             [2 rows x 4 columns]
 
             >>> df1.join(df2, how="left")
                col1  col2  col3  col4
             10  foo     1  <NA>  <NA>
-            11  bar     2  <NA>  <NA>
+            11  bar     2   foo     3
             <BLANKLINE>
             [2 rows x 4 columns]
 
             >>> df1.join(df2, how="right")
                 col1  col2 col3  col4
-            21  <NA>  <NA>  foo     3
+            11  bar      2  foo     3
             22  <NA>  <NA>  baz     4
             <BLANKLINE>
             [2 rows x 4 columns]
@@ -2344,26 +2343,24 @@ class DataFrame(NDFrame):
             >>> df1.join(df2, how="outer")
                 col1  col2  col3  col4
             10   foo     1  <NA>  <NA>
-            11   bar     2  <NA>  <NA>
-            21  <NA>  <NA>   foo     3
+            11   bar     2   foo     3
             22  <NA>  <NA>   baz     4
             <BLANKLINE>
-            [4 rows x 4 columns]
+            [3 rows x 4 columns]
 
             >>> df1.join(df2, how="inner")
-            Empty DataFrame
-            Columns: [col1, col2, col3, col4]
-            Index: []
+               col1  col2 col3  col4
+            11  bar     2  foo     3
             <BLANKLINE>
-            [0 rows x 4 columns]
+            [1 rows x 4 columns]
 
 
         Another option to join using the key columns is to use the on parameter:
 
             >>> df1.join(df2, on="col1", how="right")
-                   col1  col2 col3  col4
-            <NA>     21  <NA>  foo     3
-            <NA>     22  <NA>  baz     4
+                  col1  col2 col3  col4
+            <NA>    11  <NA>  foo     3
+            <NA>    22  <NA>  baz     4
             <BLANKLINE>
             [2 rows x 4 columns]
 
