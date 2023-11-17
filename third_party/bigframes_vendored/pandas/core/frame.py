@@ -2146,9 +2146,6 @@ class DataFrame(NDFrame):
 
         We can also choose to include NA in group keys or not by setting `dropna`:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame([[1, 2, 3],[1, None, 4], [2, 1, 3], [1, 2, 2]],
             ...                    columns=["a", "b", "c"])
             >>> df.groupby(by=["b"]).sum()
@@ -2168,7 +2165,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 2 columns]
 
-        We can also choose to return object with group labels or not by setting `as_index`.
+        We can also choose to return object with group labels or not by setting `as_index`:
 
             >>> df.groupby(by=["b"], as_index=False).sum()
                  b  a  c
