@@ -1731,6 +1731,13 @@ class Series(NDFrame):  # type: ignore[misc]
             3    -1
             4    14
             dtype: Int64
+            >>> s.where(s % 2 == 0, 100*s)
+            0      10
+            1    1100
+            2      12
+            3    1300
+            4      14
+            dtype: Int64
 
         Args:
             cond (bool Series/DataFrame, array-like, or callable):
@@ -1789,6 +1796,13 @@ class Series(NDFrame):  # type: ignore[misc]
             2    -1
             3    13
             4    -1
+            dtype: Int64
+            >>> s.mask(s % 2 == 0, 100*s)
+            0    1000
+            1      11
+            2    1200
+            3      13
+            4    1400
             dtype: Int64
 
         You can also use a remote function to evaluate the mask condition. This
