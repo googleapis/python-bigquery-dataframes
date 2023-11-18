@@ -3542,7 +3542,7 @@ def test_df_dot_operator_series(
     ],
     indirect=["delete_bigquery_dataset"],
 )
-def test_gbq_write_and_create_dataset(
+def test_to_gbq_and_create_dataset(
     session, scalars_df_index, table_id, dataset_id, delete_bigquery_dataset
 ):
     # The expected scenario is that if the dataset doesn't exist,
