@@ -1002,3 +1002,21 @@ def floats_bf(session, floats_pd):
 @pytest.fixture()
 def floats_product_bf(session, floats_product_pd):
     return session.read_pandas(floats_product_pd)
+
+
+@pytest.fixture()
+def delete_bigquery_dataset(request, bigquery_client: bigquery.Client):
+    dataset_id = request.param
+    # Clean up the dataset before and after tests to handle residuals
+    # from test failures.
+    if dataset_id:
+        bigquery_client.delete_dataset(
+            dataset_id, delete_contents=True, not_found_ok=True
+        )
+
+    yield
+
+    if dataset_id:
+        bigquery_client.delete_dataset(
+            dataset_id, delete_contents=True, not_found_ok=True
+        )
