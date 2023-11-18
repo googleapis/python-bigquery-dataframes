@@ -1007,7 +1007,7 @@ def floats_product_bf(session, floats_product_pd):
 @pytest.fixture()
 def delete_bigquery_dataset(request, bigquery_client: bigquery.Client):
     dataset_id = request.param
-    # Clean up the dataset before and after tests to handle residuals
+    # Delete the dataset before and after tests to handle residuals
     # from test failures.
     if dataset_id:
         bigquery_client.delete_dataset(
