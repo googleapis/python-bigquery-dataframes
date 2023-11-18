@@ -515,7 +515,13 @@ def prerelease(session: nox.sessions.Session, tests_path):
     session.install(
         "--upgrade",
         "-e",  # Use -e so that py.typed file is included.
-        "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
+        # We are using a commit just before https://github.com/ibis-project/ibis/commit/c20ba7feab6bdea6c299721310e04dbc10551cc2
+        # which introduced a breaking change, namely a refactoring that removed
+        # the following:
+        #   ibis.expr.rules.column
+        #   ibis.expr.rules.value
+        #   ibis.expr.rules.any
+        "git+https://github.com/ibis-project/ibis.git@1ee60b8bab789c6dd5ab0083d50a0a1d606ba72f#egg=ibis-framework",
     )
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
