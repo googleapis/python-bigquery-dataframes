@@ -80,8 +80,8 @@ class GBQIOMixin:
             >>> columns = ['pitcherFirstName', 'pitcherLastName', 'year', 'pitchSpeed']
             >>> filters = [('year', '==', 2016), ('pitcherFirstName', 'in', ['John', 'Doe'])]
             >>> df = bpd.read_gbq(
-            ...             "bigquery-public-data.baseball.games_wide", 
-            ...             columns=columns, 
+            ...             "bigquery-public-data.baseball.games_wide",
+            ...             columns=columns,
             ...             filters=filters,
             ...         )
             >>> df.head(1)
