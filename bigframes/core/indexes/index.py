@@ -400,7 +400,7 @@ class IndexValue:
         index_columns = list(self._block.index_columns)
         dtypes = dict(zip(index_columns, self.dtypes))
         expr = self._expr.select_columns(index_columns)
-        results, _ = expr.start_query()
+        results, _ = expr.session._execute(expr)
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
         index = df.index

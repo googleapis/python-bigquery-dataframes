@@ -67,6 +67,7 @@ import bigframes.constants as constants
 from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.compile
 import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
 import bigframes.core.ordering as orderings
@@ -177,6 +178,10 @@ class Session(
         # Now that we're starting the session, don't allow the options to be
         # changed.
         context._session_started = True
+
+        self._node_to_materialization: dict[
+            core.nodes.BigFrameNode, core.nodes.BigFrameNode
+        ] = {}
 
     @property
     def bqclient(self):
@@ -1162,14 +1167,16 @@ class Session(
         table: ibis_types.Table,
         cluster_cols: Iterable[str],
         api_name: str,
-    ) -> bigquery.TableReference:
-        destination, _ = self._query_to_destination(
+    ) -> tuple[bigquery.TableReference, bigquery.QueryJob]:
+        destination, query_job = self._query_to_destination(
             self.ibis_client.compile(table),
             index_cols=list(cluster_cols),
             api_name=api_name,
         )
         # There should always be a destination table for this query type.
-        return typing.cast(bigquery.TableReference, destination)
+        return typing.cast(bigquery.TableReference, destination), typing.cast(
+            bigquery.QueryJob, destination
+        )
 
     def remote_function(
         self,
@@ -1338,6 +1345,98 @@ class Session(
             function_name=function_name,
             session=self,
         )
+
+    def _execute_and_cache(
+        self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str]
+    ) -> None:
+        """Executes the query and uses the resulting table to rewrite future executions."""
+        # TODO: Use this for all executions? Problem is that caching materializes extra
+        # ordering columns
+        compiled_value = self._compile_ordered(array_value)
+
+        ibis_expr = compiled_value._to_ibis_expr(
+            ordering_mode="unordered", expose_hidden_cols=True
+        )
+        tmp_table, _ = self._ibis_to_temp_table(
+            ibis_expr, cluster_cols=cluster_cols, api_name="cached"
+        )
+        table_expression = self.ibis_client.table(
+            f"{tmp_table.project}.{tmp_table.dataset_id}.{tmp_table.table_id}"
+        )
+        new_columns = [table_expression[column] for column in compiled_value.column_ids]
+        new_hidden_columns = [
+            table_expression[column]
+            for column in compiled_value._hidden_ordering_column_names
+        ]
+        result = core.ArrayValue.from_ibis(
+            self,
+            table_expression,
+            columns=new_columns,
+            hidden_ordering_columns=new_hidden_columns,
+            ordering=compiled_value._ordering,
+        ).node
+
+        self._node_to_materialization[array_value.node] = result
+
+    def _execute(
+        self,
+        array_value: core.ArrayValue,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+        *,
+        sorted: bool = True,
+        dry_run=False,
+    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        sql = self._to_sql(array_value, sorted=sorted)  # type:ignore
+        job_config = bigquery.QueryJobConfig(dry_run=dry_run)
+        return self._start_query(
+            sql=sql,
+            job_config=job_config,
+            max_results=max_results,
+        )
+
+    def _to_sql(
+        self,
+        array_value: core.ArrayValue,
+        offset_column: typing.Optional[str] = None,
+        col_id_overrides: typing.Mapping[str, str] = {},
+        sorted: bool = False,
+    ) -> str:
+        if offset_column:
+            array_value = array_value.promote_offsets(offset_column)
+        if sorted:
+            return self._compile_ordered(array_value).to_sql(
+                col_id_overrides=col_id_overrides, sorted=True
+            )
+        return self._compile_unordered(array_value).to_sql(
+            col_id_overrides=col_id_overrides
+        )
+
+    def _compile_ordered(
+        self, array_value: core.ArrayValue
+    ) -> bigframes.core.compile.OrderedIR:
+        replacements = tuple(
+            [
+                (full_execution, cached)
+                for full_execution, cached in self._node_to_materialization.items()
+            ]
+        )
+        return bigframes.core.compile.Compiler(
+            replacements=replacements
+        ).compile_ordered(array_value.node)
+
+    def _compile_unordered(
+        self, array_value: core.ArrayValue
+    ) -> bigframes.core.compile.UnorderedIR:
+        replacements = tuple(
+            [
+                (full_execution, cached)
+                for full_execution, cached in self._node_to_materialization.items()
+            ]
+        )
+        return bigframes.core.compile.Compiler(
+            replacements=replacements
+        ).compile_unordered(array_value.node)
 
     def _start_query(
         self,
