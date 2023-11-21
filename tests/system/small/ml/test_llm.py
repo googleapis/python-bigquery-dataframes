@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
-
 import numpy as np
 import pytest
 
@@ -47,7 +45,7 @@ def test_create_text_generator_model_default_session(
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
     df = model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -74,7 +72,7 @@ def test_create_text_generator_32k_model_default_session(
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
     df = model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -101,7 +99,7 @@ def test_create_text_generator_model_default_connection(
     )
 
     df = model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -113,7 +111,7 @@ def test_text_generator_predict_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -124,7 +122,7 @@ def test_text_generator_predict_series_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df["prompt"]).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -136,7 +134,7 @@ def test_text_generator_predict_arbitrary_col_label_success(
 ):
     llm_text_df = llm_text_df.rename(columns={"prompt": "arbitrary"})
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -149,7 +147,7 @@ def test_text_generator_predict_with_params_success(
     df = palm2_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
@@ -200,7 +198,7 @@ def test_embedding_generator_predict_success(
     palm2_embedding_generator_model, llm_text_df
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "text_embedding" in df.columns
     series = df["text_embedding"]
     value = series[0]
@@ -213,7 +211,7 @@ def test_embedding_generator_multilingual_predict_success(
     palm2_embedding_generator_multilingual_model, llm_text_df
 ):
     df = palm2_embedding_generator_multilingual_model.predict(llm_text_df).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "text_embedding" in df.columns
     series = df["text_embedding"]
     value = series[0]
@@ -226,7 +224,7 @@ def test_embedding_generator_predict_series_success(
     palm2_embedding_generator_model, llm_text_df
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df["prompt"]).to_pandas()
-    TestCase().assertSequenceEqual(df.shape, (3, 1))
+    assert df.shape == (3, 4)
     assert "text_embedding" in df.columns
     series = df["text_embedding"]
     value = series[0]
