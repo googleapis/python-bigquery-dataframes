@@ -151,6 +151,8 @@ def assert_pandas_df_equal_pca_components(actual, expected, **kwargs):
         numerical_value: numeric,
         categorical_value: List[object(category, value)]
 
+    The index types of `actual` and `expected` are ignored in the comparison.
+
     Args:
         actual: Actual Pandas DataFrame
 
@@ -195,8 +197,8 @@ def assert_pandas_df_equal_pca_components(actual, expected, **kwargs):
 
 
 def assert_pandas_df_equal_pca(actual, expected, **kwargs):
-    """Compare two pandas dataframes representing PCA components. The columns in
-    the dataframes are expected to be numeric.
+    """Compare two pandas dataframes representing PCA predictions. The columns
+    in the dataframes are expected to be numeric.
 
     Args:
         actual: Actual Pandas DataFrame
