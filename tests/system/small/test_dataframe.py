@@ -3525,29 +3525,9 @@ def test_df_dot_operator_series(
     )
 
 
-@pytest.mark.parametrize(
-    ("table_id", "dataset_id", "delete_bigquery_dataset"),
-    [
-        (None, None, None),
-        (
-            "scalars_df",
-            "bigframes-dev.to_gbq_dataset_creation_fdjhfjksdhjkfdshjk",
-            "to_gbq_dataset_creation_fdjhfjksdhjkfdshjk",
-        ),
-        (
-            "scalars_df",
-            "bigframes-dev.to_gbq_dataset_creation_fdjhfjksdhjkfdshjk",
-            "bigframes-dev.to_gbq_dataset_creation_fdjhfjksdhjkfdshjk",
-        ),
-    ],
-    indirect=["delete_bigquery_dataset"],
-)
-def test_to_gbq_and_create_dataset(
-    session, scalars_df_index, table_id, dataset_id, delete_bigquery_dataset
-):
-    # The expected scenario is that if the dataset doesn't exist,
-    # it will be created. Do not use the same dataset id for other tests.
-    destination_table = f"{dataset_id}.{table_id}" if table_id else None
+def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):
+    dataset_id = dataset_id_not_created
+    destination_table = f"{dataset_id}.scalars_df"
 
     result_table = scalars_df_index.to_gbq(destination_table)
     assert (
