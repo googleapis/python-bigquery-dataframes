@@ -2597,7 +2597,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if each column contains at least one True element(the default).
+        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter).
 
             >>> df.any()
             A     True
@@ -2644,7 +2644,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if all values in each column are True(the default).
+        Checking if all values in each column are True(the default behavior without an explicit axis parameter).
 
             >>> df.all()
             A     True
@@ -2682,14 +2682,14 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
             >>> df
 
-        Calculating the product of each column(the default).
+        Calculating the product of each column(the default behavior without an explicit axis parameter).
 
             >>> df.prod()
             A        6.0
             B    160.875
             dtype: Float64
 
-        Calculating the product along the rows.
+        Calculating the product of each row.
 
             >>> df.prod(axis=1)
             0     4.5
