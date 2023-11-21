@@ -2681,6 +2681,12 @@ class DataFrame(NDFrame):
 
             >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
             >>> df
+                A    B
+            0   1  4.5
+            1   2  5.5
+            2   3  6.5
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Calculating the product of each column(the default behavior without an explicit axis parameter).
 
