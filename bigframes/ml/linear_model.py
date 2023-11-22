@@ -17,12 +17,13 @@ https://scikit-learn.org/stable/modules/linear_model.html."""
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
 import bigframes.constants as constants
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.linear_model._base
@@ -46,6 +47,7 @@ _BQML_PARAMS_MAPPING = {
 }
 
 
+@log_adapter.class_logger
 class LinearRegression(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression,
@@ -145,16 +147,7 @@ class LinearRegression(
 
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
@@ -187,6 +180,7 @@ class LinearRegression(
         return new_model.session.read_gbq_model(model_name)
 
 
+@log_adapter.class_logger
 class LogisticRegression(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
@@ -267,16 +261,7 @@ class LogisticRegression(
 
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
