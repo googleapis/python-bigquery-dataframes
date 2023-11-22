@@ -2638,6 +2638,33 @@ class DataFrame(NDFrame):
         If you want the *index* of the minimum, use ``idxmin``. This is the
         equivalent of the ``numpy.ndarray`` method ``argmin``.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the minimum value in each column(the default behavior without an explicit axis parameter).
+
+            >>> df.min()
+            A    1.0
+            B    2.0
+            dtype: Float64
+
+        Finding the minimum value in each row.
+
+            >>> df.min(axis=1)
+            0    1.0
+            1    3.0
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2656,6 +2683,33 @@ class DataFrame(NDFrame):
         If you want the *index* of the maximum, use ``idxmax``. This is
         the equivalent of the ``numpy.ndarray`` method ``argmax``.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the maximum value in each column(the default behavior without an explicit axis parameter).
+
+            >>> df.max()
+            A    3.0
+            B    4.0
+            dtype: Float64
+
+        Finding the maximum value in each row.
+
+            >>> df.max(axis=1)
+            0    2.0
+            1    4.0
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2672,6 +2726,33 @@ class DataFrame(NDFrame):
         """Return the sum of the values over the requested axis.
 
         This is equivalent to the method ``numpy.sum``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the sum of each column(the default behavior without an explicit axis parameter).
+
+            >>> df.sum()
+            A    4.0
+            B    6.0
+            dtype: Float64
+
+        Calculating the sum of each row.
+
+            >>> df.sum(axis=1)
+            0    3.0
+            1    7.0
+            dtype: Float64
 
         Args:
             axis ({index (0), columns (1)}):
