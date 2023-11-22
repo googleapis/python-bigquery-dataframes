@@ -2597,7 +2597,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter).
+        Checking if each column contains at least one True element (the default behavior without an explicit axis parameter).
 
             >>> df.any()
             A     True
@@ -2644,7 +2644,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if all values in each column are True(the default behavior without an explicit axis parameter).
+        Checking if all values in each column are True (the default behavior without an explicit axis parameter).
 
             >>> df.all()
             A     True
@@ -2688,7 +2688,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 2 columns]
 
-        Calculating the product of each column(the default behavior without an explicit axis parameter).
+        Calculating the product of each column (the default behavior without an explicit axis parameter).
 
             >>> df.prod()
             A        6.0
@@ -2734,7 +2734,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Finding the minimum value in each column(the default behavior without an explicit axis parameter).
+        Finding the minimum value in each column (the default behavior without an explicit axis parameter).
 
             >>> df.min()
             A    1.0
@@ -2779,7 +2779,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Finding the maximum value in each column(the default behavior without an explicit axis parameter).
+        Finding the maximum value in each column (the default behavior without an explicit axis parameter).
 
             >>> df.max()
             A    3.0
@@ -2823,7 +2823,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Calculating the sum of each column(the default behavior without an explicit axis parameter).
+        Calculating the sum of each column (the default behavior without an explicit axis parameter).
 
             >>> df.sum()
             A    4.0
