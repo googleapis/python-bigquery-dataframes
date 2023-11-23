@@ -177,6 +177,7 @@ class Session(
         # Now that we're starting the session, don't allow the options to be
         # changed.
         context._session_started = True
+        self._df_snapshot: Dict[bigquery.TableReference, datetime.datetime] = {}
 
     @property
     def bqclient(self):
@@ -462,19 +463,6 @@ class Session(
         column(s), then return those too so that ordering generation can be
         avoided.
         """
-        if table_ref.dataset_id.upper() == "_SESSION":
-            # _SESSION tables aren't supported by the tables.get REST API.
-            return (
-                self.ibis_client.sql(
-                    f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
-                ),
-                None,
-            )
-        table_expression = self.ibis_client.table(
-            table_ref.table_id,
-            database=f"{table_ref.project}.{table_ref.dataset_id}",
-        )
-
         # If there are primary keys defined, the query engine assumes these
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
@@ -495,14 +483,19 @@ class Session(
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-        current_timestamp = list(
-            self.bqclient.query(
-                "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
-                job_config=job_config,
-            ).result()
-        )[0][0]
+
+        if table_ref in self._df_snapshot.keys():
+            snapshot_timestamp = self._df_snapshot[table_ref]
+        else:
+            snapshot_timestamp = list(
+                self.bqclient.query(
+                    "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+                    job_config=job_config,
+                ).result()
+            )[0][0]
+            self._df_snapshot[table_ref] = snapshot_timestamp
         table_expression = self.ibis_client.sql(
-            bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
+            bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
         )
         return table_expression, primary_keys
 
