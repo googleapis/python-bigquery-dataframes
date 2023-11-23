@@ -2811,7 +2811,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def median(self, *, numeric_only: bool = False, exact: bool = False):
-        """Return the median of the values over colunm.
+        """Return the median of the values over colunms.
 
         **Examples:**
 
@@ -2891,7 +2891,7 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def skew(self, *, numeric_only: bool = False):
-        """Return unbiased skew over column.
+        """Return unbiased skew over columns.
 
         Normalized by N-1.
 
