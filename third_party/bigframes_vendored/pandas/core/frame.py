@@ -2868,14 +2868,14 @@ class DataFrame(NDFrame):
             >>> df.var()
             A    2.0
             B    2.0
-            dtype: float64
+            dtype: Float64
 
         Calculating the variance of each row.
 
             >>> df.var(axis=1)
             0    0.5
             1    0.5
-            dtype: float64
+            dtype: Float64
 
 
         Args:
