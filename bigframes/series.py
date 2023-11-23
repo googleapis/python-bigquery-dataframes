@@ -680,6 +680,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (self.rfloordiv(other), self.rmod(other))
 
     def __matmul__(self, other):
+        if isinstance(other, bigframes.dataframe.DataFrame):
+            return Series(
+                [
+                    pandas.NA if other[col].isna().any() else (self * other[col]).sum()
+                    for col in other.columns
+                ],
+                index=other.columns,
+                name=self.name,
+            )
+
+        # At this point other must be a Series
         return (self * other).sum()
 
     dot = __matmul__
