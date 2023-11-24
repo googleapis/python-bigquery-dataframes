@@ -214,6 +214,14 @@ class Session(
         # Stable hash needed to use in expression tree
         return hash(str(self._anonymous_dataset))
 
+    def clear_cache(self, table: str):
+        """Clear the cached snapshot for the table reference."""
+        table_ref = bigquery.table.TableReference.from_string(
+            table, default_project=self.bqclient.project
+        )
+        if table_ref in self._df_snapshot:
+            self._df_snapshot.pop(table_ref)
+
     def _create_bq_datasets(self):
         """Create and identify dataset(s) for temporary BQ resources."""
         query_job = self.bqclient.query("SELECT 1", location=self._location)
@@ -511,8 +519,6 @@ class Session(
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
 
-        # TODO(swast): Can we re-use the temp table from other reads in the
-        # session, if the original table wasn't modified?
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
