@@ -16,17 +16,17 @@
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
-_PREDICT_OUTPUT_COLUMNS = ["forecast_timestamp", "forecast_value"]
 
-
+@log_adapter.class_logger
 class ARIMAPlus(base.SupervisedTrainablePredictor):
     """Time Series ARIMA Plus model."""
 
@@ -100,10 +100,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        return cast(
-            bpd.DataFrame,
-            self._bqml_model.forecast()[_PREDICT_OUTPUT_COLUMNS],
-        )
+        return self._bqml_model.forecast()
 
     def score(
         self,

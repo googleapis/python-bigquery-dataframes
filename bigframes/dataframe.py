@@ -41,6 +41,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
+from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.groupby as groupby
@@ -81,6 +82,7 @@ ERROR_IO_REQUIRES_WILDCARD = (
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
+@log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
 
@@ -1262,9 +1264,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     column_id, direction=direction, na_last=na_last
                 )
             )
-        return DataFrame(
-            self._block.order_by(ordering, stable=kind in order.STABLE_SORTS)
-        )
+        return DataFrame(self._block.order_by(ordering))
 
     def value_counts(
         self,
@@ -2577,14 +2577,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         }
 
         if ordering_id is not None:
-            return array_value.to_sql(
-                offset_column=ordering_id,
-                col_id_overrides=id_overrides,
-            )
-        else:
-            return array_value.to_sql(
-                col_id_overrides=id_overrides,
-            )
+            array_value = array_value.promote_offsets(ordering_id)
+        return array_value.to_sql(
+            col_id_overrides=id_overrides,
+        )
 
     def _run_io_query(
         self,
@@ -2801,7 +2797,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result = result[other_frame.columns]
 
         if isinstance(other, bf_series.Series):
-            result = result[other.name].rename()
+            # There should be exactly one column in the result
+            result = result[result.columns[0]].rename()
 
         return result
 
