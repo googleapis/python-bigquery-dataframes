@@ -122,6 +122,16 @@ def concat(
 concat.__doc__ = vendored_pandas_concat.concat.__doc__
 
 
+def clear_cache(table: str):
+    return global_session.with_default_session(
+        bigframes.session.Session.clear_cache,
+        table=table,
+    )
+
+
+clear_cache.__doc__ = bigframes.session.Session.clear_cache.__doc__
+
+
 def cut(
     x: bigframes.series.Series,
     bins: int,
@@ -652,7 +662,7 @@ reset_session = global_session.close_session
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
     # Functions
-    "concat",
+    "clear_cache" "concat",
     "merge",
     "read_csv",
     "read_gbq",
