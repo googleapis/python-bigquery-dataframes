@@ -84,9 +84,9 @@ nox.options.sessions = [
     "format",
     "docs",
     "docfx",
-    "unit_prerelease",
+    "unit",
     "unit_noextras",
-    "system_prerelease",
+    "system",
     "doctest",
     "cover",
 ]
@@ -521,10 +521,18 @@ def prerelease(session: nox.sessions.Session, tests_path):
     )
     already_installed.add("pandas")
 
+    # Ibis has introduced breaking changes. Let's exclude ibis head
+    # from prerelease install list for now. We should enable the head back
+    # once bigframes supports the version at HEAD.
+    # session.install(
+    #     "--upgrade",
+    #     "-e",  # Use -e so that py.typed file is included.
+    #     "git+https://github.com/ibis-project/ibis.git@7.x.x#egg=ibis-framework",
+    # )
     session.install(
         "--upgrade",
-        "-e",  # Use -e so that py.typed file is included.
-        "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
+        "--pre",
+        "ibis-framework",
     )
     already_installed.add("ibis-framework")
 

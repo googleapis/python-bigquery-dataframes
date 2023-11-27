@@ -472,8 +472,8 @@ class Session(
             )
         table_expression = self.ibis_client.table(  # type: ignore
             table_ref.table_id,
-            schema=table_ref.dataset_id,
-            database=table_ref.project,
+            # TODO: use "dataset_id" as the "schema"
+            database=f"{table_ref.project}.{table_ref.dataset_id}",
         )
 
         # If there are primary keys defined, the query engine assumes these
@@ -804,8 +804,8 @@ class Session(
         )
         table_expression = self.ibis_client.table(  # type: ignore
             load_table_destination.table_id,
-            schema=load_table_destination.dataset_id,
-            database=load_table_destination.project,
+            # TODO: use "dataset_id" as the "schema"
+            database=f"{load_table_destination.project}.{load_table_destination.dataset_id}",
         )
 
         # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
