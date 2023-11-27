@@ -2597,7 +2597,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter).
+        Checking if each column contains at least one True element (the default behavior without an explicit axis parameter).
 
             >>> df.any()
             A     True
@@ -2644,7 +2644,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if all values in each column are True(the default behavior without an explicit axis parameter).
+        Checking if all values in each column are True (the default behavior without an explicit axis parameter).
 
             >>> df.all()
             A     True
@@ -2688,7 +2688,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 2 columns]
 
-        Calculating the product of each column(the default behavior without an explicit axis parameter).
+        Calculating the product of each column (the default behavior without an explicit axis parameter).
 
             >>> df.prod()
             A        6.0
@@ -2721,6 +2721,33 @@ class DataFrame(NDFrame):
         If you want the *index* of the minimum, use ``idxmin``. This is the
         equivalent of the ``numpy.ndarray`` method ``argmin``.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the minimum value in each column (the default behavior without an explicit axis parameter).
+
+            >>> df.min()
+            A    1.0
+            B    2.0
+            dtype: Float64
+
+        Finding the minimum value in each row.
+
+            >>> df.min(axis=1)
+            0    1.0
+            1    3.0
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2739,6 +2766,33 @@ class DataFrame(NDFrame):
         If you want the *index* of the maximum, use ``idxmax``. This is
         the equivalent of the ``numpy.ndarray`` method ``argmax``.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the maximum value in each column (the default behavior without an explicit axis parameter).
+
+            >>> df.max()
+            A    3.0
+            B    4.0
+            dtype: Float64
+
+        Finding the maximum value in each row.
+
+            >>> df.max(axis=1)
+            0    2.0
+            1    4.0
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2755,6 +2809,33 @@ class DataFrame(NDFrame):
         """Return the sum of the values over the requested axis.
 
         This is equivalent to the method ``numpy.sum``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the sum of each column (the default behavior without an explicit axis parameter).
+
+            >>> df.sum()
+            A    4.0
+            B    6.0
+            dtype: Float64
+
+        Calculating the sum of each row.
+
+            >>> df.sum(axis=1)
+            0    3.0
+            1    7.0
+            dtype: Float64
 
         Args:
             axis ({index (0), columns (1)}):
@@ -3403,6 +3484,77 @@ class DataFrame(NDFrame):
 
             The dot method for Series computes the inner product, instead of the
             matrix product here.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
+            >>> left
+               0  1   2   3
+            0  0  1  -2  -1
+            1  1  1   1   1
+            <BLANKLINE>
+            [2 rows x 4 columns]
+            >>> right = bpd.DataFrame([[0, 1], [1, 2], [-1, -1], [2, 0]])
+            >>> right
+                0   1
+            0   0   1
+            1   1   2
+            2  -1  -1
+            3   2   0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+            >>> left.dot(right)
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        You can also use the operator ``@`` for the dot product:
+
+            >>> left @ right
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        The right input can be a Series, in which case the result will also be a
+        Series:
+
+            >>> right = bpd.Series([1, 2, -1,0])
+            >>> left @ right
+            0    4
+            1    2
+            dtype: Int64
+
+        Any user defined index of the left matrix and columns of the right
+        matrix will reflect in the result.
+
+            >>> left = bpd.DataFrame([[1, 2, 3], [2, 5, 7]], index=["alpha", "beta"])
+            >>> left
+                   0  1  2
+            alpha  1  2  3
+            beta   2  5  7
+            <BLANKLINE>
+            [2 rows x 3 columns]
+            >>> right = bpd.DataFrame([[2, 4, 8], [1, 5, 10], [3, 6, 9]], columns=["red", "green", "blue"])
+            >>> right
+               red  green  blue
+            0    2      4     8
+            1    1      5    10
+            2    3      6     9
+            <BLANKLINE>
+            [3 rows x 3 columns]
+            >>> left.dot(right)
+                   red  green  blue
+            alpha   13     32    55
+            beta    30     75   129
+            <BLANKLINE>
+            [2 rows x 3 columns]
 
         Args:
             other (Series or DataFrame):
