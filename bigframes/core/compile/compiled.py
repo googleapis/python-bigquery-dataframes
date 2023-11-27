@@ -21,7 +21,7 @@ from typing import Collection, Iterable, Literal, Optional, Sequence
 
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
-import ibis.common.deferred
+import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -66,6 +66,8 @@ class BaseIbisIR(abc.ABC):
         self._column_names = {
             (
                 column.resolve(table)
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
                 if isinstance(column, ibis.common.deferred.Deferred)
                 else column
             ).get_name(): column
@@ -654,6 +656,8 @@ class OrderedIR(BaseIbisIR):
         self._column_names = {
             (
                 column.resolve(table)
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
                 if isinstance(column, ibis.common.deferred.Deferred)
                 else column
             ).get_name(): column

@@ -24,7 +24,7 @@ def test_approximate_quantiles(session: bigframes.Session, scalars_table_id: str
     num_bins = 3
     ibis_client = session.ibis_client
     project, dataset, table_id = scalars_table_id.split(".")
-    ibis_table: ibis_types.Table = ibis_client.table(
+    ibis_table: ibis_types.Table = ibis_client.table(  # type: ignore
         table_id,
         schema=dataset,
         database=project,

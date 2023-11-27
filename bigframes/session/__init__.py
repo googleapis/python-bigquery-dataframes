@@ -470,7 +470,7 @@ class Session(
                 ),
                 None,
             )
-        table_expression = self.ibis_client.table(
+        table_expression = self.ibis_client.table(  # type: ignore
             table_ref.table_id,
             schema=table_ref.dataset_id,
             database=table_ref.project,
@@ -802,7 +802,7 @@ class Session(
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
-        table_expression = self.ibis_client.table(
+        table_expression = self.ibis_client.table(  # type: ignore
             load_table_destination.table_id,
             schema=load_table_destination.dataset_id,
             database=load_table_destination.project,
