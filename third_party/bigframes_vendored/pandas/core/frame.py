@@ -2843,6 +2843,7 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
             ...                     "B": [3, 4, 3, 2, 1],
             ...                     "C": [2, 2, 3, 2, 2]})
+            >>> df
                 A	B	C
             0	1	3	2
             1	2	4	2
@@ -2882,6 +2883,7 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
             ...                     "B": [3, 4, 3, 2, 1],
             ...                     "C": [2, 2, 3, 2, 2]})
+            >>> df
                 A	B	C
             0	1	3	2
             1	2	4	2
@@ -2912,6 +2914,9 @@ class DataFrame(NDFrame):
         """
         Count non-NA cells for each column.
 
+        The values `None`, `NaN`, `NaT`, and optionally `numpy.inf` (depending
+        on `pandas.options.mode.use_inf_as_na`) are considered NA.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -2921,7 +2926,7 @@ class DataFrame(NDFrame):
             ...                     "B": [1, 2, 3, 4, 5],
             ...                     "C": [None, 3.5, None, 4.5, 5.0]})
             >>> df
-                    A	B	   C
+                   A	B	   C
             0	 1.0	1	<NA>
             1	<NA>	2	 3.5
             2	 3.0	3	<NA>
@@ -2937,9 +2942,6 @@ class DataFrame(NDFrame):
             B    5.0
             C    3.0
             dtype: Float64
-
-        The values `None`, `NaN`, `NaT`, and optionally `numpy.inf` (depending
-        on `pandas.options.mode.use_inf_as_na`) are considered NA.
 
         Args:
             numeric_only (bool, default False):
