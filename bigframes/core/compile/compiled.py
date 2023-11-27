@@ -21,6 +21,7 @@ from typing import Collection, Iterable, Literal, Optional, Sequence
 
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
+import ibis.common.deferred
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -62,7 +63,14 @@ class BaseIbisIR(abc.ABC):
         self._columns = tuple(columns)
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
-        self._column_names = {column.get_name(): column for column in self._columns}
+        self._column_names = {
+            (
+                column.resolve(table)
+                if isinstance(column, ibis.common.deferred.Deferred)
+                else column
+            ).get_name(): column
+            for column in self._columns
+        }
 
     @property
     def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
@@ -643,7 +651,14 @@ class OrderedIR(BaseIbisIR):
 
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
-        self._column_names = {column.get_name(): column for column in self._columns}
+        self._column_names = {
+            (
+                column.resolve(table)
+                if isinstance(column, ibis.common.deferred.Deferred)
+                else column
+            ).get_name(): column
+            for column in self._columns
+        }
         self._hidden_ordering_column_names = {
             column.get_name(): column for column in self._hidden_ordering_columns
         }
