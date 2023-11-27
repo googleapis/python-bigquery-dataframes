@@ -411,7 +411,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             column_info = column_info.reset_index(drop=True)
             column_info.index.name = "#"
 
-            column_info_formatted = tabulate.tabulate(column_info, headers="keys")
+            column_info_formatted = tabulate.tabulate(column_info, headers="keys")  # type: ignore
             obuf.write(column_info_formatted)
             obuf.write("\n")
 
@@ -420,8 +420,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Columns: {n_columns} entries, {self.columns[0]} to {self.columns[-1]}\n"
             )
         dtype_counts = dtype_strings.value_counts().sort_index(ascending=True).items()
-        dtype_counts = ", ".join(f"{dtype}({count})" for dtype, count in dtype_counts)
-        obuf.write(f"dtypes: {dtype_counts}\n")
+        dtype_counts_formatted = ", ".join(
+            f"{dtype}({count})" for dtype, count in dtype_counts
+        )
+        obuf.write(f"dtypes: {dtype_counts_formatted}\n")
 
         show_memory = (
             memory_usage
