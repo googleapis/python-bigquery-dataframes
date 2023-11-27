@@ -1045,3 +1045,21 @@ def test_column_multi_index_dot_not_supported():
         NotImplementedError, match="Multi-level column input is not supported"
     ):
         bf1 @ bf2
+
+
+def test_series_dot_df_column_multi_index():
+    left = [10, 11, 12, 13]  # series data
+    right = [[0, 1, 2], [-2, 3, -4], [4, -5, 6], [6, 7, -8]]  # dataframe data
+
+    multi_level_columns = pandas.MultiIndex.from_arrays(
+        [["col0", "col0", "col1"], ["col00", "col01", "col11"]]
+    )
+
+    bf_result = bpd.Series(left) @ bpd.DataFrame(right, columns=multi_level_columns)
+    pd_result = pandas.Series(left) @ pandas.DataFrame(
+        right, columns=multi_level_columns
+    )
+
+    pandas.testing.assert_series_equal(
+        bf_result.to_pandas(), pd_result, check_index_type=False, check_dtype=False
+    )
