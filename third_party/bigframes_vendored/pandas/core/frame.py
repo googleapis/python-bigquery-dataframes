@@ -2914,29 +2914,29 @@ class DataFrame(NDFrame):
 
         Examples:
 
-        >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-        >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
-        ...                     "B": [1, 2, 3, 4, 5],
-        ...                     "C": [None, 3.5, None, 4.5, 5.0]})
-        >>> df
-               A	B	   C
-        0	 1.0	1	<NA>
-        1	<NA>	2	 3.5
-        2	 3.0	3	<NA>
-        3	 4.0	4	 4.5
-        4	 5.0	5	 5.0
-        <BLANKLINE>
-        [5 rows x 3 columns]
+            >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
+            ...                     "B": [1, 2, 3, 4, 5],
+            ...                     "C": [None, 3.5, None, 4.5, 5.0]})
+            >>> df
+                    A	B	   C
+            0	 1.0	1	<NA>
+            1	<NA>	2	 3.5
+            2	 3.0	3	<NA>
+            3	 4.0	4	 4.5
+            4	 5.0	5	 5.0
+            <BLANKLINE>
+            [5 rows x 3 columns]
 
         Counting non-NA values for each column.
 
-        >>> df.count()
-        A    4.0
-        B    5.0
-        C    3.0
-        dtype: Float64
+            >>> df.count()
+            A    4.0
+            B    5.0
+            C    3.0
+            dtype: Float64
 
         The values `None`, `NaN`, `NaT`, and optionally `numpy.inf` (depending
         on `pandas.options.mode.use_inf_as_na`) are considered NA.
