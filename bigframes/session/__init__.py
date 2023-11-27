@@ -214,14 +214,6 @@ class Session(
         # Stable hash needed to use in expression tree
         return hash(str(self._anonymous_dataset))
 
-    def clear_cache(self, table: str):
-        """Clear the cached snapshot for the table reference."""
-        table_ref = bigquery.table.TableReference.from_string(
-            table, default_project=self.bqclient.project
-        )
-        if table_ref in self._df_snapshot:
-            self._df_snapshot.pop(table_ref)
-
     def _create_bq_datasets(self):
         """Create and identify dataset(s) for temporary BQ resources."""
         query_job = self.bqclient.query("SELECT 1", location=self._location)
@@ -255,6 +247,7 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
+        use_cache: bool = True,
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
@@ -276,6 +269,7 @@ class Session(
                 col_order=col_order,
                 max_results=max_results,
                 api_name="read_gbq",
+                use_cache=use_cache,
             )
 
     def _query_to_destination(
@@ -435,6 +429,7 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
+        use_cache: bool = True,
     ) -> dataframe.DataFrame:
         """Turn a BigQuery table into a DataFrame.
 
@@ -457,6 +452,7 @@ class Session(
             col_order=col_order,
             max_results=max_results,
             api_name="read_gbq_table",
+            use_cache=use_cache,
         )
 
     def _get_snapshot_sql_and_primary_key(
@@ -464,6 +460,7 @@ class Session(
         table_ref: bigquery.table.TableReference,
         *,
         api_name: str,
+        use_cache: bool = True,
     ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
         """Create a read-only Ibis table expression representing a table.
 
@@ -491,9 +488,17 @@ class Session(
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-
-        if table_ref in self._df_snapshot.keys():
-            snapshot_timestamp = self._df_snapshot[table_ref]
+        if use_cache:
+            if table_ref in self._df_snapshot.keys():
+                snapshot_timestamp = self._df_snapshot[table_ref]
+            else:
+                snapshot_timestamp = list(
+                    self.bqclient.query(
+                        "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+                        job_config=job_config,
+                    ).result()
+                )[0][0]
+                self._df_snapshot[table_ref] = snapshot_timestamp
         else:
             snapshot_timestamp = list(
                 self.bqclient.query(
@@ -501,7 +506,6 @@ class Session(
                     job_config=job_config,
                 ).result()
             )[0][0]
-            self._df_snapshot[table_ref] = snapshot_timestamp
         table_expression = self.ibis_client.sql(
             bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
         )
@@ -515,6 +519,7 @@ class Session(
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
         api_name: str,
+        use_cache: bool = True,
     ) -> dataframe.DataFrame:
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
@@ -526,7 +531,9 @@ class Session(
         (
             table_expression,
             total_ordering_cols,
-        ) = self._get_snapshot_sql_and_primary_key(table_ref, api_name=api_name)
+        ) = self._get_snapshot_sql_and_primary_key(
+            table_ref, api_name=api_name, use_cache=use_cache
+        )
 
         for key in col_order:
             if key not in table_expression.columns:
