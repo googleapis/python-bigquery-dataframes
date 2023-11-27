@@ -2912,7 +2912,7 @@ class DataFrame(NDFrame):
         """
         Count non-NA cells for each column.
 
-        Examples:
+        **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
