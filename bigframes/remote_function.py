@@ -203,9 +203,24 @@ class RemoteFunctionClient:
               max_batching_rows = 1000
             )"""
 
-        # Go ahead and create the BQ remote function routine assuming the
-        # dataset exists
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
+
+        # Make sure the dataset exists. I.e. if it doesn't exist, go ahead and
+        # create it
+        dataset = bigquery.Dataset(
+            bigquery.DatasetReference.from_string(
+                self._bq_dataset, default_project=self._gcp_project_id
+            )
+        )
+        dataset.location = self._bq_location
+        try:
+            # This check does not require bigquery.datasets.create IAM
+            # permission. So, if the data set already exists, then user can work
+            # without having that permission.
+            self._bq_client.get_dataset(dataset)
+        except google.api_core.exceptions.NotFound:
+            # This requires bigquery.datasets.create IAM permission
+            self._bq_client.create_dataset(dataset, exists_ok=True)
 
         # TODO: Use session._start_query() so we get progress bar
         query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
