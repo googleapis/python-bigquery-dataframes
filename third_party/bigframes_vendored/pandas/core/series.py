@@ -44,7 +44,54 @@ class Series(NDFrame):  # type: ignore[misc]
 
     @property
     def index(self):
-        """The index (axis labels) of the Series."""
+        """The index (axis labels) of the Series.
+
+        The index of a Series is used to label and identify each element of the
+        underlying data. The index can be thought of as an immutable ordered set
+        (technically a multi-set, as it may contain duplicate labels), and is
+        used to index and align data.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can access the index of a Series via ``index`` property.
+
+            >>> df = bpd.DataFrame({'Name': ['Alice', 'Bob', 'Aritra'],
+            ...                     'Age': [25, 30, 35],
+            ...                     'Location': ['Seattle', 'New York', 'Kona']},
+            ...                    index=([10, 20, 30]))
+            >>> s = df["Age"]
+            >>> s
+            10    25
+            20    30
+            30    35
+            Name: Age, dtype: Int64
+            >>> s.index # doctest: +ELLIPSIS
+            <bigframes.core.indexes.index.Index object at ...>
+            >>> s.index.values
+            array([10, 20, 30], dtype=object)
+
+        Let's try setting a multi-index case reflect via ``index`` property.
+
+            >>> df1 = df.set_index(["Name", "Location"])
+            >>> s1 = df1["Age"]
+            >>> s1
+            Name    Location
+            Alice   Seattle     25
+            Bob     New York    30
+            Aritra  Kona        35
+            Name: Age, dtype: Int64
+            >>> s1.index # doctest: +ELLIPSIS
+            <bigframes.core.indexes.index.Index object at ...>
+            >>> s1.index.values
+            array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
+                dtype=object)
+
+        Returns:
+            The index labels of the Series.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -583,6 +630,21 @@ class Series(NDFrame):  # type: ignore[misc]
             or a DataFrame.
             BigQuery Dataframes does not validate this property and will produce
             incorrect results if indices are not equal.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+            >>> other = bpd.Series([-1, 2, -3, 4])
+            >>> s.dot(other)
+            8
+
+        You can also use the operator ``@`` for the dot product:
+
+            >>> s @ other
+            8
 
         Args:
             other (Series):
@@ -1696,6 +1758,49 @@ class Series(NDFrame):  # type: ignore[misc]
     def where(self, cond, other):
         """Replace values where the condition is False.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([10, 11, 12, 13, 14])
+            >>> s
+            0    10
+            1    11
+            2    12
+            3    13
+            4    14
+            dtype: Int64
+
+        You can filter the values in the Series based on a condition. The values
+        matching the condition would be kept, and not matching would be replaced.
+        The default replacement value is ``NA``.
+
+            >>> s.where(s % 2 == 0)
+            0      10
+            1    <NA>
+            2      12
+            3    <NA>
+            4      14
+            dtype: Int64
+
+        You can specify a custom replacement value for non-matching values.
+
+            >>> s.where(s % 2 == 0, -1)
+            0    10
+            1    -1
+            2    12
+            3    -1
+            4    14
+            dtype: Int64
+            >>> s.where(s % 2 == 0, 100*s)
+            0      10
+            1    1100
+            2      12
+            3    1300
+            4      14
+            dtype: Int64
+
         Args:
             cond (bool Series/DataFrame, array-like, or callable):
                 Where cond is True, keep the original value. Where False, replace
@@ -1719,6 +1824,77 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def mask(self, cond, other):
         """Replace values where the condition is True.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([10, 11, 12, 13, 14])
+            >>> s
+            0    10
+            1    11
+            2    12
+            3    13
+            4    14
+            dtype: Int64
+
+        You can mask the values in the Series based on a condition. The values
+        matching the condition would be masked.
+
+            >>> s.mask(s % 2 == 0)
+            0    <NA>
+            1      11
+            2    <NA>
+            3      13
+            4    <NA>
+            dtype: Int64
+
+        You can specify a custom mask value.
+
+            >>> s.mask(s % 2 == 0, -1)
+            0    -1
+            1    11
+            2    -1
+            3    13
+            4    -1
+            dtype: Int64
+            >>> s.mask(s % 2 == 0, 100*s)
+            0    1000
+            1      11
+            2    1200
+            3      13
+            4    1400
+            dtype: Int64
+
+        You can also use a remote function to evaluate the mask condition. This
+        is useful in situation such as the following, where the mask
+        condition is evaluated based on a complicated business logic which cannot
+        be expressed in form of a Series.
+
+            >>> @bpd.remote_function([str], bool, reuse=False)
+            ... def should_mask(name):
+            ...     hash = 0
+            ...     for char_ in name:
+            ...         hash += ord(char_)
+            ...     return hash % 2 == 0
+
+            >>> s = bpd.Series(["Alice", "Bob", "Caroline"])
+            >>> s
+            0       Alice
+            1         Bob
+            2    Caroline
+            dtype: string
+            >>> s.mask(should_mask)
+            0        <NA>
+            1         Bob
+            2    Caroline
+            dtype: string
+            >>> s.mask(should_mask, "REDACTED")
+            0    REDACTED
+            1         Bob
+            2    Caroline
+            dtype: string
 
         Args:
             cond (bool Series/DataFrame, array-like, or callable):
