@@ -258,6 +258,7 @@ class Session(
                 col_order=col_order,
                 max_results=max_results,
                 api_name="read_gbq",
+                use_cache=use_cache,
             )
         else:
             # TODO(swast): Query the snapshot table but mark it as a
@@ -322,6 +323,7 @@ class Session(
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
+        use_cache: bool = True,
     ) -> dataframe.DataFrame:
         """Turn a SQL query into a DataFrame.
 
@@ -379,6 +381,7 @@ class Session(
             col_order=col_order,
             max_results=max_results,
             api_name="read_gbq_query",
+            use_cache=use_cache,
         )
 
     def _read_gbq_query(
@@ -389,6 +392,7 @@ class Session(
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_query",
+        use_cache: bool = True,
     ) -> dataframe.DataFrame:
         if isinstance(index_col, str):
             index_cols = [index_col]
@@ -398,6 +402,8 @@ class Session(
         destination, query_job = self._query_to_destination(
             query, index_cols, api_name=api_name
         )
+        if query_job is not None:
+            query_job.use_query_cache = use_cache
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.
@@ -420,6 +426,7 @@ class Session(
             index_col=index_cols,
             col_order=col_order,
             max_results=max_results,
+            use_cache=use_cache,
         )
 
     def read_gbq_table(
@@ -488,17 +495,9 @@ class Session(
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-        if use_cache:
-            if table_ref in self._df_snapshot.keys():
-                snapshot_timestamp = self._df_snapshot[table_ref]
-            else:
-                snapshot_timestamp = list(
-                    self.bqclient.query(
-                        "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
-                        job_config=job_config,
-                    ).result()
-                )[0][0]
-                self._df_snapshot[table_ref] = snapshot_timestamp
+        job_config.use_query_cache = use_cache
+        if use_cache and table_ref in self._df_snapshot.keys():
+            snapshot_timestamp = self._df_snapshot[table_ref]
         else:
             snapshot_timestamp = list(
                 self.bqclient.query(
@@ -506,6 +505,7 @@ class Session(
                     job_config=job_config,
                 ).result()
             )[0][0]
+            self._df_snapshot[table_ref] = snapshot_timestamp
         table_expression = self.ibis_client.sql(
             bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
         )

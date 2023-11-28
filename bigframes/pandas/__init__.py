@@ -518,6 +518,7 @@ def read_gbq_query(
     index_col: Iterable[str] | str = (),
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
+    use_cache: bool = True,
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -526,6 +527,7 @@ def read_gbq_query(
         index_col=index_col,
         col_order=col_order,
         max_results=max_results,
+        use_cache=use_cache,
     )
 
 
@@ -656,7 +658,7 @@ reset_session = global_session.close_session
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
     # Functions
-    "clear_cache" "concat",
+    "concat",
     "merge",
     "read_csv",
     "read_gbq",
