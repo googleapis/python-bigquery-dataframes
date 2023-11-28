@@ -188,6 +188,7 @@ class RemoteFunctionClient:
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
         bq_function_return_type = BigQueryType.from_ibis(output_type)
+
         # We are expecting the input type annotations to be 1:1 with the input args
         for idx, name in enumerate(input_args):
             bq_function_args.append(
@@ -202,16 +203,9 @@ class RemoteFunctionClient:
               max_batching_rows = 1000
             )"""
 
+        # Go ahead and create the BQ remote function routine assuming the
+        # dataset exists
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
-
-        # Make sure the dataset exists
-        dataset = bigquery.Dataset(
-            bigquery.DatasetReference.from_string(
-                self._bq_dataset, default_project=self._gcp_project_id
-            )
-        )
-        dataset.location = self._bq_location
-        self._bq_client.create_dataset(dataset, exists_ok=True)
 
         # TODO: Use session._start_query() so we get progress bar
         query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
