@@ -402,8 +402,6 @@ class Session(
         destination, query_job = self._query_to_destination(
             query, index_cols, api_name=api_name
         )
-        if query_job is not None:
-            query_job.use_query_cache = use_cache
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.
@@ -416,6 +414,7 @@ class Session(
                         ],
                         "job_id": [query_job.job_id if query_job else "unknown"],
                         "location": [query_job.location if query_job else "unknown"],
+                        "use_query_cache": [use_cache],
                     }
                 ),
                 session=self,
