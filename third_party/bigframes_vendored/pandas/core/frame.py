@@ -2597,14 +2597,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter).
+        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter):
 
             >>> df.any()
             A     True
             B    False
             dtype: boolean
 
-        Checking if each row contains at least one True element.
+        Checking if each row contains at least one True element:
 
             >>> df.any(axis=1)
             0    True
@@ -2644,14 +2644,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if all values in each column are True(the default behavior without an explicit axis parameter).
+        Checking if all values in each column are True(the default behavior without an explicit axis parameter):
 
             >>> df.all()
             A     True
             B    False
             dtype: boolean
 
-        Checking across rows to see if all values are True.
+        Checking across rows to see if all values are True:
 
             >>> df.all(axis=1)
             0    False
@@ -2688,14 +2688,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 2 columns]
 
-        Calculating the product of each column(the default behavior without an explicit axis parameter).
+        Calculating the product of each column(the default behavior without an explicit axis parameter):
 
             >>> df.prod()
             A        6.0
             B    160.875
             dtype: Float64
 
-        Calculating the product of each row.
+        Calculating the product of each row:
 
             >>> df.prod(axis=1)
             0     4.5
@@ -2853,7 +2853,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [5 rows x 3 columns]
 
-        Calculating the kurtosis value of each column.
+        Calculating the kurtosis value of each column:
 
             >>> df.kurt()
             A        -1.2
@@ -2893,7 +2893,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [5 rows x 3 columns]
 
-        Calculating the standard deviation of each column.
+        Calculating the standard deviation of each column:
 
             >>> df.std()
             A    1.581139
@@ -2935,7 +2935,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [5 rows x 3 columns]
 
-        Counting non-NA values for each column.
+        Counting non-NA values for each column:
 
             >>> df.count()
             A    4.0
