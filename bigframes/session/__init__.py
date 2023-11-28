@@ -278,6 +278,7 @@ class Session(
         query: str,
         index_cols: List[str],
         api_name: str,
+        use_cache: bool = True,
     ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
@@ -302,6 +303,7 @@ class Session(
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
+        job_config.use_query_cache = use_cache
 
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
@@ -400,7 +402,10 @@ class Session(
             index_cols = list(index_col)
 
         destination, query_job = self._query_to_destination(
-            query, index_cols, api_name=api_name
+            query,
+            index_cols,
+            api_name=api_name,
+            use_cache=use_cache,
         )
 
         # If there was no destination table, that means the query must have
@@ -414,7 +419,6 @@ class Session(
                         ],
                         "job_id": [query_job.job_id if query_job else "unknown"],
                         "location": [query_job.location if query_job else "unknown"],
-                        "use_query_cache": [use_cache],
                     }
                 ),
                 session=self,
@@ -494,7 +498,6 @@ class Session(
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-        job_config.use_query_cache = use_cache
         if use_cache and table_ref in self._df_snapshot.keys():
             snapshot_timestamp = self._df_snapshot[table_ref]
         else:
