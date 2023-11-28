@@ -3438,6 +3438,28 @@ def test_df_cached(scalars_df_index):
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
 
 
+def test_df_auto_cached(scalars_df_index):
+    df = (
+        scalars_df_index.copy()
+        .set_index(["int64_too", "int64_col"])
+        .sort_values("string_col")
+    )
+    df = df[df["rowindex_2"] % 2 == 0]
+
+    df._cached()
+
+    df2 = (
+        scalars_df_index.copy()
+        .set_index(["int64_too", "int64_col"])
+        .sort_values("string_col")
+    )
+    df2 = df2[df2["rowindex_2"] % 2 == 0]
+
+    r1 = df.to_pandas()
+    r2 = df2.to_pandas()
+    pandas.testing.assert_frame_equal(r1, r2)
+
+
 def test_df_dot_inline(session):
     df1 = pd.DataFrame([[1, 2, 3], [2, 5, 7]])
     df2 = pd.DataFrame([[2, 4, 8], [1, 5, 10], [3, 6, 9]])

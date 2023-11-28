@@ -182,6 +182,10 @@ class Block:
         """Returns the dtypes of the index columns."""
         return [self.expr.get_column_type(col) for col in self.index_columns]
 
+    @property
+    def session(self) -> core.Session:
+        return self._expr.session
+
     @functools.cached_property
     def col_id_to_label(self) -> typing.Mapping[str, Label]:
         """Get column label for value columns, or index name for index columns"""
@@ -421,9 +425,9 @@ class Block:
         """Download results one message at a time."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        results_iterator, _ = self._expr.start_query()
+        results_iterator, _ = self.session._execute(self.expr, sorted=True)
         for arrow_table in results_iterator.to_arrow_iterable(
-            bqstorage_client=self._expr.session.bqstoragereadclient
+            bqstorage_client=self.session.bqstoragereadclient
         ):
             df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
             self._copy_index_to_pandas(df)
@@ -446,21 +450,22 @@ class Block:
         value_keys: Optional[Iterable[str]] = None,
         max_results: Optional[int] = None,
         max_download_size: Optional[int] = None,
-        sampling_method: Optional[str] = None,
+        sampling_method: str = "head",
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
-        expr = self._apply_value_keys_to_expr(value_keys=value_keys)
+        array_value = self._apply_value_keys_to_expr(value_keys=value_keys)
 
-        results_iterator, query_job = expr.start_query(
-            max_results=max_results, sorted=ordered
+        results_iterator, query_job = self.session._execute(
+            self.expr, max_results=max_results, sorted=ordered
         )
 
         table_size = (
-            expr.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+            array_value.session._get_table_size(query_job.destination)
+            / _BYTES_TO_MEGABYTES
         )
         fraction = (
             max_download_size / table_size
@@ -468,7 +473,7 @@ class Block:
             else 2
         )
 
-        if fraction < 1:
+        if table_size > max_download_size:
             if not bigframes.options.sampling.enable_downsampling:
                 raise RuntimeError(
                     f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of "
@@ -480,49 +485,55 @@ class Block:
                     " # Setting it to None will download all the data\n"
                     f"{constants.FEEDBACK_LINK}"
                 )
-
             warnings.warn(
                 f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of"
                 f"({max_download_size} MB). It will be downsampled to {max_download_size} MB for download."
                 "\nPlease refer to the documentation for configuring the downloading limit.",
                 UserWarning,
             )
-            if sampling_method == _HEAD:
-                total_rows = int(results_iterator.total_rows * fraction)
-                results_iterator.max_results = total_rows
-                df = self._to_dataframe(results_iterator)
-
-                if self.index_columns:
-                    df.set_index(list(self.index_columns), inplace=True)
-                    df.index.names = self.index.names  # type: ignore
-            elif (sampling_method == _UNIFORM) and (random_state is None):
-                filtered_expr = self.expr._uniform_sampling(fraction)
-                block = Block(
-                    filtered_expr,
-                    index_columns=self.index_columns,
-                    column_labels=self.column_labels,
-                    index_labels=self.index.names,
-                )
-                df, total_rows, _ = block._compute_and_count(max_download_size=None)
-            elif sampling_method == _UNIFORM:
-                block = self._split(
-                    fracs=(max_download_size / table_size,),
-                    random_state=random_state,
-                    preserve_order=True,
-                )[0]
-                df, total_rows, _ = block._compute_and_count(max_download_size=None)
-            else:
-                # This part should never be called, just in case.
-                raise NotImplementedError(
-                    f"The downsampling method {sampling_method} is not implemented, "
-                    f"please choose from {','.join(_SAMPLING_METHODS)}."
-                )
-        else:
+            fraction = max_download_size / table_size
             total_rows = results_iterator.total_rows
-            df = self._to_dataframe(results_iterator)
-            self._copy_index_to_pandas(df)
+            return self._downsample(
+                total_rows=total_rows,
+                sampling_method=sampling_method,
+                fraction=fraction,
+                random_state=random_state,
+            )._compute_and_count(max_download_size=None)
+
+        total_rows = results_iterator.total_rows
+        df = self._to_dataframe(results_iterator)
+        self._copy_index_to_pandas(df)
 
         return df, total_rows, query_job
+
+    def _downsample(
+        self, total_rows: int, sampling_method: str, fraction: float, random_state
+    ) -> Block:
+        if sampling_method == _HEAD:
+            filtered_block = self.slice(stop=int(total_rows * fraction))
+            return filtered_block
+        elif (sampling_method == _UNIFORM) and (random_state is None):
+            filtered_expr = self.expr._uniform_sampling(fraction)
+            block = Block(
+                filtered_expr,
+                index_columns=self.index_columns,
+                column_labels=self.column_labels,
+                index_labels=self.index.names,
+            )
+            return block
+        elif sampling_method == _UNIFORM:
+            block = self._split(
+                fracs=(fraction,),
+                random_state=random_state,
+                preserve_order=True,
+            )[0]
+            return block
+        else:
+            # This part should never be called, just in case.
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
 
     def _split(
         self,
@@ -601,8 +612,7 @@ class Block:
         self, value_keys: Optional[Iterable[str]] = None
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
-        job_config = bigquery.QueryJobConfig(dry_run=True)
-        _, query_job = expr.start_query(job_config=job_config)
+        _, query_job = self.session._execute(expr, dry_run=True)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
@@ -1102,7 +1112,7 @@ class Block:
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
-    ) -> bigframes.core.blocks.Block:
+    ) -> Block:
         if step is None:
             step = 1
         if step == 0:
@@ -1663,7 +1673,7 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        sql = array_value.to_sql(col_id_overrides=substitutions)
+        sql = self.session._to_sql(array_value, col_id_overrides=substitutions)
         return (
             sql,
             new_ids[: len(idx_labels)],
@@ -1672,12 +1682,8 @@ class Block:
 
     def cached(self) -> Block:
         """Write the block to a session table and create a new block object that references it."""
-        return Block(
-            self.expr.cached(cluster_cols=self.index_columns),
-            index_columns=self.index_columns,
-            column_labels=self.column_labels,
-            index_labels=self.index_labels,
-        )
+        self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns)
+        return self
 
     def resolve_index_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):

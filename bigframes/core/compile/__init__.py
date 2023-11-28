@@ -13,11 +13,10 @@
 # limitations under the License.
 
 from bigframes.core.compile.compiled import OrderedIR, UnorderedIR
-from bigframes.core.compile.compiler import compile_ordered, compile_unordered
+from bigframes.core.compile.compiler import Compiler
 
 __all__ = [
-    "compile_ordered",
-    "compile_unordered",
+    "Compiler",
     "OrderedIR",
     "UnorderedIR",
 ]
