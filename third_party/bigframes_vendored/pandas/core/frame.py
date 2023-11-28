@@ -3148,6 +3148,8 @@ class DataFrame(NDFrame):
             0	3	1
             1	1	2
             2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
             >>> df.idxmin()
             A    1
@@ -3176,6 +3178,8 @@ class DataFrame(NDFrame):
             0	3	1
             1	1	2
             2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
             >>> df.idxmax()
             A    0
