@@ -2703,6 +2703,14 @@ def test_sample(scalars_dfs, frac, n, random_state):
     assert bf_result.shape[1] == scalars_df.shape[1]
 
 
+def test_sample_determinism(penguins_df_default_index):
+    df = penguins_df_default_index.sample(n=100, random_state=12345).head(15)
+    bf_result = df.to_pandas()
+    bf_result2 = df.to_pandas()
+
+    pandas.testing.assert_frame_equal(bf_result, bf_result2)
+
+
 def test_sample_raises_value_error(scalars_dfs):
     scalars_df, _ = scalars_dfs
     with pytest.raises(
@@ -3480,6 +3488,29 @@ def test_df_dot_operator(
         pd_result[name] = pd_result[name].astype(pd.Int64Dtype())
 
     pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_df_dot_series_inline():
+    left = [[1, 2, 3], [2, 5, 7]]
+    right = [2, 1, 3]
+
+    bf1 = dataframe.DataFrame(left)
+    bf2 = series.Series(right)
+    bf_result = bf1.dot(bf2).to_pandas()
+
+    df1 = pd.DataFrame(left)
+    df2 = pd.Series(right)
+    pd_result = df1.dot(df2)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is int64 instead of Int64 (nullable) dtype.
+    pd_result = pd_result.astype(pd.Int64Dtype())
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
         bf_result,
         pd_result,
     )
