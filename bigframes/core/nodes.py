@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import functools
+import itertools
 import typing
 from typing import Optional, Tuple
 
@@ -52,6 +53,16 @@ class BigFrameNode:
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         """Direct children of this node"""
         return tuple([])
+
+    @property
+    def data_locations(self) -> typing.Sequence[str]:
+        return tuple(
+            set(
+                itertools.chain.from_iterable(
+                    map(lambda x: x.data_locations, self.child_nodes)
+                )
+            )
+        )
 
     @functools.cached_property
     def session(self):
@@ -120,6 +131,11 @@ class ReadGbqNode(BigFrameNode):
     columns: Tuple[ibis_types.Value, ...] = field()
     hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
     ordering: orderings.ExpressionOrdering = field()
+    table_location: str = field()
+
+    @property
+    def data_locations(self) -> typing.Sequence[str]:
+        return (self.table_location,)
 
     @property
     def session(self):

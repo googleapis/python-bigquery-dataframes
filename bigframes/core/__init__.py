@@ -58,6 +58,7 @@ class ArrayValue:
         columns: Sequence[ibis_types.Value],
         hidden_ordering_columns: Sequence[ibis_types.Value],
         ordering: orderings.ExpressionOrdering,
+        location: str,
     ):
         node = nodes.ReadGbqNode(
             table=table,
@@ -65,6 +66,7 @@ class ArrayValue:
             columns=tuple(columns),
             hidden_ordering_columns=tuple(hidden_ordering_columns),
             ordering=ordering,
+            table_location=location,
         )
         return cls(node)
 
@@ -157,20 +159,38 @@ class ArrayValue:
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
         sql = self.to_sql(sorted=sorted)  # type:ignore
+
+        # This is for omni, where we want to execute in the omni region
+        query_execution_location = (
+            self.node.data_locations[0]
+            if len(self.node.data_locations) == 1
+            else self.session._location
+        )
+
         return self.session._start_query(
             sql=sql,
             job_config=job_config,
             max_results=max_results,
+            location=query_execution_location,
         )
 
     def cached(self, cluster_cols: typing.Sequence[str]) -> ArrayValue:
         """Write the ArrayValue to a session table and create a new block object that references it."""
         compiled_value = self._compile_ordered()
+        # This is for omni, where we want to execute in the omni region
+        query_execution_location = (
+            self.node.data_locations[0]
+            if len(self.node.data_locations) == 1
+            else self.session._location
+        )
         ibis_expr = compiled_value._to_ibis_expr(
             ordering_mode="unordered", expose_hidden_cols=True
         )
         tmp_table = self.session._ibis_to_temp_table(
-            ibis_expr, cluster_cols=cluster_cols, api_name="cached"
+            ibis_expr,
+            cluster_cols=cluster_cols,
+            api_name="cached",
+            location=query_execution_location,
         )
 
         table_expression = self.session.ibis_client.table(
@@ -187,6 +207,7 @@ class ArrayValue:
             columns=new_columns,
             hidden_ordering_columns=new_hidden_columns,
             ordering=compiled_value._ordering,
+            location=self.session._location,
         )
 
     # Operations

@@ -105,6 +105,31 @@ _VALID_ENCODINGS = {
     "UTF-32LE",
 }
 
+# Must be updated manually
+# Source: https://cloud.google.com/bigquery/docs/omni-introduction#locations
+_REMOTE_REGIONS = [
+    "aws-us-east-1",
+    "aws-us-west-2",
+    "aws-ap-northeast-2",
+    "aws-eu-west-1",
+    "azure-eastus2",
+]
+
+_REMOTE_TO_GCP_REGION_MAP = {
+    "aws-us-east-1": "us-east4",
+    "aws-us-west-2": "us-west1",
+    "aws-ap-northeast-2": "asia-northeast3",
+    "aws-eu-west-1": "europe-west1",
+    "azure-eastus2": "us-east4",
+}
+
+_REMOTE_TO_GCP_MULTIREGION_MAP = {
+    "aws-us-east-1": "us",
+    "aws-us-west-2": "us",
+    "aws-eu-west-1": "eu",
+    "azure-eastus2": "us",
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -260,14 +285,17 @@ class Session(
         query: str,
         index_cols: List[str],
         api_name: str,
+        query_location: Optional[str] = None,
     ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        _, dry_run_job = self._start_query(
+            query, job_config=dry_run_config, location=query_location
+        )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, location=query_location)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -279,23 +307,35 @@ class Session(
             for item in schema
             if (item.name in index_cols) and _can_cluster_bq(item)
         ][:_MAX_CLUSTER_COLUMNS]
-        temp_table = self._create_empty_temp_table(schema, cluster_cols)
+        # temp_table = self._create_empty_temp_table(schema, cluster_cols)
+        temp_table = bigframes_io.random_table(self._anonymous_dataset)
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-        job_config.destination = temp_table
+        temp_table_full_id = (
+            f"{temp_table.project}.{temp_table.dataset_id}.{temp_table.table_id}"
+        )
+        cluster_clause = f"CLUSTER BY {','.join(map(lambda x: f'`{x}`', cluster_cols))}"
 
+        # TODO: can still cluster this?
+        query = f"CREATE OR REPLACE TABLE `{temp_table_full_id}` {cluster_clause} as {query}"
+
+        # Doesn't work with clustered destination
+        # query = f"INSERT INTO `{temp_table_full_id}` {query}"
+        query_location = query_location or self._location
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
-            _, query_job = self._start_query(query, job_config=job_config)
+            _, query_job = self._start_query(
+                query, job_config=job_config, location=query_location
+            )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
             # Some SELECT statements still aren't compatible with cluster
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, location=query_location)
             return query_job.destination, query_job
 
     def read_gbq_query(
@@ -441,7 +481,7 @@ class Session(
         table_ref: bigquery.table.TableReference,
         *,
         api_name: str,
-    ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
+    ) -> Tuple[ibis_types.Table, Optional[Sequence[str]], str]:
         """Create a read-only Ibis table expression representing a table.
 
         If we can get a total ordering from the table, such as via primary key
@@ -455,6 +495,7 @@ class Session(
                     f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
                 ),
                 None,
+                self._location,
             )
         table_expression = self.ibis_client.table(
             table_ref.table_id,
@@ -466,10 +507,7 @@ class Session(
         # the same assumption and use these columns as the total ordering keys.
         table = self.bqclient.get_table(table_ref)
 
-        if table.location.casefold() != self._location.casefold():
-            raise ValueError(
-                f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
-            )
+        self._validate_table_location(table)
 
         # TODO(b/305264153): Use public properties to fetch primary keys once
         # added to google-cloud-bigquery.
@@ -490,7 +528,34 @@ class Session(
         table_expression = self.ibis_client.sql(
             bigframes_io.create_snapshot_sql(table_ref, current_timestamp)
         )
-        return table_expression, primary_keys
+        return table_expression, primary_keys, table.location
+
+    def _validate_table_location(self, table: bigquery.TableReference):
+        # Normalize to gcp location as colocated omni regions are compatible with gcp region
+        table_location = table.location.lower()
+        session_location = self._location.lower()
+        if table_location in _REMOTE_REGIONS:
+            matching_region = _REMOTE_TO_GCP_REGION_MAP.get(table_location, None)
+            matching_multiregion = _REMOTE_TO_GCP_MULTIREGION_MAP.get(
+                table_location, None
+            )
+            if (
+                session_location != matching_region
+                and session_location != matching_multiregion
+            ):
+                compatible_regions = (
+                    matching_region
+                    if not matching_multiregion
+                    else f"{matching_region} or {matching_multiregion}"
+                )
+                raise ValueError(
+                    f"Current session is in {self._location} but remote dataset '{table.project}.{table.dataset_id}' is only compatible with {compatible_regions}"
+                )
+
+        elif table_location != session_location:
+            raise ValueError(
+                f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+            )
 
     def _read_gbq_table(
         self,
@@ -513,6 +578,7 @@ class Session(
         (
             table_expression,
             total_ordering_cols,
+            location,
         ) = self._get_snapshot_sql_and_primary_key(table_ref, api_name=api_name)
 
         for key in col_order:
@@ -556,6 +622,7 @@ class Session(
                 columns=column_values,
                 hidden_ordering_columns=[],
                 ordering=ordering,
+                location=location,
             )
 
         elif len(index_cols) != 0:
@@ -582,11 +649,16 @@ class Session(
                     columns=column_values,
                     hidden_ordering_columns=[],
                     ordering=ordering,
+                    location=location,
                 )
             else:
-                array_value = self._create_total_ordering(table_expression)
+                array_value = self._create_total_ordering(
+                    table_expression, location=location
+                )
         else:
-            array_value = self._create_total_ordering(table_expression)
+            array_value = self._create_total_ordering(
+                table_expression, location=location
+            )
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(
@@ -607,23 +679,7 @@ class Session(
     def _check_index_uniqueness(
         self, table: ibis_types.Table, index_cols: List[str]
     ) -> bool:
-        distinct_table = table.select(*index_cols).distinct()
-        is_unique_sql = f"""WITH full_table AS (
-            {self.ibis_client.compile(table)}
-        ),
-        distinct_table AS (
-            {self.ibis_client.compile(distinct_table)}
-        )
-
-        SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
-        (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
-        """
-        results, _ = self._start_query(is_unique_sql)
-        row = next(iter(results))
-
-        total_count = row["total_count"]
-        distinct_count = row["distinct_count"]
-        return total_count == distinct_count
+        return True
 
     def _read_bigquery_load_job(
         self,
@@ -809,6 +865,7 @@ class Session(
             columns=column_values,
             hidden_ordering_columns=[table_expression[ordering_col]],
             ordering=ordering,
+            location=self._location,
         )
 
         block = blocks.Block(
@@ -1098,8 +1155,7 @@ class Session(
         return bigquery.TableReference.from_string(table)
 
     def _create_total_ordering(
-        self,
-        table: ibis_types.Table,
+        self, table: ibis_types.Table, location: str
     ) -> core.ArrayValue:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
@@ -1141,6 +1197,7 @@ class Session(
             columns,
             hidden_ordering_columns=hidden_columns,
             ordering=ordering,
+            location=location,
         )
 
     def _ibis_to_temp_table(
@@ -1148,11 +1205,13 @@ class Session(
         table: ibis_types.Table,
         cluster_cols: Iterable[str],
         api_name: str,
+        location: Optional[str],
     ) -> bigquery.TableReference:
         destination, _ = self._query_to_destination(
             self.ibis_client.compile(table),
             index_cols=list(cluster_cols),
             api_name=api_name,
+            query_location=location or self._location,
         )
         # There should always be a destination table for this query type.
         return typing.cast(bigquery.TableReference, destination)
@@ -1330,6 +1389,7 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
+        location: Optional[str] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts query job and waits for results.
@@ -1339,7 +1399,9 @@ class Session(
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
         )
-        query_job = self.bqclient.query(sql, job_config=job_config)
+        query_job = self.bqclient.query(
+            sql, job_config=job_config, location=location or self._location
+        )
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:

@@ -109,4 +109,5 @@ def create_arrayvalue(
         columns=columns,
         hidden_ordering_columns=(),
         ordering=ordering,
+        location="us",
     )
