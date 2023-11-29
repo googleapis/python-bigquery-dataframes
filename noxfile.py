@@ -228,6 +228,7 @@ def mypy(session):
                 "types-python-dateutil",
                 "types-requests",
                 "types-setuptools",
+                "types-tabulate",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -547,7 +548,6 @@ def prerelease(session: nox.sessions.Session, tests_path):
     # Ensure we catch breaking changes in the client libraries early.
     session.install(
         "--upgrade",
-        "-e",
         "git+https://github.com/googleapis/python-bigquery.git#egg=google-cloud-bigquery",
     )
     already_installed.add("google-cloud-bigquery")
