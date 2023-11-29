@@ -1055,10 +1055,15 @@ def test_series_dot_df_column_multi_index():
         [["col0", "col0", "col1"], ["col00", "col01", "col11"]]
     )
 
-    bf_result = bpd.Series(left) @ bpd.DataFrame(right, columns=multi_level_columns)
-    pd_result = pandas.Series(left) @ pandas.DataFrame(
-        right, columns=multi_level_columns
-    )
+    bf_left_s = bpd.Series(left)
+    bf_right_df = bpd.DataFrame(right)
+    bf_right_df.columns = multi_level_columns
+    bf_result = bf_left_s @ bf_right_df
+
+    pd_left_s = pandas.Series(left)
+    pd_right_df = pandas.DataFrame(right)
+    pd_right_df.columns = multi_level_columns
+    pd_result = pd_left_s @ pd_right_df
 
     pandas.testing.assert_series_equal(
         bf_result.to_pandas(), pd_result, check_index_type=False, check_dtype=False
