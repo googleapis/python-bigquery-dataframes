@@ -21,6 +21,7 @@ import warnings
 
 import bigframes
 from bigframes import clients
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
@@ -38,6 +39,7 @@ _SUPPORTED_DTYPES = (
 _REMOTE_MODEL_STATUS = "remote_model_status"
 
 
+@log_adapter.class_logger
 class VertexAIModel(base.BaseEstimator):
     """Remote model from a Vertex AI https endpoint. User must specify https endpoint, input schema and output schema.
     How to deploy a model in Vertex AI https://cloud.google.com/bigquery/docs/bigquery-ml-remote-model-tutorial#Deploy-Model-on-Vertex-AI.
