@@ -3512,15 +3512,15 @@ class DataFrame(NDFrame):
             [3 rows x 2 columns]
 
             >>> df.describe()
-                      A	          B
-            count	3.0	        3.0
-            mean	2.0	   3.333333
-            std	    1.0	   4.163332
-            min	    1.0	        0.0
-            25%	    1.0	        0.0
-            50%	    2.0	        2.0
-            75%	    3.0	        8.0
-            max	    3.0	        8.0
+                          A	          B
+            count       3.0	        3.0
+            mean        2.0	   3.333333
+            std	        1.0	   4.163332
+            min	        1.0	        0.0
+            25%	        1.0	        0.0
+            50%	        2.0	        2.0
+            75%	        3.0	        8.0
+            max	        3.0	        8.0
             <BLANKLINE>
             [8 rows x 2 columns]
 
