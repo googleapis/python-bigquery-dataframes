@@ -2376,7 +2376,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         dtype=None,
         columns=None,
     ) -> DataFrame:
-        return cls(pandas.DataFrame.from_dict(data, orient, dtype, columns))
+        return cls(pandas.DataFrame.from_dict(data, orient, dtype, columns))  # type: ignore
 
     @classmethod
     def from_records(
