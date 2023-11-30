@@ -92,6 +92,72 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def info(
+        self,
+        verbose: bool | None = None,
+        buf=None,
+        max_cols: int | None = None,
+        memory_usage: bool | None = None,
+        show_counts: bool | None = None,
+    ) -> None:
+        """
+        Print a concise summary of a DataFrame.
+
+        This method prints information about a DataFrame including
+        the index dtypeand columns, non-null values and memory usage.
+
+        Args:
+            verbose (bool, optional):
+                Whether to print the full summary. By default, the setting in
+                ``pandas.options.display.max_info_columns`` is followed.
+            buf (writable buffer, defaults to sys.stdout):
+                Where to send the output. By default, the output is printed to
+                sys.stdout. Pass a writable buffer if you need to further process
+                the output.
+            max_cols (int, optional):
+                When to switch from the verbose to the truncated output. If the
+                DataFrame has more than `max_cols` columns, the truncated output
+                is used. By default, the setting in
+                ``pandas.options.display.max_info_columns`` is used.
+            memory_usage (bool, optional):
+                Specifies whether total memory usage of the DataFrame
+                elements (including the index) should be displayed. By default,
+                this follows the ``pandas.options.display.memory_usage`` setting.
+                True always show memory usage. False never shows memory usage.
+                Memory estimation is made based in column dtype and number of rows
+                assuming values consume the same memory amount for corresponding dtypes.
+            show_counts (bool, optional):
+                Whether to show the non-null counts. By default, this is shown
+                only if the DataFrame is smaller than
+                ``pandas.options.display.max_info_rows`` and
+                ``pandas.options.display.max_info_columns``. A value of True always
+                shows the counts, and False never shows the counts.
+
+        Returns:
+            None: This method prints a summary of a DataFrame and returns None."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def memory_usage(self, index: bool = True):
+        """
+        Return the memory usage of each column in bytes.
+
+        The memory usage can optionally include the contribution of
+        the index and elements of `object` dtype.
+
+        This value is displayed in `DataFrame.info` by default. This can be
+        suppressed by setting ``pandas.options.display.memory_usage`` to False.
+
+        Args:
+            index (bool, default True):
+                Specifies whether to include the memory usage of the DataFrame's
+                index in returned Series. If ``index=True``, the memory usage of
+                the index is the first item in the output.
+
+        Returns:
+            Series: A Series whose index is the original column names and whose values is the memory usage of each column in bytes.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
     def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
@@ -2597,14 +2663,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if each column contains at least one True element (the default behavior without an explicit axis parameter).
+        Checking if each column contains at least one True element(the default behavior without an explicit axis parameter):
 
             >>> df.any()
             A     True
             B    False
             dtype: boolean
 
-        Checking if each row contains at least one True element.
+        Checking if each row contains at least one True element:
 
             >>> df.any(axis=1)
             0    True
@@ -2644,14 +2710,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Checking if all values in each column are True (the default behavior without an explicit axis parameter).
+        Checking if all values in each column are True(the default behavior without an explicit axis parameter):
 
             >>> df.all()
             A     True
             B    False
             dtype: boolean
 
-        Checking across rows to see if all values are True.
+        Checking across rows to see if all values are True:
 
             >>> df.all(axis=1)
             0    False
@@ -2688,14 +2754,14 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 2 columns]
 
-        Calculating the product of each column (the default behavior without an explicit axis parameter).
+        Calculating the product of each column(the default behavior without an explicit axis parameter):
 
             >>> df.prod()
             A        6.0
             B    160.875
             dtype: Float64
 
-        Calculating the product of each row.
+        Calculating the product of each row:
 
             >>> df.prod(axis=1)
             0     4.5
@@ -2852,6 +2918,33 @@ class DataFrame(NDFrame):
     def mean(self, axis=0, *, numeric_only: bool = False):
         """Return the mean of the values over the requested axis.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the mean of each column (the default behavior without an explicit axis parameter).
+
+            >>> df.mean()
+            A    2.0
+            B    3.0
+            dtype: Float64
+
+        Calculating the mean of each row.
+
+            >>> df.mean(axis=1)
+            0    1.5
+            1    3.5
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2865,7 +2958,27 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def median(self, *, numeric_only: bool = False, exact: bool = False):
-        """Return the median of the values over the requested axis.
+        """Return the median of the values over colunms.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the median value of each column.
+
+            >>> df.median()
+            A    1.0
+            B    2.0
+            dtype: Float64
 
         Args:
             numeric_only (bool. default False):
@@ -2884,6 +2997,34 @@ class DataFrame(NDFrame):
 
         Normalized by N-1 by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the variance of each column (the default behavior without an explicit axis parameter).
+
+            >>> df.var()
+            A    2.0
+            B    2.0
+            dtype: Float64
+
+        Calculating the variance of each row.
+
+            >>> df.var(axis=1)
+            0    0.5
+            1    0.5
+            dtype: Float64
+
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2897,9 +3038,35 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def skew(self, *, numeric_only: bool = False):
-        """Return unbiased skew over requested axis.
+        """Return unbiased skew over columns.
 
         Normalized by N-1.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3, 4, 5],
+            ...                    'B': [5, 4, 3, 2, 1],
+            ...                    'C': [2, 2, 3, 2, 2]})
+            >>> df
+                A	B	C
+            0	1	5	2
+            1	2	4	2
+            2	3	3	3
+            3	4	2	2
+            4	5	1	2
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Calculating the skewness of each column.
+
+            >>> df.skew()
+            A         0.0
+            B         0.0
+            C    2.236068
+            dtype: Float64
 
         Args:
             numeric_only (bool, default False):
@@ -2911,10 +3078,36 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def kurt(self, *, numeric_only: bool = False):
-        """Return unbiased kurtosis over requested axis.
+        """Return unbiased kurtosis over columns.
 
         Kurtosis obtained using Fisher's definition of
         kurtosis (kurtosis of normal == 0.0). Normalized by N-1.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
+            ...                     "B": [3, 4, 3, 2, 1],
+            ...                     "C": [2, 2, 3, 2, 2]})
+            >>> df
+                A	B	C
+            0	1	3	2
+            1	2	4	2
+            2	3	3	3
+            3	4	2	2
+            4	5	1	2
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Calculating the kurtosis value of each column:
+
+            >>> df.kurt()
+            A        -1.2
+            B   -0.177515
+            C         5.0
+            dtype: Float64
 
         Args:
             numeric_only (bool, default False):
@@ -2926,9 +3119,35 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def std(self, *, numeric_only: bool = False):
-        """Return sample standard deviation over requested axis.
+        """Return sample standard deviation over columns.
 
         Normalized by N-1 by default.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
+            ...                     "B": [3, 4, 3, 2, 1],
+            ...                     "C": [2, 2, 3, 2, 2]})
+            >>> df
+                A	B	C
+            0	1	3	2
+            1	2	4	2
+            2	3	3	3
+            3	4	2	2
+            4	5	1	2
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Calculating the standard deviation of each column:
+
+            >>> df.std()
+            A    1.581139
+            B    1.140175
+            C    0.447214
+            dtype: Float64
 
         Args:
             numeric_only (bool. default False):
@@ -2941,10 +3160,36 @@ class DataFrame(NDFrame):
 
     def count(self, *, numeric_only: bool = False):
         """
-        Count non-NA cells for each column or row.
+        Count non-NA cells for each column.
 
         The values `None`, `NaN`, `NaT`, and optionally `numpy.inf` (depending
         on `pandas.options.mode.use_inf_as_na`) are considered NA.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
+            ...                     "B": [1, 2, 3, 4, 5],
+            ...                     "C": [None, 3.5, None, 4.5, 5.0]})
+            >>> df
+                   A	B	   C
+            0	 1.0	1	<NA>
+            1	<NA>	2	 3.5
+            2	 3.0	3	<NA>
+            3	 4.0	4	 4.5
+            4	 5.0	5	 5.0
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Counting non-NA values for each column:
+
+            >>> df.count()
+            A    4.0
+            B    5.0
+            C    3.0
+            dtype: Float64
 
         Args:
             numeric_only (bool, default False):
@@ -3484,6 +3729,77 @@ class DataFrame(NDFrame):
 
             The dot method for Series computes the inner product, instead of the
             matrix product here.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
+            >>> left
+               0  1   2   3
+            0  0  1  -2  -1
+            1  1  1   1   1
+            <BLANKLINE>
+            [2 rows x 4 columns]
+            >>> right = bpd.DataFrame([[0, 1], [1, 2], [-1, -1], [2, 0]])
+            >>> right
+                0   1
+            0   0   1
+            1   1   2
+            2  -1  -1
+            3   2   0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+            >>> left.dot(right)
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        You can also use the operator ``@`` for the dot product:
+
+            >>> left @ right
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        The right input can be a Series, in which case the result will also be a
+        Series:
+
+            >>> right = bpd.Series([1, 2, -1,0])
+            >>> left @ right
+            0    4
+            1    2
+            dtype: Int64
+
+        Any user defined index of the left matrix and columns of the right
+        matrix will reflect in the result.
+
+            >>> left = bpd.DataFrame([[1, 2, 3], [2, 5, 7]], index=["alpha", "beta"])
+            >>> left
+                   0  1  2
+            alpha  1  2  3
+            beta   2  5  7
+            <BLANKLINE>
+            [2 rows x 3 columns]
+            >>> right = bpd.DataFrame([[2, 4, 8], [1, 5, 10], [3, 6, 9]], columns=["red", "green", "blue"])
+            >>> right
+               red  green  blue
+            0    2      4     8
+            1    1      5    10
+            2    3      6     9
+            <BLANKLINE>
+            [3 rows x 3 columns]
+            >>> left.dot(right)
+                   red  green  blue
+            alpha   13     32    55
+            beta    30     75   129
+            <BLANKLINE>
+            [2 rows x 3 columns]
 
         Args:
             other (Series or DataFrame):
