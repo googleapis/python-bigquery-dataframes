@@ -2039,6 +2039,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
         ``value_counts`` sorts the result by counts in a descending order by default:
+
             >>> s.value_counts()
             3      2
             1      1
