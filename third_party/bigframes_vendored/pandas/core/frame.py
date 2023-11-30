@@ -3497,6 +3497,16 @@ class DataFrame(NDFrame):
 
         Only supports numeric columns.
 
+        .. note::
+            Percentile values are approximates only.
+
+        .. note::
+            For numeric data, the result's index will include ``count``,
+            ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
+            upper percentiles. By default the lower percentile is ``25`` and the
+            upper percentile is ``75``. The ``50`` percentile is the
+            same as the median.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -3523,16 +3533,6 @@ class DataFrame(NDFrame):
             max	        3.0	        8.0
             <BLANKLINE>
             [8 rows x 2 columns]
-
-        .. note::
-            Percentile values are approximates only.
-
-        .. note::
-            For numeric data, the result's index will include ``count``,
-            ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
-            upper percentiles. By default the lower percentile is ``25`` and the
-            upper percentile is ``75``. The ``50`` percentile is the
-            same as the median.
 
         Returns:
             bigframes.dataframe.DataFrame: Summary statistics of the Series or Dataframe provided.
