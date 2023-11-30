@@ -1940,15 +1940,13 @@ def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_value_counts(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
 
     bf_result = scalars_df[col_name].value_counts().to_pandas()
     pd_result = scalars_pandas_df[col_name].value_counts()
-
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.name = col_name
 
     pd.testing.assert_series_equal(
         bf_result,
