@@ -2214,7 +2214,6 @@ class Series(NDFrame):  # type: ignore[misc]
         Return Series as ndarray or ndarray-like depending on the dtype.
 
         .. warning::
-
            We recommend using :attr:`Series.array` or
            :meth:`Series.to_numpy`, depending on whether you need
            a reference to the underlying data or a NumPy array.
@@ -2231,7 +2230,7 @@ class Series(NDFrame):  # type: ignore[misc]
             array(['a', 'a', 'b', 'c'], dtype=object)
 
         Returns:
-            numpy.ndarray or ndarray-like
+            numpy.ndarray or ndarray-like: Values in the Series.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
