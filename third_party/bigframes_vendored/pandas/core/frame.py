@@ -3464,7 +3464,7 @@ class DataFrame(NDFrame):
             3	 4.0	       B	    4
             4	 5.0	       B	    5
             5	 1.0	       C	 <NA>
-            6	 <NA>	       C	    3
+            6	<NA>	       C	    3
             7	 3.0	       C	 <NA>
             8	 4.0	       C	    4
             9	 5.0	       C	    5
