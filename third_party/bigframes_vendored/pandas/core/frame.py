@@ -3471,7 +3471,6 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [10 rows x 3 columns]
 
-
         Args:
             id_vars (tuple, list, or ndarray, optional):
                 Column(s) to use as identifier variables.
