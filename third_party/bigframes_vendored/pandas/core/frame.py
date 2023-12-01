@@ -3766,7 +3766,7 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def stack(self):
+    def stack(self, level=-1):
         """
         Stack the prescribed level(s) from columns to index.
 
@@ -3804,12 +3804,16 @@ class DataFrame(NDFrame):
                  B    4
             dtype: Int64
 
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) to stack from the column axis onto the index axis.
+
         Returns:
             DataFrame or Series: Stacked dataframe or series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def unstack(self):
+    def unstack(self, level=-1):
         """
         Pivot a level of the (necessarily hierarchical) index labels.
 
@@ -3839,8 +3843,12 @@ class DataFrame(NDFrame):
                 bar    4
             dtype: Int64
 
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) of index to unstack, can pass level name.
+
         Returns:
-            DataFrame or Series
+            DataFrame or Series: Unstacked dataframe or series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
