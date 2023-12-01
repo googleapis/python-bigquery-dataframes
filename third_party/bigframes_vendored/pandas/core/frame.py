@@ -3915,6 +3915,10 @@ class DataFrame(NDFrame):
                  B    4
             dtype: Int64
 
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) to stack from the column axis onto the index axis.
+
         Returns:
             DataFrame or Series: Stacked dataframe or series.
         """
@@ -3949,6 +3953,10 @@ class DataFrame(NDFrame):
             B   foo    2
                 bar    4
             dtype: Int64
+
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) of index to unstack, can pass level name.
 
         Returns:
             DataFrame or Series: DataFrame or Series.
