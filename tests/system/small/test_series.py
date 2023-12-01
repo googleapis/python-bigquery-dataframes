@@ -1955,6 +1955,8 @@ def test_value_counts(scalars_dfs):
 
 
 def test_value_counts_w_cut(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("value_counts results different in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
 
@@ -1963,9 +1965,6 @@ def test_value_counts_w_cut(scalars_dfs):
 
     bf_result = bf_cut.value_counts().to_pandas()
     pd_result = pd_cut.value_counts()
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.name = col_name
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
 
     pd.testing.assert_series_equal(
