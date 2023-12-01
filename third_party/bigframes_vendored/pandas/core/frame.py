@@ -3464,12 +3464,13 @@ class DataFrame(NDFrame):
             3	 4.0	       B	    4
             4	 5.0	       B	    5
             5	 1.0	       C	 <NA>
-            6	<NA>	       C	    3
+            6	 <NA>	       C	    3
             7	 3.0	       C	 <NA>
             8	 4.0	       C	    4
             9	 5.0	       C	    5
             <BLANKLINE>
             [10 rows x 3 columns]
+
 
         Args:
             id_vars (tuple, list, or ndarray, optional):
@@ -3914,10 +3915,6 @@ class DataFrame(NDFrame):
                  B    4
             dtype: Int64
 
-        Args:
-            level (int, str, or list of these, default -1 (last level)):
-                Level(s) to stack from the column axis onto the index axis.
-
         Returns:
             DataFrame or Series: Stacked dataframe or series.
         """
@@ -3952,10 +3949,6 @@ class DataFrame(NDFrame):
             B   foo    2
                 bar    4
             dtype: Int64
-
-        Args:
-            level (int, str, or list of these, default -1 (last level)):
-                Level(s) of index to unstack, can pass level name.
 
         Returns:
             DataFrame or Series: DataFrame or Series.
