@@ -158,8 +158,119 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def select_dtypes(self, include=None, exclude=None) -> DataFrame:
+        """
+        Return a subset of the DataFrame's columns based on the column dtypes.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': ["hello", "world"], 'col3': [True, False]})
+            >>> df.select_dtypes(include=['Int64'])
+               col1
+            0     1
+            1     2
+            <BLANKLINE>
+            [2 rows x 1 columns]
+
+            >>> df.select_dtypes(exclude=['Int64'])
+                col2   col3
+            0  hello   True
+            1  world  False
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+
+        Args:
+            include (scalar or list-like):
+                A selection of dtypes or strings to be included.
+            exclude (scalar or list-like):
+                A selection of dtypes or strings to be excluded.
+
+        Returns:
+            DataFrame: The subset of the frame including the dtypes in ``include`` and excluding the dtypes in ``exclude``.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict,
+        orient="columns",
+        dtype=None,
+        columns=None,
+    ) -> DataFrame:
+        """
+        Construct DataFrame from dict of array-like or dicts.
+
+        Creates DataFrame object from dictionary by columns or by index
+        allowing dtype specification.
+
+        Args:
+            data (dict):
+                Of the form {field : array-like} or {field : dict}.
+            orient ({'columns', 'index', 'tight'}, default 'columns'):
+                The "orientation" of the data. If the keys of the passed dict
+                should be the columns of the resulting DataFrame, pass 'columns'
+                (default). Otherwise if the keys should be rows, pass 'index'.
+                If 'tight', assume a dict with keys ['index', 'columns', 'data',
+                'index_names', 'column_names'].
+            dtype (dtype, default None):
+                Data type to force after DataFrame construction, otherwise infer.
+            columns (list, default None):
+                Column labels to use when ``orient='index'``. Raises a ValueError
+                if used with ``orient='columns'`` or ``orient='tight'``.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @classmethod
+    def from_records(
+        cls,
+        data,
+        index=None,
+        exclude=None,
+        columns=None,
+        coerce_float: bool = False,
+        nrows: int | None = None,
+    ) -> DataFrame:
+        """
+        Convert structured or record ndarray to DataFrame.
+
+        Creates a DataFrame object from a structured ndarray, sequence of
+        tuples or dicts, or DataFrame.
+
+        Args:
+            data (structured ndarray, sequence of tuples or dicts):
+                Structured input data.
+            index (str, list of fields, array-like):
+                Field of array to use as the index, alternately a specific set of
+                input labels to use.
+            exclude (sequence, default None):
+                Columns or fields to exclude.
+            columns (sequence, default None):
+                Column names to use. If the passed data do not have names
+                associated with them, this argument provides names for the
+                columns. Otherwise this argument indicates the order of the columns
+                in the result (any names not found in the data will become all-NA
+                columns).
+            coerce_float (bool, default False):
+                Attempt to convert values of non-string, non-numeric objects (like
+                decimal.Decimal) to floating point, useful for SQL result sets.
+            nrows (int, default None):
+                Number of rows to read if data is an iterator.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
@@ -3331,9 +3442,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cummin(self) -> DataFrame:
-        """Return cumulative minimum over a DataFrame axis.
+        """Return cumulative minimum over columns.
 
         Returns a DataFrame of the same size containing the cumulative minimum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cummin()
+                A	B
+            0	3	1
+            1	1	1
+            2	1	1
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative minimum of DataFrame.
@@ -3341,9 +3474,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cummax(self) -> DataFrame:
-        """Return cumulative maximum over a DataFrame axis.
+        """Return cumulative maximum over columns.
 
         Returns a DataFrame of the same size containing the cumulative maximum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cummax()
+                A	B
+            0	3	1
+            1	3	2
+            2	3	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative maximum of DataFrame.
@@ -3351,9 +3506,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cumsum(self) -> DataFrame:
-        """Return cumulative sum over a DataFrame axis.
+        """Return cumulative sum over columns.
 
         Returns a DataFrame of the same size containing the cumulative sum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cumsum()
+                A	B
+            0	3	1
+            1	4	3
+            2	6	6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative sum of DataFrame.
@@ -3361,9 +3538,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cumprod(self) -> DataFrame:
-        """Return cumulative product over a DataFrame axis.
+        """Return cumulative product over columns.
 
         Returns a DataFrame of the same size containing the cumulative product.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cumprod()
+                A	B
+            0	3	1
+            1	3	2
+            2	6	6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative product of DataFrame.

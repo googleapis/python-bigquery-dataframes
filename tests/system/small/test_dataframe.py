@@ -297,6 +297,26 @@ def test_df_info(scalars_dfs):
     assert expected == bf_result.getvalue()
 
 
+@pytest.mark.parametrize(
+    ("include", "exclude"),
+    [
+        ("Int64", None),
+        (["int"], None),
+        ("number", None),
+        ([pd.Int64Dtype(), pd.BooleanDtype()], None),
+        (None, [pd.Int64Dtype(), pd.BooleanDtype()]),
+        ("Int64", ["boolean"]),
+    ],
+)
+def test_select_dtypes(scalars_dfs, include, exclude):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.select_dtypes(include=include, exclude=exclude)
+    bf_result = scalars_df.select_dtypes(include=include, exclude=exclude).to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
+
+
 def test_drop_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -3287,6 +3307,54 @@ def test_df_duplicated(scalars_df_index, scalars_pandas_df_index, keep, subset):
     bf_series = scalars_df_index[columns].duplicated(subset, keep=keep).to_pandas()
     pd_series = scalars_pandas_df_index[columns].duplicated(subset, keep=keep)
     pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)
+
+
+def test_df_from_dict_columns_orient():
+    data = {"a": [1, 2], "b": [3.3, 2.4]}
+    bf_result = dataframe.DataFrame.from_dict(data, orient="columns").to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="columns")
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_dict_index_orient():
+    data = {"a": [1, 2], "b": [3.3, 2.4]}
+    bf_result = dataframe.DataFrame.from_dict(
+        data, orient="index", columns=["col1", "col2"]
+    ).to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="index", columns=["col1", "col2"])
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_dict_tight_orient():
+    data = {
+        "index": [("i1", "i2"), ("i3", "i4")],
+        "columns": ["col1", "col2"],
+        "data": [[1, 2.6], [3, 4.5]],
+        "index_names": ["in1", "in2"],
+        "column_names": ["column_axis"],
+    }
+
+    bf_result = dataframe.DataFrame.from_dict(data, orient="tight").to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="tight")
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_records():
+    records = ((1, "a"), (2.5, "b"), (3.3, "c"), (4.9, "d"))
+
+    bf_result = dataframe.DataFrame.from_records(
+        records, columns=["c1", "c2"]
+    ).to_pandas()
+    pd_result = pd.DataFrame.from_records(records, columns=["c1", "c2"])
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
 
 
 def test_df_to_dict(scalars_df_index, scalars_pandas_df_index):
