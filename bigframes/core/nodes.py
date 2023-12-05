@@ -182,6 +182,12 @@ class ProjectTernaryOpNode(UnaryNode):
     output_id: str
 
 
+# TODO: Merge RowCount and Corr into Aggregate Node
+@dataclass(frozen=True)
+class RowCountNode(UnaryNode):
+    pass
+
+
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
     aggregations: typing.Tuple[typing.Tuple[str, agg_ops.AggregateOp, str], ...]
