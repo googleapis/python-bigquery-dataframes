@@ -96,7 +96,7 @@ class ArrayValue:
         return compiler.compile_unordered(self.node)
 
     def row_count(self) -> ArrayValue:
-        """Returns dimensions as (length, width) tuple."""
+        """Get number of rows in ArrayValue as a single-entry ArrayValue."""
         return ArrayValue(nodes.RowCountNode(child=self.node))
 
     # Operations

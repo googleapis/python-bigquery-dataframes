@@ -259,11 +259,15 @@ class UnorderedIR(BaseIbisIR):
         return typing.cast(str, sql)
 
     def row_count(self) -> OrderedIR:
-        ibis_table = self._to_ibis_expr()
-        ibis_count = ibis_table.select(ibis_table.count().name("count"))
+        original_table = self._to_ibis_expr()
+        ibis_table = original_table.agg(
+            [
+                original_table.count().name("count"),
+            ]
+        )
         return OrderedIR(
-            ibis_count,
-            (ibis_count["count"],),
+            ibis_table,
+            (ibis_table["count"],),
             ordering=ExpressionOrdering(
                 ordering_value_columns=(OrderingColumnReference("count"),),
                 total_ordering_columns=frozenset(["count"]),

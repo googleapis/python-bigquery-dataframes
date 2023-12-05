@@ -1370,7 +1370,7 @@ class Session(
         ibis_expr = compiled_value._to_ibis_expr(
             ordering_mode="unordered", expose_hidden_cols=True
         )
-        tmp_table, _ = self._ibis_to_temp_table(
+        tmp_table = self._ibis_to_temp_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cached"
         )
         table_expression = self.ibis_client.table(
