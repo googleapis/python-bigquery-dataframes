@@ -90,7 +90,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 dtype=object)
 
         Returns:
-            The index labels of the Series.
+            Index: The index object of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -151,7 +151,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return the transpose, which is by definition self.
 
         Returns:
-            Series
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -606,7 +606,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 are not yet supported, so a result will be returned for at least two observations.
 
         Returns:
-            float;  Will return NaN if there are fewer than two numeric pairs, either series has a
+            float:  Will return NaN if there are fewer than two numeric pairs, either series has a
                 variance or covariance of zero, or any input value is infinite.
         """
         raise NotImplementedError("abstract method")
@@ -624,7 +624,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 values.
 
         Returns:
-            {klass}: First differences of the Series.
+            Series: First differences of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1330,7 +1330,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            bigframes.series.Series. The result of the comparison.
+            bigframes.series.Series: The result of the comparison.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1344,7 +1344,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
              other (Series, or scalar value):
 
-         Returns:
+        Returns:
             bigframes.series.Series: The result of the operation.
 
         """
@@ -1601,7 +1601,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series. The result of the operation. The result is always
+            2-Tuple of Series: The result of the operation. The result is always
             consistent with (floordiv, mod) (though pandas may not).
 
         """
@@ -1616,7 +1616,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series. The result of the operation. The result is always
+            2-Tuple of Series: The result of the operation. The result is always
             consistent with (rfloordiv, rmod) (though pandas may not).
 
         """
@@ -1663,7 +1663,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
 
         Returns:
-            scalar or scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1677,7 +1677,7 @@ class Series(NDFrame):  # type: ignore[misc]
         of the ``numpy.ndarray`` method ``argmin``.
 
         Returns:
-            scalar or scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1705,7 +1705,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Normalized by N-1 by default.
 
         Returns:
-            scalar or Series (if level specified)
+            scalar or Series (if level specified): Variance.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1715,7 +1715,7 @@ class Series(NDFrame):  # type: ignore[misc]
         This is equivalent to the method ``numpy.sum``.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1723,7 +1723,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Return the mean of the values over the requested axis.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1736,7 +1736,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 one. Note: ``exact=True`` not yet supported.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1744,7 +1744,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Return the product of the values over the requested axis.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1754,7 +1754,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Normalized by N-1.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1945,7 +1945,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Maximum threshold value. All values above this threshold will be set to it. A missing threshold (e.g NA) will not clip the value.
 
         Returns:
-            Series.
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2096,7 +2096,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return boolean if values in the object are monotonically increasing.
 
         Returns:
-            bool
+            bool: Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2106,7 +2106,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return boolean if values in the object are monotonically decreasing.
 
         Returns:
-            bool
+            bool: Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
