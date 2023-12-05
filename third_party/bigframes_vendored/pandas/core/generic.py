@@ -282,8 +282,6 @@ class NDFrame(indexing.IndexingMixin):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        By default ``head`` returns the first 5 rows:
-
             >>> df = bpd.DataFrame({'animal': ['alligator', 'bee', 'falcon', 'lion',
             ...                     'monkey', 'parrot', 'shark', 'whale', 'zebra']})
             >>> df
@@ -312,7 +310,7 @@ class NDFrame(indexing.IndexingMixin):
             <BLANKLINE>
             [5 rows x 1 columns]
 
-        Viewing the first n lines (three in this case):
+        Viewing the first `n` lines (three in this case):
 
             >>> df.head(3)
                 animal
@@ -322,7 +320,7 @@ class NDFrame(indexing.IndexingMixin):
             <BLANKLINE>
             [3 rows x 1 columns]
 
-        For negative values of n:
+        For negative values of `n`:
 
             >>> df.head(-3)
                 animal
@@ -340,7 +338,7 @@ class NDFrame(indexing.IndexingMixin):
                 Default 5. Number of rows to select.
 
         Returns:
-            same type as caller: The first `n` rows of the caller object.
+            same type as caller: The first ``n`` rows of the caller object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
