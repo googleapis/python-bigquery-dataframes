@@ -1561,6 +1561,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if utils.is_dict_like(value):
+            return self.apply(
+                lambda x: x.replace(
+                    to_replace=to_replace, value=value[x.name], regex=regex
+                )
+                if (x.name in value)
+                else x
+            )
+        return self.apply(
+            lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
+        )
+
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -1850,7 +1865,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    def describe(self) -> DataFrame:
+    def describe(self, *, include=None, exclude=None) -> DataFrame:
         df_numeric = self._drop_non_numeric(keep_bool=False)
         if len(df_numeric.columns) == 0:
             raise NotImplementedError(

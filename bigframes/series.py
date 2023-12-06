@@ -442,42 +442,53 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
     ):
         if regex:
-            if not (isinstance(to_replace, str) and isinstance(value, str)):
-                raise NotImplementedError(
-                    f"replace regex mode only supports strings for 'to_replace' and 'value'. {constants.FEEDBACK_LINK}"
-                )
-            block, result_col = self._block.apply_unary_op(
-                self._value_column,
-                ops.ReplaceRegexOp(to_replace, value),
-                result_label=self.name,
-            )
-            return Series(block.select_column(result_col))
+            # No-op unless to_replace and series dtype are both string type
+            if not isinstance(to_replace, str) or not isinstance(
+                self.dtype, pandas.StringDtype
+            ):
+                return self
+            return self._regex_replace(to_replace, value)
         elif utils.is_dict_like(to_replace):
             raise NotImplementedError(
                 f"Dict 'to_replace' not supported. {constants.FEEDBACK_LINK}"
             )
         elif utils.is_list_like(to_replace):
-            block, cond = self._block.apply_unary_op(
-                self._value_column, ops.IsInOp(to_replace)
-            )
-            block, result_col = block.apply_binary_op(
-                cond,
-                self._value_column,
-                ops.partial_arg1(ops.where_op, value),
-                result_label=self.name,
-            )
-            return Series(block.select_column(result_col))
+            replace_list = to_replace
         else:  # Scalar
-            block, cond = self._block.apply_unary_op(
-                self._value_column, ops.BinopPartialLeft(ops.eq_op, to_replace)
+            replace_list = [to_replace]
+        replace_list = [
+            i for i in replace_list if bigframes.dtypes.is_comparable(i, self.dtype)
+        ]
+        return self._simple_replace(replace_list, value) if replace_list else self
+
+    def _regex_replace(self, to_replace: str, value: str):
+        if not bigframes.dtypes.is_dtype(value, self.dtype):
+            raise NotImplementedError(
+                f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
             )
-            block, result_col = block.apply_binary_op(
-                cond,
-                self._value_column,
-                ops.partial_arg1(ops.where_op, value),
-                result_label=self.name,
+        block, result_col = self._block.apply_unary_op(
+            self._value_column,
+            ops.ReplaceRegexOp(to_replace, value),
+            result_label=self.name,
+        )
+        return Series(block.select_column(result_col))
+
+    def _simple_replace(self, to_replace_list: typing.Sequence, value):
+        if not bigframes.dtypes.is_dtype(value, self.dtype):
+            raise NotImplementedError(
+                f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
             )
-            return Series(block.select_column(result_col))
+
+        block, cond = self._block.apply_unary_op(
+            self._value_column, ops.IsInOp(to_replace_list)
+        )
+        block, result_col = block.apply_binary_op(
+            cond,
+            self._value_column,
+            ops.partial_arg1(ops.where_op, value),
+            result_label=self.name,
+        )
+        return Series(block.select_column(result_col))
 
     def interpolate(self, method: str = "linear") -> Series:
         if method == "pad":
