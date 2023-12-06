@@ -85,6 +85,8 @@ packages = [
     if package.startswith("bigframes") or package.startswith("third_party")
 ]
 
+print(packages)
+
 setuptools.setup(
     name=name,
     version=version_id,

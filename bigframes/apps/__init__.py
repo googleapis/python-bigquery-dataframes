@@ -12,18 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BigQuery DataFrames ML provides a SKLearn-like API on the BigQuery engine."""
+from bigframes.apps.first_party.synthetic_data_generator.synthetic_data_generator import (
+    SyntheticDataGenerator,
+)
 
 __all__ = [
-    "cluster",
-    "compose",
-    "decomposition",
-    "linear_model",
-    "metrics",
-    "model_selection",
-    "pipeline",
-    "preprocessing",
-    "llm",
-    "forecasting",
-    "imported",
+    "SyntheticDataGenerator",
 ]
