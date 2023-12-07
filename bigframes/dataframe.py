@@ -2677,10 +2677,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         table_id: str | None = None,
         render_links: bool = False,
         encoding: str | None = None,
-    ):
+    ) -> str:
         return self.to_pandas().to_html(
             buf,
-            columns,
+            columns, # type: ignore
             col_space,
             header,
             index,
@@ -2689,7 +2689,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             float_format,
             sparsify,
             index_names,
-            justify,
+            justify, # type: ignore
             max_rows,
             max_cols,
             show_dimensions,
