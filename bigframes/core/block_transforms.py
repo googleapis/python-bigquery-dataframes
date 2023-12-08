@@ -353,7 +353,9 @@ def value_counts(
                 )
             ]
         )
-    return block.select_column(count_id).with_column_labels(["count"])
+    return block.select_column(count_id).with_column_labels(
+        ["proportion" if normalize else "count"]
+    )
 
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
@@ -509,7 +511,7 @@ def nsmallest(
         )
         for col_id in column_ids
     ]
-    block = block.order_by(order_refs, stable=True)
+    block = block.order_by(order_refs)
     if keep in ("first", "last"):
         return block.slice(0, n)
     else:  # keep == "all":
@@ -541,7 +543,7 @@ def nlargest(
         )
         for col_id in column_ids
     ]
-    block = block.order_by(order_refs, stable=True)
+    block = block.order_by(order_refs)
     if keep in ("first", "last"):
         return block.slice(0, n)
     else:  # keep == "all":

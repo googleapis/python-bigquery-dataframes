@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import operator
 import tempfile
 import typing
@@ -253,6 +254,67 @@ def test_drop_with_custom_column_labels(scalars_dfs):
         columns=dropped_columns
     )
     assert_pandas_df_equal(bf_result, pd_result)
+
+
+def test_df_memory_usage(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.memory_usage()
+    bf_result = scalars_df.memory_usage()
+
+    pd.testing.assert_series_equal(pd_result, bf_result, rtol=1.5)
+
+
+def test_df_info(scalars_dfs):
+    expected = (
+        "<class 'bigframes.dataframe.DataFrame'>\n"
+        "Index: 9 entries, 0 to 8\n"
+        "Data columns (total 13 columns):\n"
+        "  #  Column         Non-Null Count    Dtype\n"
+        "---  -------------  ----------------  ------------------------------\n"
+        "  0  bool_col       8 non-null        boolean\n"
+        "  1  bytes_col      6 non-null        object\n"
+        "  2  date_col       7 non-null        date32[day][pyarrow]\n"
+        "  3  datetime_col   6 non-null        timestamp[us][pyarrow]\n"
+        "  4  geography_col  4 non-null        geometry\n"
+        "  5  int64_col      8 non-null        Int64\n"
+        "  6  int64_too      9 non-null        Int64\n"
+        "  7  numeric_col    6 non-null        object\n"
+        "  8  float64_col    7 non-null        Float64\n"
+        "  9  rowindex_2     9 non-null        Int64\n"
+        " 10  string_col     8 non-null        string\n"
+        " 11  time_col       6 non-null        time64[us][pyarrow]\n"
+        " 12  timestamp_col  6 non-null        timestamp[us, tz=UTC][pyarrow]\n"
+        "dtypes: Float64(1), Int64(3), boolean(1), date32[day][pyarrow](1), geometry(1), object(2), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
+        "memory usage: 945 bytes\n"
+    )
+
+    scalars_df, _ = scalars_dfs
+    bf_result = io.StringIO()
+
+    scalars_df.info(buf=bf_result)
+
+    assert expected == bf_result.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("include", "exclude"),
+    [
+        ("Int64", None),
+        (["int"], None),
+        ("number", None),
+        ([pd.Int64Dtype(), pd.BooleanDtype()], None),
+        (None, [pd.Int64Dtype(), pd.BooleanDtype()]),
+        ("Int64", ["boolean"]),
+    ],
+)
+def test_select_dtypes(scalars_dfs, include, exclude):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.select_dtypes(include=include, exclude=exclude)
+    bf_result = scalars_df.select_dtypes(include=include, exclude=exclude).to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
 def test_drop_index(scalars_dfs):
@@ -2703,6 +2765,14 @@ def test_sample(scalars_dfs, frac, n, random_state):
     assert bf_result.shape[1] == scalars_df.shape[1]
 
 
+def test_sample_determinism(penguins_df_default_index):
+    df = penguins_df_default_index.sample(n=100, random_state=12345).head(15)
+    bf_result = df.to_pandas()
+    bf_result2 = df.to_pandas()
+
+    pandas.testing.assert_frame_equal(bf_result, bf_result2)
+
+
 def test_sample_raises_value_error(scalars_dfs):
     scalars_df, _ = scalars_dfs
     with pytest.raises(
@@ -3239,6 +3309,54 @@ def test_df_duplicated(scalars_df_index, scalars_pandas_df_index, keep, subset):
     pd.testing.assert_series_equal(pd_series, bf_series, check_dtype=False)
 
 
+def test_df_from_dict_columns_orient():
+    data = {"a": [1, 2], "b": [3.3, 2.4]}
+    bf_result = dataframe.DataFrame.from_dict(data, orient="columns").to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="columns")
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_dict_index_orient():
+    data = {"a": [1, 2], "b": [3.3, 2.4]}
+    bf_result = dataframe.DataFrame.from_dict(
+        data, orient="index", columns=["col1", "col2"]
+    ).to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="index", columns=["col1", "col2"])
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_dict_tight_orient():
+    data = {
+        "index": [("i1", "i2"), ("i3", "i4")],
+        "columns": ["col1", "col2"],
+        "data": [[1, 2.6], [3, 4.5]],
+        "index_names": ["in1", "in2"],
+        "column_names": ["column_axis"],
+    }
+
+    bf_result = dataframe.DataFrame.from_dict(data, orient="tight").to_pandas()
+    pd_result = pd.DataFrame.from_dict(data, orient="tight")
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_from_records():
+    records = ((1, "a"), (2.5, "b"), (3.3, "c"), (4.9, "d"))
+
+    bf_result = dataframe.DataFrame.from_records(
+        records, columns=["c1", "c2"]
+    ).to_pandas()
+    pd_result = pd.DataFrame.from_records(records, columns=["c1", "c2"])
+    assert_pandas_df_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
 def test_df_to_dict(scalars_df_index, scalars_pandas_df_index):
     unsupported = ["numeric_col"]  # formatted differently
     bf_result = scalars_df_index.drop(columns=unsupported).to_dict()
@@ -3335,6 +3453,8 @@ def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
     ],
 )
 def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = (
@@ -3345,10 +3465,6 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
     pd_result = scalars_pandas_df[["string_col", "bool_col"]].value_counts(
         subset, normalize=normalize, ascending=ascending, dropna=dropna
     )
-
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.names = bf_result.index.names
 
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
@@ -3485,6 +3601,29 @@ def test_df_dot_operator(
     )
 
 
+def test_df_dot_series_inline():
+    left = [[1, 2, 3], [2, 5, 7]]
+    right = [2, 1, 3]
+
+    bf1 = dataframe.DataFrame(left)
+    bf2 = series.Series(right)
+    bf_result = bf1.dot(bf2).to_pandas()
+
+    df1 = pd.DataFrame(left)
+    df2 = pd.Series(right)
+    pd_result = df1.dot(df2)
+
+    # Patch pandas dtypes for testing parity
+    # Pandas result is int64 instead of Int64 (nullable) dtype.
+    pd_result = pd_result.astype(pd.Int64Dtype())
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_dot_series(
     matrix_2by3_df, matrix_2by3_pandas_df, matrix_3by4_df, matrix_3by4_pandas_df
 ):
@@ -3522,3 +3661,14 @@ def test_recursion_limit(scalars_df_index):
     for i in range(400):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()
+
+
+def test_to_pandas_downsampling_option_override(session):
+    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
+    download_size = 1
+
+    df = df.to_pandas(max_download_size=download_size, sampling_method="head")
+
+    total_memory_bytes = df.memory_usage(deep=True).sum()
+    total_memory_mb = total_memory_bytes / (1024 * 1024)
+    assert total_memory_mb == pytest.approx(download_size, rel=0.3)

@@ -19,6 +19,7 @@ import typing
 import pandas as pd
 
 import bigframes.constants as constants
+from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
@@ -33,6 +34,7 @@ import bigframes.series as series
 import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 
+@log_adapter.class_logger
 class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     __doc__ = vendored_pandas_groupby.GroupBy.__doc__
 
@@ -177,6 +179,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def count(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.count_op)
 
+    def nunique(self) -> df.DataFrame:
+        return self._aggregate_all(agg_ops.nunique_op)
+
     def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("cumsum")
@@ -217,7 +222,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         block = self._block.order_by(
             [order.OrderingColumnReference(col) for col in self._by_col_ids],
-            stable=True,
         )
         return windows.Window(
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
@@ -231,7 +235,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         block = self._block.order_by(
             [order.OrderingColumnReference(col) for col in self._by_col_ids],
-            stable=True,
         )
         return windows.Window(
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
@@ -408,6 +411,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return col_ids[0]
 
 
+@log_adapter.class_logger
 class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     __doc__ = vendored_pandas_groupby.GroupBy.__doc__
 
@@ -440,6 +444,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def count(self) -> series.Series:
         return self._aggregate(agg_ops.count_op)
+
+    def nunique(self) -> series.Series:
+        return self._aggregate(agg_ops.nunique_op)
 
     def sum(self, *args) -> series.Series:
         return self._aggregate(agg_ops.sum_op)
@@ -552,7 +559,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
         block = self._block.order_by(
             [order.OrderingColumnReference(col) for col in self._by_col_ids],
-            stable=True,
         )
         return windows.Window(
             block,
@@ -570,7 +576,6 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
         block = self._block.order_by(
             [order.OrderingColumnReference(col) for col in self._by_col_ids],
-            stable=True,
         )
         return windows.Window(
             block,

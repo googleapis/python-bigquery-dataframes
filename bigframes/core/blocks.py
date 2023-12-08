@@ -235,10 +235,9 @@ class Block:
     def order_by(
         self,
         by: typing.Sequence[ordering.OrderingColumnReference],
-        stable: bool = False,
     ) -> Block:
         return Block(
-            self._expr.order_by(by, stable=stable),
+            self._expr.order_by(by),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index.names,
@@ -390,23 +389,6 @@ class Block:
         ordered: bool = True,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
-        if max_download_size is None:
-            max_download_size = bigframes.options.sampling.max_download_size
-        if sampling_method is None:
-            sampling_method = (
-                bigframes.options.sampling.sampling_method
-                if bigframes.options.sampling.sampling_method is not None
-                else _UNIFORM
-            )
-        if random_state is None:
-            random_state = bigframes.options.sampling.random_state
-
-        sampling_method = sampling_method.lower()
-        if sampling_method not in _SAMPLING_METHODS:
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
 
         df, _, query_job = self._compute_and_count(
             value_keys=value_keys,
@@ -454,6 +436,28 @@ class Block:
     ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
+        enable_downsampling = (
+            True
+            if sampling_method is not None
+            else bigframes.options.sampling.enable_downsampling
+        )
+
+        max_download_size = (
+            max_download_size or bigframes.options.sampling.max_download_size
+        )
+
+        random_state = random_state or bigframes.options.sampling.random_state
+
+        if sampling_method is None:
+            sampling_method = bigframes.options.sampling.sampling_method or _UNIFORM
+        sampling_method = sampling_method.lower()
+
+        if sampling_method not in _SAMPLING_METHODS:
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
+
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
         results_iterator, query_job = expr.start_query(
@@ -470,7 +474,7 @@ class Block:
         )
 
         if fraction < 1:
-            if not bigframes.options.sampling.enable_downsampling:
+            if not enable_downsampling:
                 raise RuntimeError(
                     f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of "
                     f"{max_download_size} MB. You can:\n\t* Enable downsampling in global options:\n"
@@ -1596,7 +1600,6 @@ class Block:
             # sort uses coalesced join keys always
             joined_expr = joined_expr.order_by(
                 [ordering.OrderingColumnReference(col_id) for col_id in coalesced_ids],
-                stable=True,
             )
 
         joined_expr = joined_expr.select_columns(result_columns)
