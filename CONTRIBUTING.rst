@@ -183,8 +183,9 @@ Running System Tests
   - `Vertex AI User <https://cloud.google.com/vertex-ai/docs/general/access-control#aiplatform.user>`__
     to be able to use the BigQuery DataFrames' ML integration with Vertex AI.
 
-- You can run the script ``scripts/setup-project-for-testing.sh <project-id> <principal>``
-  to set up a project for running system tests for a principal (user/group/service-account). You need to have the following
+- You can run the script ``scripts/setup-project-for-testing.sh <project-id> [<principal>]``
+  to set up a project for running system tests and optionally set up necessary
+  IAM roles for a principal (user/group/service-account). You need to have the following
   IAM permission to be able to run the set up script successfully:
 
   - ``serviceusage.services.enable``
