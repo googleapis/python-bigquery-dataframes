@@ -2213,11 +2213,6 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return Series as ndarray or ndarray-like depending on the dtype.
 
-        .. warning::
-           We recommend using :attr:`Series.array` or
-           :meth:`Series.to_numpy`, depending on whether you need
-           a reference to the underlying data or a NumPy array.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
