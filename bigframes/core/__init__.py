@@ -84,7 +84,17 @@ class ArrayValue:
         required_session = self.node.session
         from bigframes import get_global_session
 
-        return self.node.session[0] if required_session else get_global_session()
+        return (
+            required_session if (required_session is not None) else get_global_session()
+        )
+
+    def _try_evaluate_local(self):
+        """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
+        import ibis
+
+        return ibis.pandas.connect({}).execute(
+            self._compile_ordered()._to_ibis_expr(ordering_mode="unordered")
+        )
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self._compile_ordered().get_column_type(key)
