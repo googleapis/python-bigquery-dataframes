@@ -92,8 +92,185 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def info(
+        self,
+        verbose: bool | None = None,
+        buf=None,
+        max_cols: int | None = None,
+        memory_usage: bool | None = None,
+        show_counts: bool | None = None,
+    ) -> None:
+        """
+        Print a concise summary of a DataFrame.
+
+        This method prints information about a DataFrame including
+        the index dtypeand columns, non-null values and memory usage.
+
+        Args:
+            verbose (bool, optional):
+                Whether to print the full summary. By default, the setting in
+                ``pandas.options.display.max_info_columns`` is followed.
+            buf (writable buffer, defaults to sys.stdout):
+                Where to send the output. By default, the output is printed to
+                sys.stdout. Pass a writable buffer if you need to further process
+                the output.
+            max_cols (int, optional):
+                When to switch from the verbose to the truncated output. If the
+                DataFrame has more than `max_cols` columns, the truncated output
+                is used. By default, the setting in
+                ``pandas.options.display.max_info_columns`` is used.
+            memory_usage (bool, optional):
+                Specifies whether total memory usage of the DataFrame
+                elements (including the index) should be displayed. By default,
+                this follows the ``pandas.options.display.memory_usage`` setting.
+                True always show memory usage. False never shows memory usage.
+                Memory estimation is made based in column dtype and number of rows
+                assuming values consume the same memory amount for corresponding dtypes.
+            show_counts (bool, optional):
+                Whether to show the non-null counts. By default, this is shown
+                only if the DataFrame is smaller than
+                ``pandas.options.display.max_info_rows`` and
+                ``pandas.options.display.max_info_columns``. A value of True always
+                shows the counts, and False never shows the counts.
+
+        Returns:
+            None: This method prints a summary of a DataFrame and returns None."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def memory_usage(self, index: bool = True):
+        """
+        Return the memory usage of each column in bytes.
+
+        The memory usage can optionally include the contribution of
+        the index and elements of `object` dtype.
+
+        This value is displayed in `DataFrame.info` by default. This can be
+        suppressed by setting ``pandas.options.display.memory_usage`` to False.
+
+        Args:
+            index (bool, default True):
+                Specifies whether to include the memory usage of the DataFrame's
+                index in returned Series. If ``index=True``, the memory usage of
+                the index is the first item in the output.
+
+        Returns:
+            Series: A Series whose index is the original column names and whose values is the memory usage of each column in bytes.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def select_dtypes(self, include=None, exclude=None) -> DataFrame:
+        """
+        Return a subset of the DataFrame's columns based on the column dtypes.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': ["hello", "world"], 'col3': [True, False]})
+            >>> df.select_dtypes(include=['Int64'])
+               col1
+            0     1
+            1     2
+            <BLANKLINE>
+            [2 rows x 1 columns]
+
+            >>> df.select_dtypes(exclude=['Int64'])
+                col2   col3
+            0  hello   True
+            1  world  False
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+
+        Args:
+            include (scalar or list-like):
+                A selection of dtypes or strings to be included.
+            exclude (scalar or list-like):
+                A selection of dtypes or strings to be excluded.
+
+        Returns:
+            DataFrame: The subset of the frame including the dtypes in ``include`` and excluding the dtypes in ``exclude``.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict,
+        orient="columns",
+        dtype=None,
+        columns=None,
+    ) -> DataFrame:
+        """
+        Construct DataFrame from dict of array-like or dicts.
+
+        Creates DataFrame object from dictionary by columns or by index
+        allowing dtype specification.
+
+        Args:
+            data (dict):
+                Of the form {field : array-like} or {field : dict}.
+            orient ({'columns', 'index', 'tight'}, default 'columns'):
+                The "orientation" of the data. If the keys of the passed dict
+                should be the columns of the resulting DataFrame, pass 'columns'
+                (default). Otherwise if the keys should be rows, pass 'index'.
+                If 'tight', assume a dict with keys ['index', 'columns', 'data',
+                'index_names', 'column_names'].
+            dtype (dtype, default None):
+                Data type to force after DataFrame construction, otherwise infer.
+            columns (list, default None):
+                Column labels to use when ``orient='index'``. Raises a ValueError
+                if used with ``orient='columns'`` or ``orient='tight'``.
+
+        Returns:
+            DataFrame: DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @classmethod
+    def from_records(
+        cls,
+        data,
+        index=None,
+        exclude=None,
+        columns=None,
+        coerce_float: bool = False,
+        nrows: int | None = None,
+    ) -> DataFrame:
+        """
+        Convert structured or record ndarray to DataFrame.
+
+        Creates a DataFrame object from a structured ndarray, sequence of
+        tuples or dicts, or DataFrame.
+
+        Args:
+            data (structured ndarray, sequence of tuples or dicts):
+                Structured input data.
+            index (str, list of fields, array-like):
+                Field of array to use as the index, alternately a specific set of
+                input labels to use.
+            exclude (sequence, default None):
+                Columns or fields to exclude.
+            columns (sequence, default None):
+                Column names to use. If the passed data do not have names
+                associated with them, this argument provides names for the
+                columns. Otherwise this argument indicates the order of the columns
+                in the result (any names not found in the data will become all-NA
+                columns).
+            coerce_float (bool, default False):
+                Attempt to convert values of non-string, non-numeric objects (like
+                decimal.Decimal) to floating point, useful for SQL result sets.
+            nrows (int, default None):
+                Number of rows to read if data is an iterator.
+
+        Returns:
+            DataFrame: DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
@@ -540,7 +717,7 @@ class DataFrame(NDFrame):
                 These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
         Returns:
-            DataFrame in Markdown-friendly format.
+            DataFrame: DataFrame in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1095,7 +1272,7 @@ class DataFrame(NDFrame):
              if `first`; `last` puts NaNs at the end.
 
         Returns:
-            DataFrame with sorted values.
+            DataFrame: DataFrame with sorted values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1105,7 +1282,7 @@ class DataFrame(NDFrame):
         """Sort object by labels (along an axis).
 
         Returns:
-            The original DataFrame sorted by the labels.
+            DataFrame: The original DataFrame sorted by the labels.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1153,7 +1330,7 @@ class DataFrame(NDFrame):
                 (1 or 'columns').
 
         Returns:
-            Result of the comparison.
+            DataFrame: Result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1684,7 +1861,7 @@ class DataFrame(NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame result of the arithmetic operation.
+            DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2619,7 +2796,7 @@ class DataFrame(NDFrame):
                 Include only boolean columns.
 
         Returns:
-            Series
+            bigframes.series.Series: Series indicating if any element is True per column.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2666,7 +2843,7 @@ class DataFrame(NDFrame):
                 Include only boolean columns.
 
         Returns:
-            bigframes.series.Series: Series if all elements are True.
+            bigframes.series.Series: Series indicating if all elements are True per column.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2852,6 +3029,33 @@ class DataFrame(NDFrame):
     def mean(self, axis=0, *, numeric_only: bool = False):
         """Return the mean of the values over the requested axis.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the mean of each column (the default behavior without an explicit axis parameter).
+
+            >>> df.mean()
+            A    2.0
+            B    3.0
+            dtype: Float64
+
+        Calculating the mean of each row.
+
+            >>> df.mean(axis=1)
+            0    1.5
+            1    3.5
+            dtype: Float64
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2865,7 +3069,27 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def median(self, *, numeric_only: bool = False, exact: bool = False):
-        """Return the median of the values over the requested axis.
+        """Return the median of the values over colunms.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Finding the median value of each column.
+
+            >>> df.median()
+            A    1.0
+            B    2.0
+            dtype: Float64
 
         Args:
             numeric_only (bool. default False):
@@ -2884,6 +3108,34 @@ class DataFrame(NDFrame):
 
         Normalized by N-1 by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
+            >>> df
+                A	B
+            0	1	2
+            1	3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Calculating the variance of each column (the default behavior without an explicit axis parameter).
+
+            >>> df.var()
+            A    2.0
+            B    2.0
+            dtype: Float64
+
+        Calculating the variance of each row.
+
+            >>> df.var(axis=1)
+            0    0.5
+            1    0.5
+            dtype: Float64
+
+
         Args:
             axis ({index (0), columns (1)}):
                 Axis for the function to be applied on.
@@ -2897,16 +3149,42 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def skew(self, *, numeric_only: bool = False):
-        """Return unbiased skew over requested axis.
+        """Return unbiased skew over columns.
 
         Normalized by N-1.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3, 4, 5],
+            ...                    'B': [5, 4, 3, 2, 1],
+            ...                    'C': [2, 2, 3, 2, 2]})
+            >>> df
+                A	B	C
+            0	1	5	2
+            1	2	4	2
+            2	3	3	3
+            3	4	2	2
+            4	5	1	2
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Calculating the skewness of each column.
+
+            >>> df.skew()
+            A         0.0
+            B         0.0
+            C    2.236068
+            dtype: Float64
 
         Args:
             numeric_only (bool, default False):
                 Include only float, int, boolean columns.
 
         Returns:
-            Series
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2947,7 +3225,7 @@ class DataFrame(NDFrame):
                 Include only float, int, boolean columns.
 
         Returns:
-            Series
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3156,7 +3434,26 @@ class DataFrame(NDFrame):
 
     def nunique(self):
         """
-        Count number of distinct elements in specified axis.
+        Count number of distinct elements in each column.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 2]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.nunique()
+            A    3.0
+            B    2.0
+            dtype: Float64
 
         Returns:
             bigframes.series.Series: Series with number of distinct elements.
@@ -3164,9 +3461,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cummin(self) -> DataFrame:
-        """Return cumulative minimum over a DataFrame axis.
+        """Return cumulative minimum over columns.
 
         Returns a DataFrame of the same size containing the cumulative minimum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cummin()
+                A	B
+            0	3	1
+            1	1	1
+            2	1	1
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative minimum of DataFrame.
@@ -3174,9 +3493,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cummax(self) -> DataFrame:
-        """Return cumulative maximum over a DataFrame axis.
+        """Return cumulative maximum over columns.
 
         Returns a DataFrame of the same size containing the cumulative maximum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cummax()
+                A	B
+            0	3	1
+            1	3	2
+            2	3	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative maximum of DataFrame.
@@ -3184,9 +3525,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cumsum(self) -> DataFrame:
-        """Return cumulative sum over a DataFrame axis.
+        """Return cumulative sum over columns.
 
         Returns a DataFrame of the same size containing the cumulative sum.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cumsum()
+                A	B
+            0	3	1
+            1	4	3
+            2	6	6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative sum of DataFrame.
@@ -3194,9 +3557,31 @@ class DataFrame(NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def cumprod(self) -> DataFrame:
-        """Return cumulative product over a DataFrame axis.
+        """Return cumulative product over columns.
 
         Returns a DataFrame of the same size containing the cumulative product.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.cumprod()
+                A	B
+            0	3	1
+            1	3	2
+            2	6	6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Return cumulative product of DataFrame.
@@ -3212,6 +3597,40 @@ class DataFrame(NDFrame):
         Calculates the difference of a DataFrame element compared with another
         element in the DataFrame (default is element in previous row).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Calculating difference with default periods=1:
+
+            >>> df.diff()
+                   A	   B
+            0	<NA>	<NA>
+            1	  -2	   1
+            2	   1	   1
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Calculating difference with periods=-1:
+
+            >>> df.diff(periods=-1)
+                   A	   B
+            0	   2	  -1
+            1	  -1	  -1
+            2	<NA>	<NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Args:
             periods (int, default 1):
                 Periods to shift for calculating difference, accepts negative
@@ -3224,7 +3643,37 @@ class DataFrame(NDFrame):
 
     def agg(self, func):
         """
-        Aggregate using one or more operations over the specified axis.
+        Aggregate using one or more operations over columns.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Using a single function:
+
+            >>> df.agg('sum')
+            A    6.0
+            B    6.0
+            dtype: Float64
+
+        Using a list of functions:
+
+            >>> df.agg(['sum', 'mean'])
+                      A	  B
+            sum	    6.0	6.0
+            mean	2.0	2.0
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Args:
             func (function):
@@ -3256,6 +3705,33 @@ class DataFrame(NDFrame):
             upper percentiles. By default the lower percentile is ``25`` and the
             upper percentile is ``75``. The ``50`` percentile is the
             same as the median.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8]})
+            >>> df
+                A	B
+            0	3	0
+            1	1	2
+            2	2	8
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.describe()
+                          A	          B
+            count       3.0	        3.0
+            mean        2.0	   3.333333
+            std	        1.0	   4.163332
+            min	        1.0	        0.0
+            25%	        1.0	        0.0
+            50%	        2.0	        2.0
+            75%	        3.0	        8.0
+            max	        3.0	        8.0
+            <BLANKLINE>
+            [8 rows x 2 columns]
 
         Returns:
             bigframes.dataframe.DataFrame: Summary statistics of the Series or Dataframe provided.
@@ -3294,7 +3770,7 @@ class DataFrame(NDFrame):
                 have hierarchically indexed columns.
 
         Returns:
-            Returns reshaped DataFrame.
+            DataFrame: Returns reshaped DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3332,7 +3808,7 @@ class DataFrame(NDFrame):
         (the analogue of stack when the columns are not a MultiIndex).
 
         Returns:
-            DataFrame or Series
+            DataFrame or Series: DataFrame or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3390,7 +3866,7 @@ class DataFrame(NDFrame):
                 dtype=object)
 
         Returns:
-            The index labels of the DataFrame.
+            Index: The index object of the DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3639,7 +4115,7 @@ class DataFrame(NDFrame):
                 The other object to compute the matrix product with.
 
         Returns:
-            Series or DataFrame
+            Series or DataFrame:
                 If `other` is a Series, return the matrix product between self and
                 other as a Series. If other is a DataFrame, return
                 the matrix product of self and other in a DataFrame.
