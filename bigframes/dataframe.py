@@ -434,6 +434,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # TODO: Convert to different units (kb, mb, etc.)
             obuf.write(f"memory usage: {self.memory_usage().sum()} bytes\n")
 
+    def select_dtypes(self, include=None, exclude=None) -> DataFrame:
+        # Create empty pandas dataframe with same schema and then leverage actual pandas implementation
+        as_pandas = pandas.DataFrame(
+            {
+                col_id: pandas.Series([], dtype=dtype)
+                for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            }
+        )
+        selected_columns = tuple(
+            as_pandas.select_dtypes(include=include, exclude=exclude).columns
+        )
+        return DataFrame(self._block.select_columns(selected_columns))
+
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
 
@@ -2367,6 +2380,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict,
+        orient: str = "columns",
+        dtype=None,
+        columns=None,
+    ) -> DataFrame:
+        return cls(pandas.DataFrame.from_dict(data, orient, dtype, columns))  # type: ignore
+
+    @classmethod
+    def from_records(
+        cls,
+        data,
+        index=None,
+        exclude=None,
+        columns=None,
+        coerce_float: bool = False,
+        nrows: int | None = None,
+    ) -> DataFrame:
+        return cls(
+            pandas.DataFrame.from_records(
+                data, index, exclude, columns, coerce_float, nrows
+            )
+        )
 
     def to_csv(
         self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
