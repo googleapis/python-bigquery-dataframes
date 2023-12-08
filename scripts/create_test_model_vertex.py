@@ -52,8 +52,20 @@ if __name__ == "__main__":
         type=str,
         required=True,
         action="store",
-        help="Number of APIs to print.",
+        help="Name of the model in Vertex.",
+    )
+    parser.add_argument(
+        "-p",
+        "--project-id",
+        type=str,
+        required=False,
+        action="store",
+        help="Project id in which the model should be created. "
+        "By default, a project will be resolved as per https://cloud.google.com/python/docs/reference/google-cloud-core/latest/config#overview.",
     )
 
     args = parser.parse_args(sys.argv[1:])
+    if args.project_id:
+        bigframes.pandas.options.bigquery.project = args.project_id
+
     create_vertex_model(args.model_name)
