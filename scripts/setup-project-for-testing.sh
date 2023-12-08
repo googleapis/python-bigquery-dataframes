@@ -217,7 +217,7 @@ function create_bq_model_vertex_endpoint () {
     echo "Failed to fetch vertex endpoint relativr path, exiting..."
     exit 9
   fi
-  endpoint_path=https://$vertex_region-aiplatform.googleapis.com/$endpoint_rel_path
+  endpoint_path=https://$vertex_region-aiplatform.googleapis.com/v1/$endpoint_rel_path
 
   # Print the endpoint configuration to be used in tests
   echo Run following command to set test model vertex endpoint:
