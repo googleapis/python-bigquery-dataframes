@@ -125,7 +125,8 @@ class BigQueryOptions:
         """Flag to connect to regional API endpoints.
 
         .. deprecated:: 0.13.0
-            BigQuery regional endpoints is locked to allowlisted projects.
+            BigQuery regional endpoints is a feature in preview and
+            available only to selected projects.
             Enable it only if your project has regional endpoints access.
 
         Requires ``location`` to also be set. For example, set
@@ -143,7 +144,8 @@ class BigQueryOptions:
 
         if value:
             warnings.warn(
-                "BigQuery regional endpoints is locked to allowlisted projects. "
+                "BigQuery regional endpoints is a feature in preview and "
+                "available only to selected projects. "
                 "Enable it only if your project has regional endpoints access."
             )
 
