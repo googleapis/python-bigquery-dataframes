@@ -17,16 +17,18 @@ https://scikit-learn.org/stable/modules/clustering.html."""
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.cluster._kmeans
 
 
+@log_adapter.class_logger
 class KMeans(
     base.UnsupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.cluster._kmeans.KMeans,
@@ -92,7 +94,7 @@ class KMeans(
 
         (X,) = utils.convert_to_dataframe(X)
 
-        return cast(bpd.DataFrame, self._bqml_model.predict(X)[["CENTROID_ID"]])
+        return self._bqml_model.predict(X)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> KMeans:
         """Save the model to BigQuery.
