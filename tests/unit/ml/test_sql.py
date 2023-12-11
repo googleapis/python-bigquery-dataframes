@@ -190,6 +190,32 @@ OPTIONS(
     )
 
 
+def test_create_remote_model_with_params_produces_correct_sql(
+    model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+):
+    sql = model_creation_sql_generator.create_remote_model(
+        connection_name="my_project.us.my_connection",
+        model_ref=bigquery.ModelReference.from_string(
+            "test-proj._anonXYZ.create_remote_model"
+        ),
+        input={"column1": "int64"},
+        output={"result": "array<float64>"},
+        options={"option_key1": "option_value1", "option_key2": 2},
+    )
+    assert (
+        sql
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_remote_model`
+INPUT(
+  column1 int64)
+OUTPUT(
+  result array<float64>)
+REMOTE WITH CONNECTION `my_project.us.my_connection`
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
+    )
+
+
 def test_create_imported_model_produces_correct_sql(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
@@ -264,6 +290,22 @@ def test_ml_centroids_produces_correct_sql(
     assert (
         sql
         == """SELECT * FROM ML.CENTROIDS(MODEL `my_project_id.my_dataset_id.my_model_id`)"""
+    )
+
+
+def test_forecast_correct_sql(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ml_forecast(
+        struct_options={"option_key1": 1, "option_key2": 2.2},
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.FORECAST(MODEL `my_project_id.my_dataset_id.my_model_id`,
+  STRUCT(
+  1 AS option_key1,
+  2.2 AS option_key2))"""
     )
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import re
+import sys
 import textwrap
 import typing
 from typing import (
@@ -36,6 +37,7 @@ from typing import (
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+import tabulate
 
 import bigframes
 import bigframes._config.display_options as display_options
@@ -349,6 +351,101 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
         return self._query_job
+
+    def memory_usage(self, index: bool = True):
+        n_rows, _ = self.shape
+        # like pandas, treat all variable-size objects as just 8-byte pointers, ignoring actual object
+        column_sizes = self.dtypes.map(
+            lambda dtype: bigframes.dtypes.DTYPE_BYTE_SIZES.get(dtype, 8) * n_rows
+        )
+        if index:
+            index_size = pandas.Series([self.index._memory_usage()], index=["Index"])
+            column_sizes = pandas.concat([index_size, column_sizes])
+        return column_sizes
+
+    def info(
+        self,
+        verbose: Optional[bool] = None,
+        buf=None,
+        max_cols: Optional[int] = None,
+        memory_usage: Optional[bool] = None,
+        show_counts: Optional[bool] = None,
+    ):
+        obuf = buf or sys.stdout
+
+        n_rows, n_columns = self.shape
+
+        max_cols = (
+            max_cols
+            if max_cols is not None
+            else bigframes.options.display.max_info_columns
+        )
+
+        show_all_columns = verbose if verbose is not None else (n_columns < max_cols)
+
+        obuf.write(f"{type(self)}\n")
+
+        index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
+
+        # These accessses are kind of expensive, maybe should try to skip?
+        first_indice = self.index[0]
+        last_indice = self.index[-1]
+        obuf.write(f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n")
+
+        dtype_strings = self.dtypes.astype("string")
+        if show_all_columns:
+            obuf.write(f"Data columns (total {n_columns} columns):\n")
+            column_info = self.columns.to_frame(name="Column")
+
+            max_rows = bigframes.options.display.max_info_rows
+            too_many_rows = n_rows > max_rows if max_rows is not None else False
+
+            if show_counts if show_counts is not None else (not too_many_rows):
+                non_null_counts = self.count().to_pandas()
+                column_info["Non-Null Count"] = non_null_counts.map(
+                    lambda x: f"{int(x)} non-null"
+                )
+
+            column_info["Dtype"] = dtype_strings
+
+            column_info = column_info.reset_index(drop=True)
+            column_info.index.name = "#"
+
+            column_info_formatted = tabulate.tabulate(column_info, headers="keys")  # type: ignore
+            obuf.write(column_info_formatted)
+            obuf.write("\n")
+
+        else:  # Just number of columns and first, last
+            obuf.write(
+                f"Columns: {n_columns} entries, {self.columns[0]} to {self.columns[-1]}\n"
+            )
+        dtype_counts = dtype_strings.value_counts().sort_index(ascending=True).items()
+        dtype_counts_formatted = ", ".join(
+            f"{dtype}({count})" for dtype, count in dtype_counts
+        )
+        obuf.write(f"dtypes: {dtype_counts_formatted}\n")
+
+        show_memory = (
+            memory_usage
+            if memory_usage is not None
+            else bigframes.options.display.memory_usage
+        )
+        if show_memory:
+            # TODO: Convert to different units (kb, mb, etc.)
+            obuf.write(f"memory usage: {self.memory_usage().sum()} bytes\n")
+
+    def select_dtypes(self, include=None, exclude=None) -> DataFrame:
+        # Create empty pandas dataframe with same schema and then leverage actual pandas implementation
+        as_pandas = pandas.DataFrame(
+            {
+                col_id: pandas.Series([], dtype=dtype)
+                for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            }
+        )
+        selected_columns = tuple(
+            as_pandas.select_dtypes(include=include, exclude=exclude).columns
+        )
+        return DataFrame(self._block.select_columns(selected_columns))
 
     def _set_internal_query_job(self, query_job: bigquery.QueryJob):
         self._query_job = query_job
@@ -2284,6 +2381,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
 
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict,
+        orient: str = "columns",
+        dtype=None,
+        columns=None,
+    ) -> DataFrame:
+        return cls(pandas.DataFrame.from_dict(data, orient, dtype, columns))  # type: ignore
+
+    @classmethod
+    def from_records(
+        cls,
+        data,
+        index=None,
+        exclude=None,
+        columns=None,
+        coerce_float: bool = False,
+        nrows: int | None = None,
+    ) -> DataFrame:
+        return cls(
+            pandas.DataFrame.from_records(
+                data, index, exclude, columns, coerce_float, nrows
+            )
+        )
+
     def to_csv(
         self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
     ) -> None:
@@ -2577,14 +2700,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         }
 
         if ordering_id is not None:
-            return array_value.to_sql(
-                offset_column=ordering_id,
-                col_id_overrides=id_overrides,
-            )
-        else:
-            return array_value.to_sql(
-                col_id_overrides=id_overrides,
-            )
+            array_value = array_value.promote_offsets(ordering_id)
+        return array_value.to_sql(
+            col_id_overrides=id_overrides,
+        )
 
     def _run_io_query(
         self,
@@ -2801,7 +2920,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result = result[other_frame.columns]
 
         if isinstance(other, bf_series.Series):
-            result = result[other.name].rename()
+            # There should be exactly one column in the result
+            result = result[result.columns[0]].rename()
 
         return result
 
