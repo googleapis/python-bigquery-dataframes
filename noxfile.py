@@ -520,7 +520,7 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--upgrade",
         # TODO(shobs): Remove tying to version 2.1.3 after
         # https://github.com/pandas-dev/pandas/issues/56463 is resolved
-        "pandas==2.1.3",
+        "pandas!=2.1.4",
     )
     already_installed.add("pandas")
 
