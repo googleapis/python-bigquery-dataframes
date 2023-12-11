@@ -55,6 +55,7 @@ class SchemaInterface:
         else:
             self._add_new_row()
         display(self.layout)
+        self.enable_inputs()
 
     def _add_new_row(
         self, b=None, column_name="", column_type="Int64", column_description=""
@@ -224,16 +225,12 @@ class CodeInterface:
             [self.code_textarea, self.run_button, self.submit_button]
         )
 
-        self._code_output = None
-
         self._on_run_callback = on_run_callback
         self._on_submit_callback = on_submit_callback
 
     def display_interface(self, code):
         self.code_textarea.value = code
         display(self.layout)
-
-        self._code_output = widgets.Output()
 
     def _on_run_button_clicked(self, btn):
         if self._on_run_callback is not None:

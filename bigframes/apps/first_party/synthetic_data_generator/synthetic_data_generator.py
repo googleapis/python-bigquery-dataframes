@@ -50,13 +50,14 @@ class SyntheticDataGenerator:
     _ROWS_PER_NODE = 100
     _MAX_LOCAL_NUM_ROWS = 10000
 
-    def __init__(self) -> None:
+    def __init__(self, model_connection=None) -> None:
         self._interactive = is_notebook()
         self._schema_interface = None
         self._prompt_interface = None
         self._code_interface = None
         self._code_output = None
         self._code_processor = None
+        self._model_connection = model_connection
 
     def generate_synthetic_data(self, dataframe_schema_dict=None, interactive=True):
         """
@@ -295,7 +296,9 @@ class SyntheticDataGenerator:
             self._enable_all_buttons()
 
     def _display_code_interface(self, prompt):
-        self._code_processor = CodeProcessor(prompt, self.col_for_join)
+        self._code_processor = CodeProcessor(
+            prompt, self.col_for_join, model_connection=self._model_connection
+        )
         code = ""
         if self._interactive:
             with self._disable_buttons_temporarily():
@@ -324,9 +327,12 @@ class SyntheticDataGenerator:
     def _on_schema_submit_callback(self, description):
         if self._prompt_interface is not None:
             self._prompt_interface.close_interface()
+            self._prompt_interface = NotImplementedError
         if self._code_interface is not None:
             self._code_interface.close_interface()
-            self._code_output.clear_output()
+            self._code_interface = None
+            self._code_output.close()
+            self._code_output = None
 
         prompt = PromptGenerator(description).generate_prompt()
         self._display_prompt_interface(prompt)
@@ -334,14 +340,16 @@ class SyntheticDataGenerator:
     def _on_prompt_submit_callback(self, prompt):
         if self._code_interface is not None:
             self._code_interface.close_interface()
-            self._code_output.clear_output()
+            self._code_interface = None
+            self._code_output.close()
+            self._code_output = None
 
         self._display_code_interface(prompt)
 
     def _on_code_run_callback(self, code):
         if self._code_processor is not None:
             with self._disable_buttons_temporarily():
-                self._code_output.clear_output()
+                self._code_output.clear_output(wait=True)
                 with self._code_output:
                     result_df = self._code_processor.run_code(code)
                     print(result_df)
@@ -349,7 +357,7 @@ class SyntheticDataGenerator:
     def _on_code_submit_callback(self, code):
         if self._code_processor is not None:
             with self._disable_buttons_temporarily():
-                self._code_output.clear_output()
+                self._code_output.clear_output(wait=True)
                 with self._code_output:
                     self.generated_df = self._code_processor.submit_code(
                         code, self._MAX_LOCAL_NUM_ROWS, self._ROWS_PER_NODE

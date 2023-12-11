@@ -25,7 +25,7 @@ Note:
   - After all import statements, declare the variable with 'num_rows = {num_rows}'.
   - Use the 'num_rows' variable to determine the number of rows in the dataframe.
   - The final dataframe should be named 'result_df'.
-  - Try to use the faker library.
+  - Try to use the faker library for non-numeric columns.
   - Please respect the column name semantics and the type.
   - Do not print.
 """

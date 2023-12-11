@@ -18,6 +18,7 @@ from bigframes.apps.first_party.synthetic_data_generator.synthetic_data_generato
     SyntheticDataGenerator,
 )
 
+import bigframes.pandas as bpd
 
 @pytest.mark.parametrize("num_rows", [100, 10001])
 def test_generation_from_table(scalars_df_index, num_rows):
@@ -27,6 +28,16 @@ def test_generation_from_table(scalars_df_index, num_rows):
 
     assert len(df_gen.generated_df) == num_rows
     assert len(df_gen.generated_df.columns) == 3
+
+
+# @pytest.mark.parametrize("num_rows", [3000])
+# def test_generation_from_table_1(num_rows):
+#     orig_df_1 = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins", max_results=2000)
+#     df_gen = SyntheticDataGenerator()
+#     df_gen.generate_synthetic_data_from_table(orig_df_1, num_rows=num_rows)
+
+#     assert len(df_gen.generated_df) == num_rows
+#     assert len(df_gen.generated_df.columns) == 3
 
 
 @pytest.mark.parametrize("num_rows", [100, 10001])

@@ -36,22 +36,22 @@ SELECT {columns} FROM C, UNNEST(data) as row
 
 
 class CodeProcessor:
-    def __init__(self, prompt: str, col_for_join: bpd.Series):
+    def __init__(self, prompt: str, col_for_join: bpd.Series, model_connection=None):
         self._model = None
         self._prompt = prompt
         self._col_for_join = col_for_join
+        self._connection = model_connection
 
     def generate_code(self, retries: int = 4):
         last_error = ""
         last_code = ""
         prompt = self._prompt
         code = ""
+        temperature = 0
         if self._model is None:
             session = bpd.get_global_session()
-            connection = None
-            # connection = bpd.options.bigquery.llm_connection
             self._model = PaLM2TextGenerator(
-                session=session, connection_name=connection
+                session=session, connection_name=self._connection
             )
 
         for i in range(retries + 1):
@@ -61,7 +61,7 @@ class CodeProcessor:
                 }
             )
             code = (
-                self._model.predict(prompts, max_output_tokens=1024)
+                self._model.predict(prompts, max_output_tokens=1024, temperature=temperature)
                 .to_pandas()
                 .iloc[0, 0]
             )
@@ -79,7 +79,9 @@ class CodeProcessor:
 
                 error = f"{e.__class__.__name__}: {e}"
                 if error == last_error and code == last_code:
-                    break
+                    temperature = 0.1
+                else:
+                    temperature = 0
                 last_error = error
                 last_code = code
                 prompt = self._update_prompt_on_error(error, code)
@@ -360,7 +362,7 @@ class CodeProcessor:
             + "\n\n"
             + "Code:\n"
             + code
-            + "Error Message: "
+            + "\n\nError Message: "
             + error
         )
         return updated_prompt
