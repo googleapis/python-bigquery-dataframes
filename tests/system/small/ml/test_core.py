@@ -78,58 +78,62 @@ def test_model_eval_with_data(penguins_bqml_linear_model, penguins_df_default_in
 
 def test_model_centroids(penguins_bqml_kmeans_model: core.BqmlModel):
     result = penguins_bqml_kmeans_model.centroids().to_pandas()
-    expected = pd.DataFrame(
-        {
-            "centroid_id": [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3],
-            "feature": [
-                "culmen_length_mm",
-                "culmen_depth_mm",
-                "flipper_length_mm",
-                "sex",
-            ]
-            * 3,
-            "numerical_value": [
-                47.509677,
-                14.993548,
-                217.040123,
-                pd.NA,
-                38.207813,
-                18.03125,
-                187.992188,
-                pd.NA,
-                47.036346,
-                18.834808,
-                197.1612,
-                pd.NA,
-            ],
-            "categorical_value": [
-                [],
-                [],
-                [],
-                [
-                    {"category": ".", "value": 0.008064516129032258},
-                    {"category": "MALE", "value": 0.49193548387096775},
-                    {"category": "FEMALE", "value": 0.47580645161290325},
-                    {"category": "_null_filler", "value": 0.024193548387096774},
+    expected = (
+        pd.DataFrame(
+            {
+                "centroid_id": [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3],
+                "feature": [
+                    "culmen_length_mm",
+                    "culmen_depth_mm",
+                    "flipper_length_mm",
+                    "sex",
+                ]
+                * 3,
+                "numerical_value": [
+                    47.509677,
+                    14.993548,
+                    217.040123,
+                    pd.NA,
+                    38.207813,
+                    18.03125,
+                    187.992188,
+                    pd.NA,
+                    47.036346,
+                    18.834808,
+                    197.1612,
+                    pd.NA,
                 ],
-                [],
-                [],
-                [],
-                [
-                    {"category": "MALE", "value": 0.34375},
-                    {"category": "FEMALE", "value": 0.625},
-                    {"category": "_null_filler", "value": 0.03125},
+                "categorical_value": [
+                    [],
+                    [],
+                    [],
+                    [
+                        {"category": ".", "value": 0.008064516129032258},
+                        {"category": "MALE", "value": 0.49193548387096775},
+                        {"category": "FEMALE", "value": 0.47580645161290325},
+                        {"category": "_null_filler", "value": 0.024193548387096774},
+                    ],
+                    [],
+                    [],
+                    [],
+                    [
+                        {"category": "MALE", "value": 0.34375},
+                        {"category": "FEMALE", "value": 0.625},
+                        {"category": "_null_filler", "value": 0.03125},
+                    ],
+                    [],
+                    [],
+                    [],
+                    [
+                        {"category": "MALE", "value": 0.6847826086956522},
+                        {"category": "FEMALE", "value": 0.2826086956521739},
+                        {"category": "_null_filler", "value": 0.03260869565217391},
+                    ],
                 ],
-                [],
-                [],
-                [],
-                [
-                    {"category": "MALE", "value": 0.6847826086956522},
-                    {"category": "FEMALE", "value": 0.2826086956521739},
-                    {"category": "_null_filler", "value": 0.03260869565217391},
-                ],
-            ],
-        },
+            },
+        )
+        .sort_values(["centroid_id", "feature"])
+        .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(
         result,
@@ -148,66 +152,70 @@ def test_pca_model_principal_components(penguins_bqml_pca_model: core.BqmlModel)
 
     # result is too long, only check the first principal component here.
     result = result.head(7)
-    expected = pd.DataFrame(
-        {
-            "principal_component_id": [0] * 7,
-            "feature": [
-                "species",
-                "island",
-                "culmen_length_mm",
-                "culmen_depth_mm",
-                "flipper_length_mm",
-                "body_mass_g",
-                "sex",
-            ],
-            "numerical_value": [
-                pd.NA,
-                pd.NA,
-                0.401489,
-                -0.377482,
-                0.524052,
-                0.501174,
-                pd.NA,
-            ],
-            "categorical_value": [
-                [
-                    {
-                        "category": "Gentoo penguin (Pygoscelis papua)",
-                        "value": 0.25068877125667804,
-                    },
-                    {
-                        "category": "Adelie Penguin (Pygoscelis adeliae)",
-                        "value": -0.20622291900416198,
-                    },
-                    {
-                        "category": "Chinstrap penguin (Pygoscelis antarctica)",
-                        "value": -0.030161149275185855,
-                    },
+    expected = (
+        pd.DataFrame(
+            {
+                "principal_component_id": [0] * 7,
+                "feature": [
+                    "species",
+                    "island",
+                    "culmen_length_mm",
+                    "culmen_depth_mm",
+                    "flipper_length_mm",
+                    "body_mass_g",
+                    "sex",
                 ],
-                [
-                    {"category": "Biscoe", "value": 0.19761120114410635},
-                    {"category": "Dream", "value": -0.11264736305259061},
-                    {"category": "Torgersen", "value": -0.07065913511418596},
+                "numerical_value": [
+                    pd.NA,
+                    pd.NA,
+                    0.401489,
+                    -0.377482,
+                    0.524052,
+                    0.501174,
+                    pd.NA,
                 ],
-                [],
-                [],
-                [],
-                [],
-                [
-                    {"category": ".", "value": 0.0015916894448071784},
-                    {"category": "MALE", "value": 0.06869704739750442},
-                    {"category": "FEMALE", "value": -0.052521171596813174},
-                    {"category": "_null_filler", "value": -0.0034628622681684906},
+                "categorical_value": [
+                    [
+                        {
+                            "category": "Gentoo penguin (Pygoscelis papua)",
+                            "value": 0.25068877125667804,
+                        },
+                        {
+                            "category": "Adelie Penguin (Pygoscelis adeliae)",
+                            "value": -0.20622291900416198,
+                        },
+                        {
+                            "category": "Chinstrap penguin (Pygoscelis antarctica)",
+                            "value": -0.030161149275185855,
+                        },
+                    ],
+                    [
+                        {"category": "Biscoe", "value": 0.19761120114410635},
+                        {"category": "Dream", "value": -0.11264736305259061},
+                        {"category": "Torgersen", "value": -0.07065913511418596},
+                    ],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [
+                        {"category": ".", "value": 0.0015916894448071784},
+                        {"category": "MALE", "value": 0.06869704739750442},
+                        {"category": "FEMALE", "value": -0.052521171596813174},
+                        {"category": "_null_filler", "value": -0.0034628622681684906},
+                    ],
                 ],
-            ],
-        },
+            },
+        )
+        .sort_values(["principal_component_id", "feature"])
+        .reset_index(drop=True)
     )
-    pd.testing.assert_frame_equal(
+
+    tests.system.utils.assert_pandas_df_equal_pca_components(
         result,
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
         check_dtype=False,
     )
@@ -281,6 +289,22 @@ def test_model_predict_with_unnamed_index(
     )
 
 
+def test_remote_model_predict(
+    bqml_linear_remote_model: core.BqmlModel, new_penguins_df
+):
+    predictions = bqml_linear_remote_model.predict(new_penguins_df).to_pandas()
+    expected = pd.DataFrame(
+        {"predicted_body_mass_g": [[3739.54], [3675.79], [3619.54]]},
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g"]].sort_index(),
+        expected,
+        check_exact=False,
+        rtol=0.1,
+    )
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_model_generate_text(
     bqml_palm2_text_generator_model: core.BqmlModel, llm_text_df
@@ -312,17 +336,18 @@ def test_model_generate_text(
 
 def test_model_forecast(time_series_bqml_arima_plus_model: core.BqmlModel):
     utc = pytz.utc
-    forecast = time_series_bqml_arima_plus_model.forecast().to_pandas()[
-        ["forecast_timestamp", "forecast_value"]
-    ]
+    forecast = time_series_bqml_arima_plus_model.forecast(
+        {"horizon": 4, "confidence_level": 0.8}
+    ).to_pandas()[["forecast_timestamp", "forecast_value"]]
     expected = pd.DataFrame(
         {
             "forecast_timestamp": [
                 datetime(2017, 8, 2, tzinfo=utc),
                 datetime(2017, 8, 3, tzinfo=utc),
                 datetime(2017, 8, 4, tzinfo=utc),
+                datetime(2017, 8, 5, tzinfo=utc),
             ],
-            "forecast_value": [2724.472284, 2593.368389, 2353.613034],
+            "forecast_value": [2724.472284, 2593.368389, 2353.613034, 1781.623071],
         }
     )
     expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())

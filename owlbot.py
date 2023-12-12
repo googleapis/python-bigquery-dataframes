@@ -46,6 +46,7 @@ s.move(
         "noxfile.py",
         ".pre-commit-config.yaml",
         "README.rst",
+        "CONTRIBUTING.rst",
         ".github/release-trigger.yml",
         # BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
         ".kokoro/build.sh",
@@ -99,6 +100,13 @@ s.replace(
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
+# Update the contributing guide to reflect some differences in this repo.
+s.replace(
+    ["CONTRIBUTING.rst"],
+    re.escape("blacken"),
+    "format",
+)
+
 # ----------------------------------------------------------------------------
 # Samples templates
 # ----------------------------------------------------------------------------
@@ -110,5 +118,3 @@ python.py_samples(skip_readmes=True)
 # ----------------------------------------------------------------------------
 
 s.shell.run(["nox", "-s", "format"], hide_output=False)
-for noxfile in REPO_ROOT.glob("samples/**/noxfile.py"):
-    s.shell.run(["nox", "-s", "blacken"], cwd=noxfile.parent, hide_output=False)

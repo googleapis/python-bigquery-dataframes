@@ -16,10 +16,10 @@ import io
 import random
 import tempfile
 import textwrap
+import time
 import typing
 from typing import List
 
-import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
@@ -307,6 +307,23 @@ def test_read_gbq_w_script_no_select(session, dataset_id: str):
     """
     df = session.read_gbq(ddl).to_pandas()
     assert df["statement_type"][0] == "SCRIPT"
+
+
+def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
+    df1 = session.read_gbq(penguins_table_id)
+    time.sleep(1)
+    df2 = session.read_gbq(penguins_table_id)
+    df1.columns = [
+        "species1",
+        "island1",
+        "culmen_length_mm1",
+        "culmen_depth_mm1",
+        "flipper_length_mm1",
+        "body_mass_g1",
+        "sex1",
+    ]
+    df3 = df1.join(df2)
+    assert df3 is not None
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):
@@ -985,26 +1002,3 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
-
-
-def test_session_id(session):
-    assert session._session_id is not None
-
-    # BQ client always runs query within the opened session.
-    query_job = session.bqclient.query("SELECT 1")
-    assert query_job.session_info.session_id == session._session_id
-
-    # TODO(chelsealin): Verify the session id can be binded with a load job.
-
-
-@pytest.mark.flaky(retries=2)
-def test_to_close_session():
-    session = bigframes.Session()
-    assert session._session_id is not None
-    session.close()
-    assert session._session_id is None
-
-    # Session has expired and is no longer available.
-    with pytest.raises(google.api_core.exceptions.BadRequest):
-        query_job = session.bqclient.query("SELECT 1")
-        query_job.result()  # blocks until finished

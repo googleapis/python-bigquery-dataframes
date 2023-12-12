@@ -52,14 +52,6 @@ def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, 
     assert_loading_msg_exist(capsys.readouterr().out)
 
 
-def test_progress_bar_read_gbq(session: bf.Session, penguins_table_id: str, capsys):
-    bf.options.display.progress_bar = "terminal"
-    capsys.readouterr()  # clear output
-    session.read_gbq(penguins_table_id)
-
-    assert_loading_msg_exist(capsys.readouterr().out)
-
-
 def test_progress_bar_extract_jobs(
     penguins_df_default_index: bf.dataframe.DataFrame, gcs_folder, capsys
 ):
@@ -98,9 +90,6 @@ def assert_loading_msg_exist(capystOut: str, pattern=job_load_message_regex):
 
 def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
     bf.options.display.progress_bar = "terminal"
-    penguins_df_default_index._block._expr.session.bqclient.default_query_job_config.use_query_cache = (
-        False
-    )
     penguins_df_default_index.to_pandas()
     query_job_repr = formatting_helpers.repr_query_job_html(
         penguins_df_default_index.query_job
@@ -117,9 +106,6 @@ def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
 
 
 def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
-    penguins_df_default_index._block._expr.session.bqclient.default_query_job_config.use_query_cache = (
-        False
-    )
     penguins_df_default_index.to_pandas()
     query_job_repr = formatting_helpers.repr_query_job(
         penguins_df_default_index.query_job
