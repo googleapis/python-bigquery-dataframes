@@ -2063,11 +2063,11 @@ class Series(NDFrame):  # type: ignore[misc]
         You can normalize the counts to return relative frequencies by setting ``normalize=True``:
 
             >>> s.value_counts(normalize=True)
-            3     0.4
-            1     0.2
-            2     0.2
-            4     0.2
-            Name: count, dtype: Float64
+            3    0.4
+            1    0.2
+            2    0.2
+            4    0.2
+            Name: proportion, dtype: Float64
 
         You can get the values in the ascending order of the counts by setting ``ascending=True``:
 

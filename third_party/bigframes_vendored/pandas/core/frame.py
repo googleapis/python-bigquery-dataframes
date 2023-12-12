@@ -3957,7 +3957,7 @@ class DataFrame(NDFrame):
             4         0             0.5
             2         2            0.25
             6         0            0.25
-            Name: count, dtype: Float64
+            Name: proportion, dtype: Float64
 
         You can get the rows in the ascending order of the counts by setting ``ascending=True``:
 
