@@ -57,6 +57,12 @@ class BaseSqlGenerator:
         indent_str = "  "
         return "\n" + indent_str + f",\n{indent_str}".join(expr_sqls)
 
+    def build_schema(self, **kwargs: str) -> str:
+        """Encode a dict of values into a formatted schema type items for SQL"""
+        indent_str = "  "
+        param_strs = [f"{k} {v}" for k, v in kwargs.items()]
+        return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
+
     def options(self, **kwargs: Union[str, int, float, Iterable[str]]) -> str:
         """Encode the OPTIONS clause for BQML"""
         return f"OPTIONS({self.build_parameters(**kwargs)})"
@@ -64,6 +70,14 @@ class BaseSqlGenerator:
     def struct_options(self, **kwargs: Union[int, float]) -> str:
         """Encode a BQ STRUCT as options."""
         return f"STRUCT({self.build_structs(**kwargs)})"
+
+    def input(self, **kwargs: str) -> str:
+        """Encode a BQML INPUT clause."""
+        return f"INPUT({self.build_schema(**kwargs)})"
+
+    def output(self, **kwargs: str) -> str:
+        """Encode a BQML OUTPUT clause."""
+        return f"OUTPUT({self.build_schema(**kwargs)})"
 
     # Connection
     def connection(self, conn_name: str) -> str:
@@ -139,14 +153,12 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML"""
         source_sql = source_df.sql
-        transform_sql = self.transform(*transforms) if transforms is not None else None
-        options_sql = self.options(**options)
 
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
-        if transform_sql:
-            parts.append(transform_sql)
-        if options_sql:
-            parts.append(options_sql)
+        if transforms:
+            parts.append(self.transform(*transforms))
+        if options:
+            parts.append(self.options(**options))
         parts.append(f"AS {source_sql}")
         return "\n".join(parts)
 
@@ -154,15 +166,19 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         self,
         connection_name: str,
         model_ref: google.cloud.bigquery.ModelReference,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
-        options_sql = self.options(**options)
-
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        if input:
+            parts.append(self.input(**input))
+        if output:
+            parts.append(self.output(**output))
         parts.append(self.connection(connection_name))
-        if options_sql:
-            parts.append(options_sql)
+        if options:
+            parts.append(self.options(**options))
         return "\n".join(parts)
 
     def create_imported_model(
@@ -171,11 +187,10 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
-        options_sql = self.options(**options)
 
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
-        if options_sql:
-            parts.append(options_sql)
+        if options:
+            parts.append(self.options(**options))
         return "\n".join(parts)
 
 
@@ -208,9 +223,11 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return f"""SELECT * FROM ML.PREDICT(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}))"""
 
-    def ml_forecast(self) -> str:
+    def ml_forecast(self, struct_options: Mapping[str, Union[int, float]]) -> str:
         """Encode ML.FORECAST for BQML"""
-        return f"""SELECT * FROM ML.FORECAST(MODEL `{self._model_name}`)"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.FORECAST(MODEL `{self._model_name}`,
+  {struct_options_sql})"""
 
     def ml_generate_text(
         self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
