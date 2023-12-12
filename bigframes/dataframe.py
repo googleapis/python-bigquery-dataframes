@@ -2680,7 +2680,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> str:
         return self.to_pandas().to_html(
             buf,
-            columns, # type: ignore
+            columns,  # type: ignore
             col_space,
             header,
             index,
@@ -2689,7 +2689,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             float_format,
             sparsify,
             index_names,
-            justify, # type: ignore
+            justify,  # type: ignore
             max_rows,
             max_cols,
             show_dimensions,
