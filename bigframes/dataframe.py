@@ -2532,7 +2532,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         try:
-            self._session.bqclient.get_dataset()
+            self._session.bqclient.get_dataset(destination_dataset)
         except google.api_core.exceptions.NotFound:
             self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
 
