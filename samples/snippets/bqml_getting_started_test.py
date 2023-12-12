@@ -13,8 +13,10 @@
 # limitations under the License.
 
 
-def test_bqml_getting_started():
-    # [START bigquery_getting_started_bqml_tutorial]
+def test_bqml_getting_started(random_model_id):
+    your_model_id = random_model_id
+
+    # [START bigquery_dataframes_bqml_getting_started_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
 
@@ -82,5 +84,8 @@ def test_bqml_getting_started():
 
     # The model.fit() call above created a temporary model.
     # Use the to_gbq() method to write to a permanent location.
-    model.to_gbq("bqml_tutorial.sample_model", replace=True)
-    # [END bigquery_getting_started_bqml_tutorial]
+    model.to_gbq(
+        your_model_id,  # For example: "bqml_tutorial.sample_model",
+        replace=True,
+    )
+    # [END bigquery_dataframes_bqml_getting_started_tutorial]
