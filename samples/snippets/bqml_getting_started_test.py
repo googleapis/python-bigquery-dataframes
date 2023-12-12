@@ -28,6 +28,8 @@ def test_bqml_getting_started(random_model_id):
 
     df = bpd.read_gbq(
         """
+        -- Since the order of rows isn't useful for the model training,
+        -- generate a random ID to use as the index for the DataFrame.
         SELECT GENERATE_UUID() AS rowindex, *
         FROM
         `bigquery-public-data.google_analytics_sample.ga_sessions_*`
@@ -40,7 +42,7 @@ def test_bqml_getting_started(random_model_id):
     # Extract the total number of transactions within
     # the Google Analytics session.
     #
-    # Because the totals column is a STRUCT data type, we need to call
+    # Because the totals column is a STRUCT data type, call
     # Series.struct.field("transactions") to extract the transactions field.
     # See the reference documentation below:
     # https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.structs.StructAccessor#bigframes_operations_structs_StructAccessor_field
@@ -78,7 +80,7 @@ def test_bqml_getting_started(random_model_id):
     )
 
     # Logistic Regression model splits data into two classes, giving the
-    # probablity the data is in one of the classes.
+    # a confidence score that the data is in one of the classes.
     model = LogisticRegression()
     model.fit(features, label)
 
