@@ -231,6 +231,8 @@ class CountOp(AggregateOp):
 class CutOp(WindowOp):
     def __init__(self, bins: typing.Union[int, pd.IntervalIndex]):
         if isinstance(bins, int):
+            if not bins > 0:
+                raise ValueError("`bins` should be a positive integer.")
             self._bins_int = bins
             self._bins = dtypes.literal_to_ibis_scalar(bins, force_dtype=Int64Dtype())
         else:
