@@ -34,6 +34,7 @@ from typing import (
     Union,
 )
 
+import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -2530,7 +2531,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Valid options include None or one of {dispositions.keys()}."
             )
 
-        self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
+        try:
+            self._session.bqclient.get_dataset()
+        except google.api_core.exceptions.NotFound:
+            self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
+
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
