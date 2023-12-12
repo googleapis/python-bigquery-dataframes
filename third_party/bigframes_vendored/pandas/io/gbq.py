@@ -21,6 +21,7 @@ class GBQIOMixin:
         max_results: Optional[int] = None,
         columns: Iterable[str] = (),
         filters: FiltersType = (),
+        use_cache: bool = True,
     ):
         """Loads a DataFrame from BigQuery.
 
@@ -113,6 +114,8 @@ class GBQIOMixin:
                 through an OR operation. A single Iterable of tuples can also
                 be used, meaning that no OR operation between set of filters
                 is to be conducted.
+            use_cache (bool, default True):
+                Whether to cache the query inputs. Default to True.
 
         Returns:
             bigframes.dataframe.DataFrame: A DataFrame representing results of the query or table.

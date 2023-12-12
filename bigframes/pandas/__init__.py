@@ -489,6 +489,7 @@ def read_gbq(
     max_results: Optional[int] = None,
     columns: Iterable[str] = (),
     filters: vendored_pandas_gbq.FiltersType = (),
+    use_cache: bool = True,
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
@@ -499,6 +500,7 @@ def read_gbq(
         max_results=max_results,
         columns=columns,
         filters=filters,
+        use_cache=use_cache,
     )
 
 
@@ -521,6 +523,7 @@ def read_gbq_query(
     index_col: Iterable[str] | str = (),
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
+    use_cache: bool = True,
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -529,6 +532,7 @@ def read_gbq_query(
         index_col=index_col,
         col_order=col_order,
         max_results=max_results,
+        use_cache=use_cache,
     )
 
 
@@ -541,6 +545,7 @@ def read_gbq_table(
     index_col: Iterable[str] | str = (),
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
+    use_cache: bool = True,
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -549,6 +554,7 @@ def read_gbq_table(
         index_col=index_col,
         col_order=col_order,
         max_results=max_results,
+        use_cache=use_cache,
     )
 
 

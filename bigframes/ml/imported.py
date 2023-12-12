@@ -21,10 +21,12 @@ from typing import cast, Optional, Union
 from google.cloud import bigquery
 
 import bigframes
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
 
+@log_adapter.class_logger
 class TensorFlowModel(base.Predictor):
     """Imported TensorFlow model.
 
@@ -78,16 +80,7 @@ class TensorFlowModel(base.Predictor):
 
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> TensorFlowModel:
         """Save the model to BigQuery.
@@ -110,6 +103,7 @@ class TensorFlowModel(base.Predictor):
         return new_model.session.read_gbq_model(model_name)
 
 
+@log_adapter.class_logger
 class ONNXModel(base.Predictor):
     """Imported Open Neural Network Exchange (ONNX) model.
 
@@ -161,16 +155,7 @@ class ONNXModel(base.Predictor):
 
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> ONNXModel:
         """Save the model to BigQuery.

@@ -17,11 +17,12 @@ https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
-from typing import cast, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from google.cloud import bigquery
 
 import bigframes
+from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 import third_party.bigframes_vendored.sklearn.ensemble._forest
@@ -47,6 +48,7 @@ _BQML_PARAMS_MAPPING = {
 }
 
 
+@log_adapter.class_logger
 class XGBRegressor(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
@@ -168,16 +170,7 @@ class XGBRegressor(
             raise RuntimeError("A model must be fitted before predict")
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
@@ -211,6 +204,7 @@ class XGBRegressor(
         return new_model.session.read_gbq_model(model_name)
 
 
+@log_adapter.class_logger
 class XGBClassifier(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
@@ -328,19 +322,9 @@ class XGBClassifier(
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
@@ -375,6 +359,7 @@ class XGBClassifier(
         return new_model.session.read_gbq_model(model_name)
 
 
+@log_adapter.class_logger
 class RandomForestRegressor(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
@@ -486,19 +471,9 @@ class RandomForestRegressor(
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
@@ -550,6 +525,7 @@ class RandomForestRegressor(
         return new_model.session.read_gbq_model(model_name)
 
 
+@log_adapter.class_logger
 class RandomForestClassifier(
     base.SupervisedTrainablePredictor,
     third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
@@ -661,19 +637,9 @@ class RandomForestClassifier(
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-
         (X,) = utils.convert_to_dataframe(X)
 
-        df = self._bqml_model.predict(X)
-        return cast(
-            bpd.DataFrame,
-            df[
-                [
-                    cast(str, field.name)
-                    for field in self._bqml_model.model.label_columns
-                ]
-            ],
-        )
+        return self._bqml_model.predict(X)
 
     def score(
         self,
