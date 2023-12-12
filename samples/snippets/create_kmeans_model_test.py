@@ -30,7 +30,12 @@ def test_kmeans_sample():
     # NOTE:  ask about line below and whether it is needed outside of colab notebooks
     # bigframes.options.bigquery.project= "username-testing"
     # read_gbq: Loads a DataFrame from BigQuery
-    h = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_hire")
+    h = bpd.read_gbq(
+        "bigquery-public-data.london_bicycles.cycle_hire",
+        columns=[
+            "start_station_name", "start_station_id", "start_date", "duration",
+        ],
+    )
     s = bpd.read_gbq(
         """
         SELECT
