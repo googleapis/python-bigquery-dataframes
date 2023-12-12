@@ -123,7 +123,7 @@ class ReadGbqNode(BigFrameNode):
 
     @property
     def session(self):
-        return (self.table_session,)
+        return self.table_session
 
 
 # Unary nodes
