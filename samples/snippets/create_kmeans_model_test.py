@@ -13,24 +13,17 @@
 # limitations under the License.
 
 def test_kmeans_sample():
-<<<<<<< HEAD
 # [START bigquery_dataframes_bqml_kmeans]
-
     import bigframes.pandas as bpd
     import bigframes
     from bigframes import dataframe
-=======
->>>>>>> 73d2a4681212c1881366c298f44f228bbf208932
+    import bigframes.pandas as bpd
     import datetime
 
-    import bigframes
-    from bigframes import dataframe
-    import bigframes.pandas as bpd
-
-    # NOTE:  ask about line below and whether it is needed outside of colab notebooks
-    # bigframes.options.bigquery.project= "username-testing"
-    # read_gbq: Loads a DataFrame from BigQuery
-    h = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_hire")
+    #Load data from BigQuery
+    h = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_hire",  h.rename(
+        columns = {"start_station_name": "station_name", "start_station_id": "station_id"}
+    ))
     s = bpd.read_gbq(
         """
         SELECT
@@ -41,22 +34,15 @@ def test_kmeans_sample():
         ) / 1000 AS distance_from_city_center
         FROM
         `bigquery-public-data.london_bicycles.cycle_stations` s
-        """
-    )
-    # transform the data
-    h = h.rename(
-        columns={"start_station_name": "station_name", "start_station_id": "station_id"}
-    )
-    h = h[["start_date", "station_name", "station_id", "duration"]]
+        """ )
 
-    # NOTE: line below is not accessed, is it needed outside of colab notebook?
-    start_date = datetime.datetime.now()
+    # transform data into queryable format
     sample_time = datetime.datetime(2015, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
 
-    isweekday = h.start_date.dt.dayofweek.map(
+    h.start_date.dt.dayofweek.map(
         {
             0: "weekday",
             1: "weekday",
@@ -68,34 +54,38 @@ def test_kmeans_sample():
         }
     )
 
-    # create the new dataframe variable, stationstats
+    #merge dataframes h and s
     merged_df = h.merge(
         right=s,
         how="inner",
         left_on="station_id",
         right_on="id",
     )
-
+    # Create new dataframe variable from merge: 'stationstats' 
     stationstats = merged_df.groupby("station_name").agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
+    # [END bigquery_dataframes_bqml_kmeans]
+    
 
-    def station_filter():
-        stationstats.columns = ["duration", "num_trips", "distance_from_city_center"]
-        stationstats.sort_values(by="distance_from_city_center", ascending=True)
-        filter = """REGEXP_CONTAINS(station_name, 'Kennington')"""
+    # [START bigquery_dataframes_bqml_kmeans_fit]
 
-    # import the KMeans model to cluster the data
+    # import the KMeans model from bigframes.ml to cluster the data
     from bigframes.ml.cluster import KMeans
 
     cluster_model = KMeans(n_clusters=4)
-    cluster_model = cluster_model.fit(stationstats)
+    cluster_model = cluster_model.fit(stationstats).to_gbq(cluster_model)
 
-    # the following function predicts the cluster of every station that has the string "Kennington" in its name.
-    def predict_kennington_stations():
-        cluster_model.predict(stationstats)
-<<<<<<< HEAD
-        
-# [END bigquery_dataframes_bqml_kmeans]
-=======
->>>>>>> 73d2a4681212c1881366c298f44f228bbf208932
+    # [END bigquery_dataframes_bqml_kmeans_fit]
+    
+    # [START bigquery_dataframes_bqml_kmeans_predict]
+
+    # Use 'contains' function to find all entries with string "Kennington". 
+    stationstats = stationstats.str.contains("Kennington")
+
+    #Predict using the model
+    result = cluster_model.predict(stationstats)
+
+    # [END bigquery_dataframes_bqml_kmeans_predict]
+
+    assert result is not None
