@@ -3324,6 +3324,58 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=False).head(n)``, but more
         performant.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
+            ...                     "B": [5, 6, 3, 4, 1, 2],
+            ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
+            >>> df
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            2	3	3	a
+            3	3	4	b
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+        Returns rows with the largest value in 'A', including all ties:
+
+            >>> df.nlargest(1, 'A', keep = "all")
+                A	B	C
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Returns the first row with the largest value in 'A', default behavior in case of ties:
+
+            >>> df.nlargest(1, 'A')
+                A	B	C
+            4	5	1	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the last row with the largest value in 'A' in case of ties:
+
+            >>> df.nlargest(1, 'A', keep = "last")
+                A	B	C
+            5	5	2	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the row with the largest combined values in both 'A' and 'C':
+
+            >>> df.nlargest(1, ['A', 'C'])
+                A	B	C
+            5	5	2	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
         Args:
             n (int):
                 Number of rows to return.
@@ -3359,6 +3411,59 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=True).head(n)``, but more
         performant.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
+            ...                     "B": [5, 6, 3, 4, 1, 2],
+            ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
+            >>> df
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            2	3	3	a
+            3	3	4	b
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+        Returns rows with the smallest value in 'A', including all ties:
+
+            >>> df.nsmallest(1, 'A', keep = "all")
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Returns the first row with the smallest value in 'A', default behavior in case of ties:
+
+            >>> df.nsmallest(1, 'A')
+                A	B	C
+            0  	1	5	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the last row with the smallest value in 'A' in case of ties:
+
+            >>> df.nsmallest(1, 'A', keep = "last")
+                A	B	C
+            1	1	6	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns rows with the smallest values in 'A' and 'C'
+
+            >>> df.nsmallest(1, ['A', 'C'])
+                A	B	C
+            0	1	5	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+
         Args:
             n (int):
                 Number of rows to return.
@@ -3384,23 +3489,61 @@ class DataFrame(NDFrame):
 
     def idxmin(self):
         """
-        Return index of first occurrence of minimum over requested axis.
+        Return index of first occurrence of minimum over columns.
 
         NA/null values are excluded.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.idxmin()
+            A    1
+            B    0
+            dtype: Int64
+
         Returns:
-            Series: Indexes of minima along the specified axis.
+            Series: Indexes of minima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def idxmax(self):
         """
-        Return index of first occurrence of maximum over requested axis.
+        Return index of first occurrence of maximum over columns.
 
         NA/null values are excluded.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.idxmax()
+            A    0
+            B    2
+            dtype: Int64
+
         Returns:
-            Series: Indexes of maxima along the specified axis.
+            Series: Indexes of maxima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4072,6 +4215,62 @@ class DataFrame(NDFrame):
     ):
         """
         Return a Series containing counts of unique rows in the DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'num_legs': [2, 4, 4, 6, 7],
+            ...                     'num_wings': [2, 0, 0, 0, bpd.NA]},
+            ...                    index=['falcon', 'dog', 'cat', 'ant', 'octopus'],
+            ...                    dtype='Int64')
+            >>> df
+                     num_legs  num_wings
+            falcon          2          2
+            dog             4          0
+            cat             4          0
+            ant             6          0
+            octopus         7       <NA>
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+        ``value_counts`` sorts the result by counts in a descending order by default:
+
+            >>> df.value_counts()
+            num_legs  num_wings
+            4         0          2
+            2         2          1
+            6         0          1
+            Name: count, dtype: Int64
+
+        You can normalize the counts to return relative frequencies by setting ``normalize=True``:
+
+            >>> df.value_counts(normalize=True)
+            num_legs  num_wings
+            4         0             0.5
+            2         2            0.25
+            6         0            0.25
+            Name: proportion, dtype: Float64
+
+        You can get the rows in the ascending order of the counts by setting ``ascending=True``:
+
+            >>> df.value_counts(ascending=True)
+            num_legs  num_wings
+            2         2          1
+            6         0          1
+            4         0          2
+            Name: count, dtype: Int64
+
+        You can include the counts of the rows with ``NA`` values by setting ``dropna=False``:
+
+            >>> df.value_counts(dropna=False)
+            num_legs  num_wings
+            4         0            2
+            2         2            1
+            6         0            1
+            7         <NA>         1
+            Name: count, dtype: Int64
 
         Args:
             subset (label or list of labels, optional):
