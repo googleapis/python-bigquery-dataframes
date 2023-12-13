@@ -622,7 +622,7 @@ class Block:
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        _, query_job = self.session._execute(expr, job_config=job_config)
+        _, query_job = self.session._execute(expr, job_config=job_config, dry_run=True)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
