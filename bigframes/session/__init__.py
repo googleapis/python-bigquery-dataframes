@@ -238,9 +238,7 @@ class Session(
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
-        query_or_table = self._filters_to_query(
-            query_or_table, columns=col_order, filters=filters
-        )
+        query_or_table = self._filters_to_query(query_or_table, col_order, filters)
 
         if _is_query(query_or_table):
             return self._read_gbq_query(
