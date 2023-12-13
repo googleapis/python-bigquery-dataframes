@@ -19,7 +19,6 @@ class GBQIOMixin:
         index_col: Iterable[str] | str = (),
         col_order: Iterable[str] = (),
         max_results: Optional[int] = None,
-        columns: Iterable[str] = (),
         filters: FiltersType = (),
         use_cache: bool = True,
     ):
@@ -78,11 +77,11 @@ class GBQIOMixin:
 
         Reading data with `columns` and `filters` parameters:
 
-            >>> columns = ['pitcherFirstName', 'pitcherLastName', 'year', 'pitchSpeed']
+            >>> col_order = ['pitcherFirstName', 'pitcherLastName', 'year', 'pitchSpeed']
             >>> filters = [('year', '==', 2016), ('pitcherFirstName', 'in', ['John', 'Doe']), ('pitcherLastName', 'in', ['Gant'])]
             >>> df = bpd.read_gbq(
             ...             "bigquery-public-data.baseball.games_wide",
-            ...             columns=columns,
+            ...             col_order=col_order,
             ...             filters=filters,
             ...         )
             >>> df.head(1)
@@ -104,8 +103,6 @@ class GBQIOMixin:
             max_results (Optional[int], default None):
                 If set, limit the maximum number of rows to fetch from the
                 query results.
-            columns (Iterable[str], default ()): If not empty, only these columns
-                will be read from table.
             filters (Iterable[Union[Tuple, Iterable[Tuple]]], default ()): To
                 filter out data. Filter syntax: [[(column, op, val), …],…] where
                 op is [==, >, >=, <, <=, !=, in, not in]. The innermost tuples

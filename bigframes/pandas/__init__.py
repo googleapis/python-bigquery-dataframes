@@ -487,7 +487,6 @@ def read_gbq(
     index_col: Iterable[str] | str = (),
     col_order: Iterable[str] = (),
     max_results: Optional[int] = None,
-    columns: Iterable[str] = (),
     filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
 ) -> bigframes.dataframe.DataFrame:
@@ -498,7 +497,6 @@ def read_gbq(
         index_col=index_col,
         col_order=col_order,
         max_results=max_results,
-        columns=columns,
         filters=filters,
         use_cache=use_cache,
     )
