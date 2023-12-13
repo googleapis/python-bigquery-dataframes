@@ -1865,7 +1865,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    def describe(self, *, include=None, exclude=None) -> DataFrame:
+    def describe(self) -> DataFrame:
         df_numeric = self._drop_non_numeric(keep_bool=False)
         if len(df_numeric.columns) == 0:
             raise NotImplementedError(
