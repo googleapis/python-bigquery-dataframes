@@ -266,7 +266,7 @@ class Session(
 
     def _filters_to_query(self, query_or_table, columns, filters):
         """Convert filters to query"""
-        if len(filters) == 0 and len(columns) == 0:
+        if len(filters) == 0:
             return query_or_table
 
         sub_query = (
