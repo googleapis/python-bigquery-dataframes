@@ -367,10 +367,6 @@ def test_multi_index_dataframe_groupby_level_aggregate(
         .groupby(level=level, as_index=as_index)
         .mean(numeric_only=True)
     )
-    print("pandas")
-    print(pd_result.to_string())
-    print("bigframes")
-    print(bf_result.to_string())
 
     # Pandas will have int64 index, while bigquery will have Int64 when resetting
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
