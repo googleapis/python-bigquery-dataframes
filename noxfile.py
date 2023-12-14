@@ -228,6 +228,7 @@ def mypy(session):
                 "types-python-dateutil",
                 "types-requests",
                 "types-setuptools",
+                "types-tabulate",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -517,7 +518,9 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--prefer-binary",
         "--pre",
         "--upgrade",
-        "pandas",
+        # TODO(shobs): Remove tying to version 2.1.3 after
+        # https://github.com/pandas-dev/pandas/issues/56463 is resolved
+        "pandas!=2.1.4",
     )
     already_installed.add("pandas")
 
@@ -543,7 +546,6 @@ def prerelease(session: nox.sessions.Session, tests_path):
     # Ensure we catch breaking changes in the client libraries early.
     session.install(
         "--upgrade",
-        "-e",
         "git+https://github.com/googleapis/python-bigquery.git#egg=google-cloud-bigquery",
     )
     already_installed.add("google-cloud-bigquery")

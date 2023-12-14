@@ -1939,16 +1939,27 @@ def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_value_counts(scalars_dfs):
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        {},
+        {"normalize": True},
+        {"ascending": True},
+    ],
+    ids=[
+        "default",
+        "normalize",
+        "ascending",
+    ],
+)
+def test_value_counts(scalars_dfs, kwargs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
 
-    bf_result = scalars_df[col_name].value_counts().to_pandas()
-    pd_result = scalars_pandas_df[col_name].value_counts()
-
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.name = col_name
+    bf_result = scalars_df[col_name].value_counts(**kwargs).to_pandas()
+    pd_result = scalars_pandas_df[col_name].value_counts(**kwargs)
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -1956,7 +1967,28 @@ def test_value_counts(scalars_dfs):
     )
 
 
+def test_value_counts_with_na(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+
+    bf_result = scalars_df[col_name].value_counts(dropna=False).to_pandas()
+    pd_result = scalars_pandas_df[col_name].value_counts(dropna=False)
+
+    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
+    pd_result.name = "count"
+    pd_result.index.name = col_name
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+        # bigframes values_counts does not honor ordering in the original data
+        ignore_order=True,
+    )
+
+
 def test_value_counts_w_cut(scalars_dfs):
+    if pd.__version__.startswith("1."):
+        pytest.skip("value_counts results different in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
 
@@ -1965,9 +1997,6 @@ def test_value_counts_w_cut(scalars_dfs):
 
     bf_result = bf_cut.value_counts().to_pandas()
     pd_result = pd_cut.value_counts()
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.name = col_name
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
 
     pd.testing.assert_series_equal(

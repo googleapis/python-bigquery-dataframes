@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import cast
 import uuid
 
@@ -29,12 +30,13 @@ from bigframes.ml import (
     imported,
     linear_model,
     llm,
+    remote,
 )
 
 
 @pytest.fixture(scope="session")
-def bq_connection() -> str:
-    return "bigframes-dev.us.bigframes-rf-conn"
+def bq_connection(bigquery_client) -> str:
+    return f"{bigquery_client.project}.us.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="session")
@@ -242,6 +244,51 @@ def palm2_embedding_generator_multilingual_model(
 ) -> llm.PaLM2TextEmbeddingGenerator:
     return llm.PaLM2TextEmbeddingGenerator(
         model_name="textembedding-gecko-multilingual",
+        session=session,
+        connection_name=bq_connection,
+    )
+
+
+@pytest.fixture(scope="session")
+def linear_remote_model_params() -> dict:
+    # Pre-deployed endpoint of linear reg model in Vertex.
+    # bigframes-test-linreg2 -> bigframes-test-linreg-endpoint2
+    model_vertex_endpoint = os.environ.get(
+        "BIGFRAMES_TEST_MODEL_VERTEX_ENDPOINT",
+        "https://us-central1-aiplatform.googleapis.com/v1/projects/1084210331973/locations/us-central1/endpoints/3193318217619603456",
+    )
+
+    return {
+        "input": {"culmen_length_mm": "float64"},
+        "output": {"predicted_body_mass_g": "array<float64>"},
+        "endpoint": model_vertex_endpoint,
+    }
+
+
+@pytest.fixture(scope="session")
+def bqml_linear_remote_model(
+    session, bq_connection, linear_remote_model_params
+) -> core.BqmlModel:
+    options = {
+        "endpoint": linear_remote_model_params["endpoint"],
+    }
+    return globals.bqml_model_factory().create_remote_model(
+        session=session,
+        input=linear_remote_model_params["input"],
+        output=linear_remote_model_params["output"],
+        connection_name=bq_connection,
+        options=options,
+    )
+
+
+@pytest.fixture(scope="session")
+def linear_remote_vertex_model(
+    session, bq_connection, linear_remote_model_params
+) -> remote.VertexAIModel:
+    return remote.VertexAIModel(
+        endpoint=linear_remote_model_params["endpoint"],
+        input=linear_remote_model_params["input"],
+        output=linear_remote_model_params["output"],
         session=session,
         connection_name=bq_connection,
     )

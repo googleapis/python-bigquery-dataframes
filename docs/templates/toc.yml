@@ -138,6 +138,12 @@
       - name: OneHotEncoder
         uid: bigframes.ml.preprocessing.OneHotEncoder
       name: preprocessing
+    - items:
+      - name: Overview
+        uid: bigframes.ml.remote
+      - name: VertexAIModel
+        uid: bigframes.ml.remote.VertexAIModel
+      name: remote
     name: bigframes.ml
   name: BigQuery DataFrames
   status: beta

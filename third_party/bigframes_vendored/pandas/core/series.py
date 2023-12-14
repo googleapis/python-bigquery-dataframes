@@ -90,13 +90,26 @@ class Series(NDFrame):  # type: ignore[misc]
                 dtype=object)
 
         Returns:
-            The index labels of the Series.
+            Index: The index object of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def shape(self):
-        """Return a tuple of the shape of the underlying data."""
+        """Return a tuple of the shape of the underlying data.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 4, 9, 16])
+            >>> s.shape
+            (4,)
+            >>> s = bpd.Series(['Alice', 'Bob', bpd.NA])
+            >>> s.shape
+            (3,)
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -138,7 +151,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return the transpose, which is by definition self.
 
         Returns:
-            Series
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -593,7 +606,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 are not yet supported, so a result will be returned for at least two observations.
 
         Returns:
-            float;  Will return NaN if there are fewer than two numeric pairs, either series has a
+            float:  Will return NaN if there are fewer than two numeric pairs, either series has a
                 variance or covariance of zero, or any input value is infinite.
         """
         raise NotImplementedError("abstract method")
@@ -611,7 +624,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 values.
 
         Returns:
-            {klass}: First differences of the Series.
+            Series: First differences of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -664,13 +677,13 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Matrix multiplication using binary `@` operator in Python>=3.5.
         """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+        return NotImplemented
 
     def __rmatmul__(self, other):
         """
         Matrix multiplication using binary `@` operator in Python>=3.5.
         """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+        return NotImplemented
 
     def sort_values(
         self,
@@ -1317,7 +1330,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            bigframes.series.Series. The result of the comparison.
+            bigframes.series.Series: The result of the comparison.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1331,7 +1344,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
              other (Series, or scalar value):
 
-         Returns:
+        Returns:
             bigframes.series.Series: The result of the operation.
 
         """
@@ -1588,7 +1601,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series. The result of the operation. The result is always
+            2-Tuple of Series: The result of the operation. The result is always
             consistent with (floordiv, mod) (though pandas may not).
 
         """
@@ -1603,7 +1616,7 @@ class Series(NDFrame):  # type: ignore[misc]
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series. The result of the operation. The result is always
+            2-Tuple of Series: The result of the operation. The result is always
             consistent with (rfloordiv, rmod) (though pandas may not).
 
         """
@@ -1650,7 +1663,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
 
         Returns:
-            scalar or scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1664,7 +1677,7 @@ class Series(NDFrame):  # type: ignore[misc]
         of the ``numpy.ndarray`` method ``argmin``.
 
         Returns:
-            scalar or scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1692,7 +1705,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Normalized by N-1 by default.
 
         Returns:
-            scalar or Series (if level specified)
+            scalar or Series (if level specified): Variance.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1702,7 +1715,7 @@ class Series(NDFrame):  # type: ignore[misc]
         This is equivalent to the method ``numpy.sum``.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1710,7 +1723,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Return the mean of the values over the requested axis.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1723,7 +1736,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 one. Note: ``exact=True`` not yet supported.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1731,7 +1744,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Return the product of the values over the requested axis.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1741,7 +1754,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Normalized by N-1.
 
         Returns:
-            scalar
+            scalar: Scalar.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1932,7 +1945,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Maximum threshold value. All values above this threshold will be set to it. A missing threshold (e.g NA) will not clip the value.
 
         Returns:
-            Series.
+            Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2022,6 +2035,59 @@ class Series(NDFrame):  # type: ignore[misc]
         first element is the most frequently-occurring element.
         Excludes NA values by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([3, 1, 2, 3, 4, bpd.NA], dtype="Int64")
+
+            >>> s
+            0       3
+            1       1
+            2       2
+            3       3
+            4       4
+            5    <NA>
+            dtype: Int64
+
+        ``value_counts`` sorts the result by counts in a descending order by default:
+
+            >>> s.value_counts()
+            3      2
+            1      1
+            2      1
+            4      1
+            Name: count, dtype: Int64
+
+        You can normalize the counts to return relative frequencies by setting ``normalize=True``:
+
+            >>> s.value_counts(normalize=True)
+            3    0.4
+            1    0.2
+            2    0.2
+            4    0.2
+            Name: proportion, dtype: Float64
+
+        You can get the values in the ascending order of the counts by setting ``ascending=True``:
+
+            >>> s.value_counts(ascending=True)
+            1    1
+            2    1
+            4    1
+            3    2
+            Name: count, dtype: Int64
+
+        You can include the counts of the ``NA`` values by setting ``dropna=False``:
+
+            >>> s.value_counts(dropna=False)
+            3       2
+            1       1
+            2       1
+            4       1
+            <NA>    1
+            Name: count, dtype: Int64
+
         Args:
             normalize (bool, default False):
                 If True then the object returned will contain the relative
@@ -2083,7 +2149,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return boolean if values in the object are monotonically increasing.
 
         Returns:
-            bool
+            bool: Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2093,7 +2159,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return boolean if values in the object are monotonically decreasing.
 
         Returns:
-            bool
+            bool: Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2153,4 +2219,26 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def at(self):
         """Access a single value for a row/column label pair."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def values(self):
+        """
+        Return Series as ndarray or ndarray-like depending on the dtype.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> bpd.Series([1, 2, 3]).values
+            array([1, 2, 3], dtype=object)
+
+            >>> bpd.Series(list('aabc')).values
+            array(['a', 'a', 'b', 'c'], dtype=object)
+
+        Returns:
+            numpy.ndarray or ndarray-like: Values in the Series.
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

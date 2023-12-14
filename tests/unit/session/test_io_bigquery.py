@@ -76,11 +76,11 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
     expected_dict = {
         "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
-        "recent-bigframes-api-0": "__init__",
-        "recent-bigframes-api-1": "max",
-        "recent-bigframes-api-2": "__init__",
-        "recent-bigframes-api-3": "head",
-        "recent-bigframes-api-4": "__init__",
+        "recent-bigframes-api-0": "series-__init__",
+        "recent-bigframes-api-1": "dataframe-max",
+        "recent-bigframes-api-2": "dataframe-__init__",
+        "recent-bigframes-api-3": "dataframe-head",
+        "recent-bigframes-api-4": "dataframe-__init__",
     }
     assert labels is not None
     assert len(labels) == 7
@@ -100,7 +100,7 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
     )
     assert labels is not None
     assert len(labels) == 64
-    assert "head" in labels.values()
+    assert "dataframe-head" in labels.values()
 
 
 def test_create_job_configs_labels_length_limit_met():
@@ -125,8 +125,8 @@ def test_create_job_configs_labels_length_limit_met():
     )
     assert labels is not None
     assert len(labels) == 64
-    assert "max" in labels.values()
-    assert "head" not in labels.values()
+    assert "dataframe-max" in labels.values()
+    assert "dataframe-head" not in labels.values()
     assert "bigframes-api" in labels.keys()
     assert "source" in labels.keys()
 
@@ -145,20 +145,6 @@ def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
 
     # Need fully-qualified table name.
     assert "`my-test-project`.`_e8166e0cdb`.`anonbb92cd`" in sql
-
-
-def test_create_snapshot_sql_doesnt_timetravel_session_tables():
-    table_ref = bigquery.TableReference.from_string("my-test-project._session.abcdefg")
-
-    sql = bigframes.session._io.bigquery.create_snapshot_sql(
-        table_ref, datetime.datetime.now(datetime.timezone.utc)
-    )
-
-    # We aren't modifying _SESSION tables, so don't use time travel.
-    assert "SYSTEM_TIME" not in sql
-
-    # Don't need the project ID for _SESSION tables.
-    assert "my-test-project" not in sql
 
 
 def test_create_temp_table_default_expiration():
