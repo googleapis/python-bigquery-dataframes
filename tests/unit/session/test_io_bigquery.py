@@ -76,11 +76,11 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
     expected_dict = {
         "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
-        "recent-bigframes-api-0": "__init__",
-        "recent-bigframes-api-1": "max",
-        "recent-bigframes-api-2": "__init__",
-        "recent-bigframes-api-3": "head",
-        "recent-bigframes-api-4": "__init__",
+        "recent-bigframes-api-0": "Series.__init__",
+        "recent-bigframes-api-1": "DataFrame.max",
+        "recent-bigframes-api-2": "DataFrame.__init__",
+        "recent-bigframes-api-3": "DataFrame.head",
+        "recent-bigframes-api-4": "DataFrame.__init__",
     }
     assert labels is not None
     assert len(labels) == 7
@@ -100,7 +100,7 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
     )
     assert labels is not None
     assert len(labels) == 64
-    assert "head" in labels.values()
+    assert "DataFrame.head" in labels.values()
 
 
 def test_create_job_configs_labels_length_limit_met():
@@ -125,8 +125,8 @@ def test_create_job_configs_labels_length_limit_met():
     )
     assert labels is not None
     assert len(labels) == 64
-    assert "max" in labels.values()
-    assert "head" not in labels.values()
+    assert "DataFrame.max" in labels.values()
+    assert "DataFrame.head" not in labels.values()
     assert "bigframes-api" in labels.keys()
     assert "source" in labels.keys()
 
