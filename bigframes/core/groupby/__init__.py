@@ -386,7 +386,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             dropna=self._dropna,
         )
         if not self._as_index:
-            result_block = result_block.reset_index(drop=False)
+            result_block = result_block.reset_index()
         return df.DataFrame(result_block)
 
     def _apply_window_op(
