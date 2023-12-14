@@ -263,9 +263,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
+        if not self._as_index:
+            agg_block = agg_block.reset_index()
         return df.DataFrame(agg_block)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
@@ -285,7 +286,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         if want_aggfunc_level:
@@ -297,6 +297,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         else:
             agg_block = agg_block.with_column_labels(pd.Index(column_labels))
+        if not self._as_index:
+            agg_block = agg_block.reset_index()
         return df.DataFrame(agg_block)
 
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
@@ -311,7 +313,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         agg_block = agg_block.with_column_labels(
@@ -319,6 +320,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 column_labels, names=[*self._block.column_labels.names, None]
             )
         )
+        if not self._as_index:
+            agg_block = agg_block.reset_index()
         return df.DataFrame(agg_block)
 
     def _agg_named(self, **kwargs) -> df.DataFrame:
@@ -339,10 +342,11 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         agg_block = agg_block.with_column_labels(column_labels)
+        if not self._as_index:
+            agg_block = agg_block.reset_index()
         return df.DataFrame(agg_block)
 
     aggregate = agg
@@ -379,9 +383,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         result_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
+        if not self._as_index:
+            result_block = result_block.reset_index(drop=False)
         return df.DataFrame(result_block)
 
     def _apply_window_op(
