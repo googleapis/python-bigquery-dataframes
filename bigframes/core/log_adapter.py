@@ -36,7 +36,7 @@ def method_logger(method, decorated_cls):
     def wrapper(*args, **kwargs):
         class_name = decorated_cls.__name__  # Access decorated class name
         api_method_name = str(method.__name__)
-        full_method_name = f"{class_name}.{api_method_name}"
+        full_method_name = f"{class_name.lower()}-{api_method_name}"
         # Track regular and "dunder" methods
         if api_method_name.startswith("__") or not api_method_name.startswith("_"):
             add_api_method(full_method_name)
