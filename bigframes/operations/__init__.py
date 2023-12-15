@@ -732,10 +732,29 @@ def ne_op(
     return x != y
 
 
+def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue):
+    return ibis.where(
+        where_value,
+        value,
+        ibis.null(),
+    )
+
+
 def and_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    # Workaround issue https://github.com/ibis-project/ibis/issues/7775 by
+    # implementing three-valued logic ourselves. For AND, when we encounter a
+    # NULL value, we only know when the result is FALSE, otherwise the result
+    # is unknown (NULL). See: truth table at
+    # https://en.wikibooks.org/wiki/Structured_Query_Language/NULLs_and_the_Three_Valued_Logic#AND,_OR
+    if isinstance(x, ibis_types.NullScalar):
+        return _null_or_value(y, y == ibis.literal(False))
+
+    if isinstance(y, ibis_types.NullScalar):
+        return _null_or_value(x, x == ibis.literal(False))
+
     return typing.cast(ibis_types.BooleanValue, x) & typing.cast(
         ibis_types.BooleanValue, y
     )
@@ -745,6 +764,17 @@ def or_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    # Workaround issue https://github.com/ibis-project/ibis/issues/7775 by
+    # implementing three-valued logic ourselves. For OR, when we encounter a
+    # NULL value, we only know when the result is TRUE, otherwise the result
+    # is unknown (NULL). See: truth table at
+    # https://en.wikibooks.org/wiki/Structured_Query_Language/NULLs_and_the_Three_Valued_Logic#AND,_OR
+    if isinstance(x, ibis_types.NullScalar):
+        return _null_or_value(y, y == ibis.literal(True))
+
+    if isinstance(y, ibis_types.NullScalar):
+        return _null_or_value(x, x == ibis.literal(True))
+
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
         ibis_types.BooleanValue, y
     )
@@ -756,7 +786,7 @@ def add_op(
     y: ibis_types.Value,
 ):
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
-        return
+        return ibis.null()
     try:
         # Could be string concatenation or numeric addition.
         return x + y  # type: ignore
