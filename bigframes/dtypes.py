@@ -459,6 +459,7 @@ def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
 
 
 def is_patype(scalar: typing.Any, pa_type: pa.DataType) -> bool:
+    """Determine whether a scalar's type matches a given pyarrow type."""
     if pa_type == pa.time64("us"):
         return isinstance(scalar, datetime.time)
     if pa_type == pa.timestamp("us"):
