@@ -449,9 +449,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 return self
             return self._regex_replace(to_replace, value)
         elif utils.is_dict_like(to_replace):
-            raise NotImplementedError(
-                f"Dict 'to_replace' not supported. {constants.FEEDBACK_LINK}"
-            )
+            return self._mapping_replace(to_replace)  # type: ignore
         elif utils.is_list_like(to_replace):
             replace_list = to_replace
         else:  # Scalar
@@ -489,6 +487,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             result_label=self.name,
         )
         return Series(block.select_column(result_col))
+
+    def _mapping_replace(self, mapping: dict[typing.Hashable, typing.Hashable]):
+        tuples = []
+        for key, value in mapping.items():
+            if not bigframes.dtypes.is_comparable(key, self.dtype):
+                continue
+            if not bigframes.dtypes.is_dtype(value, self.dtype):
+                raise NotImplementedError(
+                    f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
+                )
+            tuples.append((key, value))
+
+        block, result = self._block.apply_unary_op(
+            self._value_column, ops.MapOp(tuple(tuples))
+        )
+        return Series(block.select_column(result))
 
     def interpolate(self, method: str = "linear") -> Series:
         if method == "pad":
