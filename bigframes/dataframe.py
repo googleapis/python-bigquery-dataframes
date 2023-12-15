@@ -1950,7 +1950,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else:
                     level_indices.append(level_ref)
             else:  # str
-                level_indices.append(self.columns.names.index(level_ref))
+                level_indices.append(self.columns.names.index(level_ref))  # type: ignore
 
         new_order = [
             *[i for i in range(n_levels) if i not in level_indices],
