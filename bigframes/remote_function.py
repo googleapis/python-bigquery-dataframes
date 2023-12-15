@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import functools
 import hashlib
 import inspect
 import logging
@@ -28,6 +27,7 @@ import tempfile
 import textwrap
 from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
 
+import ibis
 import requests
 
 if TYPE_CHECKING:
@@ -43,12 +43,9 @@ from google.cloud import (
     resourcemanager_v3,
 )
 import google.iam.v1
-from ibis.backends.bigquery.compiler import compiles
 from ibis.backends.bigquery.datatypes import BigQueryType
 from ibis.expr.datatypes.core import DataType as IbisDataType
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
-import ibis.expr.operations as ops
-import ibis.expr.rules as rlz
 
 from bigframes import clients
 import bigframes.constants as constants
@@ -529,35 +526,6 @@ class RemoteFunctionClient:
         return (http_endpoint, bq_connection)
 
 
-def remote_function_node(
-    routine_ref: bigquery.RoutineReference, ibis_signature: IbisSignature
-):
-    """Creates an Ibis node representing a remote function call."""
-
-    fields = {
-        name: rlz.ValueOf(None if type_ == "ANY TYPE" else type_)
-        for name, type_ in zip(
-            ibis_signature.parameter_names, ibis_signature.input_types
-        )
-    }
-
-    fields["dtype"] = ibis_signature.output_type  # type: ignore
-    fields["shape"] = rlz.shape_like("args")
-
-    node = type(routine_ref_to_string_for_query(routine_ref), (ops.ValueOp,), fields)  # type: ignore
-
-    @compiles(node)
-    def compile_node(t, op):
-        return "{}({})".format(node.__name__, ", ".join(map(t.translate, op.args)))
-
-    def f(*args, **kwargs):
-        return node(*args, **kwargs).to_expr()
-
-    f.bigframes_remote_function = str(routine_ref)  # type: ignore
-
-    return f
-
-
 class UnsupportedTypeError(ValueError):
     def __init__(self, type_, supported_types):
         self.type = type_
@@ -857,14 +825,18 @@ def remote_function(
             packages,
         )
 
-        node = remote_function_node(dataset_ref.routine(rf_name), ibis_signature)
-
-        node = functools.wraps(f)(node)
-        node.__signature__ = signature
+        node = ibis.udf.scalar.builtin(
+            f,
+            name=rf_name,
+            # TODO(swast): The backticks shouldn't be necessary. Ibis should be
+            # escaping the "schema" for us.
+            schema=f"`{dataset_ref.project}.{dataset_ref.dataset_id}`",
+            signature=(ibis_signature.input_types, ibis_signature.output_type),
+        )
         node.bigframes_cloud_function = (
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
-
+        node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
         return node
 
     return wrapper
@@ -914,4 +886,17 @@ def read_gbq_function(
             f"{constants.FEEDBACK_LINK}"
         )
 
-    return remote_function_node(routine_ref, ibis_signature)
+    def node(*args, **kwargs):
+        f"""Function {function_name}."""
+
+    node.__name__ = routine_ref.routine_id
+    node.bigframes_remote_function = str(routine_ref)  # type: ignore
+
+    return ibis.udf.scalar.builtin(
+        node,
+        name=routine_ref.routine_id,
+        # TODO(swast): The backticks shouldn't be necessary. Ibis should be
+        # escaping the "schema" for us.
+        schema=f"`{routine_ref.project}.{routine_ref.dataset_id}`",
+        signature=(ibis_signature.input_types, ibis_signature.output_type),
+    )
