@@ -71,7 +71,7 @@ if typing.TYPE_CHECKING:
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
@@ -1940,7 +1940,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _stack_multi(self, level: LevelsType = -1):
         n_levels = self.columns.nlevels
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
         level_indices = []
         for level_ref in level:
@@ -1966,7 +1966,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def unstack(self, level: LevelsType = -1):
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
 
         block = self._block

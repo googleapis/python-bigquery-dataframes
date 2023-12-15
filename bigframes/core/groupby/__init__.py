@@ -265,9 +265,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             dropna=self._dropna,
         )
-        if not self._as_index:
-            agg_block = agg_block.reset_index()
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
         aggregations: typing.List[typing.Tuple[str, agg_ops.AggregateOp]] = []
@@ -297,9 +296,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         else:
             agg_block = agg_block.with_column_labels(pd.Index(column_labels))
-        if not self._as_index:
-            agg_block = agg_block.reset_index()
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
         aggregations = [
@@ -320,9 +318,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 column_labels, names=[*self._block.column_labels.names, None]
             )
         )
-        if not self._as_index:
-            agg_block = agg_block.reset_index()
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_named(self, **kwargs) -> df.DataFrame:
         aggregations = []
@@ -345,9 +342,18 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             dropna=self._dropna,
         )
         agg_block = agg_block.with_column_labels(column_labels)
-        if not self._as_index:
-            agg_block = agg_block.reset_index()
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
+
+    def _convert_index(self, dataframe: df.DataFrame):
+        """Convert index levels to columns except where names conflict."""
+        levels_to_drop = [
+            level for level in dataframe.index.names if level in dataframe.columns
+        ]
+
+        if len(levels_to_drop) == dataframe.index.nlevels:
+            return dataframe.reset_index(drop=True)
+        return dataframe.droplevel(levels_to_drop).reset_index(drop=False)
 
     aggregate = agg
 
@@ -385,9 +391,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             aggregations=aggregations,
             dropna=self._dropna,
         )
-        if not self._as_index:
-            result_block = result_block.reset_index()
-        return df.DataFrame(result_block)
+        dataframe = df.DataFrame(result_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _apply_window_op(
         self,
