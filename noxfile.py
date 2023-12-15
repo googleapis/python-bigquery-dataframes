@@ -532,12 +532,12 @@ def prerelease(session: nox.sessions.Session, tests_path):
     #     "-e",  # Use -e so that py.typed file is included.
     #     "git+https://github.com/ibis-project/ibis.git@7.x.x#egg=ibis-framework",
     # )
-    session.install(
-        "--upgrade",
-        "--pre",
-        "ibis-framework",
-    )
-    already_installed.add("ibis-framework")
+    # session.install(
+    #     "--upgrade",
+    #     "--pre",
+    #     "ibis-framework",
+    # )
+    # already_installed.add("ibis-framework")
 
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
