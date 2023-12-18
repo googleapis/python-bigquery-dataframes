@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def test_kmeans_sample():
     # [START bigquery_dataframes_bqml_kmeans]
     import datetime
@@ -21,13 +22,19 @@ def test_kmeans_sample():
 
     # Load cycle hires data from BigQuery into a dataframe variable using read_gbq function in order to
     # extract the relevant information needed to train the model later on in tutorial.
-    h = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_hire",  h.rename(
-        columns = {"start_station_name": "station_name", "start_station_id": "station_id"}
-    ))
+    h = bpd.read_gbq(
+        "bigquery-public-data.london_bicycles.cycle_hire",
+        h.rename(
+            columns={
+                "start_station_name": "station_name",
+                "start_station_id": "station_id",
+            }
+        ),
+    )
     s = bpd.read_gbq(
-    # Here we use a SQL query so that we can use the geospatial analytics functions, ST_GEOPOINT
-    # and ST_DISTANCE, which are supported in GoogleSQL for BigQuery. These functions allow us to analyze the 
-    # geographical data and determine spatial relationships between the geographical features.
+        # Here we use a SQL query so that we can use the geospatial analytics functions, ST_GEOPOINT
+        # and ST_DISTANCE, which are supported in GoogleSQL for BigQuery. These functions allow us to analyze the
+        # geographical data and determine spatial relationships between the geographical features.
         """
         SELECT
         id,
@@ -37,7 +44,8 @@ def test_kmeans_sample():
         ) / 1000 AS distance_from_city_center
         FROM
         `bigquery-public-data.london_bicycles.cycle_stations` s
-        """ )
+        """
+    )
 
     # Here we transform the datetime data into the UTC timezone for standardization because BigQuery priortizes
     # UTC as the internal format for global analysis.
@@ -45,7 +53,7 @@ def test_kmeans_sample():
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
-    
+
     # In this section, we use a mapping function to transform the start_date column by replacing each day-of-the-week
     # number with the corresponding label ("weekday" or "weekend").
     h.start_date.dt.dayofweek.map(
@@ -60,19 +68,18 @@ def test_kmeans_sample():
         }
     )
 
-    #merge dataframes h and s
+    # merge dataframes h and s
     merged_df = h.merge(
         right=s,
         how="inner",
         left_on="station_id",
         right_on="id",
     )
-    # Create new dataframe variable from merge: 'stationstats' 
+    # Create new dataframe variable from merge: 'stationstats'
     stationstats = merged_df.groupby("station_name").agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
     # [END bigquery_dataframes_bqml_kmeans]
-    
 
     # [START bigquery_dataframes_bqml_kmeans_fit]
 
@@ -83,13 +90,13 @@ def test_kmeans_sample():
     cluster_model = cluster_model.fit(stationstats).to_gbq(cluster_model)
 
     # [END bigquery_dataframes_bqml_kmeans_fit]
-    
+
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
-    # Use 'contains' function to find all entries with string "Kennington". 
+    # Use 'contains' function to find all entries with string "Kennington".
     stationstats = stationstats.str.contains("Kennington")
 
-    #Predict using the model
+    # Predict using the model
     result = cluster_model.predict(stationstats)
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
