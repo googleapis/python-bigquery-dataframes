@@ -932,16 +932,19 @@ class Series(NDFrame):  # type: ignore[misc]
             Parrot  Clear      24.0
                     Clear      26.0
             Name: Max Speed, dtype: Float64
+
             >>> s.groupby("Animal").mean()
             Animal
             Falcon    375.0
             Parrot     25.0
             Name: Max Speed, dtype: Float64
+
             >>> s.groupby("Sky").mean()
             Sky
             Clear     143.333333
             Cloudy         370.0
             Name: Max Speed, dtype: Float64
+
             >>> s.groupby(["Animal", "Sky"]).mean()
             Animal  Sky
             Falcon  Clear     380.0
@@ -963,11 +966,13 @@ class Series(NDFrame):  # type: ignore[misc]
             3  Parrot       26.0   6.0
             <BLANKLINE>
             [4 rows x 3 columns]
+
             >>> df['Max Speed'].groupby(df['Animal']).mean()
             Animal
             Falcon    375.0
             Parrot     25.0
             Name: Max Speed, dtype: Float64
+
             >>> df['Age'].groupby(df['Animal']).max()
             Animal
             Falcon    20.0
