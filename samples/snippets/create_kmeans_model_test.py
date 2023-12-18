@@ -39,12 +39,15 @@ def test_kmeans_sample():
         `bigquery-public-data.london_bicycles.cycle_stations` s
         """ )
 
-    # transform data into queryable format
+    # Here we transform the datetime data into the UTC timezone for standardization because BigQuery priortizes
+    # UTC as the internal format for global analysis.
     sample_time = datetime.datetime(2015, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
-
+    
+    # In this section, we use a mapping function to transform the start_date column by replacing each day-of-the-week
+    # number with the corresponding label ("weekday" or "weekend").
     h.start_date.dt.dayofweek.map(
         {
             0: "weekday",
