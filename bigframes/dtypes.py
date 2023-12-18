@@ -29,6 +29,7 @@ import pyarrow as pa
 
 import bigframes.constants as constants
 import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
+import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -96,6 +97,15 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
         ibis_dtypes.Timestamp(timezone="UTC"),
         pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
     ),
+    (ibis_dtypes.binary, pd.ArrowDtype(pa.binary())),
+    (
+        ibis_dtypes.Decimal(precision=38, scale=9, nullable=True),
+        pd.ArrowDtype(pa.decimal128(38, 9)),
+    ),
+    (
+        ibis_dtypes.Decimal(precision=76, scale=38, nullable=True),
+        pd.ArrowDtype(pa.decimal256(76, 38)),
+    ),
 )
 
 BIGFRAMES_TO_IBIS: Dict[Dtype, ibis_dtypes.DataType] = {
@@ -111,6 +121,13 @@ IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.time: pa.time64("us"),
     ibis_dtypes.Timestamp(timezone=None): pa.timestamp("us"),
     ibis_dtypes.Timestamp(timezone="UTC"): pa.timestamp("us", tz="UTC"),
+    ibis_dtypes.binary: pd.ArrowDtype(pa.binary()),
+    ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pd.ArrowDtype(
+        pa.decimal128(38, 9)
+    ),
+    ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pd.ArrowDtype(
+        pa.decimal256(76, 38)
+    ),
 }
 
 ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in IBIS_TO_ARROW.items()}
@@ -124,10 +141,6 @@ IBIS_TO_BIGFRAMES.update(
 )
 IBIS_TO_BIGFRAMES.update(
     {
-        ibis_dtypes.binary: np.dtype("O"),
-        ibis_dtypes.json: np.dtype("O"),
-        ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): np.dtype("O"),
-        ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): np.dtype("O"),
         ibis_dtypes.GeoSpatial(
             geotype="geography", srid=4326, nullable=True
         ): gpd.array.GeometryDtype(),
@@ -177,7 +190,7 @@ def ibis_dtype_to_bigframes_dtype(
     # our IO returns them as objects. Eventually, we should support them as
     # ArrowDType (and update the IO accordingly)
     if isinstance(ibis_dtype, ibis_dtypes.Array):
-        return np.dtype("O")
+        return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
 
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
@@ -223,21 +236,13 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
     This is useful in cases where multiple types correspond to the same BigFrames dtype.
     """
     ibis_type = value.type()
+    name = value.get_name()
+    if ibis_type.is_json():
+        value = vendored_ibis_ops.ToJsonString(value).to_expr()
+        return value.name(name)
     # Allow REQUIRED fields to be joined with NULLABLE fields.
     nullable_type = ibis_type.copy(nullable=True)
-    return value.cast(nullable_type).name(value.get_name())
-
-
-def ibis_table_to_canonical_types(table: ibis_types.Table) -> ibis_types.Table:
-    """Converts an Ibis table expression to canonical types.
-
-    This is useful in cases where multiple types correspond to the same BigFrames dtype.
-    """
-    casted_columns = []
-    for column_name in table.columns:
-        column = typing.cast(ibis_types.Value, table[column_name])
-        casted_columns.append(ibis_value_to_canonical_type(column))
-    return table.select(*casted_columns)
+    return value.cast(nullable_type).name(name)
 
 
 def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:

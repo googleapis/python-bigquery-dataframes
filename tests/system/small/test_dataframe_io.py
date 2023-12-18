@@ -91,7 +91,8 @@ def test_load_json(session):
     expected = pd.DataFrame(
         {
             "json_column": ['{"bar":true,"foo":10}'],
-        }
+        },
+        dtype=pd.StringDtype(storage="pyarrow"),
     )
     expected.index = expected.index.astype("Int64")
     pd.testing.assert_series_equal(result.dtypes, expected.dtypes)
