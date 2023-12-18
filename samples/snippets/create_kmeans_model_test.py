@@ -25,6 +25,9 @@ def test_kmeans_sample():
         columns = {"start_station_name": "station_name", "start_station_id": "station_id"}
     ))
     s = bpd.read_gbq(
+    # Here we use a SQL query so that we can use the geospatial analytics functions, ST_GEOPOINT
+    # and ST_DISTANCE, which are supported in GoogleSQL for BigQuery. These functions allow us to analyze the 
+    # geographical data and determine spatial relationships between the geographical features.
         """
         SELECT
         id,
