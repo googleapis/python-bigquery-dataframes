@@ -13,14 +13,14 @@
 # limitations under the License.
 
 def test_kmeans_sample():
-# [START bigquery_dataframes_bqml_kmeans]
-    import bigframes.pandas as bpd
-    import bigframes
-    from bigframes import dataframe
-    import bigframes.pandas as bpd
+    # [START bigquery_dataframes_bqml_kmeans]
     import datetime
 
-    #Load data from BigQuery
+    import bigframes
+    import bigframes.pandas as bpd
+
+    # Load cycle hires data from BigQuery into a dataframe variable using read_gbq function in order to
+    # extract the relevant information needed to train the model later on in tutorial.
     h = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_hire",  h.rename(
         columns = {"start_station_name": "station_name", "start_station_id": "station_id"}
     ))
