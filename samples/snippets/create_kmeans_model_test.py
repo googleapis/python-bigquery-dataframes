@@ -20,6 +20,9 @@ def test_kmeans_sample():
     import bigframes
     import bigframes.pandas as bpd
 
+    # You must compute in the EU multi-region to query the London bicycles dataset.
+    bigframes.options.bigquery.location = "EU"
+
     # Load cycle hires data from BigQuery into a dataframe variable using read_gbq function in order to
     # extract the relevant information needed to train the model later on in tutorial.
     h = bpd.read_gbq(
