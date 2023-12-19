@@ -72,7 +72,7 @@ if typing.TYPE_CHECKING:
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
@@ -1562,6 +1562,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if utils.is_dict_like(value):
+            return self.apply(
+                lambda x: x.replace(
+                    to_replace=to_replace, value=value[x.name], regex=regex
+                )
+                if (x.name in value)
+                else x
+            )
+        return self.apply(
+            lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
+        )
+
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -1941,7 +1956,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _stack_multi(self, level: LevelsType = -1):
         n_levels = self.columns.nlevels
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
         level_indices = []
         for level_ref in level:
@@ -1951,7 +1966,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else:
                     level_indices.append(level_ref)
             else:  # str
-                level_indices.append(self.columns.names.index(level_ref))
+                level_indices.append(self.columns.names.index(level_ref))  # type: ignore
 
         new_order = [
             *[i for i in range(n_levels) if i not in level_indices],
@@ -1967,7 +1982,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def unstack(self, level: LevelsType = -1):
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
 
         block = self._block
