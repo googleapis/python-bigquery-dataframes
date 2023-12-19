@@ -66,7 +66,7 @@ _MONOTONIC_INCREASING = "monotonic_increasing"
 _MONOTONIC_DECREASING = "monotonic_decreasing"
 
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
@@ -137,8 +137,19 @@ class Block:
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-        impl_length, _ = self._expr.shape()
-        return (impl_length, len(self.value_columns))
+        row_count_expr = self.expr.row_count()
+
+        # Support in-memory engines for hermetic unit tests.
+        if self.expr.node.session is None:
+            try:
+                row_count = row_count_expr._try_evaluate_local().squeeze()
+                return (row_count, len(self.value_columns))
+            except Exception:
+                pass
+
+        iter, _ = self.session._execute(row_count_expr, sorted=False)
+        row_count = next(iter)[0]
+        return (row_count, len(self.value_columns))
 
     @property
     def index_columns(self) -> Sequence[str]:
@@ -181,6 +192,10 @@ class Block:
     ) -> Sequence[bigframes.dtypes.Dtype]:
         """Returns the dtypes of the index columns."""
         return [self.expr.get_column_type(col) for col in self.index_columns]
+
+    @property
+    def session(self) -> core.Session:
+        return self._expr.session
 
     @functools.cached_property
     def col_id_to_label(self) -> typing.Mapping[str, Label]:
@@ -376,7 +391,7 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self._expr.session._rows_to_dataframe(result, dtypes)
+        return self.session._rows_to_dataframe(result, dtypes)
 
     def to_pandas(
         self,
@@ -404,9 +419,9 @@ class Block:
         """Download results one message at a time."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        results_iterator, _ = self._expr.start_query()
+        results_iterator, _ = self.session._execute(self.expr, sorted=True)
         for arrow_table in results_iterator.to_arrow_iterable(
-            bqstorage_client=self._expr.session.bqstoragereadclient
+            bqstorage_client=self.session.bqstoragereadclient
         ):
             df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
             self._copy_index_to_pandas(df)
@@ -460,12 +475,12 @@ class Block:
 
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
-        results_iterator, query_job = expr.start_query(
-            max_results=max_results, sorted=ordered
+        results_iterator, query_job = self.session._execute(
+            expr, max_results=max_results, sorted=ordered
         )
 
         table_size = (
-            expr.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+            self.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
         )
         fraction = (
             max_download_size / table_size
@@ -607,7 +622,7 @@ class Block:
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        _, query_job = expr.start_query(job_config=job_config)
+        _, query_job = self.session._execute(expr, job_config=job_config, dry_run=True)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
@@ -926,7 +941,6 @@ class Block:
         by_column_ids: typing.Sequence[str] = (),
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]] = (),
         *,
-        as_index: bool = True,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
@@ -947,40 +961,21 @@ class Block:
         aggregate_labels = self._get_labels_for_columns(
             [agg[0] for agg in aggregations]
         )
-        if as_index:
-            names: typing.List[Label] = []
-            for by_col_id in by_column_ids:
-                if by_col_id in self.value_columns:
-                    names.append(self.col_id_to_label[by_col_id])
-                else:
-                    names.append(self.col_id_to_index_name[by_col_id])
-            return (
-                Block(
-                    result_expr,
-                    index_columns=by_column_ids,
-                    column_labels=aggregate_labels,
-                    index_labels=names,
-                ),
-                output_col_ids,
-            )
-        else:  # as_index = False
-            # If as_index=False, drop grouping levels, but keep grouping value columns
-            by_value_columns = [
-                col for col in by_column_ids if col in self.value_columns
-            ]
-            by_column_labels = self._get_labels_for_columns(by_value_columns)
-            labels = (*by_column_labels, *aggregate_labels)
-            offsets_id = guid.generate_guid()
-            result_expr_pruned = result_expr.select_columns(
-                [*by_value_columns, *output_col_ids]
-            ).promote_offsets(offsets_id)
-
-            return (
-                Block(
-                    result_expr_pruned, index_columns=[offsets_id], column_labels=labels
-                ),
-                output_col_ids,
-            )
+        names: typing.List[Label] = []
+        for by_col_id in by_column_ids:
+            if by_col_id in self.value_columns:
+                names.append(self.col_id_to_label[by_col_id])
+            else:
+                names.append(self.col_id_to_index_name[by_col_id])
+        return (
+            Block(
+                result_expr,
+                index_columns=by_column_ids,
+                column_labels=aggregate_labels,
+                index_labels=names,
+            ),
+            output_col_ids,
+        )
 
     def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
         """Gets aggregates immediately, and caches it"""
@@ -1309,7 +1304,6 @@ class Block:
         result_block, _ = block.aggregate(
             by_column_ids=self.index_columns,
             aggregations=aggregations,
-            as_index=True,
             dropna=True,
         )
 
@@ -1668,7 +1662,7 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        sql = array_value.to_sql(col_id_overrides=substitutions)
+        sql = self.session._to_sql(array_value, col_id_overrides=substitutions)
         return (
             sql,
             new_ids[: len(idx_labels)],
@@ -1678,7 +1672,7 @@ class Block:
     def cached(self) -> Block:
         """Write the block to a session table and create a new block object that references it."""
         return Block(
-            self.expr.cached(cluster_cols=self.index_columns),
+            self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index_labels,

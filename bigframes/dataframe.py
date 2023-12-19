@@ -34,6 +34,7 @@ from typing import (
     Union,
 )
 
+import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -71,7 +72,7 @@ if typing.TYPE_CHECKING:
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
@@ -1561,6 +1562,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if utils.is_dict_like(value):
+            return self.apply(
+                lambda x: x.replace(
+                    to_replace=to_replace, value=value[x.name], regex=regex
+                )
+                if (x.name in value)
+                else x
+            )
+        return self.apply(
+            lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
+        )
+
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -1940,7 +1956,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _stack_multi(self, level: LevelsType = -1):
         n_levels = self.columns.nlevels
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
         level_indices = []
         for level_ref in level:
@@ -1950,7 +1966,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else:
                     level_indices.append(level_ref)
             else:  # str
-                level_indices.append(self.columns.names.index(level_ref))
+                level_indices.append(self.columns.names.index(level_ref))  # type: ignore
 
         new_order = [
             *[i for i in range(n_levels) if i not in level_indices],
@@ -1966,7 +1982,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def unstack(self, level: LevelsType = -1):
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
 
         block = self._block
@@ -2508,7 +2524,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-        if "." not in destination_table:
+        table_parts = destination_table.split(".")
+        default_project = self._block.expr.session.bqclient.project
+
+        if len(table_parts) == 2:
+            destination_dataset = f"{default_project}.{table_parts[0]}"
+        elif len(table_parts) == 3:
+            destination_dataset = f"{table_parts[0]}.{table_parts[1]}"
+        else:
             raise ValueError(
                 f"Got invalid value for destination_table {repr(destination_table)}. "
                 "Should be of the form 'datasetId.tableId' or 'projectId.datasetId.tableId'."
@@ -2523,11 +2546,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Valid options include None or one of {dispositions.keys()}."
             )
 
+        try:
+            self._session.bqclient.get_dataset(destination_dataset)
+        except google.api_core.exceptions.NotFound:
+            self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
+
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
                 destination_table,
-                default_project=self._block.expr.session.bqclient.project,
+                default_project=default_project,
             ),
         )
 
@@ -2701,7 +2729,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             array_value = array_value.promote_offsets(ordering_id)
-        return array_value.to_sql(
+        return self._block.session._to_sql(
+            array_value=array_value,
             col_id_overrides=id_overrides,
         )
 
