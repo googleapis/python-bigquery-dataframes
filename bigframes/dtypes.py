@@ -448,7 +448,7 @@ def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
         return pd.api.types.is_bool(scalar)
     if pd.api.types.is_float_dtype(dtype):
         return pd.api.types.is_float(scalar)
-    if pd.api.types.is_int64_dtype(dtype):
+    if pd.api.types.is_integer_dtype(dtype):
         return pd.api.types.is_integer(scalar)
     if isinstance(dtype, pd.StringDtype):
         return isinstance(scalar, str)
