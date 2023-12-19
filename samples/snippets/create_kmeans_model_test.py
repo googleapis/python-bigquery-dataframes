@@ -33,18 +33,16 @@ def test_kmeans_sample():
             "start_date",
             "duration"
         ],
-    )
-    h.rename(
+    ).rename(
             columns={
                 "start_station_name": "station_name",
                 "start_station_id": "station_id",
             }
-        ),
-    )
+        )
+    
     s = bpd.read_gbq(
-        # Here we use a SQL query so that we can use the geospatial analytics functions, ST_GEOPOINT
-        # and ST_DISTANCE, which are supported in GoogleSQL for BigQuery. These functions allow us to analyze the
-        # geographical data and determine spatial relationships between the geographical features.
+        # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical data.
+        # These functions determine spatial relationships between the geographical features.
         """
         SELECT
         id,
@@ -57,16 +55,17 @@ def test_kmeans_sample():
         """
     )
 
-    # Here we transform the datetime data into the UTC timezone for standardization because BigQuery priortizes
-    # UTC as the internal format for global analysis.
+    # Define Python datetime objects in the UTC timezone for range comparison, because BigQuery stores 
+    # timestamp data in the UTC timezone.
     sample_time = datetime.datetime(2015, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
 
-    # In this section, we use a mapping function to transform the start_date column by replacing each day-of-the-week
-    # number with the corresponding label ("weekday" or "weekend").
-    h.start_date.dt.dayofweek.map(
+    # Replace each day-of-the-week number with the corresponding "weekday" or "weekend" label by using the 
+    # Series.map method.
+    h = h.assign(
+        isweekday = h.start_date.dt.dayofweek.map(
         {
             0: "weekday",
             1: "weekday",
@@ -76,26 +75,30 @@ def test_kmeans_sample():
             5: "weekend",
             6: "weekend",
         }
-    )
+    ))
 
-    # merge dataframes h and s
+    # Supplement each trip in "h" with the station distance information from "s" by 
+    # merging the two DataFrames by station ID.
     merged_df = h.merge(
         right=s,
         how="inner",
         left_on="station_id",
         right_on="id",
     )
-    # Create new dataframe variable from merge: 'stationstats'
-    stationstats = merged_df.groupby("station_name").agg(
+
+    # Engineer features to cluster the stations. For each station, find the average trip duration, number of 
+    # trips, and distance from city center.
+    stationstats = merged_df.groupby("station_name", "isweekday").agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
     # [END bigquery_dataframes_bqml_kmeans]
 
     # [START bigquery_dataframes_bqml_kmeans_fit]
 
-    # import the KMeans model from bigframes.ml to cluster the data
     from bigframes.ml.cluster import KMeans
 
+    # To determine an optimal number of clusters, you would run the CREATE MODEL query for different values of
+    # num_clusters, find the error measure, and pick the point at which the error measure is at its minimum value.
     cluster_model = KMeans(n_clusters=4)
     cluster_model = cluster_model.fit(stationstats).to_gbq(cluster_model)
 
@@ -103,10 +106,9 @@ def test_kmeans_sample():
 
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
-    # Use 'contains' function to find all entries with string "Kennington".
+    # Use 'contains' function to predict which clusters contain the stations with string "Kennington".
     stationstats = stationstats.str.contains("Kennington")
 
-    # Predict using the model
     result = cluster_model.predict(stationstats)
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
