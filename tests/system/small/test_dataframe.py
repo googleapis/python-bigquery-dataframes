@@ -839,6 +839,50 @@ def test_df_fillna(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_replace_scalar_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace("Hello, World!", "Howdy, Planet!").to_pandas()
+    pd_result = scalars_pandas_df.replace("Hello, World!", "Howdy, Planet!")
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_df_replace_regex_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace("^H.l", "Howdy, Planet!", regex=True).to_pandas()
+    pd_result = scalars_pandas_df.replace("^H.l", "Howdy, Planet!", regex=True)
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_df_replace_list_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace(["Hello, World!", "T"], "Howdy, Planet!").to_pandas()
+    pd_result = scalars_pandas_df.replace(["Hello, World!", "T"], "Howdy, Planet!")
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_df_replace_value_dict(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace(1, {"int64_col": 100, "int64_too": 200}).to_pandas()
+    pd_result = scalars_pandas_df.replace(1, {"int64_col": 100, "int64_too": 200})
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_df_ffill(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[["int64_col", "float64_col"]].ffill(limit=1).to_pandas()
@@ -2474,6 +2518,17 @@ def test_loc_select_column(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.loc[:, scalars_df_index.dtypes == "Int64"].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.dtypes == "Int64"
+    ]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_loc_single_index_with_duplicate(scalars_df_index, scalars_pandas_df_index):
     scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(
@@ -3656,6 +3711,13 @@ def test_df_dot_operator_series(
     )
 
 
+def test_recursion_limit(scalars_df_index):
+    scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    for i in range(400):
+        scalars_df_index = scalars_df_index + 4
+    scalars_df_index.to_pandas()
+
+
 def test_to_pandas_downsampling_option_override(session):
     df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
     download_size = 1
@@ -3665,3 +3727,18 @@ def test_to_pandas_downsampling_option_override(session):
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)
     assert total_memory_mb == pytest.approx(download_size, rel=0.3)
+
+
+def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):
+    dataset_id = dataset_id_not_created
+    destination_table = f"{dataset_id}.scalars_df"
+
+    result_table = scalars_df_index.to_gbq(destination_table)
+    assert (
+        result_table == destination_table
+        if destination_table
+        else result_table is not None
+    )
+
+    loaded_scalars_df_index = session.read_gbq(result_table)
+    assert not loaded_scalars_df_index.empty
