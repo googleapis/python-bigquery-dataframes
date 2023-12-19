@@ -23,11 +23,18 @@ def test_kmeans_sample():
     # You must compute in the EU multi-region to query the London bicycles dataset.
     bigframes.options.bigquery.location = "EU"
 
-    # Load cycle hires data from BigQuery into a dataframe variable using read_gbq function in order to
-    # extract the relevant information needed to train the model later on in tutorial.
+    # Extract the information you'll need to train the k-means model later in this tutorial. Use the
+    # read_gbq function to represent cycle hires data as a DataFrame.
     h = bpd.read_gbq(
         "bigquery-public-data.london_bicycles.cycle_hire",
-        h.rename(
+        col_order =[  
+            "start_station_name",  
+            "start_station_id", 
+            "start_date",
+            "duration"
+        ],
+    )
+    h.rename(
             columns={
                 "start_station_name": "station_name",
                 "start_station_id": "station_id",
