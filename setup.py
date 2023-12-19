@@ -43,8 +43,9 @@ dependencies = [
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
+    # TODO: Relax upper bound once we have fixed unit tests with 7.2.0.
+    "ibis-framework[bigquery] >=7.1.0,<7.2.0dev",
     # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
-    "ibis-framework[bigquery] >=6.2.0,<7.0.0dev",
     "pandas >=1.5.0,<2.1.4",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",

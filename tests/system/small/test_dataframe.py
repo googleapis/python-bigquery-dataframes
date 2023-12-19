@@ -3711,6 +3711,13 @@ def test_df_dot_operator_series(
     )
 
 
+def test_recursion_limit(scalars_df_index):
+    scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    for i in range(400):
+        scalars_df_index = scalars_df_index + 4
+    scalars_df_index.to_pandas()
+
+
 def test_to_pandas_downsampling_option_override(session):
     df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
     download_size = 1
@@ -3720,3 +3727,18 @@ def test_to_pandas_downsampling_option_override(session):
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)
     assert total_memory_mb == pytest.approx(download_size, rel=0.3)
+
+
+def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):
+    dataset_id = dataset_id_not_created
+    destination_table = f"{dataset_id}.scalars_df"
+
+    result_table = scalars_df_index.to_gbq(destination_table)
+    assert (
+        result_table == destination_table
+        if destination_table
+        else result_table is not None
+    )
+
+    loaded_scalars_df_index = session.read_gbq(result_table)
+    assert not loaded_scalars_df_index.empty
