@@ -4441,18 +4441,6 @@ class DataFrame(NDFrame):
 
         Returns:
             Series/DataFrame: Object after replacement.
-
-        Raises:
-            TypeError:
-                * If `to_replace` is not a scalar, array-like, ``dict``, or ``None``
-                * If `to_replace` is a ``dict`` and `value` is not a ``list``,
-                  ``dict``, ``ndarray``, or ``Series``
-                * If `to_replace` is ``None`` and `regex` is not compilable
-                  into a regular expression or is a list, dict, ndarray, or
-                  Series.
-                * When replacing multiple ``bool`` or ``datetime64`` objects and
-                  the arguments to `to_replace` does not match the type of the
-                  value being replaced
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
