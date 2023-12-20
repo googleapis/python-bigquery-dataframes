@@ -495,7 +495,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def _mapping_replace(self, mapping: dict[typing.Hashable, typing.Hashable]):
         tuples = []
-        lcd_types = []
+        lcd_types: list[typing.Optional[bigframes.dtypes.Dtype]] = []
         for key, value in mapping.items():
             lcd_type = bigframes.dtypes.is_compatible(key, self.dtype)
             if not lcd_type:

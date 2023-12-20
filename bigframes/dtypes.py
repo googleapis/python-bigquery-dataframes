@@ -57,7 +57,7 @@ DtypeString = Literal[
     "date32[day][pyarrow]",
     "time64[us][pyarrow]",
     "decimal128(38, 9)[pyarrow]",
-    "decimal128(38, 9)[pyarrow]",
+    "decimal256(38, 9)[pyarrow]",
     "binary[pyarrow]",
 ]
 
@@ -132,13 +132,9 @@ IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.time: pa.time64("us"),
     ibis_dtypes.Timestamp(timezone=None): pa.timestamp("us"),
     ibis_dtypes.Timestamp(timezone="UTC"): pa.timestamp("us", tz="UTC"),
-    ibis_dtypes.binary: pd.ArrowDtype(pa.binary()),
-    ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pd.ArrowDtype(
-        pa.decimal128(38, 9)
-    ),
-    ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pd.ArrowDtype(
-        pa.decimal256(76, 38)
-    ),
+    ibis_dtypes.binary: pa.binary(),
+    ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pa.decimal128(38, 9),
+    ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pa.decimal256(76, 38),
 }
 
 ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in IBIS_TO_ARROW.items()}
@@ -543,7 +539,7 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
 
 def lcd_type(dtype1: Dtype, dtype2: Dtype) -> typing.Optional[Dtype]:
     # Implicit conversion currently only supported for numeric types
-    hierarchy = [
+    hierarchy: list[Dtype] = [
         pd.BooleanDtype(),
         pd.Int64Dtype(),
         pd.Float64Dtype(),

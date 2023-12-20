@@ -2519,8 +2519,12 @@ def test_mask_custom_value(scalars_dfs):
         ("int64_col", pd.Float64Dtype()),
         ("int64_col", "string[pyarrow]"),
         ("int64_col", "boolean"),
+        ("int64_col", pd.ArrowDtype(pa.decimal128(38, 9))),
+        ("int64_col", pd.ArrowDtype(pa.decimal256(76, 38))),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
+        ("string_col", "binary[pyarrow]"),
+        ("bytes_col", "string[pyarrow]"),
         # pandas actually doesn't let folks convert to/from naive timestamp and
         # raises a deprecation warning to use tz_localize/tz_convert instead,
         # but BigQuery always stores values as UTC and doesn't have to deal
