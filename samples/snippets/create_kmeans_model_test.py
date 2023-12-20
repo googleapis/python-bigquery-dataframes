@@ -88,9 +88,13 @@ def test_kmeans_sample():
 
     # Engineer features to cluster the stations. For each station, find the average trip duration, number of 
     # trips, and distance from city center.
-    stationstats = merged_df.groupby("station_name", "isweekday").agg(
+    stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
+    stationstats.columns=["duration","num_trips","distance_from_city_center"]
+    stationstats.sort_values(by="distance_from_city_center", ascending=True)
+    #Expected output looks as follows
+
     # [END bigquery_dataframes_bqml_kmeans]
 
     # [START bigquery_dataframes_bqml_kmeans_fit]
@@ -100,7 +104,7 @@ def test_kmeans_sample():
     # To determine an optimal number of clusters, you would run the CREATE MODEL query for different values of
     # num_clusters, find the error measure, and pick the point at which the error measure is at its minimum value.
     cluster_model = KMeans(n_clusters=4)
-    cluster_model = cluster_model.fit(stationstats).to_gbq(cluster_model)
+    cluster_model.fit(stationstats)
 
     # [END bigquery_dataframes_bqml_kmeans_fit]
 
