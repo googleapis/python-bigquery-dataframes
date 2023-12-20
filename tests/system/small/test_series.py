@@ -81,14 +81,14 @@ def test_series_construct_from_list_escaped_strings():
     [
         ("bool_col", pd.BooleanDtype()),
         # TODO(swast): Use a more efficient type.
-        ("bytes_col", numpy.dtype("object")),
+        ("bytes_col", pd.ArrowDtype(pa.binary())),
         ("date_col", pd.ArrowDtype(pa.date32())),
         ("datetime_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("float64_col", pd.Float64Dtype()),
         ("geography_col", gpd.array.GeometryDtype()),
         ("int64_col", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
-        ("numeric_col", numpy.dtype("object")),
+        ("numeric_col", pd.ArrowDtype(pa.decimal128(38, 9))),
         ("int64_too", pd.Int64Dtype()),
         ("string_col", pd.StringDtype(storage="pyarrow")),
         ("time_col", pd.ArrowDtype(pa.time64("us"))),

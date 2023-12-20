@@ -74,7 +74,13 @@ IbisDtype = Union[
 BOOL_BIGFRAMES_TYPES = [pd.BooleanDtype()]
 
 # Several operations are restricted to these types.
-NUMERIC_BIGFRAMES_TYPES = [pd.BooleanDtype(), pd.Float64Dtype(), pd.Int64Dtype()]
+NUMERIC_BIGFRAMES_TYPES = [
+    pd.BooleanDtype(),
+    pd.Float64Dtype(),
+    pd.Int64Dtype(),
+    pd.ArrowDtype(pa.decimal128(38, 9)),
+    pd.ArrowDtype(pa.decimal256(76, 38)),
+]
 
 # Type hints for Ibis data types that can be read to Python objects by BigQuery DataFrame
 ReadOnlyIbisDtype = Union[
@@ -213,7 +219,9 @@ def ibis_dtype_to_bigframes_dtype(
 
 def ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
     if isinstance(ibis_dtype, ibis_dtypes.Array):
-        return pa.list_(ibis_dtype_to_arrow_dtype(ibis_dtype.value_type))
+        return pa.list_(
+            ibis_dtype_to_arrow_dtype(ibis_dtype.value_type.copy(nullable=True))
+        )
 
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pa.struct(

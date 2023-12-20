@@ -133,7 +133,7 @@ def convert_pandas_dtypes(df: pd.DataFrame, bytes_col: bool):
             df["geography_col"].replace({np.nan: None})
         )
 
-    if not isinstance(df["bytes_col"].dtype, pd.ArrowDtype):
+    if bytes_col and not isinstance(df["bytes_col"].dtype, pd.ArrowDtype):
         df["bytes_col"] = df["bytes_col"].apply(
             lambda value: base64.b64decode(value) if not pd.isnull(value) else value
         )
