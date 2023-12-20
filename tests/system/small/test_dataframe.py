@@ -840,13 +840,11 @@ def test_df_fillna(scalars_dfs):
 
 def test_df_replace_scalar_scalar(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df.replace("Hello, World!", "Howdy, Planet!").to_pandas()
-    pd_result = scalars_pandas_df.replace("Hello, World!", "Howdy, Planet!")
+    bf_result = scalars_df.replace(555.555, 3).to_pandas()
+    pd_result = scalars_pandas_df.replace(555.555, 3)
 
-    pd.testing.assert_frame_equal(
-        pd_result,
-        bf_result,
-    )
+    # pandas has narrower result types as they are determined dynamically
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
 
 
 def test_df_replace_regex_scalar(scalars_dfs):
@@ -862,12 +860,14 @@ def test_df_replace_regex_scalar(scalars_dfs):
 
 def test_df_replace_list_scalar(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = scalars_df.replace(["Hello, World!", "T"], "Howdy, Planet!").to_pandas()
-    pd_result = scalars_pandas_df.replace(["Hello, World!", "T"], "Howdy, Planet!")
+    bf_result = scalars_df.replace([555.555, 3.2], 3).to_pandas()
+    pd_result = scalars_pandas_df.replace([555.555, 3.2], 3)
 
+    # pandas has narrower result types as they are determined dynamically
     pd.testing.assert_frame_equal(
         pd_result,
         bf_result,
+        check_dtype=False,
     )
 
 
