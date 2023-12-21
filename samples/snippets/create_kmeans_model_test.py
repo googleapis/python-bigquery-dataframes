@@ -20,6 +20,7 @@ def test_kmeans_sample():
     import bigframes
     import bigframes.pandas as bpd
 
+    bigframes.options.bigquery.project = "salemb-testing"
     # You must compute in the EU multi-region to query the London bicycles dataset.
     bigframes.options.bigquery.location = "EU"
 
@@ -89,7 +90,7 @@ def test_kmeans_sample():
     # Engineer features to cluster the stations. For each station, find the average trip duration, number of 
     # trips, and distance from city center.
     stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
-        {"duration": ["mean", "count"], "distance_from_city_center": "max"}
+    {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
     stationstats.columns=["duration","num_trips","distance_from_city_center"]
     stationstats.sort_values(by="distance_from_city_center", ascending=True)
@@ -111,9 +112,10 @@ def test_kmeans_sample():
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
     # Use 'contains' function to predict which clusters contain the stations with string "Kennington".
-    stationstats = stationstats.str.contains("Kennington")
+    stationstats = stationstats.contains("Kennington")
 
     result = cluster_model.predict(stationstats)
+    #Expected output results:
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
 
