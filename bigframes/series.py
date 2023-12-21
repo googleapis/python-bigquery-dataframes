@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import functools
 import itertools
 import numbers
 import textwrap
@@ -442,42 +443,82 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
     ):
         if regex:
-            if not (isinstance(to_replace, str) and isinstance(value, str)):
-                raise NotImplementedError(
-                    f"replace regex mode only supports strings for 'to_replace' and 'value'. {constants.FEEDBACK_LINK}"
-                )
-            block, result_col = self._block.apply_unary_op(
-                self._value_column,
-                ops.ReplaceRegexOp(to_replace, value),
-                result_label=self.name,
-            )
-            return Series(block.select_column(result_col))
+            # No-op unless to_replace and series dtype are both string type
+            if not isinstance(to_replace, str) or not isinstance(
+                self.dtype, pandas.StringDtype
+            ):
+                return self
+            return self._regex_replace(to_replace, value)
         elif utils.is_dict_like(to_replace):
-            raise NotImplementedError(
-                f"Dict 'to_replace' not supported. {constants.FEEDBACK_LINK}"
-            )
+            return self._mapping_replace(to_replace)  # type: ignore
         elif utils.is_list_like(to_replace):
-            block, cond = self._block.apply_unary_op(
-                self._value_column, ops.IsInOp(to_replace)
-            )
-            block, result_col = block.apply_binary_op(
-                cond,
-                self._value_column,
-                ops.partial_arg1(ops.where_op, value),
-                result_label=self.name,
-            )
-            return Series(block.select_column(result_col))
+            replace_list = to_replace
         else:  # Scalar
-            block, cond = self._block.apply_unary_op(
-                self._value_column, ops.BinopPartialLeft(ops.eq_op, to_replace)
+            replace_list = [to_replace]
+        replace_list = [
+            i for i in replace_list if bigframes.dtypes.is_compatible(i, self.dtype)
+        ]
+        return self._simple_replace(replace_list, value) if replace_list else self
+
+    def _regex_replace(self, to_replace: str, value: str):
+        if not bigframes.dtypes.is_dtype(value, self.dtype):
+            raise NotImplementedError(
+                f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
             )
-            block, result_col = block.apply_binary_op(
-                cond,
-                self._value_column,
-                ops.partial_arg1(ops.where_op, value),
-                result_label=self.name,
+        block, result_col = self._block.apply_unary_op(
+            self._value_column,
+            ops.ReplaceRegexOp(to_replace, value),
+            result_label=self.name,
+        )
+        return Series(block.select_column(result_col))
+
+    def _simple_replace(self, to_replace_list: typing.Sequence, value):
+        result_type = bigframes.dtypes.is_compatible(value, self.dtype)
+        if not result_type:
+            raise NotImplementedError(
+                f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
             )
-            return Series(block.select_column(result_col))
+
+        if result_type != self.dtype:
+            return self.astype(result_type)._simple_replace(to_replace_list, value)
+
+        block, cond = self._block.apply_unary_op(
+            self._value_column, ops.IsInOp(to_replace_list)
+        )
+        block, result_col = block.apply_binary_op(
+            cond,
+            self._value_column,
+            ops.partial_arg1(ops.where_op, value),
+            result_label=self.name,
+        )
+        return Series(block.select_column(result_col))
+
+    def _mapping_replace(self, mapping: dict[typing.Hashable, typing.Hashable]):
+        tuples = []
+        lcd_types: list[typing.Optional[bigframes.dtypes.Dtype]] = []
+        for key, value in mapping.items():
+            lcd_type = bigframes.dtypes.is_compatible(key, self.dtype)
+            if not lcd_type:
+                continue
+            if not bigframes.dtypes.is_dtype(value, self.dtype):
+                raise NotImplementedError(
+                    f"Cannot replace {self.dtype} elements with incompatible item {value} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
+                )
+            tuples.append((key, value))
+            lcd_types.append(lcd_type)
+
+        result_dtype = functools.reduce(
+            lambda t1, t2: bigframes.dtypes.lcd_type(t1, t2) if (t1 and t2) else None,
+            lcd_types,
+        )
+        if not result_dtype:
+            raise NotImplementedError(
+                f"Cannot replace {self.dtype} elements with incompatible mapping {mapping} as mixed-type columns not supported. {constants.FEEDBACK_LINK}"
+            )
+        block, result = self._block.apply_unary_op(
+            self._value_column, ops.MapOp(tuple(tuples))
+        )
+        return Series(block.select_column(result))
 
     def interpolate(self, method: str = "linear") -> Series:
         if method == "pad":
@@ -757,7 +798,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def agg(self, func: str | typing.Sequence[str]) -> scalars.Scalar | Series:
         if _is_list_like(func):
-            if self.dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES:
+            if self.dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
                 raise NotImplementedError(
                     f"Multiple aggregations only supported on numeric series. {constants.FEEDBACK_LINK}"
                 )
@@ -816,7 +857,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, agg_ids = block.aggregate(
             by_column_ids=[self._value_column],
             aggregations=((self._value_column, agg_ops.count_op),),
-            as_index=False,
         )
         value_count_col_id = agg_ids[0]
         block, max_value_count_col_id = block.apply_window_op(
@@ -830,14 +870,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.eq_op,
         )
         block = block.filter(is_mode_col_id)
-        mode_values_series = Series(
-            block.select_column(self._value_column).assign_label(
-                self._value_column, self.name
-            )
+        # use temporary name for reset_index to avoid collision, restore after dropping extra columns
+        block = (
+            block.with_index_labels(["mode_temp_internal"])
+            .order_by([OrderingColumnReference(self._value_column)])
+            .reset_index(drop=False)
         )
-        return typing.cast(
-            Series, mode_values_series.sort_values().reset_index(drop=True)
-        )
+        block = block.select_column(self._value_column).with_column_labels([self.name])
+        mode_values_series = Series(block.select_column(self._value_column))
+        return typing.cast(Series, mode_values_series)
 
     def mean(self) -> float:
         return typing.cast(float, self._apply_aggregation(agg_ops.mean_op))

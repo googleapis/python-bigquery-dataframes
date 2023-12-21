@@ -385,7 +385,7 @@ class ReplaceStringOp(UnaryOp):
             ibis_types.StringValue, ibis_types.literal(self._pat)
         )
         repl_str_value = typing.cast(
-            ibis_types.StringValue, ibis_types.literal(self._pat)
+            ibis_types.StringValue, ibis_types.literal(self._repl)
         )
 
         return typing.cast(ibis_types.StringValue, x).replace(
@@ -521,6 +521,20 @@ class AsTypeOp(UnaryOp):
             return ibis_types.null().cast(self.to_type)
 
         return bigframes.dtypes.cast_ibis_value(x, self.to_type)
+
+
+class MapOp(UnaryOp):
+    def __init__(
+        self,
+        mappings: typing.Tuple[typing.Tuple[typing.Hashable, typing.Hashable], ...],
+    ):
+        self._mappings = mappings
+
+    def _as_ibis(self, x: ibis_types.Value):
+        case = ibis.case()
+        for mapping in self._mappings:
+            case = case.when(x == mapping[0], mapping[1])
+        return case.else_(x).end()
 
 
 class FindOp(UnaryOp):
