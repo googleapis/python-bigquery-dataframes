@@ -534,7 +534,7 @@ def test_read_gbq_function_like_original(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_reads_udfs(bigquery_client, dataset_id):
+def test_read_gbq_function_reads_udfs(bigquery_client, dataset_id, scalars_df_index):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
         name="x",

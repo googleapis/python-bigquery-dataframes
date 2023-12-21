@@ -43,12 +43,12 @@ from google.cloud import (
     resourcemanager_v3,
 )
 import google.iam.v1
-from ibis.backends.bigquery.datatypes import BigQueryType
 from ibis.expr.datatypes.core import DataType as IbisDataType
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 
 from bigframes import clients
 import bigframes.constants as constants
+import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 
 logger = logging.getLogger(__name__)
 
@@ -184,12 +184,14 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = BigQueryType.from_ibis(output_type)
+        bq_function_return_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
+            output_type
+        )
 
         # We are expecting the input type annotations to be 1:1 with the input args
         for idx, name in enumerate(input_args):
             bq_function_args.append(
-                f"{name} {BigQueryType.from_ibis(input_types[idx])}"
+                f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
             )
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
@@ -541,7 +543,7 @@ def ibis_type_from_python_type(t: type) -> IbisDataType:
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> IbisDataType:
     if tk not in SUPPORTED_IO_BIGQUERY_TYPEKINDS:
         raise UnsupportedTypeError(tk, SUPPORTED_IO_BIGQUERY_TYPEKINDS)
-    return BigQueryType.to_ibis(tk)
+    return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
 
 
 def ibis_signature_from_python_signature(
@@ -828,9 +830,7 @@ def remote_function(
         node = ibis.udf.scalar.builtin(
             f,
             name=rf_name,
-            # TODO(swast): The backticks shouldn't be necessary. Ibis should be
-            # escaping the "schema" for us.
-            schema=f"`{dataset_ref.project}.{dataset_ref.dataset_id}`",
+            schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
             signature=(ibis_signature.input_types, ibis_signature.output_type),
         )
         node.bigframes_cloud_function = (
@@ -886,17 +886,17 @@ def read_gbq_function(
             f"{constants.FEEDBACK_LINK}"
         )
 
-    def node(*args, **kwargs):
-        f"""Function {function_name}."""
+    # The name "args" conflicts with the Ibis operator, so we use
+    # non-standard names for the arguments here.
+    def node(*ignored_args, **ignored_kwargs):
+        f"""Remote function {str(routine_ref)}."""
 
     node.__name__ = routine_ref.routine_id
-    node.bigframes_remote_function = str(routine_ref)  # type: ignore
-
-    return ibis.udf.scalar.builtin(
+    node = ibis.udf.scalar.builtin(
         node,
         name=routine_ref.routine_id,
-        # TODO(swast): The backticks shouldn't be necessary. Ibis should be
-        # escaping the "schema" for us.
-        schema=f"`{routine_ref.project}.{routine_ref.dataset_id}`",
+        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
+    node.bigframes_remote_function = str(routine_ref)  # type: ignore
+    return node
