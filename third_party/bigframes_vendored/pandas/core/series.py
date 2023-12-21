@@ -1130,6 +1130,55 @@ class Series(NDFrame):  # type: ignore[misc]
         When using a multi-index, labels on different levels can be removed
         by specifying the level.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(data=np.arange(3), index=['A', 'B', 'C'])
+            >>> s
+            A    0
+            B    1
+            C    2
+            dtype: Int64
+
+        Drop labels B and C:
+
+            >>> s.drop(labels=['B', 'C'])
+            A    0
+            dtype: Int64
+
+        Drop 2nd level label in MultiIndex Series:
+
+            >>> import pandas as pd
+            >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
+            ...                              ['speed', 'weight', 'length']],
+            ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
+            ...                             [0, 1, 2, 0, 1, 2, 0, 1, 2]])
+
+            >>> s = bpd.Series([45, 200, 1.2, 30, 250, 1.5, 320, 1, 0.3],
+            ...               index=midx)
+            >>> s
+            llama   speed      45.0
+                    weight    200.0
+                    length      1.2
+            cow     speed      30.0
+                    weight    250.0
+                    length      1.5
+            falcon  speed     320.0
+                    weight      1.0
+                    length      0.3
+            dtype: Float64
+
+            >>> s.drop(labels='weight', level=1)
+            llama   speed      45.0
+                    length      1.2
+            cow     speed      30.0
+                    length      1.5
+            falcon  speed     320.0
+                    length      0.3
+            dtype: Float64
+
         Args:
             labels (single label or list-like):
                 Index labels to drop.
@@ -1260,6 +1309,38 @@ class Series(NDFrame):  # type: ignore[misc]
     ) -> Series | None:
         """
         Fill NA/NaN values using the specified method.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([np.nan, 2, np.nan, -1])
+            >>> s
+            0    <NA>
+            1     2.0
+            2    <NA>
+            3    -1.0
+            dtype: Float64
+
+        Replace all NA elements with 0s.
+
+            >>> s.fillna(0)
+            0    0.0
+            1    2.0
+            2    0.0
+            3   -1.0
+            dtype: Float64
+
+        You can use fill values from another Series:
+
+            >>> s_fill = bpd.Series([11, 22, 33])
+            >>> s.fillna(s_fill)
+            0    11.0
+            1     2.0
+            2    33.0
+            3    -1.0
+            dtype: Float64
 
         Args:
             value (scalar, dict, Series, or DataFrame, default None):
@@ -2491,6 +2572,24 @@ class Series(NDFrame):  # type: ignore[misc]
 
         NAs stay NA unless handled otherwise by a particular method. Patterned
         after Python’s string methods, with some inspiration from R’s stringr package.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["A_Str_Series"])
+            >>> s
+            0    A_Str_Series
+            dtype: string
+
+            >>> s.str.lower()
+            0    a_str_series
+            dtype: string
+
+            >>> s.str.replace("_", "")
+            0    AStrSeries
+            dtype: string
 
         Returns:
             bigframes.operations.strings.StringMethods:
