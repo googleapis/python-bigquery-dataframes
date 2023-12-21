@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from bigframes.core import utils
 
 
@@ -29,6 +31,26 @@ def test_get_standardized_ids_columns():
         "with_space",
     ]
     assert idx_ids == []
+
+
+@pytest.mark.parametrize(
+    "names, default_name, expected",
+    [
+        (
+            ["aaaa", "aa#$%^&", "HKJ3::>,."],
+            None,
+            ["aaaa", "aa#_%_&", "HKJ3::>"],
+        ),
+        (
+            [None, "aa#$%^&", "HKJ3::>,."],
+            "DefaultName",
+            ["DefaultName", "aa#_%_&", "HKJ3::>"],
+        ),
+        ([None, "aa#$%^&", "HKJ3::>,....."], None, [None, "aa#_%_&", "HKJ3::>"]),
+    ],
+)
+def test_gen_valid_names(names, default_name, expected):
+    assert utils.gen_valid_names(names, default_name) == expected
 
 
 def test_get_standardized_ids_indexes():
