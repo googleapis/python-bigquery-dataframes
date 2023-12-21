@@ -1054,11 +1054,11 @@ class DataFrame(NDFrame):
 
             >>> import numpy as np
             >>> df = bpd.DataFrame([('bird', 389.0),
-            ...                    ('bird', 24.0),
-            ...                    ('mammal', 80.5),
-            ...                    ('mammal', np.nan)],
-            ...                   index=['falcon', 'parrot', 'lion', 'monkey'],
-            ...                   columns=('class', 'max_speed'))
+            ...                     ('bird', 24.0),
+            ...                     ('mammal', 80.5),
+            ...                     ('mammal', np.nan)],
+            ...                    index=['falcon', 'parrot', 'lion', 'monkey'],
+            ...                    columns=('class', 'max_speed'))
             >>> df
                      class  max_speed
             falcon    bird      389.0
@@ -1100,18 +1100,18 @@ class DataFrame(NDFrame):
             ...                                   names=['class', 'name'])
             >>> columns = ['speed', 'max']
             >>> df = bpd.DataFrame([(389.0, 'fly'),
-            ...                    (24.0, 'fly'),
-            ...                    (80.5, 'run'),
-            ...                    (np.nan, 'jump')],
-            ...                   index=index,
-            ...                   columns=columns)
+            ...                     (24.0, 'fly'),
+            ...                     (80.5, 'run'),
+            ...                     (np.nan, 'jump')],
+            ...                    index=index,
+            ...                    columns=columns)
             >>> df
-                        speed   max
+                           speed   max
             class  name
             bird   falcon  389.0   fly
-                    parrot   24.0   fly
+                   parrot   24.0   fly
             mammal lion     80.5   run
-                    monkey   <NA>  jump
+                   monkey   <NA>  jump
             <BLANKLINE>
             [4 rows x 2 columns]
 
@@ -1125,7 +1125,7 @@ class DataFrame(NDFrame):
             [4 rows x 4 columns]
 
             >>> df.reset_index(drop=True)
-            speed   max
+               speed   max
             0  389.0   fly
             1   24.0   fly
             2   80.5   run
@@ -1355,7 +1355,7 @@ class DataFrame(NDFrame):
             ...     'col4': ['a', 'B', 'c', 'D', 'e', 'F']
             ... })
             >>> df
-            col1  col2  col3 col4
+               col1  col2  col3 col4
             0     A     2     0    a
             1     A     1     1    B
             2     B     9     9    c
@@ -1368,7 +1368,7 @@ class DataFrame(NDFrame):
         Sort by col1:
 
             >>> df.sort_values(by=['col1'])
-            col1  col2  col3 col4
+               col1  col2  col3 col4
             0     A     2     0    a
             1     A     1     1    B
             2     B     9     9    c
@@ -1381,7 +1381,7 @@ class DataFrame(NDFrame):
         Sort by multiple columns:
 
             >>> df.sort_values(by=['col1', 'col2'])
-            col1  col2  col3 col4
+               col1  col2  col3 col4
             1     A     1     1    B
             0     A     2     0    a
             2     B     9     9    c
@@ -1394,7 +1394,7 @@ class DataFrame(NDFrame):
         Sort Descending:
 
             >>> df.sort_values(by='col1', ascending=False)
-            col1  col2  col3 col4
+               col1  col2  col3 col4
             4     D     7     2    e
             5     C     4     3    F
             2     B     9     9    c
@@ -1407,7 +1407,7 @@ class DataFrame(NDFrame):
         Putting NAs first:
 
             >>> df.sort_values(by='col1', ascending=False, na_position='first')
-            col1  col2  col3 col4
+               col1  col2  col3 col4
             3  <NA>     8     4    D
             4     D     7     2    e
             5     C     4     3    F
