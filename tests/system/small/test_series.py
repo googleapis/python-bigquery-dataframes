@@ -24,7 +24,11 @@ import pytest
 
 import bigframes.pandas
 import bigframes.series as series
-from tests.system.utils import assert_pandas_df_equal, assert_series_equal
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    assert_series_equal,
+    skip_legacy_pandas,
+)
 
 
 def test_series_construct_copy(scalars_dfs):
@@ -2542,6 +2546,7 @@ def test_mask_custom_value(scalars_dfs):
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions
     ],
 )
+@skip_legacy_pandas
 def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)

@@ -14,11 +14,23 @@
 
 import base64
 import decimal
+import functools
 
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
+import pytest
+
+
+def skip_legacy_pandas(test):
+    @functools.wraps(test)
+    def wrapper(*args, **kwds):
+        if pd.__version__.startswith("1."):
+            pytest.skip("Skips pandas 1.x as not compatible with 2.x behavior.")
+        return test(*args, **kwds)
+
+    return wrapper
 
 
 def assert_pandas_df_equal(df0, df1, ignore_order: bool = False, **kwargs):

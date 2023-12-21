@@ -28,7 +28,11 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
 import bigframes.series as series
-from tests.system.utils import assert_pandas_df_equal, assert_series_equal
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    assert_series_equal,
+    skip_legacy_pandas,
+)
 
 
 def test_df_construct_copy(scalars_dfs):
@@ -361,6 +365,7 @@ def test_drop_bigframes_index_with_na(scalars_dfs):
     pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
+@skip_legacy_pandas
 def test_drop_bigframes_multiindex(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
@@ -2137,6 +2142,7 @@ def test_dataframe_agg_multi_string(scalars_dfs):
     ).all()
 
 
+@skip_legacy_pandas
 def test_df_describe(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     # pyarrows time columns fail in pandas
