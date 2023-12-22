@@ -1305,7 +1305,7 @@ class DataFrame(NDFrame):
             ...                     "toy": [np.nan, 'Batmobile', 'Bullwhip'],
             ...                     "born": [bpd.NA, "1940-04-25", bpd.NA]})
             >>> df
-                name        toy        born
+                   name        toy        born
             0    Alfred       <NA>        <NA>
             1    Batman  Batmobile  1940-04-25
             2  Catwoman   Bullwhip        <NA>
@@ -1315,7 +1315,7 @@ class DataFrame(NDFrame):
         Drop the rows where at least one element is missing:
 
             >>> df.dropna()
-                name        toy        born
+                 name        toy        born
             1  Batman  Batmobile  1940-04-25
             <BLANKLINE>
             [1 rows x 3 columns]
@@ -1323,7 +1323,7 @@ class DataFrame(NDFrame):
         Drop the columns where at least one element is missing.
 
             >>> df.dropna(axis='columns')
-                name
+                   name
             0    Alfred
             1    Batman
             2  Catwoman
@@ -1333,7 +1333,7 @@ class DataFrame(NDFrame):
         Drop the rows where all elements are missing:
 
             >>> df.dropna(how='all')
-                name        toy        born
+                   name        toy        born
             0    Alfred       <NA>        <NA>
             1    Batman  Batmobile  1940-04-25
             2  Catwoman   Bullwhip        <NA>
