@@ -28,19 +28,14 @@ def test_kmeans_sample():
     # read_gbq function to represent cycle hires data as a DataFrame.
     h = bpd.read_gbq(
         "bigquery-public-data.london_bicycles.cycle_hire",
-        col_order =[  
-            "start_station_name",  
-            "start_station_id", 
-            "start_date",
-            "duration"
-        ],
+        col_order=["start_station_name", "start_station_id", "start_date", "duration"],
     ).rename(
-            columns={
-                "start_station_name": "station_name",
-                "start_station_id": "station_id",
-            }
-        )
-    
+        columns={
+            "start_station_name": "station_name",
+            "start_station_id": "station_id",
+        }
+    )
+
     s = bpd.read_gbq(
         # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical data.
         # These functions determine spatial relationships between the geographical features.
@@ -56,29 +51,30 @@ def test_kmeans_sample():
         """
     )
 
-    # Define Python datetime objects in the UTC timezone for range comparison, because BigQuery stores 
+    # Define Python datetime objects in the UTC timezone for range comparison, because BigQuery stores
     # timestamp data in the UTC timezone.
     sample_time = datetime.datetime(2015, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
 
-    # Replace each day-of-the-week number with the corresponding "weekday" or "weekend" label by using the 
+    # Replace each day-of-the-week number with the corresponding "weekday" or "weekend" label by using the
     # Series.map method.
     h = h.assign(
-        isweekday = h.start_date.dt.dayofweek.map(
-        {
-            0: "weekday",
-            1: "weekday",
-            2: "weekday",
-            3: "weekday",
-            4: "weekday",
-            5: "weekend",
-            6: "weekend",
-        }
-    ))
+        isweekday=h.start_date.dt.dayofweek.map(
+            {
+                0: "weekday",
+                1: "weekday",
+                2: "weekday",
+                3: "weekday",
+                4: "weekday",
+                5: "weekend",
+                6: "weekend",
+            }
+        )
+    )
 
-    # Supplement each trip in "h" with the station distance information from "s" by 
+    # Supplement each trip in "h" with the station distance information from "s" by
     # merging the two DataFrames by station ID.
     merged_df = h.merge(
         right=s,
@@ -87,22 +83,22 @@ def test_kmeans_sample():
         right_on="id",
     )
 
-    # Engineer features to cluster the stations. For each station, find the average trip duration, number of 
+    # Engineer features to cluster the stations. For each station, find the average trip duration, number of
     # trips, and distance from city center.
     stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
-    {"duration": ["mean", "count"], "distance_from_city_center": "max"}
+        {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
-    stationstats.columns=["duration","num_trips","distance_from_city_center"]
-    stationstats.sort_values(by="distance_from_city_center", ascending=True)
+    stationstats.columns = ["duration", "num_trips", "distance_from_city_center"]
+    stationstats = stationstats.sort_values(
+        by="distance_from_city_center", ascending=True
+    ).reset_index()
 
-#Expected output results: >>> stationstats.head(3)
-#                                                          duration	        num_trips	    distance_from_city_center
-#       station_name	                    isweekday
-#			
-#       Abbey Orchard Street, Westminster	weekday	    1139.686075	        14908	                2.231931
-#                                           weekend	    1538.533802	        2278	                2.231931
-#       Abbotsbury Road, Holland Park	    weekday	    1110.262258	2631	7.338276
-# 3 rows × 3 columns
+    # Expected output results: >>> stationstats.head(3)
+    # station_name	   isweekday	duration	num_trips	distance_from_city_center
+    # Borough Road...	weekday	    1110	    5749	    0.12624
+    # Borough Road...	weekend	    2125	    1774	    0.12624
+    # Webber Street...	weekday	    795	        6517	    0.164021
+    #   3 rows × 5 columns
 
     # [END bigquery_dataframes_bqml_kmeans]
 
@@ -120,16 +116,18 @@ def test_kmeans_sample():
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
     # Use 'contains' function to predict which clusters contain the stations with string "Kennington".
-    stationstats = stationstats.str.contains("Kennington")
+    stationstats = stationstats.loc[
+        stationstats["station_name"].str.contains("Kennington")
+    ]
 
     result = cluster_model.predict(stationstats)
-    #Expected output results:   >>>results.head(2)
-    #                                                    CENTROID_ID     NEAREST_CENTROIDS_DISTANCE	                             duration	                num_trips	    distance_from_city_center
-    #                   station_name	    isweekday
-    #					
-    #   Abbey Orchard Street, Westminster	weekday            2	      [{'CENTROID_ID': 2, 'DISTANCE': 0.695970380477...	    1139.686075	                  14908	            2.231931
-    #                                       weekend	           1	      [{'CENTROID_ID': 1, 'DISTANCE': 0.467343170961...	    1538.533802	                  2278	            2.231931
-    # 2 rows × 5 columns
+
+    # Expected output results:   >>>results.head(3)
+    # CENTROID_ID	NEAREST_CENTROIDS...	    station_name    isweekday	duration	num_trips	distance...
+    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Borough...	    weekday	    1110	    5749	    0.13
+    #	2	   [{'CENTROID_ID': 2, 'DISTANCE': 2	Borough...	    weekend	    2125        1774	    0.13
+    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Webber...	    weekday	    795	        6517	    0.16
+    #   3 rows × 7 columns
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
 
