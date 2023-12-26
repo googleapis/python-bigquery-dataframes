@@ -2474,6 +2474,17 @@ def test_loc_select_column(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.loc[:, scalars_df_index.dtypes == "Int64"].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.dtypes == "Int64"
+    ]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_loc_single_index_with_duplicate(scalars_df_index, scalars_pandas_df_index):
     scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(
@@ -3453,6 +3464,8 @@ def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
     ],
 )
 def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = (
@@ -3463,10 +3476,6 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
     pd_result = scalars_pandas_df[["string_col", "bool_col"]].value_counts(
         subset, normalize=normalize, ascending=ascending, dropna=dropna
     )
-
-    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
-    pd_result.name = "count"
-    pd_result.index.names = bf_result.index.names
 
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
