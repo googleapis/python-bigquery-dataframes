@@ -124,9 +124,9 @@ def test_kmeans_sample():
 
     # Expected output results:   >>>results.head(3)
     # CENTROID_ID	NEAREST_CENTROIDS...	    station_name    isweekday	duration	num_trips	distance...
-    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Borough...	    weekday	    1110	    5749	    0.13
-    #	2	   [{'CENTROID_ID': 2, 'DISTANCE': 2	Borough...	    weekend	    2125        1774	    0.13
-    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Webber...	    weekday	    795	        6517	    0.16
+    # 	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Borough...	    weekday	    1110	    5749	    0.13
+    # 	2	   [{'CENTROID_ID': 2, 'DISTANCE': 2	Borough...	    weekend	    2125        1774	    0.13
+    # 	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Webber...	    weekday	    795	        6517	    0.16
     #   3 rows × 7 columns
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
