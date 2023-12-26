@@ -2707,8 +2707,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         array_value = self._block.expr
 
         new_col_labels, new_idx_labels = utils.get_standardized_ids(
-            utils.gen_valid_names(self._block.column_labels),
-            utils.gen_valid_names(self.index.names),
+            self._block.column_labels, self.index.names
         )
 
         columns = list(self._block.value_columns)

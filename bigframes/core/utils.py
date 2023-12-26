@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-from typing import Hashable, Iterable, List, Optional, Union
+from typing import Hashable, Iterable, List
 
-from ibis.backends.bigquery.compiler import _NAME_REGEX
 import pandas as pd
 import typing_extensions
 
@@ -68,15 +67,6 @@ def split_index(
         )
     else:
         return (None, index)
-
-
-def gen_valid_names(
-    names: Iterable[Hashable], default_name: Optional[str] = None
-) -> List[Union[str, None]]:
-    return [
-        default_name if name is None else "_".join(_NAME_REGEX.findall(str(name)))
-        for name in names
-    ]
 
 
 def get_standardized_ids(
