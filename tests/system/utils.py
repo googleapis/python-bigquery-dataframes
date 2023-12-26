@@ -14,11 +14,23 @@
 
 import base64
 import decimal
+import functools
 
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
+import pytest
+
+
+def skip_legacy_pandas(test):
+    @functools.wraps(test)
+    def wrapper(*args, **kwds):
+        if pd.__version__.startswith("1."):
+            pytest.skip("Skips pandas 1.x as not compatible with 2.x behavior.")
+        return test(*args, **kwds)
+
+    return wrapper
 
 
 def assert_pandas_df_equal(df0, df1, ignore_order: bool = False, **kwargs):
@@ -133,13 +145,99 @@ def convert_pandas_dtypes(df: pd.DataFrame, bytes_col: bool):
             df["geography_col"].replace({np.nan: None})
         )
 
-    # Convert bytes types column.
-    if bytes_col:
+    if bytes_col and not isinstance(df["bytes_col"].dtype, pd.ArrowDtype):
         df["bytes_col"] = df["bytes_col"].apply(
             lambda value: base64.b64decode(value) if not pd.isnull(value) else value
         )
+        arrow_table = pa.Table.from_pandas(
+            pd.DataFrame(df, columns=["bytes_col"]),
+            schema=pa.schema([("bytes_col", pa.binary())]),
+        )
+        df["bytes_col"] = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)["bytes_col"]
 
-    # Convert numeric types column.
-    df["numeric_col"] = df["numeric_col"].apply(
-        lambda value: decimal.Decimal(str(value)) if value else None  # type: ignore
-    )
+    if not isinstance(df["numeric_col"].dtype, pd.ArrowDtype):
+        # Convert numeric types column.
+        df["numeric_col"] = df["numeric_col"].apply(
+            lambda value: decimal.Decimal(str(value)) if value else None  # type: ignore
+        )
+        arrow_table = pa.Table.from_pandas(
+            pd.DataFrame(df, columns=["numeric_col"]),
+            schema=pa.schema([("numeric_col", pa.decimal128(38, 9))]),
+        )
+        df["numeric_col"] = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)[
+            "numeric_col"
+        ]
+
+
+def assert_pandas_df_equal_pca_components(actual, expected, **kwargs):
+    """Compare two pandas dataframes representing PCA components. The columns
+    required to be present in the dataframes are:
+        numerical_value: numeric,
+        categorical_value: List[object(category, value)]
+
+    The index types of `actual` and `expected` are ignored in the comparison.
+
+    Args:
+        actual: Actual Pandas DataFrame
+
+        expected: Expected Pandas DataFrame
+
+        kwargs: kwargs to use in `pandas.testing.assert_series_equal` per column
+    """
+    # Compare the index, columns and values separately, as the polarity of the
+    # PCA vectors can be arbitrary
+    pd.testing.assert_index_equal(
+        actual.index, expected.index.astype(actual.index.dtype)
+    )  # dtype agnostic index comparison
+    pd.testing.assert_index_equal(actual.columns, expected.columns)
+    for column in expected.columns:
+        try:
+            pd.testing.assert_series_equal(actual[column], expected[column], **kwargs)
+        except AssertionError:
+            if column not in {"numerical_value", "categorical_value"}:
+                raise
+
+            # Allow for sign difference per numeric/categorical column
+            if column == "numerical_value":
+                actual_ = -actual[column]
+                expected_ = expected[column]
+            else:
+                # In this column each element is an array of objects, where the
+                # object has attributes "category" and "value". For the sake of
+                # comparison let's normalize by flipping the polarity of "value".
+                def normalize_array_of_objects(arr, reverse_polarity=False):
+                    newarr = []
+                    for element in arr:
+                        newelement = dict(element)
+                        if reverse_polarity:
+                            newelement["value"] = -newelement["value"]
+                        newarr.append(newelement)
+                    return sorted(newarr, key=lambda d: d["category"])
+
+                actual_ = actual[column].apply(normalize_array_of_objects, args=(True,))
+                expected_ = expected[column].apply(normalize_array_of_objects)
+
+            pd.testing.assert_series_equal(actual_, expected_, **kwargs)
+
+
+def assert_pandas_df_equal_pca(actual, expected, **kwargs):
+    """Compare two pandas dataframes representing PCA predictions. The columns
+    in the dataframes are expected to be numeric.
+
+    Args:
+        actual: Actual Pandas DataFrame
+
+        expected: Expected Pandas DataFrame
+
+        kwargs: kwargs to use in `pandas.testing.assert_series_equal` per column
+    """
+    # Compare the index, columns and values separately, as the polarity of the
+    # PCA vector can be arbitrary
+    pd.testing.assert_index_equal(actual.index, expected.index)
+    pd.testing.assert_index_equal(actual.columns, expected.columns)
+    for column in expected.columns:
+        try:
+            pd.testing.assert_series_equal(actual[column], expected[column], **kwargs)
+        except AssertionError:
+            # Allow for sign difference per column
+            pd.testing.assert_series_equal(-actual[column], expected[column], **kwargs)
