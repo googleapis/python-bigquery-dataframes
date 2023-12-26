@@ -94,7 +94,14 @@ def test_kmeans_sample():
     )
     stationstats.columns=["duration","num_trips","distance_from_city_center"]
     stationstats.sort_values(by="distance_from_city_center", ascending=True)
-    #Expected output looks as follows
+
+#Expected output results: >>> stationstats.head(3)
+#                                                          duration	        num_trips	    distance_from_city_center
+#       station_name	                    isweekday			
+#       Abbey Orchard Street, Westminster	weekday	    1139.686075	        14908	                2.231931
+#                                           weekend	    1538.533802	        2278	                2.231931
+#       Abbotsbury Road, Holland Park	    weekday	    1110.262258	2631	7.338276
+# 3 rows × 3 columns
 
     # [END bigquery_dataframes_bqml_kmeans]
 
@@ -115,7 +122,12 @@ def test_kmeans_sample():
     stationstats = stationstats.contains("Kennington")
 
     result = cluster_model.predict(stationstats)
-    #Expected output results:
+    #Expected output results:   >>>results.head(2)
+    #                                                    CENTROID_ID     NEAREST_CENTROIDS_DISTANCE	          duration	num_trips	distance_from_city_center
+    #                   station_name	    isweekday					
+    #   Abbey Orchard Street, Westminster	weekday        2	        [{'CENTROID_ID': 2, 'DISTANCE': 0.695970380477...	1139.686075	14908	2.231931
+    #                                       weekend	       1	        [{'CENTROID_ID': 1, 'DISTANCE': 0.467343170961...	1538.533802	2278	2.231931
+    # 2 rows × 5 columns
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
 
