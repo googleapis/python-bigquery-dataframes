@@ -13,19 +13,21 @@
 # limitations under the License.
 
 
-def test_kmeans_sample():
+def test_kmeans_sample(project_id: str):
+    your_gcp_project_id = project_id
     # [START bigquery_dataframes_bqml_kmeans]
     import datetime
 
     import bigframes
     import bigframes.pandas as bpd
 
-    bigframes.options.bigquery.project = "salemb-testing"
-    # You must compute in the EU multi-region to query the London bicycles dataset.
+    bigframes.options.bigquery.project = your_gcp_project_id
+    # Compute in the EU multi-region to query the London bicycles dataset.
     bigframes.options.bigquery.location = "EU"
 
-    # Extract the information you'll need to train the k-means model later in this tutorial. Use the
-    # read_gbq function to represent cycle hires data as a DataFrame.
+    # Extract the information you'll need to train the k-means model in this
+    # tutorial. Use the read_gbq function to represent cycle hires
+    # data as a DataFrame.
     h = bpd.read_gbq(
         "bigquery-public-data.london_bicycles.cycle_hire",
         col_order=["start_station_name", "start_station_id", "start_date", "duration"],
@@ -37,8 +39,9 @@ def test_kmeans_sample():
     )
 
     s = bpd.read_gbq(
-        # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical data.
-        # These functions determine spatial relationships between the geographical features.
+        # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical
+        # data.These functions determine spatial relationships between
+        # geographical features.
         """
         SELECT
         id,
@@ -51,15 +54,15 @@ def test_kmeans_sample():
         """
     )
 
-    # Define Python datetime objects in the UTC timezone for range comparison, because BigQuery stores
-    # timestamp data in the UTC timezone.
+    # Define Python datetime objects in the UTC timezone for range comparison,
+    # because BigQuery stores timestamp data in the UTC timezone.
     sample_time = datetime.datetime(2015, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     sample_time2 = datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
 
-    # Replace each day-of-the-week number with the corresponding "weekday" or "weekend" label by using the
-    # Series.map method.
+    # Replace each day-of-the-week number with the corresponding "weekday" or 
+    # "weekend" label by using the Series.map method.
     h = h.assign(
         isweekday=h.start_date.dt.dayofweek.map(
             {
@@ -74,8 +77,8 @@ def test_kmeans_sample():
         )
     )
 
-    # Supplement each trip in "h" with the station distance information from "s" by
-    # merging the two DataFrames by station ID.
+    # Supplement each trip in "h" with the station distance information from
+    # "s" by merging the two DataFrames by station ID.
     merged_df = h.merge(
         right=s,
         how="inner",
@@ -83,8 +86,8 @@ def test_kmeans_sample():
         right_on="id",
     )
 
-    # Engineer features to cluster the stations. For each station, find the average trip duration, number of
-    # trips, and distance from city center.
+    # Engineer features to cluster the stations. For each station, find the 
+    # average trip duration, number of trips, and distance from city center.
     stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
     )
@@ -94,7 +97,7 @@ def test_kmeans_sample():
     ).reset_index()
 
     # Expected output results: >>> stationstats.head(3)
-    # station_name	   isweekday	duration	num_trips	distance_from_city_center
+    # station_name	isweekday duration  num_trips	distance_from_city_center
     # Borough Road...	weekday	    1110	    5749	    0.12624
     # Borough Road...	weekend	    2125	    1774	    0.12624
     # Webber Street...	weekday	    795	        6517	    0.164021
@@ -106,8 +109,10 @@ def test_kmeans_sample():
 
     from bigframes.ml.cluster import KMeans
 
-    # To determine an optimal number of clusters, you would run the CREATE MODEL query for different values of
-    # num_clusters, find the error measure, and pick the point at which the error measure is at its minimum value.
+    # To determine an optimal number of clusters, construct and fit several 
+    # K-Means objects with different values of num_clusters, find the error
+    # measure, and pick the point at which the error measure is at its minimum 
+    # value.
     cluster_model = KMeans(n_clusters=4)
     cluster_model.fit(stationstats)
 
@@ -115,7 +120,8 @@ def test_kmeans_sample():
 
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
-    # Use 'contains' function to predict which clusters contain the stations with string "Kennington".
+    # Use 'contains' function to predict which clusters contain the stations 
+    # with string "Kennington".
     stationstats = stationstats.loc[
         stationstats["station_name"].str.contains("Kennington")
     ]
@@ -123,10 +129,10 @@ def test_kmeans_sample():
     result = cluster_model.predict(stationstats)
 
     # Expected output results:   >>>results.head(3)
-    # CENTROID_ID	NEAREST_CENTROIDS...	    station_name    isweekday	duration	num_trips	distance...
-    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Borough...	    weekday	    1110	    5749	    0.13
-    #	2	   [{'CENTROID_ID': 2, 'DISTANCE': 2	Borough...	    weekend	    2125        1774	    0.13
-    #	1	   [{'CENTROID_ID': 1, 'DISTANCE': 2	Webber...	    weekday	    795	        6517	    0.16
+    # CENTROID...	NEAREST...	station_name  isweekday	 duration num_trips dist...
+    #	1	[{'CENTROID_ID'...	Borough...	  weekday	  1110	    5749	0.13
+    #	2	[{'CENTROID_ID'...	Borough...	  weekend	  2125      1774	0.13
+    #	1	[{'CENTROID_ID'...	Webber...	  weekday	  795	    6517	0.16
     #   3 rows × 7 columns
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
