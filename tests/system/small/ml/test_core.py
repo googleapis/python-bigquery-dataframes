@@ -210,12 +210,12 @@ def test_pca_model_principal_components(penguins_bqml_pca_model: core.BqmlModel)
         .sort_values(["principal_component_id", "feature"])
         .reset_index(drop=True)
     )
-    pd.testing.assert_frame_equal(
+
+    tests.system.utils.assert_pandas_df_equal_pca_components(
         result,
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
         check_dtype=False,
     )
@@ -292,11 +292,12 @@ def test_model_predict_with_unnamed_index(
 def test_remote_model_predict(
     bqml_linear_remote_model: core.BqmlModel, new_penguins_df
 ):
-    predictions = bqml_linear_remote_model.predict(new_penguins_df).to_pandas()
     expected = pd.DataFrame(
         {"predicted_body_mass_g": [[3739.54], [3675.79], [3619.54]]},
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+        dtype=pd.ArrowDtype(pa.list_(pa.float64())),
     )
+    predictions = bqml_linear_remote_model.predict(new_penguins_df).to_pandas()
     pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,

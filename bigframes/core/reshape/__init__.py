@@ -14,10 +14,13 @@
 from __future__ import annotations
 
 import typing
-from typing import Iterable, Literal, Optional, Union
+from typing import Iterable, Literal, Optional, Tuple, Union
+
+import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.core as core
+import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dataframe
 import bigframes.operations as ops
@@ -107,17 +110,29 @@ def concat(
 
 def cut(
     x: bigframes.series.Series,
-    bins: int,
+    bins: Union[
+        int,
+        pd.IntervalIndex,
+        Iterable[Tuple[Union[int, float], Union[int, float]]],
+    ],
     *,
     labels: Optional[bool] = None,
 ) -> bigframes.series.Series:
-    if bins <= 0:
+    if isinstance(bins, int) and bins <= 0:
         raise ValueError("`bins` should be a positive integer.")
+
+    if isinstance(bins, Iterable):
+        if not isinstance(bins, pd.IntervalIndex):
+            bins = pd.IntervalIndex.from_tuples(list(bins))
+
+        if bins.is_overlapping:
+            raise ValueError("Overlapping IntervalIndex is not accepted.")
 
     if labels is not False:
         raise NotImplementedError(
             f"Only labels=False is supported in BigQuery DataFrames so far. {constants.FEEDBACK_LINK}"
         )
+
     return x._apply_window_op(agg_ops.CutOp(bins), window_spec=core.WindowSpec())
 
 
@@ -145,7 +160,10 @@ def qcut(
     block, result = block.apply_window_op(
         x._value_column,
         agg_ops.QcutOp(q),
-        window_spec=core.WindowSpec(grouping_keys=(nullity_id,)),
+        window_spec=core.WindowSpec(
+            grouping_keys=(nullity_id,),
+            ordering=(order.OrderingColumnReference(x._value_column),),
+        ),
     )
     block, result = block.apply_binary_op(
         result, nullity_id, ops.partial_arg3(ops.where_op, None), result_label=label
