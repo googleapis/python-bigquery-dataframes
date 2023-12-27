@@ -300,7 +300,7 @@ def test_to_gbq_w_None_column_names(
     scalars_df_index, scalars_pandas_df_index, dataset_id
 ):
     """Test the `to_gbq` API with None as a column name."""
-    destination_table = f"{dataset_id}.test_to_gbq_w_duplicate_column_names"
+    destination_table = f"{dataset_id}.test_to_gbq_w_none_column_names"
 
     scalars_df_index = scalars_df_index.rename(columns={"int64_too": None})
     scalars_df_index.to_gbq(destination_table, if_exists="replace")
