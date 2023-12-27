@@ -34,6 +34,7 @@ from typing import (
     Union,
 )
 
+import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -71,7 +72,7 @@ if typing.TYPE_CHECKING:
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
@@ -1561,6 +1562,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if utils.is_dict_like(value):
+            return self.apply(
+                lambda x: x.replace(
+                    to_replace=to_replace, value=value[x.name], regex=regex
+                )
+                if (x.name in value)
+                else x
+            )
+        return self.apply(
+            lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
+        )
+
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -1784,7 +1800,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_list_like(func):
             if any(
-                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
                 for dtype in self.dtypes
             ):
                 raise NotImplementedError(
@@ -1851,7 +1867,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def describe(self) -> DataFrame:
-        df_numeric = self._drop_non_numeric(keep_bool=False)
+        df_numeric = self._drop_non_numeric(permissive=False)
         if len(df_numeric.columns) == 0:
             raise NotImplementedError(
                 f"df.describe() currently only supports numeric values. {constants.FEEDBACK_LINK}"
@@ -1940,7 +1956,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _stack_multi(self, level: LevelsType = -1):
         n_levels = self.columns.nlevels
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
         level_indices = []
         for level_ref in level:
@@ -1950,7 +1966,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else:
                     level_indices.append(level_ref)
             else:  # str
-                level_indices.append(self.columns.names.index(level_ref))
+                level_indices.append(self.columns.names.index(level_ref))  # type: ignore
 
         new_order = [
             *[i for i in range(n_levels) if i not in level_indices],
@@ -1966,7 +1982,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def unstack(self, level: LevelsType = -1):
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
 
         block = self._block
@@ -1989,10 +2005,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
-        types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
-        if not keep_bool:
-            types_to_keep -= set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
+    def _drop_non_numeric(self, permissive=True) -> DataFrame:
+        types_to_keep = (
+            set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
+            if permissive
+            else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
+        )
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
@@ -2010,7 +2028,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
-            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
             for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
@@ -2285,7 +2303,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cumsum(self):
         is_numeric_types = [
-            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             for _, dtype in self.dtypes.items()
         ]
         if not all(is_numeric_types):
@@ -2297,7 +2315,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cumprod(self) -> DataFrame:
         is_numeric_types = [
-            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             for _, dtype in self.dtypes.items()
         ]
         if not all(is_numeric_types):
@@ -2508,7 +2526,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-        if "." not in destination_table:
+        table_parts = destination_table.split(".")
+        default_project = self._block.expr.session.bqclient.project
+
+        if len(table_parts) == 2:
+            destination_dataset = f"{default_project}.{table_parts[0]}"
+        elif len(table_parts) == 3:
+            destination_dataset = f"{table_parts[0]}.{table_parts[1]}"
+        else:
             raise ValueError(
                 f"Got invalid value for destination_table {repr(destination_table)}. "
                 "Should be of the form 'datasetId.tableId' or 'projectId.datasetId.tableId'."
@@ -2523,11 +2548,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Valid options include None or one of {dispositions.keys()}."
             )
 
+        try:
+            self._session.bqclient.get_dataset(destination_dataset)
+        except google.api_core.exceptions.NotFound:
+            self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
+
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
                 destination_table,
-                default_project=self._block.expr.session.bqclient.project,
+                default_project=default_project,
             ),
         )
 
@@ -2753,7 +2783,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             array_value = array_value.promote_offsets(ordering_id)
-        return array_value.to_sql(
+        return self._block.session._to_sql(
+            array_value=array_value,
             col_id_overrides=id_overrides,
         )
 

@@ -30,6 +30,7 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
+from tests.system.utils import skip_legacy_pandas
 
 FIRST_FILE = "000000000000"
 
@@ -44,7 +45,7 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = df._block.expr.start_query()
+    _, query_job = session_tokyo._execute(df._block.expr)
     assert query_job.location == tokyo_location
 
     pd.testing.assert_frame_equal(result, expected)
@@ -379,12 +380,13 @@ def test_read_pandas_tokyo(
     result = df.to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = df._block.expr.start_query()
+    _, query_job = session_tokyo._execute(df._block.expr)
     assert query_job.location == tokyo_location
 
     pd.testing.assert_frame_equal(result, expected)
 
 
+@skip_legacy_pandas
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
@@ -441,6 +443,7 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
         pytest.param("\t", id="custom_sep"),
     ],
 )
+@skip_legacy_pandas
 def test_read_csv_local_default_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
