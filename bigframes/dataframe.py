@@ -2682,6 +2682,58 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             encoding,
         )
 
+    def to_html(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        bold_rows: bool = True,
+        classes: str | list | tuple | None = None,
+        escape: bool = True,
+        notebook: bool = False,
+        border: int | None = None,
+        table_id: str | None = None,
+        render_links: bool = False,
+        encoding: str | None = None,
+    ) -> str:
+        return self.to_pandas().to_html(
+            buf,
+            columns,  # type: ignore
+            col_space,
+            header,
+            index,
+            na_rep,
+            formatters,
+            float_format,
+            sparsify,
+            index_names,
+            justify,  # type: ignore
+            max_rows,
+            max_cols,
+            show_dimensions,
+            decimal,
+            bold_rows,
+            classes,
+            escape,
+            notebook,
+            border,
+            table_id,
+            render_links,
+            encoding,
+        )
+
     def to_markdown(
         self,
         buf=None,
@@ -2707,26 +2759,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _create_io_query(self, index: bool, ordering_id: Optional[str]) -> str:
         """Create query text representing this dataframe for I/O."""
         array_value = self._block.expr
+
+        new_col_labels, new_idx_labels = utils.get_standardized_ids(
+            self._block.column_labels, self.index.names
+        )
+
         columns = list(self._block.value_columns)
-        column_labels = list(self._block.column_labels)
+        column_labels = new_col_labels
         # This code drops unnamed indexes to keep consistent with the behavior of
         # most pandas write APIs. The exception is `pandas.to_csv`, which keeps
         # unnamed indexes as `Unnamed: 0`.
         # TODO(chelsealin): check if works for multiple indexes.
         if index and self.index.name is not None:
             columns.extend(self._block.index_columns)
-            column_labels.extend(self.index.names)
+            column_labels.extend(new_idx_labels)
         else:
             array_value = array_value.drop_columns(self._block.index_columns)
 
         # Make columns in SQL reflect _labels_ not _ids_. Note: This may use
         # the arbitrary unicode column labels feature in BigQuery, which is
         # currently (June 2023) in preview.
-        # TODO(swast): Handle duplicate and NULL labels.
         id_overrides = {
-            col_id: col_label
-            for col_id, col_label in zip(columns, column_labels)
-            if col_label and isinstance(col_label, str)
+            col_id: col_label for col_id, col_label in zip(columns, column_labels)
         }
 
         if ordering_id is not None:
