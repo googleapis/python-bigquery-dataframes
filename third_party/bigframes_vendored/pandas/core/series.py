@@ -140,15 +140,29 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        For a Series:
+
             >>> s = bpd.Series([1, 2, 3], dtype="Int64", name='Numbers')
             >>> s
             0    1
             1    2
             2    3
             Name: Numbers, dtype: Int64
-
             >>> s.name
             'Numbers'
+
+        If the Series is part of a DataFrame:
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+            >>> s = df["col1"]
+            >>> s.name
+            'col1'
 
         Returns:
             hashable object: The name of the Series, also the column name

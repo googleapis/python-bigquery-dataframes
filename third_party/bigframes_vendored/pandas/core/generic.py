@@ -35,21 +35,10 @@ class NDFrame(indexing.IndexingMixin):
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
-            >>> s
-            a    1
-            b    2
-            c    3
-            dtype: Int64
-            >>>
             >>> s.size
             3
+
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-            >>> df
-               col1  col2
-            0     1     3
-            1     2     4
-            <BLANKLINE>
-            [2 rows x 2 columns]
             >>> df.size
             4
 
