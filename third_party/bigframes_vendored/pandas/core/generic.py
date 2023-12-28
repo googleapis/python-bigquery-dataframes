@@ -29,6 +29,30 @@ class NDFrame(indexing.IndexingMixin):
     def size(self) -> int:
         """Return an int representing the number of elements in this object.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
+            >>> s
+            a    1
+            b    2
+            c    3
+            dtype: Int64
+            >>>
+            >>> s.size
+            3
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+            >>> df.size
+            4
+
         Returns:
             int: Return the number of rows if Series. Otherwise return the number of
                 rows times number of columns if DataFrame.
