@@ -1204,7 +1204,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [4 rows x 3 columns]
 
-        Set the index to become the 'month' column:
+        Set the 'month' column to become the index:
 
             >>> df.set_index('month')
                    year  sale
