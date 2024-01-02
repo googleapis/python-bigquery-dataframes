@@ -685,6 +685,130 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def to_html(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        bold_rows: bool = True,
+        classes: str | list | tuple | None = None,
+        escape: bool = True,
+        notebook: bool = False,
+        border: int | None = None,
+        table_id: str | None = None,
+        render_links: bool = False,
+        encoding: str | None = None,
+    ):
+        """Render a DataFrame as an HTML table.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> print(df.to_html())
+            <table border="1" class="dataframe">
+            <thead>
+                <tr style="text-align: right;">
+                <th></th>
+                <th>col1</th>
+                <th>col2</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                <th>0</th>
+                <td>1</td>
+                <td>3</td>
+                </tr>
+                <tr>
+                <th>1</th>
+                <td>2</td>
+                <td>4</td>
+                </tr>
+            </tbody>
+            </table>
+
+        Args:
+            buf (str, Path or StringIO-like, optional, default None):
+                Buffer to write to. If None, the output is returned as a string.
+            columns (sequence, optional, default None):
+                The subset of columns to write. Writes all columns by default.
+            col_space (str or int, list or dict of int or str, optional):
+                The minimum width of each column in CSS length units. An int is
+                assumed to be px units.
+            header (bool, optional):
+                Whether to print column labels, default True.
+            index (bool, optional, default True):
+                Whether to print index (row) labels.
+            na_rep (str, optional, default 'NaN'):
+                String representation of NAN to use.
+            formatters (list, tuple or dict of one-param. functions, optional):
+                Formatter functions to apply to columns' elements by position or
+                name.
+                The result of each function must be a unicode string.
+                List/tuple must be of length equal to the number of columns.
+            float_format (one-parameter function, optional, default None):
+                Formatter function to apply to columns' elements if they are
+                floats. This function must return a unicode string and will
+                be applied only to the non-NaN elements, with NaN being
+                handled by na_rep.
+            sparsify (bool, optional, default True):
+                Set to False for a DataFrame with a hierarchical index to print
+                every multiindex key at each row.
+            index_names (bool, optional, default True):
+                Prints the names of the indexes.
+            justify (str, default None):
+                How to justify the column labels. If None uses the option from
+                the print configuration (controlled by set_option), 'right' out
+                of the box. Valid values are, 'left', 'right', 'center', 'justify',
+                'justify-all', 'start', 'end', 'inherit', 'match-parent', 'initial',
+                'unset'.
+            max_rows (int, optional):
+                Maximum number of rows to display in the console.
+            max_cols (int, optional):
+                Maximum number of columns to display in the console.
+            show_dimensions (bool, default False):
+                Display DataFrame dimensions (number of rows by number of columns).
+            decimal (str, default '.'):
+                Character recognized as decimal separator, e.g. ',' in Europe.
+            bold_rows (bool, default True):
+                Make the row labels bold in the output.
+            classes (str or list or tuple, default None):
+                CSS class(es) to apply to the resulting html table.
+            escape (bool, default True):
+                Convert the characters <, >, and & to HTML-safe sequences.
+            notebook (bool, default False):
+                Whether the generated HTML is for IPython Notebook.
+            border (int):
+                A border=border attribute is included in the opening <table>
+                tag. Default pd.options.display.html.border.
+            table_id (str, optional):
+                A css id is included in the opening <table> tag if specified.
+            render_links (bool, default False):
+                Convert URLs to HTML links.
+            encoding (str, default "utf-8"):
+                Set character encoding.
+
+        Returns:
+            str or None: If buf is None, returns the result as a string. Otherwise
+            returns None.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def to_markdown(
         self,
         buf=None,
@@ -1062,6 +1186,47 @@ class DataFrame(NDFrame):
 
         Set the DataFrame index (row labels) using one existing column. The
         index can replace the existing index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'month': [1, 4, 7, 10],
+            ...                     'year': [2012, 2014, 2013, 2014],
+            ...                     'sale': [55, 40, 84, 31]})
+            >>> df
+               month  year  sale
+            0      1  2012    55
+            1      4  2014    40
+            2      7  2013    84
+            3     10  2014    31
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+        Set the 'month' column to become the index:
+
+            >>> df.set_index('month')
+                   year  sale
+            month
+            1      2012    55
+            4      2014    40
+            7      2013    84
+            10     2014    31
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Create a MultiIndex using columns 'year' and 'month':
+
+            >>> df.set_index(['year', 'month'])
+                        sale
+            year month
+            2012 1        55
+            2014 4        40
+            2013 7        84
+            2014 10       31
+            <BLANKLINE>
+            [4 rows x 1 columns]
 
         Args:
             keys:
@@ -1496,6 +1661,39 @@ class DataFrame(NDFrame):
 
         Iterates over the DataFrame columns, returning a tuple with
         the column name and the content as a Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'species': ['bear', 'bear', 'marsupial'],
+            ...                     'population': [1864, 22000, 80000]},
+            ...                    index=['panda', 'polar', 'koala'])
+            >>> df
+                     species  population
+            panda       bear        1864
+            polar       bear       22000
+            koala  marsupial       80000
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> for label, content in df.items():
+            ...     print(f'--> label: {label}')
+            ...     print(f'--> content:\\n{content}')
+            ...
+            --> label: species
+            --> content:
+            panda         bear
+            polar         bear
+            koala    marsupial
+            Name: species, dtype: string
+            --> label: population
+            --> content:
+            panda     1864
+            polar    22000
+            koala    80000
+            Name: population, dtype: Int64
 
         Returns:
             Iterator: Iterator of label, Series for each column.
@@ -4371,7 +4569,7 @@ class DataFrame(NDFrame):
             BigQuery DataFrames does not support stack operations that would
             combine columns of different dtypes.
 
-        **Example:**
+        **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -4410,7 +4608,7 @@ class DataFrame(NDFrame):
         If the index is not a MultiIndex, the output will be a Series
         (the analogue of stack when the columns are not a MultiIndex).
 
-        **Example:**
+        **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -4463,7 +4661,7 @@ class DataFrame(NDFrame):
             ...                     'Location': ['Seattle', 'New York', 'Kona']},
             ...                    index=([10, 20, 30]))
             >>> df
-                Name  Age  Location
+                  Name  Age  Location
             10   Alice   25   Seattle
             20     Bob   30  New York
             30  Aritra   35      Kona
@@ -4479,7 +4677,7 @@ class DataFrame(NDFrame):
 
             >>> df1 = df.set_index(["Name", "Location"])
             >>> df1
-                            Age
+                             Age
             Name   Location
             Alice  Seattle    25
             Bob    New York   30

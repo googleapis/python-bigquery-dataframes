@@ -254,6 +254,55 @@ class NDFrame(indexing.IndexingMixin):
 
         Returns default value if not found.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame(
+            ...     [
+            ...         [24.3, 75.7, "high"],
+            ...         [31, 87.8, "high"],
+            ...         [22, 71.6, "medium"],
+            ...         [35, 95, "medium"],
+            ...     ],
+            ...     columns=["temp_celsius", "temp_fahrenheit", "windspeed"],
+            ...     index=["2014-02-12", "2014-02-13", "2014-02-14", "2014-02-15"],
+            ... )
+            >>> df
+                        temp_celsius  temp_fahrenheit windspeed
+            2014-02-12          24.3             75.7      high
+            2014-02-13          31.0             87.8      high
+            2014-02-14          22.0             71.6    medium
+            2014-02-15          35.0             95.0    medium
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+            >>> df.get(["temp_celsius", "windspeed"])
+                        temp_celsius windspeed
+            2014-02-12          24.3      high
+            2014-02-13          31.0      high
+            2014-02-14          22.0    medium
+            2014-02-15          35.0    medium
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            >>> ser = df['windspeed']
+            >>> ser
+            2014-02-12      high
+            2014-02-13      high
+            2014-02-14    medium
+            2014-02-15    medium
+            Name: windspeed, dtype: string
+            >>> ser.get('2014-02-13')
+            'high'
+
+        If the key is not found, the default value will be used.
+
+            >>> df.get(["temp_celsius", "temp_kelvin"])
+            >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
+            'default_value'
+
         Args:
             key: object
 
@@ -410,6 +459,51 @@ class NDFrame(indexing.IndexingMixin):
 
         You can use `random_state` for reproducibility.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
+            ...                     'num_wings': [2, 0, 0, 0],
+            ...                     'num_specimen_seen': [10, 2, 1, 8]},
+            ...                    index=['falcon', 'dog', 'spider', 'fish'])
+            >>> df
+                    num_legs  num_wings  num_specimen_seen
+            falcon         2          2                 10
+            dog            4          0                  2
+            spider         8          0                  1
+            fish           0          0                  8
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+        Fetch one random row from the DataFrame (Note that we use `random_state`
+        to ensure reproducibility of the examples):
+
+            >>> df.sample(random_state=1)
+                 num_legs  num_wings  num_specimen_seen
+            dog         4          0                  2
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        A random 50% sample of the DataFrame:
+
+            >>> df.sample(frac=0.5, random_state=1)
+                  num_legs  num_wings  num_specimen_seen
+            dog          4          0                  2
+            fish         0          0                  8
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Extract 3 random elements from the Series `df['num_legs']`:
+
+            >>> s = df['num_legs']
+            >>> s.sample(n=3, random_state=1)
+            dog       4
+            fish      0
+            spider    8
+            Name: num_legs, dtype: Int64
+
         Args:
             n (Optional[int], default None):
                 Number of items from axis to return. Cannot be used with `frac`.
@@ -447,6 +541,67 @@ class NDFrame(indexing.IndexingMixin):
         A new object will be created with a copy of the calling object's data
         and indices. Modifications to the data or indices of the copy will not
         be reflected in the original object.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Modification in the original Series will not affect the copy Series:
+
+            >>> s = bpd.Series([1, 2], index=["a", "b"])
+            >>> s
+            a    1
+            b    2
+            dtype: Int64
+
+            >>> s_copy = s.copy()
+            >>> s_copy
+            a    1
+            b    2
+            dtype: Int64
+
+            >>> s.loc['b'] = 22
+            >>> s
+            a     1
+            b    22
+            dtype: Int64
+            >>> s_copy
+            a    1
+            b    2
+            dtype: Int64
+
+        Modification in the original DataFrame will not affect the copy DataFrame:
+
+            >>> df = bpd.DataFrame({'a': [1, 3], 'b': [2, 4]})
+            >>> df
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df_copy = df.copy()
+            >>> df_copy
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.loc[df["b"] == 2, "b"] = 22
+            >>> df
+               a     b
+            0  1  22.0
+            1  3   4.0
+            <BLANKLINE>
+            [2 rows x 2 columns]
+            >>> df_copy
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Returns:
             Object type matches caller.
