@@ -16,9 +16,10 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
 
+@skip_legacy_pandas
 def test_read_pandas_multi_index_axes():
     index = pandas.MultiIndex.from_arrays(
         [
