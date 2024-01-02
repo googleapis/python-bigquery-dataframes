@@ -143,12 +143,50 @@ class Series(NDFrame):  # type: ignore[misc]
 
     @property
     def T(self) -> Series:
-        """Return the transpose, which is by definition self."""
+        """Return the transpose, which is by definition self.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
+            >>> s
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
+
+            >>> s.T
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def transpose(self) -> Series:
         """
         Return the transpose, which is by definition self.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
+            >>> s
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
+
+            >>> s.transpose()
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
 
         Returns:
             Series: Series.
@@ -167,6 +205,53 @@ class Series(NDFrame):  # type: ignore[misc]
         This is useful when the index needs to be treated as a column, or
         when the index is meaningless and needs to be reset to the default
         before another operation.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4], name='foo',
+            ...                index=['a', 'b', 'c', 'd'])
+            >>> s.index.name = "idx"
+            >>> s
+            idx
+            a    1
+            b    2
+            c    3
+            d    4
+            Name: foo, dtype: Int64
+
+        Generate a DataFrame with default index.
+
+            >>> s.reset_index()
+                idx  foo
+            0     a    1
+            1     b    2
+            2     c    3
+            3     d    4
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        To specify the name of the new column use ``name`` param.
+
+            >>> s.reset_index(name="bar")
+                idx   bar
+            0     a    1
+            1     b    2
+            2     c    3
+            3     d    4
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        To generate a new Series with the default index set param ``drop=True``.
+
+            >>> s.reset_index(drop=True)
+            0    1
+            1    2
+            2    3
+            3    4
+            Name: foo, dtype: Int64
 
         Args:
             drop (bool, default False):
@@ -348,6 +433,21 @@ class Series(NDFrame):  # type: ignore[misc]
         (for str, int, float) or a pandas scalar
         (for Timestamp/Timedelta/Interval/Period).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+            >>> s.to_list()
+            [1, 2, 3]
+
         Returns:
             list: list of the values
         """
@@ -475,6 +575,20 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return number of non-NA/null observations in the Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0.0, 1.0, bpd.NA])
+            >>> s
+            0     0.0
+            1     1.0
+            2    <NA>
+            dtype: Float64
+            >>> s.count()
+            2
+
         Returns:
             int or Series (if level specified): Number of non-null values in the
                 Series.
@@ -489,6 +603,36 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             int: number of unique elements in the object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def unique(self) -> Series:
+        """
+        Return unique values of Series object.
+
+        Uniques are returned in order of appearance. Hash table-based unique,
+        therefore does NOT sort.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, 1, 3, 3], name='A')
+            >>> s
+            0    2
+            1    1
+            2    3
+            3    3
+            Name: A, dtype: Int64
+            >>> s.unique()
+            0    2
+            1    1
+            2    3
+            Name: A, dtype: Int64
+
+        Returns:
+            Series: The unique values returned as a Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -577,6 +721,25 @@ class Series(NDFrame):  # type: ignore[misc]
     def round(self, decimals: int = 0) -> Series:
         """
         Round each value in a Series to the given number of decimals.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0.1, 1.3, 2.7])
+            >>> s.round()
+            0    0.0
+            1    1.0
+            2    3.0
+            dtype: Float64
+
+            >>> s = bpd.Series([0.123, 1.345, 2.789])
+            >>> s.round(decimals=2)
+            0    0.12
+            1    1.34
+            2    2.79
+            dtype: Float64
 
         Args:
             decimals (int, default 0):
@@ -698,6 +861,69 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Sort a Series in ascending or descending order by some
         criterion.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([np.nan, 1, 3, 10, 5])
+            >>> s
+            0    <NA>
+            1     1.0
+            2     3.0
+            3    10.0
+            4     5.0
+            dtype: Float64
+
+        Sort values ascending order (default behaviour):
+
+            >>> s.sort_values(ascending=True)
+            1     1.0
+            2     3.0
+            4     5.0
+            3    10.0
+            0    <NA>
+            dtype: Float64
+
+        Sort values descending order:
+
+            >>> s.sort_values(ascending=False)
+            3    10.0
+            4     5.0
+            2     3.0
+            1     1.0
+            0    <NA>
+            dtype: Float64
+
+        Sort values putting NAs first:
+
+            >>> s.sort_values(na_position='first')
+            0    <NA>
+            1     1.0
+            2     3.0
+            4     5.0
+            3    10.0
+            dtype: Float64
+
+        Sort a series of strings:
+
+            >>> s = bpd.Series(['z', 'b', 'd', 'a', 'c'])
+            >>> s
+            0    z
+            1    b
+            2    d
+            3    a
+            4    c
+            dtype: string
+
+            >>> s.sort_values()
+            3    a
+            1    b
+            4    c
+            2    d
+            0    z
+            dtype: string
 
         Args:
             axis (0 or 'index'):
@@ -1062,6 +1288,55 @@ class Series(NDFrame):  # type: ignore[misc]
         When using a multi-index, labels on different levels can be removed
         by specifying the level.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(data=np.arange(3), index=['A', 'B', 'C'])
+            >>> s
+            A    0
+            B    1
+            C    2
+            dtype: Int64
+
+        Drop labels B and C:
+
+            >>> s.drop(labels=['B', 'C'])
+            A    0
+            dtype: Int64
+
+        Drop 2nd level label in MultiIndex Series:
+
+            >>> import pandas as pd
+            >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
+            ...                              ['speed', 'weight', 'length']],
+            ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
+            ...                             [0, 1, 2, 0, 1, 2, 0, 1, 2]])
+
+            >>> s = bpd.Series([45, 200, 1.2, 30, 250, 1.5, 320, 1, 0.3],
+            ...               index=midx)
+            >>> s
+            llama   speed      45.0
+                    weight    200.0
+                    length      1.2
+            cow     speed      30.0
+                    weight    250.0
+                    length      1.5
+            falcon  speed     320.0
+                    weight      1.0
+                    length      0.3
+            dtype: Float64
+
+            >>> s.drop(labels='weight', level=1)
+            llama   speed      45.0
+                    length      1.2
+            cow     speed      30.0
+                    length      1.5
+            falcon  speed     320.0
+                    length      0.3
+            dtype: Float64
+
         Args:
             labels (single label or list-like):
                 Index labels to drop.
@@ -1193,6 +1468,38 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Fill NA/NaN values using the specified method.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([np.nan, 2, np.nan, -1])
+            >>> s
+            0    <NA>
+            1     2.0
+            2    <NA>
+            3    -1.0
+            dtype: Float64
+
+        Replace all NA elements with 0s.
+
+            >>> s.fillna(0)
+            0    0.0
+            1    2.0
+            2    0.0
+            3   -1.0
+            dtype: Float64
+
+        You can use fill values from another Series:
+
+            >>> s_fill = bpd.Series([11, 22, 33])
+            >>> s.fillna(s_fill)
+            0    11.0
+            1     2.0
+            2    33.0
+            3    -1.0
+            dtype: Float64
+
         Args:
             value (scalar, dict, Series, or DataFrame, default None):
                 Value to use to fill holes (e.g. 0).
@@ -1213,6 +1520,77 @@ class Series(NDFrame):  # type: ignore[misc]
         Values of the Series/DataFrame are replaced with other values dynamically.
         This differs from updating with ``.loc`` or ``.iloc``, which require
         you to specify a location to update with some value.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4, 5])
+            >>> s
+            0    1
+            1    2
+            2    3
+            3    4
+            4    5
+            dtype: Int64
+
+            >>> s.replace(1, 5)
+            0    5
+            1    2
+            2    3
+            3    4
+            4    5
+            dtype: Int64
+
+        You can replace a list of values:
+
+            >>> s.replace([1, 3, 5], -1)
+            0    -1
+            1     2
+            2    -1
+            3     4
+            4    -1
+            dtype: Int64
+
+        You can use a replacement mapping:
+
+            >>> s.replace({1: 5, 3: 10})
+            0     5
+            1     2
+            2    10
+            3     4
+            4     5
+            dtype: Int64
+
+        With a string Series you can use a simple string replacement or a regex
+        replacement:
+
+            >>> s = bpd.Series(["Hello", "Another Hello"])
+            >>> s.replace("Hello", "Hi")
+            0               Hi
+            1    Another Hello
+            dtype: string
+
+            >>> s.replace("Hello", "Hi", regex=True)
+            0            Hi
+            1    Another Hi
+            dtype: string
+
+            >>> s.replace("^Hello", "Hi", regex=True)
+            0               Hi
+            1    Another Hello
+            dtype: string
+
+            >>> s.replace("Hello$", "Hi", regex=True)
+            0            Hi
+            1    Another Hi
+            dtype: string
+
+            >>> s.replace("[Hh]e", "__", regex=True)
+            0            __llo
+            1    Anot__r __llo
+            dtype: string
 
         Args:
             to_replace (str, regex, list, int, float or None):
@@ -1268,6 +1646,42 @@ class Series(NDFrame):  # type: ignore[misc]
     def dropna(self, *, axis=0, inplace: bool = False, how=None) -> Series:
         """
         Return a new Series with missing values removed.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Drop NA values from a Series:
+
+            >>> ser = bpd.Series([1., 2., np.nan])
+            >>> ser
+            0     1.0
+            1     2.0
+            2    <NA>
+            dtype: Float64
+
+            >>> ser.dropna()
+            0    1.0
+            1    2.0
+            dtype: Float64
+
+        Empty strings are not considered NA values. ``None`` is considered an NA value.
+
+            >>> ser = bpd.Series(['2', bpd.NA, '', None, 'I stay'], dtype='object')
+            >>> ser
+            0         2
+            1      <NA>
+            2
+            3      <NA>
+            4    I stay
+            dtype: string
+
+            >>> ser.dropna()
+            0         2
+            2
+            4    I stay
+            dtype: string
 
         Args:
             axis (0 or 'index'):
@@ -1474,6 +1888,55 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Equivalent to ``series + other``, but with support to substitute a fill_value for
         missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 2, 3, bpd.NA])
+            >>> a
+            0     1.0
+            1     2.0
+            2     3.0
+            3    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([10, 20, 30, 40])
+            >>> b
+            0     10
+            1     20
+            2     30
+            3     40
+            dtype: Int64
+
+            >>> a.add(b)
+            0    11.0
+            1    22.0
+            2    33.0
+            3    <NA>
+            dtype: Float64
+
+        You can also use the mathematical operator ``+``:
+
+            >>> a + b
+            0    11.0
+            1    22.0
+            2    33.0
+            3    <NA>
+            dtype: Float64
+
+        Adding two Series with explicit indexes:
+
+            >>> a = bpd.Series([1, 2, 3, 4], index=['a', 'b', 'c', 'd'])
+            >>> b = bpd.Series([10, 20, 30, 40], index=['a', 'b', 'd', 'e'])
+            >>> a.add(b)
+            a      11
+            b      22
+            c    <NA>
+            d      34
+            e    <NA>
+            dtype: Int64
 
         Args:
             other (Series, or scalar value):
@@ -2340,6 +2803,40 @@ class Series(NDFrame):  # type: ignore[misc]
             the same. That is, if any form of NaN is present in values, all forms
             of NaN in the series will be considered a match. (though pandas may not)
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama',
+            ...                 'hippo'], name='animal')
+            >>> s
+            0     llama
+            1       cow
+            2     llama
+            3    beetle
+            4     llama
+            5     hippo
+            Name: animal, dtype: string
+
+            >>> s.isin(['cow', 'llama'])
+            0     True
+            1     True
+            2     True
+            3    False
+            4     True
+            5    False
+            Name: animal, dtype: boolean
+
+        Strings and integers are distinct and are therefore not comparable:
+
+            >>> bpd.Series([1]).isin(['1'])
+            0    False
+            dtype: boolean
+            >>> bpd.Series([1.1]).isin(['1.1'])
+            0    False
+            dtype: boolean
+
         Args:
             values (list-like):
                 The sequence of values to test. Passing in a single string will raise a
@@ -2395,6 +2892,47 @@ class Series(NDFrame):  # type: ignore[misc]
             Bigframes does not yet support ``dict`` subclasses that define
             ``__missing__`` (i.e. provide a method for default values). These
             are treated the same as ``dict``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['cat', 'dog', bpd.NA, 'rabbit'])
+            >>> s
+            0       cat
+            1       dog
+            2      <NA>
+            3    rabbit
+            dtype: string
+
+        `map` can accepts a `dict`. Values that are not found in the `dict` are
+        converted to `NA`:
+
+            >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
+            0    kitten
+            1     puppy
+            2      <NA>
+            3      <NA>
+            dtype: string
+
+        It also accepts a remote function:
+
+            >>> @bpd.remote_function([str], str)
+            ... def my_mapper(val):
+            ...     vowels = ["a", "e", "i", "o", "u"]
+            ...     if val:
+            ...         return "".join([
+            ...             ch.upper() if ch in vowels else ch for ch in val
+            ...         ])
+            ...     return "N/A"
+
+            >>> s.map(my_mapper)
+            0       cAt
+            1       dOg
+            2       N/A
+            3    rAbbIt
+            dtype: string
 
         Args:
             arg (function, Mapping, Series):
