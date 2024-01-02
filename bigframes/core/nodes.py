@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 import functools
 import typing
 from typing import Optional, Tuple
@@ -66,6 +66,13 @@ class BigFrameNode:
             return sessions[0]
         return None
 
+    # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
+    # Each subclass of BigFrameNode should use this property to implement __hash__
+    # The default dataclass-generated __hash__ method is not cached
+    @functools.cached_property
+    def _node_hash(self):
+        return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -95,6 +102,9 @@ class JoinNode(BigFrameNode):
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return (self.left_child, self.right_child)
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class ConcatNode(BigFrameNode):
@@ -104,12 +114,18 @@ class ConcatNode(BigFrameNode):
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return self.children
 
+    def __hash__(self):
+        return self._node_hash
+
 
 # Input Nodex
 @dataclass(frozen=True)
 class ReadLocalNode(BigFrameNode):
     feather_bytes: bytes
     column_ids: typing.Tuple[str, ...]
+
+    def __hash__(self):
+        return self._node_hash
 
 
 # TODO: Refactor to take raw gbq object reference
@@ -123,7 +139,10 @@ class ReadGbqNode(BigFrameNode):
 
     @property
     def session(self):
-        return (self.table_session,)
+        return self.table_session
+
+    def __hash__(self):
+        return self._node_hash
 
 
 # Unary nodes
@@ -131,10 +150,16 @@ class ReadGbqNode(BigFrameNode):
 class DropColumnsNode(UnaryNode):
     columns: Tuple[str, ...]
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class PromoteOffsetsNode(UnaryNode):
     col_id: str
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -142,20 +167,33 @@ class FilterNode(UnaryNode):
     predicate_id: str
     keep_null: bool = False
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class OrderByNode(UnaryNode):
     by: Tuple[OrderingColumnReference, ...]
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class ReversedNode(UnaryNode):
-    pass
+    # useless field to make sure has distinct hash
+    reversed: bool = True
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
 class SelectNode(UnaryNode):
     column_ids: typing.Tuple[str, ...]
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -164,6 +202,15 @@ class ProjectRowOpNode(UnaryNode):
     op: ops.RowOp
     output_id: Optional[str] = None
 
+    def __hash__(self):
+        return self._node_hash
+
+
+# TODO: Merge RowCount and Corr into Aggregate Node
+@dataclass(frozen=True)
+class RowCountNode(UnaryNode):
+    pass
+
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
@@ -171,11 +218,17 @@ class AggregateNode(UnaryNode):
     by_column_ids: typing.Tuple[str, ...] = tuple([])
     dropna: bool = True
 
+    def __hash__(self):
+        return self._node_hash
+
 
 # TODO: Unify into aggregate
 @dataclass(frozen=True)
 class CorrNode(UnaryNode):
     corr_aggregations: typing.Tuple[typing.Tuple[str, str, str], ...]
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -187,10 +240,14 @@ class WindowOpNode(UnaryNode):
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class ReprojectOpNode(UnaryNode):
-    pass
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -206,11 +263,17 @@ class UnpivotNode(UnaryNode):
     ] = (pandas.Float64Dtype(),)
     how: typing.Literal["left", "right"] = "left"
 
+    def __hash__(self):
+        return self._node_hash
+
 
 @dataclass(frozen=True)
 class AssignNode(UnaryNode):
     source_id: str
     destination_id: str
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -218,6 +281,9 @@ class AssignConstantNode(UnaryNode):
     destination_id: str
     value: typing.Hashable
     dtype: typing.Optional[bigframes.dtypes.Dtype]
+
+    def __hash__(self):
+        return self._node_hash
 
 
 @dataclass(frozen=True)
@@ -227,3 +293,6 @@ class RandomSampleNode(UnaryNode):
     @property
     def deterministic(self) -> bool:
         return False
+
+    def __hash__(self):
+        return self._node_hash

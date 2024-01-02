@@ -131,7 +131,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         if len(index_columns) != 1:
             raise ValueError("only method 'linear' supports multi-index")
         xvalues = block.index_columns[0]
-        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES:
+        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             raise ValueError("Can only interpolate on numeric index.")
 
     for column in original_columns:
@@ -332,7 +332,6 @@ def value_counts(
         by_column_ids=columns,
         aggregations=[(dummy, agg_ops.count_op)],
         dropna=dropna,
-        as_index=True,
     )
     count_id = agg_ids[0]
     if normalize:
@@ -353,7 +352,9 @@ def value_counts(
                 )
             ]
         )
-    return block.select_column(count_id).with_column_labels(["count"])
+    return block.select_column(count_id).with_column_labels(
+        ["proportion" if normalize else "count"]
+    )
 
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
@@ -444,7 +445,7 @@ def rank(
     if method in ["min", "max", "first", "dense"]:
         # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
         block = block.multi_apply_unary_op(
-            rownum_col_ids, ops.AsTypeOp(to_type=pd.Float64Dtype())
+            rownum_col_ids, ops.AsTypeOp(pd.Float64Dtype())
         )
     if na_option == "keep":
         # For na_option "keep", null inputs must produce null outputs

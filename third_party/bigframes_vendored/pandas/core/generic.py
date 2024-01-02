@@ -82,10 +82,46 @@ class NDFrame(indexing.IndexingMixin):
         """
         Cast a pandas object to a specified dtype ``dtype``.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Create a DataFrame:
+
+            >>> d = {'col1': [1, 2], 'col2': [3, 4]}
+            >>> df = bpd.DataFrame(data=d)
+            >>> df.dtypes
+            col1    Int64
+            col2    Int64
+            dtype: object
+
+        Cast all columns to ``Float64``:
+
+            >>> df.astype('Float64').dtypes
+            col1    Float64
+            col2    Float64
+            dtype: object
+
+        Create a series of type ``Int64``:
+
+            >>> ser = bpd.Series([1, 2], dtype='Int64')
+            >>> ser
+            0    1
+            1    2
+            dtype: Int64
+
+        Convert to ``Float64`` type:
+
+            >>> ser.astype('Float64')
+            0    1.0
+            1    2.0
+            dtype: Float64
+
         Args:
             dtype (str or pandas.ExtensionDtype):
                 A dtype supported by BigQuery DataFrame include 'boolean','Float64','Int64',
-                'string', 'tring[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
+                'string', 'string[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
                 'timestamp[us][pyarrow]','date32[day][pyarrow]','time64[us][pyarrow]'
                 A pandas.ExtensionDtype include pandas.BooleanDtype(), pandas.Float64Dtype(),
                 pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
@@ -218,6 +254,55 @@ class NDFrame(indexing.IndexingMixin):
 
         Returns default value if not found.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame(
+            ...     [
+            ...         [24.3, 75.7, "high"],
+            ...         [31, 87.8, "high"],
+            ...         [22, 71.6, "medium"],
+            ...         [35, 95, "medium"],
+            ...     ],
+            ...     columns=["temp_celsius", "temp_fahrenheit", "windspeed"],
+            ...     index=["2014-02-12", "2014-02-13", "2014-02-14", "2014-02-15"],
+            ... )
+            >>> df
+                        temp_celsius  temp_fahrenheit windspeed
+            2014-02-12          24.3             75.7      high
+            2014-02-13          31.0             87.8      high
+            2014-02-14          22.0             71.6    medium
+            2014-02-15          35.0             95.0    medium
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+            >>> df.get(["temp_celsius", "windspeed"])
+                        temp_celsius windspeed
+            2014-02-12          24.3      high
+            2014-02-13          31.0      high
+            2014-02-14          22.0    medium
+            2014-02-15          35.0    medium
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            >>> ser = df['windspeed']
+            >>> ser
+            2014-02-12      high
+            2014-02-13      high
+            2014-02-14    medium
+            2014-02-15    medium
+            Name: windspeed, dtype: string
+            >>> ser.get('2014-02-13')
+            'high'
+
+        If the key is not found, the default value will be used.
+
+            >>> df.get(["temp_celsius", "temp_kelvin"])
+            >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
+            'default_value'
+
         Args:
             key: object
 
@@ -272,17 +357,73 @@ class NDFrame(indexing.IndexingMixin):
         on position. It is useful for quickly testing if your object
         has the right type of data in it.
 
-        **Not yet supported** For negative values of `n`, this function returns
+        For negative values of `n`, this function returns
         all rows except the last `|n|` rows, equivalent to ``df[:n]``.
 
         If n is larger than the number of rows, this function returns all rows.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'animal': ['alligator', 'bee', 'falcon', 'lion',
+            ...                     'monkey', 'parrot', 'shark', 'whale', 'zebra']})
+            >>> df
+                animal
+            0  alligator
+            1        bee
+            2     falcon
+            3       lion
+            4     monkey
+            5     parrot
+            6      shark
+            7      whale
+            8      zebra
+            <BLANKLINE>
+            [9 rows x 1 columns]
+
+        Viewing the first 5 lines:
+
+            >>> df.head()
+                animal
+            0  alligator
+            1        bee
+            2     falcon
+            3       lion
+            4     monkey
+            <BLANKLINE>
+            [5 rows x 1 columns]
+
+        Viewing the first `n` lines (three in this case):
+
+            >>> df.head(3)
+                animal
+            0  alligator
+            1        bee
+            2     falcon
+            <BLANKLINE>
+            [3 rows x 1 columns]
+
+        For negative values of `n`:
+
+            >>> df.head(-3)
+                animal
+            0  alligator
+            1        bee
+            2     falcon
+            3       lion
+            4     monkey
+            5     parrot
+            <BLANKLINE>
+            [6 rows x 1 columns]
 
         Args:
             n (int, default 5):
                 Default 5. Number of rows to select.
 
         Returns:
-            The first `n` rows of the caller object.
+            same type as caller: The first ``n`` rows of the caller object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -317,6 +458,51 @@ class NDFrame(indexing.IndexingMixin):
         """Return a random sample of items from an axis of object.
 
         You can use `random_state` for reproducibility.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
+            ...                     'num_wings': [2, 0, 0, 0],
+            ...                     'num_specimen_seen': [10, 2, 1, 8]},
+            ...                    index=['falcon', 'dog', 'spider', 'fish'])
+            >>> df
+                    num_legs  num_wings  num_specimen_seen
+            falcon         2          2                 10
+            dog            4          0                  2
+            spider         8          0                  1
+            fish           0          0                  8
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+        Fetch one random row from the DataFrame (Note that we use `random_state`
+        to ensure reproducibility of the examples):
+
+            >>> df.sample(random_state=1)
+                 num_legs  num_wings  num_specimen_seen
+            dog         4          0                  2
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        A random 50% sample of the DataFrame:
+
+            >>> df.sample(frac=0.5, random_state=1)
+                  num_legs  num_wings  num_specimen_seen
+            dog          4          0                  2
+            fish         0          0                  8
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Extract 3 random elements from the Series `df['num_legs']`:
+
+            >>> s = df['num_legs']
+            >>> s.sample(n=3, random_state=1)
+            dog       4
+            fish      0
+            spider    8
+            Name: num_legs, dtype: Int64
 
         Args:
             n (Optional[int], default None):
@@ -355,6 +541,67 @@ class NDFrame(indexing.IndexingMixin):
         A new object will be created with a copy of the calling object's data
         and indices. Modifications to the data or indices of the copy will not
         be reflected in the original object.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Modification in the original Series will not affect the copy Series:
+
+            >>> s = bpd.Series([1, 2], index=["a", "b"])
+            >>> s
+            a    1
+            b    2
+            dtype: Int64
+
+            >>> s_copy = s.copy()
+            >>> s_copy
+            a    1
+            b    2
+            dtype: Int64
+
+            >>> s.loc['b'] = 22
+            >>> s
+            a     1
+            b    22
+            dtype: Int64
+            >>> s_copy
+            a    1
+            b    2
+            dtype: Int64
+
+        Modification in the original DataFrame will not affect the copy DataFrame:
+
+            >>> df = bpd.DataFrame({'a': [1, 3], 'b': [2, 4]})
+            >>> df
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df_copy = df.copy()
+            >>> df_copy
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.loc[df["b"] == 2, "b"] = 22
+            >>> df
+               a     b
+            0  1  22.0
+            1  3   4.0
+            <BLANKLINE>
+            [2 rows x 2 columns]
+            >>> df_copy
+               a  b
+            0  1  2
+            1  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Returns:
             Object type matches caller.
@@ -406,6 +653,71 @@ class NDFrame(indexing.IndexingMixin):
         NA values get mapped to True values. Everything else gets mapped to
         False values. Characters such as empty strings ``''`` or
         :attr:`numpy.inf` are not considered NA values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import numpy as np
+
+            >>> df = bpd.DataFrame(dict(
+            ...         age=[5, 6, np.nan],
+            ...         born=[bpd.NA, "1940-04-25", "1940-04-25"],
+            ...         name=['Alfred', 'Batman', ''],
+            ...         toy=[None, 'Batmobile', 'Joker'],
+            ... ))
+            >>> df
+                age        born    name        toy
+            0   5.0        <NA>  Alfred       <NA>
+            1   6.0  1940-04-25  Batman  Batmobile
+            2  <NA>  1940-04-25              Joker
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        Show which entries in a DataFrame are NA:
+
+            >>> df.isna()
+                age   born   name    toy
+            0  False   True  False   True
+            1  False  False  False  False
+            2   True  False  False  False
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+            >>> df.isnull()
+                age   born   name    toy
+            0  False   True  False   True
+            1  False  False  False  False
+            2   True  False  False  False
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        Show which entries in a Series are NA:
+
+            >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
+            >>> ser
+            0     5.0
+            1    <NA>
+            2     6.0
+            3    <NA>
+            4    <NA>
+            dtype: Float64
+
+            >>> ser.isna()
+            0    False
+            1     True
+            2    False
+            3     True
+            4     True
+            dtype: boolean
+
+            >>> ser.isnull()
+            0    False
+            1     True
+            2    False
+            3     True
+            4     True
+            dtype: boolean
 
         Returns:
             Mask of bool values for each element that indicates whether an

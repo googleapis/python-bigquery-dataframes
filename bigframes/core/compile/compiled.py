@@ -21,6 +21,7 @@ from typing import Collection, Iterable, Literal, Optional, Sequence
 
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
+import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -66,7 +67,16 @@ class BaseIbisIR(abc.ABC):
         self._columns = tuple(columns)
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
-        self._column_names = {column.get_name(): column for column in self._columns}
+        self._column_names = {
+            (
+                column.resolve(table)
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
+                if isinstance(column, ibis.common.deferred.Deferred)
+                else column
+            ).get_name(): column
+            for column in self._columns
+        }
 
     @property
     def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
@@ -185,7 +195,10 @@ class BaseIbisIR(abc.ABC):
             raise ValueError(
                 "Column name {} not in set of values: {}".format(key, self.column_ids)
             )
-        return typing.cast(ibis_types.Value, self._column_names[key])
+        return typing.cast(
+            ibis_types.Value,
+            bigframes.dtypes.ibis_value_to_canonical_type(self._column_names[key]),
+        )
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         ibis_type = typing.cast(
@@ -232,6 +245,22 @@ class UnorderedIR(BaseIbisIR):
             )
         )
         return typing.cast(str, sql)
+
+    def row_count(self) -> OrderedIR:
+        original_table = self._to_ibis_expr()
+        ibis_table = original_table.agg(
+            [
+                original_table.count().name("count"),
+            ]
+        )
+        return OrderedIR(
+            ibis_table,
+            (ibis_table["count"],),
+            ordering=ExpressionOrdering(
+                ordering_value_columns=(OrderingColumnReference("count"),),
+                total_ordering_columns=frozenset(["count"]),
+            ),
+        )
 
     def _to_ibis_expr(
         self,
@@ -292,7 +321,9 @@ class UnorderedIR(BaseIbisIR):
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if col_id_overrides:
-            table = table.relabel(col_id_overrides)
+            table = table.rename(
+                {value: key for key, value in col_id_overrides.items()}
+            )
         if fraction is not None:
             table = table.filter(ibis.random() < ibis.literal(fraction))
         return table
@@ -618,7 +649,16 @@ class OrderedIR(BaseIbisIR):
 
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
-        self._column_names = {column.get_name(): column for column in self._columns}
+        self._column_names = {
+            (
+                column.resolve(table)
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
+                if isinstance(column, ibis.common.deferred.Deferred)
+                else column
+            ).get_name(): column
+            for column in self._columns
+        }
         self._hidden_ordering_column_names = {
             column.get_name(): column for column in self._hidden_ordering_columns
         }
@@ -835,7 +875,7 @@ class OrderedIR(BaseIbisIR):
             case_statement = ibis.case()
             for clause in clauses:
                 case_statement = case_statement.when(clause[0], clause[1])
-            case_statement = case_statement.else_(window_op).end()
+            case_statement = case_statement.else_(window_op).end()  # type: ignore
             window_op = case_statement
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
@@ -1119,14 +1159,23 @@ class OrderedIR(BaseIbisIR):
         # Make sure all dtypes are the "canonical" ones for BigFrames. This is
         # important for operations like UNION where the schema must match.
         table = self._table.select(
-            bigframes.dtypes.ibis_value_to_canonical_type(column) for column in columns
+            bigframes.dtypes.ibis_value_to_canonical_type(
+                column.resolve(self._table)
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
+                if isinstance(column, ibis.common.deferred.Deferred)
+                else column
+            )
+            for column in columns
         )
         base_table = table
         if self._reduced_predicate is not None:
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if col_id_overrides:
-            table = table.relabel(col_id_overrides)
+            table = table.rename(
+                {value: key for key, value in col_id_overrides.items()}
+            )
         if fraction is not None:
             table = table.filter(ibis.random() < ibis.literal(fraction))
         return table

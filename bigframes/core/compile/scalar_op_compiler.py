@@ -600,6 +600,14 @@ def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     return x_transformed
 
 
+@scalar_op_compiler.register_unary_op(ops.MapOp, pass_op=True)
+def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
+    case = ibis.case()
+    for mapping in op.mappings:
+        case = case.when(x == mapping[0], mapping[1])
+    return case.else_(x).end()
+
+
 ### Binary Ops
 def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = None):
     """Wraps a binary operator to generate nulls of the expected type if either input is a null scalar."""

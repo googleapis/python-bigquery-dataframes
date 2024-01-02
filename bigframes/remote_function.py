@@ -411,13 +411,23 @@ class RemoteFunctionClient:
             create_function_request.function = function
 
             # Create the cloud function and wait for it to be ready to use
-            operation = self._cloud_functions_client.create_function(
-                request=create_function_request
-            )
-            operation.result()
+            try:
+                operation = self._cloud_functions_client.create_function(
+                    request=create_function_request
+                )
+                operation.result()
 
-            # Cleanup
-            os.remove(archive_path)
+                # Cleanup
+                os.remove(archive_path)
+            except google.api_core.exceptions.AlreadyExists:
+                # If a cloud function with the same name already exists, let's
+                # update it
+                update_function_request = functions_v2.UpdateFunctionRequest()
+                update_function_request.function = function
+                operation = self._cloud_functions_client.update_function(
+                    request=update_function_request
+                )
+                operation.result()
 
         # Fetch the endpoint of the just created function
         endpoint = self.get_cloud_function_endpoint(cf_name)
@@ -525,17 +535,14 @@ def remote_function_node(
     """Creates an Ibis node representing a remote function call."""
 
     fields = {
-        name: rlz.value(type_) if type_ else rlz.any
+        name: rlz.ValueOf(None if type_ == "ANY TYPE" else type_)
         for name, type_ in zip(
             ibis_signature.parameter_names, ibis_signature.input_types
         )
     }
 
-    try:
-        fields["output_type"] = rlz.shape_like("args", dtype=ibis_signature.output_type)  # type: ignore
-    except TypeError:
-        fields["output_dtype"] = property(lambda _: ibis_signature.output_type)
-        fields["output_shape"] = rlz.shape_like("args")
+    fields["dtype"] = ibis_signature.output_type  # type: ignore
+    fields["shape"] = rlz.shape_like("args")
 
     node = type(routine_ref_to_string_for_query(routine_ref), (ops.ValueOp,), fields)  # type: ignore
 

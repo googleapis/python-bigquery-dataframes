@@ -265,6 +265,11 @@ class RemoteFunctionOp(UnaryOp):
     apply_on_null: bool
 
 
+@dataclasses.dataclass(frozen=True)
+class MapOp(UnaryOp):
+    mappings: typing.Tuple[typing.Tuple[typing.Hashable, typing.Hashable], ...]
+
+
 # Operation Composition
 # Meta-ops that do partial application or parameter remapping
 # Subject to change, may convert to explicit tree
