@@ -2510,6 +2510,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         temp_table_ref = None
 
         if destination_table is None:
+            if if_exists is not None and if_exists != "replace":
+                raise ValueError(
+                    f"Got invalid value {repr(if_exists)} for if_exists. "
+                    "When no destination table is specified, a new table is always created. "
+                    "None or 'replace' are the only valid options in this case."
+                )
+            if_exists = "replace"
+
             temp_table_ref = bigframes.session._io.bigquery.random_table(
                 self._session._anonymous_dataset
             )
