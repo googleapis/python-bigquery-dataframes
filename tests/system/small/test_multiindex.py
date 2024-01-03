@@ -204,6 +204,7 @@ def test_series_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index,
         (1, 0),
         ([0, 1], 0),
         ([True, None], 1),
+        ((0, True), None),
     ],
 )
 def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, level):
@@ -213,6 +214,7 @@ def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, lev
     bf_result = bf_frame.drop(labels=labels, axis="index", level=level).to_pandas()
     pd_result = pd_frame.drop(labels=labels, axis="index", level=level)
 
+    print("over")
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
