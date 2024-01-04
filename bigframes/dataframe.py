@@ -2789,7 +2789,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("Duplicates are not supported in clustering_columns")
 
         all_possible_columns = (
-            set(self.columns) | set(self.index.names) if index else set(self.columns)
+            (set(self.columns) | set(self.index.names)) if index else set(self.columns)
         )
         missing_columns = set(clustering_columns) - all_possible_columns
         if missing_columns:

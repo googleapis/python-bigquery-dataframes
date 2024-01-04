@@ -325,6 +325,10 @@ def test_to_gbq_w_None_column_names(
             ["float64_col"],
             marks=pytest.mark.xfail(raises=google.api_core.exceptions.BadRequest),
         ),
+        pytest.param(
+            ["int64_col", "int64_col"],
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
     ],
 )
 def test_to_gbq_w_clustering(
