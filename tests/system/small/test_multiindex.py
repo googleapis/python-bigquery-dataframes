@@ -214,7 +214,6 @@ def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, lev
     bf_result = bf_frame.drop(labels=labels, axis="index", level=level).to_pandas()
     pd_result = pd_frame.drop(labels=labels, axis="index", level=level)
 
-    print("over")
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
