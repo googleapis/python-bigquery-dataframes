@@ -25,21 +25,21 @@ def test_read_pandas_multi_index_axes():
         [
             pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
             pandas.Index(
-                ["Hello, World!", "some_new_string"],
+                [" Hello, World!", "_some_new_string"],
                 dtype=pandas.StringDtype(storage="pyarrow"),
             ),
         ],
-        names=["1index 1", "1index 2"],
+        names=[" 1index 1", "_1index 2"],
     )
     columns = pandas.MultiIndex.from_arrays(
         [
             pandas.Index([6, 87], dtype=pandas.Int64Dtype()),
             pandas.Index(
-                ["Bonjour le monde!", "une chaîne de caractères"],
+                [" Bonjour le monde!", "_une_chaîne_de_caractères"],
                 dtype=pandas.StringDtype(storage="pyarrow"),
             ),
         ],
-        names=["1columns 1", "1new_index 2"],
+        names=[" 1columns 1", "_1new_index 2"],
     )
     pandas_df = pandas.DataFrame(
         [[1, 2], [3, 4]], index=index, columns=columns, dtype=pandas.Int64Dtype()
