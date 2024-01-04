@@ -26,7 +26,7 @@ def test_create_text_generator_model(palm2_text_generator_model, dataset_id):
     reloaded_model = palm2_text_generator_model.to_gbq(
         f"{dataset_id}.temp_text_model", replace=True
     )
-    assert f"{dataset_id}.temp_text_model" in reloaded_model._bqml_model.model_name
+    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
 
 
 def test_create_text_generator_32k_model(palm2_text_generator_32k_model, dataset_id):
@@ -38,7 +38,7 @@ def test_create_text_generator_32k_model(palm2_text_generator_32k_model, dataset
     reloaded_model = palm2_text_generator_32k_model.to_gbq(
         f"{dataset_id}.temp_text_model", replace=True
     )
-    assert f"{dataset_id}.temp_text_model" in reloaded_model._bqml_model.model_name
+    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
 
 
 @pytest.mark.flaky(retries=2, delay=120)

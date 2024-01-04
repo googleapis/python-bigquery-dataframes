@@ -119,16 +119,17 @@ class PaLM2TextGenerator(base.Predictor):
     def _from_bq(
         cls, session: bigframes.Session, model: bigquery.Model
     ) -> PaLM2TextGenerator:
-        if (
-            model.model_type == "MODEL_TYPE_UNSPECIFIED"
-            and model._properties["remoteModelInfo"]["endpoint"] is not None
-        ):
-            # Parse the remote model endpoint
-            bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
-            endpoint_model = bqml_endpoint.split("/")[-1]
-            assert endpoint_model in _TEXT_GENERATOR_ENDPOINTS
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert model._properties.get("remoteModelInfo").get("endpoint") is not None
 
-        text_generator_model = cls(session=session)
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties.get("remoteModelInfo").get("endpoint")
+        model_connection = model._properties.get("remoteModelInfo").get("connection")
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        text_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
         text_generator_model._bqml_model = core.BqmlModel(session, model)
         return text_generator_model
 
@@ -230,8 +231,6 @@ class PaLM2TextGenerator(base.Predictor):
 
         Returns:
             PaLM2TextGenerator: saved model."""
-        if not self._bqml_model:
-            raise RuntimeError("A model must be fitted before it can be saved")
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -311,16 +310,17 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
     def _from_bq(
         cls, session: bigframes.Session, model: bigquery.Model
     ) -> PaLM2TextEmbeddingGenerator:
-        if (
-            model.model_type == "MODEL_TYPE_UNSPECIFIED"
-            and model._properties["remoteModelInfo"]["endpoint"] is not None
-        ):
-            # Parse the remote model endpoint
-            bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
-            endpoint_model = bqml_endpoint.split("/")[-1]
-            assert endpoint_model in _EMBEDDING_GENERATOR_ENDPOINTS
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert model._properties.get("remoteModelInfo").get("endpoint") is not None
 
-        embedding_generator_model = cls(session=session)
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties.get("remoteModelInfo").get("endpoint")
+        model_connection = model._properties.get("remoteModelInfo").get("connection")
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        embedding_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
         embedding_generator_model._bqml_model = core.BqmlModel(session, model)
         return embedding_generator_model
 
@@ -374,8 +374,6 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
 
         Returns:
             PaLM2TextEmbeddingGenerator: saved model."""
-        if not self._bqml_model:
-            raise RuntimeError("A model must be fitted before it can be saved")
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
