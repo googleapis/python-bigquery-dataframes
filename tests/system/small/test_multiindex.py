@@ -16,7 +16,7 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
 
 # Row Multi-index tests
@@ -682,6 +682,7 @@ def test_column_multi_index_binary_op(scalars_df_index, scalars_pandas_df_index)
     pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
+@skip_legacy_pandas
 def test_column_multi_index_any():
     columns = pandas.MultiIndex.from_tuples(
         [("col0", "col00"), ("col0", "col00"), ("col1", "col11")]
