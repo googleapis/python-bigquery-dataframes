@@ -17,7 +17,9 @@ import pytest
 from bigframes.ml import llm
 
 
-def test_create_text_generator_model(palm2_text_generator_model, dataset_id):
+def test_create_text_generator_model(
+    palm2_text_generator_model, dataset_id, bq_connection
+):
     # Model creation doesn't return error
     assert palm2_text_generator_model is not None
     assert palm2_text_generator_model._bqml_model is not None
@@ -27,9 +29,13 @@ def test_create_text_generator_model(palm2_text_generator_model, dataset_id):
         f"{dataset_id}.temp_text_model", replace=True
     )
     assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.model_name == "text-bison"
+    assert reloaded_model.connection_name == bq_connection
 
 
-def test_create_text_generator_32k_model(palm2_text_generator_32k_model, dataset_id):
+def test_create_text_generator_32k_model(
+    palm2_text_generator_32k_model, dataset_id, bq_connection
+):
     # Model creation doesn't return error
     assert palm2_text_generator_32k_model is not None
     assert palm2_text_generator_32k_model._bqml_model is not None
@@ -39,6 +45,8 @@ def test_create_text_generator_32k_model(palm2_text_generator_32k_model, dataset
         f"{dataset_id}.temp_text_model", replace=True
     )
     assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.model_name == "text-bison-32k"
+    assert reloaded_model.connection_name == bq_connection
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -170,7 +178,9 @@ def test_text_generator_predict_with_params_success(
     assert all(series.str.len() > 20)
 
 
-def test_create_embedding_generator_model(palm2_embedding_generator_model, dataset_id):
+def test_create_embedding_generator_model(
+    palm2_embedding_generator_model, dataset_id, bq_connection
+):
     # Model creation doesn't return error
     assert palm2_embedding_generator_model is not None
     assert palm2_embedding_generator_model._bqml_model is not None
@@ -179,12 +189,15 @@ def test_create_embedding_generator_model(palm2_embedding_generator_model, datas
     reloaded_model = palm2_embedding_generator_model.to_gbq(
         f"{dataset_id}.temp_embedding_model", replace=True
     )
-    assert f"{dataset_id}.temp_embedding_model" in reloaded_model._bqml_model.model_name
+    assert f"{dataset_id}.temp_embedding_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.model_name == "textembedding-gecko"
+    assert reloaded_model.connection_name == bq_connection
 
 
 def test_create_embedding_generator_multilingual_model(
     palm2_embedding_generator_multilingual_model,
     dataset_id,
+    bq_connection,
 ):
     # Model creation doesn't return error
     assert palm2_embedding_generator_multilingual_model is not None
@@ -194,7 +207,9 @@ def test_create_embedding_generator_multilingual_model(
     reloaded_model = palm2_embedding_generator_multilingual_model.to_gbq(
         f"{dataset_id}.temp_embedding_model", replace=True
     )
-    assert f"{dataset_id}.temp_embedding_model" in reloaded_model._bqml_model.model_name
+    assert f"{dataset_id}.temp_embedding_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.model_name == "textembedding-gecko-multilingual"
+    assert reloaded_model.connection_name == bq_connection
 
 
 def test_create_text_embedding_generator_model_defaults(bq_connection):

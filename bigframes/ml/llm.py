@@ -120,11 +120,19 @@ class PaLM2TextGenerator(base.Predictor):
         cls, session: bigframes.Session, model: bigquery.Model
     ) -> PaLM2TextGenerator:
         assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        assert model._properties.get("remoteModelInfo").get("endpoint") is not None
+        assert model._properties["remoteModelInfo"]["endpoint"] is not None
 
         # Parse the remote model endpoint
-        bqml_endpoint = model._properties.get("remoteModelInfo").get("endpoint")
-        model_connection = model._properties.get("remoteModelInfo").get("connection")
+        if (
+            "remoteModelInfo" in model._properties
+            and "endpoint" in model._properties["remoteModelInfo"]
+        ):
+            bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        if (
+            "remoteModelInfo" in model._properties
+            and "connection" in model._properties["remoteModelInfo"]
+        ):
+            model_connection = model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
         text_generator_model = cls(
@@ -311,11 +319,18 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         cls, session: bigframes.Session, model: bigquery.Model
     ) -> PaLM2TextEmbeddingGenerator:
         assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        assert model._properties.get("remoteModelInfo").get("endpoint") is not None
 
         # Parse the remote model endpoint
-        bqml_endpoint = model._properties.get("remoteModelInfo").get("endpoint")
-        model_connection = model._properties.get("remoteModelInfo").get("connection")
+        if (
+            "remoteModelInfo" in model._properties
+            and "endpoint" in model._properties["remoteModelInfo"]
+        ):
+            bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        if (
+            "remoteModelInfo" in model._properties
+            and "connection" in model._properties["remoteModelInfo"]
+        ):
+            model_connection = model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
         embedding_generator_model = cls(

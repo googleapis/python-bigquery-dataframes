@@ -96,11 +96,13 @@ def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
         return _BQML_MODEL_TYPE_MAPPING[bq_model.model_type]._from_bq(  # type: ignore
             session=session, model=bq_model
         )
-    if bq_model.model_type == "MODEL_TYPE_UNSPECIFIED" and bq_model._properties.get(
-        "remoteModelInfo"
-    ).get("endpoint"):
+    if (
+        bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        and bq_model._properties["remoteModelInfo"]
+        and bq_model._properties["remoteModelInfo"]["endpoint"]
+    ):
         # Parse the remote model endpoint
-        bqml_endpoint = bq_model._properties.get("remoteModelInfo").get("endpoint")
+        bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
         endpoint_model = bqml_endpoint.split("/")[-1]
         return _BQML_ENDPOINT_TYPE_MAPPING[endpoint_model]._from_bq(  # type: ignore
             session=session, model=bq_model
