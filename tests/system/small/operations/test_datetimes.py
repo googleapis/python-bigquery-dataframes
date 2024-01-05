@@ -32,8 +32,6 @@ DATE_COLUMNS = [
 )
 @skip_legacy_pandas
 def test_dt_day(scalars_dfs, col_name):
-    if pd.__version__.startswith("1."):
-        pytest.skip("Pyarrow datetime objects not support in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.day.to_pandas()
@@ -51,8 +49,6 @@ def test_dt_day(scalars_dfs, col_name):
 )
 @skip_legacy_pandas
 def test_dt_date(scalars_dfs, col_name):
-    if pd.__version__.startswith("1."):
-        pytest.skip("Pyarrow datetime objects not support in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.date.to_pandas()
@@ -135,8 +131,6 @@ def test_dt_month(scalars_dfs, col_name):
 )
 @skip_legacy_pandas
 def test_dt_quarter(scalars_dfs, col_name):
-    if pd.__version__.startswith("1."):
-        pytest.skip("Pyarrow datetime objects not support in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.quarter.to_pandas()
