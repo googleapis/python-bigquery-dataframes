@@ -11,9 +11,10 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Literal, Mapping, Optional, Sequence, Union
+from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
 import numpy as np
+import pandas as pd
 
 from bigframes import constants
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
@@ -307,6 +308,7 @@ class DataFrame(NDFrame):
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
+        clustering_columns: Union[pd.Index, Iterable[Hashable]] = (),
     ) -> str:
         """Write a DataFrame to a BigQuery table.
 
@@ -336,6 +338,16 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
+        Write a DataFrame to a BigQuery table with clustering columns:
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4], 'col3': [5, 6]})
+            >>> clustering_cols = ['col1', 'col3']
+            >>> df.to_gbq(
+            ...             "bigframes-dev.birds.test-clusters",
+            ...             if_exists="replace",
+            ...             clustering_columns=clustering_cols,
+            ...           )
+            'bigframes-dev.birds.test-clusters'
+
         Args:
             destination_table (Optional[str]):
                 Name of table to be written, in the form ``dataset.tablename``
@@ -363,6 +375,15 @@ class DataFrame(NDFrame):
             ordering_id (Optional[str], default None):
                 If set, write the ordering of the DataFrame as a column in the
                 result table with this name.
+
+            clustering_columns (Union[pd.Index, Iterable[Hashable]], default ()):
+                Specifies the columns for clustering in the BigQuery table. The order
+                of columns in this list is significant for clustering hierarchy. Index
+                columns may be included in clustering if the `index` parameter is set
+                to True, and their names are specified in this.  These index columns,
+                if included, precede DataFrame columns in the clustering order. The
+                clustering order within the Index/DataFrame columns follows the order
+                specified in `clustering_columns`.
 
         Returns:
             str:
@@ -1086,7 +1107,7 @@ class DataFrame(NDFrame):
 
         Args:
             labels:
-                Index or column labels to drop.
+                Index or column labels to drop. A tuple will be used as a single label and not treated as a list-like.
             axis:
                 Whether to drop labels from the index (0 or 'index') or
                 columns (1 or 'columns').
@@ -1145,6 +1166,30 @@ class DataFrame(NDFrame):
 
         Dict values must be unique (1-to-1). Labels not contained in a dict
         will be left as-is. Extra labels listed don't throw an error.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+            >>> df
+               A  B
+            0  1  4
+            1  2  5
+            2  3  6
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Rename columns using a mapping:
+
+            >>> df.rename(columns={"A": "col1", "B": "col2"})
+               col1  col2
+            0     1     4
+            1     2     5
+            2     3     6
+            <BLANKLINE>
+            [3 rows x 2 columns]
 
         Args:
             columns (Mapping):

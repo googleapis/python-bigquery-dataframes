@@ -29,6 +29,19 @@ class NDFrame(indexing.IndexingMixin):
     def size(self) -> int:
         """Return an int representing the number of elements in this object.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
+            >>> s.size
+            3
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df.size
+            4
+
         Returns:
             int: Return the number of rows if Series. Otherwise return the number of
                 rows times number of columns if DataFrame.
@@ -613,6 +626,48 @@ class NDFrame(indexing.IndexingMixin):
 
     def ffill(self, *, limit: Optional[int] = None):
         """Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
+            ...                     [3, 4, np.nan, 1],
+            ...                     [np.nan, np.nan, np.nan, np.nan],
+            ...                     [np.nan, 3, np.nan, 4]],
+            ...                    columns=list("ABCD")).astype("Float64")
+            >>> df
+                  A     B     C     D
+            0  <NA>   2.0  <NA>   0.0
+            1   3.0   4.0  <NA>   1.0
+            2  <NA>  <NA>  <NA>  <NA>
+            3  <NA>   3.0  <NA>   4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+        Fill NA/NaN values in DataFrames:
+
+            >>> df.ffill()
+                  A    B     C    D
+            0  <NA>  2.0  <NA>  0.0
+            1   3.0  4.0  <NA>  1.0
+            2   3.0  4.0  <NA>  1.0
+            3   3.0  3.0  <NA>  4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+
+        Fill NA/NaN values in Series:
+
+            >>> series = bpd.Series([1, np.nan, 2, 3])
+            >>> series.ffill()
+            0    1.0
+            1    1.0
+            2    2.0
+            3    3.0
+            dtype: Float64
 
         Args:
             limit : int, default None
