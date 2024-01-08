@@ -179,6 +179,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def count(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.count_op)
 
+    def nunique(self) -> df.DataFrame:
+        return self._aggregate_all(agg_ops.nunique_op)
+
     def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("cumsum")
@@ -260,10 +263,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
         aggregations: typing.List[typing.Tuple[str, agg_ops.AggregateOp]] = []
@@ -282,7 +285,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         if want_aggfunc_level:
@@ -294,7 +296,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         else:
             agg_block = agg_block.with_column_labels(pd.Index(column_labels))
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
         aggregations = [
@@ -308,7 +311,6 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         agg_block = agg_block.with_column_labels(
@@ -316,7 +318,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 column_labels, names=[*self._block.column_labels.names, None]
             )
         )
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_named(self, **kwargs) -> df.DataFrame:
         aggregations = []
@@ -336,17 +339,28 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
         agg_block = agg_block.with_column_labels(column_labels)
-        return df.DataFrame(agg_block)
+        dataframe = df.DataFrame(agg_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
+
+    def _convert_index(self, dataframe: df.DataFrame):
+        """Convert index levels to columns except where names conflict."""
+        levels_to_drop = [
+            level for level in dataframe.index.names if level in dataframe.columns
+        ]
+
+        if len(levels_to_drop) == dataframe.index.nlevels:
+            return dataframe.reset_index(drop=True)
+        return dataframe.droplevel(levels_to_drop).reset_index(drop=False)
 
     aggregate = agg
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
-            dtype in dtypes.NUMERIC_BIGFRAMES_TYPES for dtype in self._block.dtypes
+            dtype in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+            for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
                 f"'{op}' does not support non-numeric columns. "
@@ -358,7 +372,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def _aggregated_columns(self, numeric_only: bool = False) -> typing.Sequence[str]:
         valid_agg_cols: list[str] = []
         for col_id in self._selected_cols:
-            is_numeric = self._column_type(col_id) in dtypes.NUMERIC_BIGFRAMES_TYPES
+            is_numeric = (
+                self._column_type(col_id) in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+            )
             if is_numeric or not numeric_only:
                 valid_agg_cols.append(col_id)
         return valid_agg_cols
@@ -376,10 +392,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         result_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
-            as_index=self._as_index,
             dropna=self._dropna,
         )
-        return df.DataFrame(result_block)
+        dataframe = df.DataFrame(result_block)
+        return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _apply_window_op(
         self,
@@ -441,6 +457,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def count(self) -> series.Series:
         return self._aggregate(agg_ops.count_op)
+
+    def nunique(self) -> series.Series:
+        return self._aggregate(agg_ops.nunique_op)
 
     def sum(self, *args) -> series.Series:
         return self._aggregate(agg_ops.sum_op)
