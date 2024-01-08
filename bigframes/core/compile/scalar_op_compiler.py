@@ -61,6 +61,16 @@ class ScalarOpCompiler:
         op_ref: typing.Union[ops.UnaryOp, type[ops.UnaryOp]],
         pass_op: bool = False,
     ):
+        """
+        Decorator to register a unary op implementation.
+
+        Args:
+            op_ref (UnaryOp or UnaryOp type):
+                Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
+        """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
@@ -80,6 +90,16 @@ class ScalarOpCompiler:
         op_ref: typing.Union[ops.BinaryOp, type[ops.BinaryOp]],
         pass_op: bool = False,
     ):
+        """
+        Decorator to register a binary op implementation.
+
+        Args:
+            op_ref (BinaryOp or BinaryOp type):
+                Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
+        """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
@@ -97,6 +117,13 @@ class ScalarOpCompiler:
     def register_ternary_op(
         self, op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]]
     ):
+        """
+        Decorator to register a ternary op implementation.
+
+        Args:
+            op_ref (TernaryOp or TernaryOp type):
+                Class or instance of operator that is implemented by the decorated function.
+        """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
@@ -719,10 +746,16 @@ def add_op(
     y: ibis_types.Value,
 ):
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
-        return
-    return typing.cast(ibis_types.NumericValue, x) + typing.cast(
-        ibis_types.NumericValue, y
-    )
+        return ibis.null()
+    try:
+        # Could be string concatenation or numeric addition.
+        return x + y  # type: ignore
+    except ibis.common.annotations.SignatureValidationError as exc:
+        left_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(x.type())
+        right_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(y.type())
+        raise TypeError(
+            f"Cannot add {repr(left_type)} and {repr(right_type)}. {constants.FEEDBACK_LINK}"
+        ) from exc
 
 
 @scalar_op_compiler.register_binary_op(ops.sub_op)
