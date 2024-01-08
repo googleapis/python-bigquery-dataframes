@@ -16,7 +16,37 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
+
+
+@skip_legacy_pandas
+def test_read_pandas_multi_index_axes():
+    index = pandas.MultiIndex.from_arrays(
+        [
+            pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Hello, World!", "_some_new_string"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1index 1", "_1index 2"],
+    )
+    columns = pandas.MultiIndex.from_arrays(
+        [
+            pandas.Index([6, 87], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Bonjour le monde!", "_une_chaîne_de_caractères"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1columns 1", "_1new_index 2"],
+    )
+    pandas_df = pandas.DataFrame(
+        [[1, 2], [3, 4]], index=index, columns=columns, dtype=pandas.Int64Dtype()
+    )
+    bf_df = bpd.DataFrame(pandas_df)
+
+    pandas.testing.assert_frame_equal(bf_df.to_pandas(), pandas_df)
 
 
 # Row Multi-index tests
@@ -204,6 +234,7 @@ def test_series_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index,
         (1, 0),
         ([0, 1], 0),
         ([True, None], 1),
+        ((0, True), None),
     ],
 )
 def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, level):
@@ -356,17 +387,24 @@ def test_multi_index_dataframe_groupby(scalars_df_index, scalars_pandas_df_index
 def test_multi_index_dataframe_groupby_level_aggregate(
     scalars_df_index, scalars_pandas_df_index, level, as_index
 ):
+    index_cols = ["int64_too", "bool_col"]
     bf_result = (
-        scalars_df_index.set_index(["int64_too", "bool_col"])
+        scalars_df_index.set_index(index_cols)
         .groupby(level=level, as_index=as_index)
         .mean(numeric_only=True)
         .to_pandas()
     )
     pd_result = (
-        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+        scalars_pandas_df_index.set_index(index_cols)
         .groupby(level=level, as_index=as_index)
         .mean(numeric_only=True)
     )
+    # For as_index=False, pandas will drop index levels used as groupings
+    # In the future, it will include this in the result, bigframes already does this behavior
+    if not as_index:
+        for col in index_cols:
+            if col in bf_result.columns:
+                bf_result = bf_result.drop(col, axis=1)
 
     # Pandas will have int64 index, while bigquery will have Int64 when resetting
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
@@ -387,14 +425,17 @@ def test_multi_index_dataframe_groupby_level_aggregate(
 def test_multi_index_dataframe_groupby_level_analytic(
     scalars_df_index, scalars_pandas_df_index, level, as_index
 ):
+    # Drop "numeric_col" as pandas doesn't support numerics for grouped window function
     bf_result = (
-        scalars_df_index.set_index(["int64_too", "bool_col"])
+        scalars_df_index.drop("numeric_col", axis=1)
+        .set_index(["int64_too", "bool_col"])
         .groupby(level=level, as_index=as_index, dropna=False)
         .cumsum(numeric_only=True)
         .to_pandas()
     )
     pd_result = (
-        scalars_pandas_df_index.set_index(["int64_too", "bool_col"])
+        scalars_pandas_df_index.drop("numeric_col", axis=1)
+        .set_index(["int64_too", "bool_col"])
         .groupby(level=level, as_index=as_index, dropna=False)
         .cumsum(numeric_only=True)
     )

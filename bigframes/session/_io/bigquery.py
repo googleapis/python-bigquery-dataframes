@@ -117,11 +117,6 @@ def create_snapshot_sql(
     table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
 ) -> str:
     """Query a table via 'time travel' for consistent reads."""
-
-    # If we have a _SESSION table, assume that it's already a copy. Nothing to do here.
-    if table_ref.dataset_id.upper() == "_SESSION":
-        return f"SELECT * FROM `_SESSION`.`{table_ref.table_id}`"
-
     # If we have an anonymous query results table, it can't be modified and
     # there isn't any BigQuery time travel.
     if table_ref.dataset_id.startswith("_"):
@@ -153,6 +148,17 @@ def create_temp_table(
         destination.clustering_fields = cluster_columns
     bqclient.create_table(destination)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+
+
+def set_table_expiration(
+    bqclient: bigquery.Client,
+    table_ref: bigquery.TableReference,
+    expiration: datetime.datetime,
+) -> None:
+    """Set an expiration time for an existing BigQuery table."""
+    table = bqclient.get_table(table_ref)
+    table.expires = expiration
+    bqclient.update_table(table, ["expires"])
 
 
 # BigQuery REST API returns types in Legacy SQL format

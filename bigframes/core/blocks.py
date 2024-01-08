@@ -66,7 +66,7 @@ _MONOTONIC_INCREASING = "monotonic_increasing"
 _MONOTONIC_DECREASING = "monotonic_decreasing"
 
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
@@ -137,8 +137,19 @@ class Block:
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-        impl_length, _ = self._expr.shape()
-        return (impl_length, len(self.value_columns))
+        row_count_expr = self.expr.row_count()
+
+        # Support in-memory engines for hermetic unit tests.
+        if self.expr.node.session is None:
+            try:
+                row_count = row_count_expr._try_evaluate_local().squeeze()
+                return (row_count, len(self.value_columns))
+            except Exception:
+                pass
+
+        iter, _ = self.session._execute(row_count_expr, sorted=False)
+        row_count = next(iter)[0]
+        return (row_count, len(self.value_columns))
 
     @property
     def index_columns(self) -> Sequence[str]:
@@ -181,6 +192,10 @@ class Block:
     ) -> Sequence[bigframes.dtypes.Dtype]:
         """Returns the dtypes of the index columns."""
         return [self.expr.get_column_type(col) for col in self.index_columns]
+
+    @property
+    def session(self) -> core.Session:
+        return self._expr.session
 
     @functools.cached_property
     def col_id_to_label(self) -> typing.Mapping[str, Label]:
@@ -376,7 +391,7 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self._expr.session._rows_to_dataframe(result, dtypes)
+        return self.session._rows_to_dataframe(result, dtypes)
 
     def to_pandas(
         self,
@@ -404,9 +419,9 @@ class Block:
         """Download results one message at a time."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        results_iterator, _ = self._expr.start_query()
+        results_iterator, _ = self.session._execute(self.expr, sorted=True)
         for arrow_table in results_iterator.to_arrow_iterable(
-            bqstorage_client=self._expr.session.bqstoragereadclient
+            bqstorage_client=self.session.bqstoragereadclient
         ):
             df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
             self._copy_index_to_pandas(df)
@@ -460,12 +475,12 @@ class Block:
 
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
 
-        results_iterator, query_job = expr.start_query(
-            max_results=max_results, sorted=ordered
+        results_iterator, query_job = self.session._execute(
+            expr, max_results=max_results, sorted=ordered
         )
 
         table_size = (
-            expr.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
+            self.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
         )
         fraction = (
             max_download_size / table_size
@@ -607,7 +622,7 @@ class Block:
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        _, query_job = expr.start_query(job_config=job_config)
+        _, query_job = self.session._execute(expr, job_config=job_config, dry_run=True)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
@@ -926,7 +941,6 @@ class Block:
         by_column_ids: typing.Sequence[str] = (),
         aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]] = (),
         *,
-        as_index: bool = True,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
@@ -947,40 +961,21 @@ class Block:
         aggregate_labels = self._get_labels_for_columns(
             [agg[0] for agg in aggregations]
         )
-        if as_index:
-            names: typing.List[Label] = []
-            for by_col_id in by_column_ids:
-                if by_col_id in self.value_columns:
-                    names.append(self.col_id_to_label[by_col_id])
-                else:
-                    names.append(self.col_id_to_index_name[by_col_id])
-            return (
-                Block(
-                    result_expr,
-                    index_columns=by_column_ids,
-                    column_labels=aggregate_labels,
-                    index_labels=names,
-                ),
-                output_col_ids,
-            )
-        else:  # as_index = False
-            # If as_index=False, drop grouping levels, but keep grouping value columns
-            by_value_columns = [
-                col for col in by_column_ids if col in self.value_columns
-            ]
-            by_column_labels = self._get_labels_for_columns(by_value_columns)
-            labels = (*by_column_labels, *aggregate_labels)
-            offsets_id = guid.generate_guid()
-            result_expr_pruned = result_expr.select_columns(
-                [*by_value_columns, *output_col_ids]
-            ).promote_offsets(offsets_id)
-
-            return (
-                Block(
-                    result_expr_pruned, index_columns=[offsets_id], column_labels=labels
-                ),
-                output_col_ids,
-            )
+        names: typing.List[Label] = []
+        for by_col_id in by_column_ids:
+            if by_col_id in self.value_columns:
+                names.append(self.col_id_to_label[by_col_id])
+            else:
+                names.append(self.col_id_to_index_name[by_col_id])
+        return (
+            Block(
+                result_expr,
+                index_columns=by_column_ids,
+                column_labels=aggregate_labels,
+                index_labels=names,
+            ),
+            output_col_ids,
+        )
 
     def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
         """Gets aggregates immediately, and caches it"""
@@ -1068,7 +1063,7 @@ class Block:
         stats: list[agg_ops.AggregateOp] = [agg_ops.count_op]
         if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
             stats += [agg_ops.min_op, agg_ops.max_op]
-        if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES:
+        if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             # Notable exclusions:
             # prod op tends to cause overflows
             # Also, var_op is redundant as can be derived from std
@@ -1309,7 +1304,6 @@ class Block:
         result_block, _ = block.aggregate(
             by_column_ids=self.index_columns,
             aggregations=aggregations,
-            as_index=True,
             dropna=True,
         )
 
@@ -1512,8 +1506,10 @@ class Block:
         blocks: typing.List[Block] = [self, *other]
         if ignore_index:
             blocks = [block.reset_index() for block in blocks]
-
-        result_labels = _align_indices(blocks)
+            level_names = None
+        else:
+            level_names, level_types = _align_indices(blocks)
+            blocks = [_cast_index(block, level_types) for block in blocks]
 
         index_nlevels = blocks[0].index.nlevels
 
@@ -1528,7 +1524,7 @@ class Block:
             result_expr,
             index_columns=list(result_expr.column_ids)[:index_nlevels],
             column_labels=aligned_blocks[0].column_labels,
-            index_labels=result_labels,
+            index_labels=level_names,
         )
         if ignore_index:
             result_block = result_block.reset_index()
@@ -1668,7 +1664,7 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        sql = array_value.to_sql(col_id_overrides=substitutions)
+        sql = self.session._to_sql(array_value, col_id_overrides=substitutions)
         return (
             sql,
             new_ids[: len(idx_labels)],
@@ -1678,7 +1674,7 @@ class Block:
     def cached(self) -> Block:
         """Write the block to a session table and create a new block object that references it."""
         return Block(
-            self.expr.cached(cluster_cols=self.index_columns),
+            self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index_labels,
@@ -1789,16 +1785,40 @@ def block_from_local(data) -> Block:
     )
 
 
+def _cast_index(block: Block, dtypes: typing.Sequence[bigframes.dtypes.Dtype]):
+    original_block = block
+    result_ids = []
+    for idx_id, idx_dtype, target_dtype in zip(
+        block.index_columns, block.index_dtypes, dtypes
+    ):
+        if idx_dtype != target_dtype:
+            block, result_id = block.apply_unary_op(idx_id, ops.AsTypeOp(target_dtype))
+            result_ids.append(result_id)
+        else:
+            result_ids.append(idx_id)
+
+    expr = block.expr.select_columns((*result_ids, *original_block.value_columns))
+    return Block(
+        expr,
+        index_columns=result_ids,
+        column_labels=original_block.column_labels,
+        index_labels=original_block.index_labels,
+    )
+
+
 def _align_block_to_schema(
     block: Block, schema: dict[Label, bigframes.dtypes.Dtype]
 ) -> Block:
-    """For a given schema, remap block to schema by reordering columns and inserting nulls."""
+    """For a given schema, remap block to schema by reordering columns,  and inserting nulls."""
     col_ids: typing.Tuple[str, ...] = ()
     for label, dtype in schema.items():
-        # TODO: Support casting to lcd type - requires mixed type support
         matching_ids: typing.Sequence[str] = block.label_to_col_id.get(label, ())
         if len(matching_ids) > 0:
             col_id = matching_ids[-1]
+            col_dtype = block.expr.get_column_type(col_id)
+            if dtype != col_dtype:
+                # If _align_schema worked properly, this should always be an upcast
+                block, col_id = block.apply_unary_op(col_id, ops.AsTypeOp(dtype))
             col_ids = (*col_ids, col_id)
         else:
             block, null_column = block.create_constant(None, dtype=dtype)
@@ -1816,24 +1836,28 @@ def _align_schema(
     return functools.reduce(reduction, schemas)
 
 
-def _align_indices(blocks: typing.Sequence[Block]) -> typing.Sequence[Label]:
-    """Validates that the blocks have compatible indices and returns the resulting label names."""
+def _align_indices(
+    blocks: typing.Sequence[Block],
+) -> typing.Tuple[typing.Sequence[Label], typing.Sequence[bigframes.dtypes.Dtype]]:
+    """Validates that the blocks have compatible indices and returns the resulting label names and dtypes."""
     names = blocks[0].index.names
     types = blocks[0].index.dtypes
+
     for block in blocks[1:]:
         if len(names) != block.index.nlevels:
             raise NotImplementedError(
                 f"Cannot combine indices with different number of levels. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
             )
-        if block.index.dtypes != types:
-            raise NotImplementedError(
-                f"Cannot combine different index dtypes. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
-            )
         names = [
             lname if lname == rname else None
             for lname, rname in zip(names, block.index.names)
         ]
-    return names
+        types = [
+            bigframes.dtypes.lcd_type_or_throw(ltype, rtype)
+            for ltype, rtype in zip(types, block.index.dtypes)
+        ]
+    types = typing.cast(typing.Sequence[bigframes.dtypes.Dtype], types)
+    return names, types
 
 
 def _combine_schema_inner(
@@ -1841,13 +1865,15 @@ def _combine_schema_inner(
     right: typing.Dict[Label, bigframes.dtypes.Dtype],
 ) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
-    for label, type in left.items():
+    for label, left_type in left.items():
         if label in right:
-            if type != right[label]:
+            right_type = right[label]
+            output_type = bigframes.dtypes.lcd_type(left_type, right_type)
+            if output_type is None:
                 raise ValueError(
                     f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
                 )
-            result[label] = type
+            result[label] = output_type
     return result
 
 
@@ -1856,15 +1882,20 @@ def _combine_schema_outer(
     right: typing.Dict[Label, bigframes.dtypes.Dtype],
 ) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
-    for label, type in left.items():
-        if (label in right) and (type != right[label]):
-            raise ValueError(
-                f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
-            )
-        result[label] = type
-    for label, type in right.items():
+    for label, left_type in left.items():
+        if label not in right:
+            result[label] = left_type
+        else:
+            right_type = right[label]
+            output_type = bigframes.dtypes.lcd_type(left_type, right_type)
+            if output_type is None:
+                raise NotImplementedError(
+                    f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
+                )
+            result[label] = output_type
+    for label, right_type in right.items():
         if label not in left:
-            result[label] = type
+            result[label] = right_type
     return result
 
 
