@@ -251,6 +251,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> indexes.Index:
         return indexes.Index(self)
 
+    @index.setter
+    def index(self, value):
+        # TODO: Handle assigning MultiIndex
+        result = self._assign_single_item("_new_bf_index", value).set_index(
+            "_new_bf_index"
+        )
+        self._set_block(result._get_block())
+        self.index.name = value.name if hasattr(value, "name") else None
+
     @property
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
@@ -544,6 +553,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         else:
             raise AttributeError(key)
+
+    def __setattr__(self, key: str, value):
+        if key in ["_block", "_query_job"]:
+            object.__setattr__(self, key, value)
+            return
+        # Can this be removed???
+        try:
+            # boring attributes go through boring old path
+            object.__getattribute__(self, key)
+            return object.__setattr__(self, key, value)
+        except AttributeError:
+            pass
+
+        # if this fails, go on to more involved attribute setting
+        # (note that this matches __getattr__, above).
+        try:
+            if key in self.columns:
+                self[key] = value
+            else:
+                object.__setattr__(self, key, value)
+        # Can this be removed?
+        except (AttributeError, TypeError):
+            object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
@@ -1062,12 +1094,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
-                block, inverse_condition_id = block.apply_unary_op(
-                    level_id, ops.IsInOp(index, match_nulls=True)
-                )
-                block, condition_id = block.apply_unary_op(
-                    inverse_condition_id, ops.invert_op
-                )
+                # Only tuple is treated as multi-index value combinations
+                if isinstance(index, tuple):
+                    if level is not None:
+                        raise ValueError("Multi-index tuple can't specify level.")
+                    condition_id = None
+                    for i, idx in enumerate(index):
+                        level_id = self._resolve_levels(i)[0]
+                        block, condition_id_cur = block.apply_unary_op(
+                            level_id, ops.partial_right(ops.ne_op, idx)
+                        )
+                        if condition_id:
+                            block, condition_id = block.apply_binary_op(
+                                condition_id, condition_id_cur, ops.or_op
+                            )
+                        else:
+                            condition_id = condition_id_cur
+
+                    condition_id = typing.cast(str, condition_id)
+                else:
+                    block, inverse_condition_id = block.apply_unary_op(
+                        level_id, ops.IsInOp(index, match_nulls=True)
+                    )
+                    block, condition_id = block.apply_unary_op(
+                        inverse_condition_id, ops.invert_op
+                    )
             elif isinstance(index, indexes.Index):
                 return self._drop_by_index(index)
             else:
@@ -1246,6 +1297,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 [get_column_left[col_id] for col_id in original_index_column_ids],
                 index_labels=self._block.index_labels,
             )
+            src_col = get_column_right[new_column_block.value_columns[0]]
+            # Check to see if key exists, and modify in place
+            col_ids = self._block.cols_matching_label(k)
+            for col_id in col_ids:
+                result_block = result_block.copy_values(
+                    src_col, get_column_left[col_id]
+                )
+            if len(col_ids) > 0:
+                result_block = result_block.drop_columns([src_col])
         return DataFrame(result_block)
 
     def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
