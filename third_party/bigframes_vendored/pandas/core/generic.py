@@ -639,7 +639,7 @@ class NDFrame(indexing.IndexingMixin):
             ...                     [np.nan, 3, np.nan, 4]],
             ...                    columns=list("ABCD")).astype("Float64")
             >>> df
-                A     B     C     D
+                  A     B     C     D
             0  <NA>   2.0  <NA>   0.0
             1   3.0   4.0  <NA>   1.0
             2  <NA>  <NA>  <NA>  <NA>
@@ -650,7 +650,7 @@ class NDFrame(indexing.IndexingMixin):
         Fill NA/NaN values in DataFrames:
 
             >>> df.ffill()
-                   A    B     C    D
+                  A    B     C    D
             0  <NA>  2.0  <NA>  0.0
             1   3.0  4.0  <NA>  1.0
             2   3.0  4.0  <NA>  1.0
