@@ -34,6 +34,7 @@ from typing import (
     Union,
 )
 
+import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -71,7 +72,7 @@ if typing.TYPE_CHECKING:
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-LevelType = typing.Union[str, int]
+LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
@@ -249,6 +250,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
     ) -> indexes.Index:
         return indexes.Index(self)
+
+    @index.setter
+    def index(self, value):
+        # TODO: Handle assigning MultiIndex
+        result = self._assign_single_item("_new_bf_index", value).set_index(
+            "_new_bf_index"
+        )
+        self._set_block(result._get_block())
+        self.index.name = value.name if hasattr(value, "name") else None
 
     @property
     def loc(self) -> indexers.LocDataFrameIndexer:
@@ -543,6 +553,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         else:
             raise AttributeError(key)
+
+    def __setattr__(self, key: str, value):
+        if key in ["_block", "_query_job"]:
+            object.__setattr__(self, key, value)
+            return
+        # Can this be removed???
+        try:
+            # boring attributes go through boring old path
+            object.__getattribute__(self, key)
+            return object.__setattr__(self, key, value)
+        except AttributeError:
+            pass
+
+        # if this fails, go on to more involved attribute setting
+        # (note that this matches __getattr__, above).
+        try:
+            if key in self.columns:
+                self[key] = value
+            else:
+                object.__setattr__(self, key, value)
+        # Can this be removed?
+        except (AttributeError, TypeError):
+            object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
@@ -1061,12 +1094,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
-                block, inverse_condition_id = block.apply_unary_op(
-                    level_id, ops.IsInOp(index, match_nulls=True)
-                )
-                block, condition_id = block.apply_unary_op(
-                    inverse_condition_id, ops.invert_op
-                )
+                # Only tuple is treated as multi-index value combinations
+                if isinstance(index, tuple):
+                    if level is not None:
+                        raise ValueError("Multi-index tuple can't specify level.")
+                    condition_id = None
+                    for i, idx in enumerate(index):
+                        level_id = self._resolve_levels(i)[0]
+                        block, condition_id_cur = block.apply_unary_op(
+                            level_id, ops.partial_right(ops.ne_op, idx)
+                        )
+                        if condition_id:
+                            block, condition_id = block.apply_binary_op(
+                                condition_id, condition_id_cur, ops.or_op
+                            )
+                        else:
+                            condition_id = condition_id_cur
+
+                    condition_id = typing.cast(str, condition_id)
+                else:
+                    block, inverse_condition_id = block.apply_unary_op(
+                        level_id, ops.IsInOp(index, match_nulls=True)
+                    )
+                    block, condition_id = block.apply_unary_op(
+                        inverse_condition_id, ops.invert_op
+                    )
             elif isinstance(index, indexes.Index):
                 return self._drop_by_index(index)
             else:
@@ -1245,6 +1297,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 [get_column_left[col_id] for col_id in original_index_column_ids],
                 index_labels=self._block.index_labels,
             )
+            src_col = get_column_right[new_column_block.value_columns[0]]
+            # Check to see if key exists, and modify in place
+            col_ids = self._block.cols_matching_label(k)
+            for col_id in col_ids:
+                result_block = result_block.copy_values(
+                    src_col, get_column_left[col_id]
+                )
+            if len(col_ids) > 0:
+                result_block = result_block.drop_columns([src_col])
         return DataFrame(result_block)
 
     def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
@@ -1561,6 +1622,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def fillna(self, value=None) -> DataFrame:
         return self._apply_binop(value, ops.fillna_op, how="left")
 
+    def replace(
+        self, to_replace: typing.Any, value: typing.Any = None, *, regex: bool = False
+    ):
+        if utils.is_dict_like(value):
+            return self.apply(
+                lambda x: x.replace(
+                    to_replace=to_replace, value=value[x.name], regex=regex
+                )
+                if (x.name in value)
+                else x
+            )
+        return self.apply(
+            lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
+        )
+
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = bigframes.core.WindowSpec(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -1784,7 +1860,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_list_like(func):
             if any(
-                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
                 for dtype in self.dtypes
             ):
                 raise NotImplementedError(
@@ -1851,7 +1927,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def describe(self) -> DataFrame:
-        df_numeric = self._drop_non_numeric(keep_bool=False)
+        df_numeric = self._drop_non_numeric(permissive=False)
         if len(df_numeric.columns) == 0:
             raise NotImplementedError(
                 f"df.describe() currently only supports numeric values. {constants.FEEDBACK_LINK}"
@@ -1940,7 +2016,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _stack_multi(self, level: LevelsType = -1):
         n_levels = self.columns.nlevels
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
         level_indices = []
         for level_ref in level:
@@ -1950,7 +2026,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else:
                     level_indices.append(level_ref)
             else:  # str
-                level_indices.append(self.columns.names.index(level_ref))
+                level_indices.append(self.columns.names.index(level_ref))  # type: ignore
 
         new_order = [
             *[i for i in range(n_levels) if i not in level_indices],
@@ -1966,7 +2042,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def unstack(self, level: LevelsType = -1):
-        if isinstance(level, int) or isinstance(level, str):
+        if not utils.is_list_like(level):
             level = [level]
 
         block = self._block
@@ -1989,10 +2065,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    def _drop_non_numeric(self, keep_bool=True) -> DataFrame:
-        types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
-        if not keep_bool:
-            types_to_keep -= set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
+    def _drop_non_numeric(self, permissive=True) -> DataFrame:
+        types_to_keep = (
+            set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
+            if permissive
+            else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
+        )
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
@@ -2010,7 +2088,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
-            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES
+            dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
             for dtype in self._block.dtypes
         ):
             raise NotImplementedError(
@@ -2285,7 +2363,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cumsum(self):
         is_numeric_types = [
-            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             for _, dtype in self.dtypes.items()
         ]
         if not all(is_numeric_types):
@@ -2297,7 +2375,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cumprod(self) -> DataFrame:
         is_numeric_types = [
-            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+            (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             for _, dtype in self.dtypes.items()
         ]
         if not all(is_numeric_types):
@@ -2481,6 +2559,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
+        clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
     ) -> str:
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
@@ -2488,18 +2567,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "append": bigquery.WriteDisposition.WRITE_APPEND,
         }
 
-        if destination_table is None:
-            # TODO(swast): If there have been no modifications to the DataFrame
-            # since the last time it was written (cached), then return that.
-            # For `read_gbq` nodes, return the underlying table clone.
-            destination_table = bigframes.session._io.bigquery.create_temp_table(
-                self._session.bqclient,
-                self._session._anonymous_dataset,
-                # TODO(swast): allow custom expiration times, probably via session configuration.
-                datetime.datetime.now(datetime.timezone.utc)
-                + constants.DEFAULT_EXPIRATION,
-            )
+        temp_table_ref = None
 
+        if destination_table is None:
             if if_exists is not None and if_exists != "replace":
                 raise ValueError(
                     f"Got invalid value {repr(if_exists)} for if_exists. "
@@ -2508,7 +2578,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-        if "." not in destination_table:
+            temp_table_ref = bigframes.session._io.bigquery.random_table(
+                self._session._anonymous_dataset
+            )
+            destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
+
+        table_parts = destination_table.split(".")
+        default_project = self._block.expr.session.bqclient.project
+
+        if len(table_parts) == 2:
+            destination_dataset = f"{default_project}.{table_parts[0]}"
+        elif len(table_parts) == 3:
+            destination_dataset = f"{table_parts[0]}.{table_parts[1]}"
+        else:
             raise ValueError(
                 f"Got invalid value for destination_table {repr(destination_table)}. "
                 "Should be of the form 'datasetId.tableId' or 'projectId.datasetId.tableId'."
@@ -2523,15 +2605,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Valid options include None or one of {dispositions.keys()}."
             )
 
+        try:
+            self._session.bqclient.get_dataset(destination_dataset)
+        except google.api_core.exceptions.NotFound:
+            self._session.bqclient.create_dataset(destination_dataset, exists_ok=True)
+
+        clustering_fields = self._map_clustering_columns(
+            clustering_columns, index=index
+        )
+
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=bigquery.table.TableReference.from_string(
                 destination_table,
-                default_project=self._block.expr.session.bqclient.project,
+                default_project=default_project,
             ),
+            clustering_fields=clustering_fields if clustering_fields else None,
         )
 
         self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
+
+        if temp_table_ref:
+            bigframes.session._io.bigquery.set_table_expiration(
+                self._session.bqclient,
+                temp_table_ref,
+                datetime.datetime.now(datetime.timezone.utc)
+                + constants.DEFAULT_EXPIRATION,
+            )
+
         return destination_table
 
     def to_numpy(
@@ -2652,6 +2753,58 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             encoding,
         )
 
+    def to_html(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        bold_rows: bool = True,
+        classes: str | list | tuple | None = None,
+        escape: bool = True,
+        notebook: bool = False,
+        border: int | None = None,
+        table_id: str | None = None,
+        render_links: bool = False,
+        encoding: str | None = None,
+    ) -> str:
+        return self.to_pandas().to_html(
+            buf,
+            columns,  # type: ignore
+            col_space,
+            header,
+            index,
+            na_rep,
+            formatters,
+            float_format,
+            sparsify,
+            index_names,
+            justify,  # type: ignore
+            max_rows,
+            max_cols,
+            show_dimensions,
+            decimal,
+            bold_rows,
+            classes,
+            escape,
+            notebook,
+            border,
+            table_id,
+            render_links,
+            encoding,
+        )
+
     def to_markdown(
         self,
         buf=None,
@@ -2674,34 +2827,83 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
+    def _map_clustering_columns(
+        self,
+        clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]],
+        index: bool,
+    ) -> List[str]:
+        """Maps the provided clustering columns to the existing columns in the DataFrame."""
+
+        def map_columns_on_occurrence(columns):
+            mapped_columns = []
+            for col in clustering_columns:
+                if col in columns:
+                    count = columns.count(col)
+                    mapped_columns.extend([col] * count)
+            return mapped_columns
+
+        if not clustering_columns:
+            return []
+
+        if len(list(clustering_columns)) != len(set(clustering_columns)):
+            raise ValueError("Duplicates are not supported in clustering_columns")
+
+        all_possible_columns = (
+            (set(self.columns) | set(self.index.names)) if index else set(self.columns)
+        )
+        missing_columns = set(clustering_columns) - all_possible_columns
+        if missing_columns:
+            raise ValueError(
+                f"Clustering columns not found in DataFrame: {missing_columns}"
+            )
+
+        clustering_columns_for_df = map_columns_on_occurrence(
+            list(self._block.column_labels)
+        )
+        clustering_columns_for_index = (
+            map_columns_on_occurrence(list(self.index.names)) if index else []
+        )
+
+        (
+            clustering_columns_for_df,
+            clustering_columns_for_index,
+        ) = utils.get_standardized_ids(
+            clustering_columns_for_df, clustering_columns_for_index
+        )
+
+        return clustering_columns_for_index + clustering_columns_for_df
+
     def _create_io_query(self, index: bool, ordering_id: Optional[str]) -> str:
         """Create query text representing this dataframe for I/O."""
         array_value = self._block.expr
+
+        new_col_labels, new_idx_labels = utils.get_standardized_ids(
+            self._block.column_labels, self.index.names
+        )
+
         columns = list(self._block.value_columns)
-        column_labels = list(self._block.column_labels)
+        column_labels = new_col_labels
         # This code drops unnamed indexes to keep consistent with the behavior of
         # most pandas write APIs. The exception is `pandas.to_csv`, which keeps
         # unnamed indexes as `Unnamed: 0`.
         # TODO(chelsealin): check if works for multiple indexes.
         if index and self.index.name is not None:
             columns.extend(self._block.index_columns)
-            column_labels.extend(self.index.names)
+            column_labels.extend(new_idx_labels)
         else:
             array_value = array_value.drop_columns(self._block.index_columns)
 
         # Make columns in SQL reflect _labels_ not _ids_. Note: This may use
         # the arbitrary unicode column labels feature in BigQuery, which is
         # currently (June 2023) in preview.
-        # TODO(swast): Handle duplicate and NULL labels.
         id_overrides = {
-            col_id: col_label
-            for col_id, col_label in zip(columns, column_labels)
-            if col_label and isinstance(col_label, str)
+            col_id: col_label for col_id, col_label in zip(columns, column_labels)
         }
 
         if ordering_id is not None:
             array_value = array_value.promote_offsets(ordering_id)
-        return array_value.to_sql(
+        return self._block.session._to_sql(
+            array_value=array_value,
             col_id_overrides=id_overrides,
         )
 

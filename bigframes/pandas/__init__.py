@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections import namedtuple
 import inspect
+import sys
 import typing
 from typing import (
     Any,
@@ -59,6 +60,7 @@ import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pan
 import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
+import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
 # Include method definition so that the method appears in our docs for
@@ -484,18 +486,22 @@ def read_gbq(
     query_or_table: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
+    filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq,
         query_or_table,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
+        filters=filters,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 
@@ -516,18 +522,20 @@ def read_gbq_query(
     query: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_query,
         query,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 
@@ -538,18 +546,20 @@ def read_gbq_table(
     query: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_table,
         query,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 
@@ -654,6 +664,9 @@ get_global_session = global_session.get_global_session
 close_session = global_session.close_session
 reset_session = global_session.close_session
 
+# SQL Compilation uses recursive algorithms on deep trees
+# 10M tree depth should be sufficient to generate any sql that is under bigquery limit
+sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
