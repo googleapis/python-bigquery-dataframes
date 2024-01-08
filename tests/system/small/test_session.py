@@ -30,6 +30,7 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
+from tests.system.utils import skip_legacy_pandas
 
 FIRST_FILE = "000000000000"
 
@@ -44,14 +45,14 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = df._block.expr.start_query()
+    _, query_job = session_tokyo._execute(df._block.expr)
     assert query_job.location == tokyo_location
 
     pd.testing.assert_frame_equal(result, expected)
 
 
 @pytest.mark.parametrize(
-    ("query_or_table", "col_order"),
+    ("query_or_table", "columns"),
     [
         pytest.param(
             "{scalars_table_id}", ["bool_col", "int64_col"], id="two_cols_in_table"
@@ -78,16 +79,16 @@ def test_read_gbq_tokyo(
         ),
     ],
 )
-def test_read_gbq_w_col_order(
+def test_read_gbq_w_columns(
     session: bigframes.Session,
     scalars_table_id: str,
     query_or_table: str,
-    col_order: List[str],
+    columns: List[str],
 ):
     df = session.read_gbq(
-        query_or_table.format(scalars_table_id=scalars_table_id), col_order=col_order
+        query_or_table.format(scalars_table_id=scalars_table_id), columns=columns
     )
-    assert df.columns.tolist() == col_order
+    assert df.columns.tolist() == columns
 
 
 @pytest.mark.parametrize(
@@ -379,12 +380,13 @@ def test_read_pandas_tokyo(
     result = df.to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = df._block.expr.start_query()
+    _, query_job = session_tokyo._execute(df._block.expr)
     assert query_job.location == tokyo_location
 
     pd.testing.assert_frame_equal(result, expected)
 
 
+@skip_legacy_pandas
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
@@ -441,6 +443,7 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
         pytest.param("\t", id="custom_sep"),
     ],
 )
+@skip_legacy_pandas
 def test_read_csv_local_default_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:

@@ -11,9 +11,10 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Literal, Mapping, Optional, Sequence, Union
+from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
 import numpy as np
+import pandas as pd
 
 from bigframes import constants
 from third_party.bigframes_vendored.pandas.core.generic import NDFrame
@@ -307,6 +308,7 @@ class DataFrame(NDFrame):
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: bool = True,
         ordering_id: Optional[str] = None,
+        clustering_columns: Union[pd.Index, Iterable[Hashable]] = (),
     ) -> str:
         """Write a DataFrame to a BigQuery table.
 
@@ -336,6 +338,16 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
+        Write a DataFrame to a BigQuery table with clustering columns:
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4], 'col3': [5, 6]})
+            >>> clustering_cols = ['col1', 'col3']
+            >>> df.to_gbq(
+            ...             "bigframes-dev.birds.test-clusters",
+            ...             if_exists="replace",
+            ...             clustering_columns=clustering_cols,
+            ...           )
+            'bigframes-dev.birds.test-clusters'
+
         Args:
             destination_table (Optional[str]):
                 Name of table to be written, in the form ``dataset.tablename``
@@ -363,6 +375,15 @@ class DataFrame(NDFrame):
             ordering_id (Optional[str], default None):
                 If set, write the ordering of the DataFrame as a column in the
                 result table with this name.
+
+            clustering_columns (Union[pd.Index, Iterable[Hashable]], default ()):
+                Specifies the columns for clustering in the BigQuery table. The order
+                of columns in this list is significant for clustering hierarchy. Index
+                columns may be included in clustering if the `index` parameter is set
+                to True, and their names are specified in this.  These index columns,
+                if included, precede DataFrame columns in the clustering order. The
+                clustering order within the Index/DataFrame columns follows the order
+                specified in `clustering_columns`.
 
         Returns:
             str:
@@ -685,6 +706,130 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def to_html(
+        self,
+        buf=None,
+        columns: Sequence[str] | None = None,
+        col_space=None,
+        header: bool = True,
+        index: bool = True,
+        na_rep: str = "NaN",
+        formatters=None,
+        float_format=None,
+        sparsify: bool | None = None,
+        index_names: bool = True,
+        justify: str | None = None,
+        max_rows: int | None = None,
+        max_cols: int | None = None,
+        show_dimensions: bool = False,
+        decimal: str = ".",
+        bold_rows: bool = True,
+        classes: str | list | tuple | None = None,
+        escape: bool = True,
+        notebook: bool = False,
+        border: int | None = None,
+        table_id: str | None = None,
+        render_links: bool = False,
+        encoding: str | None = None,
+    ):
+        """Render a DataFrame as an HTML table.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> print(df.to_html())
+            <table border="1" class="dataframe">
+            <thead>
+                <tr style="text-align: right;">
+                <th></th>
+                <th>col1</th>
+                <th>col2</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                <th>0</th>
+                <td>1</td>
+                <td>3</td>
+                </tr>
+                <tr>
+                <th>1</th>
+                <td>2</td>
+                <td>4</td>
+                </tr>
+            </tbody>
+            </table>
+
+        Args:
+            buf (str, Path or StringIO-like, optional, default None):
+                Buffer to write to. If None, the output is returned as a string.
+            columns (sequence, optional, default None):
+                The subset of columns to write. Writes all columns by default.
+            col_space (str or int, list or dict of int or str, optional):
+                The minimum width of each column in CSS length units. An int is
+                assumed to be px units.
+            header (bool, optional):
+                Whether to print column labels, default True.
+            index (bool, optional, default True):
+                Whether to print index (row) labels.
+            na_rep (str, optional, default 'NaN'):
+                String representation of NAN to use.
+            formatters (list, tuple or dict of one-param. functions, optional):
+                Formatter functions to apply to columns' elements by position or
+                name.
+                The result of each function must be a unicode string.
+                List/tuple must be of length equal to the number of columns.
+            float_format (one-parameter function, optional, default None):
+                Formatter function to apply to columns' elements if they are
+                floats. This function must return a unicode string and will
+                be applied only to the non-NaN elements, with NaN being
+                handled by na_rep.
+            sparsify (bool, optional, default True):
+                Set to False for a DataFrame with a hierarchical index to print
+                every multiindex key at each row.
+            index_names (bool, optional, default True):
+                Prints the names of the indexes.
+            justify (str, default None):
+                How to justify the column labels. If None uses the option from
+                the print configuration (controlled by set_option), 'right' out
+                of the box. Valid values are, 'left', 'right', 'center', 'justify',
+                'justify-all', 'start', 'end', 'inherit', 'match-parent', 'initial',
+                'unset'.
+            max_rows (int, optional):
+                Maximum number of rows to display in the console.
+            max_cols (int, optional):
+                Maximum number of columns to display in the console.
+            show_dimensions (bool, default False):
+                Display DataFrame dimensions (number of rows by number of columns).
+            decimal (str, default '.'):
+                Character recognized as decimal separator, e.g. ',' in Europe.
+            bold_rows (bool, default True):
+                Make the row labels bold in the output.
+            classes (str or list or tuple, default None):
+                CSS class(es) to apply to the resulting html table.
+            escape (bool, default True):
+                Convert the characters <, >, and & to HTML-safe sequences.
+            notebook (bool, default False):
+                Whether the generated HTML is for IPython Notebook.
+            border (int):
+                A border=border attribute is included in the opening <table>
+                tag. Default pd.options.display.html.border.
+            table_id (str, optional):
+                A css id is included in the opening <table> tag if specified.
+            render_links (bool, default False):
+                Convert URLs to HTML links.
+            encoding (str, default "utf-8"):
+                Set character encoding.
+
+        Returns:
+            str or None: If buf is None, returns the result as a string. Otherwise
+            returns None.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def to_markdown(
         self,
         buf=None,
@@ -869,9 +1014,100 @@ class DataFrame(NDFrame):
 
         Remove columns by directly specifying column names.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame(np.arange(12).reshape(3, 4),
+            ...                    columns=['A', 'B', 'C', 'D'])
+            >>> df
+               A  B   C   D
+            0  0  1   2   3
+            1  4  5   6   7
+            2  8  9  10  11
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        Drop columns:
+
+            >>> df.drop(['B', 'C'], axis=1)
+               A   D
+            0  0   3
+            1  4   7
+            2  8  11
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.drop(columns=['B', 'C'])
+               A   D
+            0  0   3
+            1  4   7
+            2  8  11
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Drop a row by index:
+
+            >>> df.drop([0, 1])
+               A  B   C   D
+            2  8  9  10  11
+            <BLANKLINE>
+            [1 rows x 4 columns]
+
+        Drop columns and/or rows of MultiIndex DataFrame:
+
+            >>> import pandas as pd
+            >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
+            ...                              ['speed', 'weight', 'length']],
+            ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
+            ...                             [0, 1, 2, 0, 1, 2, 0, 1, 2]])
+            >>> df = bpd.DataFrame(index=midx, columns=['big', 'small'],
+            ...                    data=[[45, 30], [200, 100], [1.5, 1], [30, 20],
+            ...                          [250, 150], [1.5, 0.8], [320, 250],
+            ...                          [1, 0.8], [0.3, 0.2]])
+            >>> df
+                             big  small
+            llama  speed    45.0   30.0
+                   weight  200.0  100.0
+                   length    1.5    1.0
+            cow    speed    30.0   20.0
+                   weight  250.0  150.0
+                   length    1.5    0.8
+            falcon speed   320.0  250.0
+                   weight    1.0    0.8
+                   length    0.3    0.2
+            <BLANKLINE>
+            [9 rows x 2 columns]
+
+        Drop a specific index and column combination from the MultiIndex
+        DataFrame, i.e., drop the index ``'cow'`` and column ``'small'``:
+
+            >>> df.drop(index='cow', columns='small')
+                             big
+            llama  speed    45.0
+                   weight  200.0
+                   length    1.5
+            falcon speed   320.0
+                   weight    1.0
+                   length    0.3
+            <BLANKLINE>
+            [6 rows x 1 columns]
+
+            >>> df.drop(index='length', level=1)
+                             big  small
+            llama  speed    45.0   30.0
+                   weight  200.0  100.0
+            cow    speed    30.0   20.0
+                   weight  250.0  150.0
+            falcon speed   320.0  250.0
+                   weight    1.0    0.8
+            <BLANKLINE>
+            [6 rows x 2 columns]
+
         Args:
             labels:
-                Index or column labels to drop.
+                Index or column labels to drop. A tuple will be used as a single label and not treated as a list-like.
             axis:
                 Whether to drop labels from the index (0 or 'index') or
                 columns (1 or 'columns').
@@ -931,6 +1167,30 @@ class DataFrame(NDFrame):
         Dict values must be unique (1-to-1). Labels not contained in a dict
         will be left as-is. Extra labels listed don't throw an error.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+            >>> df
+               A  B
+            0  1  4
+            1  2  5
+            2  3  6
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Rename columns using a mapping:
+
+            >>> df.rename(columns={"A": "col1", "B": "col2"})
+               col1  col2
+            0     1     4
+            1     2     5
+            2     3     6
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Args:
             columns (Mapping):
                 Dict-like from old column labels to new column labels.
@@ -971,6 +1231,47 @@ class DataFrame(NDFrame):
 
         Set the DataFrame index (row labels) using one existing column. The
         index can replace the existing index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'month': [1, 4, 7, 10],
+            ...                     'year': [2012, 2014, 2013, 2014],
+            ...                     'sale': [55, 40, 84, 31]})
+            >>> df
+               month  year  sale
+            0      1  2012    55
+            1      4  2014    40
+            2      7  2013    84
+            3     10  2014    31
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+        Set the 'month' column to become the index:
+
+            >>> df.set_index('month')
+                   year  sale
+            month
+            1      2012    55
+            4      2014    40
+            7      2013    84
+            10     2014    31
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Create a MultiIndex using columns 'year' and 'month':
+
+            >>> df.set_index(['year', 'month'])
+                        sale
+            year month
+            2012 1        55
+            2014 4        40
+            2013 7        84
+            2014 10       31
+            <BLANKLINE>
+            [4 rows x 1 columns]
 
         Args:
             keys:
@@ -1047,6 +1348,93 @@ class DataFrame(NDFrame):
 
         Reset the index of the DataFrame, and use the default one instead.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> import numpy as np
+            >>> df = bpd.DataFrame([('bird', 389.0),
+            ...                     ('bird', 24.0),
+            ...                     ('mammal', 80.5),
+            ...                     ('mammal', np.nan)],
+            ...                    index=['falcon', 'parrot', 'lion', 'monkey'],
+            ...                    columns=('class', 'max_speed'))
+            >>> df
+                     class  max_speed
+            falcon    bird      389.0
+            parrot    bird       24.0
+            lion    mammal       80.5
+            monkey  mammal       <NA>
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        When we reset the index, the old index is added as a column, and a new sequential index is used:
+
+            >>> df.reset_index()
+                index   class  max_speed
+            0  falcon    bird      389.0
+            1  parrot    bird       24.0
+            2    lion  mammal       80.5
+            3  monkey  mammal       <NA>
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
+        We can use the ``drop`` parameter to avoid the old index being added as a column:
+
+            >>> df.reset_index(drop=True)
+                class  max_speed
+            0    bird      389.0
+            1    bird       24.0
+            2  mammal       80.5
+            3  mammal       <NA>
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        You can also use ``reset_index`` with ``MultiIndex``.
+
+            >>> import pandas as pd
+            >>> index = pd.MultiIndex.from_tuples([('bird', 'falcon'),
+            ...                                    ('bird', 'parrot'),
+            ...                                    ('mammal', 'lion'),
+            ...                                    ('mammal', 'monkey')],
+            ...                                   names=['class', 'name'])
+            >>> columns = ['speed', 'max']
+            >>> df = bpd.DataFrame([(389.0, 'fly'),
+            ...                     (24.0, 'fly'),
+            ...                     (80.5, 'run'),
+            ...                     (np.nan, 'jump')],
+            ...                    index=index,
+            ...                    columns=columns)
+            >>> df
+                           speed   max
+            class  name
+            bird   falcon  389.0   fly
+                   parrot   24.0   fly
+            mammal lion     80.5   run
+                   monkey   <NA>  jump
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            >>> df.reset_index()
+                class    name  speed   max
+            0    bird  falcon  389.0   fly
+            1    bird  parrot   24.0   fly
+            2  mammal    lion   80.5   run
+            3  mammal  monkey   <NA>  jump
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+            >>> df.reset_index(drop=True)
+               speed   max
+            0  389.0   fly
+            1   24.0   fly
+            2   80.5   run
+            3   <NA>  jump
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+
         Args:
             drop (bool, default False):
                 Do not try to insert index into dataframe columns. This resets
@@ -1111,8 +1499,56 @@ class DataFrame(NDFrame):
 
     def dropna(
         self,
+        *,
+        axis: int | str = 0,
+        how: str = "any",
+        ignore_index=False,
     ) -> DataFrame:
         """Remove missing values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"name": ['Alfred', 'Batman', 'Catwoman'],
+            ...                     "toy": [np.nan, 'Batmobile', 'Bullwhip'],
+            ...                     "born": [bpd.NA, "1940-04-25", bpd.NA]})
+            >>> df
+                   name        toy        born
+            0    Alfred       <NA>        <NA>
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Drop the rows where at least one element is missing:
+
+            >>> df.dropna()
+                 name        toy        born
+            1  Batman  Batmobile  1940-04-25
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Drop the columns where at least one element is missing.
+
+            >>> df.dropna(axis='columns')
+                   name
+            0    Alfred
+            1    Batman
+            2  Catwoman
+            <BLANKLINE>
+            [3 rows x 1 columns]
+
+        Drop the rows where all elements are missing:
+
+            >>> df.dropna(how='all')
+                   name        toy        born
+            0    Alfred       <NA>        <NA>
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [3 rows x 3 columns]
 
         Args:
             axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
@@ -1139,6 +1575,39 @@ class DataFrame(NDFrame):
     def isin(self, values):
         """
         Whether each element in the DataFrame is contained in values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'num_legs': [2, 4], 'num_wings': [2, 0]},
+            ...                    index=['falcon', 'dog'])
+            >>> df
+                    num_legs  num_wings
+            falcon         2          2
+            dog            4          0
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        When ``values`` is a list check whether every value in the DataFrame is
+        present in the list (which animals have 0 or 2 legs or wings).
+
+            >>> df.isin([0, 2])
+                    num_legs  num_wings
+            falcon      True       True
+            dog        False       True
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        When ``values`` is a dict, we can pass it to check for each column separately:
+
+            >>> df.isin({'num_wings': [0, 3]})
+                    num_legs  num_wings
+            falcon     False      False
+            dog        False       True
+            <BLANKLINE>
+            [2 rows x 2 columns]
 
         Args:
             values (iterable, or dict):
@@ -1238,6 +1707,39 @@ class DataFrame(NDFrame):
         Iterates over the DataFrame columns, returning a tuple with
         the column name and the content as a Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'species': ['bear', 'bear', 'marsupial'],
+            ...                     'population': [1864, 22000, 80000]},
+            ...                    index=['panda', 'polar', 'koala'])
+            >>> df
+                     species  population
+            panda       bear        1864
+            polar       bear       22000
+            koala  marsupial       80000
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> for label, content in df.items():
+            ...     print(f'--> label: {label}')
+            ...     print(f'--> content:\\n{content}')
+            ...
+            --> label: species
+            --> content:
+            panda         bear
+            polar         bear
+            koala    marsupial
+            Name: species, dtype: string
+            --> label: population
+            --> content:
+            panda     1864
+            polar    22000
+            koala    80000
+            Name: population, dtype: Int64
+
         Returns:
             Iterator: Iterator of label, Series for each column.
         """
@@ -1255,6 +1757,80 @@ class DataFrame(NDFrame):
         na_position="last",
     ) -> DataFrame:
         """Sort by the values along row axis.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'col1': ['A', 'A', 'B', bpd.NA, 'D', 'C'],
+            ...     'col2': [2, 1, 9, 8, 7, 4],
+            ...     'col3': [0, 1, 9, 4, 2, 3],
+            ...     'col4': ['a', 'B', 'c', 'D', 'e', 'F']
+            ... })
+            >>> df
+               col1  col2  col3 col4
+            0     A     2     0    a
+            1     A     1     1    B
+            2     B     9     9    c
+            3  <NA>     8     4    D
+            4     D     7     2    e
+            5     C     4     3    F
+            <BLANKLINE>
+            [6 rows x 4 columns]
+
+        Sort by col1:
+
+            >>> df.sort_values(by=['col1'])
+               col1  col2  col3 col4
+            0     A     2     0    a
+            1     A     1     1    B
+            2     B     9     9    c
+            5     C     4     3    F
+            4     D     7     2    e
+            3  <NA>     8     4    D
+            <BLANKLINE>
+            [6 rows x 4 columns]
+
+        Sort by multiple columns:
+
+            >>> df.sort_values(by=['col1', 'col2'])
+               col1  col2  col3 col4
+            1     A     1     1    B
+            0     A     2     0    a
+            2     B     9     9    c
+            5     C     4     3    F
+            4     D     7     2    e
+            3  <NA>     8     4    D
+            <BLANKLINE>
+            [6 rows x 4 columns]
+
+        Sort Descending:
+
+            >>> df.sort_values(by='col1', ascending=False)
+               col1  col2  col3 col4
+            4     D     7     2    e
+            5     C     4     3    F
+            2     B     9     9    c
+            0     A     2     0    a
+            1     A     1     1    B
+            3  <NA>     8     4    D
+            <BLANKLINE>
+            [6 rows x 4 columns]
+
+        Putting NAs first:
+
+            >>> df.sort_values(by='col1', ascending=False, na_position='first')
+               col1  col2  col3 col4
+            3  <NA>     8     4    D
+            4     D     7     2    e
+            5     C     4     3    F
+            2     B     9     9    c
+            0     A     2     0    a
+            1     A     1     1    B
+            <BLANKLINE>
+            [6 rows x 4 columns]
 
         Args:
             by (str or Sequence[str]):
@@ -3324,6 +3900,58 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=False).head(n)``, but more
         performant.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
+            ...                     "B": [5, 6, 3, 4, 1, 2],
+            ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
+            >>> df
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            2	3	3	a
+            3	3	4	b
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+        Returns rows with the largest value in 'A', including all ties:
+
+            >>> df.nlargest(1, 'A', keep = "all")
+                A	B	C
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Returns the first row with the largest value in 'A', default behavior in case of ties:
+
+            >>> df.nlargest(1, 'A')
+                A	B	C
+            4	5	1	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the last row with the largest value in 'A' in case of ties:
+
+            >>> df.nlargest(1, 'A', keep = "last")
+                A	B	C
+            5	5	2	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the row with the largest combined values in both 'A' and 'C':
+
+            >>> df.nlargest(1, ['A', 'C'])
+                A	B	C
+            5	5	2	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
         Args:
             n (int):
                 Number of rows to return.
@@ -3359,6 +3987,59 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=True).head(n)``, but more
         performant.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
+            ...                     "B": [5, 6, 3, 4, 1, 2],
+            ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
+            >>> df
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            2	3	3	a
+            3	3	4	b
+            4	5	1	a
+            5	5	2	b
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+        Returns rows with the smallest value in 'A', including all ties:
+
+            >>> df.nsmallest(1, 'A', keep = "all")
+                A	B	C
+            0	1	5	a
+            1	1	6	b
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Returns the first row with the smallest value in 'A', default behavior in case of ties:
+
+            >>> df.nsmallest(1, 'A')
+                A	B	C
+            0  	1	5	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns the last row with the smallest value in 'A' in case of ties:
+
+            >>> df.nsmallest(1, 'A', keep = "last")
+                A	B	C
+            1	1	6	b
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Returns rows with the smallest values in 'A' and 'C'
+
+            >>> df.nsmallest(1, ['A', 'C'])
+                A	B	C
+            0	1	5	a
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+
         Args:
             n (int):
                 Number of rows to return.
@@ -3384,23 +4065,61 @@ class DataFrame(NDFrame):
 
     def idxmin(self):
         """
-        Return index of first occurrence of minimum over requested axis.
+        Return index of first occurrence of minimum over columns.
 
         NA/null values are excluded.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.idxmin()
+            A    1
+            B    0
+            dtype: Int64
+
         Returns:
-            Series: Indexes of minima along the specified axis.
+            Series: Indexes of minima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def idxmax(self):
         """
-        Return index of first occurrence of maximum over requested axis.
+        Return index of first occurrence of maximum over columns.
 
         NA/null values are excluded.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
+            >>> df
+                A	B
+            0	3	1
+            1	1	2
+            2	2	3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.idxmax()
+            A    0
+            B    2
+            dtype: Int64
+
         Returns:
-            Series: Indexes of maxima along the specified axis.
+            Series: Indexes of maxima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3414,18 +4133,75 @@ class DataFrame(NDFrame):
         the row axis, leaving just two non-identifier columns, 'variable' and
         'value'.
 
-        Parameters
-        ----------
-        id_vars (tuple, list, or ndarray, optional):
-            Column(s) to use as identifier variables.
-        value_vars (tuple, list, or ndarray, optional):
-            Column(s) to unpivot. If not specified, uses all columns that
-            are not set as `id_vars`.
-        var_name (scalar):
-            Name to use for the 'variable' column. If None it uses
-            ``frame.columns.name`` or 'variable'.
-        value_name (scalar, default 'value'):
-            Name to use for the 'value' column.
+         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
+            ...                     "B": [1, 2, 3, 4, 5],
+            ...                     "C": [None, 3.5, None, 4.5, 5.0]})
+            >>> df
+                    A	    B	   C
+            0	  1.0	    1	<NA>
+            1	 <NA>	    2	 3.5
+            2     3.0	    3	<NA>
+            3	  4.0	    4	 4.5
+            4	  5.0	    5	 5.0
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+        Using `melt` without optional arguments:
+
+            >>> df.melt()
+                variable    value
+            0	       A      1.0
+            1	       A     <NA>
+            2	       A      3.0
+            3	       A      4.0
+            4	       A      5.0
+            5	       B      1.0
+            6	       B      2.0
+            7	       B      3.0
+            8	       B      4.0
+            9	       B      5.0
+            10	       C     <NA>
+            11	       C      3.5
+            12	       C     <NA>
+            13	       C      4.5
+            14	       C      5.0
+            <BLANKLINE>
+            [15 rows x 2 columns]
+
+        Using `melt` with `id_vars` and `value_vars`:
+
+            >>> df.melt(id_vars='A', value_vars=['B', 'C'])
+                   A	variable	value
+            0	 1.0	       B	    1
+            1	<NA>	       B	    2
+            2	 3.0	       B	    3
+            3	 4.0	       B	    4
+            4	 5.0	       B	    5
+            5	 1.0	       C	 <NA>
+            6	 <NA>	       C	    3
+            7	 3.0	       C	 <NA>
+            8	 4.0	       C	    4
+            9	 5.0	       C	    5
+            <BLANKLINE>
+            [10 rows x 3 columns]
+
+
+        Args:
+            id_vars (tuple, list, or ndarray, optional):
+                Column(s) to use as identifier variables.
+            value_vars (tuple, list, or ndarray, optional):
+                Column(s) to unpivot. If not specified, uses all columns that
+                are not set as `id_vars`.
+            var_name (scalar):
+                Name to use for the 'variable' column. If None it uses
+                ``frame.columns.name`` or 'variable'.
+            value_name (scalar, default 'value'):
+                Name to use for the 'value' column.
 
         Returns:
             DataFrame: Unpivoted DataFrame.
@@ -3757,6 +4533,52 @@ class DataFrame(NDFrame):
             do not together uniquely identify input rows, the output will be
             silently non-deterministic.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     "foo": ["one", "one", "one", "two", "two"],
+            ...     "bar": ["A", "B", "C", "A", "B"],
+            ...     "baz": [1, 2, 3, 4, 5],
+            ...     "zoo": ['x', 'y', 'z', 'q', 'w']
+            ... })
+
+            >>> df
+                foo	bar	baz	zoo
+            0	one	  A	  1	  x
+            1	one	  B	  2	  y
+            2	one	  C	  3	  z
+            3	two	  A	  4	  q
+            4	two	  B	  5	  w
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+        Using `pivot` without optional arguments:
+
+            >>> df.pivot(columns='foo')
+                    bar	            baz	            zoo
+            foo	 one	 two	 one	 two	 one	 two
+            0	   A	<NA>	   1	<NA>	   x	<NA>
+            1	   B	<NA>	   2	<NA>	   y	<NA>
+            2	   C	<NA>	   3	<NA>	   z	<NA>
+            3	<NA>	   A	<NA>	   4	<NA>	   q
+            4	<NA>	   B	<NA>	   5	<NA>	   w
+            <BLANKLINE>
+            [5 rows x 6 columns]
+
+        Using `pivot` with `index` and `values`:
+
+            >>> df.pivot(columns='foo', index='bar', values='baz')
+            foo	    one     two
+            bar
+            A	    1         4
+            B	    2	      5
+            C	    3	   <NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Args:
             columns (str or object or a list of str):
                 Column to use to make new frame's columns.
@@ -3774,7 +4596,7 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def stack(self):
+    def stack(self, level=-1):
         """
         Stack the prescribed level(s) from columns to index.
 
@@ -3792,12 +4614,36 @@ class DataFrame(NDFrame):
             BigQuery DataFrames does not support stack operations that would
             combine columns of different dtypes.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 3], 'B': [2, 4]}, index=['foo', 'bar'])
+            >>> df
+                    A	B
+            foo	    1	2
+            bar	    3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.stack()
+            foo  A    1
+                 B    2
+            bar  A    3
+                 B    4
+            dtype: Int64
+
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) to stack from the column axis onto the index axis.
+
         Returns:
             DataFrame or Series: Stacked dataframe or series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def unstack(self):
+    def unstack(self, level=-1):
         """
         Pivot a level of the (necessarily hierarchical) index labels.
 
@@ -3806,6 +4652,30 @@ class DataFrame(NDFrame):
 
         If the index is not a MultiIndex, the output will be a Series
         (the analogue of stack when the columns are not a MultiIndex).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 3], 'B': [2, 4]}, index=['foo', 'bar'])
+            >>> df
+                    A	B
+            foo	    1	2
+            bar	    3	4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.unstack()
+            A   foo    1
+                bar    3
+            B   foo    2
+                bar    4
+            dtype: Int64
+
+        Args:
+            level (int, str, or list of these, default -1 (last level)):
+                Level(s) of index to unstack, can pass level name.
 
         Returns:
             DataFrame or Series: DataFrame or Series.
@@ -3836,7 +4706,7 @@ class DataFrame(NDFrame):
             ...                     'Location': ['Seattle', 'New York', 'Kona']},
             ...                    index=([10, 20, 30]))
             >>> df
-                Name  Age  Location
+                  Name  Age  Location
             10   Alice   25   Seattle
             20     Bob   30  New York
             30  Aritra   35      Kona
@@ -3852,7 +4722,7 @@ class DataFrame(NDFrame):
 
             >>> df1 = df.set_index(["Name", "Location"])
             >>> df1
-                            Age
+                             Age
             Name   Location
             Alice  Seattle    25
             Bob    New York   30
@@ -3921,6 +4791,62 @@ class DataFrame(NDFrame):
     ):
         """
         Return a Series containing counts of unique rows in the DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'num_legs': [2, 4, 4, 6, 7],
+            ...                     'num_wings': [2, 0, 0, 0, bpd.NA]},
+            ...                    index=['falcon', 'dog', 'cat', 'ant', 'octopus'],
+            ...                    dtype='Int64')
+            >>> df
+                     num_legs  num_wings
+            falcon          2          2
+            dog             4          0
+            cat             4          0
+            ant             6          0
+            octopus         7       <NA>
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+        ``value_counts`` sorts the result by counts in a descending order by default:
+
+            >>> df.value_counts()
+            num_legs  num_wings
+            4         0          2
+            2         2          1
+            6         0          1
+            Name: count, dtype: Int64
+
+        You can normalize the counts to return relative frequencies by setting ``normalize=True``:
+
+            >>> df.value_counts(normalize=True)
+            num_legs  num_wings
+            4         0             0.5
+            2         2            0.25
+            6         0            0.25
+            Name: proportion, dtype: Float64
+
+        You can get the rows in the ascending order of the counts by setting ``ascending=True``:
+
+            >>> df.value_counts(ascending=True)
+            num_legs  num_wings
+            2         2          1
+            6         0          1
+            4         0          2
+            Name: count, dtype: Int64
+
+        You can include the counts of the rows with ``NA`` values by setting ``dropna=False``:
+
+            >>> df.value_counts(dropna=False)
+            num_legs  num_wings
+            4         0            2
+            2         2            1
+            6         0            1
+            7         <NA>         1
+            Name: count, dtype: Int64
 
         Args:
             subset (label or list of labels, optional):
@@ -3993,6 +4919,56 @@ class DataFrame(NDFrame):
         """
         Fill NA/NaN values using the specified method.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
+            ...                     [3, 4, np.nan, 1],
+            ...                     [np.nan, np.nan, np.nan, np.nan],
+            ...                     [np.nan, 3, np.nan, 4]],
+            ...                    columns=list("ABCD")).astype("Float64")
+            >>> df
+                A     B     C     D
+            0  <NA>   2.0  <NA>   0.0
+            1   3.0   4.0  <NA>   1.0
+            2  <NA>  <NA>  <NA>  <NA>
+            3  <NA>   3.0  <NA>   4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+        Replace all NA elements with 0s.
+
+            >>> df.fillna(0)
+                 A    B    C    D
+            0  0.0  2.0  0.0  0.0
+            1  3.0  4.0  0.0  1.0
+            2  0.0  0.0  0.0  0.0
+            3  0.0  3.0  0.0  4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+        You can use fill values from another DataFrame:
+
+            >>> df_fill = bpd.DataFrame(np.arange(12).reshape(3, 4),
+            ...                         columns=['A', 'B', 'C', 'D'])
+            >>> df_fill
+               A  B   C   D
+            0  0  1   2   3
+            1  4  5   6   7
+            2  8  9  10  11
+            <BLANKLINE>
+            [3 rows x 4 columns]
+            >>> df.fillna(df_fill)
+                A    B     C     D
+            0   0.0  2.0   2.0   0.0
+            1   3.0  4.0   6.0   1.0
+            2   8.0  9.0  10.0  11.0
+            3  <NA>  3.0  <NA>   4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
         Args:
             value (scalar, Series):
                 Value to use to fill holes (e.g. 0), alternately a
@@ -4003,6 +4979,94 @@ class DataFrame(NDFrame):
 
         Returns:
             DataFrame: Object with missing values filled
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def replace(
+        self,
+        to_replace,
+        value=None,
+        *,
+        regex=False,
+    ):
+        """
+        Replace values given in `to_replace` with `value`.
+
+        Values of the Series/DataFrame are replaced with other values dynamically.
+        This differs from updating with ``.loc`` or ``.iloc``, which require
+        you to specify a location to update with some value.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'int_col': [1, 1, 2, 3],
+            ...     'string_col': ["a", "b", "c", "b"],
+            ...     })
+
+        Using scalar `to_replace` and `value`:
+
+            >>> df.replace("b", "e")
+               int_col string_col
+            0        1          a
+            1        1          e
+            2        2          c
+            3        3          e
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Using dictionary:
+
+            >>> df.replace({"a": "e", 2: 5})
+               int_col string_col
+            0        1          e
+            1        1          b
+            2        5          c
+            3        3          b
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Using regex:
+
+            >>> df.replace("[ab]", "e", regex=True)
+               int_col string_col
+            0        1          e
+            1        1          e
+            2        2          c
+            3        3          e
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+
+        Args:
+            to_replace (str, regex, list, int, float or None):
+                How to find the values that will be replaced.
+                numeric: numeric values equal to `to_replace` will be replaced with `value`
+                str: string exactly matching `to_replace` will be replaced with `value`
+                regex: regexs matching `to_replace` will be replaced with`value`
+                list of str, regex, or numeric:
+                First, if `to_replace` and `value` are both lists, they **must** be the same length.
+                Second, if ``regex=True`` then all of the strings in **both**
+                lists will be interpreted as regexs otherwise they will match
+                directly. This doesn't matter much for `value` since there
+                are only a few possible substitution regexes you can use.
+                str, regex and numeric rules apply as above.
+
+            value (scalar, default None):
+                Value to replace any values matching `to_replace` with.
+                For a DataFrame a dict of values can be used to specify which
+                value to use for each column (columns not in the dict will not be
+                filled). Regular expressions, strings and lists or dicts of such
+                objects are also allowed.
+            regex (bool, default False):
+                Whether to interpret `to_replace` and/or `value` as regular
+                expressions. If this is ``True`` then `to_replace` *must* be a
+                string.
+
+        Returns:
+            Series/DataFrame: Object after replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

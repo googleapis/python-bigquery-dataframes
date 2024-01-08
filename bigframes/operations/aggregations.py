@@ -20,6 +20,7 @@ import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 from pandas import Int64Dtype
+import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.dtypes as dtypes
@@ -74,7 +75,7 @@ class SumOp(AggregateOp):
         # Will be null if all inputs are null. Pandas defaults to zero sum though.
         bq_sum = _apply_window_if_present(column.sum(), window)
         return (
-            ibis.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()
+            ibis.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()  # type: ignore
         )
 
 
@@ -167,7 +168,7 @@ class ProductOp(AggregateOp):
             .else_(magnitude * pow(-1, negative_count_parity))
             .end()
         )
-        return float_result.cast(column.type())
+        return float_result.cast(column.type())  # type: ignore
 
 
 class MaxOp(AggregateOp):
@@ -228,21 +229,37 @@ class CountOp(AggregateOp):
 
 
 class CutOp(WindowOp):
-    def __init__(self, bins: int):
-        self._bins_ibis = dtypes.literal_to_ibis_scalar(bins, force_dtype=Int64Dtype())
-        self._bins_int = bins
+    def __init__(self, bins: typing.Union[int, pd.IntervalIndex]):
+        if isinstance(bins, int):
+            if not bins > 0:
+                raise ValueError("`bins` should be a positive integer.")
+            self._bins_int = bins
+            self._bins = dtypes.literal_to_ibis_scalar(bins, force_dtype=Int64Dtype())
+        else:
+            self._bins_int = 0
+            self._bins = bins
 
     def _as_ibis(self, x: ibis_types.Column, window=None):
-        col_min = _apply_window_if_present(x.min(), window)
-        col_max = _apply_window_if_present(x.max(), window)
-        bin_width = (col_max - col_min) / self._bins_ibis
         out = ibis.case()
-        for this_bin in range(self._bins_int - 1):
-            out = out.when(
-                x <= (col_min + (this_bin + 1) * bin_width),
-                dtypes.literal_to_ibis_scalar(this_bin, force_dtype=Int64Dtype()),
-            )
-        out = out.when(x.notnull(), self._bins_ibis - 1)
+
+        if self._bins_int > 0:
+            col_min = _apply_window_if_present(x.min(), window)
+            col_max = _apply_window_if_present(x.max(), window)
+            bin_width = (col_max - col_min) / self._bins
+
+            for this_bin in range(self._bins_int - 1):
+                out = out.when(
+                    x <= (col_min + (this_bin + 1) * bin_width),
+                    dtypes.literal_to_ibis_scalar(this_bin, force_dtype=Int64Dtype()),
+                )
+            out = out.when(x.notnull(), self._bins - 1)
+        else:
+            for interval in self._bins:
+                condition = (x > interval.left) & (x <= interval.right)
+                interval_struct = ibis.struct(
+                    {"left_exclusive": interval.left, "right_inclusive": interval.right}
+                )
+                out = out.when(condition, interval_struct)
         return out.end()
 
     @property
@@ -290,7 +307,7 @@ class QcutOp(WindowOp):
                     dtypes.literal_to_ibis_scalar(bucket_n, force_dtype=Int64Dtype()),
                 )
             out = out.else_(None)
-            return out.end()
+            return out.end()  # type: ignore
 
     @property
     def skips_nulls(self):
@@ -377,6 +394,11 @@ class FirstNonNullOp(WindowOp):
         return _apply_window_if_present(
             vendored_ibis_ops.FirstNonNullValue(column).to_expr(), window  # type: ignore
         )
+
+
+class LastOp(WindowOp):
+    def _as_ibis(self, column: ibis_types.Column, window=None) -> ibis_types.Value:
+        return _apply_window_if_present(column.last(), window)
 
 
 class LastNonNullOp(WindowOp):
@@ -482,7 +504,7 @@ def _map_to_literal(
     original: ibis_types.Value, literal: ibis_types.Scalar
 ) -> ibis_types.Column:
     # Hack required to perform aggregations on literals in ibis, even though bigquery will let you directly aggregate literals (eg. 'SELECT COUNT(1) from table1')
-    return ibis.ifelse(original.isnull(), literal, literal)
+    return ibis.ifelse(original.isnull(), literal, literal)  # type: ignore
 
 
 sum_op = SumOp()

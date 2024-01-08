@@ -19,7 +19,6 @@ import typing
 from typing import Tuple
 
 import geopandas as gpd  # type: ignore
-import numpy as np
 import pandas as pd
 import pandas.testing
 import pyarrow as pa  # type: ignore
@@ -29,7 +28,11 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
 import bigframes.series as series
-from tests.system.utils import assert_pandas_df_equal, assert_series_equal
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    assert_series_equal,
+    skip_legacy_pandas,
+)
 
 
 def test_df_construct_copy(scalars_dfs):
@@ -273,19 +276,19 @@ def test_df_info(scalars_dfs):
         "  #  Column         Non-Null Count    Dtype\n"
         "---  -------------  ----------------  ------------------------------\n"
         "  0  bool_col       8 non-null        boolean\n"
-        "  1  bytes_col      6 non-null        object\n"
+        "  1  bytes_col      6 non-null        binary[pyarrow]\n"
         "  2  date_col       7 non-null        date32[day][pyarrow]\n"
         "  3  datetime_col   6 non-null        timestamp[us][pyarrow]\n"
         "  4  geography_col  4 non-null        geometry\n"
         "  5  int64_col      8 non-null        Int64\n"
         "  6  int64_too      9 non-null        Int64\n"
-        "  7  numeric_col    6 non-null        object\n"
+        "  7  numeric_col    6 non-null        decimal128(38, 9)[pyarrow]\n"
         "  8  float64_col    7 non-null        Float64\n"
         "  9  rowindex_2     9 non-null        Int64\n"
         " 10  string_col     8 non-null        string\n"
         " 11  time_col       6 non-null        time64[us][pyarrow]\n"
         " 12  timestamp_col  6 non-null        timestamp[us, tz=UTC][pyarrow]\n"
-        "dtypes: Float64(1), Int64(3), boolean(1), date32[day][pyarrow](1), geometry(1), object(2), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
+        "dtypes: Float64(1), Int64(3), binary[pyarrow](1), boolean(1), date32[day][pyarrow](1), decimal128(38, 9)[pyarrow](1), geometry(1), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
         "memory usage: 945 bytes\n"
     )
 
@@ -362,6 +365,7 @@ def test_drop_bigframes_index_with_na(scalars_dfs):
     pd.testing.assert_frame_equal(pd_result, bf_result)
 
 
+@skip_legacy_pandas
 def test_drop_bigframes_multiindex(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
@@ -839,6 +843,50 @@ def test_df_fillna(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_replace_scalar_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace(555.555, 3).to_pandas()
+    pd_result = scalars_pandas_df.replace(555.555, 3)
+
+    # pandas has narrower result types as they are determined dynamically
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_df_replace_regex_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace("^H.l", "Howdy, Planet!", regex=True).to_pandas()
+    pd_result = scalars_pandas_df.replace("^H.l", "Howdy, Planet!", regex=True)
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_df_replace_list_scalar(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace([555.555, 3.2], 3).to_pandas()
+    pd_result = scalars_pandas_df.replace([555.555, 3.2], 3)
+
+    # pandas has narrower result types as they are determined dynamically
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+        check_dtype=False,
+    )
+
+
+def test_df_replace_value_dict(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.replace(1, {"int64_col": 100, "int64_too": 200}).to_pandas()
+    pd_result = scalars_pandas_df.replace(1, {"int64_col": 100, "int64_too": 200})
+
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_df_ffill(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[["int64_col", "float64_col"]].ffill(limit=1).to_pandas()
@@ -1154,13 +1202,13 @@ def test_get_dtypes(scalars_df_default_index):
         pd.Series(
             {
                 "bool_col": pd.BooleanDtype(),
-                "bytes_col": np.dtype("O"),
+                "bytes_col": pd.ArrowDtype(pa.binary()),
                 "date_col": pd.ArrowDtype(pa.date32()),
                 "datetime_col": pd.ArrowDtype(pa.timestamp("us")),
                 "geography_col": gpd.array.GeometryDtype(),
                 "int64_col": pd.Int64Dtype(),
                 "int64_too": pd.Int64Dtype(),
-                "numeric_col": np.dtype("O"),
+                "numeric_col": pd.ArrowDtype(pa.decimal128(38, 9)),
                 "float64_col": pd.Float64Dtype(),
                 "rowindex": pd.Int64Dtype(),
                 "rowindex_2": pd.Int64Dtype(),
@@ -1188,7 +1236,7 @@ def test_get_dtypes_array_struct(session):
         dtypes,
         pd.Series(
             {
-                "array_column": np.dtype("O"),
+                "array_column": pd.ArrowDtype(pa.list_(pa.int64())),
                 "struct_column": pd.ArrowDtype(
                     pa.struct(
                         [
@@ -2094,6 +2142,7 @@ def test_dataframe_agg_multi_string(scalars_dfs):
     ).all()
 
 
+@skip_legacy_pandas
 def test_df_describe(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     # pyarrows time columns fail in pandas
@@ -2469,6 +2518,17 @@ def test_loc_select_column(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.loc[:, "int64_col"].to_pandas()
     pd_result = scalars_pandas_df_index.loc[:, "int64_col"]
     pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.loc[:, scalars_df_index.dtypes == "Int64"].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.dtypes == "Int64"
+    ]
+    pd.testing.assert_frame_equal(
         bf_result,
         pd_result,
     )
@@ -3081,9 +3141,9 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_getattr_attribute_error_when_pandas_has(scalars_df_index):
-    # asof is implemented in pandas but not in bigframes
+    # swapaxes is implemented in pandas but not in bigframes
     with pytest.raises(AttributeError):
-        scalars_df_index.asof()
+        scalars_df_index.swapaxes()
 
 
 def test_getattr_attribute_error(scalars_df_index):
@@ -3403,6 +3463,15 @@ def test_df_to_string(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+def test_df_to_html(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]  # formatted differently
+
+    bf_result = scalars_df_index.drop(columns=unsupported).to_html()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_html()
+
+    assert bf_result == pd_result
+
+
 def test_df_to_markdown(scalars_df_index, scalars_pandas_df_index):
     # Nulls have bug from tabulate https://github.com/astanin/python-tabulate/issues/231
     bf_result = scalars_df_index.dropna().to_markdown()
@@ -3656,6 +3725,13 @@ def test_df_dot_operator_series(
     )
 
 
+def test_recursion_limit(scalars_df_index):
+    scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    for i in range(400):
+        scalars_df_index = scalars_df_index + 4
+    scalars_df_index.to_pandas()
+
+
 def test_to_pandas_downsampling_option_override(session):
     df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
     download_size = 1
@@ -3665,3 +3741,18 @@ def test_to_pandas_downsampling_option_override(session):
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)
     assert total_memory_mb == pytest.approx(download_size, rel=0.3)
+
+
+def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):
+    dataset_id = dataset_id_not_created
+    destination_table = f"{dataset_id}.scalars_df"
+
+    result_table = scalars_df_index.to_gbq(destination_table)
+    assert (
+        result_table == destination_table
+        if destination_table
+        else result_table is not None
+    )
+
+    loaded_scalars_df_index = session.read_gbq(result_table)
+    assert not loaded_scalars_df_index.empty

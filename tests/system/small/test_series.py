@@ -24,7 +24,11 @@ import pytest
 
 import bigframes.pandas
 import bigframes.series as series
-from tests.system.utils import assert_pandas_df_equal, assert_series_equal
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    assert_series_equal,
+    skip_legacy_pandas,
+)
 
 
 def test_series_construct_copy(scalars_dfs):
@@ -81,14 +85,14 @@ def test_series_construct_from_list_escaped_strings():
     [
         ("bool_col", pd.BooleanDtype()),
         # TODO(swast): Use a more efficient type.
-        ("bytes_col", numpy.dtype("object")),
+        ("bytes_col", pd.ArrowDtype(pa.binary())),
         ("date_col", pd.ArrowDtype(pa.date32())),
         ("datetime_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("float64_col", pd.Float64Dtype()),
         ("geography_col", gpd.array.GeometryDtype()),
         ("int64_col", pd.Int64Dtype()),
         # TODO(swast): Use a more efficient type.
-        ("numeric_col", numpy.dtype("object")),
+        ("numeric_col", pd.ArrowDtype(pa.decimal128(38, 9))),
         ("int64_too", pd.Int64Dtype()),
         ("string_col", pd.StringDtype(storage="pyarrow")),
         ("time_col", pd.ArrowDtype(pa.time64("us"))),
@@ -1939,18 +1943,50 @@ def test_cummax_int(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_value_counts(scalars_dfs):
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        {},
+        {"normalize": True},
+        {"ascending": True},
+    ],
+    ids=[
+        "default",
+        "normalize",
+        "ascending",
+    ],
+)
+def test_value_counts(scalars_dfs, kwargs):
     if pd.__version__.startswith("1."):
         pytest.skip("pandas 1.x produces different column labels.")
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
 
-    bf_result = scalars_df[col_name].value_counts().to_pandas()
-    pd_result = scalars_pandas_df[col_name].value_counts()
+    bf_result = scalars_df[col_name].value_counts(**kwargs).to_pandas()
+    pd_result = scalars_pandas_df[col_name].value_counts(**kwargs)
 
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
+    )
+
+
+def test_value_counts_with_na(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+
+    bf_result = scalars_df[col_name].value_counts(dropna=False).to_pandas()
+    pd_result = scalars_pandas_df[col_name].value_counts(dropna=False)
+
+    # Older pandas version may not have these values, bigframes tries to emulate 2.0+
+    pd_result.name = "count"
+    pd_result.index.name = col_name
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+        # bigframes values_counts does not honor ordering in the original data
+        ignore_order=True,
     )
 
 
@@ -2487,8 +2523,12 @@ def test_mask_custom_value(scalars_dfs):
         ("int64_col", pd.Float64Dtype()),
         ("int64_col", "string[pyarrow]"),
         ("int64_col", "boolean"),
+        ("int64_col", pd.ArrowDtype(pa.decimal128(38, 9))),
+        ("int64_col", pd.ArrowDtype(pa.decimal256(76, 38))),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
+        ("string_col", "binary[pyarrow]"),
+        ("bytes_col", "string[pyarrow]"),
         # pandas actually doesn't let folks convert to/from naive timestamp and
         # raises a deprecation warning to use tz_localize/tz_convert instead,
         # but BigQuery always stores values as UTC and doesn't have to deal
@@ -2506,6 +2546,7 @@ def test_mask_custom_value(scalars_dfs):
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions
     ],
 )
+@skip_legacy_pandas
 def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
