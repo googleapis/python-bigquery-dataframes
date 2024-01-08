@@ -98,8 +98,8 @@ def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
         )
     if (
         bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        and bq_model._properties["remoteModelInfo"]
-        and bq_model._properties["remoteModelInfo"]["endpoint"]
+        and "remoteModelInfo" in bq_model._properties
+        and "endpoint" in bq_model._properties["remoteModelInfo"]
     ):
         # Parse the remote model endpoint
         bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
