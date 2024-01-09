@@ -82,9 +82,11 @@ class BlockHolder(typing.Protocol):
         """Get the underlying block value of the object"""
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass()
 class MaterializationOptions:
-    downsampling: sampling_options.SamplingOptions = sampling_options.SamplingOptions()
+    downsampling: sampling_options.SamplingOptions = dataclasses.field(
+        default_factory=sampling_options.SamplingOptions
+    )
     ordered: bool = True
 
 
