@@ -267,6 +267,7 @@ class RemoteFunctionOp(UnaryOp):
 
 @dataclasses.dataclass(frozen=True)
 class MapOp(UnaryOp):
+    name = "map_values"
     mappings: typing.Tuple[typing.Tuple[typing.Hashable, typing.Hashable], ...]
 
 
