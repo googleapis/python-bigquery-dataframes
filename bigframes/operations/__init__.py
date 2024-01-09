@@ -21,6 +21,9 @@ import numpy as np
 
 import bigframes.dtypes as dtypes
 
+if typing.TYPE_CHECKING:
+    import bigframes.core.expression
+
 
 class RowOp(typing.Protocol):
     @property
@@ -45,6 +48,13 @@ class UnaryOp:
     def arguments(self) -> int:
         return 1
 
+    def as_expr(self, input_id: str) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        return bigframes.core.expression.OpExpression(
+            self, (bigframes.core.expression.UnboundVariableExpression(input_id),)
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class BinaryOp:
@@ -56,6 +66,19 @@ class BinaryOp:
     def arguments(self) -> int:
         return 2
 
+    def as_expr(
+        self, left_input: str, right_input: str
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        return bigframes.core.expression.OpExpression(
+            self,
+            (
+                bigframes.core.expression.UnboundVariableExpression(left_input),
+                bigframes.core.expression.UnboundVariableExpression(right_input),
+            ),
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class TernaryOp:
@@ -66,6 +89,20 @@ class TernaryOp:
     @property
     def arguments(self) -> int:
         return 3
+
+    def as_expr(
+        self, input1: str, input2: str, input3: str
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        return bigframes.core.expression.OpExpression(
+            self,
+            (
+                bigframes.core.expression.UnboundVariableExpression(input1),
+                bigframes.core.expression.UnboundVariableExpression(input2),
+                bigframes.core.expression.UnboundVariableExpression(input3),
+            ),
+        )
 
 
 # Operation Factories
