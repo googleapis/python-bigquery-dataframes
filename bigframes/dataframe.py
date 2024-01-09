@@ -154,7 +154,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
                 block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(dtype)
+                    block.value_columns, ops.AsTypeOp(to_type=dtype)
                 )
             self._block = block
 
@@ -251,6 +251,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> indexes.Index:
         return indexes.Index(self)
 
+    @index.setter
+    def index(self, value):
+        # TODO: Handle assigning MultiIndex
+        result = self._assign_single_item("_new_bf_index", value).set_index(
+            "_new_bf_index"
+        )
+        self._set_block(result._get_block())
+        self.index.name = value.name if hasattr(value, "name") else None
+
     @property
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
@@ -316,7 +325,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
-        return self._apply_unary_op(ops.AsTypeOp(dtype))
+        return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
 
     def _to_sql_query(
         self, include_index: bool
@@ -545,6 +554,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             raise AttributeError(key)
 
+    def __setattr__(self, key: str, value):
+        if key in ["_block", "_query_job"]:
+            object.__setattr__(self, key, value)
+            return
+        # Can this be removed???
+        try:
+            # boring attributes go through boring old path
+            object.__getattribute__(self, key)
+            return object.__setattr__(self, key, value)
+        except AttributeError:
+            pass
+
+        # if this fails, go on to more involved attribute setting
+        # (note that this matches __getattr__, above).
+        try:
+            if key in self.columns:
+                self[key] = value
+            else:
+                object.__setattr__(self, key, value)
+        # Can this be removed?
+        except (AttributeError, TypeError):
+            object.__setattr__(self, key, value)
+
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
 
@@ -638,7 +670,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_scalar_binop(self, other: float | int, op: ops.BinaryOp) -> DataFrame:
         block = self._block
-        partial_op = ops.BinopPartialRight(op, other)
+        partial_op = ops.ApplyRight(base_op=op, right_scalar=other)
         for column_id, label in zip(
             self._block.value_columns, self._block.column_labels
         ):
@@ -1082,7 +1114,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     condition_id = typing.cast(str, condition_id)
                 else:
                     block, inverse_condition_id = block.apply_unary_op(
-                        level_id, ops.IsInOp(index, match_nulls=True)
+                        level_id, ops.IsInOp(values=tuple(index), match_nulls=True)
                     )
                     block, condition_id = block.apply_unary_op(
                         inverse_condition_id, ops.invert_op
@@ -1265,6 +1297,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 [get_column_left[col_id] for col_id in original_index_column_ids],
                 index_labels=self._block.index_labels,
             )
+            src_col = get_column_right[new_column_block.value_columns[0]]
+            # Check to see if key exists, and modify in place
+            col_ids = self._block.cols_matching_label(k)
+            for col_id in col_ids:
+                result_block = result_block.copy_values(
+                    src_col, get_column_left[col_id]
+                )
+            if len(col_ids) > 0:
+                result_block = result_block.drop_columns([src_col])
         return DataFrame(result_block)
 
     def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
@@ -1442,16 +1483,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = self._block
             block, label_string_id = block.apply_unary_op(
                 self._block.index_columns[0],
-                ops.AsTypeOp(pandas.StringDtype(storage="pyarrow")),
+                ops.AsTypeOp(to_type=pandas.StringDtype(storage="pyarrow")),
             )
             if like is not None:
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsStringOp(pat=like)
+                    label_string_id, ops.StrContainsOp(pat=like)
                 )
             else:  # regex
                 assert regex is not None
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsRegexOp(pat=regex)
+                    label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
             block = block.filter(mask_id)
@@ -1461,7 +1502,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Behavior matches pandas 2.1+, older pandas versions would reindex
             block = self._block
             block, mask_id = block.apply_unary_op(
-                self._block.index_columns[0], ops.IsInOp(values=list(items))
+                self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
             block = block.filter(mask_id)
             block = block.select_columns(self._block.value_columns)
@@ -1612,7 +1653,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if label in values.keys():
                     value_for_key = values[label]
                     block, result_id = block.apply_unary_op(
-                        col, ops.IsInOp(value_for_key, match_nulls=True), label
+                        col,
+                        ops.IsInOp(values=tuple(value_for_key), match_nulls=True),
+                        label,
                     )
                     result_ids.append(result_id)
                 else:
@@ -1622,9 +1665,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     result_ids.append(result_id)
             return DataFrame(block.select_columns(result_ids)).fillna(value=False)
         elif utils.is_list_like(values):
-            return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
-                value=False
-            )
+            return self._apply_unary_op(
+                ops.IsInOp(values=tuple(values), match_nulls=True)
+            ).fillna(value=False)
         else:
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -2900,7 +2943,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # inputs causing errors.
         reprojected_df = DataFrame(self._block._force_reproject())
         return reprojected_df._apply_unary_op(
-            ops.RemoteFunctionOp(func, apply_on_null=(na_action is None))
+            ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
     def apply(self, func, *, args: typing.Tuple = (), **kwargs):

@@ -19,6 +19,8 @@ from __future__ import annotations
 from typing import cast, Literal, Optional, Union
 import warnings
 
+from google.cloud import bigquery
+
 import bigframes
 from bigframes import clients, constants
 from bigframes.core import blocks, log_adapter
@@ -112,6 +114,26 @@ class PaLM2TextGenerator(base.Predictor):
         return self._bqml_model_factory.create_remote_model(
             session=self.session, connection_name=self.connection_name, options=options
         )
+
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        text_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        text_generator_model._bqml_model = core.BqmlModel(session, model)
+        return text_generator_model
 
     def predict(
         self,
@@ -214,6 +236,21 @@ class PaLM2TextGenerator(base.Predictor):
 
         return df
 
+    def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
 
 @log_adapter.class_logger
 class PaLM2TextEmbeddingGenerator(base.Predictor):
@@ -285,6 +322,26 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextEmbeddingGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        embedding_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        embedding_generator_model._bqml_model = core.BqmlModel(session, model)
+        return embedding_generator_model
+
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -321,3 +378,20 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             )
 
         return df
+
+    def to_gbq(
+        self, model_name: str, replace: bool = False
+    ) -> PaLM2TextEmbeddingGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextEmbeddingGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
