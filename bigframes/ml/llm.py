@@ -193,7 +193,11 @@ class PaLM2TextGenerator(base.Predictor):
             raise ValueError(
                 f"max_output_token must be [1, 1024] for TextBison model, but is {max_output_tokens}."
             )
-        elif max_output_tokens not in range(1, 8197):
+
+        if (
+            self.model_name == _TEXT_GENERATOR_BISON_32K_ENDPOINT
+            and max_output_tokens not in range(1, 8197)
+        ):
             raise ValueError(
                 f"max_output_token must be [1, 8196] for TextBison 32k model, but is {max_output_tokens}."
             )
