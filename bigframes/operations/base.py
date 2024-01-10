@@ -94,7 +94,7 @@ class SeriesMethods:
                     if isinstance(dt, pd.ArrowDtype)
                 )
             ):
-                self._block = blocks.block_from_local(pd_dataframe)
+                self._block = blocks.Block.from_local(pd_dataframe)
             elif session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
@@ -189,15 +189,14 @@ class SeriesMethods:
         block = self._block
         for other in others:
             if isinstance(other, series.Series):
-                combined_index, (
+                block, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(other._block.index, how=how)
+                ) = block.join(other._block, how=how)
                 value_ids = [
                     *[get_column_left[value] for value in value_ids],
                     get_column_right[other._value_column],
                 ]
-                block = combined_index._block
             else:
                 # Will throw if can't interpret as scalar.
                 dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)
