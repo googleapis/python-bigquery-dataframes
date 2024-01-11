@@ -22,6 +22,7 @@ import numpy as np
 import bigframes.dtypes as dtypes
 
 if typing.TYPE_CHECKING:
+    # Avoids circular dependency
     import bigframes.core.expression
 
 

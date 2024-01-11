@@ -24,6 +24,8 @@ import bigframes.operations
 
 @dataclasses.dataclass(frozen=True)
 class Expression(abc.ABC):
+    """An expression represents a computation taking N scalar inputs and producing a single output scalar."""
+
     @property
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return ()
@@ -31,12 +33,16 @@ class Expression(abc.ABC):
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
+    """An expression representing a scalar constant."""
+
     # TODO: Further constrain?
     value: typing.Hashable
 
 
 @dataclasses.dataclass(frozen=True)
 class UnboundVariableExpression(Expression):
+    """A variable expression representing an unbound variable."""
+
     id: str
 
     @property
@@ -46,6 +52,8 @@ class UnboundVariableExpression(Expression):
 
 @dataclasses.dataclass(frozen=True)
 class OpExpression(Expression):
+    """An expression representing a scalar operation applied to 1 or more argument sub-expressions."""
+
     op: bigframes.operations.RowOp
     inputs: typing.Tuple[Expression, ...]
 

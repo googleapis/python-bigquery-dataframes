@@ -156,7 +156,8 @@ class BaseIbisIR(abc.ABC):
         self: T,
         expression: expressions.Expression,
         output_column_id: typing.Optional[str] = None,
-    ):
+    ) -> T:
+        """Apply an expression to the ArrayValue and assign the output to a column."""
         result_id = (
             output_column_id or expression.unbound_variables[0]
         )  # overwrite input if not output id provided
