@@ -68,7 +68,7 @@ class LocSeriesIndexer:
             ops.where_op.as_expr(
                 ex.const(value),
                 ops.eq_op.as_expr(index_column, ex.const(key)),
-                self._series.value_column,
+                self._series._value_column,
             )
         )
         block = block.copy_values(result_id, value_column).drop_columns([result_id])

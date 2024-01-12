@@ -490,7 +490,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._value_column, ops.IsInOp(tuple(to_replace_list))
         )
         block, result_col = block.project_expr(
-            ops.where_op.as_expr("true_value", cond, self._value_column), self.name
+            ops.where_op.as_expr(ex.const(value), cond, self._value_column), self.name
         )
         return Series(block.select_column(result_col))
 
