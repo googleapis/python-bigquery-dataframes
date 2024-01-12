@@ -740,11 +740,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         # join columns schema
         # indexers will be none for exact match
-        columns, self_indexer, other_indexer = self.columns.join(
+        columns, lcol_indexer, rcol_indexer = self.columns.join(
             other.columns, how=how, return_indexers=True
         )
-        lcol_indexer = self_indexer if not reverse else other_indexer
-        rcol_indexer = other_indexer if not reverse else self_indexer
 
         binop_result_ids = []
         block = joined_index._block
@@ -756,15 +754,27 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         for left_index, right_index in column_indices:
             if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
-                left_col_id = self._block.value_columns[left_index]
-                right_col_id = other._block.value_columns[right_index]
-                expr = op.as_expr(left_col_id, right_col_id)
+                self_col_id = get_column_left[self._block.value_columns[left_index]]
+                other_col_id = get_column_right[other._block.value_columns[right_index]]
+                expr = (
+                    op.as_expr(other_col_id, self_col_id)
+                    if reverse
+                    else op.as_expr(self_col_id, other_col_id)
+                )
             elif left_index >= 0:
-                left_col_id = self._block.value_columns[left_index]
-                expr = op.as_expr(left_col_id, ex.const(None))
+                self_col_id = get_column_left[self._block.value_columns[left_index]]
+                expr = (
+                    op.as_expr(ex.const(None), self_col_id)
+                    if reverse
+                    else op.as_expr(self_col_id, ex.const(None))
+                )
             elif right_index >= 0:
-                right_col_id = other._block.value_columns[right_index]
-                expr = op.as_expr(ex.const(None), right_col_id)
+                other_col_id = get_column_right[other._block.value_columns[right_index]]
+                expr = (
+                    op.as_expr(other_col_id, ex.const(None))
+                    if reverse
+                    else op.as_expr(ex.const(None), other_col_id)
+                )
             else:
                 # Should not be possible
                 raise ValueError("No right or left index.")
