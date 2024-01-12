@@ -46,6 +46,12 @@ Dtype = Union[
 # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
 UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
 
+# Reference these types where possible in case change to Arrow types
+DEFAULT_BOOL_TYPE = pd.BooleanDtype()
+DEFAULT_INT_TYPE = pd.Int64Dtype()
+DEFAULT_FLOAT_TYPE = pd.Float64Dtype()
+DEFAULT_STRING_TYPE = pd.StringDtype(storage="pyarrow")
+
 # Type hints for dtype strings supported by BigQuery DataFrame
 DtypeString = Literal[
     "boolean",
@@ -495,6 +501,22 @@ def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
         pa_type = dtype.pyarrow_dtype
         return is_patype(scalar, pa_type)
     return False
+
+
+def to_patype(dtype: Dtype) -> Dtype:
+    """Converts a supported non-pa dtype to the equivalent pyarrow dtype, needed for nesting into structs/arrays."""
+    if isinstance(dtype, pd.ArrowDtype):
+        return dtype
+    if pd.api.types.is_bool_dtype(dtype):
+        return pd.ArrowDtype(pa.bool_())
+    if pd.api.types.is_float_dtype(dtype):
+        return pd.ArrowDtype(pa.float64())
+    if pd.api.types.is_integer_dtype(dtype):
+        return pd.ArrowDtype(pa.int64())
+    if isinstance(dtype, pd.StringDtype):
+        return pd.ArrowDtype(pa.string())
+    else:
+        raise ValueError(f"Cannot convert {dtype} to pyarrow types")
 
 
 # string is binary

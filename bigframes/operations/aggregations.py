@@ -21,8 +21,10 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 from pandas import Int64Dtype
 import pandas as pd
+import pyarrow as pa
 
 import bigframes.constants as constants
+from bigframes.dtypes import Dtype
 import bigframes.dtypes as dtypes
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
@@ -40,6 +42,9 @@ class WindowOp:
     def handles_ties(self):
         """Whether the operator can handle ties without nondeterministic output. (eg. rank operator can handle ties but not the count operator)"""
         return False
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> dtypes.Dtype:
+        return next(dtype for dtype in input_types)
 
 
 class AggregateOp(WindowOp):
@@ -170,6 +175,9 @@ class ProductOp(AggregateOp):
         )
         return float_result.cast(column.type())  # type: ignore
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_FLOAT_TYPE
+
 
 class MaxOp(AggregateOp):
     name = "max"
@@ -194,6 +202,9 @@ class StdOp(AggregateOp):
             typing.cast(ibis_types.NumericColumn, x).std(), window
         )
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_FLOAT_TYPE
+
 
 class VarOp(AggregateOp):
     name = "var"
@@ -204,6 +215,9 @@ class VarOp(AggregateOp):
             typing.cast(ibis_types.NumericColumn, x).var(), window
         )
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_FLOAT_TYPE
+
 
 class PopVarOp(AggregateOp):
     name = "popvar"
@@ -213,6 +227,9 @@ class PopVarOp(AggregateOp):
         return _apply_window_if_present(
             typing.cast(ibis_types.NumericColumn, x).var(how="pop"), window
         )
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_FLOAT_TYPE
 
 
 class CountOp(AggregateOp):
@@ -226,6 +243,9 @@ class CountOp(AggregateOp):
     @property
     def skips_nulls(self):
         return False
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_INT_TYPE
 
 
 class CutOp(WindowOp):
@@ -269,6 +289,18 @@ class CutOp(WindowOp):
     @property
     def handles_ties(self):
         return True
+
+    def output_dtype(self, input_types: typing.Iterable[Dtype]) -> Dtype:
+        if self._bins_int > 0:
+            return dtypes.DEFAULT_INT_TYPE
+        else:
+            input_dtype = next(dtype for dtype in input_types)
+            return pa.struct(
+                [
+                    ("left_exclusive", dtypes.to_patype(input_dtype)),
+                    ("right_inclusive", dtypes.to_patype(input_dtype)),
+                ]
+            )
 
 
 class QcutOp(WindowOp):
@@ -317,6 +349,9 @@ class QcutOp(WindowOp):
     def handles_ties(self):
         return True
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_INT_TYPE
+
 
 class NuniqueOp(AggregateOp):
     name = "nunique"
@@ -329,6 +364,9 @@ class NuniqueOp(AggregateOp):
     @property
     def skips_nulls(self):
         return False
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_INT_TYPE
 
 
 class AnyValueOp(AggregateOp):
@@ -363,6 +401,9 @@ class RankOp(WindowOp):
     def handles_ties(self):
         return True
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_INT_TYPE
+
 
 class DenseRankOp(WindowOp):
     def _as_ibis(
@@ -378,6 +419,9 @@ class DenseRankOp(WindowOp):
     @property
     def handles_ties(self):
         return True
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_INT_TYPE
 
 
 class FirstOp(WindowOp):
@@ -449,6 +493,9 @@ class DiffOp(WindowOp):
     def skips_nulls(self):
         return False
 
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_BOOL_TYPE
+
 
 class AllOp(AggregateOp):
     def _as_ibis(
@@ -460,6 +507,9 @@ class AllOp(AggregateOp):
             ibis_types.BooleanScalar,
             _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
         )
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_BOOL_TYPE
 
 
 class AnyOp(AggregateOp):
@@ -474,6 +524,9 @@ class AnyOp(AggregateOp):
             ibis_types.BooleanScalar,
             _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
         )
+
+    def output_dtype(self, input_types: typing.Iterable[dtypes.Dtype]) -> Dtype:
+        return dtypes.DEFAULT_BOOL_TYPE
 
 
 def _is_true(column: ibis_types.Column) -> ibis_types.BooleanColumn:
