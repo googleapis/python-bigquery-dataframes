@@ -64,7 +64,7 @@ class LocSeriesIndexer:
         index_column = block.index_columns[0]
 
         # if index == key return value else value_colum
-        blcok, result_id = block.project_expr(
+        block, result_id = block.project_expr(
             ops.where_op.as_expr(
                 ex.const(value),
                 ops.eq_op.as_expr(index_column, ex.const(key)),

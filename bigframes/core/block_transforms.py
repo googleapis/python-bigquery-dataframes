@@ -653,10 +653,12 @@ def _skew_from_moments_and_count(
     # Calculate skew using count, third moment and population variance
     # See G1 estimator:
     # https://en.wikipedia.org/wiki/Skewness#Sample_skewness
-    denominator = ops.pow_op.as_expr(moment2_id, ex.const(3 / 2))
-    base = ops.div_op.as_expr(moment3_id, denominator)
+    moments_estimator = ops.div_op.as_expr(
+        moment3_id, ops.pow_op.as_expr(moment2_id, ex.const(3 / 2))
+    )
+
     countminus1 = ops.sub_op.as_expr(count_id, ex.const(1))
-    countminus2 = ops.sub_op.as_expr(count_id, ex.const(1))
+    countminus2 = ops.sub_op.as_expr(count_id, ex.const(2))
     adjustment = ops.div_op.as_expr(
         ops.unsafe_pow_op.as_expr(
             ops.mul_op.as_expr(count_id, countminus1), ex.const(1 / 2)
@@ -664,7 +666,7 @@ def _skew_from_moments_and_count(
         countminus2,
     )
 
-    skew = ops.mul_op.as_expr(base, adjustment)
+    skew = ops.mul_op.as_expr(moments_estimator, adjustment)
 
     # Need to produce NA if have less than 3 data points
     cleaned_skew = ops.where_op.as_expr(

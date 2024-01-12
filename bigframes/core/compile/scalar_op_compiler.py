@@ -64,6 +64,8 @@ class ScalarOpCompiler:
         expression: expressions.ScalarConstantExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
+        if pd.isnull(expression.value):
+            return ibis.null()
         return ibis.literal(expression.value)
 
     @compile_expression.register

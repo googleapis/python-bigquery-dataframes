@@ -325,9 +325,7 @@ class Index(vendored_pandas_index.Index):
         block = self._block
         result_ids = []
         for col in self._block.index_columns:
-            block, result_id = block.project_expr(
-                op.rename({unbound_variable: ex.free_var(col)})
-            )
+            block, result_id = block.project_expr(op.rename({unbound_variable: col}))
             result_ids.append(result_id)
 
         block = block.set_index(result_ids, index_labels=self._block.index_labels)

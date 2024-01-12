@@ -22,11 +22,11 @@ import typing
 import bigframes.operations
 
 
-def const(value: typing.Hashable):
+def const(value: typing.Hashable) -> Expression:
     return ScalarConstantExpression(value)
 
 
-def free_var(id: str):
+def free_var(id: str) -> Expression:
     return UnboundVariableExpression(id)
 
 
@@ -38,7 +38,7 @@ class Expression(abc.ABC):
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return ()
 
-    def rename(self, name_mapping: dict[str, str]):
+    def rename(self, name_mapping: dict[str, str]) -> Expression:
         return self
 
 
@@ -60,9 +60,9 @@ class UnboundVariableExpression(Expression):
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return (self.id,)
 
-    def rename(self, name_mapping: dict[str, str]):
+    def rename(self, name_mapping: dict[str, str]) -> Expression:
         if self.id in name_mapping:
-            UnboundVariableExpression(name_mapping[self.id])
+            return UnboundVariableExpression(name_mapping[self.id])
         else:
             return self
 
@@ -85,7 +85,7 @@ class OpExpression(Expression):
             )
         )
 
-    def rename(self, name_mapping: dict[str, str]):
+    def rename(self, name_mapping: dict[str, str]) -> Expression:
         return OpExpression(
             self.op, tuple(input.rename(name_mapping) for input in self.inputs)
         )

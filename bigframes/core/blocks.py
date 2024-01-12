@@ -1454,14 +1454,14 @@ class Block:
     def _create_pivot_col(
         block: Block, columns: typing.Sequence[str], value_col: str, value
     ) -> typing.Tuple[Block, str]:
-        condition: typing.Optional[ex.Expression]
+        condition: typing.Optional[ex.Expression] = None
         nlevels = len(columns)
         for i in range(len(columns)):
             uvalue_level = value[i] if nlevels > 1 else value
             if pd.isna(uvalue_level):
-                equality = ops.isnull_op.as_expr(ex.const(columns[i]))
+                equality = ops.isnull_op.as_expr(columns[i])
             else:
-                equality = ops.eq_op.as_expr(ex.const(columns[i]), uvalue_level)
+                equality = ops.eq_op.as_expr(columns[i], ex.const(uvalue_level))
             if condition is not None:
                 condition = ops.and_op.as_expr(equality, condition)
             else:
