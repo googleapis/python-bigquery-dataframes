@@ -1066,6 +1066,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
+    def peek(self, n: int = 5) -> pandas.DataFrame:
+        maybe_result = self._block.try_peek(n)
+        if maybe_result is None:
+            raise NotImplementedError(
+                "Cannot peek efficiently when data has aggregates, joins or window functions applied."
+            )
+        return maybe_result.set_axis(self._block.column_labels, axis=1, copy=False)
+
     def nlargest(
         self,
         n: int,

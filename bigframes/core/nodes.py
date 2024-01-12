@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 import functools
+import itertools
 import typing
 from typing import Tuple
 
@@ -73,6 +74,18 @@ class BigFrameNode:
     def _node_hash(self):
         return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
 
+    @property
+    def peekable(self) -> bool:
+        """Indicates whether the node can be sampled efficiently"""
+        return all(child.peekable for child in self.child_nodes)
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        roots = itertools.chain.from_iterable(
+            map(lambda child: child.roots, self.child_nodes)
+        )
+        return set(roots)
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -105,6 +118,12 @@ class JoinNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        children_peekable = all(child.peekable for child in self.child_nodes)
+        single_root = len(self.roots) == 1
+        return children_peekable and single_root
+
 
 @dataclass(frozen=True)
 class ConcatNode(BigFrameNode):
@@ -126,6 +145,14 @@ class ReadLocalNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return True
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
 
 # TODO: Refactor to take raw gbq object reference
 @dataclass(frozen=True)
@@ -143,6 +170,14 @@ class ReadGbqNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return True
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
 
 # Unary nodes
 @dataclass(frozen=True)
@@ -159,6 +194,10 @@ class PromoteOffsetsNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -218,6 +257,10 @@ class AggregateNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return False
+
 
 # TODO: Unify into aggregate
 @dataclass(frozen=True)
@@ -226,6 +269,10 @@ class CorrNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -239,6 +286,10 @@ class WindowOpNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -262,6 +313,10 @@ class UnpivotNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
