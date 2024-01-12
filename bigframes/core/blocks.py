@@ -671,7 +671,7 @@ class Block:
         """
         # TODO(tbergeron): handle labels safely so callers don't need to
         result_id = guid.generate_guid()
-        array_val = self._expr.project(expr, result_id)
+        array_val = self._expr.project_to_id(expr, result_id)
         block = Block(
             array_val,
             index_columns=self.index_columns,
