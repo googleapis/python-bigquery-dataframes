@@ -64,7 +64,13 @@ class ScalarOpCompiler:
         expression: ex.ScalarConstantExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
+<<<<<<< HEAD
         return bigframes.dtypes.literal_to_ibis_scalar(expression.value, expression.dtype)
+=======
+        return bigframes.dtypes.literal_to_ibis_scalar(
+            expression.value, expression.dtype
+        )
+>>>>>>> 2442c5cc (fix typed null constant issue)
 
     @compile_expression.register
     def _(
