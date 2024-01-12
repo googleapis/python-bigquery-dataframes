@@ -151,7 +151,12 @@ class BaseIbisIR(abc.ABC):
             op_compiler.compile_expression(expression, bindings).name(id)
             for expression, id in expression_id_pairs
         ]
-        return self._select(tuple(values))  # type: ignore
+        result = self._select(tuple(values))  # type: ignore
+
+        # Need to reproject to convert ibis Scalar to ibis Column object
+        if any(exp_id[0].is_const for exp_id in expression_id_pairs):
+            result = result._reproject_to_table()
+        return result
 
     @abc.abstractmethod
     def _select(self: T, values: typing.Tuple[ibis_types.Value]) -> T:

@@ -65,11 +65,14 @@ class ScalarOpCompiler:
         expression: ex.ScalarConstantExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
-        if pd.isnull(expression.value):  # type: ignore
+        if pd.isnull(expression.value) and (expression.dtype is None):  # type: ignore
             return ibis.null()
-        return ibis.literal(
-            expression.value, dtypes.bigframes_dtype_to_ibis_dtype(expression.dtype)
+        dtype = (
+            None
+            if (expression.dtype is None)
+            else dtypes.bigframes_dtype_to_ibis_dtype(expression.dtype)
         )
+        return ibis.literal(expression.value, dtype)
 
     @compile_expression.register
     def _(

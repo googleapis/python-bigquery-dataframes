@@ -27,7 +27,7 @@ import bigframes.operations
 def const(
     value: typing.Hashable, dtype: Optional[bigframes.dtypes.Dtype]
 ) -> Expression:
-    return ScalarConstantExpression(value)
+    return ScalarConstantExpression(value, dtype)
 
 
 def free_var(id: str) -> Expression:
@@ -42,6 +42,10 @@ class Expression(abc.ABC):
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return ()
 
+    @abc.abstractproperty
+    def is_const(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -50,6 +54,10 @@ class ScalarConstantExpression(Expression):
     # TODO: Further constrain?
     value: typing.Hashable
     dtype: Optional[bigframes.dtypes.Dtype] = None
+
+    @property
+    def is_const(self) -> bool:
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,6 +69,10 @@ class UnboundVariableExpression(Expression):
     @property
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return (self.id,)
+
+    @property
+    def is_const(self) -> bool:
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,3 +92,7 @@ class OpExpression(Expression):
                 map(lambda x: x.unbound_variables, self.inputs)
             )
         )
+
+    @property
+    def is_const(self) -> bool:
+        return all(child.is_const for child in self.inputs)
