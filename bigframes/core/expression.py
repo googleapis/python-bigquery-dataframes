@@ -25,7 +25,7 @@ import bigframes.operations
 
 
 def const(
-    value: typing.Hashable, dtype: Optional[bigframes.dtypes.Dtype]
+    value: typing.Hashable, dtype: Optional[bigframes.dtypes.Dtype] = None
 ) -> Expression:
     return ScalarConstantExpression(value, dtype)
 

@@ -671,7 +671,7 @@ class Block:
         """
         # TODO(tbergeron): handle labels safely so callers don't need to
         result_id = guid.generate_guid()
-        expr = self._expr.project_to_id(op.as_expr(column), result_id)
+        array_val = self._expr.project(expr, result_id)
         block = Block(
             array_val,
             index_columns=self.index_columns,
@@ -1226,11 +1226,8 @@ class Block:
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
-                add_prefix = ops.add_op.as_expr(
-                    ex.const(prefix), ops.AsTypeOp(to_type="string").as_expr(index_col)
-                )
                 expr = expr.project_to_id(
-                    expression=add_prefix,
+                    expression=ops.AsTypeOp(to_type="string").as_expr(index_col),
                     output_id=index_col,
                 )
             return Block(
@@ -1249,11 +1246,8 @@ class Block:
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
-                add_suffix = ops.add_op.as_expr(
-                    ops.AsTypeOp(to_type="string").as_expr(index_col), ex.const(suffix)
-                )
                 expr = expr.project_to_id(
-                    expression=add_suffix,
+                    expression=ops.AsTypeOp(to_type="string").as_expr(index_col),
                     output_id=index_col,
                 )
             return Block(
