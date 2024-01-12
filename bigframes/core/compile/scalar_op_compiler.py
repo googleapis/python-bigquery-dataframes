@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
-import bigframes.core.expression as expressions
+import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations as ops
@@ -54,7 +54,7 @@ class ScalarOpCompiler:
     @functools.singledispatchmethod
     def compile_expression(
         self,
-        expression: expressions.Expression,
+        expression: ex.Expression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
         raise NotImplementedError(f"Unrecognized expression: {expression}")
@@ -62,15 +62,19 @@ class ScalarOpCompiler:
     @compile_expression.register
     def _(
         self,
-        expression: expressions.ScalarConstantExpression,
+        expression: ex.ScalarConstantExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
-        return ibis.literal(expression.value)
+        if pd.isnull(expression.value):  # type: ignore
+            return ibis.null()
+        return ibis.literal(
+            expression.value, dtypes.bigframes_dtype_to_ibis_dtype(expression.dtype)
+        )
 
     @compile_expression.register
     def _(
         self,
-        expression: expressions.UnboundVariableExpression,
+        expression: ex.UnboundVariableExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
         if expression.id not in bindings:
@@ -81,7 +85,7 @@ class ScalarOpCompiler:
     @compile_expression.register
     def _(
         self,
-        expression: expressions.OpExpression,
+        expression: ex.OpExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
         inputs = [

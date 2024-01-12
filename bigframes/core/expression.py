@@ -18,8 +18,20 @@ import abc
 import dataclasses
 import itertools
 import typing
+from typing import Optional
 
+import bigframes.dtypes
 import bigframes.operations
+
+
+def const(
+    value: typing.Hashable, dtype: Optional[bigframes.dtypes.Dtype]
+) -> Expression:
+    return ScalarConstantExpression(value)
+
+
+def free_var(id: str) -> Expression:
+    return UnboundVariableExpression(id)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,6 +49,7 @@ class ScalarConstantExpression(Expression):
 
     # TODO: Further constrain?
     value: typing.Hashable
+    dtype: Optional[bigframes.dtypes.Dtype] = None
 
 
 @dataclasses.dataclass(frozen=True)
