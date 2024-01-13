@@ -1227,7 +1227,10 @@ class Block:
             expr = self._expr
             for index_col in self._index_columns:
                 expr = expr.project_to_id(
-                    expression=ops.AsTypeOp(to_type="string").as_expr(index_col),
+                    expression=ops.add_op.as_expr(
+                        ex.const(prefix),
+                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                    ),
                     output_id=index_col,
                 )
             return Block(
@@ -1247,7 +1250,10 @@ class Block:
             expr = self._expr
             for index_col in self._index_columns:
                 expr = expr.project_to_id(
-                    expression=ops.AsTypeOp(to_type="string").as_expr(index_col),
+                    expression=ops.add_op.as_expr(
+                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ex.const(suffix),
+                    ),
                     output_id=index_col,
                 )
             return Block(
