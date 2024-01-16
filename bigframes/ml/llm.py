@@ -162,10 +162,6 @@ class PaLM2TextGenerator(base.Predictor):
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         if temperature < 0.0 or temperature > 1.0:
             raise ValueError(f"temperature must be [0.0, 1.0], but is {temperature}.")
-        if max_output_tokens not in range(1, 1025):
-            raise ValueError(
-                f"max_output_token must be [1, 1024], but is {max_output_tokens}."
-            )
         if top_k not in range(1, 41):
             raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
         if top_p < 0.0 or top_p > 1.0:

@@ -50,6 +50,8 @@ class PromptGenerator:
         else:
             self._num_rows = 100
             self._columns = []
+        
+        self._columns_per_prompt = 20
 
     def _validate_dataframe_info(
         self, dataframe_info: Optional[Dict[str, Any]]
@@ -120,21 +122,33 @@ class PromptGenerator:
         """
         return self._columns
 
-    def generate_prompt(self) -> str:
+    def generate_prompts(self) -> [str]:
         """
-        Generates a prompt for creating a pandas DataFrame based on number of rows and column information.
+        Generates prompts for creating a pandas DataFrame based on number of rows and column information.
+        Splits the prompts if the number of columns exceeds a specified number (default 30).
 
         Returns:
-            str: A formatted prompt string that includes the DataFrame creation requirements.
+            list[str]: A list of formatted prompt strings that includes the DataFrame creation requirements for each batch of specified columns.
         """
+        prompts = []
         num_columns = len(self._columns)
-        columns_info = "\n".join(
-            [
-                f"  Column name: {col[0]}, type: {col[1]}, description: {col[2] or 'None'}"
-                for col in self._columns
-            ]
-        )
+        num_prompts = (num_columns + self._columns_per_prompt - 1) // self._columns_per_prompt
 
-        return PROMPT_TEMPLATE.format(
-            num_rows=self._num_rows, num_columns=num_columns, columns_info=columns_info
-        )
+        for i in range(num_prompts):
+            start_index = i * self._columns_per_prompt
+            end_index = min((i + 1) * self._columns_per_prompt, num_columns)
+            columns_info = "\n".join(
+                [
+                    f"  Column name: {col[0]}, type: {col[1]}, description: {col[2] or 'None'}"
+                    for col in self._columns[start_index:end_index]
+                ]
+            )
+
+            prompt = PROMPT_TEMPLATE.format(
+                num_rows=self._num_rows,
+                num_columns=end_index - start_index,
+                columns_info=columns_info,
+            )
+            prompts.append(prompt)
+
+        return prompts

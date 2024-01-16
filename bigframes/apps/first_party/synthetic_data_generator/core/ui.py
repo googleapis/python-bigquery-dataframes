@@ -147,29 +147,34 @@ class SchemaInterface:
 
 class PromptInterface:
     def __init__(self, on_submit_callback=None):
-        self.prompt_textarea = widgets.Textarea(
-            placeholder="Type your prompt here...",
-            description="Prompt:",
-            layout={"height": "200px", "width": "100%"},
-            style={"description_width": "50px"},
-        )
-        self.submit_prompt_button = widgets.Button(description="Submit Prompt")
-        self.submit_prompt_button.on_click(self._on_submit_button_clicked)
-
-        self.layout = widgets.VBox([self.prompt_textarea, self.submit_prompt_button])
-
+        self.submit_prompts_button = widgets.Button(description="Submit Prompts")
+        self.submit_prompts_button.on_click(self._on_submit_button_clicked)
         self._on_submit_callback = on_submit_callback
+        self.prompts_textareas = []
+        self.layout = widgets.VBox([])
 
-    def display_interface(self, prompt=""):
+    def display_interface(self, prompts):
         """
-        Display the prompt interface.
+        Create and display the prompt interface with the given prompts.
         """
-        self.prompt_textarea.value = prompt
+        self.prompts_textareas = [
+            widgets.Textarea(
+                value=prompt,
+                placeholder=f"Type your prompt here...",
+                description=f"Prompt {i+1}:",
+                layout={"height": "100px", "width": "100%"},
+                style={"description_width": "100px"},
+            )
+            for i, prompt in enumerate(prompts)
+        ]
+        self.layout.children = self.prompts_textareas + [self.submit_prompts_button]
         display(self.layout)
 
     def _on_submit_button_clicked(self, btn):
         if self._on_submit_callback is not None:
-            self._on_submit_callback(self.prompt_textarea.value)
+            self._on_submit_callback(
+                [textarea.value for textarea in self.prompts_textareas]
+            )
         else:
             print("Submit button clicked, but no callback is set.")
 
@@ -177,19 +182,21 @@ class PromptInterface:
         """
         Disable all input fields and buttons in the interface.
         """
-        self.prompt_textarea.disabled = True
-        self.submit_prompt_button.disabled = True
+        for textarea in self.prompts_textareas:
+            textarea.disabled = True
+        self.submit_prompts_button.disabled = True
 
     def enable_inputs(self):
         """
         Enable all input fields and buttons in the interface.
         """
-        self.prompt_textarea.disabled = False
-        self.submit_prompt_button.disabled = False
+        for textarea in self.prompts_textareas:
+            textarea.disabled = False
+        self.submit_prompts_button.disabled = False
 
     def close_interface(self):
         """
-        Close and remove the prompt interface from display.
+        Close and remove the prompts interface from display.
         """
         self.layout.close()
 
@@ -204,15 +211,8 @@ class CodeInterface:
     ):
         self.col_for_join = col_for_join
         self.modified_value = modified_value
-
-        # Display the code editor interface using Textarea
-        self.code_textarea = widgets.Textarea(
-            value="",
-            placeholder="Type your code here...",
-            description="Code:",
-            layout={"height": "200px", "width": "100%"},
-            style={"description_width": "50px"},
-        )
+        self._on_run_callback = on_run_callback
+        self._on_submit_callback = on_submit_callback
 
         self.run_button = widgets.Button(description="Run Code")
         self.submit_button = widgets.Button(description="Submit Code")
@@ -220,33 +220,47 @@ class CodeInterface:
         self.run_button.on_click(self._on_run_button_clicked)
         self.submit_button.on_click(self._on_submit_button_clicked)
 
-        # Display the buttons
-        self.layout = widgets.VBox(
-            [self.code_textarea, self.run_button, self.submit_button]
-        )
+        self.codes_textareas = []
+        self.layout = widgets.VBox([])
 
-        self._on_run_callback = on_run_callback
-        self._on_submit_callback = on_submit_callback
+    def display_interface(self, codes):
+        """
+        Dynamically create and display the code interface for each code snippet.
+        """
+        self.codes_textareas = [
+            widgets.Textarea(
+                value=code,
+                placeholder="Type your code here...",
+                description=f"Code {i+1}:",
+                layout={"height": "200px", "width": "100%"},
+                style={"description_width": "50px"},
+            )
+            for i, code in enumerate(codes)
+        ]
 
-    def display_interface(self, code):
-        self.code_textarea.value = code
+        self.layout.children = self.codes_textareas + [
+            self.run_button,
+            self.submit_button,
+        ]
         display(self.layout)
 
     def _on_run_button_clicked(self, btn):
         if self._on_run_callback is not None:
-            self._on_run_callback(self.code_textarea.value)
+            codes = [textarea.value for textarea in self.codes_textareas]
+            self._on_run_callback(codes)
         else:
             print("Run button clicked, but no callback is set.")
 
-    def _on_submit_button_clicked(self, code_textarea):
+    def _on_submit_button_clicked(self, btn):
         if self._on_submit_callback is not None:
-            self._on_submit_callback(self.code_textarea.value)
+            codes = [textarea.value for textarea in self.codes_textareas]
+            self._on_submit_callback(codes)
         else:
             print("Submit button clicked, but no callback is set.")
 
     def close_interface(self):
         """
-        Close and remove the prompt interface from display.
+        Close and remove the code interface from display.
         """
         self.layout.close()
 
@@ -254,14 +268,16 @@ class CodeInterface:
         """
         Disable all input fields and buttons in the code interface.
         """
-        self.code_textarea.disabled = True
+        for textarea in self.codes_textareas:
+            textarea.disabled = True
         self.run_button.disabled = True
         self.submit_button.disabled = True
 
     def enable_inputs(self):
         """
-        Disable all input fields and buttons in the code interface.
+        Enable all input fields and buttons in the code interface.
         """
-        self.code_textarea.disabled = False
+        for textarea in self.codes_textareas:
+            textarea.disabled = False
         self.run_button.disabled = False
         self.submit_button.disabled = False

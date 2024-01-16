@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
+from typing import Literal
 import warnings
 
 try:
@@ -50,14 +51,21 @@ class SyntheticDataGenerator:
     _ROWS_PER_NODE = 100
     _MAX_LOCAL_NUM_ROWS = 10000
 
-    def __init__(self, model_connection=None) -> None:
+    def __init__(
+        self,
+        model_connection=None,
+        model_name: Literal["text-bison", "text-bison-32k"] = "text-bison",
+    ) -> None:
         self._interactive = is_notebook()
+
         self._schema_interface = None
         self._prompt_interface = None
         self._code_interface = None
         self._code_output = None
         self._code_processor = None
+
         self._model_connection = model_connection
+        self._model_name = model_name
 
     def generate_synthetic_data(self, dataframe_schema_dict=None, interactive=True):
         """
@@ -255,21 +263,21 @@ class SyntheticDataGenerator:
             self._schema_interface.display_interface(description)
             self.columns = []
             if not modify_schema and description is not None:
-                prompt = PromptGenerator(description).generate_prompt()
-                self._display_prompt_interface(prompt)
+                prompts = PromptGenerator(description).generate_prompts()
+                self._display_prompt_interface(prompts)
         elif description is None:
             raise ValueError("No schema description provided for non-interactive mode.")
         else:
-            prompt = PromptGenerator(description).generate_prompt()
-            self._display_prompt_interface(prompt)
+            prompts = PromptGenerator(description).generate_prompts()
+            self._display_prompt_interface(prompts)
 
-    def _display_prompt_interface(self, prompt):
+    def _display_prompt_interface(self, prompts):
         if self._interactive:
             self._prompt_interface = PromptInterface(
                 on_submit_callback=self._on_prompt_submit_callback
             )
-            self._prompt_interface.display_interface(prompt=prompt)
-        self._display_code_interface(prompt)
+            self._prompt_interface.display_interface(prompts=prompts)
+        self._display_code_interface(prompts)
 
     def _disable_all_buttons(self):
         if self._schema_interface is not None:
@@ -295,32 +303,35 @@ class SyntheticDataGenerator:
         finally:
             self._enable_all_buttons()
 
-    def _display_code_interface(self, prompt):
+    def _display_code_interface(self, prompts):
         self._code_processor = CodeProcessor(
-            prompt, self.col_for_join, model_connection=self._model_connection
+            prompts,
+            self.col_for_join,
+            model_connection=self._model_connection,
+            model_name=self._model_name,
         )
-        code = ""
+        codes = ""
         if self._interactive:
             with self._disable_buttons_temporarily():
                 prompt_output = widgets.Output()
                 display(prompt_output)
                 with prompt_output:
-                    code = self._code_processor.generate_code()
+                    codes = self._code_processor.generate_codes()
                 prompt_output.close()
 
                 self._code_output = widgets.Output()
-                code = self._code_processor.update_code_for_num_rows(code)
+                codes = self._code_processor.update_codes_for_num_rows(codes)
                 self._code_interface = CodeInterface(
                     on_run_callback=self._on_code_run_callback,
                     on_submit_callback=self._on_code_submit_callback,
                 )
-                self._code_interface.display_interface(code)
+                self._code_interface.display_interface(codes)
                 display(self._code_output)
         else:
-            code = self._code_processor.generate_code()
-            code = self._code_processor.update_code_for_num_rows(code)
-            self.generated_df = self._code_processor.submit_code(
-                code, self._MAX_LOCAL_NUM_ROWS, self._ROWS_PER_NODE
+            codes = self._code_processor.generate_codes(interactive=False)
+            codes = self._code_processor.update_codes_for_num_rows(codes)
+            self.generated_df = self._code_processor.submit_codes(
+                codes, self._MAX_LOCAL_NUM_ROWS, self._ROWS_PER_NODE
             )
             print("Submitted, now you should have access to the dataframe.")
 
@@ -334,32 +345,32 @@ class SyntheticDataGenerator:
             self._code_output.close()
             self._code_output = None
 
-        prompt = PromptGenerator(description).generate_prompt()
+        prompt = PromptGenerator(description).generate_prompts()
         self._display_prompt_interface(prompt)
 
-    def _on_prompt_submit_callback(self, prompt):
+    def _on_prompt_submit_callback(self, prompts):
         if self._code_interface is not None:
             self._code_interface.close_interface()
             self._code_interface = None
             self._code_output.close()
             self._code_output = None
 
-        self._display_code_interface(prompt)
+        self._display_code_interface(prompts)
 
-    def _on_code_run_callback(self, code):
+    def _on_code_run_callback(self, codes):
         if self._code_processor is not None:
             with self._disable_buttons_temporarily():
                 self._code_output.clear_output(wait=True)
                 with self._code_output:
-                    result_df = self._code_processor.run_code(code)
+                    result_df = self._code_processor.run_codes(codes)
                     print(result_df)
 
-    def _on_code_submit_callback(self, code):
+    def _on_code_submit_callback(self, codes):
         if self._code_processor is not None:
             with self._disable_buttons_temporarily():
                 self._code_output.clear_output(wait=True)
                 with self._code_output:
-                    self.generated_df = self._code_processor.submit_code(
-                        code, self._MAX_LOCAL_NUM_ROWS, self._ROWS_PER_NODE
+                    self.generated_df = self._code_processor.submit_codes(
+                        codes, self._MAX_LOCAL_NUM_ROWS, self._ROWS_PER_NODE
                     )
                     print("Submitted, now you should have access to the dataframe.")

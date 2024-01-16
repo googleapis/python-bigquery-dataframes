@@ -15,10 +15,16 @@
 import json
 import math
 import re
+from typing import List
 
 import pandas as pd
 
-from bigframes.ml.llm import PaLM2TextGenerator
+from bigframes.ml.llm import (
+    _TEXT_GENERATOR_BISON_32K_ENDPOINT,
+    _TEXT_GENERATOR_BISON_ENDPOINT,
+    _TEXT_GENERATOR_ENDPOINTS,
+    PaLM2TextGenerator,
+)
 import bigframes.pandas as bpd
 
 FLATTENING_SQL_TEMPLATE = """\
@@ -36,92 +42,126 @@ SELECT {columns} FROM C, UNNEST(data) as row
 
 
 class CodeProcessor:
-    def __init__(self, prompt: str, col_for_join: bpd.Series, model_connection=None):
+    def __init__(
+        self,
+        prompts: List[str],
+        col_for_join: bpd.Series,
+        model_connection=None,
+        model_name=None,
+    ):
+        self.model_name = (
+            model_name
+            if model_name in _TEXT_GENERATOR_ENDPOINTS
+            else _TEXT_GENERATOR_BISON_32K_ENDPOINT
+        )
         self._model = None
-        self._prompt = prompt
+        self._max_output_token = (
+            1024 if model_name == _TEXT_GENERATOR_BISON_ENDPOINT else 8196
+        )
+        self._prompts = prompts
         self._col_for_join = col_for_join
         self._connection = model_connection
 
-    def generate_code(self, retries: int = 4):
+    def generate_codes(self, retries: int = 4, interactive=True):
         last_error = ""
         last_code = ""
-        prompt = self._prompt
-        code = ""
+        prompts = self._prompts
+        codes = []
         temperature = 0
         if self._model is None:
             session = bpd.get_global_session()
             self._model = PaLM2TextGenerator(
-                session=session, connection_name=self._connection
+                session=session,
+                connection_name=self._connection,
+                model_name=self.model_name,
             )
 
-        for i in range(retries + 1):
-            prompts = bpd.DataFrame(
-                {
-                    "prompt": [prompt],
-                }
-            )
-            code = (
-                self._model.predict(prompts, max_output_tokens=1024, temperature=temperature)
-                .to_pandas()
-                .iloc[0, 0]
-            )
-
-            code = code.replace("```python", "", 1)
-            code = code.rsplit("```", 1)[0]
-            code = self._ensure_imports(code)
-
-            try:
-                self._test_code(code)
-                break
-            except Exception as e:
-                if i == 4:
-                    continue
-
-                error = f"{e.__class__.__name__}: {e}"
-                if error == last_error and code == last_code:
-                    temperature = 0.1
-                else:
-                    temperature = 0
-                last_error = error
-                last_code = code
-                prompt = self._update_prompt_on_error(error, code)
-
-                print(
-                    f"[Info]The generated code has errors, attempting to regenerate.\n error_message = {error}"
+        for idx, prompt in enumerate(prompts):
+            for i in range(retries + 1):
+                prompt_df = bpd.DataFrame(
+                    {
+                        "prompt": [prompt],
+                    }
                 )
-        return code
+                code = (
+                    self._model.predict(
+                        prompt_df,
+                        max_output_tokens=self._max_output_token,
+                        temperature=temperature,
+                    )
+                    .to_pandas()
+                    .iloc[0, 0]
+                )
 
-    def update_code_for_num_rows(self, code: str) -> str:
+                code = code.replace("```python", "", 1)
+                code = code.rsplit("```", 1)[0]
+                code = self._ensure_imports(code)
+
+                try:
+                    self._test_code(code)
+                    codes.append(code)
+                    break
+                except Exception as e:
+                    if i == retries:
+                        codes.append(code)
+                        if interactive == False:
+                            raise RuntimeError(
+                                f"Generated code has errors, giving up. Error: {error}\nCode: \n{code}"
+                            )
+                        continue
+
+                    error = f"{e.__class__.__name__}: {e}"
+                    if error == last_error and code == last_code:
+                        temperature = 0.1
+                    else:
+                        temperature = 0
+                    last_error = error
+                    last_code = code
+                    prompt = self._update_prompt_on_error(error, code, prompt_idx = idx)
+
+                    print(
+                        f"[Info] The generated code has errors, attempting to regenerate.\n error_message = {error}"
+                    )
+
+        # raise error when can't fix if not interactive
+        return codes
+
+    def update_codes_for_num_rows(self, codes: List[str]) -> List[str]:
         """
-        Modify the code to change the 'num_rows' value and add a comment with original value.
+        Modify each code in the list to change the 'num_rows' value and add a comment with original value.
 
         Args:
-            code (str): The original code generated.
+            codes (List[str]): The list of original codes generated.
 
         Returns:
-            str: The modified code with 'num_rows' value changed and comments added.
+            List[str]: The list of modified codes with 'num_rows' value changed and comments added.
         """
-        code_lines = code.split("\n")
-        modified_value = None
-        for idx, line in enumerate(code_lines):
-            if "num_rows =" in line:
-                current_value = int(line.split("=")[-1].strip())
-                modified_value = min(current_value, 100)
-                code_lines[
-                    idx
-                ] = f"num_rows = {modified_value}  # Run: {modified_value}, Submit: {current_value}"
-                break
+        modified_codes = []
 
-        modified_code = "\n".join(code_lines)
+        for code in codes:
+            code_lines = code.split("\n")
+            modified_value = None
+            for idx, line in enumerate(code_lines):
+                if "num_rows =" in line:
+                    current_value = int(line.split("=")[-1].strip())
+                    modified_value = min(current_value, 100)
+                    code_lines[
+                        idx
+                    ] = f"num_rows = {modified_value}  # Run: {modified_value}, Submit: {current_value}"
+                    break
 
-        if modified_value is None:
-            warning_comment = (
-                "# WARNING: 'num_rows' was not correctly generated.\n"
-                "# If the number of rows exceeds 10,000, please try modifying the prompt and regenerating.\n"
-            )
-            modified_code = warning_comment + modified_code + warning_comment
+            modified_code = "\n".join(code_lines)
 
-        return modified_code
+            if modified_value is None:
+                warning_comment = (
+                    "# WARNING: 'num_rows' was not correctly generated.\n"
+                    "# If the number of rows exceeds 10,000, please try modifying the prompt and regenerating.\n"
+                )
+                modified_code = warning_comment + modified_code
+
+            modified_codes.append(modified_code)
+
+        return modified_codes
 
     def _test_code(self, code: str) -> pd.DataFrame | None:
         context = (
@@ -145,18 +185,71 @@ class CodeProcessor:
         test_run_code = "\n".join(code_lines)
         exec(test_run_code, context)
 
-    def run_code(self, code):
+    def run_codes(self, codes):
+        result_dfs = []
+
+        for i, code in enumerate(codes):
+            include_extra_col = i == len(codes) - 1
+            result_df = self.run_code(code, include_extra_col=include_extra_col)
+            if result_df is not None:
+                result_dfs.append(result_df)
+
+        if result_dfs:
+            combined_df = pd.concat(result_dfs, axis=1)
+            return combined_df
+        else:
+            return None
+
+    def run_code(self, code, include_extra_col=False):
         context = (
             {"idx_series": self._col_for_join} if self._col_for_join is not None else {}
         )
 
-        if self._col_for_join is not None:
+        if self._col_for_join is not None and include_extra_col:
             code = self._add_extra_col_in_code(code)
         exec(code, context)
         result_df = context.get("result_df", None)
         return result_df
 
-    def submit_code(self, code, max_local_num_rows, rows_per_node):
+    def submit_codes(self, codes, max_local_num_rows, rows_per_node):
+        """
+        Submit a list of codes, cut the resulting DataFrames to the same length based on the shortest one,
+        and concatenate them into a single DataFrame.
+
+        Args:
+            codes (list): List of code strings to be submitted.
+            max_local_num_rows (int): Maximum number of rows for local execution.
+            rows_per_node (int): Number of rows per node for distributed execution.
+
+        Returns:
+            DataFrame: A single DataFrame containing all columns from the submitted codes.
+        """
+        result_dfs = []
+        for i, code in enumerate(codes):
+            include_extra_col = i == len(codes) - 1
+            result_df = self.submit_code(
+                code,
+                max_local_num_rows,
+                rows_per_node,
+                include_extra_col=include_extra_col,
+            )
+            result_dfs.append(result_df)
+
+        if len(result_dfs) == 1:
+            return result_dfs[0]
+
+        min_row_count = min(df.shape[0] for df in result_dfs)
+
+        trimmed_dfs = [df.head(min_row_count) for df in result_dfs]
+
+        # Concatenate all the DataFrames along the columns
+        final_df = bpd.concat(trimmed_dfs, axis=1)
+
+        return final_df
+
+    def submit_code(
+        self, code, max_local_num_rows, rows_per_node, include_extra_col=False
+    ):
         submit_value = None
         for line in code.split("\n"):
             if "num_rows" in line and "Submit:" in line:
@@ -181,12 +274,12 @@ class CodeProcessor:
                 if self._col_for_join is not None
                 else {}
             )
-            if self._col_for_join is not None:
+            if self._col_for_join is not None and include_extra_col:
                 modified_code = self._add_extra_col_in_code(modified_code)
             exec(modified_code, context)
             result_df = context.get("result_df", None)
             result_df = bpd.read_pandas(result_df)
-        elif self._col_for_join is None:
+        elif self._col_for_join is None or not include_extra_col:
             result_df = self._remote_function_code_exec(
                 modified_code, submit_value, rows_per_node
             )
@@ -238,7 +331,7 @@ class CodeProcessor:
 
         columns_clause = ", ".join(
             [
-                f"JSON_VALUE(row, '$.{col_name}') AS {col_name}"
+                f"JSON_VALUE(row, '$.{col_name}') AS `{col_name}`"
                 for col_name in record_schema
             ]
         )
@@ -314,9 +407,10 @@ class CodeProcessor:
         record_schema = json.loads(sf.head(1).iloc[0]["batch"])["records"][0].keys()
         columns_clause = ", ".join(
             [
-                f"JSON_VALUE(row, '$.{col_name}') AS {col_name}"
+                f"JSON_VALUE(row, '$.{col_name}') AS `{col_name}`"
                 for col_name in record_schema
             ]
+            + ["id"]
         )
 
         flattening_sql = FLATTENING_SQL_TEMPLATE.format(
@@ -347,7 +441,7 @@ class CodeProcessor:
 
         return code
 
-    def _update_prompt_on_error(self, error: str, code: str) -> str:
+    def _update_prompt_on_error(self, error: str, code: str, prompt_idx: int) -> str:
         # Handle specific error messages
         if (
             error
@@ -358,11 +452,12 @@ class CodeProcessor:
         updated_prompt = (
             "Generate new code based on the original question, code and the error message of the code shown below\n"
             + "Original Question:\n"
-            + self._prompt
+            + self._prompts[prompt_idx]
             + "\n\n"
             + "Code:\n"
             + code
             + "\n\nError Message: "
             + error
         )
+        print(updated_prompt)
         return updated_prompt

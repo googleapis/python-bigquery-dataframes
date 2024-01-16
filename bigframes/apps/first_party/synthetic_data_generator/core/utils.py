@@ -86,7 +86,7 @@ def summarize_df_to_dict(df, num_rows, use_string_column_values=False):
 
 
 def _split_non_numeric(df, keep_bool=True):
-    types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES)
+    types_to_keep = set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
     if not keep_bool:
         types_to_keep -= set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
     non_numeric_cols = [
