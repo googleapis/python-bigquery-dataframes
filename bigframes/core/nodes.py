@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 import functools
 import typing
 from typing import Tuple
@@ -73,6 +73,9 @@ class BigFrameNode:
     def _node_hash(self):
         return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
 
+    def swap_children(self, children: typing.Tuple[BigFrameNode, ...]):
+        return self
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -81,6 +84,11 @@ class UnaryNode(BigFrameNode):
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return (self.child,)
+
+    def swap_children(self, children: typing.Tuple[BigFrameNode, ...]):
+        if len(children) != 1:
+            raise ValueError("Unary node must only have one child")
+        return replace(self, child=children[0])
 
 
 @dataclass(frozen=True)
@@ -105,6 +113,11 @@ class JoinNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    def swap_children(self, children: typing.Tuple[BigFrameNode, ...]):
+        if len(children) != 2:
+            raise ValueError("Join node must only have two children")
+        return replace(self, left_child=children[0], right_child=children[1])
+
 
 @dataclass(frozen=True)
 class ConcatNode(BigFrameNode):
@@ -116,6 +129,11 @@ class ConcatNode(BigFrameNode):
 
     def __hash__(self):
         return self._node_hash
+
+    def swap_children(self, children: typing.Tuple[BigFrameNode, ...]):
+        if len(children) != len(self.children):
+            raise ValueError("Invalid swap does not have matching child count.")
+        return replace(self, children=children)
 
 
 # Input Nodex

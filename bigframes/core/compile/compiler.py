@@ -21,6 +21,7 @@ import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
+import bigframes.core.compile.rewrite as rewriting
 import bigframes.core.compile.single_column
 import bigframes.core.nodes as nodes
 
@@ -29,12 +30,17 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 
+tree_rewriter = rewriting.ExpressionTreeRewriter()
+
+
 def compile_ordered(node: nodes.BigFrameNode) -> compiled.OrderedIR:
-    return typing.cast(compiled.OrderedIR, compile_node(node, True))
+    rewritten_node = tree_rewriter.rewrite(node)
+    return typing.cast(compiled.OrderedIR, compile_node(rewritten_node, True))
 
 
 def compile_unordered(node: nodes.BigFrameNode) -> compiled.UnorderedIR:
-    return typing.cast(compiled.UnorderedIR, compile_node(node, False))
+    rewritten_node = tree_rewriter.rewrite(node)
+    return typing.cast(compiled.UnorderedIR, compile_node(rewritten_node, False))
 
 
 @functools.cache

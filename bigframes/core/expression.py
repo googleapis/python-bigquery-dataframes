@@ -49,6 +49,9 @@ class Expression(abc.ABC):
     def is_const(self) -> bool:
         return False
 
+    def substitute(self, subs: dict[str, Expression]) -> Expression:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -83,6 +86,9 @@ class UnboundVariableExpression(Expression):
     def is_const(self) -> bool:
         return False
 
+    def substitute(self, subs: dict[str, Expression]) -> Expression:
+        return self if self.id not in subs else subs[self.id]
+
 
 @dataclasses.dataclass(frozen=True)
 class OpExpression(Expression):
@@ -110,3 +116,8 @@ class OpExpression(Expression):
     @property
     def is_const(self) -> bool:
         return all(child.is_const for child in self.inputs)
+
+    def substitute(self, subs: dict[str, Expression]) -> Expression:
+        return OpExpression(
+            self.op, tuple(input.substitute(subs) for input in self.inputs)
+        )
