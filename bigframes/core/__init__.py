@@ -21,8 +21,8 @@ from typing import Iterable, Literal, Sequence
 import ibis.expr.types as ibis_types
 import pandas
 
-import bigframes.core.compile.compiled as compiled
-import bigframes.core.compile.compiler as compiler
+import bigframes.core.compile as compiling
+import bigframes.core.expression as expressions
 import bigframes.core.guid
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
@@ -30,7 +30,6 @@ import bigframes.core.ordering as orderings
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.bigquery
 
@@ -104,11 +103,11 @@ class ArrayValue:
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self._compile_ordered().get_column_type(key)
 
-    def _compile_ordered(self) -> compiled.OrderedIR:
-        return compiler.compile_ordered(self.node)
+    def _compile_ordered(self) -> compiling.OrderedIR:
+        return compiling.compile_ordered(self.node)
 
-    def _compile_unordered(self) -> compiled.UnorderedIR:
-        return compiler.compile_unordered(self.node)
+    def _compile_unordered(self) -> compiling.UnorderedIR:
+        return compiling.compile_unordered(self.node)
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
@@ -152,48 +151,10 @@ class ArrayValue:
             nodes.ConcatNode(children=tuple([self.node, *[val.node for val in other]]))
         )
 
-    def project_unary_op(
-        self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> ArrayValue:
-        """Creates a new expression based on this expression with unary operation applied to one column."""
+    def project(self, expression: expressions.Expression, output_id: str):
         return ArrayValue(
-            nodes.ProjectRowOpNode(
-                child=self.node, input_ids=(column_name,), op=op, output_id=output_name
-            )
-        )
-
-    def project_binary_op(
-        self,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> ArrayValue:
-        """Creates a new expression based on this expression with binary operation applied to two columns."""
-        return ArrayValue(
-            nodes.ProjectRowOpNode(
-                child=self.node,
-                input_ids=(left_column_id, right_column_id),
-                op=op,
-                output_id=output_column_id,
-            )
-        )
-
-    def project_ternary_op(
-        self,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
-    ) -> ArrayValue:
-        """Creates a new expression based on this expression with ternary operation applied to three columns."""
-        return ArrayValue(
-            nodes.ProjectRowOpNode(
-                child=self.node,
-                input_ids=(col_id_1, col_id_2, col_id_3),
-                op=op,
-                output_id=output_column_id,
+            nodes.ProjectionNode(
+                child=self.node, assignments=((expression, output_id),)
             )
         )
 
