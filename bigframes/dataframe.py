@@ -1067,6 +1067,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return typing.cast(DataFrame, self.iloc[-n:])
 
     def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
+        """
+        Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
+        DataFrame.peek(force=False) is much faster than DataFrame.peek, but will only succeed in the
+        absence of joins, aggregations, and analytic operators.
+
+        Args:
+            n (int, default 5):
+                The number of rows to select from the dataframe. Which N rows are returned is non-deterministic.
+            force (bool, default True):
+                If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
+                of the operation if force=True. I force=False, the operation will throw a NotImplementedError.
+        Returns:
+            pandas.DataFrame: A pandas DataFrame with n rows.
+
+        Raises:
+            NotImplementedError: If force=False and data cannot be efficiently peeked.
+        """
         maybe_result = self._block.try_peek(n)
         if maybe_result is None:
             if force:
