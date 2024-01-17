@@ -31,7 +31,7 @@ class JoinCondition(NamedTuple):
     right_id: str
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
+@dataclasses.dataclass(frozen=True)
 class JoinColumnMapping:
     source_table: JoinSide
     source_id: str
