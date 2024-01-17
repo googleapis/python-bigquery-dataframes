@@ -483,13 +483,17 @@ def join_mono_indexed(
     right_expr = right._block.expr
     left_mappings = [
         join_defs.JoinColumnMapping(
-            join_defs.JoinSide.LEFT, id, bigframes.core.guid.generate_guid()
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
         )
         for id in left_expr.column_ids
     ]
     right_mappings = [
         join_defs.JoinColumnMapping(
-            join_defs.JoinSide.RIGHT, id, bigframes.core.guid.generate_guid()
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
         )
         for id in right_expr.column_ids
     ]
@@ -561,13 +565,17 @@ def join_multi_indexed(
 
     left_mappings = [
         join_defs.JoinColumnMapping(
-            join_defs.JoinSide.LEFT, id, bigframes.core.guid.generate_guid()
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
         )
         for id in left_expr.column_ids
     ]
     right_mappings = [
         join_defs.JoinColumnMapping(
-            join_defs.JoinSide.RIGHT, id, bigframes.core.guid.generate_guid()
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
         )
         for id in right_expr.column_ids
     ]

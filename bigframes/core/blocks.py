@@ -1544,13 +1544,17 @@ class Block:
     ) -> Block:
         left_mappings = [
             join_defs.JoinColumnMapping(
-                join_defs.JoinSide.LEFT, id, guid.generate_guid()
+                source_table=join_defs.JoinSide.LEFT,
+                source_id=id,
+                destination_id=guid.generate_guid(),
             )
             for id in self.expr.column_ids
         ]
         right_mappings = [
             join_defs.JoinColumnMapping(
-                join_defs.JoinSide.RIGHT, id, guid.generate_guid()
+                source_table=join_defs.JoinSide.RIGHT,
+                source_id=id,
+                destination_id=guid.generate_guid(),
             )
             for id in other.expr.column_ids
         ]
