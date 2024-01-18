@@ -4869,6 +4869,50 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def eval(self, expr: str) -> DataFrame:
+        """
+        Evaluate a string describing operations on DataFrame columns.
+
+        Operates on columns only, not specific rows or elements.  This allows
+        `eval` to run arbitrary code, which can make you vulnerable to code
+        injection if you pass user input to this function.
+
+        Args:
+            expr (str):
+                The expression string to evaluate.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def query(self, expr: str) -> DataFrame | None:
+        """
+        Query the columns of a DataFrame with a boolean expression.
+
+        Args:
+            expr (str):
+                The query string to evaluate.
+
+                You can refer to variables
+                in the environment by prefixing them with an '@' character like
+                ``@a + b``.
+
+                You can refer to column names that are not valid Python variable names
+                by surrounding them in backticks. Thus, column names containing spaces
+                or punctuations (besides underscores) or starting with digits must be
+                surrounded by backticks. (For example, a column named "Area (cm^2)" would
+                be referenced as ```Area (cm^2)```). Column names which are Python keywords
+                (like "list", "for", "import", etc) cannot be used.
+
+                For example, if one of your columns is called ``a a`` and you want
+                to sum it with ``b``, your query should be ```a a` + b``.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def interpolate(self, method: str = "linear"):
         """
         Fill NaN values using an interpolation method.
