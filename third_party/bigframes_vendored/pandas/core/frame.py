@@ -4865,6 +4865,23 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def eval(self, expr: str) -> DataFrame:
+        """
+        Evaluate a string describing operations on DataFrame columns.
+
+        Operates on columns only, not specific rows or elements.  This allows
+        `eval` to run arbitrary code, which can make you vulnerable to code
+        injection if you pass user input to this function.
+
+        Args:
+            expr (str):
+                The expression string to evaluate.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def interpolate(self, method: str = "linear"):
         """
         Fill NaN values using an interpolation method.

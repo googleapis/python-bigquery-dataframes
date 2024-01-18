@@ -241,6 +241,37 @@ def test_index_value_counts(scalars_df_index, scalars_pandas_df_index):
 
 
 @pytest.mark.parametrize(
+    ("level",),
+    [
+        ("int64_too",),
+        ("rowindex_2",),
+        (1,),
+    ],
+)
+def test_index_get_level_values(scalars_df_index, scalars_pandas_df_index, level):
+    bf_result = (
+        scalars_df_index.set_index(["int64_too", "rowindex_2"])
+        .index.get_level_values(level)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.set_index(
+        ["int64_too", "rowindex_2"]
+    ).index.get_level_values(level)
+
+    pd.testing.assert_index_equal(bf_result, pd_result)
+
+
+def test_index_to_series(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    bf_result = scalars_df_index.set_index(["int64_too"]).index.to_series().to_pandas()
+    pd_result = scalars_pandas_df_index.set_index(["int64_too"]).index.to_series()
+
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
     ("how",),
     [
         ("any",),

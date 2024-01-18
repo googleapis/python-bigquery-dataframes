@@ -81,6 +81,33 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def get_level_values(self, level) -> Index:
+        """
+        Return an Index of values for requested level.
+
+        This is primarily useful to get an individual level of values from a
+        MultiIndex, but is provided on Index as well for compatibility.
+
+        Args:
+            level (int or str):
+                It is either the integer position or the name of the level.
+
+        Returns:
+            Index: Calling object, as there is only one level in the Index.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_series(self):
+        """
+        Create a Series with both index and values equal to the index keys.
+
+        Useful with map for returning an indexer based on an index.
+
+        Returns:
+            Series: The dtype will be based on the type of the Index values.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def isin(self, values):
         """
         Return a boolean array where the index values are in `values`.

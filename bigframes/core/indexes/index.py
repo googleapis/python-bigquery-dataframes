@@ -36,6 +36,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
+if typing.TYPE_CHECKING:
+    import bigframes.series
+
 
 class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
@@ -155,6 +158,28 @@ class Index(vendored_pandas_index.Index):
     @property
     def T(self) -> Index:
         return self.transpose()
+
+    def to_series(self) -> bigframes.series.Series:
+        if self.nlevels != 1:
+            NotImplementedError(
+                f"Converting multi-index to series is not yet supported. {constants.FEEDBACK_LINK}"
+            )
+        # Convoluted steps due to lack of convenient block methods
+        index_only_block = self._block.drop_columns(self._block.value_columns)
+        reset_block = index_only_block.reset_index(drop=False)
+        result_block = reset_block.set_index(
+            [reset_block.value_columns[0]], drop=False, index_labels=[self.name]
+        )
+        import bigframes.series
+
+        return bigframes.series.Series(result_block)
+
+    def get_level_values(self, level) -> Index:
+        level_n = level if isinstance(level, int) else self.names.index(level)
+        block = self._block.drop_levels(
+            [self._block.index_columns[i] for i in range(self.nlevels) if i != level_n]
+        )
+        return Index._from_block(block)
 
     def _memory_usage(self) -> int:
         (n_rows,) = self.shape
