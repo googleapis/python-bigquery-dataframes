@@ -77,10 +77,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._dtype
 
     @property
-    def index(self) -> indexes.Index:
-        return indexes.Index(self)
-
-    @property
     def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
         return bigframes.core.indexers.LocSeriesIndexer(self)
 

@@ -146,10 +146,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = result_index._block
 
         if block:
-            if index:
-                raise NotImplementedError(
-                    "DataFrame 'index' constructor parameter not supported "
-                    f"when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
+            if index is not None:
+                bf_index = indexes.Index(index)
+                idx_block = bf_index._block
+                idx_cols = idx_block.index_columns
+                join_idx, (_, r_mapping) = block.reset_index().index.join(
+                    bf_index._block.reset_index().index, how="inner"
+                )
+                block = join_idx._block.set_index(
+                    [r_mapping[idx_col] for idx_col in idx_cols]
                 )
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
@@ -250,7 +255,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def index(
         self,
     ) -> indexes.Index:
-        return indexes.Index(self)
+        return indexes.Index.from_frame(self)
 
     @index.setter
     def index(self, value):
@@ -661,6 +666,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ):
         if isinstance(other, (float, int)):
             return self._apply_scalar_binop(other, op, reverse=reverse)
+        elif isinstance(other, indexes.Index):
+            return self._apply_series_binop(
+                other.to_series(index=self.index),
+                op,
+                axis=axis,
+                how=how,
+                reverse=reverse,
+            )
         elif isinstance(other, bigframes.series.Series):
             return self._apply_series_binop(
                 other, op, axis=axis, how=how, reverse=reverse

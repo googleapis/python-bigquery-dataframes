@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Mapping, Sequence, Tuple, Union
+from typing import Hashable, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas
@@ -36,12 +36,57 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
+if typing.TYPE_CHECKING:
+    import bigframes.series
+
 
 class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
 
-    def __init__(self, data: blocks.BlockHolder):
-        self._data = data
+    def __init__(
+        self,
+        data=None,
+        dtype=None,
+        *,
+        name=None,
+        frame: Optional[blocks.BlockHolder] = None,
+    ):
+        import bigframes.dataframe as df
+        import bigframes.series as series
+
+        if frame is not None:
+            self._data = frame
+        elif isinstance(data, df.DataFrame):
+            raise ValueError("Cannot construct index from dataframe.")
+        elif isinstance(data, series.Series) or isinstance(data, Index):
+            if isinstance(data, series.Series):
+                block = data._block
+                block = block.set_index(
+                    col_ids=[data._value_column],
+                )
+            elif isinstance(data, Index):
+                block = data._block
+            index = Index._from_block(block)
+            name = data.name if name is None else name
+            if name is not None:
+                index.name = name
+            if dtype is not None:
+                index = index.astype(dtype)
+            self._data = df.DataFrame(index._block)
+        else:
+            pd_index = pandas.Index(data=data, dtype=dtype, name=name)
+            pd_df = pandas.DataFrame(index=pd_index)
+            self._data = df.DataFrame(pd_df)
+
+    @classmethod
+    def from_frame(self, frame: blocks.BlockHolder) -> Index:
+        return Index(frame=frame)
+
+    @classmethod
+    def _from_block(cls, block: blocks.Block) -> Index:
+        import bigframes.dataframe as df
+
+        return Index.from_frame(df.DataFrame(block))
 
     @property
     def name(self) -> blocks.Label:
@@ -150,11 +195,40 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def _block(self) -> blocks.Block:
-        return self._data._get_block()
+        return self._data._get_block().select_columns([])
 
     @property
     def T(self) -> Index:
         return self.transpose()
+
+    def copy(self, name: Optional[Hashable] = None):
+        copy_index = Index._from_block(self._block)
+        if name is not None:
+            copy_index.name = name
+        return copy_index
+
+    def to_series(
+        self, index: Optional[Index] = None, name: Optional[Hashable] = None
+    ) -> bigframes.series.Series:
+        if self.nlevels != 1:
+            NotImplementedError(
+                f"Converting multi-index to series is not yet supported. {constants.FEEDBACK_LINK}"
+            )
+
+        import bigframes.series
+
+        name = self.name if name is None else name
+        if index is None:
+            return bigframes.series.Series(data=self, index=self, name=name)
+        else:
+            return bigframes.series.Series(data=self, index=Index(index), name=name)
+
+    def get_level_values(self, level) -> Index:
+        level_n = level if isinstance(level, int) else self.names.index(level)
+        block = self._block.drop_levels(
+            [self._block.index_columns[i] for i in range(self.nlevels) if i != level_n]
+        )
+        return Index._from_block(block)
 
     def _memory_usage(self) -> int:
         (n_rows,) = self.shape
@@ -365,12 +439,6 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
-
-    @classmethod
-    def _from_block(cls, block: blocks.Block) -> Index:
-        import bigframes.dataframe as df
-
-        return Index(df.DataFrame(block))
 
 
 class IndexValue:
