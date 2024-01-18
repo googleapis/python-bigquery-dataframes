@@ -19,8 +19,10 @@ import pandas
 import pandas.arrays
 import pyarrow  # type: ignore
 import pyarrow.compute  # type: ignore
+import pyarrow.types  # type: ignore
 
 import bigframes.constants
+import bigframes.features
 
 
 def arrow_to_pandas(
@@ -74,6 +76,18 @@ def arrow_to_pandas(
                 else mask.to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
+        elif (
+            isinstance(dtype, pandas.ArrowDtype)
+            and pyarrow.types.is_list(dtype.pyarrow_dtype)
+            and not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable
+        ):
+            # This version of pandas doesn't really support ArrowDtype
+            # well. See internal issue 321013333 where array type has
+            # several problems converting a string.
+            series = pandas.Series(
+                column.to_pylist(),  # type: ignore
+                dtype="object",
+            )
         elif isinstance(dtype, pandas.ArrowDtype):
             # Avoid conversion logic if we are backing the pandas Series by the
             # arrow array.
