@@ -1444,17 +1444,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def eval(self, expr: str) -> DataFrame:
         index_resolver = {
-            pandas_eval_parsing.clean_column_name(name): self.index.get_level_values(
-                level
-            ).to_series()
+            pandas_eval_parsing.clean_column_name(
+                str(name)
+            ): self.index.get_level_values(level).to_series()
             for level, name in enumerate(self.index.names)
         }
         column_resolver = {
-            pandas_eval_parsing.clean_column_name(name): series
+            pandas_eval_parsing.clean_column_name(str(name)): series
             for name, series in self.items()
         }
         return pandas.eval(
-            expr=expr, level=1, target=self, resolvers=(index_resolver, column_resolver)
+            expr=expr, level=1, target=self, resolvers=(index_resolver, column_resolver)  # type: ignore
         )
 
     def value_counts(
