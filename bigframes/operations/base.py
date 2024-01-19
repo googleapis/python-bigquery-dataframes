@@ -122,7 +122,7 @@ class SeriesMethods:
                 # Uses default global session
                 block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
             if pd_series.name is None:
-                block = self._block.with_column_labels([None])
+                block = block.with_column_labels([None])
         self._block: blocks.Block = block
 
     @property
