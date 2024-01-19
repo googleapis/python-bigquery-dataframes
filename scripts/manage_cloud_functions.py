@@ -126,7 +126,7 @@ def cleanup_gcfs(args):
                     count += 1
                     GCF_CLIENT.delete_function(name=f.name)
                     print(
-                        f"[{count}]: deleted [{count}] {f.name} last updated on {f.update_time}"
+                        f"[{region}]: deleted [{count}] {f.name} last updated on {f.update_time}"
                     )
                     if count >= max_delete_per_region:
                         break
@@ -137,7 +137,7 @@ def cleanup_gcfs(args):
                 except google.api_core.exceptions.ResourceExhausted:
                     # Stop deleting in this region for now
                     print(
-                        "Cannot delete any more functions in region {region} due to quota exhaustion. Please try again later."
+                        f"Cannot delete any more functions in region {region} due to quota exhaustion. Please try again later."
                     )
                     break
 
