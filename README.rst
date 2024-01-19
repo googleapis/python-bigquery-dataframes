@@ -315,7 +315,7 @@ To use BigQuery DataFrames ML remote models(bigframes.ml.remote or bigframes.ml.
 * The BigQuery Connection API (bigqueryconnection.googleapis.com)
 * The Vertex AI API (aiplatform.googleapis.com)
 
-To use BigQuery DataFrames remote models(bigframes.ml.remote or bigframes.ml.llm), you must be granted the
+To use BigQuery DataFrames ML remote models(bigframes.ml.remote or bigframes.ml.llm), you must be granted the
 following IAM roles:
 
 * BigQuery Data Editor (roles/bigquery.dataEditor)
