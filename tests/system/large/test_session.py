@@ -50,3 +50,13 @@ def test_read_gbq_for_large_tables(session: Session, query_or_table, index_col):
     """Verify read_gbq() is able to read large tables."""
     df = session.read_gbq(query_or_table, index_col=index_col)
     assert len(df.columns) != 0
+
+
+def test_read_gbq_for_large_tables_1(session: Session):
+    """Verify read_gbq() is able to read large tables."""
+    query = """
+    SELECT *
+    FROM `bigframes-dev.huanc.gsod_1t`
+    """
+    df = session.read_gbq(query)
+    assert len(df.columns) != 0
