@@ -249,7 +249,7 @@ class CutOp(WindowOp):
             col_max = _apply_window_if_present(x.max(), window)
             bin_width = (col_max - col_min) / self._bins
 
-            if self._labels == False:
+            if self._labels is False:
                 for this_bin in range(self._bins_int - 1):
                     out = out.when(
                         x <= (col_min + (this_bin + 1) * bin_width),

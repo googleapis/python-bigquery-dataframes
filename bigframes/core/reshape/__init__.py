@@ -130,7 +130,7 @@ def cut(
             raise ValueError("Overlapping IntervalIndex is not accepted.")
 
     if labels is not None and not isinstance(labels, bool):
-        raise ValueError(
+        raise NotImplementedError(
             "The 'labels' parameter must be either a boolean value or None. "
             "Please provide a valid value for 'labels'."
         )
