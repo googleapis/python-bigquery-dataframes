@@ -44,7 +44,7 @@ def cut(
             2      {'left_exclusive': 2.5, 'right_inclusive': 5.0}
             3     {'left_exclusive': 7.5, 'right_inclusive': 10.0}
             dtype: struct<left_exclusive: double, right_inclusive: double>[pyarrow]
-    
+
     Cut with an integer (equal-width bins) and labels=False:
 
         >>> bpd.cut(s, bins=4, labels=False)
