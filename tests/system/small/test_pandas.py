@@ -403,6 +403,7 @@ def test_cut_default_labels(scalars_dfs):
     pd_result = pd.cut(scalars_pandas_df["float64_col"], 5)
     bf_result = bpd.cut(scalars_df["float64_col"], 5).to_pandas()
 
+    # Convert to match data format
     pd_result_converted = pd.Series(
         [
             {"left_exclusive": interval.left, "right_inclusive": interval.right}
@@ -447,7 +448,6 @@ def test_cut_with_interval(scalars_dfs, bins):
         ],
         name=pd_result.name,
     )
-    pd_result.index = pd_result.index.astype("Int64")
 
     pd.testing.assert_series_equal(
         bf_result, pd_result_converted, check_index=False, check_dtype=False

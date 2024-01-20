@@ -82,9 +82,7 @@ def cut(
         labels (None):
             Specifies the labels for the returned bins. Must be the same length as
             the resulting bins. If False, returns only integer indicators of the
-            bins. This affects the type of the output container (see below).
-            If True, raises an error. When `ordered=False`, labels must be
-            provided.
+            bins. This affects the type of the output container.
 
     Returns:
         Series: A Series representing the respective bin for each value
