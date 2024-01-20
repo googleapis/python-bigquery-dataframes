@@ -23,11 +23,14 @@ from typing import Optional
 import bigframes.dtypes
 import bigframes.operations
 
+# Only constant null subexpressions should have no type
+DtypeOrNoneType = Optional[bigframes.dtypes.Dtype]
 
-def const(
-    value: typing.Hashable, dtype: Optional[bigframes.dtypes.Dtype] = None
-) -> Expression:
-    return ScalarConstantExpression(value, dtype)
+
+def const(value: typing.Hashable, dtype: DtypeOrNoneType = None) -> Expression:
+    return ScalarConstantExpression(
+        value, dtype or bigframes.dtypes.infer_literal_type(value)
+    )
 
 
 def free_var(id: str) -> Expression:
@@ -45,9 +48,16 @@ class Expression(abc.ABC):
     def rename(self, name_mapping: dict[str, str]) -> Expression:
         return self
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def is_const(self) -> bool:
-        return False
+        ...
+
+    @abc.abstractmethod
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> bigframes.dtypes.Dtype:
+        ...
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,6 +71,11 @@ class ScalarConstantExpression(Expression):
     @property
     def is_const(self) -> bool:
         return True
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> DtypeOrNoneType:
+        return self.dtype
 
 
 @dataclasses.dataclass(frozen=True)
@@ -82,6 +97,14 @@ class UnboundVariableExpression(Expression):
     @property
     def is_const(self) -> bool:
         return False
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> DtypeOrNoneType:
+        if self.id in input_types:
+            return input_types[self.id]
+        else:
+            raise ValueError("Type of variable has not been fixed.")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,3 +133,11 @@ class OpExpression(Expression):
     @property
     def is_const(self) -> bool:
         return all(child.is_const for child in self.inputs)
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> DtypeOrNoneType:
+        operand_types = tuple(
+            map(lambda x: x.output_type(input_types=input_types), self.inputs)
+        )
+        return self.op.output_type(*operand_types)
