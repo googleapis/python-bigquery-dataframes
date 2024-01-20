@@ -19,10 +19,8 @@ import typing
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
-import numpy as np
-from pandas import Float64Dtype, Int64Dtype
+from pandas import Int64Dtype
 import pandas as pd
-import pandas.core.algorithms as algos
 
 import bigframes.constants as constants
 import bigframes.dtypes as dtypes
