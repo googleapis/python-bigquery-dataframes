@@ -262,8 +262,11 @@ class CutOp(WindowOp):
                 out = out.when(x.notnull(), self._bins - 1)
             else:
                 interval_struct = None
+                adj = (col_max - col_min) * 0.001
                 for this_bin in range(self._bins_int):
-                    left_edge = col_min + this_bin * bin_width
+                    left_edge = (
+                        col_min + this_bin * bin_width - (0 if this_bin > 0 else adj)
+                    )
                     right_edge = col_min + (this_bin + 1) * bin_width
                     interval_struct = ibis.struct(
                         {
