@@ -104,7 +104,7 @@ class Index(vendored_pandas_index.Index):
 
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
-        return self._data._set_block(self._block.with_index_labels(values))
+        return self._data._set_block(self._data._get_block().with_index_labels(values))
 
     @property
     def nlevels(self) -> int:
