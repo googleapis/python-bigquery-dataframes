@@ -1165,7 +1165,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def _drop_by_index(self, index: indexes.Index) -> DataFrame:
-        block = index._data._get_block()
+        block = index._block
         block, ordering_col = block.promote_offsets()
         joined_index, (get_column_left, get_column_right) = self._block.index.join(
             block.index
@@ -1301,9 +1301,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
             )
 
-        local_df = bigframes.dataframe.DataFrame(
-            {k: v}, session=self._get_block().expr.session
-        )
+        local_df = DataFrame({k: v}, session=self._get_block().expr.session)
         # local_df is likely (but not guaranteed) to be cached locally
         # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
@@ -1604,7 +1602,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("Original index must be unique to reindex")
         keep_original_names = False
         if isinstance(index, indexes.Index):
-            new_indexer = DataFrame(data=index._data._get_block())[[]]
+            new_indexer = DataFrame(data=index._block)[[]]
         else:
             if not isinstance(index, pandas.Index):
                 keep_original_names = True

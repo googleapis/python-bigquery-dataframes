@@ -38,6 +38,7 @@ import bigframes.operations.aggregations as agg_ops
 import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
 if typing.TYPE_CHECKING:
+    import bigframes.dataframe
     import bigframes.series
 
 
@@ -50,13 +51,12 @@ class Index(vendored_pandas_index.Index):
         dtype=None,
         *,
         name=None,
-        frame: Optional[blocks.BlockHolder] = None,
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
 
-        if frame is not None:
-            self._data = frame
+        if isinstance(data, blocks.Block):
+            block = data.select_columns([])
         elif isinstance(data, df.DataFrame):
             raise ValueError("Cannot construct index from dataframe.")
         elif isinstance(data, series.Series) or isinstance(data, Index):
@@ -67,27 +67,24 @@ class Index(vendored_pandas_index.Index):
                 )
             elif isinstance(data, Index):
                 block = data._block
-            index = Index._from_block(block)
+            index = Index(data=block)
             name = data.name if name is None else name
             if name is not None:
                 index.name = name
             if dtype is not None:
                 index = index.astype(dtype)
-            self._data = df.DataFrame(index._block)
+            block = index._block
         else:
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
-            self._data = df.DataFrame(pd_df)
+            block = df.DataFrame(pd_df)._block
+        self._block: blocks.Block = block
 
     @classmethod
-    def from_frame(self, frame: blocks.BlockHolder) -> Index:
-        return Index(frame=frame)
-
-    @classmethod
-    def _from_block(cls, block: blocks.Block) -> Index:
-        import bigframes.dataframe as df
-
-        return Index.from_frame(df.DataFrame(block))
+    def from_frame(
+        self, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
+    ) -> Index:
+        return ViewIndex(frame)
 
     @property
     def name(self) -> blocks.Label:
@@ -100,15 +97,16 @@ class Index(vendored_pandas_index.Index):
     @property
     def names(self) -> typing.Sequence[blocks.Label]:
         """Returns the names of the Index."""
-        return self._data._get_block()._index_labels
+        return self._block._index_labels
 
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
-        return self._data._set_block(self._data._get_block().with_index_labels(values))
+        new_block = self._block.with_index_labels(values)
+        self._block = new_block
 
     @property
     def nlevels(self) -> int:
-        return len(self._data._get_block().index_columns)
+        return len(self._block.index_columns)
 
     @property
     def values(self) -> np.ndarray:
@@ -120,7 +118,7 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def shape(self) -> typing.Tuple[int]:
-        return (self._data._get_block().shape[0],)
+        return (self._block.shape[0],)
 
     @property
     def dtype(self):
@@ -152,9 +150,7 @@ class Index(vendored_pandas_index.Index):
         """
         return typing.cast(
             bool,
-            self._data._get_block().is_monotonic_increasing(
-                self._data._get_block().index_columns
-            ),
+            self._block.is_monotonic_increasing(self._block.index_columns),
         )
 
     @property
@@ -167,9 +163,7 @@ class Index(vendored_pandas_index.Index):
         """
         return typing.cast(
             bool,
-            self._data._get_block().is_monotonic_decreasing(
-                self._data._get_block().index_columns
-            ),
+            self._block.is_monotonic_decreasing(self._block.index_columns),
         )
 
     @property
@@ -195,15 +189,11 @@ class Index(vendored_pandas_index.Index):
         return duplicates_df["is_duplicate"].any()
 
     @property
-    def _block(self) -> blocks.Block:
-        return self._data._get_block().select_columns([])
-
-    @property
     def T(self) -> Index:
         return self.transpose()
 
     def copy(self, name: Optional[Hashable] = None):
-        copy_index = Index._from_block(self._block)
+        copy_index = Index(self._block)
         if name is not None:
             copy_index.name = name
         return copy_index
@@ -229,7 +219,7 @@ class Index(vendored_pandas_index.Index):
         block = self._block.drop_levels(
             [self._block.index_columns[i] for i in range(self.nlevels) if i != level_n]
         )
-        return Index._from_block(block)
+        return Index(block)
 
     def _memory_usage(self) -> int:
         (n_rows,) = self.shape
@@ -254,7 +244,7 @@ class Index(vendored_pandas_index.Index):
             order.OrderingColumnReference(column, direction=direction, na_last=na_last)
             for column in index_columns
         ]
-        return Index._from_block(self._block.order_by(ordering))
+        return Index(self._block.order_by(ordering))
 
     def astype(
         self,
@@ -343,7 +333,7 @@ class Index(vendored_pandas_index.Index):
         names = [name] if isinstance(name, str) else list(name)
         if len(names) != self.nlevels:
             raise ValueError("'name' must be same length as levels")
-        return Index._from_block(self._block.with_index_labels(names))
+        return Index(self._block.with_index_labels(names))
 
     def drop(
         self,
@@ -365,17 +355,17 @@ class Index(vendored_pandas_index.Index):
             )
         block = block.filter(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
-        return Index._from_block(block)
+        return Index(block)
 
     def dropna(self, how: str = "any") -> Index:
         if how not in ("any", "all"):
             raise ValueError("'how' must be one of 'any', 'all'")
         result = block_ops.dropna(self._block, self._block.index_columns, how=how)  # type: ignore
-        return Index._from_block(result)
+        return Index(result)
 
     def drop_duplicates(self, *, keep: str = "first") -> Index:
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
-        return Index._from_block(block)
+        return Index(block)
 
     def isin(self, values) -> Index:
         if not utils.is_list_like(values):
@@ -404,7 +394,7 @@ class Index(vendored_pandas_index.Index):
             result_ids.append(result_id)
 
         block = block.set_index(result_ids, index_labels=self._block.index_labels)
-        return Index._from_block(block)
+        return Index(block)
 
     def _apply_aggregation(self, op: agg_ops.AggregateOp) -> typing.Any:
         if self.nlevels > 1:
@@ -440,6 +430,37 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
+
+
+# Index that mutates the originating dataframe/series
+class ViewIndex(Index):
+    def __init__(
+        self,
+        series_or_dataframe: typing.Union[
+            bigframes.series.Series, bigframes.dataframe.DataFrame
+        ],
+    ):
+        super().__init__(self, series_or_dataframe._block)
+        self._whole_frame = series_or_dataframe
+
+    @property
+    def name(self) -> blocks.Label:
+        return self.names[0]
+
+    @name.setter
+    def name(self, value: blocks.Label):
+        self.names = [value]
+
+    @property
+    def names(self) -> typing.Sequence[blocks.Label]:
+        """Returns the names of the Index."""
+        return self._block._index_labels
+
+    @names.setter
+    def names(self, values: typing.Sequence[blocks.Label]):
+        new_block = self._whole_frame._get_block().with_index_labels(values)
+        self._whole_frame._set_block(new_block)
+        self._block = new_block
 
 
 class IndexValue:

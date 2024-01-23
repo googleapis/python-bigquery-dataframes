@@ -59,15 +59,14 @@ class SeriesMethods:
             block = data
 
         elif isinstance(data, SeriesMethods):
-            block = data._get_block()
+            block = data._block
             if index is not None:
                 # reindex
                 bf_index = indexes.Index(index)
                 idx_block = bf_index._block
                 idx_cols = idx_block.value_columns
-                block_idx, (_, _) = idx_block.index.join(block.index, how="left")
-                block = block_idx._block
-                block = block.with_index_labels(bf_index.names)
+                block_idx, _ = idx_block.index.join(block.index, how="left")
+                block = block_idx._block.with_index_labels(bf_index.names)
 
         elif isinstance(data, indexes.Index):
             if data.nlevels != 1:
@@ -136,10 +135,6 @@ class SeriesMethods:
     @property
     def _dtype(self):
         return self._block.dtypes[0]
-
-    @property
-    def index(self) -> indexes.Index:
-        return indexes.Index.from_frame(self)
 
     def _set_block(self, block: blocks.Block):
         self._block = block

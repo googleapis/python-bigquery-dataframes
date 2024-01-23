@@ -117,6 +117,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_numpy()
 
     @property
+    def index(self) -> indexes.Index:
+        return indexes.Index.from_frame(self)
+
+    @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
         """BigQuery job metadata for the most recent query.
 
@@ -974,7 +978,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         block = block.slice(0, 1)
-        return indexes.Index._from_block(block).to_pandas()[0]
+        return indexes.Index(block).to_pandas()[0]
 
     def idxmin(self) -> blocks.Label:
         block = self._block.order_by(
@@ -987,7 +991,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         block = block.slice(0, 1)
-        return indexes.Index._from_block(block).to_pandas()[0]
+        return indexes.Index(block).to_pandas()[0]
 
     @property
     def is_monotonic_increasing(self) -> bool:
@@ -1275,9 +1279,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise ValueError("Original index must be unique to reindex")
         keep_original_names = False
         if isinstance(index, indexes.Index):
-            new_indexer = bigframes.dataframe.DataFrame(data=index._data._get_block())[
-                []
-            ]
+            new_indexer = bigframes.dataframe.DataFrame(data=index._block)[[]]
         else:
             if not isinstance(index, pandas.Index):
                 keep_original_names = True
