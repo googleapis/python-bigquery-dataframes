@@ -82,7 +82,7 @@ class Index(vendored_pandas_index.Index):
 
     @classmethod
     def from_frame(
-        self, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
+        cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
         return ViewIndex(frame)
 
@@ -408,7 +408,7 @@ class Index(vendored_pandas_index.Index):
                 result_pd_df, _ = self._block.slice(key, key + 1, 1).to_pandas()
             else:  # special case, want [-1:] instead of [-1:0]
                 result_pd_df, _ = self._block.slice(key).to_pandas()
-            if result_pd_df.empty:
+            if result_pd_df.index.empty:
                 raise IndexError("single positional indexer is out-of-bounds")
             return result_pd_df.index[0]
         else:
@@ -440,7 +440,7 @@ class ViewIndex(Index):
             bigframes.series.Series, bigframes.dataframe.DataFrame
         ],
     ):
-        super().__init__(self, series_or_dataframe._block)
+        super().__init__(series_or_dataframe._block)
         self._whole_frame = series_or_dataframe
 
     @property
