@@ -129,9 +129,9 @@ def cut(
         if bins.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
 
-    if labels is not None and not isinstance(labels, bool):
+    if labels is not None and labels is not False:
         raise NotImplementedError(
-            "The 'labels' parameter must be either a boolean value or None. "
+            "The 'labels' parameter must be either False or None. "
             "Please provide a valid value for 'labels'."
         )
 
