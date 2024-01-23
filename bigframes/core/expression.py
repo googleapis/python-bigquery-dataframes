@@ -18,19 +18,13 @@ import abc
 import dataclasses
 import itertools
 import typing
-from typing import Optional
 
-import bigframes.dtypes
+import bigframes.dtypes as dtypes
 import bigframes.operations
 
-# Only constant null subexpressions should have no type
-DtypeOrNoneType = Optional[bigframes.dtypes.Dtype]
 
-
-def const(value: typing.Hashable, dtype: DtypeOrNoneType = None) -> Expression:
-    return ScalarConstantExpression(
-        value, dtype or bigframes.dtypes.infer_literal_type(value)
-    )
+def const(value: typing.Hashable, dtype: dtypes.ExpressionType = None) -> Expression:
+    return ScalarConstantExpression(value, dtype or dtypes.infer_literal_type(value))
 
 
 def free_var(id: str) -> Expression:
@@ -55,8 +49,8 @@ class Expression(abc.ABC):
 
     @abc.abstractmethod
     def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> bigframes.dtypes.Dtype:
+        self, input_types: dict[str, dtypes.ExpressionType]
+    ) -> dtypes.ExpressionType:
         ...
 
 
@@ -66,7 +60,7 @@ class ScalarConstantExpression(Expression):
 
     # TODO: Further constrain?
     value: typing.Hashable
-    dtype: Optional[bigframes.dtypes.Dtype] = None
+    dtype: dtypes.ExpressionType = None
 
     @property
     def is_const(self) -> bool:
@@ -74,7 +68,7 @@ class ScalarConstantExpression(Expression):
 
     def output_type(
         self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> DtypeOrNoneType:
+    ) -> dtypes.ExpressionType:
         return self.dtype
 
 
@@ -100,7 +94,7 @@ class UnboundVariableExpression(Expression):
 
     def output_type(
         self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> DtypeOrNoneType:
+    ) -> dtypes.ExpressionType:
         if self.id in input_types:
             return input_types[self.id]
         else:
@@ -135,8 +129,8 @@ class OpExpression(Expression):
         return all(child.is_const for child in self.inputs)
 
     def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> DtypeOrNoneType:
+        self, input_types: dict[str, dtypes.ExpressionType]
+    ) -> dtypes.ExpressionType:
         operand_types = tuple(
             map(lambda x: x.output_type(input_types=input_types), self.inputs)
         )
