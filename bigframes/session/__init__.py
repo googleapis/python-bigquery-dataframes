@@ -249,27 +249,33 @@ class Session(
 
         query_or_table = self._filters_to_query(query_or_table, columns, filters)
 
-        if _is_query(query_or_table):
-            return self._read_gbq_query(
-                query_or_table,
-                index_col=index_col,
-                columns=columns,
-                max_results=max_results,
-                api_name="read_gbq",
-                use_cache=use_cache,
-            )
-        else:
-            # TODO(swast): Query the snapshot table but mark it as a
-            # deterministic query so we can avoid serializing if we have a
-            # unique index.
-            return self._read_gbq_table(
-                query_or_table,
-                index_col=index_col,
-                columns=columns,
-                max_results=max_results,
-                api_name="read_gbq",
-                use_cache=use_cache,
-            )
+        try:
+
+            if _is_query(query_or_table):
+                return self._read_gbq_query(
+                    query_or_table,
+                    index_col=index_col,
+                    columns=columns,
+                    max_results=max_results,
+                    api_name="read_gbq",
+                    use_cache=use_cache,
+                )
+            else:
+                # TODO(swast): Query the snapshot table but mark it as a
+                # deterministic query so we can avoid serializing if we have a
+                # unique index.
+                return self._read_gbq_table(
+                    query_or_table,
+                    index_col=index_col,
+                    columns=columns,
+                    max_results=max_results,
+                    api_name="read_gbq",
+                    use_cache=use_cache,
+                )
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Permission denied while getting Drive credentials." in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
 
     def _filters_to_query(self, query_or_table, columns, filters):
         """Convert filters to query"""
