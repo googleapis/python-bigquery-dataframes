@@ -123,8 +123,6 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
-        verbose: bool = False,
-        show_all_candidate_models: bool = False,
     ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 
@@ -146,10 +144,6 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         Returns:
             bigframes.dataframe.DataFrame: A DataFrame as evaluation result.
         """
-        if verbose is False and show_all_candidate_models is True:
-            raise ValueError(
-                "show_all_candidate_models variable is only valid when verbose is True."
-            )
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
         X, y = utils.convert_to_dataframe(X, y)
