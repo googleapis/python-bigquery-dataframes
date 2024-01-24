@@ -62,19 +62,13 @@ def test_arima_plus_model_fit_score(
     )
 
 
-def test_arima_plus_model_fit_score_verbose(
-    time_series_df_default_index, dataset_id, new_time_series_df
-):
+def test_arima_plus_model_fit_summary(time_series_df_default_index, dataset_id):
     model = forecasting.ARIMAPlus()
     X_train = time_series_df_default_index[["parsed_date"]]
     y_train = time_series_df_default_index[["total_visits"]]
     model.fit(X_train, y_train)
 
-    result = model.score(
-        new_time_series_df[["parsed_date"]],
-        new_time_series_df[["total_visits"]],
-        verbose=True,
-    )
+    result = model.summary()
     assert result.shape == (1, 12)
     assert all(column in result.columns for column in ARIMA_EVALUATE_OUTPUT_COL)
 

@@ -118,25 +118,18 @@ def test_model_score(
     )
 
 
-def test_model_score_verbose(
+def test_model_summary(
     time_series_arima_plus_model: forecasting.ARIMAPlus, new_time_series_df
 ):
-    result = time_series_arima_plus_model.score(
-        new_time_series_df[["parsed_date"]],
-        new_time_series_df[["total_visits"]],
-        verbose=True,
-    )
+    result = time_series_arima_plus_model.summary()
     assert result.shape == (1, 12)
     assert all(column in result.columns for column in ARIMA_EVALUATE_OUTPUT_COL)
 
 
-def test_model_score_verbose_show_all_candidates(
+def test_model_summary_show_all_candidates(
     time_series_arima_plus_model: forecasting.ARIMAPlus, new_time_series_df
 ):
-    result = time_series_arima_plus_model.score(
-        new_time_series_df[["parsed_date"]],
-        new_time_series_df[["total_visits"]],
-        verbose=True,
+    result = time_series_arima_plus_model.summary(
         show_all_candidate_models=True,
     )
     assert result.shape[0] > 1
