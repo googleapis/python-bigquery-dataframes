@@ -160,13 +160,9 @@ def test_model_score_series(
     )
 
 
-def test_model_score_series_verbose(
+def test_model_summary_series(
     time_series_arima_plus_model: forecasting.ARIMAPlus, new_time_series_df
 ):
-    result = time_series_arima_plus_model.score(
-        new_time_series_df["parsed_date"],
-        new_time_series_df["total_visits"],
-        verbose=True,
-    )
+    result = time_series_arima_plus_model.summary()
     assert result.shape == (1, 12)
     assert all(column in result.columns for column in ARIMA_EVALUATE_OUTPUT_COL)
