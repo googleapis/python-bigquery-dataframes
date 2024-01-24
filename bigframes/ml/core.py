@@ -137,7 +137,6 @@ class BqmlModel:
         return self._session.read_gbq(sql)
 
     def arima_evaluate(self, show_all_candidate_models: bool = False):
-        # TODO: validate input data schema
         sql = self._model_manipulation_sql_generator.ml_arima_evaluate(
             show_all_candidate_models
         )
