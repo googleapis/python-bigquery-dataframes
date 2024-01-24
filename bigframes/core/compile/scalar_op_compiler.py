@@ -658,10 +658,6 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
-    if not hasattr(op.func, "bigframes_remote_function"):
-        raise TypeError(
-            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
-        )
     x_transformed = op.func(x)
     if not op.apply_on_null:
         x_transformed = ibis.case().when(x.isnull(), x).else_(x_transformed).end()

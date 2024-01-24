@@ -2997,3 +2997,32 @@ def test_series_iter(
         scalars_df_index["int64_too"], scalars_pandas_df_index["int64_too"]
     ):
         assert bf_i == pd_i
+
+
+@pytest.mark.parametrize(
+    ("lambda_",),
+    [
+        pytest.param(lambda x: x * x + x + 1),
+        pytest.param(
+            lambda x: f"I got {x}",
+            marks=pytest.mark.xfail(
+                raises=AttributeError,
+            ),
+        ),
+    ],
+    ids=[
+        "lamda_arithmatic",
+        "lambda_arbitrary",
+    ],
+)
+def test_apply_lambda(scalars_dfs, lambda_):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"]
+    bf_result = bf_col.apply(lambda_).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_col.apply(lambda_)
+
+    # ignore dtype check, which are Int64 and object respectively
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
