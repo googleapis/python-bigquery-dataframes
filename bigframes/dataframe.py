@@ -1066,7 +1066,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
+    def peek(self, n: int = 5, *, force: bool = False) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
         DataFrame.peek(force=False) is much faster than DataFrame.peek, but will only succeed in the
@@ -1075,9 +1075,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Args:
             n (int, default 5):
                 The number of rows to select from the dataframe. Which N rows are returned is non-deterministic.
-            force (bool, default True):
+            force (bool, default False):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
-                of the operation if force=True. I force=False, the operation will throw a NotImplementedError.
+                of the operation if force=True. If force=False, the operation will throw a NotImplementedError.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
