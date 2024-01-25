@@ -3011,7 +3011,7 @@ def test_series_iter(
         ),
     ],
     ids=[
-        "lamda_arithmatic",
+        "lambda_arithmatic",
         "lambda_arbitrary",
     ],
 )
