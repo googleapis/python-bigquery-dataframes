@@ -27,10 +27,12 @@ Prerequisites
 
 * Install the ``bigframes`` package.
 * Create a Google Cloud project and billing account.
-* When running locally, authenticate with application default credentials. See
-  the `gcloud auth application-default login
-  <https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login>`_
-  reference.
+* In an interactive environment (like Notebook, Python REPL or command line),
+   ``bigframes`` will do the authentication on-the-fly if needed. Otherwise,
+  pre-authenticate by
+  `Installing and initializing the gcloud CLI <https://cloud.google.com/sdk/docs/install>`_,
+  then generating the application default credentials by doing
+  `gcloud auth application-default login <https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login>`_.
 
 Code sample
 ^^^^^^^^^^^
@@ -283,9 +285,6 @@ created the function. For easy identification, the names of the functions
 created by BigQuery DataFrames are prefixed by ``bigframes``.
 
 **Requirements**
-
-BigQuery DataFrames uses the ``gcloud`` command-line interface internally,
-so you must run ``gcloud auth login`` before using remote functions.
 
 To use BigQuery DataFrames remote functions, you must enable the following APIs:
 
