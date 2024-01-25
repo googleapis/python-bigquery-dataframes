@@ -1069,20 +1069,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def peek(self, n: int = 5, *, force: bool = False) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
-        DataFrame.peek(force=False) is much faster than DataFrame.peek, but will only succeed in the
-        absence of joins, aggregations, and analytic operators.
+        DataFrame.peek(force=False) will always be very fast, but will not succeed if data requires
+        full data scanning. Using force=True will always succeed, but may be perform expensive
+        computations.
 
         Args:
             n (int, default 5):
                 The number of rows to select from the dataframe. Which N rows are returned is non-deterministic.
             force (bool, default False):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
-                of the operation if force=True. If force=False, the operation will throw a NotImplementedError.
+                of the operation if force=True. If force=False, the operation will throw a ValueError.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
         Raises:
-            NotImplementedError: If force=False and data cannot be efficiently peeked.
+            ValueError: If force=False and data cannot be efficiently peeked.
         """
         maybe_result = self._block.try_peek(n)
         if maybe_result is None:
@@ -1091,7 +1092,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 maybe_result = self._block.try_peek(n)
                 assert maybe_result is not None
             else:
-                raise NotImplementedError(
+                raise ValueError(
                     "Cannot peek efficiently when data has aggregates, joins or window functions applied. Use force=True to fully compute dataframe."
                 )
         return maybe_result.set_axis(self._block.column_labels, axis=1, copy=False)

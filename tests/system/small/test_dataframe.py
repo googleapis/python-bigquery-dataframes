@@ -429,7 +429,7 @@ def test_df_peek_filtered(scalars_dfs):
 def test_df_peek_exception(scalars_dfs):
     scalars_df, _ = scalars_dfs
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         # Window ops aren't compatible with efficient peeking
         scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=False)
 
