@@ -16,14 +16,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import io
 import typing
-from typing import Iterable, Literal, Sequence
+from typing import Iterable, Sequence
 
 import ibis.expr.types as ibis_types
 import pandas
 
-import bigframes.core.compile.compiled as compiled
-import bigframes.core.compile.compiler as compiler
+import bigframes.core.compile as compiling
+import bigframes.core.expression as ex
 import bigframes.core.guid
+import bigframes.core.join_def as join_def
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.ordering as orderings
@@ -104,30 +105,26 @@ class ArrayValue:
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self._compile_ordered().get_column_type(key)
 
-    def _compile_ordered(self) -> compiled.OrderedIR:
-        return compiler.compile_ordered(self.node)
+    def _compile_ordered(self) -> compiling.OrderedIR:
+        return compiling.compile_ordered(self.node)
 
-    def _compile_unordered(self) -> compiled.UnorderedIR:
-        return compiler.compile_unordered(self.node)
+    def _compile_unordered(self) -> compiling.UnorderedIR:
+        return compiling.compile_unordered(self.node)
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
         return ArrayValue(nodes.RowCountNode(child=self.node))
 
     # Operations
-
-    def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
-        return ArrayValue(
-            nodes.DropColumnsNode(child=self.node, columns=tuple(columns))
-        )
-
-    def filter(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
+    def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        return ArrayValue(
-            nodes.FilterNode(
-                child=self.node, predicate_id=predicate_id, keep_null=keep_null
-            )
-        )
+        predicate = ex.free_var(predicate_id)
+        if keep_null:
+            predicate = ops.fillna_op.as_expr(predicate, ex.const(True))
+        return self.filter(predicate)
+
+    def filter(self, predicate: ex.Expression):
+        return ArrayValue(nodes.FilterNode(child=self.node, predicate=predicate))
 
     def order_by(self, by: Sequence[OrderingColumnReference]) -> ArrayValue:
         return ArrayValue(nodes.OrderByNode(child=self.node, by=tuple(by)))
@@ -141,62 +138,104 @@ class ArrayValue:
         """
         return ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id))
 
-    def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
-        return ArrayValue(
-            nodes.SelectNode(child=self.node, column_ids=tuple(column_ids))
-        )
-
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
         """Append together multiple ArrayValue objects."""
         return ArrayValue(
             nodes.ConcatNode(children=tuple([self.node, *[val.node for val in other]]))
         )
 
-    def project_unary_op(
-        self, column_name: str, op: ops.UnaryOp, output_name=None
-    ) -> ArrayValue:
-        """Creates a new expression based on this expression with unary operation applied to one column."""
+    def project_to_id(self, expression: ex.Expression, output_id: str):
+        if output_id in self.column_ids:  # Mutate case
+            exprs = [
+                ((expression if (col_id == output_id) else ex.free_var(col_id)), col_id)
+                for col_id in self.column_ids
+            ]
+        else:  # append case
+            self_projection = (
+                (ex.free_var(col_id), col_id) for col_id in self.column_ids
+            )
+            exprs = [*self_projection, (expression, output_id)]
         return ArrayValue(
-            nodes.ProjectUnaryOpNode(
-                child=self.node, input_id=column_name, op=op, output_id=output_name
+            nodes.ProjectionNode(
+                child=self.node,
+                assignments=tuple(exprs),
             )
         )
 
-    def project_binary_op(
-        self,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> ArrayValue:
-        """Creates a new expression based on this expression with binary operation applied to two columns."""
+    def assign(self, source_id: str, destination_id: str) -> ArrayValue:
+        if destination_id in self.column_ids:  # Mutate case
+            exprs = [
+                (
+                    (
+                        ex.free_var(source_id)
+                        if (col_id == destination_id)
+                        else ex.free_var(col_id)
+                    ),
+                    col_id,
+                )
+                for col_id in self.column_ids
+            ]
+        else:  # append case
+            self_projection = (
+                (ex.free_var(col_id), col_id) for col_id in self.column_ids
+            )
+            exprs = [*self_projection, (ex.free_var(source_id), destination_id)]
         return ArrayValue(
-            nodes.ProjectBinaryOpNode(
+            nodes.ProjectionNode(
                 child=self.node,
-                left_input_id=left_column_id,
-                right_input_id=right_column_id,
-                op=op,
-                output_id=output_column_id,
+                assignments=tuple(exprs),
             )
         )
 
-    def project_ternary_op(
+    def assign_constant(
         self,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
+        destination_id: str,
+        value: typing.Any,
+        dtype: typing.Optional[bigframes.dtypes.Dtype],
     ) -> ArrayValue:
-        """Creates a new expression based on this expression with ternary operation applied to three columns."""
+        if destination_id in self.column_ids:  # Mutate case
+            exprs = [
+                (
+                    (
+                        ex.const(value, dtype)
+                        if (col_id == destination_id)
+                        else ex.free_var(col_id)
+                    ),
+                    col_id,
+                )
+                for col_id in self.column_ids
+            ]
+        else:  # append case
+            self_projection = (
+                (ex.free_var(col_id), col_id) for col_id in self.column_ids
+            )
+            exprs = [*self_projection, (ex.const(value, dtype), destination_id)]
         return ArrayValue(
-            nodes.ProjectTernaryOpNode(
+            nodes.ProjectionNode(
                 child=self.node,
-                input_id1=col_id_1,
-                input_id2=col_id_2,
-                input_id3=col_id_3,
-                op=op,
-                output_id=output_column_id,
+                assignments=tuple(exprs),
+            )
+        )
+
+    def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+        selections = ((ex.free_var(col_id), col_id) for col_id in column_ids)
+        return ArrayValue(
+            nodes.ProjectionNode(
+                child=self.node,
+                assignments=tuple(selections),
+            )
+        )
+
+    def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
+        new_projection = (
+            (ex.free_var(col_id), col_id)
+            for col_id in self.column_ids
+            if col_id not in columns
+        )
+        return ArrayValue(
+            nodes.ProjectionNode(
+                child=self.node,
+                assignments=tuple(new_projection),
             )
         )
 
@@ -319,47 +358,17 @@ class ArrayValue:
             )
         )
 
-    def assign(self, source_id: str, destination_id: str) -> ArrayValue:
-        return ArrayValue(
-            nodes.AssignNode(
-                child=self.node, source_id=source_id, destination_id=destination_id
-            )
-        )
-
-    def assign_constant(
-        self,
-        destination_id: str,
-        value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> ArrayValue:
-        return ArrayValue(
-            nodes.AssignConstantNode(
-                child=self.node, destination_id=destination_id, value=value, dtype=dtype
-            )
-        )
-
     def join(
         self,
-        self_column_ids: typing.Sequence[str],
         other: ArrayValue,
-        other_column_ids: typing.Sequence[str],
-        *,
-        how: Literal[
-            "inner",
-            "left",
-            "outer",
-            "right",
-            "cross",
-        ],
+        join_def: join_def.JoinDefinition,
         allow_row_identity_join: bool = True,
     ):
         return ArrayValue(
             nodes.JoinNode(
                 left_child=self.node,
                 right_child=other.node,
-                left_column_ids=tuple(self_column_ids),
-                right_column_ids=tuple(other_column_ids),
-                how=how,
+                join=join_def,
                 allow_row_identity_join=allow_row_identity_join,
             )
         )

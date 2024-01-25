@@ -26,7 +26,9 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
-import bigframes.core.joins as joining
+import bigframes.core.expression as ex
+import bigframes.core.guid
+import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dtypes
@@ -186,7 +188,7 @@ class Index(vendored_pandas_index.Index):
     ) -> Index:
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'astype'")
-        return self._apply_unary_op(ops.AsTypeOp(dtype))
+        return self._apply_unary_expr(ops.AsTypeOp(to_type=dtype).as_expr("arg"))
 
     def all(self) -> bool:
         if self.nlevels > 1:
@@ -261,7 +263,7 @@ class Index(vendored_pandas_index.Index):
     def fillna(self, value=None) -> Index:
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'fillna'")
-        return self._apply_unary_op(ops.partial_right(ops.fillna_op, value))
+        return self._apply_unary_expr(ops.fillna_op.as_expr("arg", ex.const(value)))
 
     def rename(self, name: Union[str, Sequence[str]]) -> Index:
         names = [name] if isinstance(name, str) else list(name)
@@ -278,14 +280,14 @@ class Index(vendored_pandas_index.Index):
         level_id = self._block.index_columns[0]
         if utils.is_list_like(labels):
             block, inverse_condition_id = block.apply_unary_op(
-                level_id, ops.IsInOp(labels, match_nulls=True)
+                level_id, ops.IsInOp(values=tuple(labels), match_nulls=True)
             )
             block, condition_id = block.apply_unary_op(
                 inverse_condition_id, ops.invert_op
             )
         else:
-            block, condition_id = block.apply_unary_op(
-                level_id, ops.partial_right(ops.ne_op, labels)
+            block, condition_id = block.project_expr(
+                ops.ne_op.as_expr(level_id, ex.const(labels))
             )
         block = block.filter(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
@@ -308,19 +310,23 @@ class Index(vendored_pandas_index.Index):
                 f"isin(), you passed a [{type(values).__name__}]"
             )
 
-        return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
-            value=False
-        )
+        return self._apply_unary_expr(
+            ops.IsInOp(values=tuple(values), match_nulls=True).as_expr("arg")
+        ).fillna(value=False)
 
-    def _apply_unary_op(
+    def _apply_unary_expr(
         self,
-        op: ops.UnaryOp,
+        op: ex.Expression,
     ) -> Index:
         """Applies a unary operator to the index."""
+        if len(op.unbound_variables) != 1:
+            raise ValueError("Expression must have exactly 1 unbound variable.")
+        unbound_variable = op.unbound_variables[0]
+
         block = self._block
         result_ids = []
         for col in self._block.index_columns:
-            block, result_id = block.apply_unary_op(col, op)
+            block, result_id = block.project_expr(op.rename({unbound_variable: col}))
             result_ids.append(result_id)
 
         block = block.set_index(result_ids, index_labels=self._block.index_labels)
@@ -475,16 +481,39 @@ def join_mono_indexed(
 ) -> Tuple[IndexValue, Tuple[Mapping[str, str], Mapping[str, str]],]:
     left_expr = left._block.expr
     right_expr = right._block.expr
-    get_column_left, get_column_right = joining.JOIN_NAME_REMAPPER(
-        left_expr.column_ids, right_expr.column_ids
+    left_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
+        )
+        for id in left_expr.column_ids
+    ]
+    right_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
+        )
+        for id in right_expr.column_ids
+    ]
+
+    join_def = join_defs.JoinDefinition(
+        conditions=(
+            join_defs.JoinCondition(
+                left._block.index_columns[0], right._block.index_columns[0]
+            ),
+        ),
+        mappings=(*left_mappings, *right_mappings),
+        type=how,
     )
-    combined_expr = left._block.expr.join(
-        left._block.index_columns,
-        right._block.expr,
-        right._block.index_columns,
-        how=how,
+    combined_expr = left_expr.join(
+        right_expr,
+        join_def=join_def,
         allow_row_identity_join=(not block_identity_join),
     )
+    get_column_left = join_def.get_left_mapping()
+    get_column_right = join_def.get_right_mapping()
     # Drop original indices from each side. and used the coalesced combination generated by the join.
     left_index = get_column_left[left._block.index_columns[0]]
     right_index = get_column_right[right._block.index_columns[0]]
@@ -533,19 +562,42 @@ def join_multi_indexed(
 
     left_expr = left._block.expr
     right_expr = right._block.expr
-    get_column_left, get_column_right = joining.JOIN_NAME_REMAPPER(
-        left_expr.column_ids, right_expr.column_ids
+
+    left_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
+        )
+        for id in left_expr.column_ids
+    ]
+    right_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=bigframes.core.guid.generate_guid(),
+        )
+        for id in right_expr.column_ids
+    ]
+
+    join_def = join_defs.JoinDefinition(
+        conditions=tuple(
+            join_defs.JoinCondition(left, right)
+            for left, right in zip(left_join_ids, right_join_ids)
+        ),
+        mappings=(*left_mappings, *right_mappings),
+        type=how,
     )
 
     combined_expr = left_expr.join(
-        left_join_ids,
         right_expr,
-        right_join_ids,
-        how=how,
+        join_def=join_def,
         # If we're only joining on a subset of the index columns, we need to
         # perform a true join.
         allow_row_identity_join=(names_fully_match and not block_identity_join),
     )
+    get_column_left = join_def.get_left_mapping()
+    get_column_right = join_def.get_right_mapping()
     left_ids_post_join = [get_column_left[id] for id in left_join_ids]
     right_ids_post_join = [get_column_right[id] for id in right_join_ids]
     # Drop original indices from each side. and used the coalesced combination generated by the join.
@@ -604,8 +656,8 @@ def coalesce_columns(
             expr = expr.drop_columns([left_id])
         elif how == "outer":
             coalesced_id = bigframes.core.guid.generate_guid()
-            expr = expr.project_binary_op(
-                left_id, right_id, ops.coalesce_op, coalesced_id
+            expr = expr.project_to_id(
+                ops.coalesce_op.as_expr(left_id, right_id), coalesced_id
             )
             expr = expr.drop_columns([left_id, right_id])
             result_ids.append(coalesced_id)

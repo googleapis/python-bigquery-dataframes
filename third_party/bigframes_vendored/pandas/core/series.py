@@ -809,6 +809,21 @@ class Series(NDFrame):  # type: ignore[misc]
         Uses the "Pearson" method of correlation.  Numbers are converted to float before
         calculation, so the result may be unstable.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series([.2, .0, .6, .2])
+            >>> s2 = bpd.Series([.3, .6, .0, .1])
+            >>> s1.corr(s2)
+            -0.8510644963469901
+
+            >>> s1 = bpd.Series([1, 2, 3], index=[0, 1, 2])
+            >>> s2 = bpd.Series([1, 2, 3], index=[2, 1, 0])
+            >>> s1.corr(s2)
+            -1.0
+
         Args:
             other (Series):
                 The series with which this is to be correlated.
@@ -2696,6 +2711,31 @@ class Series(NDFrame):  # type: ignore[misc]
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
+
         Returns:
             Series: Row position of the maximum value.
         """
@@ -2706,6 +2746,31 @@ class Series(NDFrame):  # type: ignore[misc]
         Return int position of the largest value in the Series.
 
         If the maximum is achieved in multiple locations, the first row position is returned.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
 
         Returns:
             Series: Row position of the minimum value.
@@ -2956,6 +3021,19 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return boolean if values in the object are monotonically increasing.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 2])
+            >>> s.is_monotonic_increasing
+            True
+
+            >>> s = bpd.Series([3, 2, 1])
+            >>> s.is_monotonic_increasing
+            False
+
         Returns:
             bool: Boolean.
         """
@@ -2965,6 +3043,19 @@ class Series(NDFrame):  # type: ignore[misc]
     def is_monotonic_decreasing(self) -> bool:
         """
         Return boolean if values in the object are monotonically decreasing.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([3, 2, 2, 1])
+            >>> s.is_monotonic_decreasing
+            True
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.is_monotonic_decreasing
+            False
 
         Returns:
             bool: Boolean.

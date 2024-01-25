@@ -74,8 +74,8 @@ import bigframes.core.ordering as orderings
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
-from bigframes.remote_function import read_gbq_function as bigframes_rgf
-from bigframes.remote_function import remote_function as bigframes_rf
+from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
+from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
@@ -380,7 +380,7 @@ class Session(
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
-            job_config.labels["error_caught"] = "True"
+            job_config.labels["error_caught"] = "true"
             _, query_job = self._start_query(query, job_config=job_config)
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -1497,7 +1497,6 @@ class Session(
         self,
         array_value: core.ArrayValue,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
         *,
         sorted: bool = True,
         dry_run=False,
@@ -1507,7 +1506,6 @@ class Session(
         return self._start_query(
             sql=sql,
             job_config=job_config,
-            max_results=max_results,
         )
 
     def _to_sql(

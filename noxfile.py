@@ -432,6 +432,15 @@ def docs(session):
 
     session.install("-e", ".")
     session.install(
+        # We need to pin to specific versions of the `sphinxcontrib-*` packages
+        # which still support sphinx 4.x.
+        # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
+        # and https://github.com/googleapis/sphinx-docfx-yaml/issues/345.
+        "sphinxcontrib-applehelp==1.0.4",
+        "sphinxcontrib-devhelp==1.0.2",
+        "sphinxcontrib-htmlhelp==2.0.1",
+        "sphinxcontrib-qthelp==1.0.3",
+        "sphinxcontrib-serializinghtml==1.1.5",
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
@@ -458,6 +467,15 @@ def docfx(session):
 
     session.install("-e", ".")
     session.install(
+        # We need to pin to specific versions of the `sphinxcontrib-*` packages
+        # which still support sphinx 4.x.
+        # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
+        # and https://github.com/googleapis/sphinx-docfx-yaml/issues/345.
+        "sphinxcontrib-applehelp==1.0.4",
+        "sphinxcontrib-devhelp==1.0.2",
+        "sphinxcontrib-htmlhelp==2.0.1",
+        "sphinxcontrib-qthelp==1.0.3",
+        "sphinxcontrib-serializinghtml==1.1.5",
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
@@ -524,7 +542,12 @@ def prerelease(session: nox.sessions.Session, tests_path):
         # TODO(shobs): Remove excluding version 2.2.0rc0 after
         # https://github.com/pandas-dev/pandas/issues/56646 and
         # https://github.com/pandas-dev/pandas/issues/56651 are resolved.
-        "pandas!=2.1.4,!=2.2.0rc0",
+        #
+        # TODO(shobs): Remove excluding version 2.2.0 after
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/341
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/337
+        # are resolved
+        "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0",
     )
     already_installed.add("pandas")
 
@@ -646,6 +669,7 @@ def notebook(session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
+        "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",
         "notebooks/generative_ai/bq_dataframes_llm_kmeans.ipynb",
         "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",

@@ -50,10 +50,10 @@ class NDFrame(indexing.IndexingMixin):
 
     def __iter__(self) -> Iterator:
         """
-        Iterate over info axis.
+        Iterate over column axis for DataFrame, or values for Series.
 
-        Returns
-            iterator: Info axis as iterator.
+        Returns:
+            iterator
 
         **Examples:**
             >>> import bigframes.pandas as bpd
@@ -71,9 +71,9 @@ class NDFrame(indexing.IndexingMixin):
             >>> series = bpd.Series(["a", "b", "c"], index=[10, 20, 30])
             >>> for x in series:
             ...     print(x)
-            10
-            20
-            30
+            a
+            b
+            c
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -626,6 +626,48 @@ class NDFrame(indexing.IndexingMixin):
 
     def ffill(self, *, limit: Optional[int] = None):
         """Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
+            ...                     [3, 4, np.nan, 1],
+            ...                     [np.nan, np.nan, np.nan, np.nan],
+            ...                     [np.nan, 3, np.nan, 4]],
+            ...                    columns=list("ABCD")).astype("Float64")
+            >>> df
+                  A     B     C     D
+            0  <NA>   2.0  <NA>   0.0
+            1   3.0   4.0  <NA>   1.0
+            2  <NA>  <NA>  <NA>  <NA>
+            3  <NA>   3.0  <NA>   4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+        Fill NA/NaN values in DataFrames:
+
+            >>> df.ffill()
+                  A    B     C    D
+            0  <NA>  2.0  <NA>  0.0
+            1   3.0  4.0  <NA>  1.0
+            2   3.0  4.0  <NA>  1.0
+            3   3.0  3.0  <NA>  4.0
+            <BLANKLINE>
+            [4 rows x 4 columns]
+
+
+        Fill NA/NaN values in Series:
+
+            >>> series = bpd.Series([1, np.nan, 2, 3])
+            >>> series.ffill()
+            0    1.0
+            1    1.0
+            2    2.0
+            3    3.0
+            dtype: Float64
 
         Args:
             limit : int, default None

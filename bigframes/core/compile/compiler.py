@@ -59,34 +59,20 @@ def compile_join(node: nodes.JoinNode, ordered: bool = True):
         left_ordered = compile_ordered(node.left_child)
         right_ordered = compile_ordered(node.right_child)
         return bigframes.core.compile.single_column.join_by_column_ordered(
-            left_ordered,
-            node.left_column_ids,
-            right_ordered,
-            node.right_column_ids,
-            how=node.how,
+            left=left_ordered,
+            right=right_ordered,
+            join=node.join,
             allow_row_identity_join=node.allow_row_identity_join,
         )
     else:
         left_unordered = compile_unordered(node.left_child)
         right_unordered = compile_unordered(node.right_child)
         return bigframes.core.compile.single_column.join_by_column_unordered(
-            left_unordered,
-            node.left_column_ids,
-            right_unordered,
-            node.right_column_ids,
-            how=node.how,
+            left=left_unordered,
+            right=right_unordered,
+            join=node.join,
             allow_row_identity_join=node.allow_row_identity_join,
         )
-
-
-@_compile_node.register
-def compile_select(node: nodes.SelectNode, ordered: bool = True):
-    return compile_node(node.child, ordered).select_columns(node.column_ids)
-
-
-@_compile_node.register
-def compile_drop(node: nodes.DropColumnsNode, ordered: bool = True):
-    return compile_node(node.child, ordered).drop_columns(node.columns)
 
 
 @_compile_node.register
@@ -123,7 +109,7 @@ def compile_promote_offsets(node: nodes.PromoteOffsetsNode, ordered: bool = True
 
 @_compile_node.register
 def compile_filter(node: nodes.FilterNode, ordered: bool = True):
-    return compile_node(node.child, ordered).filter(node.predicate_id, node.keep_null)
+    return compile_node(node.child, ordered).filter(node.predicate)
 
 
 @_compile_node.register
@@ -143,24 +129,9 @@ def compile_reversed(node: nodes.ReversedNode, ordered: bool = True):
 
 
 @_compile_node.register
-def compile_project_unary(node: nodes.ProjectUnaryOpNode, ordered: bool = True):
-    return compile_node(node.child, ordered).project_unary_op(
-        node.input_id, node.op, node.output_id
-    )
-
-
-@_compile_node.register
-def compile_project_binary(node: nodes.ProjectBinaryOpNode, ordered: bool = True):
-    return compile_node(node.child, ordered).project_binary_op(
-        node.left_input_id, node.right_input_id, node.op, node.output_id
-    )
-
-
-@_compile_node.register
-def compile_project_ternary(node: nodes.ProjectTernaryOpNode, ordered: bool = True):
-    return compile_node(node.child, ordered).project_ternary_op(
-        node.input_id1, node.input_id2, node.input_id3, node.op, node.output_id
-    )
+def compile_projection(node: nodes.ProjectionNode, ordered: bool = True):
+    result = compile_node(node.child, ordered)
+    return result.projection(node.assignments)
 
 
 @_compile_node.register
@@ -220,18 +191,6 @@ def compile_unpivot(node: nodes.UnpivotNode, ordered: bool = True):
         index_col_ids=node.index_col_ids,
         dtype=node.dtype,
         how=node.how,
-    )
-
-
-@_compile_node.register
-def compile_assign(node: nodes.AssignNode, ordered: bool = True):
-    return compile_node(node.child, ordered).assign(node.source_id, node.destination_id)
-
-
-@_compile_node.register
-def compile_assign_constant(node: nodes.AssignConstantNode, ordered: bool = True):
-    return compile_node(node.child, ordered).assign_constant(
-        node.destination_id, node.value, node.dtype
     )
 
 

@@ -34,6 +34,7 @@ import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
@@ -139,6 +140,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def T(self) -> Series:
         return self.transpose()
 
+    @property
+    def _info_axis(self) -> indexes.Index:
+        return self.index
+
     def transpose(self) -> Series:
         return self
 
@@ -150,7 +155,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def __iter__(self) -> typing.Iterator:
         return itertools.chain.from_iterable(
-            map(lambda x: x.index, self._block.to_pandas_batches())
+            map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
         )
 
     def copy(self) -> Series:
@@ -184,8 +189,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
                     # Will throw if value type isn't compatible with index type.
                     block, const_id = block.create_constant(v, dtype=idx_dtype)
-                    block, cond_id = block.apply_unary_op(
-                        idx_id, ops.BinopPartialRight(ops.ne_op, k)
+                    block, cond_id = block.project_expr(
+                        ops.ne_op.as_expr(idx_id, ex.const(k))
                     )
                     block, new_idx_id = block.apply_ternary_op(
                         idx_id, cond_id, const_id, ops.where_op
@@ -263,7 +268,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> Series:
-        return self._apply_unary_op(bigframes.operations.AsTypeOp(dtype))
+        return self._apply_unary_op(bigframes.operations.AsTypeOp(to_type=dtype))
 
     def to_pandas(
         self,
@@ -301,14 +306,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
         df, query_job = self._block.to_pandas(
-            (self._value_column,),
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
         )
         self._set_internal_query_job(query_job)
-        series = df[self._value_column]
+        series = df.squeeze(axis=1)
         series.name = self._name
         return series
 
@@ -333,14 +337,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         level_id = self._resolve_levels(level or 0)[0]
         if _is_list_like(index):
             block, inverse_condition_id = block.apply_unary_op(
-                level_id, ops.IsInOp(index, match_nulls=True)
+                level_id, ops.IsInOp(values=tuple(index), match_nulls=True)
             )
             block, condition_id = block.apply_unary_op(
                 inverse_condition_id, ops.invert_op
             )
         else:
-            block, condition_id = block.apply_unary_op(
-                level_id, ops.partial_right(ops.ne_op, index)
+            block, condition_id = block.project_expr(
+                ops.ne_op.as_expr(level_id, ex.const(index))
             )
         block = block.filter(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
@@ -467,7 +471,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         block, result_col = self._block.apply_unary_op(
             self._value_column,
-            ops.ReplaceRegexOp(to_replace, value),
+            ops.RegexReplaceStrOp(to_replace, value),
             result_label=self.name,
         )
         return Series(block.select_column(result_col))
@@ -483,13 +487,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.astype(result_type)._simple_replace(to_replace_list, value)
 
         block, cond = self._block.apply_unary_op(
-            self._value_column, ops.IsInOp(to_replace_list)
+            self._value_column, ops.IsInOp(tuple(to_replace_list))
         )
-        block, result_col = block.apply_binary_op(
-            cond,
-            self._value_column,
-            ops.partial_arg1(ops.where_op, value),
-            result_label=self.name,
+        block, result_col = block.project_expr(
+            ops.where_op.as_expr(ex.const(value), cond, self._value_column), self.name
         )
         return Series(block.select_column(result_col))
 
@@ -568,9 +569,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 f"isin(), you passed a [{type(values).__name__}]"
             )
 
-        return self._apply_unary_op(ops.IsInOp(values, match_nulls=True)).fillna(
-            value=False
-        )
+        return self._apply_unary_op(
+            ops.IsInOp(values=tuple(values), match_nulls=True)
+        ).fillna(value=False)
 
     def isna(self) -> "Series":
         return self._apply_unary_op(ops.isnull_op)
@@ -602,7 +603,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.add_op)
 
     def radd(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.add_op))
+        return self._apply_binary_op(other, ops.add_op, reverse=True)
 
     def __sub__(self, other: float | int | Series) -> Series:
         return self.sub(other)
@@ -614,7 +615,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.sub_op)
 
     def rsub(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.sub_op))
+        return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
 
@@ -628,7 +629,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.mul_op)
 
     def rmul(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.mul_op))
+        return self._apply_binary_op(other, ops.mul_op, reverse=True)
 
     multiply = mul
 
@@ -642,7 +643,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.div_op)
 
     def rtruediv(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.div_op))
+        return self._apply_binary_op(other, ops.div_op, reverse=True)
 
     div = truediv
 
@@ -660,7 +661,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.floordiv_op)
 
     def rfloordiv(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
+        return self._apply_binary_op(other, ops.floordiv_op, reverse=True)
 
     def __pow__(self, other: float | int | Series) -> Series:
         return self.pow(other)
@@ -672,7 +673,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.pow_op)
 
     def rpow(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.pow_op))
+        return self._apply_binary_op(other, ops.pow_op, reverse=True)
 
     def __lt__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.lt(other)
@@ -708,7 +709,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.mod_op)
 
     def rmod(self, other) -> Series:  # type: ignore
-        return self._apply_binary_op(other, ops.reverse(ops.mod_op))
+        return self._apply_binary_op(other, ops.mod_op, reverse=True)
 
     def divmod(self, other) -> Tuple[Series, Series]:  # type: ignore
         # TODO(huanc): when self and other both has dtype int and other contains zeros,
@@ -732,26 +733,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(decimals, ops.round_op)
 
     def corr(self, other: Series, method="pearson", min_periods=None) -> float:
-        """
-        Compute the correlation with the other Series.  Non-number values are ignored in the
-        computation.
-
-        Uses the "Pearson" method of correlation.  Numbers are converted to float before
-        calculation, so the result may be unstable.
-
-        Args:
-            other (Series):
-                The series with which this is to be correlated.
-            method (string, default "pearson"):
-                Correlation method to use - currently only "pearson" is supported.
-            min_periods (int, default None):
-                The minimum number of observations needed to return a result.  Non-default values
-                are not yet supported, so a result will be returned for at least two observations.
-
-        Returns:
-            float;  Will return NaN if there are fewer than two numeric pairs, either series has a
-                variance or covariance of zero, or any input value is infinite.
-        """
         # TODO(kemppeterson): Validate early that both are numeric
         # TODO(kemppeterson): Handle partially-numeric columns
         if method != "pearson":
@@ -926,9 +907,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if lower is None and upper is None:
             return self
         if lower is None:
-            return self._apply_binary_op(upper, ops.clip_upper, alignment="left")
+            return self._apply_binary_op(upper, ops.clipupper_op, alignment="left")
         if upper is None:
-            return self._apply_binary_op(lower, ops.clip_lower, alignment="left")
+            return self._apply_binary_op(lower, ops.cliplower_op, alignment="left")
         value_id, lower_id, upper_id, block = self._align3(lower, upper)
         block, result_id = block.apply_ternary_op(
             value_id, lower_id, upper_id, ops.clip_op
@@ -1235,7 +1216,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # to be applied before passing data to remote function, protecting from bad
         # inputs causing errors.
         reprojected_series = Series(self._block._force_reproject())
-        return reprojected_series._apply_unary_op(ops.RemoteFunctionOp(func))
+        return reprojected_series._apply_unary_op(
+            ops.RemoteFunctionOp(func=func, apply_on_null=True)
+        )
 
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))
@@ -1264,16 +1247,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block = self._block
             block, label_string_id = block.apply_unary_op(
                 self._block.index_columns[0],
-                ops.AsTypeOp(pandas.StringDtype(storage="pyarrow")),
+                ops.AsTypeOp(to_type=pandas.StringDtype(storage="pyarrow")),
             )
             if like is not None:
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsStringOp(pat=like)
+                    label_string_id, ops.StrContainsOp(pat=like)
                 )
             else:  # regex
                 assert regex is not None
                 block, mask_id = block.apply_unary_op(
-                    label_string_id, ops.ContainsRegexOp(pat=regex)
+                    label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
             block = block.filter(mask_id)
@@ -1283,7 +1266,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             # Behavior matches pandas 2.1+, older pandas versions would reindex
             block = self._block
             block, mask_id = block.apply_unary_op(
-                self._block.index_columns[0], ops.IsInOp(values=list(items))
+                self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
             block = block.filter(mask_id)
             block = block.select_columns([self._value_column])
@@ -1518,7 +1501,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             if inputs[0] is self:
                 return self._apply_binary_op(inputs[1], binop)
             else:
-                return self._apply_binary_op(inputs[0], ops.reverse(binop))
+                return self._apply_binary_op(inputs[0], binop, reverse=True)
 
         return NotImplemented
 

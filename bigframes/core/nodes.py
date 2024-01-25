@@ -17,15 +17,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 import functools
 import typing
-from typing import Optional, Tuple
+from typing import Tuple
 
 import pandas
 
+import bigframes.core.expression as ex
 import bigframes.core.guid
+from bigframes.core.join_def import JoinDefinition
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.window_spec as window
 import bigframes.dtypes
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
@@ -87,15 +88,7 @@ class UnaryNode(BigFrameNode):
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
-    left_column_ids: typing.Tuple[str, ...]
-    right_column_ids: typing.Tuple[str, ...]
-    how: typing.Literal[
-        "inner",
-        "left",
-        "outer",
-        "right",
-        "cross",
-    ]
+    join: JoinDefinition
     allow_row_identity_join: bool = True
 
     @property
@@ -146,14 +139,6 @@ class ReadGbqNode(BigFrameNode):
 
 # Unary nodes
 @dataclass(frozen=True)
-class DropColumnsNode(UnaryNode):
-    columns: Tuple[str, ...]
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
 class PromoteOffsetsNode(UnaryNode):
     col_id: str
 
@@ -163,8 +148,7 @@ class PromoteOffsetsNode(UnaryNode):
 
 @dataclass(frozen=True)
 class FilterNode(UnaryNode):
-    predicate_id: str
-    keep_null: bool = False
+    predicate: ex.Expression
 
     def __hash__(self):
         return self._node_hash
@@ -188,41 +172,8 @@ class ReversedNode(UnaryNode):
 
 
 @dataclass(frozen=True)
-class SelectNode(UnaryNode):
-    column_ids: typing.Tuple[str, ...]
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class ProjectUnaryOpNode(UnaryNode):
-    input_id: str
-    op: ops.UnaryOp
-    output_id: Optional[str] = None
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class ProjectBinaryOpNode(UnaryNode):
-    left_input_id: str
-    right_input_id: str
-    op: ops.BinaryOp
-    output_id: str
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class ProjectTernaryOpNode(UnaryNode):
-    input_id1: str
-    input_id2: str
-    input_id3: str
-    op: ops.TernaryOp
-    output_id: str
+class ProjectionNode(UnaryNode):
+    assignments: typing.Tuple[typing.Tuple[ex.Expression, str], ...]
 
     def __hash__(self):
         return self._node_hash
@@ -284,25 +235,6 @@ class UnpivotNode(UnaryNode):
         bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
     ] = (pandas.Float64Dtype(),)
     how: typing.Literal["left", "right"] = "left"
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class AssignNode(UnaryNode):
-    source_id: str
-    destination_id: str
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class AssignConstantNode(UnaryNode):
-    destination_id: str
-    value: typing.Hashable
-    dtype: typing.Optional[bigframes.dtypes.Dtype]
 
     def __hash__(self):
         return self._node_hash
