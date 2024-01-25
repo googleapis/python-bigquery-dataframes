@@ -28,7 +28,7 @@ Prerequisites
 * Install the ``bigframes`` package.
 * Create a Google Cloud project and billing account.
 * In an interactive environment (like Notebook, Python REPL or command line),
-   ``bigframes`` will do the authentication on-the-fly if needed. Otherwise,
+  ``bigframes`` will do the authentication on-the-fly if needed. Otherwise,
   pre-authenticate by
   `Installing and initializing the gcloud CLI <https://cloud.google.com/sdk/docs/install>`_,
   then generating the application default credentials by doing
