@@ -1154,16 +1154,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
         There is a limited support of simple functions and lambdas which can be
         operated directly (without converting into a `remote_function`) on the
-        BigQuery DataFrames objects.
-
-        .. note::
-            Bigframes does not yet support ``dict`` subclasses that define
-            ``__missing__`` (i.e. provide a method for default values). These
-            are treated the same as ``dict``.
-
-        This approach takes advantage of a nuance in the way BigQuery DataFrames
-        objects are modelled internally and works only if the function body
-        contains only arithmatic or logical operators.
+        BigQuery DataFrames objects. This approach takes advantage of a nuance
+        in the way BigQuery DataFrames objects are modeled internally and works
+        only if the function body contains only arithmatic or logical operators.
 
             >>> nums = bpd.Series([1, 2, 3, 4])
             >>> nums
