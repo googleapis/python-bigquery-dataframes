@@ -603,7 +603,7 @@ class Session(
                 bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
             )
         except google.api_core.exceptions.Forbidden as ex:
-            if "Drive credentials." in ex.message:
+            if "Drive credentials" in ex.message:
                 ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
             raise
 
@@ -1462,7 +1462,7 @@ class Session(
         try:
             query_job = self.bqclient.query(sql, job_config=job_config)
         except google.api_core.exceptions.Forbidden as ex:
-            if "Drive credentials." in ex.message:
+            if "Drive credentials" in ex.message:
                 ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
             raise
 
