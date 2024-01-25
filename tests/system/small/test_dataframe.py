@@ -148,6 +148,13 @@ def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_inde
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_chained_head_after_analytic(scalars_df_index, scalars_pandas_df_index):
+    columns = ["int64_too", "bool_col", "float64_col", "string_col"]
+    bf_result = scalars_df_index[columns].drop_duplicates().head(4).head(3).to_pandas()
+    pd_result = scalars_pandas_df_index[columns].drop_duplicates().head(4).head(3)
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("keep",),
     [

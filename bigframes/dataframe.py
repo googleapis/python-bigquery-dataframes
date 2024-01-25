@@ -45,6 +45,7 @@ import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
+import bigframes.core.block_manager as block_providers
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -112,10 +113,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = None
         if isinstance(data, blocks.Block):
             block = data
-
         elif isinstance(data, DataFrame):
             block = data._get_block()
-
         # Dict of Series
         elif (
             utils.is_dict_like(data)
@@ -144,7 +143,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     other_block.index, how="outer", sort=True
                 )
                 block = result_index._block
-
         if block:
             if index:
                 raise NotImplementedError(
@@ -157,8 +155,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.multi_apply_unary_op(
                     block.value_columns, ops.AsTypeOp(to_type=dtype)
                 )
-            self._block = block
-
+            self._block_provider = block_providers.create_block_provider(block)
+        elif isinstance(data, block_providers.BlockProvider):
+            self._block_provider = data
         else:
             import bigframes.pandas
 
@@ -177,12 +176,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     if isinstance(dt, pandas.ArrowDtype)
                 )
             ):
-                self._block = blocks.block_from_local(pd_dataframe)
+                block = blocks.block_from_local(pd_dataframe)
             elif session:
-                self._block = session.read_pandas(pd_dataframe)._get_block()
+                block = session.read_pandas(pd_dataframe)._get_block()
             else:
-                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+                block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+            self._block_provider = block_providers.create_block_provider(block)
         self._query_job: Optional[bigquery.QueryJob] = None
+
+    @property
+    def _block(self):
+        return self._block_provider.get_block()
 
     def __dir__(self):
         return dir(type(self)) + [
@@ -556,7 +560,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
-        if key in ["_block", "_query_job"]:
+        if key in ["_block", "_block_provider", "_query_job"]:
             object.__setattr__(self, key, value)
             return
         # Can this be removed???
@@ -1041,12 +1045,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
-        df, query_job = self._block.to_pandas(
-            max_download_size=max_download_size,
-            sampling_method=sampling_method,
-            random_state=random_state,
-            ordered=ordered,
+        options = blocks.build_materialize_options(
+            max_download_size, sampling_method, random_state, ordered=ordered
         )
+
+        df, query_job = self._block_provider.to_local(options)
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
@@ -1061,7 +1064,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(self._block)
 
     def head(self, n: int = 5) -> DataFrame:
-        return typing.cast(DataFrame, self.iloc[:n])
+        view_block_provider = self._block_provider.create_view(
+            block_providers.ViewDef(slice_stop=n)
+        )
+        return DataFrame(view_block_provider)
 
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
@@ -3053,13 +3059,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return NotImplemented
 
     def _set_block(self, block: blocks.Block):
-        self._block = block
+        self._block_provider = block_providers.create_block_provider(block)
 
     def _get_block(self) -> blocks.Block:
         return self._block
 
     def _cached(self) -> DataFrame:
-        self._set_block(self._block.cached())
+        self._block_provider.cache()
         return self
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")

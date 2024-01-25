@@ -1462,8 +1462,8 @@ class Session(
             results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
 
-    def _execute_and_cache(
-        self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str]
+    def _cache_with_cluster_cols(
+        self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str] = []
     ) -> core.ArrayValue:
         """Executes the query and uses the resulting table to rewrite future executions."""
         # TODO: Use this for all executions? Problem is that caching materializes extra
@@ -1491,6 +1491,32 @@ class Session(
             columns=new_columns,
             hidden_ordering_columns=new_hidden_columns,
             ordering=compiled_value._ordering,
+        )
+
+    def _cache_with_offsets(self, array_value: core.ArrayValue) -> core.ArrayValue:
+        """Executes the query and uses the resulting table to rewrite future executions."""
+        # TODO: Use this for all executions? Problem is that caching materializes extra
+        # ordering columns
+        compiled_value = self._compile_ordered(array_value)
+
+        ibis_expr = compiled_value._to_ibis_expr(
+            ordering_mode="offset_col", order_col_name="bigframes_offsets"
+        )
+        tmp_table = self._ibis_to_temp_table(
+            ibis_expr, cluster_cols=["bigframes_offsets"], api_name="cached"
+        )
+        table_expression = self.ibis_client.table(
+            f"{tmp_table.project}.{tmp_table.dataset_id}.{tmp_table.table_id}"
+        )
+        new_columns = [table_expression[column] for column in compiled_value.column_ids]
+        new_hidden_columns = [table_expression["bigframes_offsets"]]
+        # TODO: Instead, keep session-wide map of cached results and automatically reuse
+        return core.ArrayValue.from_ibis(
+            self,
+            table_expression,
+            columns=new_columns,
+            hidden_ordering_columns=new_hidden_columns,
+            ordering=orderings.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         )
 
     def _execute(

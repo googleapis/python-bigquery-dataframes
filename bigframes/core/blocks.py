@@ -404,36 +404,6 @@ class Block:
         dtypes.update(zip(self.value_columns, self.dtypes))
         return self.session._rows_to_dataframe(result, dtypes)
 
-    def to_pandas(
-        self,
-        max_download_size: Optional[int] = None,
-        sampling_method: Optional[str] = None,
-        random_state: Optional[int] = None,
-        *,
-        ordered: bool = True,
-    ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
-        """Run query and download results as a pandas DataFrame."""
-        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
-
-        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
-        if sampling_method is not None:
-            sampling = sampling.with_method(sampling_method).with_random_state(  # type: ignore
-                random_state
-            )
-        else:
-            sampling = sampling.with_disabled()
-
-        df, query_job = self._materialize_local(
-            materialize_options=MaterializationOptions(
-                downsampling=sampling, ordered=ordered
-            )
-        )
-        return df, query_job
-
     def to_pandas_batches(self):
         """Download results one message at a time."""
         dtypes = dict(zip(self.index_columns, self.index_dtypes))
@@ -458,7 +428,7 @@ class Block:
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
 
-    def _materialize_local(
+    def to_pandas(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
@@ -506,9 +476,7 @@ class Block:
                 sampling_method=sample_config.sampling_method,
                 fraction=fraction,
                 random_state=sample_config.random_state,
-            )._materialize_local(
-                MaterializationOptions(ordered=materialize_options.ordered)
-            )
+            ).to_pandas(MaterializationOptions(ordered=materialize_options.ordered))
         else:
             total_rows = results_iterator.total_rows
             df = self._to_dataframe(results_iterator)
@@ -1687,10 +1655,16 @@ class Block:
             idx_labels,
         )
 
-    def cached(self) -> Block:
+    def cached(self, optimize_offsets=False) -> Block:
         """Write the block to a session table and create a new block object that references it."""
+        if optimize_offsets:
+            expr = self.session._cache_with_offsets(self.expr)
+        else:
+            expr = self.session._cache_with_cluster_cols(
+                self.expr, cluster_cols=self.index_columns
+            )
         return Block(
-            self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns),
+            expr,
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index_labels,
@@ -1923,3 +1897,28 @@ def _get_block_schema(
     for label, dtype in zip(block.column_labels, block.dtypes):
         result[label] = typing.cast(bigframes.dtypes.Dtype, dtype)
     return result
+
+
+def build_materialize_options(
+    max_download_size: Optional[int] = None,
+    sampling_method: Optional[str] = None,
+    random_state: Optional[int] = None,
+    *,
+    ordered: bool = True,
+) -> MaterializationOptions:
+    """Run query and download results as a pandas DataFrame."""
+    if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
+        raise NotImplementedError(
+            f"The downsampling method {sampling_method} is not implemented, "
+            f"please choose from {','.join(_SAMPLING_METHODS)}."
+        )
+
+    sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
+    if sampling_method is not None:
+        sampling = sampling.with_method(sampling_method).with_random_state(  # type: ignore
+            random_state
+        )
+    else:
+        sampling = sampling.with_disabled()
+
+    return MaterializationOptions(downsampling=sampling, ordered=ordered)
