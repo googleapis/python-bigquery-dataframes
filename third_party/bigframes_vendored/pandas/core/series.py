@@ -1152,6 +1152,42 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> names = bpd.Series(["Alice", "Bob"])
             >>> hashes = names.apply(get_hash)
 
+        There is a limited support of simple functions and lambdas which can be
+        operated directly (without converting into a `remote_function`) on the
+        BigQuery DataFrames objects.
+
+        .. note::
+            Bigframes does not yet support ``dict`` subclasses that define
+            ``__missing__`` (i.e. provide a method for default values). These
+            are treated the same as ``dict``.
+
+        This approach takes advantage of a nuance in the way BigQuery DataFrames
+        objects are modelled internally and works only if the function body
+        contains only arithmatic or logical operators.
+
+            >>> nums = bpd.Series([1, 2, 3, 4])
+            >>> nums
+            0    1
+            1    2
+            2    3
+            3    4
+            dtype: Int64
+            >>> nums.apply(lambda x: x*x + 2*x + 1)
+            0     4
+            1     9
+            2    16
+            3    25
+            dtype: Int64
+
+            >>> def is_odd(num):
+            ...     return num % 2 == 1
+            >>> nums.apply(is_odd)
+            0     True
+            1    False
+            2     True
+            3    False
+            dtype: boolean
+
         Args:
             func (function):
                 BigFrames DataFrames ``remote_function`` to apply. The function
