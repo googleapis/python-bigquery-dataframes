@@ -142,12 +142,9 @@ def _convert_expr_input(
 def create_unary_op(
     name: str, type_rule: op_typing.OpTypeRule = op_typing.INPUT_TYPE
 ) -> UnaryOp:
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return type_rule.output_type(*input_types)
-
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], output_type)],  # type: ignore
+        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_rule.as_method)],  # type: ignore
         bases=(UnaryOp,),
         frozen=True,
     )()
@@ -156,12 +153,9 @@ def create_unary_op(
 def create_binary_op(
     name: str, type_rule: op_typing.OpTypeRule = op_typing.Supertype()
 ) -> BinaryOp:
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return type_rule.output_type(*input_types)
-
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], output_type)],  # type: ignore
+        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_rule.as_method)],  # type: ignore
         bases=(BinaryOp,),
         frozen=True,
     )()
@@ -170,12 +164,9 @@ def create_binary_op(
 def create_ternary_op(
     name: str, type_rule: op_typing.OpTypeRule = op_typing.Supertype()
 ) -> TernaryOp:
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return type_rule.output_type(*input_types)
-
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], output_type)],  # type: ignore
+        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_rule.as_method)],  # type: ignore
         bases=(TernaryOp,),
         frozen=True,
     )()

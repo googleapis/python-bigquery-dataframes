@@ -28,6 +28,13 @@ class OpTypeRule:
     def output_type(self, *input_types: ExpressionType) -> ExpressionType:
         raise NotImplementedError("Abstract typing rule has no output type")
 
+    @property
+    def as_method(self):
+        def meth(_, *input_types: ExpressionType) -> ExpressionType:
+            return self.output_type(*input_types)
+
+        return meth
+
 
 @dataclasses.dataclass
 class InputType(OpTypeRule):

@@ -44,7 +44,9 @@ Dtype = Union[
     pd.ArrowDtype,
     gpd.array.GeometryDtype,
 ]
-ExpressionType = Union[Dtype, None]
+# Represents both column types (dtypes) and local-only types
+# None represents the type of a None scalar.
+ExpressionType = typing.Optional[Dtype]
 
 INT_DTYPE = pd.Int64Dtype()
 FLOAT_DTYPE = pd.Float64Dtype()
