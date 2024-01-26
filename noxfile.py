@@ -715,7 +715,11 @@ def notebook(session: nox.Session):
     try:
         # Populate notebook parameters and make a backup so that the notebooks
         # are runnable.
-        session.run("scripts/notebooks_fill_params.py", *notebooks)
+        session.run(
+            "python",
+            CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
+            *notebooks,
+        )
 
         # Run self-contained notebooks in single session.run
         # achieve parallelization via -n
@@ -727,7 +731,11 @@ def notebook(session: nox.Session):
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
-        session.run("scripts/notebooks_restore_from_backup.py", *notebooks)
+        session.run(
+            "python",
+            CURRENT_DIRECTORY / "scripts" / "notebooks_restore_from_backup.py",
+            *notebooks,
+        )
 
     # Run regionalized notebooks in parallel session.run's, since each notebook
     # takes a different region via env param.
