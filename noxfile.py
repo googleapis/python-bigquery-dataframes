@@ -668,6 +668,7 @@ def notebook(session: nox.Session):
         "nbmake",
         "google-cloud-aiplatform",
         "matplotlib",
+        "seaborn",
     )
 
     notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
