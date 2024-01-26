@@ -19,6 +19,7 @@ from __future__ import annotations
 import typing
 from typing import Hashable, Mapping, Optional, Sequence, Tuple, Union
 
+import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
 
@@ -33,6 +34,7 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.dtypes as bf_dtypes
+import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
@@ -78,13 +80,14 @@ class Index(vendored_pandas_index.Index):
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df)._block
+        self._query_job = None
         self._block: blocks.Block = block
 
     @classmethod
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
-        return ViewIndex(frame)
+        return FrameIndex(frame)
 
     @property
     def name(self) -> blocks.Label:
@@ -191,6 +194,32 @@ class Index(vendored_pandas_index.Index):
     @property
     def T(self) -> Index:
         return self.transpose()
+
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        """BigQuery job metadata for the most recent query.
+
+        Returns:
+            The most recent `QueryJob
+            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+        """
+        if self._query_job is None:
+            self._query_job = self._block._compute_dry_run()
+        return self._query_job
+
+    def __repr__(self) -> str:
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole series by using job
+        # metadata, like we do with DataFrame.
+        opts = bigframes.options.display
+        max_results = opts.max_rows
+        if opts.repr_mode == "deferred":
+            return formatter.repr_query_job(self.query_job)
+
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
+        self._query_job = query_job
+        return repr(pandas_df.index)
 
     def copy(self, name: Optional[Hashable] = None):
         copy_index = Index(self._block)
@@ -433,7 +462,7 @@ class Index(vendored_pandas_index.Index):
 
 
 # Index that mutates the originating dataframe/series
-class ViewIndex(Index):
+class FrameIndex(Index):
     def __init__(
         self,
         series_or_dataframe: typing.Union[
@@ -494,15 +523,6 @@ class IndexValue:
     @property
     def session(self) -> core.Session:
         return self._expr.session
-
-    def __repr__(self) -> str:
-        """Converts an Index to a string."""
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        # TODO(swast): Avoid downloading the whole index by using job
-        # metadata, like we do with DataFrame.
-        preview = self.to_pandas()
-        return repr(preview)
 
     def to_pandas(self) -> pandas.Index:
         """Executes deferred operations and downloads the results."""
