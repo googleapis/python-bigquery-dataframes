@@ -661,13 +661,31 @@ def notebook(session: nox.Session):
         )
 
     session.install("-e", ".[all]")
-    session.install("pytest", "pytest-xdist", "pytest-retry", "nbmake")
+    session.install(
+        "pytest", "pytest-xdist", "pytest-retry", "nbmake", "google-cloud-aiplatform"
+    )
 
     notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
 
     denylist = [
         # Regionalized testing is manually added later.
         "notebooks/location/regionalized.ipynb",
+        # These notebooks contain special colab `param {type:"string"}`
+        # comments, which make it easy for customers to fill in their
+        # own information.
+        #
+        # With the notebooks_fill_params.py script, we are able to find and
+        # replace the PROJECT_ID parameter, but not the others.
+        #
+        # TODO(ashleyxu): Test these notebooks by replacing parameters with
+        # appropriate values and omitting cleanup logic that may break
+        # our test infrastructure.
+        "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
+        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
+        "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
+        "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
+        "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",
