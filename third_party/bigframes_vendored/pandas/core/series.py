@@ -2625,7 +2625,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
         You can mask the values in the Series based on a condition. The values
-        matching the condition would be masked.
+        matching the condition would be masked. The condition can be provided in
+        formm of a Series.
 
             >>> s.mask(s % 2 == 0)
             0    <NA>
@@ -2680,6 +2681,35 @@ class Series(NDFrame):  # type: ignore[misc]
             1         Bob
             2    Caroline
             dtype: string
+
+        There is a limited support of simple functions and lambdas which can be
+        operated directly (without converting into a `remote_function`) on the
+        BigQuery DataFrames objects. This approach takes advantage of a nuance
+        in the way BigQuery DataFrames objects are modeled internally and works
+        only if the function body contains only arithmatic or logical operators.
+
+            >>> nums = bpd.Series([1, 2, 3, 4], name="nums")
+            >>> nums
+            0    1
+            1    2
+            2    3
+            3    4
+            Name: nums, dtype: Int64
+            >>> nums.mask(lambda x: (x+1) % 2 == 1)
+            0        1
+            1     <NA>
+            2        3
+            3     <NA>
+            Name: nums, dtype: Int64
+
+            >>> def is_odd(num):
+            ...     return num % 2 == 1
+            >>> nums.mask(is_odd)
+            0     <NA>
+            1        2
+            2     <NA>
+            3        4
+            Name: nums, dtype: Int64
 
         Args:
             cond (bool Series/DataFrame, array-like, or callable):

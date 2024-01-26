@@ -2516,6 +2516,51 @@ def test_mask_custom_value(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("lambda_",),
+    [
+        pytest.param(lambda x: x > 0),
+        pytest.param(
+            lambda x: True if x > 0 else False,
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
+    ],
+    ids=[
+        "lambda_arithmatic",
+        "lambda_arbitrary",
+    ],
+)
+def test_mask_lambda(scalars_dfs, lambda_):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"]
+    bf_result = bf_col.apply(lambda_).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_col.apply(lambda_)
+
+    # ignore dtype check, which are Int64 and object respectively
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_mask_simple_udf(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def foo(x):
+        return x < 1000000
+
+    bf_col = scalars_df["int64_col"]
+    bf_result = bf_col.apply(foo).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_col.apply(foo)
+
+    # ignore dtype check, which are Int64 and object respectively
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
     ("column", "to_type"),
     [
         ("int64_col", "Float64"),
@@ -3023,6 +3068,22 @@ def test_apply_lambda(scalars_dfs, lambda_):
 
     pd_col = scalars_pandas_df["int64_col"]
     pd_result = pd_col.apply(lambda_)
+
+    # ignore dtype check, which are Int64 and object respectively
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_apply_simple_udf(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def foo(x):
+        return x * x + 2 * x + 3
+
+    bf_col = scalars_df["int64_col"]
+    bf_result = bf_col.apply(foo).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_col.apply(foo)
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
