@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
 import shutil
 import sys
 
 
 def restore_from_backup(notebook_path):
-    shutil.move(
-        f"{notebook_path}.backup",
-        notebook_path,
-    )
+    backup_path = pathlib.Path(f"{notebook_path}.backup")
+    if backup_path.exists():
+        shutil.move(
+            backup_path,
+            notebook_path,
+        )
 
 
 def main(notebook_paths):
