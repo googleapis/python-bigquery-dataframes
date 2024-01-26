@@ -653,7 +653,13 @@ def system_prerelease(session: nox.sessions.Session):
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
-def notebook(session):
+def notebook(session: nox.Session):
+    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not GOOGLE_CLOUD_PROJECT:
+        session.error(
+            "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
+        )
+
     session.install("-e", ".[all]")
     session.install("pytest", "pytest-xdist", "pytest-retry", "nbmake")
 
@@ -662,22 +668,6 @@ def notebook(session):
     denylist = [
         # Regionalized testing is manually added later.
         "notebooks/location/regionalized.ipynb",
-        # These notebooks contain special colab `param {type:"string"}`
-        # comments, which make it easy for customers to fill in their
-        # own information.
-        # TODO(ashleyxu): Test these notebooks by replacing parameters with
-        # appropriate values and omitting cleanup logic that may break
-        # our test infrastructure.
-        "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-        "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",
-        "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",
-        "notebooks/generative_ai/bq_dataframes_llm_kmeans.ipynb",
-        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",
-        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",
-        "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",
-        "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",
-        "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",
-        "notebooks/visualization/bq_dataframes_covid_line_graphs.ipynb",
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",
@@ -705,9 +695,9 @@ def notebook(session):
         for nb, regions in notebooks_reg.items()
     }
 
-    # For some reason nbmake exits silently with "no tests ran" message if
+    # The pytest --nbmake exits silently with "no tests ran" message if
     # one of the notebook paths supplied does not exist. Let's make sure that
-    # each path exists
+    # each path exists.
     for nb in notebooks + list(notebooks_reg):
         assert os.path.exists(nb), nb
 
@@ -719,16 +709,25 @@ def notebook(session):
     pytest_command = [
         "py.test",
         "--nbmake",
-        "--nbmake-timeout=600",
+        "--nbmake-timeout=900",  # 15 minutes
     ]
 
-    # Run self-contained notebooks in single session.run
-    # achieve parallelization via -n
-    session.run(
-        *pytest_command,
-        "-nauto",
-        *notebooks,
-    )
+    try:
+        # Populate notebook parameters and make a backup so that the notebooks
+        # are runnable.
+        session.run("scripts/notebooks_fill_params.py", *notebooks)
+
+        # Run self-contained notebooks in single session.run
+        # achieve parallelization via -n
+        session.run(
+            *pytest_command,
+            "-nauto",
+            *notebooks,
+        )
+    finally:
+        # Prevent our notebook changes from getting checked in to git
+        # accidentally.
+        session.run("scripts/notebooks_restore_from_backup.py", *notebooks)
 
     # Run regionalized notebooks in parallel session.run's, since each notebook
     # takes a different region via env param.
