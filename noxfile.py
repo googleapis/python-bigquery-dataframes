@@ -662,7 +662,12 @@ def notebook(session: nox.Session):
 
     session.install("-e", ".[all]")
     session.install(
-        "pytest", "pytest-xdist", "pytest-retry", "nbmake", "google-cloud-aiplatform"
+        "pytest",
+        "pytest-xdist",
+        "pytest-retry",
+        "nbmake",
+        "google-cloud-aiplatform",
+        "matplotlib",
     )
 
     notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))

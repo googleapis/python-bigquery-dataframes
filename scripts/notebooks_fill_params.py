@@ -52,7 +52,7 @@ def replace_params(notebook_path: str):
         cell["source"] = new_lines
 
     with open(notebook_path, "w", encoding="utf-8") as notebook_file:
-        json.dump(notebook_json, notebook_file, indent=1, ensure_ascii=False)
+        json.dump(notebook_json, notebook_file, indent=2, ensure_ascii=False)
 
 
 def main(notebook_paths):
