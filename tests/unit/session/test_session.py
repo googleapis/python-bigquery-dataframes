@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import datetime
 import os
 from unittest import mock
 
@@ -63,15 +65,36 @@ def test_read_gbq_not_found_tables(not_found_table_id):
     ],
 )
 def test_read_gbq_external_table_no_drive_access(api_name, query_or_table):
-    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-    bqclient.project = "test-project"
-    bqclient.get_table.side_effect = google.api_core.exceptions.Forbidden(
-        "Access Denied: BigQuery BigQuery: Permission denied while getting Drive credentials."
-    )
-    session = resources.create_bigquery_session(bqclient=bqclient)
+    session = resources.create_bigquery_session()
+    mock_query_job = session.bqclient.query.return_value
+
+    def query_mock(query, *args, **kwargs):
+        query_job = copy.copy(mock_query_job)
+
+        if query.lstrip().startswith("SELECT *"):
+            raise google.api_core.exceptions.Forbidden(
+                "Access Denied: BigQuery BigQuery: Permission denied while getting Drive credentials."
+            )
+
+        if query.startswith("SELECT CURRENT_TIMESTAMP()"):
+            query_job.result = mock.MagicMock(return_value=[[datetime.datetime.now()]])
+
+        return query_job
+
+    session.bqclient.query = query_mock
+
+    def get_table_mock(dataset_ref):
+        dataset = google.cloud.bigquery.Dataset(dataset_ref)
+        dataset.location = session._location
+        return dataset
+
+    session.bqclient.get_table = get_table_mock
 
     api = getattr(session, api_name)
-    with pytest.raises(google.api_core.exceptions.Forbidden):
+    with pytest.raises(
+        google.api_core.exceptions.Forbidden,
+        match="Check https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions.",
+    ):
         api(query_or_table)
 
 
