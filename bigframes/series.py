@@ -34,6 +34,7 @@ import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
@@ -76,10 +77,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._dtype
 
     @property
-    def index(self) -> indexes.Index:
-        return indexes.Index(self)
-
-    @property
     def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
         return bigframes.core.indexers.LocSeriesIndexer(self)
 
@@ -120,6 +117,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_numpy()
 
     @property
+    def index(self) -> indexes.Index:
+        return indexes.Index.from_frame(self)
+
+    @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
         """BigQuery job metadata for the most recent query.
 
@@ -154,7 +155,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def __iter__(self) -> typing.Iterator:
         return itertools.chain.from_iterable(
-            map(lambda x: x.index, self._block.to_pandas_batches())
+            map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
         )
 
     def copy(self) -> Series:
@@ -188,8 +189,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
                     # Will throw if value type isn't compatible with index type.
                     block, const_id = block.create_constant(v, dtype=idx_dtype)
-                    block, cond_id = block.apply_unary_op(
-                        idx_id, ops.ApplyRight(base_op=ops.ne_op, right_scalar=k)
+                    block, cond_id = block.project_expr(
+                        ops.ne_op.as_expr(idx_id, ex.const(k))
                     )
                     block, new_idx_id = block.apply_ternary_op(
                         idx_id, cond_id, const_id, ops.where_op
@@ -305,14 +306,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
         df, query_job = self._block.to_pandas(
-            (self._value_column,),
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
         )
         self._set_internal_query_job(query_job)
-        series = df[self._value_column]
+        series = df.squeeze(axis=1)
         series.name = self._name
         return series
 
@@ -343,8 +343,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 inverse_condition_id, ops.invert_op
             )
         else:
-            block, condition_id = block.apply_unary_op(
-                level_id, ops.partial_right(ops.ne_op, index)
+            block, condition_id = block.project_expr(
+                ops.ne_op.as_expr(level_id, ex.const(index))
             )
         block = block.filter(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
@@ -489,11 +489,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, cond = self._block.apply_unary_op(
             self._value_column, ops.IsInOp(tuple(to_replace_list))
         )
-        block, result_col = block.apply_binary_op(
-            cond,
-            self._value_column,
-            ops.partial_arg1(ops.where_op, value),
-            result_label=self.name,
+        block, result_col = block.project_expr(
+            ops.where_op.as_expr(ex.const(value), cond, self._value_column), self.name
         )
         return Series(block.select_column(result_col))
 
@@ -606,7 +603,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.add_op)
 
     def radd(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.add_op))
+        return self._apply_binary_op(other, ops.add_op, reverse=True)
 
     def __sub__(self, other: float | int | Series) -> Series:
         return self.sub(other)
@@ -618,7 +615,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.sub_op)
 
     def rsub(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.sub_op))
+        return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
 
@@ -632,7 +629,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.mul_op)
 
     def rmul(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.mul_op))
+        return self._apply_binary_op(other, ops.mul_op, reverse=True)
 
     multiply = mul
 
@@ -646,7 +643,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.div_op)
 
     def rtruediv(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.div_op))
+        return self._apply_binary_op(other, ops.div_op, reverse=True)
 
     div = truediv
 
@@ -664,7 +661,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.floordiv_op)
 
     def rfloordiv(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.floordiv_op))
+        return self._apply_binary_op(other, ops.floordiv_op, reverse=True)
 
     def __pow__(self, other: float | int | Series) -> Series:
         return self.pow(other)
@@ -676,7 +673,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.pow_op)
 
     def rpow(self, other: float | int | Series) -> Series:
-        return self._apply_binary_op(other, ops.reverse(ops.pow_op))
+        return self._apply_binary_op(other, ops.pow_op, reverse=True)
 
     def __lt__(self, other: float | int | Series) -> Series:  # type: ignore
         return self.lt(other)
@@ -712,7 +709,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.mod_op)
 
     def rmod(self, other) -> Series:  # type: ignore
-        return self._apply_binary_op(other, ops.reverse(ops.mod_op))
+        return self._apply_binary_op(other, ops.mod_op, reverse=True)
 
     def divmod(self, other) -> Tuple[Series, Series]:  # type: ignore
         # TODO(huanc): when self and other both has dtype int and other contains zeros,
@@ -736,26 +733,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(decimals, ops.round_op)
 
     def corr(self, other: Series, method="pearson", min_periods=None) -> float:
-        """
-        Compute the correlation with the other Series.  Non-number values are ignored in the
-        computation.
-
-        Uses the "Pearson" method of correlation.  Numbers are converted to float before
-        calculation, so the result may be unstable.
-
-        Args:
-            other (Series):
-                The series with which this is to be correlated.
-            method (string, default "pearson"):
-                Correlation method to use - currently only "pearson" is supported.
-            min_periods (int, default None):
-                The minimum number of observations needed to return a result.  Non-default values
-                are not yet supported, so a result will be returned for at least two observations.
-
-        Returns:
-            float;  Will return NaN if there are fewer than two numeric pairs, either series has a
-                variance or covariance of zero, or any input value is infinite.
-        """
         # TODO(kemppeterson): Validate early that both are numeric
         # TODO(kemppeterson): Handle partially-numeric columns
         if method != "pearson":
@@ -1001,7 +978,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         block = block.slice(0, 1)
-        return indexes.Index._from_block(block).to_pandas()[0]
+        return indexes.Index(block).to_pandas()[0]
 
     def idxmin(self) -> blocks.Label:
         block = self._block.order_by(
@@ -1014,7 +991,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ]
         )
         block = block.slice(0, 1)
-        return indexes.Index._from_block(block).to_pandas()[0]
+        return indexes.Index(block).to_pandas()[0]
 
     @property
     def is_monotonic_increasing(self) -> bool:
@@ -1299,9 +1276,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise ValueError("Original index must be unique to reindex")
         keep_original_names = False
         if isinstance(index, indexes.Index):
-            new_indexer = bigframes.dataframe.DataFrame(data=index._data._get_block())[
-                []
-            ]
+            new_indexer = bigframes.dataframe.DataFrame(data=index._block)[[]]
         else:
             if not isinstance(index, pandas.Index):
                 keep_original_names = True
@@ -1521,7 +1496,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             if inputs[0] is self:
                 return self._apply_binary_op(inputs[1], binop)
             else:
-                return self._apply_binary_op(inputs[0], ops.reverse(binop))
+                return self._apply_binary_op(inputs[0], binop, reverse=True)
 
         return NotImplemented
 

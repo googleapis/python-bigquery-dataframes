@@ -26,8 +26,8 @@ import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.expression as ex
 import bigframes.dtypes
-import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
@@ -49,6 +49,47 @@ class ScalarOpCompiler:
             [typing.Sequence[ibis_types.Value], ops.RowOp], ibis_types.Value
         ],
     ] = {}
+
+    @functools.singledispatchmethod
+    def compile_expression(
+        self,
+        expression: ex.Expression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        raise NotImplementedError(f"Unrecognized expression: {expression}")
+
+    @compile_expression.register
+    def _(
+        self,
+        expression: ex.ScalarConstantExpression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        return bigframes.dtypes.literal_to_ibis_scalar(
+            expression.value, expression.dtype
+        )
+
+    @compile_expression.register
+    def _(
+        self,
+        expression: ex.UnboundVariableExpression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        if expression.id not in bindings:
+            raise ValueError(f"Could not resolve unbound variable {expression.id}")
+        else:
+            return bindings[expression.id]
+
+    @compile_expression.register
+    def _(
+        self,
+        expression: ex.OpExpression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        inputs = [
+            self.compile_expression(sub_expr, bindings)
+            for sub_expr in expression.inputs
+        ]
+        return self.compile_row_op(expression.op, inputs)
 
     def compile_row_op(
         self, op: ops.RowOp, inputs: typing.Sequence[ibis_types.Value]
@@ -1090,38 +1131,6 @@ def clip_op(
             .else_(original)
             .end()
         )
-
-
-# Composition Ops
-@scalar_op_compiler.register_unary_op(ops.ApplyRight, pass_op=True)
-def apply_right(input: ibis_types.Value, op: ops.ApplyRight):
-    right = dtypes.literal_to_ibis_scalar(op.right_scalar, validate=False)
-    return scalar_op_compiler.compile_row_op(op.base_op, (input, right))
-
-
-@scalar_op_compiler.register_unary_op(ops.ApplyLeft, pass_op=True)
-def apply_left(input: ibis_types.Value, op: ops.ApplyLeft):
-    left = dtypes.literal_to_ibis_scalar(op.left_scalar, validate=False)
-    return scalar_op_compiler.compile_row_op(op.base_op, (left, input))
-
-
-@scalar_op_compiler.register_binary_op(ops.ReverseArgsOp, pass_op=True)
-def apply_reversed(
-    input1: ibis_types.Value, input2: ibis_types.Value, op: ops.ReverseArgsOp
-):
-    return scalar_op_compiler.compile_row_op(op.base_op, (input2, input1))
-
-
-@scalar_op_compiler.register_binary_op(ops.ApplyArg1, pass_op=True)
-def apply_arg1(input1: ibis_types.Value, input2: ibis_types.Value, op: ops.ApplyArg1):
-    arg1 = dtypes.literal_to_ibis_scalar(op.scalar, validate=False)
-    return scalar_op_compiler.compile_row_op(op.base_op, (arg1, input1, input2))
-
-
-@scalar_op_compiler.register_binary_op(ops.ApplyArg3, pass_op=True)
-def apply_arg3(input1: ibis_types.Value, input2: ibis_types.Value, op: ops.ApplyArg3):
-    arg3 = dtypes.literal_to_ibis_scalar(op.scalar, validate=False)
-    return scalar_op_compiler.compile_row_op(op.base_op, (input1, input2, arg3))
 
 
 # Helpers

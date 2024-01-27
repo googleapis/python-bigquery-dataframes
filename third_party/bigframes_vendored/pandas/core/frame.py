@@ -2961,7 +2961,6 @@ class DataFrame(NDFrame):
         to every element of a DataFrame.
 
         .. note::
-
            In pandas 2.1.0, DataFrame.applymap is deprecated and renamed to
            DataFrame.map.
 
@@ -3037,6 +3036,8 @@ class DataFrame(NDFrame):
             bigframes.dataframe.DataFrame: Transformed DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    applymap = map
 
     # ----------------------------------------------------------------------
     # Merging / joining methods
@@ -4713,7 +4714,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
             >>> df.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> df.index.values
             array([10, 20, 30], dtype=object)
 
@@ -4730,7 +4731,10 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 1 columns]
             >>> df1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> df1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)

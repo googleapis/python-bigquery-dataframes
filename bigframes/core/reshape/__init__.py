@@ -20,6 +20,7 @@ import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.core as core
+import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dataframe
@@ -128,12 +129,15 @@ def cut(
         if bins.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
 
-    if labels is not False:
+    if labels is not None and labels is not False:
         raise NotImplementedError(
-            f"Only labels=False is supported in BigQuery DataFrames so far. {constants.FEEDBACK_LINK}"
+            "The 'labels' parameter must be either False or None. "
+            "Please provide a valid value for 'labels'."
         )
 
-    return x._apply_window_op(agg_ops.CutOp(bins), window_spec=core.WindowSpec())
+    return x._apply_window_op(
+        agg_ops.CutOp(bins, labels=labels), window_spec=core.WindowSpec()
+    )
 
 
 def qcut(
@@ -165,7 +169,7 @@ def qcut(
             ordering=(order.OrderingColumnReference(x._value_column),),
         ),
     )
-    block, result = block.apply_binary_op(
-        result, nullity_id, ops.partial_arg3(ops.where_op, None), result_label=label
+    block, result = block.project_expr(
+        ops.where_op.as_expr(result, nullity_id, ex.const(None)), label=label
     )
     return bigframes.series.Series(block.select_column(result))
