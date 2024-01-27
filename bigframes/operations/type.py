@@ -46,7 +46,7 @@ class InputType(OpTypeRule):
 @dataclasses.dataclass
 class RealNumeric(OpTypeRule):
     def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        all_ints = all(pd.api.types.is_integer(input) for input in input_types)
+        all_ints = all(pd.api.types.is_integer_dtype(input) for input in input_types)
         if all_ints:
             return bigframes.dtypes.FLOAT_DTYPE
         else:

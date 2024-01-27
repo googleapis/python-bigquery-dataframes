@@ -221,6 +221,8 @@ arccosh_op = create_unary_op(name="arccosh", type_rule=op_typing.REAL_NUMERIC)
 arctanh_op = create_unary_op(name="arctanh", type_rule=op_typing.REAL_NUMERIC)
 ## Numeric Ops
 abs_op = create_unary_op(name="abs", type_rule=op_typing.INPUT_TYPE)
+ceil_op = create_unary_op(name="ceil", type_rule=op_typing.REAL_NUMERIC)
+floor_op = create_unary_op(name="floor", type_rule=op_typing.REAL_NUMERIC)
 exp_op = create_unary_op(name="exp", type_rule=op_typing.REAL_NUMERIC)
 ln_op = create_unary_op(name="log", type_rule=op_typing.REAL_NUMERIC)
 log10_op = create_unary_op(name="log10", type_rule=op_typing.REAL_NUMERIC)
@@ -474,6 +476,8 @@ NUMPY_TO_OP: typing.Final = {
     np.log10: log10_op,
     np.sqrt: sqrt_op,
     np.abs: abs_op,
+    np.ceil: ceil_op,
+    np.floor: floor_op,
 }
 
 

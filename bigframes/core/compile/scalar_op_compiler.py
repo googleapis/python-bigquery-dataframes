@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.compile.ibis_mods as ibis_mods
 import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -170,6 +171,26 @@ class ScalarOpCompiler:
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
             def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
                 return impl(args[0], args[1], args[2])
+
+            self._register(key, normalized_impl)
+            return impl
+
+        return decorator
+
+    def register_sql(self, op: typing.Union[ops.RowOp, type[ops.RowOp]]):
+        key = typing.cast(str, op.name)
+        op_class = op if isinstance(op, type) else type(op)
+
+        def decorator(impl: typing.Callable[[typing.Tuple[str]], str]):
+            if issubclass(op_class, ops.UnaryOp):
+                custom_op = ibis_mods.create_unary_op(op_class, impl)
+            elif issubclass(op_class, ops.BinaryOp):
+                custom_op = ibis_mods.create_binary_op(op_class, impl)
+            else:
+                raise ValueError(f"Cannot convert f{op} to ibis custom op")
+
+            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
+                return custom_op(*args).to_expr()
 
             self._register(key, normalized_impl)
             return impl
@@ -489,6 +510,18 @@ def replacestring_op_impl(x: ibis_types.Value, op: ops.ReplaceStrOp):
 @scalar_op_compiler.register_unary_op(ops.RegexReplaceStrOp, pass_op=True)
 def replaceregex_op_impl(x: ibis_types.Value, op: ops.RegexReplaceStrOp):
     return typing.cast(ibis_types.StringValue, x).re_replace(op.pat, op.repl)
+
+
+@scalar_op_compiler.register_sql(ops.ceil_op)
+def ceil_op_impl(*inputs: str):
+    # Use direct impl instead of ibis as ibis does unwanted type casting.
+    return f"CEIL({inputs[0]})"
+
+
+@scalar_op_compiler.register_sql(ops.floor_op)
+def floor_op_impl(*inputs: str):
+    # Use direct impl instead of ibis as ibis does unwanted type casting.
+    return f"FLOOR({inputs[0]})"
 
 
 @scalar_op_compiler.register_unary_op(ops.StartsWithOp, pass_op=True)

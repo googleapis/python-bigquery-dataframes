@@ -37,6 +37,8 @@ import pytest
         ("log10",),
         ("sqrt",),
         ("abs",),
+        ("ceil",),
+        ("floor",),
     ],
 )
 def test_series_ufuncs(floats_pd, floats_bf, opname):
@@ -56,6 +58,8 @@ def test_series_ufuncs(floats_pd, floats_bf, opname):
         ("log10",),
         ("sqrt",),
         ("abs",),
+        ("ceil",),
+        ("floor",),
     ],
 )
 def test_df_ufuncs(scalars_dfs, opname):

@@ -147,9 +147,13 @@ class SeriesMethods:
         op: ops.UnaryOp,
     ) -> series.Series:
         """Applies a unary operator to the series."""
-        block, result_id = self._block.apply_unary_op(
-            self._value_column, op, result_label=self._name
-        )
+        return self._apply_expression(op.as_expr())
+
+    def _apply_expression(self, expr: ex.Expression) -> series.Series:
+        if len(expr.unbound_variables) != 1:
+            raise ValueError("Can only apply expression with a single free variable")
+        expr = expr.rename({expr.unbound_variables[0]: self._value_column})
+        block, result_id = self._block.project_expr(expr, label=self._name)
         return series.Series(block.select_column(result_id))
 
     def _apply_binary_op(

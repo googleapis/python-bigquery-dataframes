@@ -52,6 +52,7 @@ INT_DTYPE = pd.Int64Dtype()
 FLOAT_DTYPE = pd.Float64Dtype()
 BOOL_DTYPE = pd.BooleanDtype()
 STRING_DTYPE = pd.StringDtype(storage="pyarrow")
+DEFAULT_NULL_DTYPE = FLOAT_DTYPE
 
 # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
 UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
@@ -281,6 +282,13 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
         raise ValueError(
             f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
         )
+
+
+def etype_to_dtype(bigframes_etype: ExpressionType) -> Dtype:
+    if bigframes_etype is None:
+        return DEFAULT_NULL_DTYPE
+    else:
+        return bigframes_etype
 
 
 def bigframes_dtype_to_ibis_dtype(

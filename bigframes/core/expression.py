@@ -53,6 +53,10 @@ class Expression(abc.ABC):
     ) -> dtypes.ExpressionType:
         ...
 
+    @abc.abstractmethod
+    def bind_var(self, id: str, value: Expression) -> Expression:
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -70,6 +74,9 @@ class ScalarConstantExpression(Expression):
         self, input_types: dict[str, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
         return self.dtype
+
+    def bind_var(self, id: str, value: Expression) -> Expression:
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -99,6 +106,12 @@ class UnboundVariableExpression(Expression):
             return input_types[self.id]
         else:
             raise ValueError("Type of variable has not been fixed.")
+
+    def bind_var(self, id: str, value: Expression) -> Expression:
+        if id == self.id:
+            return value
+        else:
+            return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -135,3 +148,8 @@ class OpExpression(Expression):
             map(lambda x: x.output_type(input_types=input_types), self.inputs)
         )
         return self.op.output_type(*operand_types)
+
+    def bind_var(self, id: str, value: Expression) -> Expression:
+        return OpExpression(
+            self.op, tuple(input.bind_var(id, value) for input in self.inputs)
+        )
