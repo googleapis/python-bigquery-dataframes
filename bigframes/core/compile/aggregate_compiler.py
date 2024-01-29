@@ -180,6 +180,7 @@ def _(op: agg_ops.VarOp, x: ibis_types.Column, window=None) -> ibis_types.Value:
     return _apply_window_if_present(cast(ibis_types.NumericColumn, x).var(), window)
 
 
+@compile_agg.register
 @numeric_op
 def _(op: agg_ops.PopVarOp, x: ibis_types.Column, window=None) -> ibis_types.Value:
     return _apply_window_if_present(
