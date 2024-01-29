@@ -28,8 +28,10 @@ import warnings
 import nox
 import nox.sessions
 
+
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
+PYTEST_VERSION = "pytest==7.4.4"
 SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = ["docs", "bigframes", "tests", "third_party", "noxfile.py", "setup.py"]
 
@@ -39,7 +41,7 @@ UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
-    "pytest",
+    PYTEST_VERSION,
     "pytest-cov",
     "pytest-asyncio",
     "pytest-mock",
@@ -55,7 +57,7 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
     "openpyxl",
-    "pytest",
+    PYTEST_VERSION,
     "pytest-cov",
     "pytest-retry",
     "pytest-timeout",
