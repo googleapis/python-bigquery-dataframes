@@ -28,7 +28,6 @@ import warnings
 import nox
 import nox.sessions
 
-
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
 PYTEST_VERSION = "pytest==7.4.4"
