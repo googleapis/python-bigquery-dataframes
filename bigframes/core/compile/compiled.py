@@ -26,6 +26,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
+import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -207,6 +208,13 @@ class UnorderedIR(BaseIbisIR):
             columns=self._columns,
             predicates=self._predicates,
         )
+
+    def peek_sql(self, n: int):
+        # Peek currently implemented as top level LIMIT op.
+        # Execution engine handles limit pushdown.
+        # In future, may push down limit/filters in compilation.
+        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
+        return typing.cast(str, sql)
 
     def to_sql(
         self,
@@ -440,7 +448,7 @@ class UnorderedIR(BaseIbisIR):
         """
         table = self._to_ibis_expr()
         stats = {
-            col_out: agg_op._as_ibis(table[col_in])
+            col_out: agg_compiler.compile_agg(agg_op, table[col_in])
             for col_in, agg_op, col_out in aggregations
         }
         if by_column_ids:
@@ -803,7 +811,7 @@ class OrderedIR(BaseIbisIR):
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
 
-        window_op = op._as_ibis(column, window)
+        window_op = agg_compiler.compile_unary_analytic(op, column, window)
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
@@ -811,12 +819,16 @@ class OrderedIR(BaseIbisIR):
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
-                observation_count = agg_ops.count_op._as_ibis(column, window)
+                observation_count = agg_compiler.compile_unary_analytic(
+                    agg_ops.count_op, column, window
+                )
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
-                observation_count = agg_ops.count_op._as_ibis(denulled_value, window)
+                observation_count = agg_compiler.compile_unary_analytic(
+                    agg_ops.count_op, denulled_value, window
+                )
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
