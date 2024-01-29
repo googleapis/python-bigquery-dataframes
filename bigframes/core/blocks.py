@@ -287,7 +287,6 @@ class Block:
             A new Block because dropping index columns can break references
             from Index classes that point to this block.
         """
-        block = self
         new_index_col_id = guid.generate_guid()
         expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
@@ -295,7 +294,7 @@ class Block:
             # ordering expression as reset_index shouldn't change the row
             # order.
             expr = expr.drop_columns(self.index_columns)
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=self.column_labels,
@@ -321,13 +320,12 @@ class Block:
                 # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
                 column_labels_modified = column_labels_modified.insert(level, label)
 
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=column_labels_modified,
                 index_labels=[None],
             )
-        return block
 
     def set_index(
         self,
@@ -432,7 +430,17 @@ class Block:
                 downsampling=sampling, ordered=ordered
             )
         )
+        df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
+
+    def try_peek(self, n: int = 20) -> typing.Optional[pd.DataFrame]:
+        if self.expr.node.peekable:
+            iterator, _ = self.session._peek(self.expr, n)
+            df = self._to_dataframe(iterator)
+            self._copy_index_to_pandas(df)
+            return df
+        else:
+            return None
 
     def to_pandas_batches(self):
         """Download results one message at a time."""

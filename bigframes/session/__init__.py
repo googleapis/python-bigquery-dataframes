@@ -597,9 +597,16 @@ class Session(
                 ).result()
             )[0][0]
             self._df_snapshot[table_ref] = snapshot_timestamp
-        table_expression = self.ibis_client.sql(
-            bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
-        )
+
+        try:
+            table_expression = self.ibis_client.sql(
+                bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
+            )
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
+
         return table_expression, primary_keys
 
     def _read_gbq_table(
@@ -1451,7 +1458,13 @@ class Session(
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
         )
-        query_job = self.bqclient.query(sql, job_config=job_config)
+
+        try:
+            query_job = self.bqclient.query(sql, job_config=job_config)
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
@@ -1508,6 +1521,17 @@ class Session(
             job_config=job_config,
         )
 
+    def _peek(
+        self, array_value: core.ArrayValue, n_rows: int
+    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """A 'peek' efficiently accesses a small number of rows in the dataframe."""
+        if not array_value.node.peekable:
+            raise NotImplementedError("cannot efficient peek this dataframe")
+        sql = self._compile_unordered(array_value).peek_sql(n_rows)
+        return self._start_query(
+            sql=sql,
+        )
+
     def _to_sql(
         self,
         array_value: core.ArrayValue,
@@ -1528,12 +1552,12 @@ class Session(
     def _compile_ordered(
         self, array_value: core.ArrayValue
     ) -> bigframes.core.compile.OrderedIR:
-        return bigframes.core.compile.compile_ordered(array_value.node)
+        return bigframes.core.compile.compile_ordered_ir(array_value.node)
 
     def _compile_unordered(
         self, array_value: core.ArrayValue
     ) -> bigframes.core.compile.UnorderedIR:
-        return bigframes.core.compile.compile_unordered(array_value.node)
+        return bigframes.core.compile.compile_unordered_ir(array_value.node)
 
     def _get_table_size(self, destination_table):
         table = self.bqclient.get_table(destination_table)
