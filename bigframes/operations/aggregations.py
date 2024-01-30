@@ -17,12 +17,7 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar
-
-from pandas import Int64Dtype
-import pandas as pd
-
-import bigframes.dtypes as dtypes
+from typing import ClassVar, Hashable, Optional, Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -139,17 +134,9 @@ class CountOp(UnaryAggregateOp):
 
 @dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
-    def __init__(self, bins: typing.Union[int, pd.IntervalIndex], labels=None):
-        if isinstance(bins, int):
-            if not bins > 0:
-                raise ValueError("`bins` should be a positive integer.")
-            self._bins_int = bins
-            self._bins = dtypes.literal_to_ibis_scalar(bins, force_dtype=Int64Dtype())
-        else:
-            self._bins_int = 0
-            self._bins = bins
-
-        self._labels = labels
+    # TODO: Unintuitive, refactor into multiple ops?
+    bins: typing.Union[int, Tuple[Tuple[Hashable, Hashable], ...]]
+    labels: Optional[bool]
 
     @property
     def skips_nulls(self):
@@ -162,9 +149,11 @@ class CutOp(UnaryWindowOp):
 
 @dataclasses.dataclass(frozen=True)
 class QcutOp(UnaryWindowOp):
-    def __init__(self, quantiles: typing.Union[int, typing.Sequence[float]]):
-        self.name = f"qcut-{quantiles}"
-        self._quantiles = quantiles
+    quantiles: typing.Union[int, typing.Tuple[float, ...]]
+
+    @property
+    def name(self):
+        return f"qcut-{self.quantiles}"
 
     @property
     def skips_nulls(self):
@@ -245,8 +234,7 @@ class LastNonNullOp(UnaryWindowOp):
 
 @dataclasses.dataclass(frozen=True)
 class ShiftOp(UnaryWindowOp):
-    def __init__(self, periods: int):
-        self._periods = periods
+    periods: int
 
     @property
     def skips_nulls(self):
@@ -255,8 +243,7 @@ class ShiftOp(UnaryWindowOp):
 
 @dataclasses.dataclass(frozen=True)
 class DiffOp(UnaryWindowOp):
-    def __init__(self, periods: int):
-        self._periods = periods
+    periods: int
 
     @property
     def skips_nulls(self):

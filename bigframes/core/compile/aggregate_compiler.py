@@ -233,25 +233,24 @@ def _(
 @compile_unary_agg.register
 def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
     out = ibis.case()
-
-    if op._bins_int > 0:
+    if isinstance(op.bins, int):
         col_min = _apply_window_if_present(x.min(), window)
         col_max = _apply_window_if_present(x.max(), window)
-        bin_width = (col_max - col_min) / op._bins
+        bin_width = (col_max - col_min) / op.bins
 
-        if op._labels is False:
-            for this_bin in range(op._bins_int - 1):
+        if op.labels is False:
+            for this_bin in range(op.bins - 1):
                 out = out.when(
                     x <= (col_min + (this_bin + 1) * bin_width),
                     dtypes.literal_to_ibis_scalar(
                         this_bin, force_dtype=pd.Int64Dtype()
                     ),
                 )
-            out = out.when(x.notnull(), op._bins - 1)
+            out = out.when(x.notnull(), op.bins - 1)
         else:
             interval_struct = None
             adj = (col_max - col_min) * 0.001
-            for this_bin in range(op._bins_int):
+            for this_bin in range(op.bins):
                 left_edge = (
                     col_min + this_bin * bin_width - (0 if this_bin > 0 else adj)
                 )
@@ -263,18 +262,18 @@ def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
                     }
                 )
 
-                if this_bin < op._bins_int - 1:
+                if this_bin < op.bins - 1:
                     out = out.when(
                         x <= (col_min + (this_bin + 1) * bin_width),
                         interval_struct,
                     )
                 else:
                     out = out.when(x.notnull(), interval_struct)
-    else:
-        for interval in op._bins:
-            condition = (x > interval.left) & (x <= interval.right)
+    else:  # Interpret as intervals
+        for interval in op.bins:
+            condition = (x > interval[0]) & (x <= interval[1])
             interval_struct = ibis.struct(
-                {"left_exclusive": interval.left, "right_inclusive": interval.right}
+                {"left_exclusive": interval[0], "right_inclusive": interval[1]}
             )
             out = out.when(condition, interval_struct)
     return out.end()
@@ -285,8 +284,8 @@ def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
 def _(
     self: agg_ops.QcutOp, column: ibis_types.Column, window=None
 ) -> ibis_types.IntegerValue:
-    if isinstance(self._quantiles, int):
-        quantiles_ibis = dtypes.literal_to_ibis_scalar(self._quantiles)
+    if isinstance(self.quantiles, int):
+        quantiles_ibis = dtypes.literal_to_ibis_scalar(self.quantiles)
         percent_ranks = cast(
             ibis_types.FloatingColumn,
             _apply_window_if_present(column.percent_rank(), window),
@@ -299,10 +298,10 @@ def _(
             _apply_window_if_present(column.percent_rank(), window),
         )
         out = ibis.case()
-        first_ibis_quantile = dtypes.literal_to_ibis_scalar(self._quantiles[0])
+        first_ibis_quantile = dtypes.literal_to_ibis_scalar(self.quantiles[0])
         out = out.when(percent_ranks < first_ibis_quantile, None)
-        for bucket_n in range(len(self._quantiles) - 1):
-            ibis_quantile = dtypes.literal_to_ibis_scalar(self._quantiles[bucket_n + 1])
+        for bucket_n in range(len(self.quantiles) - 1):
+            ibis_quantile = dtypes.literal_to_ibis_scalar(self.quantiles[bucket_n + 1])
             out = out.when(
                 percent_ranks <= ibis_quantile,
                 dtypes.literal_to_ibis_scalar(bucket_n, force_dtype=pd.Int64Dtype()),
@@ -371,16 +370,16 @@ def _(
 
 @compile_unary_agg.register
 def _(op: agg_ops.ShiftOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
-    if op._periods == 0:  # No-op
+    if op.periods == 0:  # No-op
         return column
-    if op._periods > 0:
-        return _apply_window_if_present(column.lag(op._periods), window)
-    return _apply_window_if_present(column.lead(-op._periods), window)
+    if op.periods > 0:
+        return _apply_window_if_present(column.lag(op.periods), window)
+    return _apply_window_if_present(column.lead(-op.periods), window)
 
 
 @compile_unary_agg.register
 def _(op: agg_ops.DiffOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
-    shifted = compile_unary_agg(agg_ops.ShiftOp(op._periods), column, window)
+    shifted = compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window)
     if column.type().is_boolean():
         return cast(ibis_types.BooleanColumn, column) != cast(
             ibis_types.BooleanColumn, shifted

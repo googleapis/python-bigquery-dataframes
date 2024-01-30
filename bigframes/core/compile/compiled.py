@@ -795,7 +795,7 @@ class OrderedIR(BaseIbisIR):
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(column)),
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(column_name)),
                     window,
                     bindings=bindings,
                 )
