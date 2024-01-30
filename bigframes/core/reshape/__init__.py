@@ -124,10 +124,10 @@ def cut(
 
     if isinstance(bins, Iterable):
         if isinstance(bins, pd.IntervalIndex):
-            as_index = bins
+            as_index: pd.IntervalIndex = bins
             bins = tuple((i.left, i.right) for i in bins)
         else:
-            as_index = pd.IntervalIndex.from_tuples(bins)
+            as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
 
         if as_index.is_overlapping:
