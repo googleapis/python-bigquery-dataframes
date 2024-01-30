@@ -16,24 +16,25 @@ import dataclasses
 from typing import Optional
 
 import pandas
-import pandas.core.computation.parsing as pandas_eval_parsing
 
 import bigframes.dataframe as dataframe
 import bigframes.dtypes
 import bigframes.series as series
+import third_party.bigframes_vendored.pandas.core.computation.parsing as vendored_pandas_eval_parsing
 
 
 def eval(df: dataframe.DataFrame, expr: str, target: Optional[dataframe.DataFrame]):
     index_resolver = {
-        pandas_eval_parsing.clean_column_name(str(name)): EvalSeries(
+        vendored_pandas_eval_parsing.clean_column_name(str(name)): EvalSeries(
             df.index.get_level_values(level).to_series()
         )
         for level, name in enumerate(df.index.names)
     }
     column_resolver = {
-        pandas_eval_parsing.clean_column_name(str(name)): EvalSeries(series)
+        vendored_pandas_eval_parsing.clean_column_name(str(name)): EvalSeries(series)
         for name, series in df.items()
     }
+    # 3 Levels: user -> logging wrapper -> dataframe -> eval helper (this)
     return pandas.eval(
         expr=expr, level=3, target=target, resolvers=(index_resolver, column_resolver)  # type: ignore
     )

@@ -1484,12 +1484,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(self._block.order_by(ordering))
 
     def eval(self, expr: str) -> DataFrame:
-        import bigframes.eval as bf_eval
+        import bigframes.core.eval as bf_eval
 
         return bf_eval.eval(self, expr, target=self)
 
     def query(self, expr: str) -> DataFrame:
-        import bigframes.eval as bf_eval
+        import bigframes.core.eval as bf_eval
 
         eval_result = bf_eval.eval(self, expr, target=None)
         return self[eval_result]
