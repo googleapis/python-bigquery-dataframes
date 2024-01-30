@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.20.0"
+import pathlib
+import shutil
+import sys
+
+
+def restore_from_backup(notebook_path):
+    backup_path = pathlib.Path(f"{notebook_path}.backup")
+    if backup_path.exists():
+        shutil.move(
+            backup_path,
+            notebook_path,
+        )
+
+
+def main(notebook_paths):
+    for notebook_path in notebook_paths:
+        restore_from_backup(notebook_path)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
