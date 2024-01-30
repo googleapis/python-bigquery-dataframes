@@ -30,6 +30,7 @@ import typing
 
 import bigframes
 import bigframes.dataframe
+import bigframes.features
 import bigframes.pandas as bpd
 
 
@@ -57,7 +58,12 @@ def test_to_pandas_array_struct_correct_result(session):
     expected = pd.DataFrame(
         {
             "array_column": pd.Series(
-                [[1, 3, 2]], dtype=pd.ArrowDtype(pa.list_(pa.int64()))
+                [[1, 3, 2]],
+                dtype=(
+                    pd.ArrowDtype(pa.list_(pa.int64()))
+                    if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable
+                    else "object"
+                ),
             ),
             "struct_column": pd.Series(
                 [{"string_field": "a", "float_field": 1.2}],
@@ -271,6 +277,99 @@ def test_to_gbq_if_exists(
     pd.testing.assert_index_equal(
         gcs_df.columns, scalars_pandas_df_default_index.columns
     )
+
+
+def test_to_gbq_w_duplicate_column_names(
+    scalars_df_index, scalars_pandas_df_index, dataset_id
+):
+    """Test the `to_gbq` API when dealing with duplicate column names."""
+    destination_table = f"{dataset_id}.test_to_gbq_w_duplicate_column_names"
+
+    # Renaming 'int64_too' to 'int64_col', which will result in 'int64_too'
+    # becoming 'int64_col_1' after deduplication.
+    scalars_df_index = scalars_df_index.rename(columns={"int64_too": "int64_col"})
+    scalars_df_index.to_gbq(destination_table, if_exists="replace")
+
+    bf_result = bpd.read_gbq(destination_table, index_col="rowindex").to_pandas()
+
+    pd.testing.assert_series_equal(
+        scalars_pandas_df_index["int64_col"], bf_result["int64_col"]
+    )
+    pd.testing.assert_series_equal(
+        scalars_pandas_df_index["int64_too"],
+        bf_result["int64_col_1"],
+        check_names=False,
+    )
+
+
+def test_to_gbq_w_None_column_names(
+    scalars_df_index, scalars_pandas_df_index, dataset_id
+):
+    """Test the `to_gbq` API with None as a column name."""
+    destination_table = f"{dataset_id}.test_to_gbq_w_none_column_names"
+
+    scalars_df_index = scalars_df_index.rename(columns={"int64_too": None})
+    scalars_df_index.to_gbq(destination_table, if_exists="replace")
+
+    bf_result = bpd.read_gbq(destination_table, index_col="rowindex").to_pandas()
+
+    pd.testing.assert_series_equal(
+        scalars_pandas_df_index["int64_col"], bf_result["int64_col"]
+    )
+    pd.testing.assert_series_equal(
+        scalars_pandas_df_index["int64_too"],
+        bf_result["bigframes_unnamed_column"],
+        check_names=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "clustering_columns",
+    [
+        pytest.param(["int64_col", "geography_col"]),
+        pytest.param(
+            ["float64_col"],
+            marks=pytest.mark.xfail(raises=google.api_core.exceptions.BadRequest),
+        ),
+        pytest.param(
+            ["int64_col", "int64_col"],
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+    ],
+)
+def test_to_gbq_w_clustering(
+    scalars_df_default_index,
+    dataset_id,
+    bigquery_client,
+    clustering_columns,
+):
+    """Test the `to_gbq` API for creating clustered tables."""
+    destination_table = (
+        f"{dataset_id}.test_to_gbq_clustering_{'_'.join(clustering_columns)}"
+    )
+
+    scalars_df_default_index.to_gbq(
+        destination_table, clustering_columns=clustering_columns
+    )
+    table = bigquery_client.get_table(destination_table)
+
+    assert list(table.clustering_fields) == clustering_columns
+    assert table.expires is None
+
+
+def test_to_gbq_w_clustering_no_destination(
+    scalars_df_default_index,
+    bigquery_client,
+):
+    """Test the `to_gbq` API for creating clustered tables without destination."""
+    clustering_columns = ["int64_col", "geography_col"]
+    destination_table = scalars_df_default_index.to_gbq(
+        clustering_columns=clustering_columns
+    )
+    table = bigquery_client.get_table(destination_table)
+
+    assert list(table.clustering_fields) == clustering_columns
+    assert table.expires is not None
 
 
 def test_to_gbq_w_invalid_destination_table(scalars_df_index):

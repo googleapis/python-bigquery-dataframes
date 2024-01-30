@@ -48,6 +48,7 @@ from pandas._typing import (
 import bigframes._config as config
 import bigframes.constants as constants
 import bigframes.core.blocks
+import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
 import bigframes.core.reshape
@@ -294,14 +295,13 @@ def _perform_get_dummies_block_operations(
         new_column_label = f"{column_label}{value}"
         if column_label == "":
             new_column_label = value
-        new_block, new_id = block.apply_unary_op(
-            column_id, ops.BinopPartialLeft(ops.eq_op, value)
+        new_block, new_id = block.project_expr(
+            ops.eq_op.as_expr(column_id, ex.const(value))
         )
         intermediate_col_ids.append(new_id)
-        block, _ = new_block.apply_unary_op(
-            new_id,
-            ops.BinopPartialRight(ops.fillna_op, False),
-            result_label=new_column_label,
+        block, _ = new_block.project_expr(
+            ops.fillna_op.as_expr(new_id, ex.const(False)),
+            label=new_column_label,
         )
     if dummy_na:
         # dummy column name for na depends on the dtype
@@ -486,20 +486,22 @@ def read_gbq(
     query_or_table: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq,
         query_or_table,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
         filters=filters,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 
@@ -520,18 +522,20 @@ def read_gbq_query(
     query: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_query,
         query,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 
@@ -542,18 +546,20 @@ def read_gbq_table(
     query: str,
     *,
     index_col: Iterable[str] | str = (),
-    col_order: Iterable[str] = (),
+    columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     use_cache: bool = True,
+    col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_table,
         query,
         index_col=index_col,
-        col_order=col_order,
+        columns=columns,
         max_results=max_results,
         use_cache=use_cache,
+        col_order=col_order,
     )
 
 

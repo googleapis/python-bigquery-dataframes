@@ -21,6 +21,7 @@ circular dependencies.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import itertools
 import random
@@ -31,11 +32,13 @@ import warnings
 import google.cloud.bigquery as bigquery
 import pandas as pd
 
+import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
 import bigframes.core as core
+import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
-import bigframes.core.joins.name_resolution as join_names
+import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
 import bigframes.core.utils as utils
@@ -78,6 +81,14 @@ class BlockHolder(typing.Protocol):
 
     def _get_block(self) -> Block:
         """Get the underlying block value of the object"""
+
+
+@dataclasses.dataclass()
+class MaterializationOptions:
+    downsampling: sampling_options.SamplingOptions = dataclasses.field(
+        default_factory=sampling_options.SamplingOptions
+    )
+    ordered: bool = True
 
 
 class Block:
@@ -276,7 +287,6 @@ class Block:
             A new Block because dropping index columns can break references
             from Index classes that point to this block.
         """
-        block = self
         new_index_col_id = guid.generate_guid()
         expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
@@ -284,7 +294,7 @@ class Block:
             # ordering expression as reset_index shouldn't change the row
             # order.
             expr = expr.drop_columns(self.index_columns)
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=self.column_labels,
@@ -310,13 +320,12 @@ class Block:
                 # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
                 column_labels_modified = column_labels_modified.insert(level, label)
 
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=column_labels_modified,
                 index_labels=[None],
             )
-        return block
 
     def set_index(
         self,
@@ -395,8 +404,6 @@ class Block:
 
     def to_pandas(
         self,
-        value_keys: Optional[Iterable[str]] = None,
-        max_results: Optional[int] = None,
         max_download_size: Optional[int] = None,
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
@@ -404,16 +411,36 @@ class Block:
         ordered: bool = True,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
+        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
 
-        df, _, query_job = self._compute_and_count(
-            value_keys=value_keys,
-            max_results=max_results,
-            max_download_size=max_download_size,
-            sampling_method=sampling_method,
-            random_state=random_state,
-            ordered=ordered,
+        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
+        if sampling_method is not None:
+            sampling = sampling.with_method(sampling_method).with_random_state(  # type: ignore
+                random_state
+            )
+        else:
+            sampling = sampling.with_disabled()
+
+        df, query_job = self._materialize_local(
+            materialize_options=MaterializationOptions(
+                downsampling=sampling, ordered=ordered
+            )
         )
+        df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
+
+    def try_peek(self, n: int = 20) -> typing.Optional[pd.DataFrame]:
+        if self.expr.node.peekable:
+            iterator, _ = self.session._peek(self.expr, n)
+            df = self._to_dataframe(iterator)
+            self._copy_index_to_pandas(df)
+            return df
+        else:
+            return None
 
     def to_pandas_batches(self):
         """Download results one message at a time."""
@@ -439,57 +466,29 @@ class Block:
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
 
-    def _compute_and_count(
-        self,
-        value_keys: Optional[Iterable[str]] = None,
-        max_results: Optional[int] = None,
-        max_download_size: Optional[int] = None,
-        sampling_method: Optional[str] = None,
-        random_state: Optional[int] = None,
-        *,
-        ordered: bool = True,
-    ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
+    def _materialize_local(
+        self, materialize_options: MaterializationOptions = MaterializationOptions()
+    ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
-        enable_downsampling = (
-            True
-            if sampling_method is not None
-            else bigframes.options.sampling.enable_downsampling
-        )
-
-        max_download_size = (
-            max_download_size or bigframes.options.sampling.max_download_size
-        )
-
-        random_state = random_state or bigframes.options.sampling.random_state
-
-        if sampling_method is None:
-            sampling_method = bigframes.options.sampling.sampling_method or _UNIFORM
-        sampling_method = sampling_method.lower()
-
-        if sampling_method not in _SAMPLING_METHODS:
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
-
-        expr = self._apply_value_keys_to_expr(value_keys=value_keys)
-
         results_iterator, query_job = self.session._execute(
-            expr, max_results=max_results, sorted=ordered
+            self.expr, sorted=materialize_options.ordered
         )
-
         table_size = (
             self.session._get_table_size(query_job.destination) / _BYTES_TO_MEGABYTES
         )
+        sample_config = materialize_options.downsampling
+        max_download_size = sample_config.max_download_size
         fraction = (
             max_download_size / table_size
             if (max_download_size is not None) and (table_size != 0)
             else 2
         )
 
+        # TODO: Maybe materialize before downsampling
+        # Some downsampling methods
         if fraction < 1:
-            if not enable_downsampling:
+            if not sample_config.enable_downsampling:
                 raise RuntimeError(
                     f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of "
                     f"{max_download_size} MB. You can:\n\t* Enable downsampling in global options:\n"
@@ -507,42 +506,53 @@ class Block:
                 "\nPlease refer to the documentation for configuring the downloading limit.",
                 UserWarning,
             )
-            if sampling_method == _HEAD:
-                total_rows = int(results_iterator.total_rows * fraction)
-                results_iterator.max_results = total_rows
-                df = self._to_dataframe(results_iterator)
-
-                if self.index_columns:
-                    df.set_index(list(self.index_columns), inplace=True)
-                    df.index.names = self.index.names  # type: ignore
-            elif (sampling_method == _UNIFORM) and (random_state is None):
-                filtered_expr = self.expr._uniform_sampling(fraction)
-                block = Block(
-                    filtered_expr,
-                    index_columns=self.index_columns,
-                    column_labels=self.column_labels,
-                    index_labels=self.index.names,
-                )
-                df, total_rows, _ = block._compute_and_count(max_download_size=None)
-            elif sampling_method == _UNIFORM:
-                block = self._split(
-                    fracs=(max_download_size / table_size,),
-                    random_state=random_state,
-                    preserve_order=True,
-                )[0]
-                df, total_rows, _ = block._compute_and_count(max_download_size=None)
-            else:
-                # This part should never be called, just in case.
-                raise NotImplementedError(
-                    f"The downsampling method {sampling_method} is not implemented, "
-                    f"please choose from {','.join(_SAMPLING_METHODS)}."
-                )
+            total_rows = results_iterator.total_rows
+            # Remove downsampling config from subsequent invocations, as otherwise could result in many
+            # iterations if downsampling undershoots
+            return self._downsample(
+                total_rows=total_rows,
+                sampling_method=sample_config.sampling_method,
+                fraction=fraction,
+                random_state=sample_config.random_state,
+            )._materialize_local(
+                MaterializationOptions(ordered=materialize_options.ordered)
+            )
         else:
             total_rows = results_iterator.total_rows
             df = self._to_dataframe(results_iterator)
             self._copy_index_to_pandas(df)
 
-        return df, total_rows, query_job
+        return df, query_job
+
+    def _downsample(
+        self, total_rows: int, sampling_method: str, fraction: float, random_state
+    ) -> Block:
+        # either selecting fraction or number of rows
+        if sampling_method == _HEAD:
+            filtered_block = self.slice(stop=int(total_rows * fraction))
+            return filtered_block
+        elif (sampling_method == _UNIFORM) and (random_state is None):
+            filtered_expr = self.expr._uniform_sampling(fraction)
+            block = Block(
+                filtered_expr,
+                index_columns=self.index_columns,
+                column_labels=self.column_labels,
+                index_labels=self.index.names,
+            )
+            return block
+        elif sampling_method == _UNIFORM:
+            block = self._split(
+                fracs=(fraction,),
+                random_state=random_state,
+                preserve_order=True,
+            )[0]
+            return block
+        else:
+            # This part should never be called, just in case.
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
 
     def _split(
         self,
@@ -581,12 +591,12 @@ class Block:
         # Create an ordering col and convert to string
         block, ordering_col = block.promote_offsets()
         block, string_ordering_col = block.apply_unary_op(
-            ordering_col, ops.AsTypeOp("string[pyarrow]")
+            ordering_col, ops.AsTypeOp(to_type="string[pyarrow]")
         )
 
         # Apply hash method to sum col and order by it.
         block, string_sum_col = block.apply_binary_op(
-            string_ordering_col, random_state_col, ops.concat_op
+            string_ordering_col, random_state_col, ops.strconcat_op
         )
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
         block = block.order_by([ordering.OrderingColumnReference(hash_string_sum_col)])
@@ -661,22 +671,31 @@ class Block:
             index_labels=tuple(value),
         )
 
+    def project_expr(
+        self, expr: ex.Expression, label: Label = None
+    ) -> typing.Tuple[Block, str]:
+        """
+        Apply a scalar expression to the block. Creates a new column to store the result.
+        """
+        # TODO(tbergeron): handle labels safely so callers don't need to
+        result_id = guid.generate_guid()
+        array_val = self._expr.project_to_id(expr, result_id)
+        block = Block(
+            array_val,
+            index_columns=self.index_columns,
+            column_labels=[*self.column_labels, label],
+            index_labels=self.index.names,
+        )
+        return (block, result_id)
+
     def apply_unary_op(
         self, column: str, op: ops.UnaryOp, result_label: Label = None
     ) -> typing.Tuple[Block, str]:
         """
         Apply a unary op to the block. Creates a new column to store the result.
         """
-        # TODO(tbergeron): handle labels safely so callers don't need to
-        result_id = guid.generate_guid()
-        expr = self._expr.project_unary_op(column, op, result_id)
-        block = Block(
-            expr,
-            index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
-            index_labels=self.index.names,
-        )
-        return (block, result_id)
+        expr = op.as_expr(column)
+        return self.project_expr(expr, result_label)
 
     def apply_binary_op(
         self,
@@ -685,17 +704,8 @@ class Block:
         op: ops.BinaryOp,
         result_label: Label = None,
     ) -> typing.Tuple[Block, str]:
-        result_id = guid.generate_guid()
-        expr = self._expr.project_binary_op(
-            left_column_id, right_column_id, op, result_id
-        )
-        block = Block(
-            expr,
-            index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
-            index_labels=self.index.names,
-        )
-        return (block, result_id)
+        expr = op.as_expr(left_column_id, right_column_id)
+        return self.project_expr(expr, result_label)
 
     def apply_ternary_op(
         self,
@@ -705,17 +715,8 @@ class Block:
         op: ops.TernaryOp,
         result_label: Label = None,
     ) -> typing.Tuple[Block, str]:
-        result_id = guid.generate_guid()
-        expr = self._expr.project_ternary_op(
-            col_id_1, col_id_2, col_id_3, op, result_id
-        )
-        block = Block(
-            expr,
-            index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
-            index_labels=self.index.names,
-        )
-        return (block, result_id)
+        expr = op.as_expr(col_id_1, col_id_2, col_id_3)
+        return self.project_expr(expr, result_label)
 
     def multi_apply_window_op(
         self,
@@ -833,7 +834,7 @@ class Block:
 
     def filter(self, column_id: str, keep_null: bool = False):
         return Block(
-            self._expr.filter(column_id, keep_null),
+            self._expr.filter_by_id(column_id, keep_null),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index.names,
@@ -855,13 +856,21 @@ class Block:
             aggregations = [
                 (col_id, operation, col_id) for col_id in self.value_columns
             ]
+            index_col_ids = [
+                guid.generate_guid() for i in range(self.column_labels.nlevels)
+            ]
             result_expr = self.expr.aggregate(aggregations, dropna=dropna).unpivot(
                 row_labels=self.column_labels.to_list(),
-                index_col_ids=["index"],
+                index_col_ids=index_col_ids,
                 unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
                 dtype=dtype,
             )
-            return Block(result_expr, index_columns=["index"], column_labels=[None])
+            return Block(
+                result_expr,
+                index_columns=index_col_ids,
+                column_labels=[None],
+                index_labels=self.column_labels.names,
+            )
         else:  # axis_n == 1
             # using offsets as identity to group on.
             # TODO: Allow to promote identity/total_order columns instead for better perf
@@ -1145,43 +1154,37 @@ class Block:
         conditions = []
         if start != 0:
             if start > 0:
-                op = ops.partial_right(ops.ge_op, start)
                 assert positive_offsets
-                block, start_cond = block.apply_unary_op(positive_offsets, op)
+                conditions.append(ops.ge_op.as_expr(positive_offsets, ex.const(start)))
             else:
-                op = ops.partial_right(ops.le_op, -start - 1)
                 assert negative_offsets
-                block, start_cond = block.apply_unary_op(negative_offsets, op)
-            conditions.append(start_cond)
+                conditions.append(
+                    ops.le_op.as_expr(negative_offsets, ex.const(-start - 1))
+                )
         if stop is not None:
             if stop >= 0:
-                op = ops.partial_right(ops.lt_op, stop)
                 assert positive_offsets
-                block, stop_cond = block.apply_unary_op(positive_offsets, op)
+                conditions.append(ops.lt_op.as_expr(positive_offsets, ex.const(stop)))
             else:
-                op = ops.partial_right(ops.gt_op, -stop - 1)
                 assert negative_offsets
-                block, stop_cond = block.apply_unary_op(negative_offsets, op)
-            conditions.append(stop_cond)
-
+                conditions.append(
+                    ops.gt_op.as_expr(negative_offsets, ex.const(-stop - 1))
+                )
         if step > 1:
-            op = ops.partial_right(ops.mod_op, step)
             if start >= 0:
-                op = ops.partial_right(ops.sub_op, start)
                 assert positive_offsets
-                block, start_diff = block.apply_unary_op(positive_offsets, op)
+                start_diff = ops.sub_op.as_expr(positive_offsets, ex.const(start))
             else:
-                op = ops.partial_right(ops.sub_op, -start + 1)
                 assert negative_offsets
-                block, start_diff = block.apply_unary_op(negative_offsets, op)
-            modulo_op = ops.partial_right(ops.mod_op, step)
-            block, mod = block.apply_unary_op(start_diff, modulo_op)
-            is_zero_op = ops.partial_right(ops.eq_op, 0)
-            block, step_cond = block.apply_unary_op(mod, is_zero_op)
+                start_diff = ops.sub_op.as_expr(negative_offsets, ex.const(-start + 1))
+            step_cond = ops.eq_op.as_expr(
+                ops.mod_op.as_expr(start_diff, ex.const(step)), ex.const(0)
+            )
             conditions.append(step_cond)
 
         for cond in conditions:
-            block = block.filter(cond)
+            block, cond_id = block.project_expr(cond)
+            block = block.filter(cond_id)
 
         return block.select_columns(self.value_columns)
 
@@ -1203,10 +1206,9 @@ class Block:
         count = self.shape[0]
         if count > max_results:
             head_block = self.slice(0, max_results)
-            computed_df, query_job = head_block.to_pandas(max_results=max_results)
         else:
             head_block = self
-            computed_df, query_job = head_block.to_pandas()
+        computed_df, query_job = head_block.to_pandas()
         formatted_df = computed_df.set_axis(self.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
@@ -1232,9 +1234,13 @@ class Block:
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
-                expr = expr.project_unary_op(index_col, ops.AsTypeOp("string"))
-                prefix_op = ops.BinopPartialLeft(ops.add_op, prefix)
-                expr = expr.project_unary_op(index_col, prefix_op)
+                expr = expr.project_to_id(
+                    expression=ops.add_op.as_expr(
+                        ex.const(prefix),
+                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                    ),
+                    output_id=index_col,
+                )
             return Block(
                 expr,
                 index_columns=self.index_columns,
@@ -1251,9 +1257,13 @@ class Block:
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
-                expr = expr.project_unary_op(index_col, ops.AsTypeOp("string"))
-                prefix_op = ops.BinopPartialRight(ops.add_op, suffix)
-                expr = expr.project_unary_op(index_col, prefix_op)
+                expr = expr.project_to_id(
+                    expression=ops.add_op.as_expr(
+                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ex.const(suffix),
+                    ),
+                    output_id=index_col,
+                )
             return Block(
                 expr,
                 index_columns=self.index_columns,
@@ -1452,28 +1462,23 @@ class Block:
     def _create_pivot_col(
         block: Block, columns: typing.Sequence[str], value_col: str, value
     ) -> typing.Tuple[Block, str]:
-        cond_id = ""
+        condition: typing.Optional[ex.Expression] = None
         nlevels = len(columns)
         for i in range(len(columns)):
             uvalue_level = value[i] if nlevels > 1 else value
             if pd.isna(uvalue_level):
-                block, eq_id = block.apply_unary_op(
-                    columns[i],
-                    ops.isnull_op,
-                )
+                equality = ops.isnull_op.as_expr(columns[i])
             else:
-                block, eq_id = block.apply_unary_op(
-                    columns[i], ops.partial_right(ops.eq_op, uvalue_level)
-                )
-            if cond_id:
-                block, cond_id = block.apply_binary_op(eq_id, cond_id, ops.and_op)
+                equality = ops.eq_op.as_expr(columns[i], ex.const(uvalue_level))
+            if condition is not None:
+                condition = ops.and_op.as_expr(equality, condition)
             else:
-                cond_id = eq_id
-        block, masked_id = block.apply_binary_op(
-            value_col, cond_id, ops.partial_arg3(ops.where_op, None)
-        )
+                condition = equality
 
-        return block, masked_id
+        assert condition is not None
+        return block.project_expr(
+            ops.where_op.as_expr(value_col, condition, ex.const(None))
+        )
 
     def _get_unique_values(
         self, columns: Sequence[str], max_unique_values: int
@@ -1506,8 +1511,10 @@ class Block:
         blocks: typing.List[Block] = [self, *other]
         if ignore_index:
             blocks = [block.reset_index() for block in blocks]
-
-        result_labels = _align_indices(blocks)
+            level_names = None
+        else:
+            level_names, level_types = _align_indices(blocks)
+            blocks = [_cast_index(block, level_types) for block in blocks]
 
         index_nlevels = blocks[0].index.nlevels
 
@@ -1522,7 +1529,7 @@ class Block:
             result_expr,
             index_columns=list(result_expr.column_ids)[:index_nlevels],
             column_labels=aligned_blocks[0].column_labels,
-            index_labels=result_labels,
+            index_labels=level_names,
         )
         if ignore_index:
             result_block = result_block.reset_index()
@@ -1543,25 +1550,44 @@ class Block:
         sort: bool,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> Block:
-        joined_expr = self.expr.join(
-            left_join_ids,
-            other.expr,
-            right_join_ids,
-            how=how,
+        left_mappings = [
+            join_defs.JoinColumnMapping(
+                source_table=join_defs.JoinSide.LEFT,
+                source_id=id,
+                destination_id=guid.generate_guid(),
+            )
+            for id in self.expr.column_ids
+        ]
+        right_mappings = [
+            join_defs.JoinColumnMapping(
+                source_table=join_defs.JoinSide.RIGHT,
+                source_id=id,
+                destination_id=guid.generate_guid(),
+            )
+            for id in other.expr.column_ids
+        ]
+
+        join_def = join_defs.JoinDefinition(
+            conditions=tuple(
+                join_defs.JoinCondition(left, right)
+                for left, right in zip(left_join_ids, right_join_ids)
+            ),
+            mappings=(*left_mappings, *right_mappings),
+            type=how,
         )
-        get_column_left, get_column_right = join_names.JOIN_NAME_REMAPPER(
-            self.expr.column_ids, other.expr.column_ids
-        )
+        joined_expr = self.expr.join(other.expr, join_def=join_def)
         result_columns = []
         matching_join_labels = []
 
         coalesced_ids = []
+        get_column_left = join_def.get_left_mapping()
+        get_column_right = join_def.get_right_mapping()
         for left_id, right_id in zip(left_join_ids, right_join_ids):
             coalesced_id = guid.generate_guid()
-            joined_expr = joined_expr.project_binary_op(
-                get_column_left[left_id],
-                get_column_right[right_id],
-                ops.coalesce_op,
+            joined_expr = joined_expr.project_to_id(
+                ops.coalesce_op.as_expr(
+                    get_column_left[left_id], get_column_right[right_id]
+                ),
                 coalesced_id,
             )
             coalesced_ids.append(coalesced_id)
@@ -1783,16 +1809,40 @@ def block_from_local(data) -> Block:
     )
 
 
+def _cast_index(block: Block, dtypes: typing.Sequence[bigframes.dtypes.Dtype]):
+    original_block = block
+    result_ids = []
+    for idx_id, idx_dtype, target_dtype in zip(
+        block.index_columns, block.index_dtypes, dtypes
+    ):
+        if idx_dtype != target_dtype:
+            block, result_id = block.apply_unary_op(idx_id, ops.AsTypeOp(target_dtype))
+            result_ids.append(result_id)
+        else:
+            result_ids.append(idx_id)
+
+    expr = block.expr.select_columns((*result_ids, *original_block.value_columns))
+    return Block(
+        expr,
+        index_columns=result_ids,
+        column_labels=original_block.column_labels,
+        index_labels=original_block.index_labels,
+    )
+
+
 def _align_block_to_schema(
     block: Block, schema: dict[Label, bigframes.dtypes.Dtype]
 ) -> Block:
-    """For a given schema, remap block to schema by reordering columns and inserting nulls."""
+    """For a given schema, remap block to schema by reordering columns,  and inserting nulls."""
     col_ids: typing.Tuple[str, ...] = ()
     for label, dtype in schema.items():
-        # TODO: Support casting to lcd type - requires mixed type support
         matching_ids: typing.Sequence[str] = block.label_to_col_id.get(label, ())
         if len(matching_ids) > 0:
             col_id = matching_ids[-1]
+            col_dtype = block.expr.get_column_type(col_id)
+            if dtype != col_dtype:
+                # If _align_schema worked properly, this should always be an upcast
+                block, col_id = block.apply_unary_op(col_id, ops.AsTypeOp(dtype))
             col_ids = (*col_ids, col_id)
         else:
             block, null_column = block.create_constant(None, dtype=dtype)
@@ -1810,24 +1860,28 @@ def _align_schema(
     return functools.reduce(reduction, schemas)
 
 
-def _align_indices(blocks: typing.Sequence[Block]) -> typing.Sequence[Label]:
-    """Validates that the blocks have compatible indices and returns the resulting label names."""
+def _align_indices(
+    blocks: typing.Sequence[Block],
+) -> typing.Tuple[typing.Sequence[Label], typing.Sequence[bigframes.dtypes.Dtype]]:
+    """Validates that the blocks have compatible indices and returns the resulting label names and dtypes."""
     names = blocks[0].index.names
     types = blocks[0].index.dtypes
+
     for block in blocks[1:]:
         if len(names) != block.index.nlevels:
             raise NotImplementedError(
                 f"Cannot combine indices with different number of levels. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
             )
-        if block.index.dtypes != types:
-            raise NotImplementedError(
-                f"Cannot combine different index dtypes. Use 'ignore_index'=True. {constants.FEEDBACK_LINK}"
-            )
         names = [
             lname if lname == rname else None
             for lname, rname in zip(names, block.index.names)
         ]
-    return names
+        types = [
+            bigframes.dtypes.lcd_type_or_throw(ltype, rtype)
+            for ltype, rtype in zip(types, block.index.dtypes)
+        ]
+    types = typing.cast(typing.Sequence[bigframes.dtypes.Dtype], types)
+    return names, types
 
 
 def _combine_schema_inner(
@@ -1835,13 +1889,15 @@ def _combine_schema_inner(
     right: typing.Dict[Label, bigframes.dtypes.Dtype],
 ) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
-    for label, type in left.items():
+    for label, left_type in left.items():
         if label in right:
-            if type != right[label]:
+            right_type = right[label]
+            output_type = bigframes.dtypes.lcd_type(left_type, right_type)
+            if output_type is None:
                 raise ValueError(
                     f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
                 )
-            result[label] = type
+            result[label] = output_type
     return result
 
 
@@ -1850,15 +1906,20 @@ def _combine_schema_outer(
     right: typing.Dict[Label, bigframes.dtypes.Dtype],
 ) -> typing.Dict[Label, bigframes.dtypes.Dtype]:
     result = dict()
-    for label, type in left.items():
-        if (label in right) and (type != right[label]):
-            raise ValueError(
-                f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
-            )
-        result[label] = type
-    for label, type in right.items():
+    for label, left_type in left.items():
+        if label not in right:
+            result[label] = left_type
+        else:
+            right_type = right[label]
+            output_type = bigframes.dtypes.lcd_type(left_type, right_type)
+            if output_type is None:
+                raise NotImplementedError(
+                    f"Cannot concat rows with label {label} due to mismatched types. {constants.FEEDBACK_LINK}"
+                )
+            result[label] = output_type
+    for label, right_type in right.items():
         if label not in left:
-            result[label] = type
+            result[label] = right_type
     return result
 
 

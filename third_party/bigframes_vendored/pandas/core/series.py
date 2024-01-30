@@ -69,7 +69,7 @@ class Series(NDFrame):  # type: ignore[misc]
             30    35
             Name: Age, dtype: Int64
             >>> s.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> s.index.values
             array([10, 20, 30], dtype=object)
 
@@ -84,7 +84,10 @@ class Series(NDFrame):  # type: ignore[misc]
             Aritra  Kona        35
             Name: Age, dtype: Int64
             >>> s1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -134,6 +137,35 @@ class Series(NDFrame):  # type: ignore[misc]
         The name of a Series becomes its index or column name if it is used
         to form a DataFrame. It is also used whenever displaying the Series
         using the interpreter.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        For a Series:
+
+            >>> s = bpd.Series([1, 2, 3], dtype="Int64", name='Numbers')
+            >>> s
+            0    1
+            1    2
+            2    3
+            Name: Numbers, dtype: Int64
+            >>> s.name
+            'Numbers'
+
+        If the Series is part of a DataFrame:
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+            >>> s = df["col1"]
+            >>> s.name
+            'col1'
 
         Returns:
             hashable object: The name of the Series, also the column name
@@ -433,6 +465,21 @@ class Series(NDFrame):  # type: ignore[misc]
         (for str, int, float) or a pandas scalar
         (for Timestamp/Timedelta/Interval/Period).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+            >>> s.to_list()
+            [1, 2, 3]
+
         Returns:
             list: list of the values
         """
@@ -545,6 +592,27 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Aggregate using one or more operations over the specified axis.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4])
+            >>> s
+            0    1
+            1    2
+            2    3
+            3    4
+            dtype: Int64
+
+            >>> s.agg('min')
+            1
+
+            >>> s.agg(['min', 'max'])
+            min    1.0
+            max    4.0
+            dtype: Float64
+
         Args:
             func (function):
                 Function to use for aggregating the data.
@@ -559,6 +627,20 @@ class Series(NDFrame):  # type: ignore[misc]
     def count(self):
         """
         Return number of non-NA/null observations in the Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0.0, 1.0, bpd.NA])
+            >>> s
+            0     0.0
+            1     1.0
+            2    <NA>
+            dtype: Float64
+            >>> s.count()
+            2
 
         Returns:
             int or Series (if level specified): Number of non-null values in the
@@ -693,6 +775,25 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Round each value in a Series to the given number of decimals.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0.1, 1.3, 2.7])
+            >>> s.round()
+            0    0.0
+            1    1.0
+            2    3.0
+            dtype: Float64
+
+            >>> s = bpd.Series([0.123, 1.345, 2.789])
+            >>> s.round(decimals=2)
+            0    0.12
+            1    1.34
+            2    2.79
+            dtype: Float64
+
         Args:
             decimals (int, default 0):
                 Number of decimal places to round to. If decimals is negative,
@@ -710,6 +811,21 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Uses the "Pearson" method of correlation.  Numbers are converted to float before
         calculation, so the result may be unstable.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series([.2, .0, .6, .2])
+            >>> s2 = bpd.Series([.3, .6, .0, .1])
+            >>> s1.corr(s2)
+            -0.8510644963469901
+
+            >>> s1 = bpd.Series([1, 2, 3], index=[0, 1, 2])
+            >>> s2 = bpd.Series([1, 2, 3], index=[2, 1, 0])
+            >>> s1.corr(s2)
+            -1.0
 
         Args:
             other (Series):
@@ -2244,6 +2360,29 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Normalized by N-1 by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'person_id': [0, 1, 2, 3],
+            ...                     'age': [21, 25, 62, 43],
+            ...                     'height': [1.61, 1.87, 1.49, 2.01]}
+            ...                   ).set_index('person_id')
+            >>> df
+                       age  height
+            person_id
+            0           21    1.61
+            1           25    1.87
+            2           62    1.49
+            3           43    2.01
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            >>> df.std()
+            age       18.786076
+            height     0.237417
+            dtype: Float64
 
         Returns
         -------
@@ -2575,6 +2714,31 @@ class Series(NDFrame):  # type: ignore[misc]
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
+
         Returns:
             Series: Row position of the maximum value.
         """
@@ -2585,6 +2749,31 @@ class Series(NDFrame):  # type: ignore[misc]
         Return int position of the largest value in the Series.
 
         If the maximum is achieved in multiple locations, the first row position is returned.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
 
         Returns:
             Series: Row position of the minimum value.
@@ -2600,6 +2789,34 @@ class Series(NDFrame):  # type: ignore[misc]
         error.
 
         Alternatively, change ``Series.name`` with a scalar value.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        You can changes the Series name by specifying a string scalar:
+
+            >>> s.rename("my_name")
+            0    1
+            1    2
+            2    3
+            Name: my_name, dtype: Int64
+
+        You can change the labels by specifying a mapping:
+
+            >>> s.rename({1: 3, 2: 5})
+            0    1
+            3    2
+            5    3
+            dtype: Int64
 
         Args:
             index (scalar, hashable sequence, dict-like or function optional):
@@ -2807,6 +3024,19 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return boolean if values in the object are monotonically increasing.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 2])
+            >>> s.is_monotonic_increasing
+            True
+
+            >>> s = bpd.Series([3, 2, 1])
+            >>> s.is_monotonic_increasing
+            False
+
         Returns:
             bool: Boolean.
         """
@@ -2816,6 +3046,19 @@ class Series(NDFrame):  # type: ignore[misc]
     def is_monotonic_decreasing(self) -> bool:
         """
         Return boolean if values in the object are monotonically decreasing.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([3, 2, 2, 1])
+            >>> s.is_monotonic_decreasing
+            True
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.is_monotonic_decreasing
+            False
 
         Returns:
             bool: Boolean.
@@ -2844,6 +3087,47 @@ class Series(NDFrame):  # type: ignore[misc]
             Bigframes does not yet support ``dict`` subclasses that define
             ``__missing__`` (i.e. provide a method for default values). These
             are treated the same as ``dict``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['cat', 'dog', bpd.NA, 'rabbit'])
+            >>> s
+            0       cat
+            1       dog
+            2      <NA>
+            3    rabbit
+            dtype: string
+
+        `map` can accepts a `dict`. Values that are not found in the `dict` are
+        converted to `NA`:
+
+            >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
+            0    kitten
+            1     puppy
+            2      <NA>
+            3      <NA>
+            dtype: string
+
+        It also accepts a remote function:
+
+            >>> @bpd.remote_function([str], str)
+            ... def my_mapper(val):
+            ...     vowels = ["a", "e", "i", "o", "u"]
+            ...     if val:
+            ...         return "".join([
+            ...             ch.upper() if ch in vowels else ch for ch in val
+            ...         ])
+            ...     return "N/A"
+
+            >>> s.map(my_mapper)
+            0       cAt
+            1       dOg
+            2       N/A
+            3    rAbbIt
+            dtype: string
 
         Args:
             arg (function, Mapping, Series):
@@ -2899,5 +3183,31 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             numpy.ndarray or ndarray-like: Values in the Series.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def size(self) -> int:
+        """Return the number of elements in the underlying data.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        For Series:
+
+            >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
+            >>> s.size
+            3
+
+        For Index:
+
+            >>> idx = bpd.Index(bpd.Series([1, 2, 3]))
+            >>> idx.size
+            3
+
+        Returns:
+            int: Return the number of elements in the underlying data.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

@@ -16,7 +16,37 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
+
+
+@skip_legacy_pandas
+def test_read_pandas_multi_index_axes():
+    index = pandas.MultiIndex.from_arrays(
+        [
+            pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Hello, World!", "_some_new_string"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1index 1", "_1index 2"],
+    )
+    columns = pandas.MultiIndex.from_arrays(
+        [
+            pandas.Index([6, 87], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Bonjour le monde!", "_une_chaîne_de_caractères"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1columns 1", "_1new_index 2"],
+    )
+    pandas_df = pandas.DataFrame(
+        [[1, 2], [3, 4]], index=index, columns=columns, dtype=pandas.Int64Dtype()
+    )
+    bf_df = bpd.DataFrame(pandas_df)
+
+    pandas.testing.assert_frame_equal(bf_df.to_pandas(), pandas_df)
 
 
 # Row Multi-index tests
@@ -204,6 +234,7 @@ def test_series_multi_index_droplevel(scalars_df_index, scalars_pandas_df_index,
         (1, 0),
         ([0, 1], 0),
         ([True, None], 1),
+        ((0, True), None),
     ],
 )
 def test_multi_index_drop(scalars_df_index, scalars_pandas_df_index, labels, level):
@@ -680,6 +711,26 @@ def test_column_multi_index_binary_op(scalars_df_index, scalars_pandas_df_index)
     pd_result = pd_df[("a", "a")] + 3
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+@skip_legacy_pandas
+def test_column_multi_index_any():
+    columns = pandas.MultiIndex.from_tuples(
+        [("col0", "col00"), ("col0", "col00"), ("col1", "col11")]
+    )
+    pd_df = pandas.DataFrame(
+        [[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]], columns=columns
+    )
+    bf_df = bpd.DataFrame(pd_df)
+
+    pd_result = pd_df.isna().any()
+    bf_result = bf_df.isna().any().to_pandas()
+
+    pandas.testing.assert_frame_equal(
+        bf_result.reset_index(drop=False),
+        pd_result.reset_index(drop=False),
+        check_dtype=False,
+    )
 
 
 def test_column_multi_index_agg(scalars_df_index, scalars_pandas_df_index):

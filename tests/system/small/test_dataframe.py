@@ -412,6 +412,37 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_df_peek(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df.peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_filtered(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[scalars_df.int64_col != 0].peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_exception(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        # Window ops aren't compatible with efficient peeking
+        scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=False)
+
+
+def test_df_peek_force(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=True)
+    pd.testing.assert_index_equal(
+        scalars_pandas_df[["int64_col", "int64_too"]].columns, peek_result.columns
+    )
+    assert len(peek_result) == 3
+
+
 def test_repr_w_all_rows(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -3140,15 +3171,63 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_getattr_attribute_error_when_pandas_has(scalars_df_index):
-    # asof is implemented in pandas but not in bigframes
+def test_df_getattr_attribute_error_when_pandas_has(scalars_df_index):
+    # swapaxes is implemented in pandas but not in bigframes
     with pytest.raises(AttributeError):
-        scalars_df_index.asof()
+        scalars_df_index.swapaxes()
 
 
-def test_getattr_attribute_error(scalars_df_index):
+def test_df_getattr_attribute_error(scalars_df_index):
     with pytest.raises(AttributeError):
         scalars_df_index.not_a_method()
+
+
+def test_df_getattr_axes():
+    df = dataframe.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    assert isinstance(df.index, bigframes.core.indexes.Index)
+    assert isinstance(df.columns, pandas.Index)
+    assert isinstance(df.my_column, series.Series)
+
+
+def test_df_setattr_index():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.index = [4, 5]
+    bf_df.index = [4, 5]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_setattr_columns():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.columns = [4, 5, 6]
+    bf_df.columns = [4, 5, 6]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_setattr_modify_column():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.my_column = [4, 5]
+    bf_df.my_column = [4, 5]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
 
 
 def test_loc_list_string_index(scalars_df_index, scalars_pandas_df_index):
@@ -3459,6 +3538,15 @@ def test_df_to_string(scalars_df_index, scalars_pandas_df_index):
 
     bf_result = scalars_df_index.drop(columns=unsupported).to_string()
     pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_string()
+
+    assert bf_result == pd_result
+
+
+def test_df_to_html(scalars_df_index, scalars_pandas_df_index):
+    unsupported = ["numeric_col"]  # formatted differently
+
+    bf_result = scalars_df_index.drop(columns=unsupported).to_html()
+    pd_result = scalars_pandas_df_index.drop(columns=unsupported).to_html()
 
     assert bf_result == pd_result
 

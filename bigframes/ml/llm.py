@@ -19,6 +19,8 @@ from __future__ import annotations
 from typing import cast, Literal, Optional, Union
 import warnings
 
+from google.cloud import bigquery
+
 import bigframes
 from bigframes import clients, constants
 from bigframes.core import blocks, log_adapter
@@ -113,6 +115,26 @@ class PaLM2TextGenerator(base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        text_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        text_generator_model._bqml_model = core.BqmlModel(session, model)
+        return text_generator_model
+
     def predict(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
@@ -138,7 +160,8 @@ class PaLM2TextGenerator(base.Predictor):
             max_output_tokens (int, default 128):
                 Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
                 A token may be smaller than a word. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
-                Default 128. Possible values [1, 1024].
+                Default 128. For the 'text-bison' model, possible values are in the range [1, 1024]. For the 'text-bison-32k' model, possible values are in the range [1, 8196].
+                Please ensure that the specified value for max_output_tokens is within the appropriate range for the model being used.
 
             top_k (int, default 40):
                 Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
@@ -162,12 +185,26 @@ class PaLM2TextGenerator(base.Predictor):
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         if temperature < 0.0 or temperature > 1.0:
             raise ValueError(f"temperature must be [0.0, 1.0], but is {temperature}.")
-        if max_output_tokens not in range(1, 1025):
+
+        if (
+            self.model_name == _TEXT_GENERATOR_BISON_ENDPOINT
+            and max_output_tokens not in range(1, 1025)
+        ):
             raise ValueError(
-                f"max_output_token must be [1, 1024], but is {max_output_tokens}."
+                f"max_output_token must be [1, 1024] for TextBison model, but is {max_output_tokens}."
             )
+
+        if (
+            self.model_name == _TEXT_GENERATOR_BISON_32K_ENDPOINT
+            and max_output_tokens not in range(1, 8197)
+        ):
+            raise ValueError(
+                f"max_output_token must be [1, 8196] for TextBison 32k model, but is {max_output_tokens}."
+            )
+
         if top_k not in range(1, 41):
             raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
+
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
@@ -199,6 +236,21 @@ class PaLM2TextGenerator(base.Predictor):
             )
 
         return df
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
 
 
 @log_adapter.class_logger
@@ -271,6 +323,26 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextEmbeddingGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        embedding_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        embedding_generator_model._bqml_model = core.BqmlModel(session, model)
+        return embedding_generator_model
+
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -307,3 +379,20 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             )
 
         return df
+
+    def to_gbq(
+        self, model_name: str, replace: bool = False
+    ) -> PaLM2TextEmbeddingGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextEmbeddingGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)

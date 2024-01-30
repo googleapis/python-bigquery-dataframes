@@ -26,7 +26,9 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
-import bigframes.constants as constants
+import bigframes.core.compile.aggregate_compiler as agg_compiler
+import bigframes.core.compile.scalar_op_compiler as op_compilers
+import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.ordering import (
     encode_order_string,
@@ -43,7 +45,10 @@ import bigframes.operations.aggregations as agg_ops
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
+
 T = typing.TypeVar("T", bound="BaseIbisIR")
+
+op_compiler = op_compilers.scalar_op_compiler
 
 
 class BaseIbisIR(abc.ABC):
@@ -92,18 +97,8 @@ class BaseIbisIR(abc.ABC):
         )
 
     @abc.abstractmethod
-    def select_columns(self: T, column_ids: typing.Sequence[str]) -> T:
-        """Creates a new expression based on this expression with new columns."""
-        ...
-
-    def drop_columns(self: T, columns: Iterable[str]) -> T:
-        return self.select_columns(
-            [col for col in self.column_ids if col not in columns]
-        )
-
-    @abc.abstractmethod
-    def filter(self: T, predicate_id: str, keep_null: bool = False) -> T:
-        """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
+    def filter(self: T, predicate: ex.Expression) -> T:
+        """Filter the table on a given expression, the predicate must be a boolean expression."""
         ...
 
     @abc.abstractmethod
@@ -147,68 +142,26 @@ class BaseIbisIR(abc.ABC):
         """
         ...
 
-    def project_unary_op(
+    def projection(
         self: T,
-        input_column_id: str,
-        op: ops.UnaryOp,
-        output_column_id: typing.Optional[str] = None,
+        expression_id_pairs: typing.Tuple[typing.Tuple[ex.Expression, str], ...],
     ) -> T:
-        """Creates a new expression based on this expression with unary operation applied to one column."""
-        result_id = (
-            output_column_id or input_column_id
-        )  # overwrite input if not output id provided
-        value = op._as_ibis(self._get_ibis_column(input_column_id)).name(result_id)
-        return self._set_or_replace_by_id(result_id, value)
+        """Apply an expression to the ArrayValue and assign the output to a column."""
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
+        values = [
+            op_compiler.compile_expression(expression, bindings).name(id)
+            for expression, id in expression_id_pairs
+        ]
+        result = self._select(tuple(values))  # type: ignore
 
-    def project_binary_op(
-        self: T,
-        left_column_id: str,
-        right_column_id: str,
-        op: ops.BinaryOp,
-        output_column_id: str,
-    ) -> T:
-        """Creates a new expression based on this expression with binary operation applied to two columns."""
-        value = op(
-            self._get_ibis_column(left_column_id),
-            self._get_ibis_column(right_column_id),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
+        # Need to reproject to convert ibis Scalar to ibis Column object
+        if any(exp_id[0].is_const for exp_id in expression_id_pairs):
+            result = result._reproject_to_table()
+        return result
 
-    def project_ternary_op(
-        self: T,
-        col_id_1: str,
-        col_id_2: str,
-        col_id_3: str,
-        op: ops.TernaryOp,
-        output_column_id: str,
-    ) -> T:
-        """Creates a new expression based on this expression with ternary operation applied to three columns."""
-        value = op(
-            self._get_ibis_column(col_id_1),
-            self._get_ibis_column(col_id_2),
-            self._get_ibis_column(col_id_3),
-        ).name(output_column_id)
-        return self._set_or_replace_by_id(output_column_id, value)
-
-    def assign(self: T, source_id: str, destination_id: str) -> T:
-        return self._set_or_replace_by_id(
-            destination_id, self._get_ibis_column(source_id)
-        )
-
-    def assign_constant(
-        self: T,
-        destination_id: str,
-        value: typing.Any,
-        dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> T:
-        # TODO(b/281587571): Solve scalar constant aggregation problem w/Ibis.
-        ibis_value = bigframes.dtypes.literal_to_ibis_scalar(value, dtype)
-        if ibis_value is None:
-            raise NotImplementedError(
-                f"Type not supported as scalar value {type(value)}. {constants.FEEDBACK_LINK}"
-            )
-        expr = self._set_or_replace_by_id(destination_id, ibis_value)
-        return expr._reproject_to_table()
+    @abc.abstractmethod
+    def _select(self: T, values: typing.Tuple[ibis_types.Value]) -> T:
+        ...
 
     @abc.abstractmethod
     def _set_or_replace_by_id(self: T, id: str, new_value: ibis_types.Value) -> T:
@@ -255,6 +208,13 @@ class UnorderedIR(BaseIbisIR):
             columns=self._columns,
             predicates=self._predicates,
         )
+
+    def peek_sql(self, n: int):
+        # Peek currently implemented as top level LIMIT op.
+        # Execution engine handles limit pushdown.
+        # In future, may push down limit/filters in compilation.
+        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
+        return typing.cast(str, sql)
 
     def to_sql(
         self,
@@ -346,30 +306,16 @@ class UnorderedIR(BaseIbisIR):
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if col_id_overrides:
-            table = table.relabel(col_id_overrides)
+            table = table.rename(
+                {value: key for key, value in col_id_overrides.items()}
+            )
         if fraction is not None:
             table = table.filter(ibis.random() < ibis.literal(fraction))
         return table
 
-    def select_columns(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
-        """Creates a new expression based on this expression with new columns."""
-        columns = [self._get_ibis_column(col_id) for col_id in column_ids]
-        builder = self.builder()
-        builder.columns = list(columns)
-        new_expr = builder.build()
-        return new_expr
-
-    def filter(self, predicate_id: str, keep_null: bool = False) -> UnorderedIR:
-        condition = typing.cast(
-            ibis_types.BooleanValue, self._get_ibis_column(predicate_id)
-        )
-        if keep_null:
-            condition = typing.cast(
-                ibis_types.BooleanValue,
-                condition.fillna(
-                    typing.cast(ibis_types.BooleanScalar, ibis_types.literal(True))
-                ),
-            )
+    def filter(self, predicate: ex.Expression) -> UnorderedIR:
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
+        condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
 
     def _filter(self, predicate_value: ibis_types.BooleanValue) -> UnorderedIR:
@@ -452,7 +398,9 @@ class UnorderedIR(BaseIbisIR):
                 None, force_dtype=col_dtype
             )
             ibis_values = [
-                ops.AsTypeOp(col_dtype)._as_ibis(unpivot_table[col])
+                op_compiler.compile_row_op(
+                    ops.AsTypeOp(col_dtype), (unpivot_table[col],)
+                )
                 if col is not None
                 else null_value
                 for col in source_cols
@@ -500,7 +448,7 @@ class UnorderedIR(BaseIbisIR):
         """
         table = self._to_ibis_expr()
         stats = {
-            col_out: agg_op._as_ibis(table[col_in])
+            col_out: agg_compiler.compile_agg(agg_op, table[col_in])
             for col_in, agg_op, col_out in aggregations
         }
         if by_column_ids:
@@ -519,9 +467,7 @@ class UnorderedIR(BaseIbisIR):
             expr = OrderedIR(result, columns=columns, ordering=ordering)
             if dropna:
                 for column_id in by_column_ids:
-                    expr = expr._filter(
-                        ops.notnull_op._as_ibis(expr._get_ibis_column(column_id))
-                    )
+                    expr = expr._filter(expr._get_ibis_column(column_id).notnull())
             # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
             return expr._project_offsets()
         else:
@@ -596,6 +542,11 @@ class UnorderedIR(BaseIbisIR):
             ]
         else:
             builder.columns = [*self.columns, new_value.name(id)]
+        return builder.build()
+
+    def _select(self, values: typing.Tuple[ibis_types.Value]) -> UnorderedIR:
+        builder = self.builder()
+        builder.columns = values
         return builder.build()
 
     def _reproject_to_table(self) -> UnorderedIR:
@@ -837,20 +788,6 @@ class OrderedIR(BaseIbisIR):
         ]
         return expr_builder.build()
 
-    def select_columns(self, column_ids: typing.Sequence[str]) -> OrderedIR:
-        """Creates a new expression based on this expression with new columns."""
-        columns = [self._get_ibis_column(col_id) for col_id in column_ids]
-        expr = self
-        for ordering_column in set(self.column_ids).intersection(
-            [col_ref.column_id for col_ref in self._ordering.ordering_value_columns]
-        ):
-            # Need to hide ordering columns that are being dropped. Alternatively, could project offsets
-            expr = expr._hide_column(ordering_column)
-        builder = expr.builder()
-        builder.columns = list(columns)
-        new_expr = builder.build()
-        return new_expr
-
     ## Methods that only work with ordering
     def project_window_op(
         self,
@@ -874,7 +811,7 @@ class OrderedIR(BaseIbisIR):
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
 
-        window_op = op._as_ibis(column, window)
+        window_op = agg_compiler.compile_unary_analytic(op, column, window)
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
@@ -882,12 +819,16 @@ class OrderedIR(BaseIbisIR):
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
-                observation_count = agg_ops.count_op._as_ibis(column, window)
+                observation_count = agg_compiler.compile_unary_analytic(
+                    agg_ops.count_op, column, window
+                )
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
-                observation_count = agg_ops.count_op._as_ibis(denulled_value, window)
+                observation_count = agg_compiler.compile_unary_analytic(
+                    agg_ops.count_op, denulled_value, window
+                )
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
@@ -980,7 +921,9 @@ class OrderedIR(BaseIbisIR):
                 None, force_dtype=col_dtype
             )
             ibis_values = [
-                ops.AsTypeOp(col_dtype)._as_ibis(unpivot_table[col])
+                op_compiler.compile_row_op(
+                    ops.AsTypeOp(col_dtype), (unpivot_table[col],)
+                )
                 if col is not None
                 else null_value
                 for col in source_cols
@@ -1194,22 +1137,16 @@ class OrderedIR(BaseIbisIR):
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if col_id_overrides:
-            table = table.relabel(col_id_overrides)
+            table = table.rename(
+                {value: key for key, value in col_id_overrides.items()}
+            )
         if fraction is not None:
             table = table.filter(ibis.random() < ibis.literal(fraction))
         return table
 
-    def filter(self, predicate_id: str, keep_null: bool = False) -> OrderedIR:
-        condition = typing.cast(
-            ibis_types.BooleanValue, self._get_ibis_column(predicate_id)
-        )
-        if keep_null:
-            condition = typing.cast(
-                ibis_types.BooleanValue,
-                condition.fillna(
-                    typing.cast(ibis_types.BooleanScalar, ibis_types.literal(True))
-                ),
-            )
+    def filter(self, predicate: ex.Expression) -> OrderedIR:
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
+        condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
 
     def _filter(self, predicate_value: ibis_types.BooleanValue) -> OrderedIR:
@@ -1236,6 +1173,29 @@ class OrderedIR(BaseIbisIR):
             ]
         else:
             builder.columns = [*self.columns, new_value.name(id)]
+        return builder.build()
+
+    def _select(self, values: typing.Tuple[ibis_types.Value]) -> OrderedIR:
+        """Safely assign by id while maintaining ordering integrity."""
+        # TODO: Split into explicit set and replace methods
+        ordering_col_ids = [
+            col_ref.column_id for col_ref in self._ordering.ordering_value_columns
+        ]
+        ir = self
+        mappings = {value.name: value for value in values}
+        for ordering_id in ordering_col_ids:
+            # Drop case
+            if (ordering_id not in mappings) and (ordering_id in ir.column_ids):
+                # id is being dropped, hide it first
+                ir = ir._hide_column(ordering_id)
+            # Mutate case
+            elif (ordering_id in mappings) and not mappings[ordering_id].equals(
+                ir._get_any_column(ordering_id)
+            ):
+                ir = ir._hide_column(ordering_id)
+
+        builder = ir.builder()
+        builder.columns = list(values)
         return builder.build()
 
     ## Ordering specific helpers
