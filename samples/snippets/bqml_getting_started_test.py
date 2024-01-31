@@ -91,3 +91,50 @@ def test_bqml_getting_started(random_model_id):
         replace=True,
     )
     # [END bigquery_dataframes_bqml_getting_started_tutorial]
+
+    # [START bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
+    import bigframes.pandas as bpd
+
+    # WHAT IS READ_GBQ DOING?!
+    model = bpd.read_gbq_model(
+        your_model_id,  # For example: "bqml_tutorial.sample_model",
+    )
+
+    # The WHERE clause — _TABLE_SUFFIX BETWEEN '20170701' AND '20170801' —
+    # limits the number of tables scanned by the query. The date range scanned is
+    # July 1, 2017 to August 1, 2017. This is the data you're using to evaluate the predictive performance
+    # of the model. It was collected in the month immediately following the time
+    # period spanned by the training data.
+
+    df = bpd.read_gbq(
+        """
+        SELECT GENERATE_UUID() AS rowindex, *
+        FROM
+        `bigquery-public-data.google_analytics_sample.ga_sessions_*`
+        WHERE
+        _TABLE_SUFFIX BETWEEN '20170701' AND '20170801'
+        """,
+        index_col="rowindex",
+    )
+    transactions = df["totals"].struct.field("transactions")
+    label = transactions.notnull().map({True: 1, False: 0})
+    operatingSystem = df["device"].struct.field("operatingSystem")
+    operatingSystem = operatingSystem.fillna("")
+    isMobile = df["device"].struct.field("isMobile")
+    country = df["geoNetwork"].struct.field("country").fillna("")
+    pageviews = df["totals"].struct.field("pageviews").fillna(0)
+    features = bpd.DataFrame(
+        {
+            "os": operatingSystem,
+            "is_mobile": isMobile,
+            "country": country,
+            "pageviews": pageviews,
+        }
+    )
+
+    # Some models include a convenient .score(X, y) method for evaluation with a preset accuracy metric:
+    model.score(features, label)
+    #    precision    recall  accuracy  f1_score  log_loss   roc_auc
+    # 0   0.412621  0.079143  0.985074  0.132812  0.049764  0.974285
+    # [1 rows x 6 columns]
+    # [END bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
