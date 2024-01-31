@@ -1099,14 +1099,19 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Invoke function on values of a Series.
 
+        Can be ufunc (a NumPy function that applies to the entire Series) or a
+        Python function that only works on single values. If it is an arbitrary
+        python function then converting it into a `remote_function` is recommended.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+        For applying arbitrary python function a `remote_funciton` is recommended.
+        Let's use ``reuse=False`` flag to make sure a new `remote_function`
         is created every time we run the following code, but you can skip it
-        to potentially reuse a previously deployed ``remote_function`` from
+        to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
             >>> @bpd.remote_function([int], float, reuse=False)
@@ -1131,9 +1136,9 @@ class Series(NDFrame):  # type: ignore[misc]
             4    2.0
             dtype: Float64
 
-        You could turn a user defined function with external package
-        dependencies into a BigQuery DataFrames remote function. You would
-        provide the names of the packages via ``packages`` param.
+        To turn a user defined function with external package dependencies into
+        a `remote_function`, you would provide the names of the packages via
+        `packages` param.
 
             >>> @bpd.remote_function(
             ...     [str],
@@ -1155,11 +1160,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> names = bpd.Series(["Alice", "Bob"])
             >>> hashes = names.apply(get_hash)
 
-        There is a limited support of simple functions and lambdas which can be
-        operated directly (without converting into a `remote_function`) on the
-        BigQuery DataFrames objects. This approach takes advantage of a nuance
-        in the way BigQuery DataFrames objects are modeled internally and works
-        only if the function body contains only arithmatic or logical operators.
+        Simple functions, lambdas or ufuncs can be applied directly.
 
             >>> nums = bpd.Series([1, 2, 3, 4])
             >>> nums
@@ -1183,6 +1184,13 @@ class Series(NDFrame):  # type: ignore[misc]
             2     True
             3    False
             dtype: boolean
+
+            >>> nums.apply(np.log)
+            0         0.0
+            1    0.693147
+            2    1.098612
+            3    1.386294
+            dtype: Float64
 
         Args:
             func (function):
@@ -2745,11 +2753,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    Caroline
             dtype: string
 
-        There is a limited support of simple functions and lambdas which can be
-        operated directly (without converting into a `remote_function`) on the
-        BigQuery DataFrames objects. This approach takes advantage of a nuance
-        in the way BigQuery DataFrames objects are modeled internally and works
-        only if the function body contains only arithmatic or logical operators.
+        Simple lambdas or python functions can be used as long as they only
+        perform operations supported on a Series.
 
             >>> nums = bpd.Series([1, 2, 3, 4], name="nums")
             >>> nums

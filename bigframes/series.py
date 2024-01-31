@@ -1216,6 +1216,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # Reproject as workaround to applying filter too late. This forces the filter
         # to be applied before passing data to remote function, protecting from bad
         # inputs causing errors.
+        if not callable(func):
+            raise ValueError(
+                "Only a ufunc (a NumPy function that applies to the entire Series) or a remote function that only works on single values are supported."
+            )
+
+        if not hasattr(func, "bigframes_remote_function"):
+            return func(self)
+
         reprojected_series = Series(self._block._force_reproject())
         return reprojected_series._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)

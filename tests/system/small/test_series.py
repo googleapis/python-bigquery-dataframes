@@ -3088,10 +3088,17 @@ def test_series_iter(
                 raises=AttributeError,
             ),
         ),
+        pytest.param(
+            {1: 2, 3: 4},
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
     ],
     ids=[
         "lambda_arithmatic",
         "lambda_arbitrary",
+        "not_lambda",
     ],
 )
 def test_apply_lambda(scalars_dfs, lambda_):
@@ -3105,6 +3112,31 @@ def test_apply_lambda(scalars_dfs, lambda_):
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("ufunc",),
+    [
+        pytest.param(numpy.log),
+        pytest.param(numpy.sqrt),
+        pytest.param(numpy.sin),
+    ],
+    ids=[
+        "log",
+        "sqrt",
+        "sin",
+    ],
+)
+def test_apply_numpy_ufunc(scalars_dfs, ufunc):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"]
+    bf_result = bf_col.apply(ufunc).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"]
+    pd_result = pd_col.apply(ufunc)
+
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_apply_simple_udf(scalars_dfs):
