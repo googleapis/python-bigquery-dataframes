@@ -146,10 +146,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = result_index._block
 
         if block:
-            if index:
-                raise NotImplementedError(
-                    "DataFrame 'index' constructor parameter not supported "
-                    f"when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
+            if index is not None:
+                bf_index = indexes.Index(index)
+                idx_block = bf_index._block
+                idx_cols = idx_block.index_columns
+                join_idx, (_, r_mapping) = block.reset_index().index.join(
+                    bf_index._block.reset_index().index, how="inner"
+                )
+                block = join_idx._block.set_index(
+                    [r_mapping[idx_col] for idx_col in idx_cols]
                 )
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
@@ -250,7 +255,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def index(
         self,
     ) -> indexes.Index:
-        return indexes.Index(self)
+        return indexes.Index.from_frame(self)
 
     @index.setter
     def index(self, value):
@@ -587,6 +592,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
+
+        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -624,6 +631,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_results = bigframes.options.display.max_rows
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job_html(self.query_job)
+
+        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -661,6 +670,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ):
         if isinstance(other, (float, int)):
             return self._apply_scalar_binop(other, op, reverse=reverse)
+        elif isinstance(other, indexes.Index):
+            return self._apply_series_binop(
+                other.to_series(index=self.index),
+                op,
+                axis=axis,
+                how=how,
+                reverse=reverse,
+            )
         elif isinstance(other, bigframes.series.Series):
             return self._apply_series_binop(
                 other, op, axis=axis, how=how, reverse=reverse
@@ -1183,7 +1200,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def _drop_by_index(self, index: indexes.Index) -> DataFrame:
-        block = index._data._get_block()
+        block = index._block
         block, ordering_col = block.promote_offsets()
         joined_index, (get_column_left, get_column_right) = self._block.index.join(
             block.index
@@ -1319,9 +1336,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 f"Length of values ({given_rows}) does not match length of index ({actual_rows})"
             )
 
-        local_df = bigframes.dataframe.DataFrame(
-            {k: v}, session=self._get_block().expr.session
-        )
+        local_df = DataFrame({k: v}, session=self._get_block().expr.session)
         # local_df is likely (but not guaranteed) to be cached locally
         # since the original list came from memory and so is probably < MAX_INLINE_DF_SIZE
 
@@ -1622,7 +1637,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("Original index must be unique to reindex")
         keep_original_names = False
         if isinstance(index, indexes.Index):
-            new_indexer = DataFrame(data=index._data._get_block())[[]]
+            new_indexer = DataFrame(data=index._block)[[]]
         else:
             if not isinstance(index, pandas.Index):
                 keep_original_names = True
@@ -3089,8 +3104,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _get_block(self) -> blocks.Block:
         return self._block
 
-    def _cached(self) -> DataFrame:
-        self._set_block(self._block.cached())
+    def _cached(self, *, force: bool = False) -> DataFrame:
+        """Materialize dataframe to a temporary table.
+        No-op if the dataframe represents a trivial transformation of an existing materialization.
+        Force=True is used for BQML integration where need to copy data rather than use snapshot.
+        """
+        self._set_block(self._block.cached(force=force))
         return self
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")

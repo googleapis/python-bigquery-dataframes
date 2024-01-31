@@ -287,7 +287,6 @@ class Block:
             A new Block because dropping index columns can break references
             from Index classes that point to this block.
         """
-        block = self
         new_index_col_id = guid.generate_guid()
         expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
@@ -295,7 +294,7 @@ class Block:
             # ordering expression as reset_index shouldn't change the row
             # order.
             expr = expr.drop_columns(self.index_columns)
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=self.column_labels,
@@ -321,13 +320,12 @@ class Block:
                 # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
                 column_labels_modified = column_labels_modified.insert(level, label)
 
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=column_labels_modified,
                 index_labels=[None],
             )
-        return block
 
     def set_index(
         self,
@@ -1697,10 +1695,19 @@ class Block:
             idx_labels,
         )
 
-    def cached(self) -> Block:
+    def cached(self, *, optimize_offsets=False, force: bool = False) -> Block:
         """Write the block to a session table and create a new block object that references it."""
+        # use a heuristic for whether something needs to be cached
+        if (not force) and self.session._is_trivially_executable(self.expr):
+            return self
+        if optimize_offsets:
+            expr = self.session._cache_with_offsets(self.expr)
+        else:
+            expr = self.session._cache_with_cluster_cols(
+                self.expr, cluster_cols=self.index_columns
+            )
         return Block(
-            self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns),
+            expr,
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index_labels,
