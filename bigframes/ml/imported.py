@@ -220,7 +220,7 @@ class XGBoostModel(base.Predictor):
     def _create_bqml_model(self):
         options = {"model_type": "XGBOOST", "model_path": self.model_path}
 
-        if self.input and self.output:
+        if not self.input and not self.output:
             return self._bqml_model_factory.create_imported_model(
                 session=self.session, options=options
             )
