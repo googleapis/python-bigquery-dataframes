@@ -804,9 +804,9 @@ class OrderedIR(BaseIbisIR):
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(denulled_value)),
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var("_denulled")),
                     window,
-                    bindings=bindings,
+                    bindings={**bindings, "_denulled": denulled_value},
                 )
             clauses.append(
                 (
