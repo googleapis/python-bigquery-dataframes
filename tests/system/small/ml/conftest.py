@@ -342,7 +342,7 @@ def imported_onnx_model_path() -> str:
 
 @pytest.fixture(scope="session")
 def imported_xgboost_array_model_path() -> str:
-    return "gs://bqml-xgboost-testdata/model1/*"
+    return "gs://bigframes-dev-testing/xgboost-testdata/model.bst"
 
 
 @pytest.fixture(scope="session")
