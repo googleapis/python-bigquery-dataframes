@@ -51,6 +51,19 @@ class BigFrameNode:
         return True
 
     @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return True
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return False
+
+    @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         """Direct children of this node"""
         return tuple([])
@@ -103,6 +116,14 @@ class JoinNode(BigFrameNode):
     right_child: BigFrameNode
     join: JoinDefinition
     allow_row_identity_join: bool = True
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
@@ -184,10 +205,18 @@ class PromoteOffsetsNode(UnaryNode):
     def peekable(self) -> bool:
         return False
 
+    @property
+    def non_local(self) -> bool:
+        return False
+
 
 @dataclass(frozen=True)
 class FilterNode(UnaryNode):
     predicate: ex.Expression
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
 
     def __hash__(self):
         return self._node_hash
@@ -222,7 +251,13 @@ class ProjectionNode(UnaryNode):
 # Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclass(frozen=True)
 class RowCountNode(UnaryNode):
-    pass
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -231,12 +266,20 @@ class AggregateNode(UnaryNode):
     by_column_ids: typing.Tuple[str, ...] = tuple([])
     dropna: bool = True
 
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
     def __hash__(self):
         return self._node_hash
 
     @property
     def peekable(self) -> bool:
         return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -254,6 +297,10 @@ class WindowOpNode(UnaryNode):
     @property
     def peekable(self) -> bool:
         return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -279,6 +326,14 @@ class UnpivotNode(UnaryNode):
         return self._node_hash
 
     @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
+
+    @property
     def peekable(self) -> bool:
         return False
 
@@ -289,6 +344,10 @@ class RandomSampleNode(UnaryNode):
 
     @property
     def deterministic(self) -> bool:
+        return False
+
+    @property
+    def row_preserving(self) -> bool:
         return False
 
     def __hash__(self):
