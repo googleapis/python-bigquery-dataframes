@@ -3302,10 +3302,10 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-            >>> def sqaure(x):
+            >>> def square(x):
             ...     return x * x
 
-            >>> df.apply(sqaure)
+            >>> df.apply(square)
                col1  col2
             0     1     9
             1     4    16
