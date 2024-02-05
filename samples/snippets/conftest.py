@@ -18,6 +18,8 @@ from google.cloud import bigquery
 import pytest
 import test_utils.prefixer
 
+import bigframes.pandas as bpd
+
 prefixer = test_utils.prefixer.Prefixer(
     "python-bigquery-dataframes", "samples/snippets"
 )
@@ -41,6 +43,11 @@ def bigquery_client() -> bigquery.Client:
 @pytest.fixture(scope="session")
 def project_id(bigquery_client: bigquery.Client) -> str:
     return bigquery_client.project
+
+
+@pytest.fixture(autouse=True)
+def reset_session():
+    bpd.reset_session()
 
 
 @pytest.fixture(scope="session")
