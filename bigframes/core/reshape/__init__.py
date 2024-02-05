@@ -124,15 +124,13 @@ def cut(
     if isinstance(bins, Iterable):
         if isinstance(bins, pd.IntervalIndex):
             as_index: pd.IntervalIndex = bins
-            bins = tuple((i.left, i.right) for i in bins)
+            bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
         else:
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
 
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
-
-        bins = tuple((float(left), float(right)) for left, right in bins)
 
     if labels is not None and labels is not False:
         raise NotImplementedError(

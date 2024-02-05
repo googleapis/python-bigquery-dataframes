@@ -271,9 +271,11 @@ def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
                     out = out.when(x.notnull(), interval_struct)
     else:  # Interpret as intervals
         for interval in op.bins:
-            condition = (x > interval[0]) & (x <= interval[1])
+            left = dtypes.literal_to_ibis_scalar(interval[0])
+            right = dtypes.literal_to_ibis_scalar(interval[1])
+            condition = (x > left) & (x <= right)
             interval_struct = ibis.struct(
-                {"left_exclusive": interval[0], "right_inclusive": interval[1]}
+                {"left_exclusive": left, "right_inclusive": right}
             )
             out = out.when(condition, interval_struct)
     return out.end()
