@@ -95,7 +95,8 @@ def test_bqml_getting_started(random_model_id):
     # [START bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
     import bigframes.pandas as bpd
 
-    # WHAT IS READ_GBQ DOING?!
+    # Select model you'll use for training. 'read_gbq' accepts either a SQL query
+    # or a table ID.
     model = bpd.read_gbq_model(
         your_model_id,  # For example: "bqml_tutorial.sample_model",
     )
