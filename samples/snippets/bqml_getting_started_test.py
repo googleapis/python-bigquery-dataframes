@@ -148,10 +148,15 @@ def test_bqml_getting_started(random_model_id):
     # roc_auc — The area under the ROC curve. This is the probability that a classifier is more confident that
     # a randomly chosen positive example
     # is actually positive than that a randomly chosen negative example is positive. For more information,
-    # see Classification in the Machine Learning Crash Course.
+    # see ['Classification']('https://developers.google.com/machine-learning/crash-course/classification/video-lecture')
+    # in the Machine Learning Crash Course.
 
     model.score(features, label)
     #    precision    recall  accuracy  f1_score  log_loss   roc_auc
     # 0   0.412621  0.079143  0.985074  0.132812  0.049764  0.974285
     # [1 rows x 6 columns]
     # [END bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
+
+    # [START bigquery_dataframes_bqml_getting_started_tutorial_predict]
+
+    # [END bigquery_dataframes_bqml_getting_started_tutorial_predict]
