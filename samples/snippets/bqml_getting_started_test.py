@@ -136,16 +136,22 @@ def test_bqml_getting_started(random_model_id):
     # Some models include a convenient .score(X, y) method for evaluation with a preset accuracy metric:
 
     # Because you performed a logistic regression, the results include the following columns:
-    # precision — A metric for classification models. Precision identifies the frequency with
+
+    # - precision — A metric for classification models. Precision identifies the frequency with
     # which a model was correct when predicting the positive class.
-    # recall — A metric for classification models that answers the following question:
+
+    # - recall — A metric for classification models that answers the following question:
     # Out of all the possible positive labels, how many did the model correctly identify?
-    # accuracy — Accuracy is the fraction of predictions that a classification model got right.
-    # f1_score — A measure of the accuracy of the model. The f1 score is the harmonic average of
+
+    # - accuracy — Accuracy is the fraction of predictions that a classification model got right.
+
+    # - f1_score — A measure of the accuracy of the model. The f1 score is the harmonic average of
     # the precision and recall. An f1 score's best value is 1. The worst value is 0.
-    # log_loss — The loss function used in a logistic regression. This is the measure of how far the
+
+    # - log_loss — The loss function used in a logistic regression. This is the measure of how far the
     # model's predictions are from the correct labels.
-    # roc_auc — The area under the ROC curve. This is the probability that a classifier is more confident that
+
+    # - roc_auc — The area under the ROC curve. This is the probability that a classifier is more confident that
     # a randomly chosen positive example
     # is actually positive than that a randomly chosen negative example is positive. For more information,
     # see ['Classification']('https://developers.google.com/machine-learning/crash-course/classification/video-lecture')
