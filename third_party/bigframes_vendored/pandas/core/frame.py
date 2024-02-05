@@ -3296,19 +3296,19 @@ class DataFrame(NDFrame):
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
-            col1	col2
-            0	1	3
-            1	2	4
-            <BLANKLINE>
-            [2 rows x 2 columns]
-
-            >>> def sqaure(x):
-            ...     return x * x
-            >>> df1 = df.apply(sqaure)
-            >>> df
                col1  col2
             0     1     3
             1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> def square(x):
+            ...     return x * x
+
+            >>> df.apply(square)
+               col1  col2
+            0     1     9
+            1     4    16
             <BLANKLINE>
             [2 rows x 2 columns]
 
@@ -4714,7 +4714,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
             >>> df.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> df.index.values
             array([10, 20, 30], dtype=object)
 
@@ -4731,7 +4731,10 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 1 columns]
             >>> df1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> df1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
