@@ -675,8 +675,8 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
 
     if x.type() in (ibis_dtypes.timestamp, ibis_dtypes.Timestamp(timezone="UTC")):
         return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
-    
-    unit = op.unit if op.unit is not None else 'ns'
+
+    unit = op.unit if op.unit is not None else "ns"
     x_converted = x * UNIT_TO_US_CONVERSION_FACTORS.get(unit, 1e-3)
     x_converted = x_converted.cast(ibis_dtypes.int64)
     x_datetime = x_converted.to_timestamp(unit="us")
