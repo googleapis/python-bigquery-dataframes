@@ -14,7 +14,7 @@
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Iterable, Literal, overload, Union
+from typing import Iterable, Optional, overload, Union
 
 import pandas as pd
 
@@ -29,9 +29,9 @@ import bigframes.series
 def to_datetime(
     arg: Union[int, float, str, datetime],
     *,
-    utc: bool = False,
-    format: str | None = None,
-    unit: str | None = None,
+    utc: Optional[bool] = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
 ):
     ...
 
@@ -40,9 +40,9 @@ def to_datetime(
 def to_datetime(
     arg: Union[Iterable, pd.Series, pd.DataFrame, Mapping],
     *,
-    utc: bool = False,
-    format: str | None = None,
-    unit: str | None = None,
+    utc: Optional[bool] = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
 ):
     ...
 
@@ -50,9 +50,9 @@ def to_datetime(
 def to_datetime(
     arg: Union[bigframes.series.Series, bigframes.dataframe.DataFrame],
     *,
-    utc: bool = False,
-    format: str | None = None,
-    unit: str | None = None,
+    utc: Optional[bool] = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
 ):
     if isinstance(arg, (int, float, str, datetime)):
         return pd.to_datetime(

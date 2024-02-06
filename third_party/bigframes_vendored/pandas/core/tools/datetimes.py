@@ -13,6 +13,11 @@ def to_datetime(
     """
     This function converts a scalar, array-like or Series to a pandas datetime object.
 
+    .. note::
+        BigQuery only supports precision up to microseconds (us). Therefore, when working
+        with timestamps that have a finer granularity than microseconds, be aware that
+        the additional precision will not be represented in BigQuery.
+
     arg (int, float, str, datetime, list, tuple, 1-d array, Series):
         The object to convert to a datetime. If a DataFrame is provided, the method
         expects minimally the following columns: "year", "month", "day". The column

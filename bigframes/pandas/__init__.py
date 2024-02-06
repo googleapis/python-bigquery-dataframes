@@ -641,9 +641,9 @@ read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_fu
 def to_datetime(
     arg,
     *,
-    utc: bool = False,
-    format: str | None = None,
-    unit: str | None = None,
+    utc: Optional[bool] = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
 ):
     return bigframes.core.tools.to_datetime(
         arg,
