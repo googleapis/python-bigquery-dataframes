@@ -40,7 +40,7 @@ def test_kmeans_sample(project_id: str):
 
     s = bpd.read_gbq(
         # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical
-        # data.These functions determine spatial relationships between
+        # data. These functions determine spatial relationships between
         # geographical features.
         """
         SELECT
