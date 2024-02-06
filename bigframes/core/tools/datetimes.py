@@ -14,7 +14,7 @@
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Iterable, Optional, overload, Union
+from typing import Iterable, Optional, Union
 
 import pandas as pd
 
