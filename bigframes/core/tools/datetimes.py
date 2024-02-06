@@ -61,8 +61,7 @@ def to_datetime(
         # the upload process to utilize the BigPandas DataFrame constructor directly
         # once it is enhanced for more related datatypes.
         arg = global_session.with_default_session(
-            bigframes.session.Session.read_pandas,
-            arg if isinstance(arg, pd.Series) else pd.DataFrame(arg),
+            bigframes.session.Session.read_pandas, pd.DataFrame(arg)
         )
 
         if len(arg.columns) != 1:
