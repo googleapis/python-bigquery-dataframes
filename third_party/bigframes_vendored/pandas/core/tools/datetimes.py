@@ -18,20 +18,24 @@ def to_datetime(
         with timestamps that have a finer granularity than microseconds, be aware that
         the additional precision will not be represented in BigQuery.
 
-    arg (int, float, str, datetime, list, tuple, 1-d array, Series):
-        The object to convert to a datetime. If a DataFrame is provided, the method
-        expects minimally the following columns: "year", "month", "day". The column
-        “year” must be specified in 4-digit format.
+    Args:
+        arg (int, float, str, datetime, list, tuple, 1-d array, Series):
+            The object to convert to a datetime. If a DataFrame is provided, the method
+            expects minimally the following columns: "year", "month", "day". The column
+            “year” must be specified in 4-digit format.
 
-    utc (bool, default False):
-        Control timezone-related parsing, localization and conversion. If True, the
-        function always returns a timezone-aware UTC-localized timestamp or series.
-        If False (default), inputs will not be coerced to UTC.
+        utc (bool, default False):
+            Control timezone-related parsing, localization and conversion. If True, the
+            function always returns a timezone-aware UTC-localized timestamp or series.
+            If False (default), inputs will not be coerced to UTC.
 
-    format (str, default None):
-        The strftime to parse time, e.g. "%d/%m/%Y".
+        format (str, default None):
+            The strftime to parse time, e.g. "%d/%m/%Y".
 
-    unit (str, default 'ns'):
-        The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer or
-        float number.
+        unit (str, default 'ns'):
+            The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer or
+            float number.
+
+    Returns:
+        Timestamp, datetime.datetime or bigframes.series.Series: Return type depends on input.
     """
