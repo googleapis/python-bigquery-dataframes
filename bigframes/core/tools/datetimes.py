@@ -24,33 +24,13 @@ import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.series
 
-
-@overload
-def to_datetime(
-    arg: Union[int, float, str, datetime],
-    *,
-    utc: Optional[bool] = False,
-    format: Optional[str] = None,
-    unit: Optional[str] = None,
-):
-    ...
-
-
-@overload
-def to_datetime(
-    arg: Union[Iterable, pd.Series, pd.DataFrame, Mapping],
-    *,
-    utc: Optional[bool] = False,
-    format: Optional[str] = None,
-    unit: Optional[str] = None,
-):
-    ...
-
+local_scalars = Union[int, float, str, datetime]
+local_iterables = Union[Iterable, pd.Series, pd.DataFrame, Mapping]
 
 def to_datetime(
-    arg: Union[bigframes.series.Series, bigframes.dataframe.DataFrame],
+    arg: Union[local_scalars, local_iterables, bigframes.series.Series, bigframes.dataframe.DataFrame],
     *,
-    utc: Optional[bool] = False,
+    utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
 ):
@@ -83,7 +63,7 @@ def to_datetime(
             raise ValueError("Input must be 1-dimensional.")
 
         arg = arg[arg.columns[0]]
-    return arg._apply_unary_op(
+    return arg._apply_unary_op( # type: ignore
         ops.ToDatetimeOp(
             utc=utc,
             format=format,

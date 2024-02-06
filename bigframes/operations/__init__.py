@@ -407,9 +407,9 @@ class MapOp(UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class ToDatetimeOp(UnaryOp):
     name: typing.ClassVar[str] = "to_datetime"
-    utc: bool = (False,)
-    format: str | None = (None,)
-    unit: str | None = (None,)
+    utc: bool = False
+    format: typing.Optional[str] = None
+    unit: typing.Optional[str] = None
 
     def output_type(self, *input_types):
         return input_types[0]
