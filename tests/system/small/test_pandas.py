@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
+
 import pandas as pd
 import pytest
 
@@ -477,3 +479,51 @@ def test_qcut(scalars_dfs, q):
     pd_result = pd_result.astype("Int64")
 
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "unit", "format"),
+    [
+        (173872738, False, None, None),
+        (32787983.23, True, "s", None),
+        ("2023-01-01", False, None, "%Y-%m-%d"),
+        (datetime(2023, 1, 1, 12, 0), False, None, None),
+    ],
+)
+def test_to_datetime_scalar(arg, utc, unit, format):
+    bf_result = bpd.to_datetime(arg, utc=utc, unit=unit, format=format)
+    pd_result = pd.to_datetime(arg, utc=utc, unit=unit, format=format)
+
+    assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "unit", "format"),
+    [
+        ([173872738], False, None, None),
+        ([32787983.23], True, "s", None),
+        ([datetime(2023, 1, 1, 12, 0)], False, None, None),
+        (["2023-01-01 12:00"], False, None, "%Y-%m-%d %H:%M"),
+        (["2023-01-01"], True, None, None),
+        (["01-31-2023 14:00", "02-01-2023 15:00"], False, None, "%m-%d-%Y %H:%M"),
+    ],
+)
+def test_to_datetime_iterable(arg, utc, unit, format):
+    bf_result = (
+        bpd.to_datetime(arg, utc=utc, unit=unit, format=format)
+        .to_pandas()
+        .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
+    )
+    pd_result = pd.Series(
+        pd.to_datetime(arg, utc=utc, unit=unit, format=format)
+    ).dt.floor("us")
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+def test_to_datetime_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col = "int64_too"
+    bf_result = bpd.to_datetime(scalars_df[col]).to_pandas().astype("datetime64[ns]")
+    pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col])).dt.floor("us")

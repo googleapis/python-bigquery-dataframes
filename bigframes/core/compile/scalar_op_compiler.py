@@ -40,6 +40,14 @@ _NEG_INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(-np.inf))
 # ln(2**(2**10)) == (2**10)*ln(2) ~= 709.78, so EXP(x) for x>709.78 will overflow.
 _FLOAT64_EXP_BOUND = typing.cast(ibis_types.NumericValue, ibis_types.literal(709.78))
 
+UNIT_TO_US_CONVERSION_FACTORS = {
+    "D": 24 * 60 * 60 * 1e6,
+    "s": 1e6,
+    "ms": 1e3,
+    "us": 1,
+    "ns": 1e-3,
+}
+
 
 class ScalarOpCompiler:
     # Mapping of operation name to implemenations
@@ -654,6 +662,26 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
         return x.isnull() | x.isin(matchable_ibis_values)
     else:
         return x.isin(matchable_ibis_values)
+
+
+@scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
+def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
+    if x.type() == ibis_dtypes.str:
+        if op.format is None:
+            return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
+        return x.to_timestamp(op.format).cast(
+            ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None)
+        )
+
+    if x.type() in (ibis_dtypes.timestamp, ibis_dtypes.Timestamp(timezone="UTC")):
+        return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
+
+    x_converted = x * UNIT_TO_US_CONVERSION_FACTORS.get(op.unit, 1e-3)
+    x_converted = x_converted.cast(ibis_dtypes.int64)
+    x_datetime = x_converted.to_timestamp(unit="us")
+    if op.utc:
+        x_datetime = x_datetime.cast(ibis_dtypes.Timestamp(timezone="UTC"))
+    return x_datetime
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)

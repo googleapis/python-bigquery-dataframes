@@ -404,6 +404,17 @@ class MapOp(UnaryOp):
         return input_types[0]
 
 
+@dataclasses.dataclass(frozen=True)
+class ToDatetimeOp(UnaryOp):
+    name: typing.ClassVar[str] = "to_datetime"
+    utc: bool = (False,)
+    format: str | None = (None,)
+    unit: str | None = (None,)
+
+    def output_type(self, *input_types):
+        return input_types[0]
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna")
 cliplower_op = create_binary_op(name="clip_lower")
