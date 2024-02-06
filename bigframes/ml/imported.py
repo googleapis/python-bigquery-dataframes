@@ -23,6 +23,7 @@ from google.cloud import bigquery
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
+from bigframes.ml.remote import _SUPPORTED_DTYPES
 import bigframes.pandas as bpd
 
 
@@ -194,12 +195,14 @@ class XGBoostModel(base.Predictor):
             Specify the model input schema information when you
             create the XGBoost model. The input should be the format of
             {field_name: field_type}. Input is optional only if feature_names
-            and feature_types are both specified in the model file.
+            and feature_types are both specified in the model file. Supported types
+            are "bool", "string", "int64", "float64", "array<bool>", "array<string>", "array<int64>", "array<float64>".
         output (Dict, default None):
             Specify the model output schema information when you
             create the XGBoost model. The input should be the format of
             {field_name: field_type}. Output is optional only if feature_names
-            and feature_types are both specified in the model file.
+            and feature_types are both specified in the model file. Supported types
+            are "bool", "string", "int64", "float64", "array<bool>", "array<string>", "array<int64>", "array<float64>".
         model_path (str):
             Cloud Storage path that holds the model files."""
 
@@ -225,6 +228,13 @@ class XGBoostModel(base.Predictor):
                 session=self.session, options=options
             )
         else:
+            for io in (self.input, self.output):
+                for v in io.values():
+                    if v not in _SUPPORTED_DTYPES:
+                        raise ValueError(
+                            f"field_type {v} is not supported. We only support {', '.join(_SUPPORTED_DTYPES)}."
+                        )
+
             return self._bqml_model_factory.create_xgboost_imported_model(
                 session=self.session,
                 input=self.input,
