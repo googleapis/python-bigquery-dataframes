@@ -16,6 +16,7 @@ from datetime import datetime
 
 import pandas as pd
 import pytest
+import pytz
 
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
@@ -502,10 +503,15 @@ def test_to_datetime_scalar(arg, utc, unit, format):
     [
         ([173872738], False, None, None),
         ([32787983.23], True, "s", None),
-        ([datetime(2023, 1, 1, 12, 0)], False, None, None),
-        (["2023-01-01 12:00"], False, None, "%Y-%m-%d %H:%M"),
-        (["2023-01-01"], True, None, None),
-        (["01-31-2023 14:00", "02-01-2023 15:00"], False, None, "%m-%d-%Y %H:%M"),
+        (
+            [datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("America/New_York"))],
+            True,
+            None,
+            None,
+        ),
+        (["2023-01-01"], True, None, "%Y-%m-%d"),
+        (["2023-02-01T15:00:00+07:22"], True, None, None),
+        (["01-31-2023 14:00", "02-01-2023 15:00"], True, None, "%m-%d-%Y %H:%M"),
     ],
 )
 def test_to_datetime_iterable(arg, utc, unit, format):
@@ -514,6 +520,7 @@ def test_to_datetime_iterable(arg, utc, unit, format):
         .to_pandas()
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
+    print(bf_result)
     pd_result = pd.Series(
         pd.to_datetime(arg, utc=utc, unit=unit, format=format)
     ).dt.floor("us")

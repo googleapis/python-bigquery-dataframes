@@ -41,12 +41,18 @@ _NEG_INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(-np.inf))
 _FLOAT64_EXP_BOUND = typing.cast(ibis_types.NumericValue, ibis_types.literal(709.78))
 
 UNIT_TO_US_CONVERSION_FACTORS = {
-    "D": 24 * 60 * 60 * 1e6,
-    "s": 1e6,
-    "ms": 1e3,
+    "D": 24 * 60 * 60 * 1000 * 1000,
+    "h": 60 * 60 * 1000 * 1000,
+    "m": 60 * 1000 * 1000,
+    "s": 1000 * 1000,
+    "ms": 1000,
     "us": 1,
     "ns": 1e-3,
 }
+
+TIMEZONE_POS_REGEX = r"[\+]\d{2}:\d{2}$"
+TIMEZONE_NEG_REGEX = r"[\-]\d{2}:\d{2}$"
+UTC_REGEX = r"[Zz]$"
 
 
 class ScalarOpCompiler:
@@ -668,15 +674,80 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
 
     if x.type() == ibis_dtypes.str:
-        x = x.to_timestamp(op.format) if op.format else x
+        # This is not a exact match of Pandas behavior, but this ensures
+        # UTC str to be properly handled.
+        x = (
+            ibis.case()
+            .when(
+                x.re_search(TIMEZONE_POS_REGEX),
+                (
+                    ibis.timestamp(
+                        (
+                            x.substr(0, x.length() - 6).to_timestamp(op.format)
+                            if op.format
+                            else x.substr(0, x.length() - 6)
+                        )
+                    )
+                    .cast(ibis_dtypes.Timestamp(timezone="UTC"))
+                    .cast(ibis_dtypes.int64)
+                    - x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
+                    * UNIT_TO_US_CONVERSION_FACTORS["h"]
+                    - x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
+                    * UNIT_TO_US_CONVERSION_FACTORS["m"]
+                )
+                .to_timestamp(unit="us")
+                .cast(ibis_dtypes.Timestamp(timezone="UTC")),
+            )
+            .when(
+                x.re_search(TIMEZONE_NEG_REGEX),
+                (
+                    ibis.timestamp(
+                        (
+                            x.substr(0, x.length() - 6).to_timestamp(op.format)
+                            if op.format
+                            else x.substr(0, x.length() - 6)
+                        )
+                    )
+                    .cast(ibis_dtypes.Timestamp(timezone="UTC"))
+                    .cast(ibis_dtypes.int64)
+                    + x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
+                    * UNIT_TO_US_CONVERSION_FACTORS["h"]
+                    + x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
+                    * UNIT_TO_US_CONVERSION_FACTORS["m"]
+                )
+                .to_timestamp(unit="us")
+                .cast(ibis_dtypes.Timestamp(timezone="UTC")),
+            )
+            .when(
+                x.re_search(UTC_REGEX),
+                (
+                    x.substr(0, x.length() - 1).to_timestamp(op.format)
+                    if op.format
+                    else x.substr(0, x.length() - 1)
+                ).cast(ibis_dtypes.Timestamp(timezone="UTC")),
+            )
+            .else_(
+                (x.to_timestamp(op.format) if op.format else x).cast(
+                    ibis_dtypes.Timestamp(timezone="UTC")
+                )
+            )
+            .end()
+        )
+
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
         return x
     elif x.type() != ibis_dtypes.timestamp:
         unit = op.unit if op.unit is not None else "ns"
         x_converted = x * UNIT_TO_US_CONVERSION_FACTORS.get(unit, 1e-3)
         x_converted = x_converted.cast(ibis_dtypes.int64)
-        x = x_converted.to_timestamp(unit="us")
-        x.execute()
+        # Note: Due to an issue where casting directly to a non-UTC
+        # timezone does not work, we first cast to UTC. This seems
+        # to bypass a potential bug in Ibis's cast function, allowing
+        # for subsequent casting to a non-UTC timezone. Further
+        # investigation is needed to confirm this behavior.
+        x = x_converted.to_timestamp(unit="us").cast(
+            ibis_dtypes.Timestamp(timezone="UTC")
+        )
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
 
