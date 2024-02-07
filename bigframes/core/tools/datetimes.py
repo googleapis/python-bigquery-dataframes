@@ -65,15 +65,15 @@ def to_datetime(
         )
         if len(arg.columns) != 1:
             raise ValueError("Input must be 1-dimensional.")
-        
+
         arg = arg[arg.columns[0]]
 
-    if not utc and arg.dtype not in ("Int64", "Float64"): # type: ignore
+    if not utc and arg.dtype not in ("Int64", "Float64"):  # type: ignore
         raise NotImplementedError(
             f"String and Timestamp requires utc=True. {constants.FEEDBACK_LINK}"
         )
 
-    return arg._apply_unary_op( # type: ignore
+    return arg._apply_unary_op(  # type: ignore
         ops.ToDatetimeOp(
             utc=utc,
             format=format,
