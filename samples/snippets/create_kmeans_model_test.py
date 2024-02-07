@@ -61,7 +61,7 @@ def test_kmeans_sample(project_id: str):
 
     h = h.loc[(h["start_date"] >= sample_time) & (h["start_date"] <= sample_time2)]
 
-    # Replace each day-of-the-week number with the corresponding "weekday" or 
+    # Replace each day-of-the-week number with the corresponding "weekday" or
     # "weekend" label by using the Series.map method.
     h = h.assign(
         isweekday=h.start_date.dt.dayofweek.map(
@@ -86,7 +86,7 @@ def test_kmeans_sample(project_id: str):
         right_on="id",
     )
 
-    # Engineer features to cluster the stations. For each station, find the 
+    # Engineer features to cluster the stations. For each station, find the
     # average trip duration, number of trips, and distance from city center.
     stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
         {"duration": ["mean", "count"], "distance_from_city_center": "max"}
@@ -109,18 +109,29 @@ def test_kmeans_sample(project_id: str):
 
     from bigframes.ml.cluster import KMeans
 
-    # To determine an optimal number of clusters, construct and fit several 
+    # To determine an optimal number of clusters, construct and fit several
     # K-Means objects with different values of num_clusters, find the error
-    # measure, and pick the point at which the error measure is at its minimum 
+    # measure, and pick the point at which the error measure is at its minimum
     # value.
     cluster_model = KMeans(n_clusters=4)
     cluster_model.fit(stationstats)
-
+    cluster_model.to_gbq(
+        your_gcp_project_id,  # For example: "bqml_tutorial.sample_model"
+        replace=True,
+    )
     # [END bigquery_dataframes_bqml_kmeans_fit]
 
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
-    # Use 'contains' function to predict which clusters contain the stations 
+    # Select model you'll use for training. `read_gbq_model` loads model data
+    # from BigQuery, but you could also use the `cluster_model` object from
+    # previous steps.
+    cluster_model = bpd.read_gbq_model(
+        your_gcp_project_id,
+        # For example: "bqml_tutorial.london_station_clusters",
+    )
+
+    # Use 'contains' function to predict which clusters contain the stations
     # with string "Kennington".
     stationstats = stationstats.loc[
         stationstats["station_name"].str.contains("Kennington")
@@ -130,9 +141,9 @@ def test_kmeans_sample(project_id: str):
 
     # Expected output results:   >>>results.head(3)
     # CENTROID...	NEAREST...	station_name  isweekday	 duration num_trips dist...
-    #	1	[{'CENTROID_ID'...	Borough...	  weekday	  1110	    5749	0.13
-    #	2	[{'CENTROID_ID'...	Borough...	  weekend	  2125      1774	0.13
-    #	1	[{'CENTROID_ID'...	Webber...	  weekday	  795	    6517	0.16
+    # 	1	[{'CENTROID_ID'...	Borough...	  weekday	  1110	    5749	0.13
+    # 	2	[{'CENTROID_ID'...	Borough...	  weekend	  2125      1774	0.13
+    # 	1	[{'CENTROID_ID'...	Webber...	  weekday	  795	    6517	0.16
     #   3 rows × 7 columns
 
     # [END bigquery_dataframes_bqml_kmeans_predict]
