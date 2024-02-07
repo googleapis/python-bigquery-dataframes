@@ -128,7 +128,7 @@ def test_distance_correct(
     sql = base_sql_generator.ml_distance("col_a", "col_b", "COSINE", mock_df, "cosine")
     assert (
         sql
-        == "SELECT col_a, col_b, ML.DISTANCE(col_a, col_b, 'COSINE') AS cosine FROM input_X_y_sql"
+        == "SELECT *, ML.DISTANCE(col_a, col_b, 'COSINE') AS cosine FROM (input_X_sql)"
     )
 
 
