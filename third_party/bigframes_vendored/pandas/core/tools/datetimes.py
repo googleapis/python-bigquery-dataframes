@@ -1,6 +1,6 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/tools/datetimes.py
 
-from typing import Literal
+from bigframes import constants
 
 
 def to_datetime(
@@ -57,3 +57,5 @@ def to_datetime(
     Returns:
         Timestamp, datetime.datetime or bigframes.series.Series: Return type depends on input.
     """
+
+    raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
