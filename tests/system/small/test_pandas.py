@@ -20,6 +20,7 @@ import pytest
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
 
+
 @pytest.mark.parametrize(
     ("ordered"),
     [
