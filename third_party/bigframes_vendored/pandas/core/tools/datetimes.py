@@ -18,6 +18,26 @@ def to_datetime(
         with timestamps that have a finer granularity than microseconds, be aware that
         the additional precision will not be represented in BigQuery.
 
+    **Examples:**
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> scalar = 123456.789
+        >>> bpd.to_datetime(scalar, unit = 's')
+        Timestamp('1970-01-02 10:17:36.789000')
+
+        >>> list_str = ["01-31-2021 14:30", "02-28-2021 15:45"]
+        >>> bpd.to_datetime(list_str, format="%m-%d-%Y %H:%M")
+        0    2021-01-31 14:30:00
+        1    2021-02-28 15:45:00
+        Name: 0, dtype: timestamp[us][pyarrow]
+
+        >>> series_str = bpd.Series(["01-31-2021 14:30", "02-28-2021 15:45"])
+        >>> bpd.to_datetime(series_str, format="%m-%d-%Y %H:%M", utc=True)
+        0    2021-01-31 14:30:00+00:00
+        1    2021-02-28 15:45:00+00:00
+        Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
+
     Args:
         arg (int, float, str, datetime, list, tuple, 1-d array, Series):
             The object to convert to a datetime. If a DataFrame is provided, the method

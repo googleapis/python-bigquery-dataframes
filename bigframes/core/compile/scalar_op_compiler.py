@@ -666,23 +666,19 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
+
     if x.type() == ibis_dtypes.str:
-        if op.format is None:
-            return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
-        return x.to_timestamp(op.format).cast(
-            ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None)
-        )
+        x = x.to_timestamp(op.format) if op.format else x
+    elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
+        return x
+    elif x.type() != ibis_dtypes.timestamp:
+        unit = op.unit if op.unit is not None else "ns"
+        x_converted = x * UNIT_TO_US_CONVERSION_FACTORS.get(unit, 1e-3)
+        x_converted = x_converted.cast(ibis_dtypes.int64)
+        x = x_converted.to_timestamp(unit="us")
+        x.execute()
 
-    if x.type() in (ibis_dtypes.timestamp, ibis_dtypes.Timestamp(timezone="UTC")):
-        return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
-
-    unit = op.unit if op.unit is not None else "ns"
-    x_converted = x * UNIT_TO_US_CONVERSION_FACTORS.get(unit, 1e-3)
-    x_converted = x_converted.cast(ibis_dtypes.int64)
-    x_datetime = x_converted.to_timestamp(unit="us")
-    if op.utc:
-        x_datetime = x_datetime.cast(ibis_dtypes.Timestamp(timezone="UTC"))
-    return x_datetime
+    return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
