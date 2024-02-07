@@ -23,7 +23,7 @@ from google.cloud import bigquery
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
-from bigframes.ml.remote import _SUPPORTED_DTYPES
+from bigframes.ml.globals import _SUPPORTED_DTYPES
 import bigframes.pandas as bpd
 
 
