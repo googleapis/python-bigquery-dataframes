@@ -1,6 +1,14 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/tools/datetimes.py
 
-from bigframes import constants
+from datetime import datetime
+from typing import Iterable, Mapping, Union
+
+import pandas as pd
+
+from bigframes import constants, series
+
+local_scalars = Union[int, float, str, datetime]
+local_iterables = Union[Iterable, pd.Series, pd.DataFrame, Mapping]
 
 
 def to_datetime(
@@ -9,9 +17,9 @@ def to_datetime(
     utc=False,
     format=None,
     unit=None,
-):
+) -> Union[pd.Timestamp, datetime, series.Series]:
     """
-    This function converts a scalar, array-like or Series to a pandas datetime object.
+    This function converts a scalar, array-like or Series to a datetime object.
 
     .. note::
         BigQuery only supports precision up to microseconds (us). Therefore, when working
@@ -19,18 +27,25 @@ def to_datetime(
         the additional precision will not be represented in BigQuery.
 
     **Examples:**
+
         >>> import bigframes.pandas as bpd
         >>> bpd.options.display.progress_bar = None
+
+    Converting a Scalar to datetime:
 
         >>> scalar = 123456.789
         >>> bpd.to_datetime(scalar, unit = 's')
         Timestamp('1970-01-02 10:17:36.789000')
+
+    Converting a List of Strings without Timezone Information:
 
         >>> list_str = ["01-31-2021 14:30", "02-28-2021 15:45"]
         >>> bpd.to_datetime(list_str, format="%m-%d-%Y %H:%M", utc=True)
         0    2021-01-31 14:30:00+00:00
         1    2021-02-28 15:45:00+00:00
         Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
+
+    Converting a Series of Strings with Timezone Information:
 
         >>> series_str = bpd.Series(["01-31-2021 14:30+08:00", "02-28-2021 15:45z"])
         >>> bpd.to_datetime(series_str, format="%m-%d-%Y %H:%M", utc=True)
@@ -41,15 +56,12 @@ def to_datetime(
     Args:
         arg (int, float, str, datetime, list, tuple, 1-d array, Series):
             The object to convert to a datetime.
-
         utc (bool, default False):
             Control timezone-related parsing, localization and conversion. If True, the
             function always returns a timezone-aware UTC-localized timestamp or series.
             If False (default), inputs will not be coerced to UTC.
-
         format (str, default None):
             The strftime to parse time, e.g. "%d/%m/%Y".
-
         unit (str, default 'ns'):
             The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer or
             float number.
@@ -57,5 +69,4 @@ def to_datetime(
     Returns:
         Timestamp, datetime.datetime or bigframes.series.Series: Return type depends on input.
     """
-
     raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

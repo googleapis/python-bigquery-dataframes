@@ -23,15 +23,13 @@ import bigframes.core.global_session as global_session
 import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.series
-
-local_scalars = Union[int, float, str, datetime]
-local_iterables = Union[Iterable, pd.Series, pd.DataFrame, Mapping]
+import third_party.bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
 
 
 def to_datetime(
     arg: Union[
-        local_scalars,
-        local_iterables,
+        vendored_pandas_datetimes.local_scalars,
+        vendored_pandas_datetimes.local_iterables,
         bigframes.series.Series,
         bigframes.dataframe.DataFrame,
     ],
@@ -39,7 +37,7 @@ def to_datetime(
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-):
+) -> Union[pd.Timestamp, datetime, bigframes.series.Series]:
     if isinstance(arg, (int, float, str, datetime)):
         return pd.to_datetime(
             arg,

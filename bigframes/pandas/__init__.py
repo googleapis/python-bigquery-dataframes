@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from datetime import datetime
 import inspect
 import sys
 import typing
@@ -639,12 +640,17 @@ read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_fu
 
 
 def to_datetime(
-    arg,
+    arg: Union[
+        vendored_pandas_datetimes.local_scalars,
+        vendored_pandas_datetimes.local_iterables,
+        bigframes.series.Series,
+        bigframes.dataframe.DataFrame,
+    ],
     *,
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-):
+) -> Union[pandas.Timestamp, datetime, bigframes.series.Series]:
     return bigframes.core.tools.to_datetime(
         arg,
         utc=utc,
