@@ -680,12 +680,10 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             .when(
                 x.re_search(TIMEZONE_POS_REGEX),
                 (
-                    ibis.timestamp(
-                        (
-                            x.substr(0, x.length() - 6).to_timestamp(op.format)
-                            if op.format
-                            else x.substr(0, x.length() - 6)
-                        )
+                    (
+                        x.substr(0, x.length() - 6).to_timestamp(op.format)
+                        if op.format
+                        else x.substr(0, x.length() - 6)
                     )
                     .cast(ibis_dtypes.Timestamp(timezone="UTC"))
                     .cast(ibis_dtypes.int64)
@@ -700,12 +698,10 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             .when(
                 x.re_search(TIMEZONE_NEG_REGEX),
                 (
-                    ibis.timestamp(
-                        (
-                            x.substr(0, x.length() - 6).to_timestamp(op.format)
-                            if op.format
-                            else x.substr(0, x.length() - 6)
-                        )
+                    (
+                        x.substr(0, x.length() - 6).to_timestamp(op.format)
+                        if op.format
+                        else x.substr(0, x.length() - 6)
                     )
                     .cast(ibis_dtypes.Timestamp(timezone="UTC"))
                     .cast(ibis_dtypes.int64)
