@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,18 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest import mock
 
-import bigframes as bf
-
-from . import resources
+import bigframes.core.nodes as nodes
 
 
-def test_maximum_bytes_option():
-    session = resources.create_bigquery_session()
-    session.bqclient.query = mock.MagicMock()
-    with bf.option_context("compute.maximum_bytes_billed", 10000):
-        session._start_query("query")
-        call = session.bqclient.query.call_args
-        assert call.kwargs["job_config"].maximum_bytes_billed == 10000
-        session.bqclient.query.assert_called_once()
+def is_trivially_executable(node: nodes.BigFrameNode) -> bool:
+    if local_only(node):
+        return True
+    children_trivial = all(is_trivially_executable(child) for child in node.child_nodes)
+    self_trivial = (not node.non_local) and (node.row_preserving)
+    return children_trivial and self_trivial
+
+
+def local_only(node: nodes.BigFrameNode) -> bool:
+    return all(isinstance(node, nodes.ReadLocalNode) for node in node.roots)

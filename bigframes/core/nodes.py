@@ -51,6 +51,19 @@ class BigFrameNode:
         return True
 
     @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return True
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return False
+
+    @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         """Direct children of this node"""
         return tuple([])
@@ -103,6 +116,14 @@ class JoinNode(BigFrameNode):
     right_child: BigFrameNode
     join: JoinDefinition
     allow_row_identity_join: bool = True
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
@@ -184,10 +205,18 @@ class PromoteOffsetsNode(UnaryNode):
     def peekable(self) -> bool:
         return False
 
+    @property
+    def non_local(self) -> bool:
+        return False
+
 
 @dataclass(frozen=True)
 class FilterNode(UnaryNode):
     predicate: ex.Expression
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
 
     def __hash__(self):
         return self._node_hash
@@ -218,18 +247,29 @@ class ProjectionNode(UnaryNode):
         return self._node_hash
 
 
-# TODO: Merge RowCount and Corr into Aggregate Node
+# TODO: Merge RowCount into Aggregate Node?
+# Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclass(frozen=True)
 class RowCountNode(UnaryNode):
-    pass
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
-    aggregations: typing.Tuple[typing.Tuple[str, agg_ops.AggregateOp, str], ...]
+    aggregations: typing.Tuple[typing.Tuple[ex.Aggregation, str], ...]
     by_column_ids: typing.Tuple[str, ...] = tuple([])
     dropna: bool = True
 
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
     def __hash__(self):
         return self._node_hash
 
@@ -237,24 +277,15 @@ class AggregateNode(UnaryNode):
     def peekable(self) -> bool:
         return False
 
-
-# TODO: Unify into aggregate
-@dataclass(frozen=True)
-class CorrNode(UnaryNode):
-    corr_aggregations: typing.Tuple[typing.Tuple[str, str, str], ...]
-
-    def __hash__(self):
-        return self._node_hash
-
     @property
-    def peekable(self) -> bool:
-        return False
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
     column_name: str
-    op: agg_ops.WindowOp
+    op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
     output_name: typing.Optional[str] = None
     never_skip_nulls: bool = False
@@ -266,6 +297,10 @@ class WindowOpNode(UnaryNode):
     @property
     def peekable(self) -> bool:
         return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -291,6 +326,14 @@ class UnpivotNode(UnaryNode):
         return self._node_hash
 
     @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
+
+    @property
     def peekable(self) -> bool:
         return False
 
@@ -301,6 +344,10 @@ class RandomSampleNode(UnaryNode):
 
     @property
     def deterministic(self) -> bool:
+        return False
+
+    @property
+    def row_preserving(self) -> bool:
         return False
 
     def __hash__(self):

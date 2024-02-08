@@ -842,6 +842,27 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError("abstract method")
 
+    def cov(
+        self,
+        other,
+    ) -> float:
+        """
+        Compute covariance with Series, excluding missing values.
+
+        The two `Series` objects are not required to be the same length and
+        will be aligned internally before the covariance is calculated.
+
+        Args:
+            other (Series):
+                Series with which to compute the covariance.
+
+        Returns:
+            float:
+                Covariance between Series and other normalized by N-1
+                (unbiased estimator).
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def diff(self) -> Series:
         """
         First discrete difference of element.
@@ -1777,6 +1798,42 @@ class Series(NDFrame):  # type: ignore[misc]
         corresponding Series element is between the boundary values `left` and
         `right`. NA values are treated as `False`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Boundary values are included by default:
+
+            >>> s = bpd.Series([2, 0, 4, 8, np.nan])
+            >>> s.between(1, 4)
+            0     True
+            1    False
+            2     True
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        With inclusive set to "neither" boundary values are excluded:
+
+            >>> s.between(1, 4, inclusive="neither")
+            0     True
+            1    False
+            2    False
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        left and right can be any scalar value:
+
+            >>> s = bpd.Series(['Alice', 'Bob', 'Carol', 'Eve'])
+            >>> s.between('Anna', 'Daniel')
+            0    False
+            1     True
+            2     True
+            3    False
+            dtype: boolean
+
         Args:
             left (scalar or list-like):
                 Left boundary.
@@ -1798,6 +1855,30 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns a DataFrame or Series of the same size containing the cumulative
         product.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cumprod()
+            0     2.0
+            1    <NA>
+            2    10.0
+            3   -10.0
+            4     0.0
+            dtype: Float64
 
         Returns:
             bigframes.series.Series: Return cumulative sum of scalar or Series.

@@ -25,6 +25,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -65,8 +66,8 @@ class SeriesMethods:
                 bf_index = indexes.Index(index)
                 idx_block = bf_index._block
                 idx_cols = idx_block.value_columns
-                block_idx, _ = idx_block.index.join(block.index, how="left")
-                block = block_idx._block.with_index_labels(bf_index.names)
+                block_idx, _ = idx_block.join(block, how="left")
+                block = block_idx.with_index_labels(bf_index.names)
 
         elif isinstance(data, indexes.Index):
             if data.nlevels != 1:
@@ -78,10 +79,8 @@ class SeriesMethods:
                 bf_index = indexes.Index(index)
                 idx_block = bf_index._block.reset_index(drop=False)
                 idx_cols = idx_block.value_columns
-                block_idx, (l_mapping, _) = idx_block.index.join(
-                    block.index, how="left"
-                )
-                block = block_idx._block.set_index([l_mapping[col] for col in idx_cols])
+                block, (l_mapping, _) = idx_block.join(block, how="left")
+                block = block.set_index([l_mapping[col] for col in idx_cols])
                 block = block.with_index_labels(bf_index.names)
 
         if block:
@@ -114,7 +113,7 @@ class SeriesMethods:
                     if isinstance(dt, pd.ArrowDtype)
                 )
             ):
-                block = blocks.block_from_local(pd_dataframe)
+                block = blocks.Block.from_local(pd_dataframe)
             elif session:
                 block = session.read_pandas(pd_dataframe)._get_block()
             else:
@@ -190,10 +189,12 @@ class SeriesMethods:
             block, result_id = self._block.project_expr(expr, name)
             return series.Series(block.select_column(result_id))
 
-    def _apply_corr_aggregation(self, other: series.Series) -> float:
+    def _apply_binary_aggregation(
+        self, other: series.Series, stat: agg_ops.BinaryAggregateOp
+    ) -> float:
         (left, right, block) = self._align(other, how="outer")
 
-        return block.get_corr_stat(left, right)
+        return block.get_binary_stat(left, right, stat)
 
     def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
@@ -214,15 +215,14 @@ class SeriesMethods:
         block = self._block
         for other in others:
             if isinstance(other, series.Series):
-                combined_index, (
+                block, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(other._block.index, how=how)
+                ) = block.join(other._block, how=how)
                 value_ids = [
                     *[get_column_left[value] for value in value_ids],
                     get_column_right[other._value_column],
                 ]
-                block = combined_index._block
             else:
                 # Will throw if can't interpret as scalar.
                 dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)
