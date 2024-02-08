@@ -30,7 +30,9 @@ from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery as bigquery
+import ibis
 import pandas as pd
+import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
@@ -45,7 +47,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
-import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -141,34 +142,41 @@ class Block:
 
     @classmethod
     def from_local(cls, data) -> Block:
+        # Try to intrpet data into columns of supported dtypes
         pd_data = pd.DataFrame(data)
-        columns = pd_data.columns
-
-        # Make a flattened version to treat as a table.
-        if len(pd_data.columns.names) > 1:
-            pd_data.columns = columns.to_flat_index()
-
+        column_labels = pd_data.columns
         index_labels = list(pd_data.index.names)
-        # The ArrayValue layer doesn't know about indexes, so make sure indexes
-        # are real columns with unique IDs.
-        pd_data = pd_data.reset_index(
-            names=[f"level_{level}" for level in range(len(index_labels))]
-        )
-        pd_data = pd_data.set_axis(
-            vendored_pandas_io_common.dedup_names(
-                list(pd_data.columns), is_potential_multiindex=False
-            ),
-            axis="columns",
-        )
-        index_ids = pd_data.columns[: len(index_labels)]
 
-        keys_expr = core.ArrayValue.from_pandas(pd_data)
+        # unique internal ids
+        column_ids = [f"column_{i}" for i in range(len(pd_data.columns))]
+        index_ids = [f"level_{level}" for level in range(pd_data.index.nlevels)]
+
+        pd_data = pd_data.set_axis(column_ids, axis=1)
+        pd_data = pd_data.reset_index(names=index_ids)
+        pd_data = cls._adapt_pandas_schema(pd_data)
+        as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
+        keys_expr = core.ArrayValue.from_pyarrow(as_pyarrow)
         return cls(
             keys_expr,
-            column_labels=columns,
+            column_labels=column_labels,
             index_columns=index_ids,
             index_labels=index_labels,
         )
+
+    @classmethod
+    def _adapt_pandas_schema(cls, pd_df: pd.DataFrame) -> pd.DataFrame:
+        """Adapts a pandas dataframe to use BigFrames compatible types (or throw if not possible)"""
+        # Remove values before giving to ibis, as we just want ibis to adapt the schema
+        # Passing the actual values can make ibis error out
+        keys_memtable = ibis.memtable(pd_df[0:0])
+        schema = keys_memtable.schema()
+
+        def convert_series_to_bf_type(col: pd.Series) -> pd.Series:
+            return col.astype(
+                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(schema[col.name])
+            )
+
+        return pd_df.apply(convert_series_to_bf_type)
 
     @property
     def index(self) -> BlockIndexProperties:

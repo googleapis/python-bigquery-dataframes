@@ -32,7 +32,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
@@ -47,6 +46,9 @@ Dtype = Union[
 # Represents both column types (dtypes) and local-only types
 # None represents the type of a None scalar.
 ExpressionType = typing.Optional[Dtype]
+
+# Used when storing Null expressions
+DEFAULT_DTYPE = pd.Float64Dtype()
 
 INT_DTYPE = pd.Int64Dtype()
 FLOAT_DTYPE = pd.Float64Dtype()
@@ -188,6 +190,13 @@ DTYPE_BYTE_SIZES = {
 }
 
 
+def dtype_for_etype(etype: ExpressionType) -> Dtype:
+    if etype is None:
+        return DEFAULT_DTYPE
+    else:
+        return etype
+
+
 def ibis_dtype_to_bigframes_dtype(
     ibis_dtype: ibis_dtypes.DataType,
 ) -> Dtype:
@@ -277,6 +286,9 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
 
     if arrow_dtype in ARROW_TO_IBIS:
         return ARROW_TO_IBIS[arrow_dtype]
+    if arrow_dtype == pa.null():
+        # Used for empty local dataframes where pyarrow has null type
+        return ibis_dtypes.float64
     else:
         raise ValueError(
             f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
@@ -474,21 +486,6 @@ def cast_ibis_value(
     )
 
 
-def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
-    """For each STRUCT field, make sure we specify the full type to use."""
-    # TODO(swast): Also override ARRAY fields.
-    dtypes = {}
-    for field in schema:
-        if field.field_type == "RECORD" and field.mode != "REPEATED":
-            # TODO(swast): We're using a private API here. Would likely be
-            # better if we called `to_arrow()` and converted to a pandas
-            # DataFrame ourselves from that.
-            dtypes[field.name] = pd.ArrowDtype(
-                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
-            )
-    return dtypes
-
-
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
     """Captures whether a scalar can be losslessly represented by a dtype."""
     if scalar is None:
@@ -587,11 +584,13 @@ def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
     return result
 
 
-def infer_literal_type(literal) -> typing.Optional[Dtype]:
+def infer_literal_type(literal, arrow: bool = False) -> typing.Optional[Dtype]:
     if pd.isna(literal):
         return None  # Null value without a definite type
     # Temporary logic, use ibis inferred type
     ibis_literal = literal_to_ibis_scalar(literal)
+    if arrow:
+        return ibis_dtype_to_arrow_dtype(ibis_literal.type())
     return ibis_dtype_to_bigframes_dtype(ibis_literal.type())
 
 

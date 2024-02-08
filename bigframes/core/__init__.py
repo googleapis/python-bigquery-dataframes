@@ -14,12 +14,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import functools
 import io
 import typing
 from typing import Iterable, Sequence
 
 import ibis.expr.types as ibis_types
 import pandas
+import pyarrow as pa
+import pyarrow.feather as pa_feather
 
 import bigframes.core.compile as compiling
 import bigframes.core.expression as ex
@@ -28,6 +31,7 @@ import bigframes.core.join_def as join_def
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.ordering as orderings
+import bigframes.core.schema as schemata
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -41,6 +45,10 @@ if typing.TYPE_CHECKING:
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
+# Enable only for testing, will slow down performance
+# DO NOT COMMIT : Set to False
+_VALIDATE_SCHEMA_WITH_IBIS = True
+
 
 @dataclass(frozen=True)
 class ArrayValue:
@@ -49,6 +57,10 @@ class ArrayValue:
     """
 
     node: nodes.BigFrameNode
+
+    def __post_init__(self):
+        if _VALIDATE_SCHEMA_WITH_IBIS:
+            self.validate_schema()
 
     @classmethod
     def from_ibis(
@@ -69,21 +81,27 @@ class ArrayValue:
         return cls(node)
 
     @classmethod
-    def from_pandas(cls, pd_df: pandas.DataFrame):
+    def from_pyarrow(cls, arrow_table: pa.Table):
         iobytes = io.BytesIO()
-        # Use alphanumeric identifiers, to avoid downstream problems with escaping.
-        as_ids = [
-            bigframes.core.utils.label_to_identifier(label, strict=True)
-            for label in pd_df.columns
-        ]
-        unique_ids = tuple(bigframes.core.utils.disambiguate_ids(as_ids))
-        pd_df.reset_index(drop=True).set_axis(unique_ids, axis=1).to_feather(iobytes)
-        node = nodes.ReadLocalNode(iobytes.getvalue())
+        pa_feather.write_feather(arrow_table, iobytes)
+        schema_items = tuple(
+            schemata.SchemaItem(
+                field.name,
+                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+                    bigframes.dtypes.arrow_dtype_to_ibis_dtype(field.type)
+                ),
+            )
+            for field in arrow_table.schema
+        )
+        node = nodes.ReadLocalNode(
+            iobytes.getvalue(), data_schema=schemata.ArraySchema(schema_items)
+        )
+
         return cls(node)
 
     @property
     def column_ids(self) -> typing.Sequence[str]:
-        return self._compile_ordered().column_ids
+        return self.schema.names
 
     @property
     def session(self) -> Session:
@@ -94,6 +112,27 @@ class ArrayValue:
             required_session if (required_session is not None) else get_global_session()
         )
 
+    @functools.cached_property
+    def schema(self) -> schemata.ArraySchema:
+        return self.node.schema
+
+    def validate_schema(self):
+        schema = self.schema
+        compiled = self._compile_unordered()
+        items = [
+            schemata.SchemaItem(id, compiled.get_column_type(id))
+            for id in compiled.column_ids
+        ]
+        ibis_schema = schemata.ArraySchema(items)
+        if schema.names != ibis_schema.names:
+            raise ValueError(
+                f"Unexpected names internal {schema.names} vs generated {ibis_schema.names}"
+            )
+        if schema.dtypes != ibis_schema.dtypes:
+            raise ValueError(
+                f"Unexpected types internal {schema.dtypes} vs generated {ibis_schema.dtypes}"
+            )
+
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
         import ibis
@@ -103,7 +142,7 @@ class ArrayValue:
         )
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        return self._compile_ordered().get_column_type(key)
+        return self.schema.get_type(key)
 
     def _compile_ordered(self) -> compiling.OrderedIR:
         return compiling.compile_ordered_ir(self.node)

@@ -19,6 +19,11 @@ import dataclasses
 import typing
 from typing import ClassVar, Hashable, Optional, Tuple
 
+import pandas as pd
+import pyarrow as pa
+
+import bigframes.dtypes as dtypes
+
 
 @dataclasses.dataclass(frozen=True)
 class WindowOp:
@@ -32,12 +37,19 @@ class WindowOp:
         """Whether the operator can handle ties without nondeterministic output. (eg. rank operator can handle ties but not the count operator)"""
         return False
 
+    @abc.abstractmethod
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryWindowOp(WindowOp):
     @property
     def arguments(self) -> int:
         return 1
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return input_types[0]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -73,6 +85,12 @@ class BinaryAggregateOp(AggregateOp):
 class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        if pd.api.types.is_bool_dtype(input_types[0]):
+            return dtypes.INT_DTYPE
+        else:
+            return input_types[0]
+
 
 @dataclasses.dataclass(frozen=True)
 class MedianOp(UnaryAggregateOp):
@@ -92,10 +110,19 @@ class ApproxQuartilesOp(UnaryAggregateOp):
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        if pd.api.types.is_integer_dtype(input_types[0]):
+            return dtypes.FLOAT_DTYPE
+        else:
+            return input_types[0]
+
 
 @dataclasses.dataclass(frozen=True)
 class ProductOp(UnaryAggregateOp):
     name: ClassVar[str] = "product"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -112,15 +139,24 @@ class MinOp(UnaryAggregateOp):
 class StdOp(UnaryAggregateOp):
     name: ClassVar[str] = "std"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class VarOp(UnaryAggregateOp):
     name: ClassVar[str] = "var"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class PopVarOp(UnaryAggregateOp):
     name: ClassVar[str] = "popvar"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -130,6 +166,9 @@ class CountOp(UnaryAggregateOp):
     @property
     def skips_nulls(self):
         return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -145,6 +184,20 @@ class CutOp(UnaryWindowOp):
     @property
     def handles_ties(self):
         return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        if isinstance(self.bins, int):
+            return dtypes.INT_DTYPE
+        else:
+            # Assumption: buckets use same numeric type
+            interval_dtype = dtypes.infer_literal_type(self.bins[0][0], arrow=True)
+            pa_type = pa.struct(
+                [
+                    ("left_exclusive", interval_dtype),
+                    ("right_inclusive", interval_dtype),
+                ]
+            )
+            return pd.ArrowDtype(pa_type)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -163,6 +216,9 @@ class QcutOp(UnaryWindowOp):
     def handles_ties(self):
         return True
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class NuniqueOp(UnaryAggregateOp):
@@ -171,6 +227,9 @@ class NuniqueOp(UnaryAggregateOp):
     @property
     def skips_nulls(self):
         return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -196,6 +255,9 @@ class RankOp(UnaryWindowOp):
     def handles_ties(self):
         return True
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
@@ -206,6 +268,9 @@ class DenseRankOp(UnaryWindowOp):
     @property
     def handles_ties(self):
         return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -254,20 +319,32 @@ class DiffOp(UnaryWindowOp):
 class AllOp(UnaryAggregateOp):
     name: ClassVar[str] = "all"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.BOOL_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class AnyOp(UnaryAggregateOp):
     name: ClassVar[str] = "any"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.BOOL_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
 class CorrOp(BinaryAggregateOp):
     name: ClassVar[str] = "corr"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class CovOp(BinaryAggregateOp):
     name: ClassVar[str] = "cov"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.FLOAT_DTYPE
 
 
 sum_op = SumOp()
