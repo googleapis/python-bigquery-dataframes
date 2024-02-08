@@ -672,7 +672,6 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
-
     if x.type() == ibis_dtypes.str:
         # This is not a exact match of Pandas behavior, but this ensures
         # UTC str to be properly handled.
@@ -733,7 +732,6 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             )
             .end()
         )
-
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
         return x
     elif x.type() != ibis_dtypes.timestamp:
