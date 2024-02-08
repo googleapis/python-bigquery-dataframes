@@ -20,12 +20,14 @@ from bigframes.ml.metrics._metrics import (
     f1_score,
     precision_score,
     r2_score,
+    recall_score,
     roc_auc_score,
     roc_curve,
 )
 
 __all__ = [
     "r2_score",
+    "recall_score",
     "accuracy_score",
     "roc_curve",
     "roc_auc_score",
