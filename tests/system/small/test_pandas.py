@@ -520,7 +520,6 @@ def test_to_datetime_iterable(arg, utc, unit, format):
         .to_pandas()
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
-    print(bf_result)
     pd_result = pd.Series(
         pd.to_datetime(arg, utc=utc, unit=unit, format=format)
     ).dt.floor("us")
@@ -536,8 +535,6 @@ def test_to_datetime_series(scalars_dfs):
         bpd.to_datetime(scalars_df[col], unit="s").to_pandas().astype("datetime64[s]")
     )
     pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s"))
-    print(bf_result)
-    print(pd_result)
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
