@@ -45,6 +45,7 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
         "RANDOM_FOREST_CLASSIFIER": ensemble.RandomForestClassifier,
         "TENSORFLOW": imported.TensorFlowModel,
         "ONNX": imported.ONNXModel,
+        "XGBOOST": imported.XGBoostModel,
     }
 )
 
@@ -73,6 +74,7 @@ def from_bq(
     ensemble.RandomForestClassifier,
     imported.TensorFlowModel,
     imported.ONNXModel,
+    imported.XGBoostModel,
     llm.PaLM2TextGenerator,
     llm.PaLM2TextEmbeddingGenerator,
     pipeline.Pipeline,
