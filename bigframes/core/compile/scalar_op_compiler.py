@@ -40,6 +40,7 @@ _NEG_INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(-np.inf))
 # ln(2**(2**10)) == (2**10)*ln(2) ~= 709.78, so EXP(x) for x>709.78 will overflow.
 _FLOAT64_EXP_BOUND = typing.cast(ibis_types.NumericValue, ibis_types.literal(709.78))
 
+# Datetime constants
 UNIT_TO_US_CONVERSION_FACTORS = {
     "D": 24 * 60 * 60 * 1000 * 1000,
     "h": 60 * 60 * 1000 * 1000,
@@ -53,6 +54,14 @@ UNIT_TO_US_CONVERSION_FACTORS = {
 TIMEZONE_POS_REGEX = r"[\+]\d{2}:\d{2}$"
 TIMEZONE_NEG_REGEX = r"[\-]\d{2}:\d{2}$"
 UTC_REGEX = r"[Zz]$"
+
+# The length of the timezone offset in a datetime string is 6 characters,
+# accounting for the "+" or "-" sign and the "HH:MM" format of the offset.
+TIMEZONE_OFFSET_LENGTH = 6
+
+# The UTC indicator in a datetime string is represented by a single character,
+# either "Z" or "z", standing for Zulu time, which is another notation for UTC.
+UTC_INDICATOR_LENGTH = 1
 
 
 class ScalarOpCompiler:
@@ -673,6 +682,8 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
+        # Ibis lacks built-in support for timezone-aware datetime strings.
+        # So we manually process timezone data with case expressions.
         # This is not a exact match of Pandas behavior, but this ensures
         # UTC str to be properly handled.
         x = (
@@ -680,46 +691,24 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             .when(
                 x.re_search(TIMEZONE_POS_REGEX),
                 (
-                    (
-                        x.substr(0, x.length() - 6).to_timestamp(op.format)
-                        if op.format
-                        else x.substr(0, x.length() - 6)
+                    _extract_datetime(x, op, TIMEZONE_OFFSET_LENGTH).cast(
+                        ibis_dtypes.int64
                     )
-                    .cast(ibis_dtypes.Timestamp(timezone="UTC"))
-                    .cast(ibis_dtypes.int64)
-                    - x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
-                    * UNIT_TO_US_CONVERSION_FACTORS["h"]
-                    - x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
-                    * UNIT_TO_US_CONVERSION_FACTORS["m"]
-                )
-                .to_timestamp(unit="us")
-                .cast(ibis_dtypes.Timestamp(timezone="UTC")),
+                    - _extract_timezone_as_us(x)
+                ).to_timestamp(unit="us"),
             )
             .when(
                 x.re_search(TIMEZONE_NEG_REGEX),
                 (
-                    (
-                        x.substr(0, x.length() - 6).to_timestamp(op.format)
-                        if op.format
-                        else x.substr(0, x.length() - 6)
+                    _extract_datetime(x, op, TIMEZONE_OFFSET_LENGTH).cast(
+                        ibis_dtypes.int64
                     )
-                    .cast(ibis_dtypes.Timestamp(timezone="UTC"))
-                    .cast(ibis_dtypes.int64)
-                    + x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
-                    * UNIT_TO_US_CONVERSION_FACTORS["h"]
-                    + x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
-                    * UNIT_TO_US_CONVERSION_FACTORS["m"]
-                )
-                .to_timestamp(unit="us")
-                .cast(ibis_dtypes.Timestamp(timezone="UTC")),
+                    + _extract_timezone_as_us(x)
+                ).to_timestamp(unit="us"),
             )
             .when(
                 x.re_search(UTC_REGEX),
-                (
-                    x.substr(0, x.length() - 1).to_timestamp(op.format)
-                    if op.format
-                    else x.substr(0, x.length() - 1)
-                ).cast(ibis_dtypes.Timestamp(timezone="UTC")),
+                _extract_datetime(x, op, UTC_INDICATOR_LENGTH),
             )
             .else_(
                 (x.to_timestamp(op.format) if op.format else x).cast(
@@ -731,21 +720,43 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
         return x
     elif x.type() != ibis_dtypes.timestamp:
+        # The default unit is set to "ns" (nanoseconds) for consistency
+        # with pandas, where "ns" is the default unit for datetime operations.
         unit = op.unit if op.unit is not None else "ns"
         if unit not in UNIT_TO_US_CONVERSION_FACTORS:
             raise ValueError(f"Cannot convert input with unit '{unit}'.")
         x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
         x_converted = x_converted.cast(ibis_dtypes.int64)
-        # Note: Due to an issue where casting directly to a non-UTC
-        # timezone does not work, we first cast to UTC. This seems
-        # to bypass a potential bug in Ibis's cast function, allowing
-        # for subsequent casting to a non-UTC timezone. Further
-        # investigation is needed to confirm this behavior.
+        # Note: Due to an issue where casting directly to a timestamp
+        # without a timezone does not work, we first cast to UTC. This
+        # approach appears to bypass a potential bug in Ibis's cast function,
+        # allowing for subsequent casting to a timestamp type without timezone
+        # information. Further investigation is needed to confirm this behavior.
+
         x = x_converted.to_timestamp(unit="us").cast(
             ibis_dtypes.Timestamp(timezone="UTC")
         )
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
+
+
+def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: int):
+    x_datetime = (
+        x.substr(0, x.length() - tz_offset_len).to_timestamp(op.format)
+        if op.format
+        else x.substr(0, x.length() - tz_offset_len)
+    ).cast(ibis_dtypes.Timestamp(timezone="UTC"))
+
+    return x_datetime
+
+
+def _extract_timezone_as_us(x: ibis_types.Value):
+    return (
+        x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
+        * UNIT_TO_US_CONVERSION_FACTORS["h"]
+        + x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
+        * UNIT_TO_US_CONVERSION_FACTORS["m"]
+    )
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)

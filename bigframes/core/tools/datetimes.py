@@ -52,11 +52,11 @@ def to_datetime(
             f"to datetime is not implemented. {constants.FEEDBACK_LINK}"
         )
 
-    if ~isinstance(arg, bigframes.series.Series):
+    if not isinstance(arg, bigframes.series.Series):
         # TODO: Currently, data upload is performed using pandas DataFrames
         # combined with the `read_pandas` method due to the BigFrames DataFrame
         # constructor's limitations in handling various data types. Plan to update
-        # the upload process to utilize the BigPandas DataFrame constructor directly
+        # the upload process to utilize the BigFrames DataFrame constructor directly
         # once it is enhanced for more related datatypes.
         arg = global_session.with_default_session(
             bigframes.session.Session.read_pandas, pd.DataFrame(arg)
