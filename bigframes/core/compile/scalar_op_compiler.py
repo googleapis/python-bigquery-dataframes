@@ -1234,9 +1234,8 @@ def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: 
         x.substr(0, x.length() - tz_offset_len).to_timestamp(op.format)
         if op.format
         else x.substr(0, x.length() - tz_offset_len)
-    ).cast(ibis_dtypes.Timestamp(timezone="UTC"))
-
-    return x_datetime
+    )
+    return x_datetime.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
 
 def _extract_timezone_as_us(x: ibis_types.Value):
