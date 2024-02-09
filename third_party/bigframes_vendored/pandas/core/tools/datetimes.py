@@ -26,6 +26,7 @@ def to_datetime(
         with timestamps that have a finer granularity than microseconds, be aware that
         the additional precision will not be represented in BigQuery.
 
+    .. note::
         The format strings for specifying datetime representations in BigQuery and pandas
         are not completely identical. Ensure that the format string provided is compatible
         with BigQuery.
