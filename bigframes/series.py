@@ -1216,18 +1216,31 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             dropna=dropna,
         )
 
-    def apply(self, func) -> Series:
+    def apply(
+        self, func, by_row: typing.Union[typing.Literal["compat"], bool] = "compat"
+    ) -> Series:
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
         # Reproject as workaround to applying filter too late. This forces the filter
         # to be applied before passing data to remote function, protecting from bad
         # inputs causing errors.
+
+        if by_row not in ["compat", False]:
+            raise ValueError("Param by_row must be one of 'compat' or False")
+
         if not callable(func):
             raise ValueError(
-                "Only a ufunc (a NumPy function that applies to the entire Series) or a remote function that only works on single values are supported."
+                "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
         if not hasattr(func, "bigframes_remote_function"):
+            # It is not a remote function
+            # Then it must be a vectorized function that applies to the Series
+            # as a whole
+            assert (
+                not by_row
+            ), "A vectorized non-remote function can be provided only with by_row=False"
+
             try:
                 return func(self)
             except Exception as ex:
@@ -1235,7 +1248,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 # supported on a Series. Let's guide the customer to use a
                 # remote function instead
                 if hasattr(ex, "message"):
-                    ex.message += "\n{_remote_function_recommendation_message}"
+                    ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
         reprojected_series = Series(self._block._force_reproject())

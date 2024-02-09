@@ -1116,6 +1116,7 @@ class Series(NDFrame):  # type: ignore[misc]
     def apply(
         self,
         func,
+        by_row="compat",
     ) -> DataFrame | Series:
         """
         Invoke function on values of a Series.
@@ -1181,7 +1182,8 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> names = bpd.Series(["Alice", "Bob"])
             >>> hashes = names.apply(get_hash)
 
-        Simple functions, lambdas or ufuncs can be applied directly.
+        Simple vectorized functions, lambdas or ufuncs can be applied directly
+        with `by_row=False`.
 
             >>> nums = bpd.Series([1, 2, 3, 4])
             >>> nums
@@ -1190,7 +1192,7 @@ class Series(NDFrame):  # type: ignore[misc]
             2    3
             3    4
             dtype: Int64
-            >>> nums.apply(lambda x: x*x + 2*x + 1)
+            >>> nums.apply(lambda x: x*x + 2*x + 1, by_row=False)
             0     4
             1     9
             2    16
@@ -1199,14 +1201,14 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> def is_odd(num):
             ...     return num % 2 == 1
-            >>> nums.apply(is_odd)
+            >>> nums.apply(is_odd, by_row=False)
             0     True
             1    False
             2     True
             3    False
             dtype: boolean
 
-            >>> nums.apply(np.log)
+            >>> nums.apply(np.log, by_row=False)
             0         0.0
             1    0.693147
             2    1.098612
@@ -1218,6 +1220,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 BigFrames DataFrames ``remote_function`` to apply. The function
                 should take a scalar and return a scalar. It will be applied to
                 every element in the ``Series``.
+            by_row (False or "compat", default "compat"):
+                If `"compat"` , func must be a remote function which will be
+                passed each element of the Series, like `Series.map`. If False,
+                the func will be passed the whole Series at once.
 
         Returns:
             bigframes.series.Series: A new Series with values representing the

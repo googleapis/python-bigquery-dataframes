@@ -3109,7 +3109,12 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_col = scalars_df[col]
-    bf_result = bf_col.apply(lambda_).to_pandas()
+
+    # Can't be applied to BigFrames Series without by_row=False
+    with pytest.raises(AssertionError, match="by_row=False"):
+        bf_col.apply(lambda_)
+
+    bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
     pd_result = pd_col.apply(lambda_)
@@ -3135,7 +3140,12 @@ def test_apply_numpy_ufunc(scalars_dfs, ufunc):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_col = scalars_df["int64_col"]
-    bf_result = bf_col.apply(ufunc).to_pandas()
+
+    # Can't be applied to BigFrames Series without by_row=False
+    with pytest.raises(AssertionError, match="by_row=False"):
+        bf_col.apply(ufunc)
+
+    bf_result = bf_col.apply(ufunc, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df["int64_col"]
     pd_result = pd_col.apply(ufunc)
@@ -3150,7 +3160,12 @@ def test_apply_simple_udf(scalars_dfs):
         return x * x + 2 * x + 3
 
     bf_col = scalars_df["int64_col"]
-    bf_result = bf_col.apply(foo).to_pandas()
+
+    # Can't be applied to BigFrames Series without by_row=False
+    with pytest.raises(AssertionError, match="by_row=False"):
+        bf_col.apply(foo)
+
+    bf_result = bf_col.apply(foo, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df["int64_col"]
     pd_result = pd_col.apply(foo)
@@ -3177,4 +3192,4 @@ def test_apply_not_supported(scalars_dfs, col, lambda_, exception):
 
     bf_col = scalars_df[col]
     with pytest.raises(exception):
-        bf_col.apply(lambda_)
+        bf_col.apply(lambda_, by_row=False)
