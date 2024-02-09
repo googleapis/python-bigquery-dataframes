@@ -1183,4 +1183,4 @@ def _ibis_num(number: float):
 
 @ibis.udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:
-    """Compute the Hamming distance between two strings."""
+    """Convert string to timestamp."""
