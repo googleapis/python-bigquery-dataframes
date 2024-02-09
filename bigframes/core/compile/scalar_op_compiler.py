@@ -58,6 +58,8 @@ UTC_REGEX = r"[Zz]$"
 # The length of the timezone offset in a datetime string is 6 characters,
 # accounting for the "+" or "-" sign and the "HH:MM" format of the offset.
 TIMEZONE_OFFSET_LENGTH = 6
+HOURS_TO_END_LENGTH = TIMEZONE_OFFSET_LENGTH - 1
+MINUTES_TO_END_LENGTH = TIMEZONE_OFFSET_LENGTH - 4
 
 # The UTC indicator in a datetime string is represented by a single character,
 # either "Z" or "z", standing for Zulu time, which is another notation for UTC.
@@ -752,9 +754,9 @@ def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: 
 
 def _extract_timezone_as_us(x: ibis_types.Value):
     return (
-        x.substr(x.length() - 5, 2).cast(ibis_dtypes.int64)
+        x.substr(x.length() - HOURS_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
         * UNIT_TO_US_CONVERSION_FACTORS["h"]
-        + x.substr(x.length() - 2, 2).cast(ibis_dtypes.int64)
+        + x.substr(x.length() - MINUTES_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
         * UNIT_TO_US_CONVERSION_FACTORS["m"]
     )
 
