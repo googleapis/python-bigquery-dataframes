@@ -26,6 +26,10 @@ def to_datetime(
         with timestamps that have a finer granularity than microseconds, be aware that
         the additional precision will not be represented in BigQuery.
 
+        The format strings for specifying datetime representations in BigQuery and pandas
+        are not completely identical. Ensure that the format string provided is compatible
+        with BigQuery.
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -48,7 +52,7 @@ def to_datetime(
     Converting a Series of Strings with Timezone Information:
 
         >>> series_str = bpd.Series(["01-31-2021 14:30+08:00", "02-28-2021 15:45+00:00"])
-        >>> bpd.to_datetime(series_str, format="%Y-%m-%dT%H:%M:%S%Z", utc=True)
+        >>> bpd.to_datetime(series_str, format="%m-%d-%Y %H:%M%Z", utc=True)
         0    2021-01-31 06:30:00+00:00
         1    2021-02-28 15:45:00+00:00
         Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
