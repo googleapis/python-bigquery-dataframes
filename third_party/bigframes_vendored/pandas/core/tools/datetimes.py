@@ -56,7 +56,7 @@ def to_datetime(
         >>> bpd.to_datetime(series_str, format="%m-%d-%Y %H:%M%Z", utc=True)
         0    2021-01-31 06:30:00+00:00
         1    2021-02-28 15:45:00+00:00
-        Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
+        dtype: timestamp[us, tz=UTC][pyarrow]
 
     Args:
         arg (int, float, str, datetime, list, tuple, 1-d array, Series):
