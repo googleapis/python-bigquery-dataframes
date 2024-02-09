@@ -47,8 +47,8 @@ def to_datetime(
 
     Converting a Series of Strings with Timezone Information:
 
-        >>> series_str = bpd.Series(["01-31-2021 14:30+08:00", "02-28-2021 15:45z"])
-        >>> bpd.to_datetime(series_str, format="%m-%d-%Y %H:%M", utc=True)
+        >>> series_str = bpd.Series(["01-31-2021 14:30+08:00", "02-28-2021 15:45+00:00"])
+        >>> bpd.to_datetime(series_str, format=format="%Y-%m-%dT%H:%M:%S%Z", utc=True)
         0    2021-01-31 06:30:00+00:00
         1    2021-02-28 15:45:00+00:00
         Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
