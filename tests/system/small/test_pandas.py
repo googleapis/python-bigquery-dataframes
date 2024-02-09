@@ -16,7 +16,6 @@ from datetime import datetime
 
 import pandas as pd
 import pytest
-import pytz
 
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
@@ -511,6 +510,7 @@ def test_to_datetime_scalar(arg, utc, unit, format):
         ),
         (["2023-01-01"], True, None, "%Y-%m-%d"),
         (["2023-02-01T15:00:00+07:22"], True, None, None),
+        (["01-31-2023 14:30 -0800"], True, None, "%m-%d-%Y %H:%M %z"),
         (["01-31-2023 14:00", "02-01-2023 15:00"], True, None, "%m-%d-%Y %H:%M"),
     ],
 )

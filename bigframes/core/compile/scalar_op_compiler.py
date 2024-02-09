@@ -51,20 +51,6 @@ UNIT_TO_US_CONVERSION_FACTORS = {
     "ns": 1e-3,
 }
 
-TIMEZONE_POS_REGEX = r"[\+]\d{2}:\d{2}$"
-TIMEZONE_NEG_REGEX = r"[\-]\d{2}:\d{2}$"
-UTC_REGEX = r"[Zz]$"
-
-# The length of the timezone offset in a datetime string is 6 characters,
-# accounting for the "+" or "-" sign and the "HH:MM" format of the offset.
-TIMEZONE_OFFSET_LENGTH = 6
-HOURS_TO_END_LENGTH = TIMEZONE_OFFSET_LENGTH - 1
-MINUTES_TO_END_LENGTH = TIMEZONE_OFFSET_LENGTH - 4
-
-# The UTC indicator in a datetime string is represented by a single character,
-# either "Z" or "z", standing for Zulu time, which is another notation for UTC.
-UTC_INDICATOR_LENGTH = 1
-
 
 class ScalarOpCompiler:
     # Mapping of operation name to implemenations
@@ -684,41 +670,8 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        # Ibis lacks built-in support for timezone-aware datetime strings.
-        # So we manually process timezone data with case expressions.
-        # This is not a exact match of Pandas behavior, but this ensures
-        # UTC str to be properly handled.
-        x = (
-            ibis.case()
-            .when(
-                x.re_search(TIMEZONE_POS_REGEX),
-                (
-                    _extract_datetime(x, op, TIMEZONE_OFFSET_LENGTH).cast(
-                        ibis_dtypes.int64
-                    )
-                    - _extract_timezone_as_us(x)
-                ).to_timestamp(unit="us"),
-            )
-            .when(
-                x.re_search(TIMEZONE_NEG_REGEX),
-                (
-                    _extract_datetime(x, op, TIMEZONE_OFFSET_LENGTH).cast(
-                        ibis_dtypes.int64
-                    )
-                    + _extract_timezone_as_us(x)
-                ).to_timestamp(unit="us"),
-            )
-            .when(
-                x.re_search(UTC_REGEX),
-                _extract_datetime(x, op, UTC_INDICATOR_LENGTH),
-            )
-            .else_(
-                (x.to_timestamp(op.format) if op.format else x).cast(
-                    ibis_dtypes.Timestamp(timezone="UTC")
-                )
-            )
-            .end()
-        )
+        x = x.to_timestamp(op.format) if op.format else timestamp(x)
+        print(x)
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
         return x
     elif x.type() != ibis_dtypes.timestamp:
@@ -1229,19 +1182,6 @@ def _ibis_num(number: float):
     return typing.cast(ibis_types.NumericValue, ibis_types.literal(number))
 
 
-def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: int):
-    x_datetime = (
-        x.substr(0, x.length() - tz_offset_len).to_timestamp(op.format)
-        if op.format
-        else x.substr(0, x.length() - tz_offset_len)
-    )
-    return x_datetime.cast(ibis_dtypes.Timestamp(timezone="UTC"))
-
-
-def _extract_timezone_as_us(x: ibis_types.Value):
-    return (
-        x.substr(x.length() - HOURS_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
-        * UNIT_TO_US_CONVERSION_FACTORS["h"]
-        + x.substr(x.length() - MINUTES_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
-        * UNIT_TO_US_CONVERSION_FACTORS["m"]
-    )
+@ibis.udf.scalar.builtin
+def timestamp(a: str) -> ibis_dtypes.timestamp:
+    """Compute the Hamming distance between two strings."""
