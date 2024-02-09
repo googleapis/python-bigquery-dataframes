@@ -53,6 +53,8 @@ def to_datetime(
         )
 
     if not isinstance(arg, bigframes.series.Series):
+        # This block ensures compatibility with local data formats, including
+        # iterables and pandas.Series
         # TODO: Currently, data upload is performed using pandas DataFrames
         # combined with the `read_pandas` method due to the BigFrames DataFrame
         # constructor's limitations in handling various data types. Plan to update
