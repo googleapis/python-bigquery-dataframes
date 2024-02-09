@@ -742,25 +742,6 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
 
 
-def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: int):
-    x_datetime = (
-        x.substr(0, x.length() - tz_offset_len).to_timestamp(op.format)
-        if op.format
-        else x.substr(0, x.length() - tz_offset_len)
-    ).cast(ibis_dtypes.Timestamp(timezone="UTC"))
-
-    return x_datetime
-
-
-def _extract_timezone_as_us(x: ibis_types.Value):
-    return (
-        x.substr(x.length() - HOURS_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
-        * UNIT_TO_US_CONVERSION_FACTORS["h"]
-        + x.substr(x.length() - MINUTES_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
-        * UNIT_TO_US_CONVERSION_FACTORS["m"]
-    )
-
-
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     if not hasattr(op.func, "bigframes_remote_function"):
@@ -1246,3 +1227,22 @@ def is_null(value) -> bool:
 
 def _ibis_num(number: float):
     return typing.cast(ibis_types.NumericValue, ibis_types.literal(number))
+
+
+def _extract_datetime(x: ibis_types.Value, op: ops.ToDatetimeOp, tz_offset_len: int):
+    x_datetime = (
+        x.substr(0, x.length() - tz_offset_len).to_timestamp(op.format)
+        if op.format
+        else x.substr(0, x.length() - tz_offset_len)
+    ).cast(ibis_dtypes.Timestamp(timezone="UTC"))
+
+    return x_datetime
+
+
+def _extract_timezone_as_us(x: ibis_types.Value):
+    return (
+        x.substr(x.length() - HOURS_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
+        * UNIT_TO_US_CONVERSION_FACTORS["h"]
+        + x.substr(x.length() - MINUTES_TO_END_LENGTH, 2).cast(ibis_dtypes.int64)
+        * UNIT_TO_US_CONVERSION_FACTORS["m"]
+    )
