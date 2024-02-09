@@ -234,6 +234,30 @@ OPTIONS(
     )
 
 
+def test_create_xgboost_imported_model_produces_correct_sql(
+    model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+):
+    sql = model_creation_sql_generator.create_xgboost_imported_model(
+        model_ref=bigquery.ModelReference.from_string(
+            "test-proj._anonXYZ.create_xgboost_imported_model"
+        ),
+        input={"column1": "int64"},
+        output={"result": "array<float64>"},
+        options={"option_key1": "option_value1", "option_key2": 2},
+    )
+    assert (
+        sql
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_xgboost_imported_model`
+INPUT(
+  column1 int64)
+OUTPUT(
+  result array<float64>)
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
+    )
+
+
 def test_alter_model_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
@@ -270,6 +294,19 @@ def test_ml_evaluate_produces_correct_sql(
         sql
         == """SELECT * FROM ML.EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
   (input_X_sql))"""
+    )
+
+
+def test_ml_arima_evaluate_produces_correct_sql(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+):
+    sql = model_manipulation_sql_generator.ml_arima_evaluate(
+        show_all_candidate_models=True
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.ARIMA_EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
+            STRUCT(True AS show_all_candidate_models))"""
     )
 
 

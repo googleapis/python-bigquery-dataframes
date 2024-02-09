@@ -193,6 +193,24 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
             parts.append(self.options(**options))
         return "\n".join(parts)
 
+    def create_xgboost_imported_model(
+        self,
+        model_ref: google.cloud.bigquery.ModelReference,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        if input:
+            parts.append(self.input(**input))
+        if output:
+            parts.append(self.output(**output))
+        if options:
+            parts.append(self.options(**options))
+        return "\n".join(parts)
+
 
 class ModelManipulationSqlGenerator(BaseSqlGenerator):
     """Sql generator for manipulating a model entity. Model name is the full model path of project_id.dataset_id.model_id."""
@@ -259,6 +277,12 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         else:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
+
+    # ML evaluation TVFs
+    def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:
+        """Encode ML.ARMIA_EVALUATE for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_EVALUATE(MODEL `{self._model_name}`,
+            STRUCT({show_all_candidate_models} AS show_all_candidate_models))"""
 
     def ml_centroids(self) -> str:
         """Encode ML.CENTROIDS for BQML"""

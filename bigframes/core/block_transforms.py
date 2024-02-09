@@ -20,6 +20,7 @@ import pandas as pd
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.expression as ex
 import bigframes.core.ordering as ordering
 import bigframes.core.window_spec as windows
 import bigframes.dtypes as dtypes
@@ -37,18 +38,16 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
     block1 = block1.reset_index(drop=False)
     block2 = block2.reset_index(drop=False)
 
-    joined, (lmap, rmap) = block1.index.join(block2.index, how="outer")
-    joined_block = joined._block
+    joined_block, (lmap, rmap) = block1.join(block2, how="outer")
 
     equality_ids = []
     for lcol, rcol in zip(block1.value_columns, block2.value_columns):
         lcolmapped = lmap[lcol]
         rcolmapped = rmap[rcol]
-        joined_block, result_id = joined_block.apply_binary_op(
-            lcolmapped, rcolmapped, ops.eq_nulls_match_op
-        )
-        joined_block, result_id = joined_block.apply_unary_op(
-            result_id, ops.partial_right(ops.fillna_op, False)
+        joined_block, result_id = joined_block.project_expr(
+            ops.fillna_op.as_expr(
+                ops.eq_null_match_op.as_expr(lcolmapped, rcolmapped), ex.const(False)
+            )
         )
         equality_ids.append(result_id)
 
@@ -91,9 +90,8 @@ def indicate_duplicates(
         agg_ops.count_op,
         window_spec=window_spec,
     )
-    block, duplicate_indicator = block.apply_unary_op(
-        val_count_col_id,
-        ops.partial_right(ops.gt_op, 1),
+    block, duplicate_indicator = block.project_expr(
+        ops.gt_op.as_expr(val_count_col_id, ex.const(1))
     )
     return (
         block.drop_columns(
@@ -131,7 +129,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         if len(index_columns) != 1:
             raise ValueError("only method 'linear' supports multi-index")
         xvalues = block.index_columns[0]
-        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
+        if block.index.dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             raise ValueError("Can only interpolate on numeric index.")
 
     for column in original_columns:
@@ -183,8 +181,8 @@ def _interpolate_column(
 
     # Note, this method may
     block, notnull = block.apply_unary_op(column, ops.notnull_op)
-    block, masked_offsets = block.apply_binary_op(
-        x_values, notnull, ops.partial_arg3(ops.where_op, None)
+    block, masked_offsets = block.project_expr(
+        ops.where_op.as_expr(x_values, notnull, ex.const(None))
     )
 
     block, previous_value = block.apply_window_op(
@@ -271,25 +269,22 @@ def _interpolate_points_nearest(
     xpredict_id: str,
 ) -> typing.Tuple[blocks.Block, str]:
     """Interpolate by taking the y value of the nearest x value"""
-    block, left_diff = block.apply_binary_op(xpredict_id, x0_id, ops.sub_op)
-    block, right_diff = block.apply_binary_op(x1_id, xpredict_id, ops.sub_op)
+    left_diff = ops.sub_op.as_expr(xpredict_id, x0_id)
+    right_diff = ops.sub_op.as_expr(x1_id, xpredict_id)
     # If diffs equal, choose left
-    block, choose_left = block.apply_binary_op(left_diff, right_diff, ops.le_op)
-    block, choose_left = block.apply_unary_op(
-        choose_left, ops.partial_right(ops.fillna_op, False)
+    choose_left = ops.fillna_op.as_expr(
+        ops.le_op.as_expr(left_diff, right_diff), ex.const(False)
     )
 
-    block, nearest = block.apply_ternary_op(y0_id, choose_left, y1_id, ops.where_op)
+    nearest = ops.where_op.as_expr(y0_id, choose_left, y1_id)
 
-    block, y0_exists = block.apply_unary_op(y0_id, ops.notnull_op)
-    block, y1_exists = block.apply_unary_op(y1_id, ops.notnull_op)
-    block, is_interpolation = block.apply_binary_op(y0_exists, y1_exists, ops.and_op)
-
-    block, prediction_id = block.apply_binary_op(
-        nearest, is_interpolation, ops.partial_arg3(ops.where_op, None)
+    is_interpolation = ops.and_op.as_expr(
+        ops.notnull_op.as_expr(y0_id), ops.notnull_op.as_expr(y1_id)
     )
 
-    return block, prediction_id
+    return block.project_expr(
+        ops.where_op.as_expr(nearest, is_interpolation, ex.const(None))
+    )
 
 
 def _interpolate_points_ffill(
@@ -302,11 +297,9 @@ def _interpolate_points_ffill(
 ) -> typing.Tuple[blocks.Block, str]:
     """Interpolates by using the preceding values"""
     # check for existance of y1, otherwise we are extrapolating instead of interpolating
-    block, y1_exists = block.apply_unary_op(y1_id, ops.notnull_op)
-    block, prediction_id = block.apply_binary_op(
-        y0_id, y1_exists, ops.partial_arg3(ops.where_op, None)
+    return block.project_expr(
+        ops.where_op.as_expr(y0_id, ops.notnull_op.as_expr(y1_id), ex.const(None))
     )
-    return block, prediction_id
 
 
 def drop_duplicates(
@@ -519,9 +512,7 @@ def nsmallest(
             agg_ops.rank_op,
             window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
-        block, condition = block.apply_unary_op(
-            counter, ops.partial_right(ops.le_op, n)
-        )
+        block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter(condition)
         return block.drop_columns([counter, condition])
 
@@ -551,9 +542,7 @@ def nlargest(
             agg_ops.rank_op,
             window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
-        block, condition = block.apply_unary_op(
-            counter, ops.partial_right(ops.le_op, n)
-        )
+        block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter(condition)
         return block.drop_columns([counter, condition])
 
@@ -641,7 +630,7 @@ def kurt(
 
 def _mean_delta_to_power(
     block: blocks.Block,
-    n_power,
+    n_power: int,
     column_ids: typing.Sequence[str],
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
@@ -649,11 +638,10 @@ def _mean_delta_to_power(
     window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
-    cube_op = ops.partial_right(ops.pow_op, n_power)
     for val_id, mean_val_id in zip(column_ids, mean_ids):
-        block, delta_id = block.apply_binary_op(val_id, mean_val_id, ops.sub_op)
-        block, delta_power_id = block.apply_unary_op(delta_id, cube_op)
-        block = block.drop_columns([delta_id])
+        delta = ops.sub_op.as_expr(val_id, mean_val_id)
+        delta_power = ops.pow_op.as_expr(delta, ex.const(n_power))
+        block, delta_power_id = block.project_expr(delta_power)
         delta_ids.append(delta_power_id)
     return block, delta_ids
 
@@ -664,31 +652,26 @@ def _skew_from_moments_and_count(
     # Calculate skew using count, third moment and population variance
     # See G1 estimator:
     # https://en.wikipedia.org/wiki/Skewness#Sample_skewness
-    block, denominator_id = block.apply_unary_op(
-        moment2_id, ops.partial_right(ops.unsafe_pow_op, 3 / 2)
+    moments_estimator = ops.div_op.as_expr(
+        moment3_id, ops.pow_op.as_expr(moment2_id, ex.const(3 / 2))
     )
-    block, base_id = block.apply_binary_op(moment3_id, denominator_id, ops.div_op)
-    block, countminus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 1)
+
+    countminus1 = ops.sub_op.as_expr(count_id, ex.const(1))
+    countminus2 = ops.sub_op.as_expr(count_id, ex.const(2))
+    adjustment = ops.div_op.as_expr(
+        ops.unsafe_pow_op.as_expr(
+            ops.mul_op.as_expr(count_id, countminus1), ex.const(1 / 2)
+        ),
+        countminus2,
     )
-    block, countminus2_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 2)
-    )
-    block, adjustment_id = block.apply_binary_op(count_id, countminus1_id, ops.mul_op)
-    block, adjustment_id = block.apply_unary_op(
-        adjustment_id, ops.partial_right(ops.unsafe_pow_op, 1 / 2)
-    )
-    block, adjustment_id = block.apply_binary_op(
-        adjustment_id, countminus2_id, ops.div_op
-    )
-    block, skew_id = block.apply_binary_op(base_id, adjustment_id, ops.mul_op)
+
+    skew = ops.mul_op.as_expr(moments_estimator, adjustment)
 
     # Need to produce NA if have less than 3 data points
-    block, na_cond_id = block.apply_unary_op(count_id, ops.partial_right(ops.ge_op, 3))
-    block, skew_id = block.apply_binary_op(
-        skew_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
+    cleaned_skew = ops.where_op.as_expr(
+        skew, ops.ge_op.as_expr(count_id, ex.const(3)), ex.const(None)
     )
-    return block, skew_id
+    return block.project_expr(cleaned_skew)
 
 
 def _kurt_from_moments_and_count(
@@ -701,49 +684,42 @@ def _kurt_from_moments_and_count(
     # adjustment = 3 * (count - 1) ** 2 / ((count - 2) * (count - 3))
     # kurtosis = (numerator / denominator) - adjustment
 
-    # Numerator
-    block, countminus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 1)
+    numerator = ops.mul_op.as_expr(
+        moment4_id,
+        ops.mul_op.as_expr(
+            ops.sub_op.as_expr(count_id, ex.const(1)),
+            ops.add_op.as_expr(count_id, ex.const(1)),
+        ),
     )
-    block, countplus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.add_op, 1)
-    )
-    block, num_adj = block.apply_binary_op(countplus1_id, countminus1_id, ops.mul_op)
-    block, numerator_id = block.apply_binary_op(moment4_id, num_adj, ops.mul_op)
 
     # Denominator
-    block, countminus2_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 2)
+    countminus2 = ops.sub_op.as_expr(count_id, ex.const(2))
+    countminus3 = ops.sub_op.as_expr(count_id, ex.const(3))
+
+    # Denominator
+    denominator = ops.mul_op.as_expr(
+        ops.unsafe_pow_op.as_expr(moment2_id, ex.const(2)),
+        ops.mul_op.as_expr(countminus2, countminus3),
     )
-    block, countminus3_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 3)
-    )
-    block, denom_adj = block.apply_binary_op(countminus2_id, countminus3_id, ops.mul_op)
-    block, popvar_squared = block.apply_unary_op(
-        moment2_id, ops.partial_right(ops.unsafe_pow_op, 2)
-    )
-    block, denominator_id = block.apply_binary_op(popvar_squared, denom_adj, ops.mul_op)
 
     # Adjustment
-    block, countminus1_square = block.apply_unary_op(
-        countminus1_id, ops.partial_right(ops.unsafe_pow_op, 2)
+    adj_num = ops.mul_op.as_expr(
+        ops.unsafe_pow_op.as_expr(
+            ops.sub_op.as_expr(count_id, ex.const(1)), ex.const(2)
+        ),
+        ex.const(3),
     )
-    block, adj_num = block.apply_unary_op(
-        countminus1_square, ops.partial_right(ops.mul_op, 3)
-    )
-    block, adj_denom = block.apply_binary_op(countminus2_id, countminus3_id, ops.mul_op)
-    block, adjustment_id = block.apply_binary_op(adj_num, adj_denom, ops.div_op)
+    adj_denom = ops.mul_op.as_expr(countminus2, countminus3)
+    adjustment = ops.div_op.as_expr(adj_num, adj_denom)
 
     # Combine
-    block, base_id = block.apply_binary_op(numerator_id, denominator_id, ops.div_op)
-    block, kurt_id = block.apply_binary_op(base_id, adjustment_id, ops.sub_op)
+    kurt = ops.sub_op.as_expr(ops.div_op.as_expr(numerator, denominator), adjustment)
 
     # Need to produce NA if have less than 4 data points
-    block, na_cond_id = block.apply_unary_op(count_id, ops.partial_right(ops.ge_op, 4))
-    block, kurt_id = block.apply_binary_op(
-        kurt_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
+    cleaned_kurt = ops.where_op.as_expr(
+        kurt, ops.ge_op.as_expr(count_id, ex.const(4)), ex.const(None)
     )
-    return block, kurt_id
+    return block.project_expr(cleaned_kurt)
 
 
 def align(
@@ -766,14 +742,14 @@ def align_rows(
     right_block: blocks.Block,
     join: str = "outer",
 ):
-    joined_index, (get_column_left, get_column_right) = left_block.index.join(
-        right_block.index, how=join
+    joined_block, (get_column_left, get_column_right) = left_block.join(
+        right_block, how=join
     )
     left_columns = [get_column_left[col] for col in left_block.value_columns]
     right_columns = [get_column_right[col] for col in right_block.value_columns]
 
-    left_block = joined_index._block.select_columns(left_columns)
-    right_block = joined_index._block.select_columns(right_columns)
+    left_block = joined_block.select_columns(left_columns)
+    right_block = joined_block.select_columns(right_columns)
     return left_block, right_block
 
 

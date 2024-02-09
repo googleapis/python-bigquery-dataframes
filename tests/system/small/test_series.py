@@ -42,6 +42,40 @@ def test_series_construct_copy(scalars_dfs):
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_series_construct_copy_with_index(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = series.Series(
+        scalars_df["int64_col"],
+        name="test_series",
+        dtype="Float64",
+        index=scalars_df["int64_too"],
+    ).to_pandas()
+    pd_result = pd.Series(
+        scalars_pandas_df["int64_col"],
+        name="test_series",
+        dtype="Float64",
+        index=scalars_pandas_df["int64_too"],
+    )
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_construct_copy_index(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = series.Series(
+        scalars_df.index,
+        name="test_series",
+        dtype="Float64",
+        index=scalars_df["int64_too"],
+    ).to_pandas()
+    pd_result = pd.Series(
+        scalars_pandas_df.index,
+        name="test_series",
+        dtype="Float64",
+        index=scalars_pandas_df["int64_too"],
+    )
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_series_construct_pandas(scalars_dfs):
     _, scalars_pandas_df = scalars_dfs
     bf_result = series.Series(
@@ -622,13 +656,24 @@ def test_mods(scalars_dfs, col_x, col_y, method):
 
 # We work around a pandas bug that doesn't handle correlating nullable dtypes by doing this
 # manually with dumb self-correlation instead of parameterized as test_mods is above.
-def test_corr(scalars_dfs):
+def test_series_corr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df["int64_too"].corr(scalars_df["int64_too"])
     pd_result = (
         scalars_pandas_df["int64_too"]
         .astype("int64")
         .corr(scalars_pandas_df["int64_too"].astype("int64"))
+    )
+    assert math.isclose(pd_result, bf_result)
+
+
+def test_series_cov(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_too"].cov(scalars_df["int64_too"])
+    pd_result = (
+        scalars_pandas_df["int64_too"]
+        .astype("int64")
+        .cov(scalars_pandas_df["int64_too"].astype("int64"))
     )
     assert math.isclose(pd_result, bf_result)
 
@@ -2987,3 +3032,13 @@ def test_sample(scalars_dfs, frac, n, random_state):
     n = 1 if n is None else n
     expected_sample_size = round(frac * scalars_df.shape[0]) if frac is not None else n
     assert bf_result.shape[0] == expected_sample_size
+
+
+def test_series_iter(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    for bf_i, pd_i in zip(
+        scalars_df_index["int64_too"], scalars_pandas_df_index["int64_too"]
+    ):
+        assert bf_i == pd_i

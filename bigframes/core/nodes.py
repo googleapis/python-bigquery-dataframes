@@ -16,16 +16,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 import functools
+import itertools
 import typing
-from typing import Optional, Tuple
+from typing import Tuple
 
 import pandas
 
+import bigframes.core.expression as ex
 import bigframes.core.guid
+from bigframes.core.join_def import JoinDefinition
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.window_spec as window
 import bigframes.dtypes
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
@@ -47,6 +49,19 @@ class BigFrameNode:
     def deterministic(self) -> bool:
         """Whether this node will evaluates deterministically."""
         return True
+
+    @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return True
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return False
 
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
@@ -73,6 +88,18 @@ class BigFrameNode:
     def _node_hash(self):
         return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
 
+    @property
+    def peekable(self) -> bool:
+        """Indicates whether the node can be sampled efficiently"""
+        return all(child.peekable for child in self.child_nodes)
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        roots = itertools.chain.from_iterable(
+            map(lambda child: child.roots, self.child_nodes)
+        )
+        return set(roots)
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -87,16 +114,16 @@ class UnaryNode(BigFrameNode):
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
-    left_column_ids: typing.Tuple[str, ...]
-    right_column_ids: typing.Tuple[str, ...]
-    how: typing.Literal[
-        "inner",
-        "left",
-        "outer",
-        "right",
-        "cross",
-    ]
+    join: JoinDefinition
     allow_row_identity_join: bool = True
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
@@ -104,6 +131,12 @@ class JoinNode(BigFrameNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        children_peekable = all(child.peekable for child in self.child_nodes)
+        single_root = len(self.roots) == 1
+        return children_peekable and single_root
 
 
 @dataclass(frozen=True)
@@ -126,6 +159,14 @@ class ReadLocalNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return True
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
 
 # TODO: Refactor to take raw gbq object reference
 @dataclass(frozen=True)
@@ -143,16 +184,16 @@ class ReadGbqNode(BigFrameNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return True
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
 
 # Unary nodes
-@dataclass(frozen=True)
-class DropColumnsNode(UnaryNode):
-    columns: Tuple[str, ...]
-
-    def __hash__(self):
-        return self._node_hash
-
-
 @dataclass(frozen=True)
 class PromoteOffsetsNode(UnaryNode):
     col_id: str
@@ -160,11 +201,22 @@ class PromoteOffsetsNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def peekable(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return False
+
 
 @dataclass(frozen=True)
 class FilterNode(UnaryNode):
-    predicate_id: str
-    keep_null: bool = False
+    predicate: ex.Expression
+
+    @property
+    def row_preserving(self) -> bool:
+        return False
 
     def __hash__(self):
         return self._node_hash
@@ -188,75 +240,52 @@ class ReversedNode(UnaryNode):
 
 
 @dataclass(frozen=True)
-class SelectNode(UnaryNode):
-    column_ids: typing.Tuple[str, ...]
+class ProjectionNode(UnaryNode):
+    assignments: typing.Tuple[typing.Tuple[ex.Expression, str], ...]
 
     def __hash__(self):
         return self._node_hash
 
 
-@dataclass(frozen=True)
-class ProjectUnaryOpNode(UnaryNode):
-    input_id: str
-    op: ops.UnaryOp
-    output_id: Optional[str] = None
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class ProjectBinaryOpNode(UnaryNode):
-    left_input_id: str
-    right_input_id: str
-    op: ops.BinaryOp
-    output_id: str
-
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class ProjectTernaryOpNode(UnaryNode):
-    input_id1: str
-    input_id2: str
-    input_id3: str
-    op: ops.TernaryOp
-    output_id: str
-
-    def __hash__(self):
-        return self._node_hash
-
-
-# TODO: Merge RowCount and Corr into Aggregate Node
+# TODO: Merge RowCount into Aggregate Node?
+# Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclass(frozen=True)
 class RowCountNode(UnaryNode):
-    pass
+    @property
+    def row_preserving(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
-    aggregations: typing.Tuple[typing.Tuple[str, agg_ops.AggregateOp, str], ...]
+    aggregations: typing.Tuple[typing.Tuple[ex.Aggregation, str], ...]
     by_column_ids: typing.Tuple[str, ...] = tuple([])
     dropna: bool = True
 
-    def __hash__(self):
-        return self._node_hash
-
-
-# TODO: Unify into aggregate
-@dataclass(frozen=True)
-class CorrNode(UnaryNode):
-    corr_aggregations: typing.Tuple[typing.Tuple[str, str, str], ...]
+    @property
+    def row_preserving(self) -> bool:
+        return False
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
     column_name: str
-    op: agg_ops.WindowOp
+    op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
     output_name: typing.Optional[str] = None
     never_skip_nulls: bool = False
@@ -264,6 +293,14 @@ class WindowOpNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @property
+    def peekable(self) -> bool:
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -288,24 +325,17 @@ class UnpivotNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
+    @property
+    def row_preserving(self) -> bool:
+        return False
 
-@dataclass(frozen=True)
-class AssignNode(UnaryNode):
-    source_id: str
-    destination_id: str
+    @property
+    def non_local(self) -> bool:
+        return True
 
-    def __hash__(self):
-        return self._node_hash
-
-
-@dataclass(frozen=True)
-class AssignConstantNode(UnaryNode):
-    destination_id: str
-    value: typing.Hashable
-    dtype: typing.Optional[bigframes.dtypes.Dtype]
-
-    def __hash__(self):
-        return self._node_hash
+    @property
+    def peekable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -314,6 +344,10 @@ class RandomSampleNode(UnaryNode):
 
     @property
     def deterministic(self) -> bool:
+        return False
+
+    @property
+    def row_preserving(self) -> bool:
         return False
 
     def __hash__(self):

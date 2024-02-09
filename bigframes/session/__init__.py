@@ -71,11 +71,12 @@ import bigframes.core.compile
 import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
 import bigframes.core.ordering as orderings
+import bigframes.core.traversal as traversals
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
 import bigframes.formatting_helpers as formatting_helpers
-from bigframes.remote_function import read_gbq_function as bigframes_rgf
-from bigframes.remote_function import remote_function as bigframes_rf
+from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
+from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
@@ -380,7 +381,7 @@ class Session(
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
-            job_config.labels["error_caught"] = "True"
+            job_config.labels["error_caught"] = "true"
             _, query_job = self._start_query(query, job_config=job_config)
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -597,9 +598,16 @@ class Session(
                 ).result()
             )[0][0]
             self._df_snapshot[table_ref] = snapshot_timestamp
-        table_expression = self.ibis_client.sql(
-            bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
-        )
+
+        try:
+            table_expression = self.ibis_client.sql(
+                bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
+            )
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
+
         return table_expression, primary_keys
 
     def _read_gbq_table(
@@ -1451,7 +1459,13 @@ class Session(
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
         )
-        query_job = self.bqclient.query(sql, job_config=job_config)
+
+        try:
+            query_job = self.bqclient.query(sql, job_config=job_config)
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
 
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
@@ -1462,7 +1476,7 @@ class Session(
             results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
 
-    def _execute_and_cache(
+    def _cache_with_cluster_cols(
         self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str]
     ) -> core.ArrayValue:
         """Executes the query and uses the resulting table to rewrite future executions."""
@@ -1493,11 +1507,45 @@ class Session(
             ordering=compiled_value._ordering,
         )
 
+    def _cache_with_offsets(self, array_value: core.ArrayValue) -> core.ArrayValue:
+        """Executes the query and uses the resulting table to rewrite future executions."""
+        # TODO: Use this for all executions? Problem is that caching materializes extra
+        # ordering columns
+        compiled_value = self._compile_ordered(array_value)
+
+        ibis_expr = compiled_value._to_ibis_expr(
+            ordering_mode="offset_col", order_col_name="bigframes_offsets"
+        )
+        tmp_table = self._ibis_to_temp_table(
+            ibis_expr, cluster_cols=["bigframes_offsets"], api_name="cached"
+        )
+        table_expression = self.ibis_client.table(
+            f"{tmp_table.project}.{tmp_table.dataset_id}.{tmp_table.table_id}"
+        )
+        new_columns = [table_expression[column] for column in compiled_value.column_ids]
+        new_hidden_columns = [table_expression["bigframes_offsets"]]
+        # TODO: Instead, keep session-wide map of cached results and automatically reuse
+        return core.ArrayValue.from_ibis(
+            self,
+            table_expression,
+            columns=new_columns,
+            hidden_ordering_columns=new_hidden_columns,
+            ordering=orderings.ExpressionOrdering.from_offset_col("bigframes_offsets"),
+        )
+
+    def _is_trivially_executable(self, array_value: core.ArrayValue):
+        """
+        Can the block be evaluated very cheaply?
+        If True, the array_value probably is not worth caching.
+        """
+        # Once rewriting is available, will want to rewrite before
+        # evaluating execution cost.
+        return traversals.is_trivially_executable(array_value.node)
+
     def _execute(
         self,
         array_value: core.ArrayValue,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
         *,
         sorted: bool = True,
         dry_run=False,
@@ -1507,7 +1555,17 @@ class Session(
         return self._start_query(
             sql=sql,
             job_config=job_config,
-            max_results=max_results,
+        )
+
+    def _peek(
+        self, array_value: core.ArrayValue, n_rows: int
+    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """A 'peek' efficiently accesses a small number of rows in the dataframe."""
+        if not array_value.node.peekable:
+            raise NotImplementedError("cannot efficient peek this dataframe")
+        sql = self._compile_unordered(array_value).peek_sql(n_rows)
+        return self._start_query(
+            sql=sql,
         )
 
     def _to_sql(
@@ -1530,12 +1588,12 @@ class Session(
     def _compile_ordered(
         self, array_value: core.ArrayValue
     ) -> bigframes.core.compile.OrderedIR:
-        return bigframes.core.compile.compile_ordered(array_value.node)
+        return bigframes.core.compile.compile_ordered_ir(array_value.node)
 
     def _compile_unordered(
         self, array_value: core.ArrayValue
     ) -> bigframes.core.compile.UnorderedIR:
-        return bigframes.core.compile.compile_unordered(array_value.node)
+        return bigframes.core.compile.compile_unordered_ir(array_value.node)
 
     def _get_table_size(self, destination_table):
         table = self.bqclient.get_table(destination_table)

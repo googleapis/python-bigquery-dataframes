@@ -69,7 +69,7 @@ class Series(NDFrame):  # type: ignore[misc]
             30    35
             Name: Age, dtype: Int64
             >>> s.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> s.index.values
             array([10, 20, 30], dtype=object)
 
@@ -84,7 +84,10 @@ class Series(NDFrame):  # type: ignore[misc]
             Aritra  Kona        35
             Name: Age, dtype: Int64
             >>> s1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -809,6 +812,21 @@ class Series(NDFrame):  # type: ignore[misc]
         Uses the "Pearson" method of correlation.  Numbers are converted to float before
         calculation, so the result may be unstable.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series([.2, .0, .6, .2])
+            >>> s2 = bpd.Series([.3, .6, .0, .1])
+            >>> s1.corr(s2)
+            -0.8510644963469901
+
+            >>> s1 = bpd.Series([1, 2, 3], index=[0, 1, 2])
+            >>> s2 = bpd.Series([1, 2, 3], index=[2, 1, 0])
+            >>> s1.corr(s2)
+            -1.0
+
         Args:
             other (Series):
                 The series with which this is to be correlated.
@@ -823,6 +841,27 @@ class Series(NDFrame):  # type: ignore[misc]
                 variance or covariance of zero, or any input value is infinite.
         """
         raise NotImplementedError("abstract method")
+
+    def cov(
+        self,
+        other,
+    ) -> float:
+        """
+        Compute covariance with Series, excluding missing values.
+
+        The two `Series` objects are not required to be the same length and
+        will be aligned internally before the covariance is calculated.
+
+        Args:
+            other (Series):
+                Series with which to compute the covariance.
+
+        Returns:
+            float:
+                Covariance between Series and other normalized by N-1
+                (unbiased estimator).
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def diff(self) -> Series:
         """
@@ -1759,6 +1798,42 @@ class Series(NDFrame):  # type: ignore[misc]
         corresponding Series element is between the boundary values `left` and
         `right`. NA values are treated as `False`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Boundary values are included by default:
+
+            >>> s = bpd.Series([2, 0, 4, 8, np.nan])
+            >>> s.between(1, 4)
+            0     True
+            1    False
+            2     True
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        With inclusive set to "neither" boundary values are excluded:
+
+            >>> s.between(1, 4, inclusive="neither")
+            0     True
+            1    False
+            2    False
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        left and right can be any scalar value:
+
+            >>> s = bpd.Series(['Alice', 'Bob', 'Carol', 'Eve'])
+            >>> s.between('Anna', 'Daniel')
+            0    False
+            1     True
+            2     True
+            3    False
+            dtype: boolean
+
         Args:
             left (scalar or list-like):
                 Left boundary.
@@ -1780,6 +1855,30 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns a DataFrame or Series of the same size containing the cumulative
         product.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cumprod()
+            0     2.0
+            1    <NA>
+            2    10.0
+            3   -10.0
+            4     0.0
+            dtype: Float64
 
         Returns:
             bigframes.series.Series: Return cumulative sum of scalar or Series.
@@ -2696,6 +2795,31 @@ class Series(NDFrame):  # type: ignore[misc]
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
+
         Returns:
             Series: Row position of the maximum value.
         """
@@ -2706,6 +2830,31 @@ class Series(NDFrame):  # type: ignore[misc]
         Return int position of the largest value in the Series.
 
         If the maximum is achieved in multiple locations, the first row position is returned.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Consider dataset containing cereal calories.
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            ...                 'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+        The maximum cereal calories is the third element and the minimum cereal
+        calories is the first element, since series is zero-indexed.
 
         Returns:
             Series: Row position of the minimum value.
@@ -2956,6 +3105,19 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return boolean if values in the object are monotonically increasing.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 2])
+            >>> s.is_monotonic_increasing
+            True
+
+            >>> s = bpd.Series([3, 2, 1])
+            >>> s.is_monotonic_increasing
+            False
+
         Returns:
             bool: Boolean.
         """
@@ -2965,6 +3127,19 @@ class Series(NDFrame):  # type: ignore[misc]
     def is_monotonic_decreasing(self) -> bool:
         """
         Return boolean if values in the object are monotonically decreasing.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([3, 2, 2, 1])
+            >>> s.is_monotonic_decreasing
+            True
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.is_monotonic_decreasing
+            False
 
         Returns:
             bool: Boolean.

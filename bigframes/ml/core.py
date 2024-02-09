@@ -136,6 +136,13 @@ class BqmlModel:
 
         return self._session.read_gbq(sql)
 
+    def arima_evaluate(self, show_all_candidate_models: bool = False):
+        sql = self._model_manipulation_sql_generator.ml_arima_evaluate(
+            show_all_candidate_models
+        )
+
+        return self._session.read_gbq(sql)
+
     def centroids(self) -> bpd.DataFrame:
         assert self._model.model_type == "KMEANS"
 
@@ -240,9 +247,11 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train._cached()
+            input_data = X_train._cached(force=True)
         else:
-            input_data = X_train._cached().join(y_train._cached(), how="outer")
+            input_data = X_train._cached(force=True).join(
+                y_train._cached(force=True), how="outer"
+            )
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -274,7 +283,9 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train._cached().join(y_train._cached(), how="outer")
+        input_data = X_train._cached(force=True).join(
+            y_train._cached(force=True), how="outer"
+        )
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 
@@ -340,6 +351,36 @@ class BqmlModelFactory:
         model_ref = self._create_model_ref(session._anonymous_dataset)
         sql = self._model_creation_sql_generator.create_imported_model(
             model_ref=model_ref,
+            options=options,
+        )
+
+        return self._create_model_with_sql(session=session, sql=sql)
+
+    def create_xgboost_imported_model(
+        self,
+        session: bigframes.Session,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> BqmlModel:
+        """Create a session-temporary BQML imported model with the CREATE OR REPLACE MODEL statement
+
+        Args:
+            input:
+                input schema for imported xgboost models
+            output:
+                output schema for imported xgboost models
+            options: a dict of options to configure the model. Generates a BQML OPTIONS
+                clause
+
+        Returns: a BqmlModel, wrapping a trained model in BigQuery
+        """
+        model_ref = self._create_model_ref(session._anonymous_dataset)
+
+        sql = self._model_creation_sql_generator.create_xgboost_imported_model(
+            model_ref=model_ref,
+            input=input,
+            output=output,
             options=options,
         )
 

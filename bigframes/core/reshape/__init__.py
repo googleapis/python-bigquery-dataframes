@@ -20,6 +20,7 @@ import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.core as core
+import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.dataframe
@@ -103,8 +104,7 @@ def concat(
         block_list = [obj._block for obj in objs]
         block = block_list[0]
         for rblock in block_list[1:]:
-            combined_index, _ = block.index.join(rblock.index, how=join)
-            block = combined_index._block
+            block, _ = block.join(rblock, how=join)
         return bigframes.dataframe.DataFrame(block)
 
 
@@ -122,18 +122,25 @@ def cut(
         raise ValueError("`bins` should be a positive integer.")
 
     if isinstance(bins, Iterable):
-        if not isinstance(bins, pd.IntervalIndex):
-            bins = pd.IntervalIndex.from_tuples(list(bins))
+        if isinstance(bins, pd.IntervalIndex):
+            as_index: pd.IntervalIndex = bins
+            bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
+        else:
+            as_index = pd.IntervalIndex.from_tuples(list(bins))
+            bins = tuple(bins)
 
-        if bins.is_overlapping:
+        if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
 
-    if labels is not False:
+    if labels is not None and labels is not False:
         raise NotImplementedError(
-            f"Only labels=False is supported in BigQuery DataFrames so far. {constants.FEEDBACK_LINK}"
+            "The 'labels' parameter must be either False or None. "
+            "Please provide a valid value for 'labels'."
         )
 
-    return x._apply_window_op(agg_ops.CutOp(bins), window_spec=core.WindowSpec())
+    return x._apply_window_op(
+        agg_ops.CutOp(bins, labels=labels), window_spec=core.WindowSpec()
+    )
 
 
 def qcut(
@@ -145,6 +152,8 @@ def qcut(
 ) -> bigframes.series.Series:
     if isinstance(q, int) and q <= 0:
         raise ValueError("`q` should be a positive integer.")
+    if utils.is_list_like(q):
+        q = tuple(q)
 
     if labels is not False:
         raise NotImplementedError(
@@ -159,13 +168,13 @@ def qcut(
     block, nullity_id = block.apply_unary_op(x._value_column, ops.notnull_op)
     block, result = block.apply_window_op(
         x._value_column,
-        agg_ops.QcutOp(q),
+        agg_ops.QcutOp(q),  # type: ignore
         window_spec=core.WindowSpec(
             grouping_keys=(nullity_id,),
             ordering=(order.OrderingColumnReference(x._value_column),),
         ),
     )
-    block, result = block.apply_binary_op(
-        result, nullity_id, ops.partial_arg3(ops.where_op, None), result_label=label
+    block, result = block.project_expr(
+        ops.where_op.as_expr(result, nullity_id, ex.const(None)), label=label
     )
     return bigframes.series.Series(block.select_column(result))

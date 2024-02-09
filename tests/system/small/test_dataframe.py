@@ -412,6 +412,37 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_df_peek(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df.peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_filtered(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[scalars_df.int64_col != 0].peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_exception(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        # Window ops aren't compatible with efficient peeking
+        scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=False)
+
+
+def test_df_peek_force(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=True)
+    pd.testing.assert_index_equal(
+        scalars_pandas_df[["int64_col", "int64_too"]].columns, peek_result.columns
+    )
+    assert len(peek_result) == 3
+
+
 def test_repr_w_all_rows(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -1220,9 +1251,7 @@ def test_get_dtypes(scalars_df_default_index):
     )
 
 
-def test_get_dtypes_array_struct(session):
-    """We may upgrade struct and array to proper arrow dtype support in future. For now,
-    we return python objects"""
+def test_get_dtypes_array_struct_query(session):
     df = session.read_gbq(
         """SELECT
         [1, 3, 2] AS array_column,
@@ -1244,6 +1273,41 @@ def test_get_dtypes_array_struct(session):
                             ("float_field", pa.float64()),
                         ]
                     )
+                ),
+            }
+        ),
+    )
+
+
+def test_get_dtypes_array_struct_table(nested_df):
+    dtypes = nested_df.dtypes
+    pd.testing.assert_series_equal(
+        dtypes,
+        pd.Series(
+            {
+                "customer_id": pd.StringDtype(storage="pyarrow"),
+                "day": pd.ArrowDtype(pa.date32()),
+                "flag": pd.Int64Dtype(),
+                "event_sequence": pd.ArrowDtype(
+                    pa.list_(
+                        pa.struct(
+                            [
+                                (
+                                    "data",
+                                    pa.list_(
+                                        pa.struct(
+                                            [
+                                                ("value", pa.float64()),
+                                                ("key", pa.string()),
+                                            ],
+                                        ),
+                                    ),
+                                ),
+                                ("timestamp", pa.timestamp("us", "UTC")),
+                                ("category", pa.string()),
+                            ]
+                        ),
+                    ),
                 ),
             }
         ),
