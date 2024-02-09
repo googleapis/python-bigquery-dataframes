@@ -91,6 +91,8 @@
         uid: bigframes.ml.imported.ONNXModel
       - name: TensorFlowModel
         uid: bigframes.ml.imported.TensorFlowModel
+      - name: XGBoostModel
+        uid: bigframes.ml.imported.XGBoostModel
       name: imported
     - items:
       - name: Overview
@@ -103,6 +105,8 @@
     - items:
       - name: Overview
         uid: bigframes.ml.llm
+      - name: GeminiTextGenerator
+        uid: bigframes.ml.llm.GeminiTextGenerator
       - name: PaLM2TextGenerator
         uid: bigframes.ml.llm.PaLM2TextGenerator
       - name: PaLM2TextEmbeddingGenerator

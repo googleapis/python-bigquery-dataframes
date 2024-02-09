@@ -27,10 +27,13 @@ Prerequisites
 
 * Install the ``bigframes`` package.
 * Create a Google Cloud project and billing account.
-* When running locally, authenticate with application default credentials. See
-  the `gcloud auth application-default login
-  <https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login>`_
-  reference.
+* In an interactive environment (like Notebook, Python REPL or command line),
+  ``bigframes`` will do the authentication on-the-fly if needed. Otherwise, see
+  `how to set up application default credentials <https://cloud.google.com/docs/authentication/provide-credentials-adc>`_
+  for various environments. For example, to pre-authenticate on your laptop you can
+  `install and initialize the gcloud CLI <https://cloud.google.com/sdk/docs/install>`_,
+  and then generate the application default credentials by doing
+  `gcloud auth application-default login <https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login>`_.
 
 Code sample
 ^^^^^^^^^^^
@@ -172,6 +175,8 @@ Create estimators for imported models by using the `bigframes.ml.imported module
   to import Open Neural Network Exchange (ONNX) models.
 * Use the `TensorFlowModel class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.imported.TensorFlowModel>`_
   to import TensorFlow models.
+* Use the `XGBoostModel class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.imported.XGBoostModel>`_
+  to import XGBoostModel models.
 
 **Linear models**
 
@@ -189,6 +194,8 @@ Create estimators for linear models by using the `bigframes.ml.linear_model modu
 
 Create estimators for LLMs by using the `bigframes.ml.llm module <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm>`_.
 
+* Use the `GeminiTextGenerator class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator>`_ to create Gemini text generator models. Use these models
+  for text generation tasks.
 * Use the `PaLM2TextGenerator class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.PaLM2TextGenerator>`_ to create PaLM2 text generator models. Use these models
   for text generation tasks.
 * Use the `PaLM2TextEmbeddingGenerator class <https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.PaLM2TextEmbeddingGenerator>`_ to create PaLM2 text embedding generator models.
@@ -283,9 +290,6 @@ created the function. For easy identification, the names of the functions
 created by BigQuery DataFrames are prefixed by ``bigframes``.
 
 **Requirements**
-
-BigQuery DataFrames uses the ``gcloud`` command-line interface internally,
-so you must run ``gcloud auth login`` before using remote functions.
 
 To use BigQuery DataFrames remote functions, you must enable the following APIs:
 

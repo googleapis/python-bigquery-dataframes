@@ -45,6 +45,7 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
         "RANDOM_FOREST_CLASSIFIER": ensemble.RandomForestClassifier,
         "TENSORFLOW": imported.TensorFlowModel,
         "ONNX": imported.ONNXModel,
+        "XGBOOST": imported.XGBoostModel,
     }
 )
 
@@ -54,6 +55,7 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._TEXT_GENERATOR_BISON_32K_ENDPOINT: llm.PaLM2TextGenerator,
         llm._EMBEDDING_GENERATOR_GECKO_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
         llm._EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
+        llm._GEMINI_PRO_ENDPOINT: llm.GeminiTextGenerator,
     }
 )
 
@@ -72,6 +74,7 @@ def from_bq(
     ensemble.RandomForestClassifier,
     imported.TensorFlowModel,
     imported.ONNXModel,
+    imported.XGBoostModel,
     llm.PaLM2TextGenerator,
     llm.PaLM2TextEmbeddingGenerator,
     pipeline.Pipeline,
