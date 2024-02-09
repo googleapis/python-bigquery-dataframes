@@ -724,17 +724,17 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     elif x.type() != ibis_dtypes.timestamp:
         # The default unit is set to "ns" (nanoseconds) for consistency
         # with pandas, where "ns" is the default unit for datetime operations.
-        unit = op.unit if op.unit is not None else "ns"
+        unit = op.unit or "ns"
         if unit not in UNIT_TO_US_CONVERSION_FACTORS:
             raise ValueError(f"Cannot convert input with unit '{unit}'.")
         x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
         x_converted = x_converted.cast(ibis_dtypes.int64)
+
         # Note: Due to an issue where casting directly to a timestamp
         # without a timezone does not work, we first cast to UTC. This
         # approach appears to bypass a potential bug in Ibis's cast function,
         # allowing for subsequent casting to a timestamp type without timezone
         # information. Further investigation is needed to confirm this behavior.
-
         x = x_converted.to_timestamp(unit="us").cast(
             ibis_dtypes.Timestamp(timezone="UTC")
         )
