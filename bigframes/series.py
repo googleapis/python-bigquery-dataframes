@@ -58,6 +58,12 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
+_remote_function_recommendation_message = (
+    "Your functions could not be applied directly to the Series."
+    " Try converting it to a remote function."
+)
+
+
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
     def __init__(self, *args, **kwargs):
@@ -1222,7 +1228,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
 
         if not hasattr(func, "bigframes_remote_function"):
-            return func(self)
+            try:
+                return func(self)
+            except Exception as ex:
+                # This could happen if any of the operators in func is not
+                # supported on a Series. Let's guide the customer to use a
+                # remote function instead
+                if hasattr(ex, "message"):
+                    ex.message += "\n{_remote_function_recommendation_message}"
+                raise
 
         reprojected_series = Series(self._block._force_reproject())
         return reprojected_series._apply_unary_op(

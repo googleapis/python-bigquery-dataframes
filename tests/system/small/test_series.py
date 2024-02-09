@@ -3090,35 +3090,28 @@ def test_series_iter(
 
 
 @pytest.mark.parametrize(
-    ("lambda_",),
+    (
+        "col",
+        "lambda_",
+    ),
     [
-        pytest.param(lambda x: x * x + x + 1),
-        pytest.param(
-            lambda x: f"I got {x}",
-            marks=pytest.mark.xfail(
-                raises=AttributeError,
-            ),
-        ),
-        pytest.param(
-            {1: 2, 3: 4},
-            marks=pytest.mark.xfail(
-                raises=ValueError,
-            ),
-        ),
+        pytest.param("int64_col", lambda x: x * x + x + 1),
+        pytest.param("int64_col", lambda x: x % 2 == 1),
+        pytest.param("string_col", lambda x: x + "_suffix"),
     ],
     ids=[
-        "lambda_arithmatic",
-        "lambda_arbitrary",
-        "not_lambda",
+        "lambda_int_int",
+        "lambda_int_bool",
+        "lambda_str_str",
     ],
 )
-def test_apply_lambda(scalars_dfs, lambda_):
+def test_apply_lambda(scalars_dfs, col, lambda_):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    bf_col = scalars_df["int64_col"]
+    bf_col = scalars_df[col]
     bf_result = bf_col.apply(lambda_).to_pandas()
 
-    pd_col = scalars_pandas_df["int64_col"]
+    pd_col = scalars_pandas_df[col]
     pd_result = pd_col.apply(lambda_)
 
     # ignore dtype check, which are Int64 and object respectively
@@ -3164,3 +3157,24 @@ def test_apply_simple_udf(scalars_dfs):
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("col", "lambda_", "exception"),
+    [
+        pytest.param("int64_col", {1: 2, 3: 4}, ValueError),
+        pytest.param("int64_col", numpy.square, TypeError),
+        pytest.param("string_col", lambda x: x.capitalize(), AttributeError),
+    ],
+    ids=[
+        "not_callable",
+        "numpy_ufunc",
+        "custom_lambda",
+    ],
+)
+def test_apply_not_supported(scalars_dfs, col, lambda_, exception):
+    scalars_df, _ = scalars_dfs
+
+    bf_col = scalars_df[col]
+    with pytest.raises(exception):
+        bf_col.apply(lambda_)
