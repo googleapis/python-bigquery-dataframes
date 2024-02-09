@@ -671,7 +671,6 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
         x = x.to_timestamp(op.format) if op.format else timestamp(x)
-        print(x)
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
         return x
     elif x.type() != ibis_dtypes.timestamp:
