@@ -7,7 +7,8 @@ from typing import Any, Iterable, Literal, Optional, Tuple, Union
 
 from bigframes import constants
 
-FilterType = Tuple[str, Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">"], Any]
+FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">"]
+FilterType = Tuple[str, FilterOps, Any]
 FiltersType = Iterable[Union[FilterType, Iterable[FilterType]]]
 
 
@@ -51,6 +52,9 @@ class GBQIOMixin:
         If the input is a table ID:
 
             >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
+
+        Read table path with wildcard suffix and filters:
+            >>> df = bpd.read_gbq_table("bigquery-public-data.noaa_gsod.gsod19*", filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")])
 
         Preserve ordering in a query input.
 
@@ -96,6 +100,8 @@ class GBQIOMixin:
                 A SQL string to be executed or a BigQuery table to be read. The
                 table must be specified in the format of
                 `project.dataset.tablename` or `dataset.tablename`.
+                Can also take wildcard table name, such as `project.dataset.table_prefix*`.
+                In tha case, will read all the matched table as one DataFrame.
             index_col (Iterable[str] or str):
                 Name of result column(s) to use for index in results DataFrame.
             columns (Iterable[str]):
@@ -112,6 +118,9 @@ class GBQIOMixin:
                 through an OR operation. A single Iterable of tuples can also
                 be used, meaning that no OR operation between set of filters
                 is to be conducted.
+                If using wildcard table suffix in query_or_table, can specify
+                '_table_suffix' pseudo column to filter the tables to be read
+                into the DataFrame.
             use_cache (bool, default True):
                 Whether to cache the query inputs. Default to True.
             col_order (Iterable[str]):
