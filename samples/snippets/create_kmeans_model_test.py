@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ def test_kmeans_sample(project_id: str):
     cluster_model = KMeans(n_clusters=4)
     cluster_model.fit(stationstats)
     cluster_model.to_gbq(
-        your_gcp_project_id,  # For example: "bqml_tutorial.sample_model"
+        "bqml_tutrial.sample_model",  # For example: "bqml_tutorial.sample_model"
         replace=True,
     )
     # [END bigquery_dataframes_bqml_kmeans_fit]
@@ -127,7 +127,7 @@ def test_kmeans_sample(project_id: str):
     # from BigQuery, but you could also use the `cluster_model` object from
     # previous steps.
     cluster_model = bpd.read_gbq_model(
-        your_gcp_project_id,
+        "bqml_tutorial.sample_model",
         # For example: "bqml_tutorial.london_station_clusters",
     )
 
