@@ -1237,9 +1237,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             # It is not a remote function
             # Then it must be a vectorized function that applies to the Series
             # as a whole
-            assert (
-                not by_row
-            ), "A vectorized non-remote function can be provided only with by_row=False"
+            if by_row:
+                raise ValueError(
+                    "A vectorized non-remote function can be provided only with by_row=False"
+                )
 
             try:
                 return func(self)
