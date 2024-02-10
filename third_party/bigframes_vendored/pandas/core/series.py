@@ -2780,8 +2780,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    Caroline
             dtype: string
 
-        Simple lambdas or python functions can be used as long as they only
-        perform operations supported on a Series.
+        Simple vectorized (i.e. they only perform operations supported on a
+        Series) lambdas or python functions can be used directly.
 
             >>> nums = bpd.Series([1, 2, 3, 4], name="nums")
             >>> nums

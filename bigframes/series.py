@@ -1239,7 +1239,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             # as a whole
             if by_row:
                 raise ValueError(
-                    "A vectorized non-remote function can be provided only with by_row=False"
+                    "A vectorized non-remote function can be provided only with by_row=False."
+                    " For element-wise operation it must be a remote function."
                 )
 
             try:
@@ -1361,7 +1362,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def mask(self, cond, other=None) -> Series:
         if callable(cond):
-            cond = self.apply(cond)
+            if hasattr(cond, "bigframes_remote_function"):
+                cond = self.apply(cond)
+            else:
+                # For non-remote function assume that it is applicable on Series
+                cond = self.apply(cond, by_row=False)
 
         if not isinstance(cond, Series):
             raise TypeError(

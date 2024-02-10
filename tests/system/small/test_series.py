@@ -2580,10 +2580,10 @@ def test_mask_lambda(scalars_dfs, lambda_):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_col = scalars_df["int64_col"]
-    bf_result = bf_col.apply(lambda_).to_pandas()
+    bf_result = bf_col.mask(lambda_).to_pandas()
 
     pd_col = scalars_pandas_df["int64_col"]
-    pd_result = pd_col.apply(lambda_)
+    pd_result = pd_col.mask(lambda_)
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -2596,10 +2596,10 @@ def test_mask_simple_udf(scalars_dfs):
         return x < 1000000
 
     bf_col = scalars_df["int64_col"]
-    bf_result = bf_col.apply(foo).to_pandas()
+    bf_result = bf_col.mask(foo).to_pandas()
 
     pd_col = scalars_pandas_df["int64_col"]
-    pd_result = pd_col.apply(foo)
+    pd_result = pd_col.mask(foo)
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
