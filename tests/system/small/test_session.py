@@ -335,7 +335,7 @@ def test_read_gbq_wildcard(session: bigframes.Session):
 def test_read_gbq_wildcard_with_filter(session: bigframes.Session):
     df = session.read_gbq(
         "bigquery-public-data.noaa_gsod.gsod19*",
-        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],
+        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],  # type: ignore
     )
     assert df.shape == (348485, 32)
 
@@ -348,7 +348,7 @@ def test_read_gbq_table_wildcard(session: bigframes.Session):
 def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
     df = session.read_gbq_table(
         "bigquery-public-data.noaa_gsod.gsod19*",
-        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],
+        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],  # type: ignore
     )
     assert df.shape == (348485, 32)
 
