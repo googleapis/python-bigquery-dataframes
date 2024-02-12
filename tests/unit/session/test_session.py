@@ -125,7 +125,7 @@ def test_session_init_fails_with_no_project():
             "test_table",
             [],
             [("date_col", ">", "2022-10-20")],
-            "SELECT * FROM test_table AS sub WHERE `date_col` > '2022-10-20'",
+            "SELECT * FROM `test_table` AS sub WHERE `date_col` > '2022-10-20'",
             id="table_input",
         ),
         pytest.param(
@@ -136,7 +136,7 @@ def test_session_init_fails_with_no_project():
                 (("string_col", "in", ["Hello, World!", "こんにちは"]),),
             ],
             (
-                "SELECT `row_index`, `string_col` FROM test_table AS sub WHERE "
+                "SELECT `row_index`, `string_col` FROM `test_table` AS sub WHERE "
                 "`rowindex` NOT IN (0, 6) OR `string_col` IN ('Hello, World!', "
                 "'こんにちは')"
             ),

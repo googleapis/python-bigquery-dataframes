@@ -343,9 +343,9 @@ class Session(
 
                     if operator_str in ["IN", "NOT IN"]:
                         value_list = ", ".join([repr(v) for v in value])
-                        expression = f"`{column}` {operator} ({value_list})"
+                        expression = f"`{column}` {operator_str} ({value_list})"
                     else:
-                        expression = f"`{column}` {operator} {repr(value)}"
+                        expression = f"`{column}` {operator_str} {repr(value)}"
                     and_expressions.append(expression)
 
                 or_expressions.append(" AND ".join(and_expressions))
