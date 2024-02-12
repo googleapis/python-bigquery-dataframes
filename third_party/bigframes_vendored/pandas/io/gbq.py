@@ -9,7 +9,7 @@ from bigframes import constants
 
 FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">"]
 FilterType = Tuple[str, FilterOps, Any]
-FiltersType = Iterable[Union[FilterType, Iterable[FilterType]]]
+FiltersType = Union[Iterable[FilterType], Iterable[Iterable[FilterType]]]
 
 
 class GBQIOMixin:
@@ -110,7 +110,7 @@ class GBQIOMixin:
             max_results (Optional[int], default None):
                 If set, limit the maximum number of rows to fetch from the
                 query results.
-            filters (Iterable[Union[Tuple, Iterable[Tuple]]], default ()): To
+            filters (Union[Iterable[FilterType], Iterable[Iterable[FilterType]]], default ()): To
                 filter out data. Filter syntax: [[(column, op, val), …],…] where
                 op is [==, >, >=, <, <=, !=, in, not in]. The innermost tuples
                 are transposed into a set of filters applied through an AND

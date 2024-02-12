@@ -311,6 +311,12 @@ class Session(
                 "!=": "!=",
             }
 
+            # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
+            if isinstance(filters[0], tuple) and (
+                len(filters[0]) == 0 or not isinstance(list(filters[0])[0], tuple)
+            ):
+                filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
+
             or_expressions = []
             for group in filters:
                 if not isinstance(group, Iterable):
