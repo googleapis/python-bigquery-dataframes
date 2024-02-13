@@ -69,6 +69,18 @@ class BaseBqml:
         type: Literal["EUCLIDEAN", "MANHATTAN", "COSINE"],
         name: str,
     ) -> bpd.DataFrame:
+        """Calculate ML.DISTANCE from DataFrame inputs.
+
+        Args:
+            x:
+                input DataFrame
+            y:
+                input DataFrame
+            type:
+                Distance types, accept values are  "EUCLIDEAN", "MANHATTAN", "COSINE".
+            name:
+                name of the output result column
+        """
         assert len(x.columns) == 1 and len(y.columns) == 1
 
         input_data = x._cached().join(y._cached(), how="outer")

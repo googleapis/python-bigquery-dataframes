@@ -7,8 +7,11 @@
 #          Joel Nothman <joel.nothman@gmail.com>
 # License: BSD 3 clause
 
+from bigframes import constants
+import bigframes.pandas as bpd
 
-def cosine_similarity(X, Y):
+
+def cosine_similarity(X, Y) -> bpd.DataFrame:
     """Compute cosine similarity between samples in X and Y.
 
     Cosine similarity, or the cosine kernel, computes similarity as the
@@ -23,5 +26,6 @@ def cosine_similarity(X, Y):
             Input data. X and Y are mapped by indexes, must have the same index.
 
     Returns:
-        DataFrame with columns of X, Y and cosine_similarity
+        bigframes.dataframe.DataFrame: DataFrame with columns of X, Y and cosine_similarity
     """
+    raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
