@@ -1017,6 +1017,27 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def combine_first(self, other: DataFrame):
         return self._apply_dataframe_binop(other, ops.fillna_op)
 
+    def corr(self, method="pearson", min_periods=None, numeric_only=False) -> DataFrame:
+        if method != "pearson":
+            raise NotImplementedError(
+                f"Only Pearson correlation is currently supported. {constants.FEEDBACK_LINK}"
+            )
+        if min_periods:
+            raise NotImplementedError(
+                f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
+            )
+        # TODO(chelsealin): Support non-numeric columns correlation.
+        if not numeric_only:
+            raise NotImplementedError(
+                f"Only numeric columns' correlation is currently supported. {constants.FEEDBACK_LINK}"
+            )
+        if len(self.columns) > 30:
+            raise NotImplementedError(
+                f"Only work with dataframes containing fewer than 30 columns. Current: {self.columns}. {constants.FEEDBACK_LINK}"
+            )
+        # TODO(chelsealin): Support multi-index dataframes' correlation.
+        return DataFrame(self._block.corr())
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,

@@ -1089,6 +1089,39 @@ class Block:
         labels = self._get_labels_for_columns(column_ids)
         return Block(expr, column_labels=labels, index_columns=[label_col_id])
 
+    def corr(self):
+        """Returns a block object to compute the self-correlation on this block."""
+        aggregations = [
+            (
+                ex.BinaryAggregation(
+                    agg_ops.CorrOp(), ex.free_var(left_col), ex.free_var(right_col)
+                ),
+                f"{left_col}-{right_col}",
+            )
+            for left_col in self.value_columns
+            for right_col in self.value_columns
+        ]
+        expr = self.expr.aggregate(aggregations)
+
+        label_col_id = guid.generate_guid()
+        input_count = len(self.value_columns)
+        unpivot_columns = tuple(
+            (
+                guid.generate_guid(),
+                tuple(expr.column_ids[input_count * i : input_count * (i + 1)]),
+            )
+            for i in range(input_count)
+        )
+        labels = self._get_labels_for_columns(self.value_columns)
+
+        expr = expr.unpivot(
+            row_labels=labels,
+            index_col_ids=[label_col_id],
+            unpivot_columns=unpivot_columns,
+        )
+
+        return Block(expr, column_labels=labels, index_columns=[label_col_id])
+
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
         Gets a standard set of stats to preemptively fetch for a column if
