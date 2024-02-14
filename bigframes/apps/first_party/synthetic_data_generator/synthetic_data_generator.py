@@ -54,7 +54,9 @@ class SyntheticDataGenerator:
     def __init__(
         self,
         model_connection=None,
-        model_name: Literal["text-bison", "text-bison-32k"] = "text-bison",
+        model_name: Literal[
+            "text-bison", "text-bison-32k", "gemini-pro"
+        ] = "text-bison-32k",
     ) -> None:
         self._interactive = is_notebook()
 
@@ -97,9 +99,10 @@ class SyntheticDataGenerator:
         orig_df,
         num_rows=None,
         modify_schema=False,
-        engine="PaLM2",
-        use_string_column_values=False,
+        engine="BQ",
+        use_column_values=False,
         interactive=True,
+        use_string_column_values=False,
     ):
         """
         Generates synthetic data based on an original dataframe.
@@ -112,22 +115,32 @@ class SyntheticDataGenerator:
             modify_schema (bool):
                 If True, allows modification of the schema. Default is False.
             engine (str):
-                The engine to use for generating data. Defaults to 'PaLM2', choices are ['PaLM2', 'Gretel'].
-            use_string_column_values (bool):
-                If True, uses sample string values for the columns generation.
+                The engine to use for generating data. Defaults to 'PaLM2', choices are ['BQ', 'Gretel'].
+            use_column_values (bool):
+                If True, uses sample values for the columns generation.
             interactive (bool):
                 If True, enables interactive mode for data generation, allowing user input for schema definition.
                 Defaults to True. Automatically set to False if not running in a Jupyter notebook environment.
+            use_string_column_values (bool):
+                If True, uses sample string values for the columns generation.
         """
         engine = engine.lower()
         self._interactive = is_notebook() and interactive
 
-        if engine == "palm2":
+        if use_column_values is not False and use_string_column_values is not False:
+            raise ValueError(
+                "use_column_values and use_string_column_values can't be set at the same time."
+            )
+
+        if use_string_column_values:
+            use_column_values = "string"
+
+        if engine == "bq":
             self._generate_dataframe(
                 orig_df=orig_df,
                 num_rows=num_rows,
                 modify_schema=modify_schema,
-                use_string_column_values=use_string_column_values,
+                use_column_values=use_column_values,
             )
         elif engine == "gretel":
             data_generator = GretelSyntheticDataEngine()
@@ -172,8 +185,9 @@ class SyntheticDataGenerator:
         num_rows=None,
         modify_schema=False,
         correlated_column=None,
-        use_string_column_values=False,
+        use_column_values=False,
         interactive=True,
+        use_string_column_values=False,
     ):
         """
         Generates synthetic data based on an original dataframe and correlates it with a specific column.
@@ -187,12 +201,23 @@ class SyntheticDataGenerator:
                 If True, allows modification of the schema. Default is False.
             correlated_column (Optional[pd.Series]):
                 The column to correlate the synthetic data with. Must be provided.
-            use_string_column_values (bool):
-                If True, uses sample string values for the columns generation.
+            use_column_values (bool):
+                If True, uses sample values for the columns generation.
             interactive (bool):
                 If True, enables interactive mode for data generation, allowing user input for schema definition.
                 Defaults to True. Automatically set to False if not running in a Jupyter notebook environment.
+            use_string_column_values (bool):
+                If True, uses sample string values for the columns generation.
         """
+
+        if use_column_values is not False and use_string_column_values is not False:
+            raise ValueError(
+                "use_column_values and use_string_column_values can't be set at the same time."
+            )
+
+        if use_string_column_values:
+            use_column_values = "string"
+
         if correlated_column is None:
             raise ValueError("Please provide a correlated column")
 
@@ -202,7 +227,7 @@ class SyntheticDataGenerator:
             num_rows=num_rows,
             modify_schema=modify_schema,
             col_for_join=correlated_column,
-            use_string_column_values=use_string_column_values,
+            use_column_values=use_column_values,
         )
 
     def _generate_dataframe(
@@ -212,7 +237,7 @@ class SyntheticDataGenerator:
         num_rows=None,
         modify_schema=False,
         col_for_join=None,
-        use_string_column_values=False,
+        use_column_values=False,
     ):
         self.output = widgets.Output()
         self.col_for_join = col_for_join
@@ -224,7 +249,7 @@ class SyntheticDataGenerator:
                 orig_df,
                 num_rows,
                 modify_schema,
-                use_string_column_values=use_string_column_values,
+                use_column_values=use_column_values,
             )
         else:
             self._display_set_schema_interface(
@@ -232,7 +257,11 @@ class SyntheticDataGenerator:
             )
 
     def _init_with_dataframe(
-        self, df, num_rows, modify_schema, use_string_column_values=False
+        self,
+        df,
+        num_rows,
+        modify_schema,
+        use_column_values=False,
     ):
         if num_rows is None:
             num_rows = 1000
@@ -243,12 +272,16 @@ class SyntheticDataGenerator:
 
             with output:
                 description = summarize_df_to_dict(
-                    df, num_rows, use_string_column_values=use_string_column_values
+                    df,
+                    num_rows,
+                    use_column_values=use_column_values,
                 )
             output.close()
         else:
             description = summarize_df_to_dict(
-                df, num_rows, use_string_column_values=use_string_column_values
+                df,
+                num_rows,
+                use_column_values=use_column_values,
             )
 
         self._display_set_schema_interface(

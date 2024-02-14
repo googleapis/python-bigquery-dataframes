@@ -20,14 +20,39 @@ from bigframes.apps.first_party.synthetic_data_generator.synthetic_data_generato
 import bigframes.pandas as bpd
 
 
-@pytest.mark.parametrize("num_rows", [100, 10001])
-def test_generation_from_table(scalars_df_index, num_rows):
-    scalars_df_index = scalars_df_index[["float64_col", "int64_col", "int64_too"]]
+@pytest.mark.parametrize(
+    "num_rows, use_column_values, use_string_column_values",
+    [
+        (100, False, False),
+        (100, False, True),
+        (100, True, False),
+        (100, ["float64_col"], False),
+        (10001, False, False),
+    ],
+)
+def test_generation_from_table(
+    scalars_df_index, num_rows, use_column_values, use_string_column_values
+):
+    scalars_df_index = scalars_df_index[
+        [
+            "bool_col",
+            "datetime_col",
+            "int64_col",
+            "float64_col",
+            "string_col",
+            "timestamp_col",
+        ]
+    ]
     df_gen = SyntheticDataGenerator()
-    df_gen.generate_synthetic_data_from_table(scalars_df_index, num_rows=num_rows)
+    df_gen.generate_synthetic_data_from_table(
+        scalars_df_index,
+        num_rows=num_rows,
+        use_column_values=use_column_values,
+        use_string_column_values=use_string_column_values,
+    )
 
     assert len(df_gen.generated_df) == num_rows
-    assert len(df_gen.generated_df.columns) == 3
+    assert len(df_gen.generated_df.columns) == 6
 
 
 @pytest.mark.parametrize("num_rows", [100, 10001])

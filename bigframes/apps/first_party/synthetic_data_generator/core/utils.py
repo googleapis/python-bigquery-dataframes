@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import timezone
+from typing import List
+
+import pandas as pd
+
 import bigframes
 import bigframes.pandas as bpd
 
 
-def summarize_df_to_dict(df, num_rows, use_string_column_values=False):
+def summarize_df_to_dict(df, num_rows, use_column_values=False):
     """
     Summarizes a DataFrame into a dictionary format.
 
@@ -25,8 +30,8 @@ def summarize_df_to_dict(df, num_rows, use_string_column_values=False):
             The DataFrame to summarize.
         num_rows (int):
             The number of rows to be used in the synthetic data generation.
-        use_string_column_values (bool, optional):
-            If True, includes sample string values from each column in the description.
+        use_string_column_values (bool, str, list[str], optional):
+            If True, includes sample values in the description.
             Defaults to False.
 
     Returns:
@@ -41,7 +46,19 @@ def summarize_df_to_dict(df, num_rows, use_string_column_values=False):
         stats = df_numeric.describe().to_pandas()
 
     columns = []
-    sampled_df = None
+    sampled_df = df.sample(10).dropna().to_pandas() if use_column_values else None
+
+    if isinstance(use_column_values, List) and not all(
+        column in sampled_df.columns for column in use_column_values
+    ):
+        missing_cols = [
+            column for column in use_column_values if column not in sampled_df.columns
+        ]
+        raise ValueError(
+            f"Columns {missing_cols} specified in 'use_column_values' do not exist in the DataFrame. "
+            "Check the 'use_column_values' list for accuracy."
+        )
+
     dtype_mapping = {
         "timestamp[us, tz=UTC][pyarrow]": "pd.Timestamp UTC",
         "timestamp[us][pyarrow]": "pd.Timestamp",
@@ -62,27 +79,59 @@ def summarize_df_to_dict(df, num_rows, use_string_column_values=False):
             column_desc = ", ".join(
                 [f"{stat}: {value:.2f}" for stat, value in column_desc_items]
             )
+            column_desc += _get_column_sample(
+                sampled_df, col, use_column_values, has_precedent=True
+            )
         elif str(df[col].dtype).startswith("timestamp"):
             col_min = df[col].min()
             col_max = df[col].max()
             column_desc = f"random in range: {col_min} to {col_max}, convert time provided to datetime type first"
             if "UTC" in str(df[col].dtype):
-                column_desc += ", use faker with tzinfo=pytz.utc"
-        elif use_string_column_values:
-            if sampled_df is None:
-                sampled_df = df.sample(10).to_pandas()
-            uniq_vals = sampled_df[col].unique()
-            column_desc = (
-                "has values like: " + ", ".join(uniq_vals) if uniq_vals else "None"
+                column_desc += ", this column should be with UTC timezone"
+            else:
+                column_desc += ", this column should be with no timezone"
+            column_desc += _get_column_sample(
+                sampled_df, col, use_column_values, has_precedent=True
             )
         else:
-            column_desc = "None"
+            column_desc = _get_column_sample(sampled_df, col, use_column_values)
 
         columns.append((column_name, column_dtype, column_desc))
 
     description = {"num_rows": num_rows, "columns": columns}
 
     return description
+
+
+def _get_column_sample(
+    sampled_df: bpd.DataFrame, col: str, use_column_values, has_precedent=False
+):
+    if (
+        use_column_values == False
+        or (use_column_values == "string" and sampled_df[col].dtype != "string")
+        or (isinstance(use_column_values, List) and col not in use_column_values)
+    ):
+        return "" if has_precedent else "None"
+
+    if (
+        not isinstance(use_column_values, (bool, List))
+        and use_column_values != "string"
+    ):
+        raise ValueError(
+            f"Invalid 'use_column_values' argument value: {use_column_values}. "
+            "Expected 'True', 'False', or a list of valid column names."
+        )
+
+    uniq_vals = sampled_df[col].unique()
+    column_desc = (
+        (", " if has_precedent else "")
+        + "has values like: "
+        + ", ".join([repr(uniq_val) for uniq_val in uniq_vals])
+        + ", use random_element."
+        if uniq_vals
+        else "None"
+    )
+    return column_desc
 
 
 def _split_non_numeric(df, keep_bool=True):

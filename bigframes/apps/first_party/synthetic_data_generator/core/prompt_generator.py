@@ -21,13 +21,35 @@ Write python code to generate a pandas dataframe based on the requirements:
 {columns_info}
 
 Note:
-  - Return the code only.
+  - Return the code only, no additional texts or comments.
+  - Start with import statements for required libraries. Specifically, include:
+    - "import pandas as pd"
+    - "from faker import Faker"
+    - "from datetime import datetime, timezone" (if using 'fake.date_time_between' for datetime columns).
   - After all import statements, declare the variable with 'num_rows = {num_rows}'.
   - Use the 'num_rows' variable to determine the number of rows in the dataframe.
   - The final dataframe should be named 'result_df'.
   - Try to use the faker library for non-numeric columns.
   - Please respect the column name semantics and the type.
+  - If a column description mentions "has values like", DO NOT use Faker for this column. Instead, directly generate random data from those provided values and similar values to respect the column's specifics.
   - Do not print.
+  - Avoid using 'fake.add_provider' for datetime. For generating random datetime data:
+    - Do not use 'np.random.choice' and 'pd.date_range'.
+    - IMPORTANT: For datetime columns, ALWAYS use 'datetime' objects for 'start_date' and 'end_date' with 'fake.date_time_between'. DO NOT provide these as strings.
+    - An example for 'fake.date_time_between': fake.date_time_between(datetime(2000, 1, 1), datetime(2020, 12, 31)). 
+    - Do not use 'datetime.strptime' in conjunction with 'fake.date_time_between', 'fake.date_time_between' already returns a datetime object.
+
+  Common Faker Methods for Generating Multiple Values:
+    - Integers:
+      - "[faker.random_int(min=0, max=1000) for _ in range(num_rows)]" generates a list of random integers between min and max for each row.
+    - Floats:
+      - "[faker.pyfloat(left_digits=None, right_digits=None, positive=False, min_value=None, max_value=None) for _ in range(num_rows)]" generates a list of random floats for each row. Parameters can specify the number of digits on each side of the decimal, and whether it's positive.
+    - Strings:
+      - "[faker.name() for _ in range(num_rows)]" generates a list of random names, one for each row.
+      - "[faker.word() for _ in range(num_rows)]" generates a list of random words, one for each row.
+      - "[faker.sentence() for _ in range(num_rows)]" generates a list of random sentences, one for each row.
+    - Random Element from a List:
+      - "[faker.random_element(elements=('element1', 'element2', 'element3')) for _ in range(num_rows)]" generates a list of random elements selected from the provided tuple.
 """
 
 
@@ -50,7 +72,7 @@ class PromptGenerator:
         else:
             self._num_rows = 100
             self._columns = []
-        
+
         self._columns_per_prompt = 20
 
     def _validate_dataframe_info(
@@ -122,7 +144,7 @@ class PromptGenerator:
         """
         return self._columns
 
-    def generate_prompts(self) -> [str]:
+    def generate_prompts(self) -> List[str]:
         """
         Generates prompts for creating a pandas DataFrame based on number of rows and column information.
         Splits the prompts if the number of columns exceeds a specified number (default 30).
@@ -132,7 +154,9 @@ class PromptGenerator:
         """
         prompts = []
         num_columns = len(self._columns)
-        num_prompts = (num_columns + self._columns_per_prompt - 1) // self._columns_per_prompt
+        num_prompts = (
+            num_columns + self._columns_per_prompt - 1
+        ) // self._columns_per_prompt
 
         for i in range(num_prompts):
             start_index = i * self._columns_per_prompt

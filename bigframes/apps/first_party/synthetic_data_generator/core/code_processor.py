@@ -20,9 +20,11 @@ from typing import List
 import pandas as pd
 
 from bigframes.ml.llm import (
+    _GEMINI_PRO_ENDPOINT,
     _TEXT_GENERATOR_BISON_32K_ENDPOINT,
     _TEXT_GENERATOR_BISON_ENDPOINT,
     _TEXT_GENERATOR_ENDPOINTS,
+    GeminiTextGenerator,
     PaLM2TextGenerator,
 )
 import bigframes.pandas as bpd
@@ -49,14 +51,13 @@ class CodeProcessor:
         model_connection=None,
         model_name=None,
     ):
-        self.model_name = (
-            model_name
-            if model_name in _TEXT_GENERATOR_ENDPOINTS
-            else _TEXT_GENERATOR_BISON_32K_ENDPOINT
-        )
+        if model_name in _TEXT_GENERATOR_ENDPOINTS:
+            self.model_name = model_name
+        else:
+            self.model_name = _GEMINI_PRO_ENDPOINT
         self._model = None
         self._max_output_token = (
-            1024 if model_name == _TEXT_GENERATOR_BISON_ENDPOINT else 8196
+            1024 if model_name == _TEXT_GENERATOR_BISON_ENDPOINT else 8192
         )
         self._prompts = prompts
         self._col_for_join = col_for_join
@@ -70,11 +71,17 @@ class CodeProcessor:
         temperature = 0
         if self._model is None:
             session = bpd.get_global_session()
-            self._model = PaLM2TextGenerator(
-                session=session,
-                connection_name=self._connection,
-                model_name=self.model_name,
-            )
+            if self.model_name == _GEMINI_PRO_ENDPOINT:
+                self._model = GeminiTextGenerator(
+                    session=session,
+                    connection_name=self._connection,
+                )
+            else:
+                self._model = PaLM2TextGenerator(
+                    session=session,
+                    connection_name=self._connection,
+                    model_name=self.model_name,
+                )
 
         for idx, prompt in enumerate(prompts):
             for i in range(retries + 1):
@@ -94,6 +101,7 @@ class CodeProcessor:
                 )
 
                 code = code.replace("```python", "", 1)
+                code = code.lstrip()
                 code = code.rsplit("```", 1)[0]
                 code = self._ensure_imports(code)
 
@@ -117,7 +125,7 @@ class CodeProcessor:
                         temperature = 0
                     last_error = error
                     last_code = code
-                    prompt = self._update_prompt_on_error(error, code, prompt_idx = idx)
+                    prompt = self._update_prompt_on_error(error, code, prompt_idx=idx)
 
                     print(
                         f"[Info] The generated code has errors, attempting to regenerate.\n error_message = {error}"
@@ -459,5 +467,4 @@ class CodeProcessor:
             + "\n\nError Message: "
             + error
         )
-        print(updated_prompt)
         return updated_prompt
