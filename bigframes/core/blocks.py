@@ -1929,7 +1929,7 @@ class BlockIndexProperties:
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
         index = df.index
-        index.names = list(self._block._index_labels)
+        index.names = list(self._block._index_labels)  # type:ignore
         return index
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
