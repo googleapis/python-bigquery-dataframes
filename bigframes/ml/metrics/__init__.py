@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.21.0"
+from bigframes.ml.metrics import pairwise
+from bigframes.ml.metrics._metrics import (
+    accuracy_score,
+    auc,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
+
+__all__ = [
+    "r2_score",
+    "recall_score",
+    "accuracy_score",
+    "roc_curve",
+    "roc_auc_score",
+    "auc",
+    "confusion_matrix",
+    "precision_score",
+    "f1_score",
+    "pairwise",
+]
