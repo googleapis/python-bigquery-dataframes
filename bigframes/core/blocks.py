@@ -102,11 +102,11 @@ class Block:
     ):
         """Construct a block object, will create default index if no index columns specified."""
         index_columns = list(index_columns)
-        if index_labels:
+        if index_labels is not None:
             index_labels = list(index_labels)
             if len(index_labels) != len(index_columns):
                 raise ValueError(
-                    "'index_columns' and 'index_labels' must have equal length"
+                    f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
         if len(index_columns) == 0:
             new_index_col_id = guid.generate_guid()
@@ -1103,7 +1103,9 @@ class Block:
         ]
         expr = self.expr.aggregate(aggregations)
 
-        label_col_id = guid.generate_guid()
+        index_col_ids = [
+            guid.generate_guid() for i in range(self.column_labels.nlevels)
+        ]
         input_count = len(self.value_columns)
         unpivot_columns = tuple(
             (
@@ -1116,11 +1118,16 @@ class Block:
 
         expr = expr.unpivot(
             row_labels=labels,
-            index_col_ids=[label_col_id],
+            index_col_ids=index_col_ids,
             unpivot_columns=unpivot_columns,
         )
 
-        return Block(expr, column_labels=labels, index_columns=[label_col_id])
+        return Block(
+            expr,
+            column_labels=self.column_labels,
+            index_columns=index_col_ids,
+            index_labels=self.column_labels.names,
+        )
 
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
