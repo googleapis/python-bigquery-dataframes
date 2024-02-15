@@ -26,6 +26,7 @@ Note:
     - "import pandas as pd"
     - "from faker import Faker"
     - "from datetime import datetime, timezone" (if using 'fake.date_time_between' for datetime columns).
+  - Initialize a single instance of Faker at the beginning and use it throughout to generate data. For example, faker = Faker().
   - After all import statements, declare the variable with 'num_rows = {num_rows}'.
   - Use the 'num_rows' variable to determine the number of rows in the dataframe.
   - The final dataframe should be named 'result_df'.
