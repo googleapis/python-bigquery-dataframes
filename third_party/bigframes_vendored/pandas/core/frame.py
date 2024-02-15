@@ -2833,7 +2833,7 @@ class DataFrame(NDFrame):
                 The minimum number of observations needed to return a result.  Non-default values
                 are not yet supported, so a result will be returned for at least two observations.
             numeric_only(bool, default False):
-                Include only float, int or boolean data. - currently numeric only is supported
+                Include only float, int, boolean, decimal data.
 
         Returns:
             DataFrame:  Correlation matrix.
