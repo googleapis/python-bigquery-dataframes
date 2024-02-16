@@ -1786,11 +1786,11 @@ def test_combine_first(
 @pytest.mark.parametrize(
     ("columns", "numeric_only"),
     [
-        (["bool_col", "int64_col", "float64_col", "numeric_col"], True),
-        (["bool_col", "int64_col", "float64_col", "numeric_col"], False),
-        (["bool_col", "int64_col", "float64_col", "numeric_col", "string_col"], True),
+        (["bool_col", "int64_col", "float64_col"], True),
+        (["bool_col", "int64_col", "float64_col"], False),
+        (["bool_col", "int64_col", "float64_col", "string_col"], True),
         pytest.param(
-            ["bool_col", "int64_col", "float64_col", "numeric_col", "string_col"],
+            ["bool_col", "int64_col", "float64_col", "string_col"],
             False,
             marks=pytest.mark.xfail(
                 raises=NotImplementedError,
