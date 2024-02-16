@@ -104,17 +104,7 @@ class SeriesMethods:
             if pd_series.name is None:
                 # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
                 pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            if (
-                pd_dataframe.size < MAX_INLINE_SERIES_SIZE
-                # TODO(swast): Workaround data types limitation in inline data.
-                and not any(
-                    dt.pyarrow_dtype
-                    for dt in pd_dataframe.dtypes
-                    if isinstance(dt, pd.ArrowDtype)
-                )
-            ):
-                block = blocks.Block.from_local(pd_dataframe)
-            elif session:
+            if session:
                 block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 # Uses default global session
