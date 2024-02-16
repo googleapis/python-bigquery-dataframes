@@ -81,9 +81,8 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
         "recent-bigframes-api-2": "dataframe-__init__",
         "recent-bigframes-api-3": "dataframe-head",
         "recent-bigframes-api-4": "dataframe-__init__",
+        "recent-bigframes-api-5": "dataframe-__init__",
     }
-    assert labels is not None
-    assert len(labels) == 7
     assert labels == expected_dict
 
 
