@@ -30,10 +30,6 @@ import bigframes.series as series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_SERIES_SIZE = 5000
-
 
 class SeriesMethods:
     def __init__(
