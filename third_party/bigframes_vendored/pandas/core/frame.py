@@ -2818,7 +2818,6 @@ class DataFrame(NDFrame):
             ...                    'B': [400, 500, 600],
             ...                    'C': [0.8, 0.4, 0.9]})
             >>> df.corr(numeric_only=True)
-            >>> df
                       A         B         C
             A       1.0       1.0  0.188982
             B       1.0       1.0  0.188982
