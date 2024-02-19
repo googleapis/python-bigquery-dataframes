@@ -15,7 +15,6 @@
 import pandas as pd
 import pytest
 
-import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
 
 
