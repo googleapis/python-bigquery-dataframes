@@ -52,15 +52,30 @@ def test_create_single_timeseries(random_model_id):
     )
 
     # Inspect the evaluation metrics of all evaluated models.
-    # when ruuning this function use same model, dataset, model name (str)
+    # when running this function use same model, dataset, model name (str)
     evaluation = ga_arima_model.summary(
-        f'''
-        SELECT *   
-        FROM ML.ARIMA_EVALUATE(MODEL `{your_model_id}`)
-        '''
+        show_all_candidate_models = False,
         )
     
     print(evaluation)
+
     # Inspect the coefficients of your model
-    
-    
+    f'''
+    SELECT *
+    FROM ML.ARIMA_COEFFICIENTS(MODEL `{your_model_id}`)
+    '''
+    evaluation.ML.ARIMA_COEFFICIENTS()
+
+    # Use your model to forecast the time series
+    #standardSQL
+    your_model_id.forecast()
+
+    # Explain and visualize the forecasting results
+    f'''
+    SELECT *
+    FROM ML.EXPLAIN_FORECAST(
+    MODEL `{your_model_id}`,
+    STRUCT(
+    [horizon AS horizon]
+    [, confidence_level AS confidence_level]))
+    '''
