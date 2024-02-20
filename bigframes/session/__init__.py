@@ -891,9 +891,12 @@ class Session(
             pandas_dataframe.size < MAX_INLINE_DF_SIZE
             # TODO(swast): Workaround data types limitation in inline data.
             and not any(
-                dt.pyarrow_dtype
-                for dt in pandas_dataframe.dtypes
-                if isinstance(dt, pandas.ArrowDtype)
+                (
+                    isinstance(s.dtype, pandas.ArrowDtype)
+                    or pandas.api.types.is_list_like(s)
+                    or pandas.api.types.is_datetime64_dtype(s)
+                )
+                for _, s in pandas_dataframe.items()
             )
         ):
             return self._read_pandas_inline(pandas_dataframe)
