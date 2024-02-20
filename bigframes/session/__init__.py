@@ -894,7 +894,7 @@ class Session(
                 (
                     isinstance(s.dtype, pandas.ArrowDtype)
                     or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
-                    or pandas.api.types.is_datetime64_dtype(s)
+                    or pandas.api.types.is_datetime64_any_dtype(s)
                 )
                 for _, s in pandas_dataframe.items()
             )
