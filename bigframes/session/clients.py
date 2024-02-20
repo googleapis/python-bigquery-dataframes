@@ -113,7 +113,7 @@ class ClientsProvider:
             if self._use_regional_endpoints:
                 bq_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=(
-                        _BIGQUERY_LOCATIONAL_ENDPOINT
+                        _BIGQUERY_REGIONAL_ENDPOINT
                         if self._location.lower() in _REP_SUPPORTED_REGIONS
                         else _BIGQUERY_LOCATIONAL_ENDPOINT
                     ).format(location=self._location),
@@ -161,9 +161,9 @@ class ClientsProvider:
             if self._use_regional_endpoints:
                 bqstorage_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=(
-                        _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
+                        _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
                         if self._location.lower() in _REP_SUPPORTED_REGIONS
-                        else _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
+                        else _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
                     ).format(location=self._location),
                 )
             bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
