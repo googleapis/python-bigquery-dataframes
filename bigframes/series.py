@@ -52,6 +52,7 @@ import bigframes.operations.base
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
+import bigframes.plotting as plotter
 import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
@@ -463,6 +464,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             i for i in replace_list if bigframes.dtypes.is_compatible(i, self.dtype)
         ]
         return self._simple_replace(replace_list, value) if replace_list else self
+
+    def hist(self, bins: int, **kwargs):
+        return plotter.hist_series(self, bins=bins, **kwargs)
 
     def _regex_replace(self, to_replace: str, value: str):
         if not bigframes.dtypes.is_dtype(value, self.dtype):
