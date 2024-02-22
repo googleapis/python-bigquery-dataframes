@@ -109,8 +109,8 @@ def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
 
 
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
-    """Format a table reference as escaped SQL."""
-    return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
+    """Format a table reference as SQL."""
+    return f"{table.project}.{table.dataset_id}.{table.table_id}"
 
 
 def create_snapshot_sql(

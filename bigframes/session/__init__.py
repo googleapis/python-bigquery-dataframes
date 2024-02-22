@@ -1677,6 +1677,32 @@ class Session(
             )
         return job_config
 
+    def _create_object_table(self, path) -> str:
+        table = bigframes_io.table_ref_to_sql(
+            bigframes_io.random_table(self._anonymous_dataset)
+        )
+        connection = "bigframes-dev.us.bigframes-default-connection"
+
+        import textwrap
+
+        query = textwrap.dedent(
+            f"""
+            CREATE EXTERNAL TABLE `{table}`
+            WITH CONNECTION `{connection}`
+            OPTIONS(
+                object_metadata = 'SIMPLE',
+                uris = ['{path}']);
+            """
+        )
+        self._start_query(query)
+
+        return table
+
+    def from_glob_path(self, path) -> dataframe.DataFrame:
+        table = self._create_object_table(path)
+        self._master_object_table = table
+        return self.read_gbq(table)["uri"].to_frame()
+
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)

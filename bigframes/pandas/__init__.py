@@ -607,6 +607,12 @@ def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
 read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
+def from_glob_path(path):
+    return global_session.with_default_session(
+        bigframes.session.Session.from_glob_path, path
+    )
+
+
 def remote_function(
     input_types: List[type],
     output_type: type,
