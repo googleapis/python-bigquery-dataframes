@@ -49,6 +49,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+import bigframes.operations.blob as blob
 import bigframes.operations.datetimes as dt
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
@@ -1550,6 +1551,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def str(self) -> strings.StringMethods:
         return strings.StringMethods(self._block)
+
+    @property
+    def blob(self) -> blob.BlobMethods:
+        return blob.BlobMethods(self._block)
 
     def _slice(
         self,
