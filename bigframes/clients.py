@@ -21,7 +21,7 @@ import time
 from typing import cast, Optional
 
 import google.api_core.exceptions
-from google.cloud import bigquery_connection_v1, resourcemanager_v3
+from google.cloud import bigquery_connection_v1, resourcemanager_v3, storage
 from google.iam.v1 import iam_policy_pb2, policy_pb2
 
 logger = logging.getLogger(__name__)
@@ -176,3 +176,13 @@ class BqConnectionManager:
             pass
 
         return service_account
+
+
+class GcsManager:
+    def __init__(self):
+        self._storage_client = storage.Client()
+
+    def download_as_bytes(self, bucket_name, blob_name):
+        bucket = self._storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        return blob.download_as_bytes()
