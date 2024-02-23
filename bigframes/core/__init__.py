@@ -118,7 +118,7 @@ class ArrayValue:
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        predicate = ex.free_var(predicate_id)
+        predicate: ex.Expression = ex.free_var(predicate_id)
         if keep_null:
             predicate = ops.fillna_op.as_expr(predicate, ex.const(True))
         return self.filter(predicate)
@@ -241,7 +241,7 @@ class ArrayValue:
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> ArrayValue:
@@ -261,23 +261,10 @@ class ArrayValue:
             )
         )
 
-    def corr_aggregate(
-        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
-    ) -> ArrayValue:
-        """
-        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
-        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
-        Arguments:
-            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
-        """
-        return ArrayValue(
-            nodes.CorrNode(child=self.node, corr_aggregations=tuple(corr_aggregations))
-        )
-
     def project_window_op(
         self,
         column_name: str,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
         output_name=None,
         *,

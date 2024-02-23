@@ -69,10 +69,6 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_DF_SIZE = 5000
-
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
@@ -170,17 +166,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 columns=columns,  # type:ignore
                 dtype=dtype,  # type:ignore
             )
-            if (
-                pd_dataframe.size < MAX_INLINE_DF_SIZE
-                # TODO(swast): Workaround data types limitation in inline data.
-                and not any(
-                    dt.pyarrow_dtype
-                    for dt in pd_dataframe.dtypes
-                    if isinstance(dt, pandas.ArrowDtype)
-                )
-            ):
-                self._block = blocks.Block.from_local(pd_dataframe)
-            elif session:
+            if session:
                 self._block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
@@ -1017,6 +1003,27 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def combine_first(self, other: DataFrame):
         return self._apply_dataframe_binop(other, ops.fillna_op)
 
+    def corr(self, method="pearson", min_periods=None, numeric_only=False) -> DataFrame:
+        if method != "pearson":
+            raise NotImplementedError(
+                f"Only Pearson correlation is currently supported. {constants.FEEDBACK_LINK}"
+            )
+        if min_periods:
+            raise NotImplementedError(
+                f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
+            )
+        if len(self.columns) > 30:
+            raise NotImplementedError(
+                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
+            )
+
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("corr")
+        else:
+            frame = self._drop_non_numeric()
+
+        return DataFrame(frame._block.corr())
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -1532,7 +1539,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if len(self._block.index_columns) > 1:
             raise NotImplementedError(
-                "Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
+                f"Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
             )
         if (like is not None) or (regex is not None):
             block = self._block
@@ -1760,7 +1767,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if inplace:
             raise NotImplementedError(
-                "'inplace'=True not supported. {constants.FEEDBACK_LINK}"
+                f"'inplace'=True not supported. {constants.FEEDBACK_LINK}"
             )
         if how not in ("any", "all"):
             raise ValueError("'how' must be one of 'any', 'all'")

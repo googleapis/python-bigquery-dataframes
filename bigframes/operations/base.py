@@ -25,13 +25,10 @@ import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
-
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_SERIES_SIZE = 5000
 
 
 class SeriesMethods:
@@ -103,17 +100,7 @@ class SeriesMethods:
             if pd_series.name is None:
                 # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
                 pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            if (
-                pd_dataframe.size < MAX_INLINE_SERIES_SIZE
-                # TODO(swast): Workaround data types limitation in inline data.
-                and not any(
-                    dt.pyarrow_dtype
-                    for dt in pd_dataframe.dtypes
-                    if isinstance(dt, pd.ArrowDtype)
-                )
-            ):
-                block = blocks.Block.from_local(pd_dataframe)
-            elif session:
+            if session:
                 block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 # Uses default global session
@@ -188,10 +175,12 @@ class SeriesMethods:
             block, result_id = self._block.project_expr(expr, name)
             return series.Series(block.select_column(result_id))
 
-    def _apply_corr_aggregation(self, other: series.Series) -> float:
+    def _apply_binary_aggregation(
+        self, other: series.Series, stat: agg_ops.BinaryAggregateOp
+    ) -> float:
         (left, right, block) = self._align(other, how="outer")
 
-        return block.get_corr_stat(left, right)
+        return block.get_binary_stat(left, right, stat)
 
     def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
