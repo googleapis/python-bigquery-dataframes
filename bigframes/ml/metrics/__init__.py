@@ -11,18 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest import mock
 
-import bigframes as bf
+from bigframes.ml.metrics import pairwise
+from bigframes.ml.metrics._metrics import (
+    accuracy_score,
+    auc,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
 
-from . import resources
-
-
-def test_maximum_bytes_option():
-    session = resources.create_bigquery_session()
-    session.bqclient.query = mock.MagicMock()
-    with bf.option_context("compute.maximum_bytes_billed", 10000):
-        session._start_query("query")
-        call = session.bqclient.query.call_args
-        assert call.kwargs["job_config"].maximum_bytes_billed == 10000
-        session.bqclient.query.assert_called_once()
+__all__ = [
+    "r2_score",
+    "recall_score",
+    "accuracy_score",
+    "roc_curve",
+    "roc_auc_score",
+    "auc",
+    "confusion_matrix",
+    "precision_score",
+    "f1_score",
+    "pairwise",
+]

@@ -30,6 +30,7 @@ from typing import (
     Iterable,
     List,
     Literal,
+    Mapping,
     MutableSequence,
     Optional,
     Sequence,
@@ -107,12 +108,21 @@ _VALID_ENCODINGS = {
     "UTF-32LE",
 }
 
+# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
+# TODO(tbergeron): Convert to bytes-based limit
+MAX_INLINE_DF_SIZE = 5000
+
 logger = logging.getLogger(__name__)
 
 
 def _is_query(query_or_table: str) -> bool:
     """Determine if `query_or_table` is a table ID or a SQL string"""
     return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
+
+
+def _is_table_with_wildcard_suffix(query_or_table: str) -> bool:
+    """Determine if `query_or_table` is a table and contains a wildcard suffix."""
+    return not _is_query(query_or_table) and query_or_table.endswith("*")
 
 
 class Session(
@@ -248,7 +258,9 @@ class Session(
         elif col_order:
             columns = col_order
 
-        query_or_table = self._filters_to_query(query_or_table, columns, filters)
+        filters = list(filters)
+        if len(filters) != 0 or _is_table_with_wildcard_suffix(query_or_table):
+            query_or_table = self._to_query(query_or_table, columns, filters)
 
         if _is_query(query_or_table):
             return self._read_gbq_query(
@@ -272,13 +284,18 @@ class Session(
                 use_cache=use_cache,
             )
 
-    def _filters_to_query(self, query_or_table, columns, filters):
-        """Convert filters to query"""
-        if len(filters) == 0:
-            return query_or_table
-
+    def _to_query(
+        self,
+        query_or_table: str,
+        columns: Iterable[str],
+        filters: third_party_pandas_gbq.FiltersType,
+    ) -> str:
+        """Compile query_or_table with conditions(filters, wildcards) to query."""
+        filters = list(filters)
         sub_query = (
-            f"({query_or_table})" if _is_query(query_or_table) else query_or_table
+            f"({query_or_table})"
+            if _is_query(query_or_table)
+            else f"`{query_or_table}`"
         )
 
         select_clause = "SELECT " + (
@@ -287,7 +304,7 @@ class Session(
 
         where_clause = ""
         if filters:
-            valid_operators = {
+            valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
                 "in": "IN",
                 "not in": "NOT IN",
                 "==": "=",
@@ -298,19 +315,16 @@ class Session(
                 "!=": "!=",
             }
 
-            if (
-                isinstance(filters, Iterable)
-                and isinstance(filters[0], Tuple)
-                and (len(filters[0]) == 0 or not isinstance(filters[0][0], Tuple))
+            # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
+            if isinstance(filters[0], tuple) and (
+                len(filters[0]) == 0 or not isinstance(list(filters[0])[0], tuple)
             ):
-                filters = [filters]
+                filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
 
             or_expressions = []
             for group in filters:
                 if not isinstance(group, Iterable):
-                    raise ValueError(
-                        f"Filter group should be a iterable, {group} is not valid."
-                    )
+                    group = [group]
 
                 and_expressions = []
                 for filter_item in group:
@@ -329,13 +343,13 @@ class Session(
                     if operator not in valid_operators:
                         raise ValueError(f"Operator {operator} is not valid.")
 
-                    operator = valid_operators[operator]
+                    operator_str = valid_operators[operator]
 
-                    if operator in ["IN", "NOT IN"]:
+                    if operator_str in ["IN", "NOT IN"]:
                         value_list = ", ".join([repr(v) for v in value])
-                        expression = f"`{column}` {operator} ({value_list})"
+                        expression = f"`{column}` {operator_str} ({value_list})"
                     else:
-                        expression = f"`{column}` {operator} {repr(value)}"
+                        expression = f"`{column}` {operator_str} {repr(value)}"
                     and_expressions.append(expression)
 
                 or_expressions.append(" AND ".join(and_expressions))
@@ -521,6 +535,7 @@ class Session(
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
         max_results: Optional[int] = None,
+        filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: bool = True,
         col_order: Iterable[str] = (),
     ) -> dataframe.DataFrame:
@@ -545,6 +560,19 @@ class Session(
             )
         elif col_order:
             columns = col_order
+
+        filters = list(filters)
+        if len(filters) != 0 or _is_table_with_wildcard_suffix(query):
+            query = self._to_query(query, columns, filters)
+
+            return self._read_gbq_query(
+                query,
+                index_col=index_col,
+                columns=columns,
+                max_results=max_results,
+                api_name="read_gbq_table",
+                use_cache=use_cache,
+            )
 
         return self._read_gbq_table(
             query=query,
@@ -859,6 +887,29 @@ class Session(
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        if (
+            pandas_dataframe.size < MAX_INLINE_DF_SIZE
+            # TODO(swast): Workaround data types limitation in inline data.
+            and not any(
+                (
+                    isinstance(s.dtype, pandas.ArrowDtype)
+                    or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
+                    or pandas.api.types.is_datetime64_any_dtype(s)
+                )
+                for _, s in pandas_dataframe.items()
+            )
+        ):
+            return self._read_pandas_inline(pandas_dataframe)
+        return self._read_pandas_load_job(pandas_dataframe, api_name)
+
+    def _read_pandas_inline(
+        self, pandas_dataframe: pandas.DataFrame
+    ) -> dataframe.DataFrame:
+        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe))
+
+    def _read_pandas_load_job(
+        self, pandas_dataframe: pandas.DataFrame, api_name: str
+    ) -> dataframe.DataFrame:
         col_labels, idx_labels = (
             pandas_dataframe.columns.to_list(),
             pandas_dataframe.index.names,
@@ -1055,7 +1106,7 @@ class Session(
                 encoding=encoding,
                 **kwargs,
             )
-            return self.read_pandas(pandas_df)  # type: ignore
+            return self._read_pandas(pandas_df, "read_csv")  # type: ignore
 
     def read_pickle(
         self,
@@ -1072,7 +1123,7 @@ class Session(
         if isinstance(pandas_obj, pandas.Series):
             if pandas_obj.name is None:
                 pandas_obj.name = "0"
-            bigframes_df = self.read_pandas(pandas_obj.to_frame())
+            bigframes_df = self._read_pandas(pandas_obj.to_frame(), "read_pickle")
             return bigframes_df[bigframes_df.columns[0]]
         return self._read_pandas(pandas_obj, "read_pickle")
 
@@ -1172,7 +1223,7 @@ class Session(
                     engine=engine,
                     **kwargs,
                 )
-            return self.read_pandas(pandas_df)
+            return self._read_pandas(pandas_df, "read_json")
 
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes
