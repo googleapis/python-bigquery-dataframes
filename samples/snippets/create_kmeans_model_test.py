@@ -13,8 +13,9 @@
 # limitations under the License.
 
 
-def test_kmeans_sample(project_id: str):
+def test_kmeans_sample(project_id: str, random_model_id: str):
     your_gcp_project_id = project_id
+    your_model_id = random_model_id
     # [START bigquery_dataframes_bqml_kmeans]
     import datetime
 
@@ -116,30 +117,30 @@ def test_kmeans_sample(project_id: str):
     cluster_model = KMeans(n_clusters=4)
     cluster_model.fit(stationstats)
     cluster_model.to_gbq(
-        "bqml_tutrial.sample_model",  # For example: "bqml_tutorial.sample_model"
+        your_model_id,  # For example: "bqml_tutorial.london_station_clusters"
         replace=True,
     )
     # [END bigquery_dataframes_bqml_kmeans_fit]
 
     # [START bigquery_dataframes_bqml_kmeans_predict]
 
-    # Select model you'll use for training. `read_gbq_model` loads model data
-    # from BigQuery, but you could also use the `cluster_model` object from
-    # previous steps.
+    # Select model you'll use for predictions. `read_gbq_model` loads model
+    # data from BigQuery, but you could also use the `cluster_model` object
+    # from previous steps.
     cluster_model = bpd.read_gbq_model(
-        "bqml_tutorial.sample_model",
+        your_model_id,
         # For example: "bqml_tutorial.london_station_clusters",
     )
 
-    # Use 'contains' function to predict which clusters contain the stations
-    # with string "Kennington".
+    # Use 'contains' function to filter by stations containing the string
+    # "Kennington".
     stationstats = stationstats.loc[
         stationstats["station_name"].str.contains("Kennington")
     ]
 
     result = cluster_model.predict(stationstats)
 
-    # Expected output results:   >>>results.head(3)
+    # Expected output results:   >>>results.peek(3)
     # CENTROID...	NEAREST...	station_name  isweekday	 duration num_trips dist...
     # 	1	[{'CENTROID_ID'...	Borough...	  weekday	  1110	    5749	0.13
     # 	2	[{'CENTROID_ID'...	Borough...	  weekend	  2125      1774	0.13
