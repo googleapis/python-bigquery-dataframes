@@ -155,3 +155,43 @@ def test_bqml_getting_started(random_model_id):
     # 0   0.412621  0.079143  0.985074  0.132812  0.049764  0.974285
     # [1 rows x 6 columns]
     # [END bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
+
+    # [START bigquery_dataframes_bqml_getting_started_tutorial_predict]
+    df = bpd.read_gbq(
+        """
+    SELECT GENERATE_UUID() AS rowindex, *
+    FROM
+    `bigquery-public-data.google_analytics_sample.ga_sessions_*`
+    WHERE
+    _TABLE_SUFFIX BETWEEN '20170701' AND '20170801'
+    """,
+        index_col="rowindex",
+    )
+
+    operatingSystem = df["device"].struct.field("operatingSystem")
+    operatingSystem = operatingSystem.fillna("")
+    isMobile = df["device"].struct.field("isMobile")
+    country = df["geoNetwork"].struct.field("country").fillna("")
+    pageviews = df["totals"].struct.field("pageviews").fillna(0)
+    features = bpd.DataFrame(
+        {
+            "os": operatingSystem,
+            "is_mobile": isMobile,
+            "country": country,
+            "pageviews": pageviews,
+        }
+    )
+    # Use Logistic Regression predict method to, find more information here in
+    # [BigFrames](/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
+    predictions = model.predict(features)
+    countries = predictions.groupby(["country"])[["predicted_transactions"]].sum()
+    # type(countries)
+    countries.sort_values(ascending=False).head(10)
+
+    predictions = model.predict(features)
+
+    visitor_id = predictions.groupby(["country"])[["predicted_transactions"]].sum()
+
+    visitor_id.sort_values(ascending=False).head(10)
+
+    # [END bigquery_dataframes_bqml_getting_started_tutorial_predict]
