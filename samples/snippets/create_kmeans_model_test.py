@@ -13,9 +13,9 @@
 # limitations under the License.
 
 
-def test_kmeans_sample(project_id: str, random_model_id: str):
+def test_kmeans_sample(project_id: str, random_model_id_eu: str):
     your_gcp_project_id = project_id
-    your_model_id = random_model_id
+    your_model_id = random_model_id_eu
     # [START bigquery_dataframes_bqml_kmeans]
     import datetime
 
