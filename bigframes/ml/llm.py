@@ -19,6 +19,8 @@ from __future__ import annotations
 from typing import cast, Literal, Optional, Union
 import warnings
 
+from google.cloud import bigquery
+
 import bigframes
 from bigframes import clients, constants
 from bigframes.core import blocks, log_adapter
@@ -38,6 +40,8 @@ _EMBEDDING_GENERATOR_ENDPOINTS = (
     _EMBEDDING_GENERATOR_GECKO_ENDPOINT,
     _EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT,
 )
+
+_GEMINI_PRO_ENDPOINT = "gemini-pro"
 
 _ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
 _ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
@@ -62,6 +66,7 @@ class PaLM2TextGenerator(base.Predictor):
 
     def __init__(
         self,
+        *,
         model_name: Literal["text-bison", "text-bison-32k"] = "text-bison",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
@@ -113,9 +118,30 @@ class PaLM2TextGenerator(base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        text_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        text_generator_model._bqml_model = core.BqmlModel(session, model)
+        return text_generator_model
+
     def predict(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
+        *,
         temperature: float = 0.0,
         max_output_tokens: int = 128,
         top_k: int = 40,
@@ -138,7 +164,8 @@ class PaLM2TextGenerator(base.Predictor):
             max_output_tokens (int, default 128):
                 Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
                 A token may be smaller than a word. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
-                Default 128. Possible values [1, 1024].
+                Default 128. For the 'text-bison' model, possible values are in the range [1, 1024]. For the 'text-bison-32k' model, possible values are in the range [1, 8196].
+                Please ensure that the specified value for max_output_tokens is within the appropriate range for the model being used.
 
             top_k (int, default 40):
                 Top-k changes how the model selects tokens for output. A top-k of 1 means the selected token is the most probable among all tokens
@@ -162,12 +189,26 @@ class PaLM2TextGenerator(base.Predictor):
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         if temperature < 0.0 or temperature > 1.0:
             raise ValueError(f"temperature must be [0.0, 1.0], but is {temperature}.")
-        if max_output_tokens not in range(1, 1025):
+
+        if (
+            self.model_name == _TEXT_GENERATOR_BISON_ENDPOINT
+            and max_output_tokens not in range(1, 1025)
+        ):
             raise ValueError(
-                f"max_output_token must be [1, 1024], but is {max_output_tokens}."
+                f"max_output_token must be [1, 1024] for TextBison model, but is {max_output_tokens}."
             )
+
+        if (
+            self.model_name == _TEXT_GENERATOR_BISON_32K_ENDPOINT
+            and max_output_tokens not in range(1, 8197)
+        ):
+            raise ValueError(
+                f"max_output_token must be [1, 8196] for TextBison 32k model, but is {max_output_tokens}."
+            )
+
         if top_k not in range(1, 41):
             raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
+
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
@@ -200,6 +241,21 @@ class PaLM2TextGenerator(base.Predictor):
 
         return df
 
+    def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
 
 @log_adapter.class_logger
 class PaLM2TextEmbeddingGenerator(base.Predictor):
@@ -219,6 +275,7 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
 
     def __init__(
         self,
+        *,
         model_name: Literal[
             "textembedding-gecko", "textembedding-gecko-multilingual"
         ] = "textembedding-gecko",
@@ -271,6 +328,26 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             session=self.session, connection_name=self.connection_name, options=options
         )
 
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> PaLM2TextEmbeddingGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "endpoint" in model._properties["remoteModelInfo"]
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        embedding_generator_model = cls(
+            session=session, model_name=model_endpoint, connection_name=model_connection
+        )
+        embedding_generator_model._bqml_model = core.BqmlModel(session, model)
+        return embedding_generator_model
+
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -307,3 +384,194 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             )
 
         return df
+
+    def to_gbq(
+        self, model_name: str, replace: bool = False
+    ) -> PaLM2TextEmbeddingGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            PaLM2TextEmbeddingGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
+
+@log_adapter.class_logger
+class GeminiTextGenerator(base.Predictor):
+    """Gemini text generator LLM model.
+
+    Args:
+        session (bigframes.Session or None):
+            BQ session to create the model. If None, use the global default session.
+        connection_name (str or None):
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully setup.
+    """
+
+    def __init__(
+        self,
+        *,
+        session: Optional[bigframes.Session] = None,
+        connection_name: Optional[str] = None,
+    ):
+        self.session = session or bpd.get_global_session()
+        self._bq_connection_manager = clients.BqConnectionManager(
+            self.session.bqconnectionclient, self.session.resourcemanagerclient
+        )
+
+        connection_name = connection_name or self.session._bq_connection
+        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+            connection_name,
+            default_project=self.session._project,
+            default_location=self.session._location,
+        )
+
+        self._bqml_model_factory = globals.bqml_model_factory()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
+
+    def _create_bqml_model(self):
+        # Parse and create connection if needed.
+        if not self.connection_name:
+            raise ValueError(
+                "Must provide connection_name, either in constructor or through session options."
+            )
+        connection_name_parts = self.connection_name.split(".")
+        if len(connection_name_parts) != 3:
+            raise ValueError(
+                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+            )
+        self._bq_connection_manager.create_bq_connection(
+            project_id=connection_name_parts[0],
+            location=connection_name_parts[1],
+            connection_id=connection_name_parts[2],
+            iam_role="aiplatform.user",
+        )
+
+        options = {"endpoint": _GEMINI_PRO_ENDPOINT}
+
+        return self._bqml_model_factory.create_remote_model(
+            session=self.session, connection_name=self.connection_name, options=options
+        )
+
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, model: bigquery.Model
+    ) -> GeminiTextGenerator:
+        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in model._properties
+        assert "connection" in model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        model_connection = model._properties["remoteModelInfo"]["connection"]
+
+        text_generator_model = cls(session=session, connection_name=model_connection)
+        text_generator_model._bqml_model = core.BqmlModel(session, model)
+        return text_generator_model
+
+    def predict(
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+        *,
+        temperature: float = 0.9,
+        max_output_tokens: int = 8192,
+        top_k: int = 40,
+        top_p: float = 1.0,
+    ) -> bpd.DataFrame:
+        """Predict the result from input DataFrame.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Input DataFrame or Series, which contains only one column of prompts.
+                Prompts can include preamble, questions, suggestions, instructions, or examples.
+
+            temperature (float, default 0.9):
+                The temperature is used for sampling during the response generation, which occurs when topP and topK are applied. Temperature controls the degree of randomness in token selection. Lower temperatures are good for prompts that require a more deterministic and less open-ended or creative response, while higher temperatures can lead to more diverse or creative results. A temperature of 0 is deterministic: the highest probability response is always selected.
+                Default 0.9. Possible values [0.0, 1.0].
+
+            max_output_tokens (int, default 8192):
+                Maximum number of tokens that can be generated in the response. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
+                Specify a lower value for shorter responses and a higher value for potentially longer responses.
+                Default 8192. Possible values are in the range [1, 8192].
+
+            top_k (int, default 40):
+                Top-K changes how the model selects tokens for output. A top-K of 1 means the next selected token is the most probable among all tokens in the model's vocabulary (also called greedy decoding), while a top-K of 3 means that the next token is selected from among the three most probable tokens by using temperature.
+                For each token selection step, the top-K tokens with the highest probabilities are sampled. Then tokens are further filtered based on top-P with the final token selected using temperature sampling.
+                Specify a lower value for less random responses and a higher value for more random responses.
+                Default 40. Possible values [1, 40].
+
+            top_p (float, default 0.95)::
+                Top-P changes how the model selects tokens for output. Tokens are selected from the most (see top-K) to least probable until the sum of their probabilities equals the top-P value. For example, if tokens A, B, and C have a probability of 0.3, 0.2, and 0.1 and the top-P value is 0.5, then the model will select either A or B as the next token by using temperature and excludes C as a candidate.
+                Specify a lower value for less random responses and a higher value for more random responses.
+                Default 1.0. Possible values [0.0, 1.0].
+
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
+        """
+
+        # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
+        if temperature < 0.0 or temperature > 1.0:
+            raise ValueError(f"temperature must be [0.0, 1.0], but is {temperature}.")
+
+        if max_output_tokens not in range(1, 8193):
+            raise ValueError(
+                f"max_output_token must be [1, 8192] for Gemini model, but is {max_output_tokens}."
+            )
+
+        if top_k not in range(1, 41):
+            raise ValueError(f"top_k must be [1, 40], but is {top_k}.")
+
+        if top_p < 0.0 or top_p > 1.0:
+            raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
+
+        (X,) = utils.convert_to_dataframe(X)
+
+        if len(X.columns) != 1:
+            raise ValueError(
+                f"Only support one column as input. {constants.FEEDBACK_LINK}"
+            )
+
+        # BQML identified the column by name
+        col_label = cast(blocks.Label, X.columns[0])
+        X = X.rename(columns={col_label: "prompt"})
+
+        options = {
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
+            "top_k": top_k,
+            "top_p": top_p,
+            "flatten_json_output": True,
+        }
+
+        df = self._bqml_model.generate_text(X, options)
+
+        if (df[_ML_GENERATE_TEXT_STATUS] != "").any():
+            warnings.warn(
+                f"Some predictions failed. Check column {_ML_GENERATE_TEXT_STATUS} for detailed status. You may want to filter the failed rows and retry.",
+                RuntimeWarning,
+            )
+
+        return df
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> GeminiTextGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                the name of the model.
+            replace (bool, default False):
+                whether to replace if the model already exists. Default to False.
+
+        Returns:
+            GeminiTextGenerator: saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)

@@ -20,16 +20,15 @@ import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.core.blocks as blocks
+import bigframes.core.expression as ex
+import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
 import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
-
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_SERIES_SIZE = 5000
 
 
 class SeriesMethods:
@@ -53,10 +52,32 @@ class SeriesMethods:
         if isinstance(data, blocks.Block):
             assert len(data.value_columns) == 1
             assert len(data.column_labels) == 1
+            assert index is None
             block = data
 
         elif isinstance(data, SeriesMethods):
-            block = data._get_block()
+            block = data._block
+            if index is not None:
+                # reindex
+                bf_index = indexes.Index(index)
+                idx_block = bf_index._block
+                idx_cols = idx_block.value_columns
+                block_idx, _ = idx_block.join(block, how="left")
+                block = block_idx.with_index_labels(bf_index.names)
+
+        elif isinstance(data, indexes.Index):
+            if data.nlevels != 1:
+                raise NotImplementedError("Cannot interpret multi-index as Series.")
+            # Reset index to promote index columns to value columns, set default index
+            block = data._block.reset_index(drop=False)
+            if index is not None:
+                # Align by offset
+                bf_index = indexes.Index(index)
+                idx_block = bf_index._block.reset_index(drop=False)
+                idx_cols = idx_block.value_columns
+                block, (l_mapping, _) = idx_block.join(block, how="left")
+                block = block.set_index([l_mapping[col] for col in idx_cols])
+                block = block.with_index_labels(bf_index.names)
 
         if block:
             if name:
@@ -65,16 +86,10 @@ class SeriesMethods:
                         f"BigQuery DataFrames only supports hashable series names. {constants.FEEDBACK_LINK}"
                     )
                 block = block.with_column_labels([name])
-            if index:
-                raise NotImplementedError(
-                    f"Series 'index' constructor parameter not supported when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
-                )
             if dtype:
                 block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(dtype)
+                    block.value_columns, ops.AsTypeOp(to_type=dtype)
                 )
-            self._block = block
-
         else:
             import bigframes.pandas
 
@@ -85,23 +100,14 @@ class SeriesMethods:
             if pd_series.name is None:
                 # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
                 pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            if (
-                pd_dataframe.size < MAX_INLINE_SERIES_SIZE
-                # TODO(swast): Workaround data types limitation in inline data.
-                and not any(
-                    dt.pyarrow_dtype
-                    for dt in pd_dataframe.dtypes
-                    if isinstance(dt, pd.ArrowDtype)
-                )
-            ):
-                self._block = blocks.block_from_local(pd_dataframe)
-            elif session:
-                self._block = session.read_pandas(pd_dataframe)._get_block()
+            if session:
+                block = session.read_pandas(pd_dataframe)._get_block()
             else:
                 # Uses default global session
-                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+                block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
             if pd_series.name is None:
-                self._block = self._block.with_column_labels([None])
+                block = block.with_column_labels([None])
+        self._block: blocks.Block = block
 
     @property
     def _value_column(self) -> str:
@@ -136,6 +142,7 @@ class SeriesMethods:
         other: typing.Any,
         op: ops.BinaryOp,
         alignment: typing.Literal["outer", "left"] = "outer",
+        reverse: bool = False,
     ) -> series.Series:
         """Applies a binary operator to the series and other."""
         if isinstance(other, pd.Series):
@@ -144,11 +151,7 @@ class SeriesMethods:
                 f"Pandas series not supported as operand. {constants.FEEDBACK_LINK}"
             )
         if isinstance(other, series.Series):
-            (left, right, block) = self._align(other, how=alignment)
-
-            block, result_id = block.apply_binary_op(
-                left, right, op, self._value_column
-            )
+            (self_col, other_col, block) = self._align(other, how=alignment)
 
             name = self._name
             if (
@@ -157,18 +160,27 @@ class SeriesMethods:
                 and alignment == "outer"
             ):
                 name = None
-
-            return series.Series(
-                block.select_column(result_id).assign_label(result_id, name)
+            expr = op.as_expr(
+                other_col if reverse else self_col, self_col if reverse else other_col
             )
-        else:
-            partial_op = ops.BinopPartialRight(op, other)
-            return self._apply_unary_op(partial_op)
+            block, result_id = block.project_expr(expr, name)
+            return series.Series(block.select_column(result_id))
 
-    def _apply_corr_aggregation(self, other: series.Series) -> float:
+        else:
+            name = self._name
+            expr = op.as_expr(
+                ex.const(other) if reverse else self._value_column,
+                self._value_column if reverse else ex.const(other),
+            )
+            block, result_id = self._block.project_expr(expr, name)
+            return series.Series(block.select_column(result_id))
+
+    def _apply_binary_aggregation(
+        self, other: series.Series, stat: agg_ops.BinaryAggregateOp
+    ) -> float:
         (left, right, block) = self._align(other, how="outer")
 
-        return block.get_corr_stat(left, right)
+        return block.get_binary_stat(left, right, stat)
 
     def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
@@ -189,15 +201,14 @@ class SeriesMethods:
         block = self._block
         for other in others:
             if isinstance(other, series.Series):
-                combined_index, (
+                block, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(other._block.index, how=how)
+                ) = block.join(other._block, how=how)
                 value_ids = [
                     *[get_column_left[value] for value in value_ids],
                     get_column_right[other._value_column],
                 ]
-                block = combined_index._block
             else:
                 # Will throw if can't interpret as scalar.
                 dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)

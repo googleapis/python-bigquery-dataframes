@@ -28,7 +28,6 @@ import bigframes.core.utils as utils
 import bigframes.core.window as windows
 import bigframes.dataframe as df
 import bigframes.dtypes as dtypes
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -269,7 +268,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
-        aggregations: typing.List[typing.Tuple[str, agg_ops.AggregateOp]] = []
+        aggregations: typing.List[typing.Tuple[str, agg_ops.UnaryAggregateOp]] = []
         column_labels = []
 
         want_aggfunc_level = any(utils.is_list_like(aggs) for aggs in func.values())
@@ -385,7 +384,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dtype
 
     def _aggregate_all(
-        self, aggregate_op: agg_ops.AggregateOp, numeric_only: bool = False
+        self, aggregate_op: agg_ops.UnaryAggregateOp, numeric_only: bool = False
     ) -> df.DataFrame:
         aggregated_col_ids = self._aggregated_columns(numeric_only=numeric_only)
         aggregations = [(col_id, aggregate_op) for col_id in aggregated_col_ids]
@@ -540,10 +539,13 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
 
     def cumcount(self, *args, **kwargs) -> series.Series:
-        return self._apply_window_op(
-            agg_ops.rank_op,
-            discard_name=True,
-        )._apply_unary_op(ops.partial_right(ops.sub_op, 1))
+        return (
+            self._apply_window_op(
+                agg_ops.rank_op,
+                discard_name=True,
+            )
+            - 1
+        )
 
     def shift(self, periods=1) -> series.Series:
         """Shift index by desired number of periods."""
@@ -598,7 +600,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             is_series=True,
         )
 
-    def _aggregate(self, aggregate_op: agg_ops.AggregateOp) -> series.Series:
+    def _aggregate(self, aggregate_op: agg_ops.UnaryAggregateOp) -> series.Series:
         result_block, _ = self._block.aggregate(
             self._by_col_ids,
             ((self._value_column, aggregate_op),),

@@ -16,7 +16,7 @@
 Generates SQL queries needed for BigQuery DataFrames ML
 """
 
-from typing import Iterable, Mapping, Optional, Union
+from typing import Iterable, Literal, Mapping, Optional, Union
 
 import google.cloud.bigquery
 
@@ -133,6 +133,19 @@ class BaseSqlGenerator:
         https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-label-encoder for params."""
         return f"""ML.LABEL_ENCODER({numeric_expr_sql}, {top_k}, {frequency_threshold}) OVER() AS {name}"""
 
+    def ml_distance(
+        self,
+        col_x: str,
+        col_y: str,
+        type: Literal["EUCLIDEAN", "MANHATTAN", "COSINE"],
+        source_df: bpd.DataFrame,
+        name: str,
+    ) -> str:
+        """Encode ML.DISTANCE for BQML.
+        https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-distance"""
+        source_sql, _, _ = source_df._to_sql_query(include_index=True)
+        return f"""SELECT *, ML.DISTANCE({col_x}, {col_y}, '{type}') AS {name} FROM ({source_sql})"""
+
 
 class ModelCreationSqlGenerator(BaseSqlGenerator):
     """Sql generator for creating a model entity. Model id is the standalone id without project id and dataset id."""
@@ -189,6 +202,24 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
 
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        if options:
+            parts.append(self.options(**options))
+        return "\n".join(parts)
+
+    def create_xgboost_imported_model(
+        self,
+        model_ref: google.cloud.bigquery.ModelReference,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        if input:
+            parts.append(self.input(**input))
+        if output:
+            parts.append(self.output(**output))
         if options:
             parts.append(self.options(**options))
         return "\n".join(parts)
@@ -259,6 +290,12 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         else:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
+
+    # ML evaluation TVFs
+    def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:
+        """Encode ML.ARMIA_EVALUATE for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_EVALUATE(MODEL `{self._model_name}`,
+            STRUCT({show_all_candidate_models} AS show_all_candidate_models))"""
 
     def ml_centroids(self) -> str:
         """Encode ML.CENTROIDS for BQML"""

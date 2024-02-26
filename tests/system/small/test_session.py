@@ -52,7 +52,7 @@ def test_read_gbq_tokyo(
 
 
 @pytest.mark.parametrize(
-    ("query_or_table", "col_order"),
+    ("query_or_table", "columns"),
     [
         pytest.param(
             "{scalars_table_id}", ["bool_col", "int64_col"], id="two_cols_in_table"
@@ -79,16 +79,16 @@ def test_read_gbq_tokyo(
         ),
     ],
 )
-def test_read_gbq_w_col_order(
+def test_read_gbq_w_columns(
     session: bigframes.Session,
     scalars_table_id: str,
     query_or_table: str,
-    col_order: List[str],
+    columns: List[str],
 ):
     df = session.read_gbq(
-        query_or_table.format(scalars_table_id=scalars_table_id), col_order=col_order
+        query_or_table.format(scalars_table_id=scalars_table_id), columns=columns
     )
-    assert df.columns.tolist() == col_order
+    assert df.columns.tolist() == columns
 
 
 @pytest.mark.parametrize(
@@ -325,6 +325,32 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     ]
     df3 = df1.join(df2)
     assert df3 is not None
+
+
+def test_read_gbq_wildcard(session: bigframes.Session):
+    df = session.read_gbq("bigquery-public-data.noaa_gsod.gsod193*")
+    assert df.shape == (348485, 32)
+
+
+def test_read_gbq_wildcard_with_filter(session: bigframes.Session):
+    df = session.read_gbq(
+        "bigquery-public-data.noaa_gsod.gsod19*",
+        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],  # type: ignore
+    )
+    assert df.shape == (348485, 32)
+
+
+def test_read_gbq_table_wildcard(session: bigframes.Session):
+    df = session.read_gbq_table("bigquery-public-data.noaa_gsod.gsod193*")
+    assert df.shape == (348485, 32)
+
+
+def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
+    df = session.read_gbq_table(
+        "bigquery-public-data.noaa_gsod.gsod19*",
+        filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],  # type: ignore
+    )
+    assert df.shape == (348485, 32)
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):

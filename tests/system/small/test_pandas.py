@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
+
 import pandas as pd
 import pytest
+import pytz
 
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
@@ -180,6 +183,38 @@ def test_concat_dataframe_mismatched_columns(scalars_dfs, how):
     pd_result = pd.concat(
         [scalars_pandas_df[cols1], scalars_pandas_df[cols2]],
         join=how,
+    )
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_concat_dataframe_upcasting(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_input1 = scalars_df[["int64_col", "float64_col", "int64_too"]].set_index(
+        "int64_col", drop=True
+    )
+    bf_input1.columns = ["a", "b"]
+    bf_input2 = scalars_df[["int64_too", "int64_col", "float64_col"]].set_index(
+        "float64_col", drop=True
+    )
+    bf_input2.columns = ["a", "b"]
+    bf_result = bpd.concat([bf_input1, bf_input2], join="outer")
+    bf_result = bf_result.to_pandas()
+
+    bf_input1 = (
+        scalars_pandas_df[["int64_col", "float64_col", "int64_too"]]
+        .set_index("int64_col", drop=True)
+        .set_axis(["a", "b"], axis=1)
+    )
+    bf_input2 = (
+        scalars_pandas_df[["int64_too", "int64_col", "float64_col"]]
+        .set_index("float64_col", drop=True)
+        .set_axis(["a", "b"], axis=1)
+    )
+    pd_result = pd.concat(
+        [bf_input1, bf_input2],
+        join="outer",
     )
 
     pd.testing.assert_frame_equal(bf_result, pd_result)
@@ -365,6 +400,30 @@ def test_cut(scalars_dfs):
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_cut_default_labels(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], 5)
+    bf_result = bpd.cut(scalars_df["float64_col"], 5).to_pandas()
+
+    # Convert to match data format
+    pd_result_converted = pd.Series(
+        [
+            {"left_exclusive": interval.left, "right_inclusive": interval.right}
+            if pd.notna(val)
+            else pd.NA
+            for val, interval in zip(
+                pd_result, pd_result.cat.categories[pd_result.cat.codes]
+            )
+        ],
+        name=pd_result.name,
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result, pd_result_converted, check_index=False, check_dtype=False
+    )
+
+
 @pytest.mark.parametrize(
     ("bins",),
     [
@@ -392,7 +451,6 @@ def test_cut_with_interval(scalars_dfs, bins):
         ],
         name=pd_result.name,
     )
-    pd_result.index = pd_result.index.astype("Int64")
 
     pd.testing.assert_series_equal(
         bf_result, pd_result_converted, check_index=False, check_dtype=False
@@ -422,3 +480,62 @@ def test_qcut(scalars_dfs, q):
     pd_result = pd_result.astype("Int64")
 
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "unit", "format"),
+    [
+        (173872738, False, None, None),
+        (32787983.23, True, "s", None),
+        ("2023-01-01", False, None, "%Y-%m-%d"),
+        (datetime(2023, 1, 1, 12, 0), False, None, None),
+    ],
+)
+def test_to_datetime_scalar(arg, utc, unit, format):
+    bf_result = bpd.to_datetime(arg, utc=utc, unit=unit, format=format)
+    pd_result = pd.to_datetime(arg, utc=utc, unit=unit, format=format)
+
+    assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "unit", "format"),
+    [
+        ([173872738], False, None, None),
+        ([32787983.23], True, "s", None),
+        (
+            [datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("America/New_York"))],
+            True,
+            None,
+            None,
+        ),
+        (["2023-01-01"], True, None, "%Y-%m-%d"),
+        (["2023-02-01T15:00:00+07:22"], True, None, None),
+        (["01-31-2023 14:30 -0800"], True, None, "%m-%d-%Y %H:%M %z"),
+        (["01-31-2023 14:00", "02-01-2023 15:00"], True, None, "%m-%d-%Y %H:%M"),
+    ],
+)
+def test_to_datetime_iterable(arg, utc, unit, format):
+    bf_result = (
+        bpd.to_datetime(arg, utc=utc, unit=unit, format=format)
+        .to_pandas()
+        .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
+    )
+    pd_result = pd.Series(
+        pd.to_datetime(arg, utc=utc, unit=unit, format=format)
+    ).dt.floor("us")
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+def test_to_datetime_series(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col = "int64_too"
+    bf_result = (
+        bpd.to_datetime(scalars_df[col], unit="s").to_pandas().astype("datetime64[s]")
+    )
+    pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s"))
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Callable, cast, Iterable, Mapping, Optional, Union
+from typing import Callable, cast, Iterable, Literal, Mapping, Optional, Union
 import uuid
 
 from google.cloud import bigquery
@@ -28,34 +28,12 @@ from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
 
 
-class BqmlModel:
-    """Represents an existing BQML model in BigQuery.
+class BaseBqml:
+    """Base class for BQML functionalities."""
 
-    Wraps the BQML API and SQL interface to expose the functionality needed for
-    BigQuery DataFrames ML.
-    """
-
-    def __init__(self, session: bigframes.Session, model: bigquery.Model):
+    def __init__(self, session: bigframes.Session):
         self._session = session
-        self._model = model
-        self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
-            self.model_name
-        )
-
-    @property
-    def session(self) -> bigframes.Session:
-        """Get the BigQuery DataFrames session that this BQML model wrapper is tied to"""
-        return self._session
-
-    @property
-    def model_name(self) -> str:
-        """Get the fully qualified name of the model, i.e. project_id.dataset_id.model_id"""
-        return f"{self._model.project}.{self._model.dataset_id}.{self._model.model_id}"
-
-    @property
-    def model(self) -> bigquery.Model:
-        """Get the BQML model associated with this wrapper"""
-        return self._model
+        self._base_sql_generator = ml_sql.BaseSqlGenerator()
 
     def _apply_sql(
         self,
@@ -83,6 +61,71 @@ class BqmlModel:
         df.index.names = index_labels
 
         return df
+
+    def distance(
+        self,
+        x: bpd.DataFrame,
+        y: bpd.DataFrame,
+        type: Literal["EUCLIDEAN", "MANHATTAN", "COSINE"],
+        name: str,
+    ) -> bpd.DataFrame:
+        """Calculate ML.DISTANCE from DataFrame inputs.
+
+        Args:
+            x:
+                input DataFrame
+            y:
+                input DataFrame
+            type:
+                Distance types, accept values are  "EUCLIDEAN", "MANHATTAN", "COSINE".
+            name:
+                name of the output result column
+        """
+        assert len(x.columns) == 1 and len(y.columns) == 1
+
+        input_data = x._cached().join(y._cached(), how="outer")
+        x_column_id, y_column_id = x._block.value_columns[0], y._block.value_columns[0]
+
+        return self._apply_sql(
+            input_data,
+            lambda source_df: self._base_sql_generator.ml_distance(
+                x_column_id,
+                y_column_id,
+                type=type,
+                source_df=source_df,
+                name=name,
+            ),
+        )
+
+
+class BqmlModel(BaseBqml):
+    """Represents an existing BQML model in BigQuery.
+
+    Wraps the BQML API and SQL interface to expose the functionality needed for
+    BigQuery DataFrames ML.
+    """
+
+    def __init__(self, session: bigframes.Session, model: bigquery.Model):
+        self._session = session
+        self._model = model
+        self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
+            self.model_name
+        )
+
+    @property
+    def session(self) -> bigframes.Session:
+        """Get the BigQuery DataFrames session that this BQML model wrapper is tied to"""
+        return self._session
+
+    @property
+    def model_name(self) -> str:
+        """Get the fully qualified name of the model, i.e. project_id.dataset_id.model_id"""
+        return f"{self._model.project}.{self._model.dataset_id}.{self._model.model_id}"
+
+    @property
+    def model(self) -> bigquery.Model:
+        """Get the BQML model associated with this wrapper"""
+        return self._model
 
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         # TODO: validate input data schema
@@ -133,6 +176,13 @@ class BqmlModel:
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         # TODO: validate input data schema
         sql = self._model_manipulation_sql_generator.ml_evaluate(input_data)
+
+        return self._session.read_gbq(sql)
+
+    def arima_evaluate(self, show_all_candidate_models: bool = False):
+        sql = self._model_manipulation_sql_generator.ml_arima_evaluate(
+            show_all_candidate_models
+        )
 
         return self._session.read_gbq(sql)
 
@@ -240,9 +290,11 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train._cached()
+            input_data = X_train._cached(force=True)
         else:
-            input_data = X_train._cached().join(y_train._cached(), how="outer")
+            input_data = X_train._cached(force=True).join(
+                y_train._cached(force=True), how="outer"
+            )
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -274,7 +326,9 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train._cached().join(y_train._cached(), how="outer")
+        input_data = X_train._cached(force=True).join(
+            y_train._cached(force=True), how="outer"
+        )
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 
@@ -340,6 +394,36 @@ class BqmlModelFactory:
         model_ref = self._create_model_ref(session._anonymous_dataset)
         sql = self._model_creation_sql_generator.create_imported_model(
             model_ref=model_ref,
+            options=options,
+        )
+
+        return self._create_model_with_sql(session=session, sql=sql)
+
+    def create_xgboost_imported_model(
+        self,
+        session: bigframes.Session,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> BqmlModel:
+        """Create a session-temporary BQML imported model with the CREATE OR REPLACE MODEL statement
+
+        Args:
+            input:
+                input schema for imported xgboost models
+            output:
+                output schema for imported xgboost models
+            options: a dict of options to configure the model. Generates a BQML OPTIONS
+                clause
+
+        Returns: a BqmlModel, wrapping a trained model in BigQuery
+        """
+        model_ref = self._create_model_ref(session._anonymous_dataset)
+
+        sql = self._model_creation_sql_generator.create_xgboost_imported_model(
+            model_ref=model_ref,
+            input=input,
+            output=output,
             options=options,
         )
 

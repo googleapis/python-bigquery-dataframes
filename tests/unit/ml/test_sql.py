@@ -47,7 +47,7 @@ def mock_df():
     return mock_df
 
 
-def test_options_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenerator):
+def test_options_correct(base_sql_generator: ml_sql.BaseSqlGenerator):
     sql = base_sql_generator.options(
         model_type="lin_reg", input_label_cols=["col_a"], l1_reg=0.6
     )
@@ -60,7 +60,7 @@ def test_options_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenerato
     )
 
 
-def test_transform_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenerator):
+def test_transform_correct(base_sql_generator: ml_sql.BaseSqlGenerator):
     sql = base_sql_generator.transform(
         "ML.STANDARD_SCALER(col_a) OVER(col_a) AS scaled_col_a",
         "ML.ONE_HOT_ENCODER(col_b) OVER(col_b) AS encoded_col_b",
@@ -75,35 +75,35 @@ def test_transform_produces_correct_sql(base_sql_generator: ml_sql.BaseSqlGenera
     )
 
 
-def test_standard_scaler_produces_correct_sql(
+def test_standard_scaler_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_standard_scaler("col_a", "scaled_col_a")
     assert sql == "ML.STANDARD_SCALER(col_a) OVER() AS scaled_col_a"
 
 
-def test_max_abs_scaler_produces_correct_sql(
+def test_max_abs_scaler_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_max_abs_scaler("col_a", "scaled_col_a")
     assert sql == "ML.MAX_ABS_SCALER(col_a) OVER() AS scaled_col_a"
 
 
-def test_min_max_scaler_produces_correct_sql(
+def test_min_max_scaler_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_min_max_scaler("col_a", "scaled_col_a")
     assert sql == "ML.MIN_MAX_SCALER(col_a) OVER() AS scaled_col_a"
 
 
-def test_k_bins_discretizer_produces_correct_sql(
+def test_k_bins_discretizer_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_bucketize("col_a", [1, 2, 3, 4], "scaled_col_a")
     assert sql == "ML.BUCKETIZE(col_a, [1, 2, 3, 4], FALSE) AS scaled_col_a"
 
 
-def test_one_hot_encoder_produces_correct_sql(
+def test_one_hot_encoder_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_one_hot_encoder(
@@ -114,14 +114,25 @@ def test_one_hot_encoder_produces_correct_sql(
     )
 
 
-def test_label_encoder_produces_correct_sql(
+def test_label_encoder_correct(
     base_sql_generator: ml_sql.BaseSqlGenerator,
 ):
     sql = base_sql_generator.ml_label_encoder("col_a", 1000000, 0, "encoded_col_a")
     assert sql == "ML.LABEL_ENCODER(col_a, 1000000, 0) OVER() AS encoded_col_a"
 
 
-def test_create_model_produces_correct_sql(
+def test_distance_correct(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = base_sql_generator.ml_distance("col_a", "col_b", "COSINE", mock_df, "cosine")
+    assert (
+        sql
+        == "SELECT *, ML.DISTANCE(col_a, col_b, 'COSINE') AS cosine FROM (input_X_sql)"
+    )
+
+
+def test_create_model_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -142,7 +153,7 @@ AS input_X_y_sql"""
     )
 
 
-def test_create_model_transform_produces_correct_sql(
+def test_create_model_transform_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -170,7 +181,7 @@ AS input_X_y_sql"""
     )
 
 
-def test_create_remote_model_produces_correct_sql(
+def test_create_remote_model_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
     sql = model_creation_sql_generator.create_remote_model(
@@ -190,7 +201,7 @@ OPTIONS(
     )
 
 
-def test_create_remote_model_with_params_produces_correct_sql(
+def test_create_remote_model_with_params_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
     sql = model_creation_sql_generator.create_remote_model(
@@ -216,7 +227,7 @@ OPTIONS(
     )
 
 
-def test_create_imported_model_produces_correct_sql(
+def test_create_imported_model_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
     sql = model_creation_sql_generator.create_imported_model(
@@ -228,6 +239,30 @@ def test_create_imported_model_produces_correct_sql(
     assert (
         sql
         == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_imported_model`
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)"""
+    )
+
+
+def test_create_xgboost_imported_model_produces_correct_sql(
+    model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+):
+    sql = model_creation_sql_generator.create_xgboost_imported_model(
+        model_ref=bigquery.ModelReference.from_string(
+            "test-proj._anonXYZ.create_xgboost_imported_model"
+        ),
+        input={"column1": "int64"},
+        output={"result": "array<float64>"},
+        options={"option_key1": "option_value1", "option_key2": 2},
+    )
+    assert (
+        sql
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_xgboost_imported_model`
+INPUT(
+  column1 int64)
+OUTPUT(
+  result array<float64>)
 OPTIONS(
   option_key1="option_value1",
   option_key2=2)"""
@@ -249,7 +284,7 @@ SET OPTIONS(
     )
 
 
-def test_ml_predict_produces_correct_sql(
+def test_ml_predict_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -261,7 +296,7 @@ def test_ml_predict_produces_correct_sql(
     )
 
 
-def test_ml_evaluate_produces_correct_sql(
+def test_ml_evaluate_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -273,7 +308,20 @@ def test_ml_evaluate_produces_correct_sql(
     )
 
 
-def test_ml_evaluate_no_source_produces_correct_sql(
+def test_ml_arima_evaluate_correct(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+):
+    sql = model_manipulation_sql_generator.ml_arima_evaluate(
+        show_all_candidate_models=True
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.ARIMA_EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
+            STRUCT(True AS show_all_candidate_models))"""
+    )
+
+
+def test_ml_evaluate_no_source_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
     sql = model_manipulation_sql_generator.ml_evaluate()
@@ -283,7 +331,7 @@ def test_ml_evaluate_no_source_produces_correct_sql(
     )
 
 
-def test_ml_centroids_produces_correct_sql(
+def test_ml_centroids_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
     sql = model_manipulation_sql_generator.ml_centroids()
@@ -309,7 +357,7 @@ def test_forecast_correct_sql(
     )
 
 
-def test_ml_generate_text_produces_correct_sql(
+def test_ml_generate_text_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -326,7 +374,7 @@ def test_ml_generate_text_produces_correct_sql(
     )
 
 
-def test_ml_generate_text_embedding_produces_correct_sql(
+def test_ml_generate_text_embedding_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
@@ -343,7 +391,7 @@ def test_ml_generate_text_embedding_produces_correct_sql(
     )
 
 
-def test_ml_principal_components_produces_correct_sql(
+def test_ml_principal_components_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
     sql = model_manipulation_sql_generator.ml_principal_components()
@@ -353,7 +401,7 @@ def test_ml_principal_components_produces_correct_sql(
     )
 
 
-def test_ml_principal_component_info_produces_correct_sql(
+def test_ml_principal_component_info_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
 ):
     sql = model_manipulation_sql_generator.ml_principal_component_info()

@@ -412,6 +412,37 @@ def test_rename(scalars_dfs):
     )
 
 
+def test_df_peek(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df.peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_filtered(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[scalars_df.int64_col != 0].peek(n=3)
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_exception(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        # Window ops aren't compatible with efficient peeking
+        scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=False)
+
+
+def test_df_peek_force(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    peek_result = scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=True)
+    pd.testing.assert_index_equal(
+        scalars_pandas_df[["int64_col", "int64_too"]].columns, peek_result.columns
+    )
+    assert len(peek_result) == 3
+
+
 def test_repr_w_all_rows(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -1220,9 +1251,7 @@ def test_get_dtypes(scalars_df_default_index):
     )
 
 
-def test_get_dtypes_array_struct(session):
-    """We may upgrade struct and array to proper arrow dtype support in future. For now,
-    we return python objects"""
+def test_get_dtypes_array_struct_query(session):
     df = session.read_gbq(
         """SELECT
         [1, 3, 2] AS array_column,
@@ -1244,6 +1273,41 @@ def test_get_dtypes_array_struct(session):
                             ("float_field", pa.float64()),
                         ]
                     )
+                ),
+            }
+        ),
+    )
+
+
+def test_get_dtypes_array_struct_table(nested_df):
+    dtypes = nested_df.dtypes
+    pd.testing.assert_series_equal(
+        dtypes,
+        pd.Series(
+            {
+                "customer_id": pd.StringDtype(storage="pyarrow"),
+                "day": pd.ArrowDtype(pa.date32()),
+                "flag": pd.Int64Dtype(),
+                "event_sequence": pd.ArrowDtype(
+                    pa.list_(
+                        pa.struct(
+                            [
+                                (
+                                    "data",
+                                    pa.list_(
+                                        pa.struct(
+                                            [
+                                                ("value", pa.float64()),
+                                                ("key", pa.string()),
+                                            ],
+                                        ),
+                                    ),
+                                ),
+                                ("timestamp", pa.timestamp("us", "UTC")),
+                                ("category", pa.string()),
+                            ]
+                        ),
+                    ),
                 ),
             }
         ),
@@ -1717,6 +1781,46 @@ def test_combine_first(
 
     # Some dtype inconsistency for all-NULL columns
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("columns", "numeric_only"),
+    [
+        (["bool_col", "int64_col", "float64_col"], True),
+        (["bool_col", "int64_col", "float64_col"], False),
+        (["bool_col", "int64_col", "float64_col", "string_col"], True),
+        pytest.param(
+            ["bool_col", "int64_col", "float64_col", "string_col"],
+            False,
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+    ],
+)
+def test_corr_w_numeric_only(scalars_dfs, columns, numeric_only):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
+    pd_result = scalars_pandas_df[columns].corr(numeric_only=numeric_only)
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_corr_w_invalid_parameters(scalars_dfs):
+    columns = ["int64_too", "int64_col", "float64_col"]
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[columns].corr(method="kendall")
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[columns].corr(min_periods=1)
 
 
 @pytest.mark.parametrize(
@@ -3140,15 +3244,63 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-def test_getattr_attribute_error_when_pandas_has(scalars_df_index):
-    # asof is implemented in pandas but not in bigframes
+def test_df_getattr_attribute_error_when_pandas_has(scalars_df_index):
+    # swapaxes is implemented in pandas but not in bigframes
     with pytest.raises(AttributeError):
-        scalars_df_index.asof()
+        scalars_df_index.swapaxes()
 
 
-def test_getattr_attribute_error(scalars_df_index):
+def test_df_getattr_attribute_error(scalars_df_index):
     with pytest.raises(AttributeError):
         scalars_df_index.not_a_method()
+
+
+def test_df_getattr_axes():
+    df = dataframe.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    assert isinstance(df.index, bigframes.core.indexes.Index)
+    assert isinstance(df.columns, pandas.Index)
+    assert isinstance(df.my_column, series.Series)
+
+
+def test_df_setattr_index():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.index = [4, 5]
+    bf_df.index = [4, 5]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_setattr_columns():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.columns = [4, 5, 6]
+    bf_df.columns = [4, 5, 6]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
+
+
+def test_df_setattr_modify_column():
+    pd_df = pandas.DataFrame(
+        [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
+    )
+    bf_df = dataframe.DataFrame(pd_df)
+    pd_df.my_column = [4, 5]
+    bf_df.my_column = [4, 5]
+
+    assert_pandas_df_equal(
+        pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
+    )
 
 
 def test_loc_list_string_index(scalars_df_index, scalars_pandas_df_index):
