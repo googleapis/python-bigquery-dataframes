@@ -44,7 +44,6 @@ from google.cloud import (
 )
 import google.iam.v1
 from ibis.expr.datatypes.core import DataType as IbisDataType
-from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 
 from bigframes import clients
 import bigframes.constants as constants
@@ -521,18 +520,6 @@ class UnsupportedTypeError(ValueError):
         self.supported_types = supported_types
 
 
-def ibis_type_from_python_type(t: type) -> IbisDataType:
-    if t not in bigframes.dtypes.SUPPORTED_IO_PYTHON_TYPES:
-        raise UnsupportedTypeError(t, bigframes.dtypes.SUPPORTED_IO_PYTHON_TYPES)
-    return python_type_to_bigquery_type(t)
-
-
-def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> IbisDataType:
-    if tk not in bigframes.dtypes.SUPPORTED_IO_BIGQUERY_TYPEKINDS:
-        raise UnsupportedTypeError(tk, bigframes.dtypes.SUPPORTED_IO_BIGQUERY_TYPEKINDS)
-    return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
-
-
 def ibis_signature_from_python_signature(
     signature: inspect.Signature,
     input_types: Sequence[type],
@@ -823,7 +810,7 @@ def remote_function(
         node = ibis.udf.scalar.builtin(
             f,
             name=rf_name,
-            schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
+            schema=f"`{dataset_ref.project}.{dataset_ref.dataset_id}`",
             signature=(ibis_signature.input_types, ibis_signature.output_type),
         )
         node.bigframes_cloud_function = (
@@ -888,7 +875,7 @@ def read_gbq_function(
     node = ibis.udf.scalar.builtin(
         node,
         name=routine_ref.routine_id,
-        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
+        schema=f"`{routine_ref.project}.{routine_ref.dataset_id}`",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     node.bigframes_remote_function = str(routine_ref)  # type: ignore
