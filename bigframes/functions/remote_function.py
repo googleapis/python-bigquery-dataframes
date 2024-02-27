@@ -810,7 +810,7 @@ def remote_function(
         node = ibis.udf.scalar.builtin(
             f,
             name=rf_name,
-            schema=f"`{dataset_ref.project}.{dataset_ref.dataset_id}`",
+            schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
             signature=(ibis_signature.input_types, ibis_signature.output_type),
         )
         node.bigframes_cloud_function = (
@@ -875,7 +875,7 @@ def read_gbq_function(
     node = ibis.udf.scalar.builtin(
         node,
         name=routine_ref.routine_id,
-        schema=f"`{routine_ref.project}.{routine_ref.dataset_id}`",
+        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     node.bigframes_remote_function = str(routine_ref)  # type: ignore
