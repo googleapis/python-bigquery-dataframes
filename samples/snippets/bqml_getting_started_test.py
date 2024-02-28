@@ -26,17 +26,12 @@ def test_bqml_getting_started(random_model_id):
     # https://github.com/googleapis/python-bigquery-dataframes/issues/169
     # for updates to `read_gbq` to support wildcard tables.
 
-    df = bpd.read_gbq(
-        """
-        -- Since the order of rows isn't useful for the model training,
-        -- generate a random ID to use as the index for the DataFrame.
-        SELECT GENERATE_UUID() AS rowindex, *
-        FROM
-        `bigquery-public-data.google_analytics_sample.ga_sessions_*`
-        WHERE
-        _TABLE_SUFFIX BETWEEN '20160801' AND '20170630'
-        """,
-        index_col="rowindex",
+    df = bpd.read_gbq_table(
+        "bigquery-public-data.google_analytics_sample.ga_sessions_*",
+        filters=[
+            ("_table_suffix", ">=", "20170701"),
+            ("_table_suffix", "<=", "20170801"),
+        ],
     )
 
     # Extract the total number of transactions within
@@ -56,11 +51,11 @@ def test_bqml_getting_started(random_model_id):
     label = transactions.notnull().map({True: 1, False: 0})
 
     # Extract the operating system of the visitor's device.
-    operatingSystem = df["device"].struct.field("operatingSystem")
-    operatingSystem = operatingSystem.fillna("")
+    operating_system = df["device"].struct.field("operatingSystem")
+    operating_system = operating_system.fillna("")
 
     # Extract whether the visitor's device is a mobile device.
-    isMobile = df["device"].struct.field("isMobile")
+    is_mobile = df["device"].struct.field("isMobile")
 
     # Extract the country from which the sessions originated, based on the IP address.
     country = df["geoNetwork"].struct.field("country").fillna("")
@@ -72,8 +67,8 @@ def test_bqml_getting_started(random_model_id):
     # to use as training data.
     features = bpd.DataFrame(
         {
-            "os": operatingSystem,
-            "is_mobile": isMobile,
+            "os": operating_system,
+            "isMobile": is_mobile,
             "country": country,
             "pageviews": pageviews,
         }
@@ -107,27 +102,24 @@ def test_bqml_getting_started(random_model_id):
     # of the model. It was collected in the month immediately following the time
     # period spanned by the training data.
 
-    df = bpd.read_gbq(
-        """
-        SELECT GENERATE_UUID() AS rowindex, *
-        FROM
-        `bigquery-public-data.google_analytics_sample.ga_sessions_*`
-        WHERE
-        _TABLE_SUFFIX BETWEEN '20170701' AND '20170801'
-        """,
-        index_col="rowindex",
+    df = bpd.read_gbq_table(
+        "bigquery-public-data.google_analytics_sample.ga_sessions_*",
+        filters=[
+            ("_table_suffix", ">=", "20170701"),
+            ("_table_suffix", "<=", "20170801"),
+        ],
     )
     transactions = df["totals"].struct.field("transactions")
     label = transactions.notnull().map({True: 1, False: 0})
-    operatingSystem = df["device"].struct.field("operatingSystem")
-    operatingSystem = operatingSystem.fillna("")
-    isMobile = df["device"].struct.field("isMobile")
+    operating_system = df["device"].struct.field("operatingSystem")
+    operating_system = operating_system.fillna("")
+    is_mobile = df["device"].struct.field("isMobile")
     country = df["geoNetwork"].struct.field("country").fillna("")
     pageviews = df["totals"].struct.field("pageviews").fillna(0)
     features = bpd.DataFrame(
         {
-            "os": operatingSystem,
-            "is_mobile": isMobile,
+            "os": operating_system,
+            "isMobile": is_mobile,
             "country": country,
             "pageviews": pageviews,
         }
@@ -164,26 +156,23 @@ def test_bqml_getting_started(random_model_id):
     # [END bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
 
     # [START bigquery_dataframes_bqml_getting_started_tutorial_predict]
-    df = bpd.read_gbq(
-        """
-    SELECT GENERATE_UUID() AS rowindex, *
-    FROM
-    `bigquery-public-data.google_analytics_sample.ga_sessions_*`
-    WHERE
-    _TABLE_SUFFIX BETWEEN '20170701' AND '20170801'
-    """,
-        index_col="rowindex",
+    df = bpd.read_gbq_table(
+        "bigquery-public-data.google_analytics_sample.ga_sessions_*",
+        filters=[
+            ("_table_suffix", ">=", "20170701"),
+            ("_table_suffix", "<=", "20170801"),
+        ],
     )
 
-    operatingSystem = df["device"].struct.field("operatingSystem")
-    operatingSystem = operatingSystem.fillna("")
-    isMobile = df["device"].struct.field("isMobile")
+    operating_system = df["device"].struct.field("operatingSystem")
+    operating_system = operating_system.fillna("")
+    is_mobile = df["device"].struct.field("isMobile")
     country = df["geoNetwork"].struct.field("country").fillna("")
     pageviews = df["totals"].struct.field("pageviews").fillna(0)
     features = bpd.DataFrame(
         {
-            "os": operatingSystem,
-            "is_mobile": isMobile,
+            "os": operating_system,
+            "isMobile": is_mobile,
             "country": country,
             "pageviews": pageviews,
         }
@@ -192,13 +181,15 @@ def test_bqml_getting_started(random_model_id):
     # [BigFrames](/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
     predictions = model.predict(features)
     countries = predictions.groupby(["country"])[["predicted_transactions"]].sum()
-    # type(countries)
+
     countries.sort_values(ascending=False).head(10)
 
     predictions = model.predict(features)
 
-    visitor_id = predictions.groupby(["country"])[["predicted_transactions"]].sum()
+    total_predicted_purchases = predictions.groupby(["country"])[
+        ["predicted_transactions"]
+    ].sum()
 
-    visitor_id.sort_values(ascending=False).head(10)
+    total_predicted_purchases.sort_values(ascending=False).head(10)
 
     # [END bigquery_dataframes_bqml_getting_started_tutorial_predict]
