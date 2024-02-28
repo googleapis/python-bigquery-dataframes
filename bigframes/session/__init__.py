@@ -376,7 +376,7 @@ class Session(
         index_cols: List[str],
         api_name: str,
         configuration: Optional[dict] = None,
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
     ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
@@ -405,7 +405,8 @@ class Session(
         )
         job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
-        job_config.use_query_cache = use_cache
+        if not job_config.use_query_cache:
+            job_config.use_query_cache = use_cache if use_cache is not None else True
 
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
@@ -523,9 +524,6 @@ class Session(
                     "'useQueryCache' in 'configuration' conflicts with"
                     " 'use_cache' parameter. Please specify only one."
                 )
-
-        use_cache = use_cache if use_cache is not None else True
-
         if isinstance(index_col, str):
             index_cols = [index_col]
         else:
