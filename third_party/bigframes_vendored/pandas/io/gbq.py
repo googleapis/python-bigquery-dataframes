@@ -19,6 +19,7 @@ class GBQIOMixin:
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         filters: FiltersType = (),
         use_cache: bool = True,
@@ -107,6 +108,11 @@ class GBQIOMixin:
             columns (Iterable[str]):
                 List of BigQuery column names in the desired order for results
                 DataFrame.
+            configuration (dict, optional):
+                Query config parameters for job processing.
+                For example: configuration = {'query': {'useQueryCache': False}}.
+                For more information see `BigQuery REST API Reference
+                <https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs#configuration.query>`__.
             max_results (Optional[int], default None):
                 If set, limit the maximum number of rows to fetch from the
                 query results.

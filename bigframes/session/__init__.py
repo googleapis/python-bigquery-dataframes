@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 import itertools
 import logging
@@ -244,9 +245,10 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
@@ -267,6 +269,7 @@ class Session(
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
+                configuration=configuration,
                 max_results=max_results,
                 api_name="read_gbq",
                 use_cache=use_cache,
@@ -275,13 +278,20 @@ class Session(
             # TODO(swast): Query the snapshot table but mark it as a
             # deterministic query so we can avoid serializing if we have a
             # unique index.
+            if configuration:
+                raise ValueError(
+                    "The 'configuration' argument is not allowed when "
+                    "directly reading from a table. Please remove "
+                    "'configuration' or use a query."
+                )
+
             return self._read_gbq_table(
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
                 max_results=max_results,
                 api_name="read_gbq",
-                use_cache=use_cache,
+                use_cache=use_cache if use_cache is not None else True,
             )
 
     def _to_query(
@@ -365,6 +375,7 @@ class Session(
         query: str,
         index_cols: List[str],
         api_name: str,
+        configuration: Optional[dict] = None,
         use_cache: bool = True,
     ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
         # If a dry_run indicates this is not a query type job, then don't
@@ -387,7 +398,11 @@ class Session(
         ][:_MAX_CLUSTER_COLUMNS]
         temp_table = self._create_empty_temp_table(schema, cluster_cols)
 
-        job_config = bigquery.QueryJobConfig()
+        job_config = (
+            bigquery.QueryJobConfig.from_api_repr(configuration)
+            if configuration
+            else bigquery.QueryJobConfig()
+        )
         job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
         job_config.use_query_cache = use_cache
@@ -412,8 +427,9 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
     ) -> dataframe.DataFrame:
         """Turn a SQL query into a DataFrame.
@@ -477,6 +493,7 @@ class Session(
             query=query,
             index_col=index_col,
             columns=columns,
+            configuration=configuration,
             max_results=max_results,
             api_name="read_gbq_query",
             use_cache=use_cache,
@@ -488,10 +505,27 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_query",
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
     ) -> dataframe.DataFrame:
+        configuration = _transform_read_gbq_configuration(configuration)
+        if configuration and "query" in configuration:
+            if "query" in configuration["query"]:
+                raise ValueError(
+                    "The query statement must not be included in the ",
+                    "'configuration' because it is already provided as",
+                    " a separate parameter.",
+                )
+            if ("useQueryCache" in configuration["query"]) and (use_cache is not None):
+                raise ValueError(
+                    "'useQueryCache' in 'configuration' conflicts with"
+                    " 'use_cache' parameter. Please specify only one."
+                )
+
+        use_cache = use_cache if use_cache is not None else True
+
         if isinstance(index_col, str):
             index_cols = [index_col]
         else:
@@ -501,6 +535,7 @@ class Session(
             query,
             index_cols,
             api_name=api_name,
+            configuration=configuration,
             use_cache=use_cache,
         )
 
@@ -1722,3 +1757,25 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     # Escape backslashes and use backslash as delineator
     escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace("\\", "\\\\")  # type: ignore
     return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
+
+
+def _transform_read_gbq_configuration(configuration):
+    """
+    For backwards-compatibility, convert any previously client-side only
+    parameters such as timeoutMs to the property name expected by the REST API.
+
+    Makes a copy of configuration if changes are needed.
+    """
+
+    if configuration is None:
+        return None
+
+    timeout_ms = configuration.get("query", {}).get("timeoutMs")
+    if timeout_ms is not None:
+        # Transform timeoutMs to an actual server-side configuration.
+        # https://github.com/googleapis/python-bigquery-pandas/issues/479
+        configuration = copy.deepcopy(configuration)
+        del configuration["query"]["timeoutMs"]
+        configuration["jobTimeoutMs"] = timeout_ms
+
+    return configuration

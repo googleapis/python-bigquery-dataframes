@@ -20,6 +20,7 @@ import time
 import typing
 from typing import List
 
+from google.api_core.exceptions import InternalServerError
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
@@ -351,6 +352,33 @@ def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
         filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")],  # type: ignore
     )
     assert df.shape == (348485, 32)
+
+
+@pytest.mark.parametrize(
+    ("config"),
+    [
+        {"query": {"useQueryCache": True, "maximumBytesBilled": "1000000000"}},
+        pytest.param(
+            {"query": {"useQueryCache": False, "maximumBytesBilled": "100"}},
+            marks=pytest.mark.xfail(
+                raises=InternalServerError,
+            ),
+        ),
+    ],
+)
+def test_read_gbq_with_configuration(
+    session: bigframes.Session, scalars_table_id: str, config: dict
+):
+    query = f"""SELECT
+                t.float64_col * 2 AS my_floats,
+                CONCAT(t.string_col, "_2") AS my_strings,
+                t.int64_col > 0 AS my_bools,
+            FROM `{scalars_table_id}` AS t
+            """
+
+    df = session.read_gbq(query, configuration=config)
+
+    assert df.shape == (9, 3)
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):
