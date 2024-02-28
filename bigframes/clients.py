@@ -182,7 +182,15 @@ class GcsManager:
     def __init__(self):
         self._storage_client = storage.Client()
 
-    def download_as_bytes(self, bucket_name, blob_name):
+    def download_as_bytes(self, bucket_name, blob_name) -> bytes:
         bucket = self._storage_client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
         return blob.download_as_bytes()
+
+    def upload_bytes(self, bts, bucket_name, blob_name, content_type=None):
+        bucket = self._storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        blob.upload_from_string(bts, content_type=content_type)
+
+        return f"gs://{bucket_name}/{blob_name}"
