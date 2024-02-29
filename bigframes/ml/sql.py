@@ -46,10 +46,12 @@ class BaseSqlGenerator:
         param_strs = [f"{k}={self.encode_value(v)}" for k, v in kwargs.items()]
         return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
 
-    def build_structs(self, **kwargs: Union[int, float]) -> str:
+    def build_structs(
+        self, **kwargs: Union[bool, int, float, str, Iterable[str]]
+    ) -> str:
         """Encode a dict of values into a formatted STRUCT items for SQL"""
         indent_str = "  "
-        param_strs = [f"{v} AS {k}" for k, v in kwargs.items()]
+        param_strs = [f"{self.encode_value(v)} AS {k}" for k, v in kwargs.items()]
         return "\n" + indent_str + f",\n{indent_str}".join(param_strs)
 
     def build_expressions(self, *expr_sqls: str) -> str:
@@ -67,7 +69,9 @@ class BaseSqlGenerator:
         """Encode the OPTIONS clause for BQML"""
         return f"OPTIONS({self.build_parameters(**kwargs)})"
 
-    def struct_options(self, **kwargs: Union[int, float]) -> str:
+    def struct_options(
+        self, **kwargs: Union[bool, int, float, str, Iterable[str]]
+    ) -> str:
         """Encode a BQ STRUCT as options."""
         return f"STRUCT({self.build_structs(**kwargs)})"
 
@@ -261,7 +265,9 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
   {struct_options_sql})"""
 
     def ml_generate_text(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+        self,
+        source_df: bpd.DataFrame,
+        struct_options: Mapping[str, Union[bool, int, float]],
     ) -> str:
         """Encode ML.GENERATE_TEXT for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
@@ -269,12 +275,24 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
   ({self._source_sql(source_df)}), {struct_options_sql})"""
 
     def ml_generate_text_embedding(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+        self,
+        source_df: bpd.DataFrame,
+        struct_options: Mapping[str, Union[bool, int, float]],
     ) -> str:
         """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
+
+    def ml_annotate_image(
+        self,
+        obj_table: str,
+        struct_options: Mapping[str, Union[bool, int, float, str, Iterable[str]]],
+    ) -> str:
+        """Encode ML.ANNOTATE_IMAGE for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.ANNOTATE_IMAGE(MODEL `{self._model_name}`,
+TABLE `{obj_table}`, {struct_options_sql})"""
 
     # ML evaluation TVFs
     def ml_evaluate(self, source_df: Optional[bpd.DataFrame] = None) -> str:

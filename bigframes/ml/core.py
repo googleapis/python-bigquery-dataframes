@@ -169,6 +169,24 @@ class BqmlModel(BaseBqml):
             ),
         )
 
+    def annotate_image(
+        self,
+        input_data: bpd.DataFrame,
+        options: Mapping[str, bool | int | float | str | Iterable[str]],
+    ) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_annotate_image(
+            obj_table=self._session._master_object_table, struct_options=options
+        )
+
+        df_output = self._session.read_gbq(sql)
+        df_output = df_output[
+            ["ml_annotate_image_result", "ml_annotate_image_status", "uri"]
+        ]
+
+        return input_data.merge(
+            df_output, how="left", left_on=input_data.columns[0], right_on="uri"
+        )
+
     def forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast(struct_options=options)
         return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
