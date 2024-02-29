@@ -60,6 +60,7 @@ class ClientsProvider:
         use_regional_endpoints: Optional[bool],
         credentials: Optional[google.auth.credentials.Credentials],
         application_name: Optional[str],
+        bq_kms_key_name: Optional[str],
     ):
         credentials_project = None
         if credentials is None:
@@ -90,6 +91,7 @@ class ClientsProvider:
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
         self._credentials = credentials
+        self._bq_kms_key_name = bq_kms_key_name
 
         # cloud clients initialized for lazy load
         self._bqclient = None
@@ -111,12 +113,27 @@ class ClientsProvider:
             bq_info = google.api_core.client_info.ClientInfo(
                 user_agent=self._application_name
             )
+            default_query_job_config = None
+            default_load_job_config = None
+            if self._bq_kms_key_name:
+                default_query_job_config = bigquery.QueryJobConfig(
+                    destination_encryption_configuration=bigquery.EncryptionConfiguration(
+                        kms_key_name=self._bq_kms_key_name
+                    )
+                )
+                # default_load_job_config = bigquery.LoadJobConfig(
+                #     destination_encryption_configuration = bigquery.EncryptionConfiguration(
+                #         kms_key_name=self._bq_kms_key_name
+                #     )
+                # )
             self._bqclient = bigquery.Client(
                 client_info=bq_info,
                 client_options=bq_options,
                 credentials=self._credentials,
                 project=self._project,
                 location=self._location,
+                default_query_job_config=default_query_job_config,
+                default_load_job_config=default_load_job_config,
             )
 
         return self._bqclient

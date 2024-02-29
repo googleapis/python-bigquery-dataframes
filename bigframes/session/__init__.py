@@ -161,6 +161,8 @@ class Session(
         else:
             self._location = context.location
 
+        self._bq_kms_key_name = context.kms_key_name
+
         # Instantiate a clients provider to help with cloud clients that will be
         # used in the future operations in the session
         if clients_provider:
@@ -172,9 +174,17 @@ class Session(
                 use_regional_endpoints=context.use_regional_endpoints,
                 credentials=context.credentials,
                 application_name=context.application_name,
+                bq_kms_key_name=self._bq_kms_key_name,
             )
 
         self._create_bq_datasets()
+
+        # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
+        # has been fixed. The ibis client changes the default query job config
+        # so we are going to remember the current config and restore it after
+        # the ibis client has been created
+        original_default_query_job_config = self.bqclient.default_query_job_config
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
             ibis.bigquery.connect(
@@ -184,6 +194,9 @@ class Session(
             ),
         )
 
+        self.bqclient.default_query_job_config = original_default_query_job_config
+
+        # Resolve the BQ connection for remote function and Vertex AI integration
         self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
 
         # Now that we're starting the session, don't allow the options to be
