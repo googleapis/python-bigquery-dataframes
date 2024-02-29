@@ -30,6 +30,7 @@ from bigframes.ml import (
     linear_model,
     llm,
     pipeline,
+    utils,
 )
 
 _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
@@ -45,6 +46,7 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
         "RANDOM_FOREST_CLASSIFIER": ensemble.RandomForestClassifier,
         "TENSORFLOW": imported.TensorFlowModel,
         "ONNX": imported.ONNXModel,
+        "XGBOOST": imported.XGBoostModel,
     }
 )
 
@@ -54,6 +56,7 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._TEXT_GENERATOR_BISON_32K_ENDPOINT: llm.PaLM2TextGenerator,
         llm._EMBEDDING_GENERATOR_GECKO_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
         llm._EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
+        llm._GEMINI_PRO_ENDPOINT: llm.GeminiTextGenerator,
     }
 )
 
@@ -72,6 +75,7 @@ def from_bq(
     ensemble.RandomForestClassifier,
     imported.TensorFlowModel,
     imported.ONNXModel,
+    imported.XGBoostModel,
     llm.PaLM2TextGenerator,
     llm.PaLM2TextEmbeddingGenerator,
     pipeline.Pipeline,
@@ -103,8 +107,10 @@ def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
     ):
         # Parse the remote model endpoint
         bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
-        endpoint_model = bqml_endpoint.split("/")[-1]
-        return _BQML_ENDPOINT_TYPE_MAPPING[endpoint_model]._from_bq(  # type: ignore
+        model_endpoint = bqml_endpoint.split("/")[-1]
+        model_name, _ = utils.parse_model_endpoint(model_endpoint)
+
+        return _BQML_ENDPOINT_TYPE_MAPPING[model_name]._from_bq(  # type: ignore
             session=session, model=bq_model
         )
 
