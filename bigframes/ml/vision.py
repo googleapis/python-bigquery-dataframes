@@ -18,6 +18,9 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
+import vertexai
+from vertexai import generative_models
+
 import bigframes
 from bigframes import clients, constants
 from bigframes.ml import core, globals, utils
@@ -87,3 +90,35 @@ class MobileNetV2ImageAnnotator:
         df = self._bqml_model.annotate_image(X, options)
 
         return df
+
+
+class GeminiMultimodalTextGenerator:
+    def __init__(
+        self,
+        *,
+        session: Optional[bigframes.Session] = None,
+    ):
+        self.session = session or bpd.get_global_session()
+
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+        (X,) = utils.convert_to_dataframe(X)
+
+        vertexai.init(project=self.session._project, location="us-central1")
+        multimodal_model = generative_models.GenerativeModel("gemini-1.0-pro-vision")
+
+        responses = []
+        for _, row in X.iterrows():
+            uri = row.iloc[0]
+            text = row.iloc[1]
+            response = multimodal_model.generate_content(
+                [
+                    generative_models.Part.from_uri(uri, mime_type="image/jpeg"),
+                    # Add an example query
+                    text,
+                ]
+            )
+            responses.append(response.text)
+
+        X["multimodal_result"] = responses  # type: ignore
+
+        return X
