@@ -131,11 +131,11 @@ class ClientsProvider:
                         kms_key_name=self._bq_kms_key_name
                     )
                 )
-                # default_load_job_config = bigquery.LoadJobConfig(
-                #     destination_encryption_configuration = bigquery.EncryptionConfiguration(
-                #         kms_key_name=self._bq_kms_key_name
-                #     )
-                # )
+                default_load_job_config = bigquery.LoadJobConfig(
+                    destination_encryption_configuration=bigquery.EncryptionConfiguration(
+                        kms_key_name=self._bq_kms_key_name
+                    )
+                )
             self._bqclient = bigquery.Client(
                 client_info=bq_info,
                 client_options=bq_options,
