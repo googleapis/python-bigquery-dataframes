@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+from google.cloud import bigquery
 import pandas
 import pytest
 
@@ -74,6 +76,49 @@ def test_session_default_configs(bq_cmek, session_with_bq_cmek):
         session_with_bq_cmek.bqclient.default_load_job_config.destination_encryption_configuration.kms_key_name
         == bq_cmek
     )
+
+
+def test_session_query_job(bq_cmek, session_with_bq_cmek):
+    if not bq_cmek:
+        pytest.skip("no cmek set for testing")
+
+    query_job = session_with_bq_cmek.bqclient.query("SELECT 123")
+    query_job.result()
+
+    assert query_job.destination_encryption_configuration.kms_key_name.startswith(
+        bq_cmek
+    )
+
+    # The result table should exist with the intended encryption
+    table = session_with_bq_cmek.bqclient.get_table(query_job.destination)
+    assert table.encryption_configuration.kms_key_name == bq_cmek
+
+
+def test_session_load_job(bq_cmek, session_with_bq_cmek):
+    if not bq_cmek:
+        pytest.skip("no cmek set for testing")
+
+    # Session should have cmek set in the default query and load job configs
+    load_table = bigframes.session._io.bigquery.random_table(
+        session_with_bq_cmek._anonymous_dataset
+    )
+    load_job = session_with_bq_cmek.bqclient.load_table_from_dataframe(
+        pandas.DataFrame({"col0": [1, 2, 3]}),
+        load_table,
+        job_config=bigquery.LoadJobConfig(
+            schema=[bigquery.SchemaField("col0", bigquery.enums.SqlTypeNames.INT64)]
+        ),
+    )
+    load_job.result()
+
+    assert load_job.destination == load_table
+    assert load_job.destination_encryption_configuration.kms_key_name.startswith(
+        bq_cmek
+    )
+
+    # The result table should exist with the intended encryption
+    table = session_with_bq_cmek.bqclient.get_table(load_job.destination)
+    assert table.encryption_configuration.kms_key_name == bq_cmek
 
 
 def test_read_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
