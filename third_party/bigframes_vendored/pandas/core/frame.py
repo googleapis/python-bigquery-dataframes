@@ -1141,7 +1141,7 @@ class DataFrame(NDFrame):
 
         Args:
             other (DataFrame or Series):
-            join ({{'outer', 'inner', 'left', 'right'}}, default 'outer'):
+            join ({'outer', 'inner', 'left', 'right'}, default 'outer'):
                 Type of alignment to be performed.
                 left: use only keys from left frame, preserve key order.
                 right: use only keys from right frame, preserve key order.
@@ -3155,7 +3155,7 @@ class DataFrame(NDFrame):
             on:
                 Column in the caller to join on the index in other, otherwise
                 joins index-on-index. Like an Excel VLOOKUP operation.
-            how ({'left', 'right', 'outer', 'inner'}, default 'left'`):
+            how ({'left', 'right', 'outer', 'inner'}, default 'left'):
                 How to handle the operation of the two objects.
                 ``left``: use calling frame's index (or column if on is specified)
                 ``right``: use `other`'s index. ``outer``: form union of calling
