@@ -1513,6 +1513,7 @@ class Session(
             session=self,
         )
 
+    @staticmethod
     def _start_query_with_client(
         bq_client: bigquery.Client,
         sql: str,
