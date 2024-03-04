@@ -29,8 +29,8 @@ def test_bqml_getting_started(random_model_id):
     df = bpd.read_gbq_table(
         "bigquery-public-data.google_analytics_sample.ga_sessions_*",
         filters=[
-            ("_table_suffix", ">=", "20170701"),
-            ("_table_suffix", "<=", "20170801"),
+            ("_table_suffix", ">=", "20160801"),
+            ("_table_suffix", "<=", "20170630"),
         ],
     )
 
@@ -90,17 +90,17 @@ def test_bqml_getting_started(random_model_id):
     # [START bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
     import bigframes.pandas as bpd
 
-    # Select model you'll use for training. `read_gbq_model` loads model data from a
+    # Select model you'll use for evaluating. `read_gbq_model` loads model data from a
     # BigQuery, but you could also use the `model` object from the previous steps.
     model = bpd.read_gbq_model(
         your_model_id,  # For example: "bqml_tutorial.sample_model",
     )
 
-    # The WHERE clause — _TABLE_SUFFIX BETWEEN '20170701' AND '20170801' —
-    # limits the number of tables scanned by the query. The date range scanned is
-    # July 1, 2017 to August 1, 2017. This is the data you're using to evaluate the predictive performance
-    # of the model. It was collected in the month immediately following the time
-    # period spanned by the training data.
+    # The filters parameter limits the number of tables scanned by the query.
+    # The date range scanned is July 1, 2017 to August 1, 2017. This is the
+    # data you're using to evaluate the predictive performance of the model.
+    # It was collected in the month immediately following the time period
+    # spanned by the training data.
 
     df = bpd.read_gbq_table(
         "bigquery-public-data.google_analytics_sample.ga_sessions_*",
@@ -143,7 +143,7 @@ def test_bqml_getting_started(random_model_id):
     # - log_loss — The loss function used in a logistic regression. This is the measure of how far the
     # model's predictions are from the correct labels.
 
-    # - roc_auc — The area under the ROC curve. This is the probability that a classifier is more confident that
+    # - roc_auc — The area under the ROC curve. This is the probability that a classifier is morepy confident that
     # a randomly chosen positive example
     # is actually positive than that a randomly chosen negative example is positive. For more information,
     # see ['Classification']('https://developers.google.com/machine-learning/crash-course/classification/video-lecture')
@@ -155,7 +155,14 @@ def test_bqml_getting_started(random_model_id):
     # [1 rows x 6 columns]
     # [END bigquery_dataframes_bqml_getting_started_tutorial_evaluate]
 
-    # [START bigquery_dataframes_bqml_getting_started_tutorial_predict]
+    # [START bigquery_dataframes_bqml_getting_started_tutorial_predict_by_country]
+
+    # Select model you'll use for prediciting. `read_gbq_model` loads model data from a
+    # BigQuery, but you could also use the `model` object from the previous steps.
+    model = bpd.read_gbq_model(
+        your_model_id,  # For example: "bqml_tutorial.sample_model",
+    )
+
     df = bpd.read_gbq_table(
         "bigquery-public-data.google_analytics_sample.ga_sessions_*",
         filters=[
@@ -178,13 +185,21 @@ def test_bqml_getting_started(random_model_id):
         }
     )
     # Use Logistic Regression predict method to, find more information here in
-    # [BigFrames](/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
+    # [BigFrames](https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
+
+    # This code groups the DataFrame by 'country', calculates the sum of
+    # 'predicted_purchase' for each group, sorts the results by the sum in
+    # descending order, and selects the top 10 rows using the 'head' method.
+
     predictions = model.predict(features)
     countries = predictions.groupby(["country"])[["predicted_transactions"]].sum()
 
     countries.sort_values(ascending=False).head(10)
 
-    predictions = model.predict(features)
+    # [END bigquery_dataframes_bqml_getting_started_tutorial_predict_by_country]
+
+    # [START bigquery_dataframes_bqml_getting_started_tutorial_predict_by_visitor_id]
+    predictions = model.predict(features, label)
 
     total_predicted_purchases = predictions.groupby(["country"])[
         ["predicted_transactions"]
@@ -192,4 +207,4 @@ def test_bqml_getting_started(random_model_id):
 
     total_predicted_purchases.sort_values(ascending=False).head(10)
 
-    # [END bigquery_dataframes_bqml_getting_started_tutorial_predict]
+    # [END bigquery_dataframes_bqml_getting_started_tutorial_predict_by_visitor_id]
