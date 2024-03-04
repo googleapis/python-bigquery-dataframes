@@ -1604,8 +1604,11 @@ class Session(
         *,
         sorted: bool = True,
         dry_run=False,
+        col_id_overrides: Mapping[str, str] = {},
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        sql = self._to_sql(array_value, sorted=sorted)  # type:ignore
+        sql = self._to_sql(
+            array_value, sorted=sorted, col_id_overrides=col_id_overrides
+        )  # type:ignore
         job_config = bigquery.QueryJobConfig(dry_run=dry_run)
         return self._start_query(
             sql=sql,
