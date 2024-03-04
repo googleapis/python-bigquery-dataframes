@@ -60,15 +60,16 @@ def test_create_single_timeseries(random_model_id):
     print(evaluation)
 
     # Inspect the coefficients of your model
-    f'''
+    '''
+    
     SELECT *
     FROM ML.ARIMA_COEFFICIENTS(MODEL `{your_model_id}`)
-    '''
+    
     evaluation.ML.ARIMA_COEFFICIENTS()
-
+    '''
     # Use your model to forecast the time series
     #standardSQL
-    your_model_id.forecast()
+    ga_arima_model.predict(horizon= 30, confidence_level= 0.8)
 
     # Explain and visualize the forecasting results
     f'''
