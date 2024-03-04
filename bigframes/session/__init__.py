@@ -209,6 +209,10 @@ class Session(
         return self._clients_provider.bqclient
 
     @property
+    def bqmlclient(self):
+        return self._clients_provider.bqmlclient
+
+    @property
     def bqconnectionclient(self):
         return self._clients_provider.bqconnectionclient
 
@@ -1509,8 +1513,8 @@ class Session(
             session=self,
         )
 
-    def _start_query(
-        self,
+    def _start_query_with_client(
+        bq_client: bigquery.Client,
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
@@ -1518,14 +1522,14 @@ class Session(
         """
         Starts query job and waits for results.
         """
-        job_config = self._prepare_job_config(job_config)
+        job_config = Session._prepare_job_config(job_config)
         api_methods = log_adapter.get_and_reset_api_methods()
         job_config.labels = bigframes_io.create_job_configs_labels(
             job_configs_labels=job_config.labels, api_methods=api_methods
         )
 
         try:
-            query_job = self.bqclient.query(sql, job_config=job_config)
+            query_job = bq_client.query(sql, job_config=job_config)
         except google.api_core.exceptions.Forbidden as ex:
             if "Drive credentials" in ex.message:
                 ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
@@ -1539,6 +1543,32 @@ class Session(
         else:
             results_iterator = query_job.result(max_results=max_results)
         return results_iterator, query_job
+
+    def _start_query(
+        self,
+        sql: str,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """
+        Starts BigQuery query job and waits for results.
+        """
+        return Session._start_query_with_client(
+            self.bqclient, sql, job_config, max_results
+        )
+
+    def _start_query_bqml(
+        self,
+        sql: str,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """
+        Starts BigQuery ML query job and waits for results.
+        """
+        return Session._start_query_with_client(
+            self.bqmlclient, sql, job_config, max_results
+        )
 
     def _cache_with_cluster_cols(
         self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str]
@@ -1681,11 +1711,10 @@ class Session(
         else:
             job.result()
 
+    @staticmethod
     def _prepare_job_config(
-        self, job_config: Optional[bigquery.QueryJobConfig] = None
+        job_config: Optional[bigquery.QueryJobConfig] = None,
     ) -> bigquery.QueryJobConfig:
-        if job_config is None:
-            job_config = self.bqclient.default_query_job_config
         if job_config is None:
             job_config = bigquery.QueryJobConfig()
         if bigframes.options.compute.maximum_bytes_billed is not None:

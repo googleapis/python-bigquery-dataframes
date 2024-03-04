@@ -93,6 +93,7 @@ def assert_clients_w_user_agent(
     provider: clients.ClientsProvider, expected_user_agent: str
 ):
     assert_constructed_w_user_agent(provider.bqclient, expected_user_agent)
+    assert_constructed_w_user_agent(provider.bqmlclient, expected_user_agent)
     assert_constructed_w_user_agent(provider.bqconnectionclient, expected_user_agent)
     assert_constructed_w_user_agent(provider.bqstoragereadclient, expected_user_agent)
     assert_constructed_w_user_agent(provider.cloudfunctionsclient, expected_user_agent)

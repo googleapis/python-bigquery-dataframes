@@ -212,7 +212,11 @@ class BqmlModel(BaseBqml):
         return self._session.read_gbq(sql)
 
     def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
-        job_config = bigquery.job.CopyJobConfig()
+        job_config = bigquery.job.CopyJobConfig(
+            destination_encryption_configuration=bigquery.EncryptionConfiguration(
+                kms_key_name=self._session._bq_kms_key_name
+            )
+        )
         if replace:
             job_config.write_disposition = "WRITE_TRUNCATE"
 
@@ -236,7 +240,7 @@ class BqmlModel(BaseBqml):
             options={"vertex_ai_model_id": vertex_ai_model_id}
         )
         # Register the model and wait it to finish
-        self._session._start_query(sql)
+        self._session._start_query_bqml(sql)
 
         self._model = self._session.bqclient.get_model(self.model_name)
         return self
@@ -255,7 +259,7 @@ class BqmlModelFactory:
 
     def _create_model_with_sql(self, session: bigframes.Session, sql: str) -> BqmlModel:
         # fit the model, synchronously
-        _, job = session._start_query(sql)
+        _, job = session._start_query_bqml(sql)
 
         # real model path in the session specific hidden dataset and table prefix
         model_name_full = f"{job.destination.project}.{job.destination.dataset_id}.{job.destination.table_id}"
@@ -298,6 +302,9 @@ class BqmlModelFactory:
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
+        if session._bq_kms_key_name:
+            options.update({"kms_key_name": session._bq_kms_key_name})
+
         model_ref = self._create_model_ref(session._anonymous_dataset)
 
         sql = self._model_creation_sql_generator.create_model(

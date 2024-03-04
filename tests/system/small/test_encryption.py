@@ -18,6 +18,7 @@ import pandas
 import pytest
 
 import bigframes
+import bigframes.ml.linear_model
 
 
 @pytest.fixture(scope="module")
@@ -116,7 +117,7 @@ def test_session_load_job(bq_cmek, session_with_bq_cmek):
         bq_cmek
     )
 
-    # The result table should exist with the intended encryption
+    # The load destination table should be created with the intended encryption
     table = session_with_bq_cmek.bqclient.get_table(load_job.destination)
     assert table.encryption_configuration.kms_key_name == bq_cmek
 
@@ -221,3 +222,43 @@ def test_read_pandas_large(bq_cmek, session_with_bq_cmek):
 
     # Assert encryption
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
+
+
+def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
+    model = bigframes.ml.linear_model.LinearRegression()
+
+    df = session_with_bq_cmek.read_gbq(penguins_table_id).dropna()
+    X_train = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+            "culmen_depth_mm",
+            "flipper_length_mm",
+            "sex",
+        ]
+    ]
+    y_train = df[["body_mass_g"]]
+    model.fit(X_train, y_train)
+
+    assert model is not None
+    assert model._bqml_model.model.encryption_configuration is not None
+    assert model._bqml_model.model.encryption_configuration.kms_key_name == bq_cmek
+
+    # Assert that model exists in BQ with intended encryption
+    model_bq = session_with_bq_cmek.bqclient.get_model(model._bqml_model.model_name)
+    assert model_bq.encryption_configuration.kms_key_name == bq_cmek
+
+    # Explicitly save the model to a destination and assert that encryption holds
+    model_ref = model._bqml_model_factory._create_model_ref(
+        session_with_bq_cmek._anonymous_dataset
+    )
+    model_ref_full_name = (
+        f"{model_ref.project}.{model_ref.dataset_id}.{model_ref.model_id}"
+    )
+    new_model = model.to_gbq(model_ref_full_name)
+    assert new_model._bqml_model.model.encryption_configuration.kms_key_name == bq_cmek
+
+    # Assert that model exists in BQ with intended encryption
+    model_bq = session_with_bq_cmek.bqclient.get_model(new_model._bqml_model.model_name)
+    assert model_bq.encryption_configuration.kms_key_name == bq_cmek
