@@ -4,6 +4,8 @@
   - href: changelog.md
     name: Changelog
   - items:
+    - href: summary_overview.yml
+      name: Overview
     - href: summary_class.yml
       name: Classes
     - href: summary_method.yml
