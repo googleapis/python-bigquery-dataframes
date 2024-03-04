@@ -31,7 +31,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
 import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
