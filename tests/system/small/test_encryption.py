@@ -225,8 +225,10 @@ def test_read_pandas_large(bq_cmek, session_with_bq_cmek):
 
 
 def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
-    model = bigframes.ml.linear_model.LinearRegression()
+    if not bq_cmek:
+        pytest.skip("no cmek set for testing")
 
+    model = bigframes.ml.linear_model.LinearRegression()
     df = session_with_bq_cmek.read_gbq(penguins_table_id).dropna()
     X_train = df[
         [
