@@ -1416,7 +1416,7 @@ class Session(
                 then the default service account would be used. See
                 https://cloud.google.com/functions/docs/securing/function-identity
                 for more details. Please make sure the service account has the
-                necessary IAM permissions configures as described in
+                necessary IAM permissions configured as described in
                 https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
         Returns:
             callable: A remote function object pointing to the cloud assets created

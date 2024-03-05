@@ -697,7 +697,7 @@ def remote_function(
             the default service account would be used. See
             https://cloud.google.com/functions/docs/securing/function-identity
             for more details. Please make sure the service account has the
-            necessary IAM permissions configures as described in
+            necessary IAM permissions configured as described in
             https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
     """
     import bigframes.pandas as bpd
