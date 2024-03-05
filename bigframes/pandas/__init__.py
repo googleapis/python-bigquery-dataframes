@@ -598,11 +598,12 @@ read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
 def read_parquet(
-    path: str | IO["bytes"], *, engine: str
+    path: str | IO["bytes"], *, engine: str = "auto"
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
+        engine=engine,
     )
 
 
