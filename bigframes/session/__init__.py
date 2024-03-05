@@ -65,7 +65,6 @@ from pandas._typing import (
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.constants as constants
-from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -84,7 +83,6 @@ import bigframes.version
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
-import third_party.bigframes_vendored.ibis.backends.bigquery  # noqa
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
@@ -1513,38 +1511,6 @@ class Session(
             session=self,
         )
 
-    @staticmethod
-    def _start_query_with_client(
-        bq_client: bigquery.Client,
-        sql: str,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
-    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        """
-        Starts query job and waits for results.
-        """
-        job_config = Session._prepare_job_config(job_config)
-        api_methods = log_adapter.get_and_reset_api_methods()
-        job_config.labels = bigframes_io.create_job_configs_labels(
-            job_configs_labels=job_config.labels, api_methods=api_methods
-        )
-
-        try:
-            query_job = bq_client.query(sql, job_config=job_config)
-        except google.api_core.exceptions.Forbidden as ex:
-            if "Drive credentials" in ex.message:
-                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-            raise
-
-        opts = bigframes.options.display
-        if opts.progress_bar is not None and not query_job.configuration.dry_run:
-            results_iterator = formatting_helpers.wait_for_query_job(
-                query_job, max_results, opts.progress_bar
-            )
-        else:
-            results_iterator = query_job.result(max_results=max_results)
-        return results_iterator, query_job
-
     def _start_query(
         self,
         sql: str,
@@ -1554,7 +1520,7 @@ class Session(
         """
         Starts BigQuery query job and waits for results.
         """
-        return Session._start_query_with_client(
+        return bigframes.session._io.bigquery.start_query_with_client(
             self.bqclient, sql, job_config, max_results
         )
 
@@ -1567,7 +1533,7 @@ class Session(
         """
         Starts BigQuery ML query job and waits for results.
         """
-        return Session._start_query_with_client(
+        return bigframes.session._io.bigquery.start_query_with_client(
             self.bqmlclient, sql, job_config, max_results
         )
 
@@ -1711,18 +1677,6 @@ class Session(
             )  # Wait for the job to complete
         else:
             job.result()
-
-    @staticmethod
-    def _prepare_job_config(
-        job_config: Optional[bigquery.QueryJobConfig] = None,
-    ) -> bigquery.QueryJobConfig:
-        if job_config is None:
-            job_config = bigquery.QueryJobConfig()
-        if bigframes.options.compute.maximum_bytes_billed is not None:
-            job_config.maximum_bytes_billed = (
-                bigframes.options.compute.maximum_bytes_billed
-            )
-        return job_config
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
