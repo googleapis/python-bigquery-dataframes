@@ -392,7 +392,7 @@ def load(session: nox.sessions.Session):
     """Run the very large tests in system test suite."""
     run_system(
         session=session,
-        prefix_name="e2e",
+        prefix_name="load",
         test_folder=os.path.join("tests", "system", "load"),
         print_duration=True,
     )
