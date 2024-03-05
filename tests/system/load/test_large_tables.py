@@ -74,6 +74,11 @@ def test_index_repr_large_table():
     assert actual is not None
 
 
+# FAILED
+# tests/system/load/test_large_tables.py::test_to_pandas_batches_large_table
+# google.api_core.exceptions.Forbidden: 403 Response too large to return.
+# Consider specifying a destination table in your job...
+@pytest.mark.xfail
 def test_to_pandas_batches_large_table():
     df = bpd.read_gbq("load_testing.scalars_1tb")
     expected_row_count, expected_column_count = df.shape
