@@ -155,6 +155,7 @@ class ConcatNode(BigFrameNode):
 @dataclass(frozen=True)
 class ReadLocalNode(BigFrameNode):
     feather_bytes: bytes
+    session: bigframes.session.Session
 
     def __hash__(self):
         return self._node_hash
