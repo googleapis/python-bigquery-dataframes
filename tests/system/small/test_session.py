@@ -856,11 +856,19 @@ def test_read_pickle_gcs(session, penguins_pandas_df_default_index, gcs_folder):
     pd.testing.assert_frame_equal(penguins_pandas_df_default_index, df.to_pandas())
 
 
-def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
+@pytest.mark.parametrize(
+    ("engine",),
+    (
+        ("auto",),
+        ("bigquery",),
+    ),
+)
+def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, engine):
     scalars_df, _ = scalars_dfs
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
     path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     # GEOGRAPHY not supported in parquet export.
     df_in = df_in.drop(columns="geography_col")
@@ -869,8 +877,12 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
     df_write.to_parquet(path, index=True)
 
+    # Only bigquery engine for reads supports wildcards in path name.
+    if engine != "bigquery":
+        path = path.replace("*", "000000000000")
+
     df_out = (
-        session.read_parquet(path)
+        session.read_parquet(path, engine=engine)
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.
@@ -919,7 +931,7 @@ def test_read_parquet_gcs_compressed(
     df_write.to_parquet(path, compression=compression, index=True)
 
     df_out = (
-        session.read_parquet(path)
+        session.read_parquet(path, engine="bigquery")
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.
