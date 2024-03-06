@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import functools
 import hashlib
 import inspect
 import logging
@@ -22,12 +21,12 @@ import os
 import random
 import shutil
 import string
-import subprocess
 import sys
 import tempfile
 import textwrap
 from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
 
+import ibis
 import requests
 
 if TYPE_CHECKING:
@@ -43,15 +42,12 @@ from google.cloud import (
     resourcemanager_v3,
 )
 import google.iam.v1
-from ibis.backends.bigquery.compiler import compiles
-from ibis.backends.bigquery.datatypes import BigQueryType
 from ibis.expr.datatypes.core import DataType as IbisDataType
-import ibis.expr.operations as ops
-import ibis.expr.rules as rlz
 
 from bigframes import clients
 import bigframes.constants as constants
 import bigframes.dtypes
+import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 
 logger = logging.getLogger(__name__)
 
@@ -88,19 +84,6 @@ def _get_hash(def_, package_requirements=None):
         for p in sorted(package_requirements):
             def_repr += p.encode()
     return hashlib.md5(def_repr).hexdigest()
-
-
-def _run_system_command(command):
-    program = subprocess.Popen(
-        [command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
-    )
-    stdout, stderr = program.communicate()
-    exit_code = program.wait()
-    if exit_code:
-        raise RuntimeError(
-            f"Command: {command}\nOutput: {stdout.decode()}\nError: {stderr.decode()}"
-            f"{constants.FEEDBACK_LINK}"
-        )
 
 
 def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> str:
@@ -146,6 +129,7 @@ class RemoteFunctionClient:
         bq_connection_client,
         bq_connection_id,
         cloud_resource_manager_client,
+        cloud_function_service_account,
     ):
         self._gcp_project_id = gcp_project_id
         self._cloud_function_region = cloud_function_region
@@ -157,6 +141,7 @@ class RemoteFunctionClient:
         self._bq_connection_manager = clients.BqConnectionManager(
             bq_connection_client, cloud_resource_manager_client
         )
+        self._cloud_function_service_account = cloud_function_service_account
 
     def create_bq_remote_function(
         self, input_args, input_types, output_type, endpoint, bq_function_name
@@ -173,12 +158,14 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = BigQueryType.from_ibis(output_type)
+        bq_function_return_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
+            output_type
+        )
 
         # We are expecting the input type annotations to be 1:1 with the input args
         for idx, name in enumerate(input_args):
             bq_function_args.append(
-                f"{name} {BigQueryType.from_ibis(input_types[idx])}"
+                f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
             )
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
@@ -282,6 +269,8 @@ class RemoteFunctionClient:
         code_template = textwrap.dedent(
             """\
         import cloudpickle
+        import functions_framework
+        from flask import jsonify
         import json
 
         # original udf code is in {udf_code_file}
@@ -290,14 +279,17 @@ class RemoteFunctionClient:
           udf = cloudpickle.load(f)
 
         def {handler_func_name}(request):
-          request_json = request.get_json(silent=True)
-          calls = request_json["calls"]
-          replies = []
-          for call in calls:
-            reply = udf(*call)
-            replies.append(reply)
-          return_json = json.dumps({{"replies" : replies}})
-          return return_json
+          try:
+            request_json = request.get_json(silent=True)
+            calls = request_json["calls"]
+            replies = []
+            for call in calls:
+              reply = udf(*call)
+              replies.append(reply)
+            return_json = json.dumps({{"replies" : replies}})
+            return return_json
+          except Exception as e:
+            return jsonify( {{ "errorMessage": str(e) }} ), 400
         """
         )
 
@@ -394,6 +386,9 @@ class RemoteFunctionClient:
             function.service_config = functions_v2.ServiceConfig()
             function.service_config.available_memory = "1024M"
             function.service_config.timeout_seconds = 600
+            function.service_config.service_account_email = (
+                self._cloud_function_service_account
+            )
             create_function_request.function = function
 
             # Create the cloud function and wait for it to be ready to use
@@ -515,33 +510,10 @@ class RemoteFunctionClient:
         return (http_endpoint, bq_connection)
 
 
-def remote_function_node(
-    routine_ref: bigquery.RoutineReference, ibis_signature: IbisSignature
-):
-    """Creates an Ibis node representing a remote function call."""
-
-    fields = {
-        name: rlz.ValueOf(None if type_ == "ANY TYPE" else type_)
-        for name, type_ in zip(
-            ibis_signature.parameter_names, ibis_signature.input_types
-        )
-    }
-
-    fields["dtype"] = ibis_signature.output_type  # type: ignore
-    fields["shape"] = rlz.shape_like("args")
-
-    node = type(routine_ref_to_string_for_query(routine_ref), (ops.ValueOp,), fields)  # type: ignore
-
-    @compiles(node)
-    def compile_node(t, op):
-        return "{}({})".format(node.__name__, ", ".join(map(t.translate, op.args)))
-
-    def f(*args, **kwargs):
-        return node(*args, **kwargs).to_expr()
-
-    f.bigframes_remote_function = str(routine_ref)  # type: ignore
-
-    return f
+class UnsupportedTypeError(ValueError):
+    def __init__(self, type_, supported_types):
+        self.type = type_
+        self.supported_types = supported_types
 
 
 def ibis_signature_from_python_signature(
@@ -624,6 +596,7 @@ def remote_function(
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
+    cloud_function_service_account: Optional[str] = None,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -679,12 +652,12 @@ def remote_function(
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
         bigquery_connection_client (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
-            Client to use for cloud functions operations. If this param is not
-            provided then functions client from the session would be used.
-        cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
             Client to use for BigQuery connection operations. If this param is
             not provided then bigquery connection client from the session would
             be used.
+        cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
+            Client to use for cloud functions operations. If this param is not
+            provided then the functions client from the session would be used.
         resource_manager_client (google.cloud.resourcemanager_v3.ProjectsClient, Optional):
             Client to use for cloud resource management operations, e.g. for
             getting and setting IAM roles on cloud resources. If this param is
@@ -719,7 +692,13 @@ def remote_function(
             Explicit name of the external package dependencies. Each dependency
             is added to the `requirements.txt` as is, and can be of the form
             supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-
+        cloud_function_service_account (str, Optional):
+            Service account to use for the cloud functions. If not provided then
+            the default service account would be used. See
+            https://cloud.google.com/functions/docs/securing/function-identity
+            for more details. Please make sure the service account has the
+            necessary IAM permissions configured as described in
+            https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
     """
     import bigframes.pandas as bpd
 
@@ -820,6 +799,7 @@ def remote_function(
             bigquery_connection_client,
             bq_connection_id,
             resource_manager_client,
+            cloud_function_service_account,
         )
 
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
@@ -831,14 +811,16 @@ def remote_function(
             packages,
         )
 
-        node = remote_function_node(dataset_ref.routine(rf_name), ibis_signature)
-
-        node = functools.wraps(f)(node)
-        node.__signature__ = signature
+        node = ibis.udf.scalar.builtin(
+            f,
+            name=rf_name,
+            schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
+            signature=(ibis_signature.input_types, ibis_signature.output_type),
+        )
         node.bigframes_cloud_function = (
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
-
+        node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
         return node
 
     return wrapper
@@ -888,4 +870,17 @@ def read_gbq_function(
             f"{constants.FEEDBACK_LINK}"
         )
 
-    return remote_function_node(routine_ref, ibis_signature)
+    # The name "args" conflicts with the Ibis operator, so we use
+    # non-standard names for the arguments here.
+    def node(*ignored_args, **ignored_kwargs):
+        f"""Remote function {str(routine_ref)}."""
+
+    node.__name__ = routine_ref.routine_id
+    node = ibis.udf.scalar.builtin(
+        node,
+        name=routine_ref.routine_id,
+        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
+        signature=(ibis_signature.input_types, ibis_signature.output_type),
+    )
+    node.bigframes_remote_function = str(routine_ref)  # type: ignore
+    return node

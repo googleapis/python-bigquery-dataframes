@@ -23,7 +23,6 @@ from typing import Any, Dict, Iterable, Literal, Tuple, Union
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
-from ibis.backends.bigquery.datatypes import BigQueryType
 import ibis.expr.datatypes as ibis_dtypes
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 import ibis.expr.types as ibis_types
@@ -32,6 +31,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
+import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
@@ -390,11 +390,29 @@ def literal_to_ibis_scalar(
         scalar_expr = ibis.literal(literal, ibis_dtypes.float64)
     elif scalar_expr.type().is_integer():
         scalar_expr = ibis.literal(literal, ibis_dtypes.int64)
+    elif scalar_expr.type().is_decimal():
+        precision = scalar_expr.type().precision
+        scale = scalar_expr.type().scale
+        if (not precision and not scale) or (
+            precision and scale and scale <= 9 and precision + (9 - scale) <= 38
+        ):
+            scalar_expr = ibis.literal(
+                literal, ibis_dtypes.decimal(precision=38, scale=9)
+            )
+        elif precision and scale and scale <= 38 and precision + (38 - scale) <= 76:
+            scalar_expr = ibis.literal(
+                literal, ibis_dtypes.decimal(precision=76, scale=38)
+            )
+        else:
+            raise TypeError(
+                "BigQuery's decimal data type supports a maximum precision of 76 and a maximum scale of 38."
+                f"Current precision: {precision}. Current scale: {scale}"
+            )
 
     # TODO(bmil): support other literals that can be coerced to compatible types
     if validate and (scalar_expr.type() not in BIGFRAMES_TO_IBIS.values()):
         raise ValueError(
-            f"Literal did not coerce to a supported data type: {literal}. {constants.FEEDBACK_LINK}"
+            f"Literal did not coerce to a supported data type: {scalar_expr.type()}. {constants.FEEDBACK_LINK}"
         )
 
     return scalar_expr
@@ -624,4 +642,4 @@ def ibis_type_from_python_type(t: type) -> ibis_dtypes.DataType:
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> ibis_dtypes.DataType:
     if tk not in SUPPORTED_IO_BIGQUERY_TYPEKINDS:
         raise UnsupportedTypeError(tk, SUPPORTED_IO_BIGQUERY_TYPEKINDS)
-    return BigQueryType.to_ibis(tk)
+    return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)

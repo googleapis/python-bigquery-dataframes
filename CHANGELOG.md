@@ -4,6 +4,100 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [0.23.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v0.22.0...v0.23.0) (2024-03-05)
+
+
+### Features
+
+* Add ml.metrics.pairwise.euclidean_distance ([#397](https://github.com/googleapis/python-bigquery-dataframes/issues/397)) ([1726588](https://github.com/googleapis/python-bigquery-dataframes/commit/1726588beb8894bc08c272d718ca8e3a9451d0c2))
+* Add TextEmbedding model version support ([#394](https://github.com/googleapis/python-bigquery-dataframes/issues/394)) ([e0f1ab0](https://github.com/googleapis/python-bigquery-dataframes/commit/e0f1ab07cbc81034e24767baff54560561950e67))
+
+
+### Bug Fixes
+
+* Code exception in `remote_function` now prevents retry and surfaces in the client ([#387](https://github.com/googleapis/python-bigquery-dataframes/issues/387)) ([dd3643d](https://github.com/googleapis/python-bigquery-dataframes/commit/dd3643d3733ca1c2a18352bafac7d32fbdfa2a25))
+* Docs link for metrics.pairwise ([#400](https://github.com/googleapis/python-bigquery-dataframes/issues/400)) ([a60aba7](https://github.com/googleapis/python-bigquery-dataframes/commit/a60aba712576e2e4e14cfcfffe9349d6972716a5))
+
+
+### Dependencies
+
+* Update ibis to version 8.0.0 and refactor `remote_function` to use ibis UDF method ([#277](https://github.com/googleapis/python-bigquery-dataframes/issues/277)) ([350499b](https://github.com/googleapis/python-bigquery-dataframes/commit/350499bccb62e22169ab2f2e1400175b2179ef85))
+
+
+### Documentation
+
+* Update README to point to new summary pages ([#402](https://github.com/googleapis/python-bigquery-dataframes/issues/402)) ([bfe2b23](https://github.com/googleapis/python-bigquery-dataframes/commit/bfe2b23e2dea0cdf1e1b6ff5b17f6759d73c3e24))
+
+## [0.22.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v0.21.0...v0.22.0) (2024-02-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* rename cosine_similarity to paired_cosine_distances ([#393](https://github.com/googleapis/python-bigquery-dataframes/issues/393))
+* move model optional args to kwargs ([#381](https://github.com/googleapis/python-bigquery-dataframes/issues/381))
+
+### Features
+
+* Add `DataFrames.corr()` method ([#379](https://github.com/googleapis/python-bigquery-dataframes/issues/379)) ([67fd434](https://github.com/googleapis/python-bigquery-dataframes/commit/67fd434bbb1c73f9013f65252d1ecc8da79542f6))
+* Add ml.metrics.pairwise.manhattan_distance ([#392](https://github.com/googleapis/python-bigquery-dataframes/issues/392)) ([9d31865](https://github.com/googleapis/python-bigquery-dataframes/commit/9d318653c001287bcc8ae9d8e09d0187413cbed6))
+* Enable regional endpoints for me-central2 ([#386](https://github.com/googleapis/python-bigquery-dataframes/issues/386)) ([469674d](https://github.com/googleapis/python-bigquery-dataframes/commit/469674d64f6ad5dac0f24ad450a7b8b6998fdf68))
+
+
+### Bug Fixes
+
+* Avoid ibis warning for "database" table() method argument ([#390](https://github.com/googleapis/python-bigquery-dataframes/issues/390)) ([a0490a4](https://github.com/googleapis/python-bigquery-dataframes/commit/a0490a492a43db24a314b3f42bfac61da7683151))
+* Correct the numeric literal dtype ([#365](https://github.com/googleapis/python-bigquery-dataframes/issues/365)) ([93b02cd](https://github.com/googleapis/python-bigquery-dataframes/commit/93b02cd8bc620823563f8214b43bc5f2f35c155b))
+* Rename cosine_similarity to paired_cosine_distances ([#393](https://github.com/googleapis/python-bigquery-dataframes/issues/393)) ([81ece46](https://github.com/googleapis/python-bigquery-dataframes/commit/81ece463b69765b0f93585d6b866fb642ddc65dc))
+
+
+### Performance Improvements
+
+* Inline read_pandas for small data ([#383](https://github.com/googleapis/python-bigquery-dataframes/issues/383)) ([59b446b](https://github.com/googleapis/python-bigquery-dataframes/commit/59b446bad8d2c5fca791c384616cfa7e54d54c09))
+
+
+### Dependencies
+
+* Add minimum version constraint for sqlglot to 19.9.0 ([#389](https://github.com/googleapis/python-bigquery-dataframes/issues/389)) ([8b62d77](https://github.com/googleapis/python-bigquery-dataframes/commit/8b62d77d8274cff2842c98b032bf98d69c483482))
+
+
+### Documentation
+
+* Add a code sample for creating a kmeans model ([#267](https://github.com/googleapis/python-bigquery-dataframes/issues/267)) ([4291d65](https://github.com/googleapis/python-bigquery-dataframes/commit/4291d656f30dc50b8ffcdd10ccbfa7f327711100))
+* Fix `bigframes.pandas.concat` documentation ([#382](https://github.com/googleapis/python-bigquery-dataframes/issues/382)) ([234b61c](https://github.com/googleapis/python-bigquery-dataframes/commit/234b61cdfe75b402adf1b56f53b5f06934777f95))
+
+
+### Miscellaneous Chores
+
+* Release 0.22.0 ([#396](https://github.com/googleapis/python-bigquery-dataframes/issues/396)) ([8f73d9e](https://github.com/googleapis/python-bigquery-dataframes/commit/8f73d9e37827ecdc90683313000364922ae61dab))
+
+
+### Code Refactoring
+
+* Move model optional args to kwargs ([#381](https://github.com/googleapis/python-bigquery-dataframes/issues/381)) ([4037992](https://github.com/googleapis/python-bigquery-dataframes/commit/4037992b61ff352320d5dfb87dcf5f274791ace1))
+
+## [0.21.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v0.20.1...v0.21.0) (2024-02-13)
+
+
+### Features
+
+* Add `Series.cov` method ([#368](https://github.com/googleapis/python-bigquery-dataframes/issues/368)) ([443db22](https://github.com/googleapis/python-bigquery-dataframes/commit/443db228375da9b232376140c9d5b0db14895eae))
+* Add ml.llm.GeminiTextGenerator model ([#370](https://github.com/googleapis/python-bigquery-dataframes/issues/370)) ([de1e0a4](https://github.com/googleapis/python-bigquery-dataframes/commit/de1e0a451785e679f37b083be6d58c267319f56a))
+* Add ml.metrics.pairwise.cosine_similarity function ([#374](https://github.com/googleapis/python-bigquery-dataframes/issues/374)) ([126f566](https://github.com/googleapis/python-bigquery-dataframes/commit/126f5660bd61bd8998e5f17ca0cbd39959590367))
+* Add XGBoostModel ([#363](https://github.com/googleapis/python-bigquery-dataframes/issues/363)) ([d5518b2](https://github.com/googleapis/python-bigquery-dataframes/commit/d5518b28509be0ce070b22d9134a6a662412010a))
+* Limited support of lambdas in `Series.apply` ([#345](https://github.com/googleapis/python-bigquery-dataframes/issues/345)) ([208e081](https://github.com/googleapis/python-bigquery-dataframes/commit/208e081fa99e17b8085e83c111c07eb6fc5c4730))
+* Support bigframes.pandas.to_datetime for scalars, iterables and series. ([#372](https://github.com/googleapis/python-bigquery-dataframes/issues/372)) ([ffb0d15](https://github.com/googleapis/python-bigquery-dataframes/commit/ffb0d15602fe4d86e7a1aad72bba0a7049193a14))
+* Support read_gbq wildcard table path ([#377](https://github.com/googleapis/python-bigquery-dataframes/issues/377)) ([90caf86](https://github.com/googleapis/python-bigquery-dataframes/commit/90caf865efc940f94e16643bda7ba261c2f2e473))
+
+
+### Bug Fixes
+
+* Error message fix. ([#375](https://github.com/googleapis/python-bigquery-dataframes/issues/375)) ([930cf6b](https://github.com/googleapis/python-bigquery-dataframes/commit/930cf6b9ae8a48f422586dbd21b52e15c9ef9492))
+
+
+### Documentation
+
+* Clarify ADC pre-auth in a non-interactive environment ([#348](https://github.com/googleapis/python-bigquery-dataframes/issues/348)) ([99a9e6e](https://github.com/googleapis/python-bigquery-dataframes/commit/99a9e6e15c6eef4297035ce89bb619f8e4ca54ff))
+
 ## [0.20.1](https://github.com/googleapis/python-bigquery-dataframes/compare/v0.20.0...v0.20.1) (2024-02-06)
 
 

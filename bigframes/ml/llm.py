@@ -66,6 +66,7 @@ class PaLM2TextGenerator(base.Predictor):
 
     def __init__(
         self,
+        *,
         model_name: Literal["text-bison", "text-bison-32k"] = "text-bison",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
@@ -140,6 +141,7 @@ class PaLM2TextGenerator(base.Predictor):
     def predict(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
+        *,
         temperature: float = 0.0,
         max_output_tokens: int = 128,
         top_k: int = 40,
@@ -264,6 +266,9 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             The model for text embedding. “textembedding-gecko” returns model embeddings for text inputs.
             "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages
             Default to "textembedding-gecko".
+        version (str or None):
+            Model version. Accepted values are "001", "002", "003", "latest" etc. Will use the default version if unset.
+            See https://cloud.google.com/vertex-ai/docs/generative-ai/learn/model-versioning for details.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -273,13 +278,16 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
 
     def __init__(
         self,
+        *,
         model_name: Literal[
             "textembedding-gecko", "textembedding-gecko-multilingual"
         ] = "textembedding-gecko",
+        version: Optional[str] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
         self.model_name = model_name
+        self.version = version
         self.session = session or bpd.get_global_session()
         self._bq_connection_manager = clients.BqConnectionManager(
             self.session.bqconnectionclient, self.session.resourcemanagerclient
@@ -318,8 +326,11 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
                 f"Model name {self.model_name} is not supported. We only support {', '.join(_EMBEDDING_GENERATOR_ENDPOINTS)}."
             )
 
+        endpoint = (
+            self.model_name + "@" + self.version if self.version else self.model_name
+        )
         options = {
-            "endpoint": self.model_name,
+            "endpoint": endpoint,
         }
         return self._bqml_model_factory.create_remote_model(
             session=self.session, connection_name=self.connection_name, options=options
@@ -339,8 +350,14 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         model_connection = model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
+        model_name, version = utils.parse_model_endpoint(model_endpoint)
+
         embedding_generator_model = cls(
-            session=session, model_name=model_endpoint, connection_name=model_connection
+            session=session,
+            # str to literals
+            model_name=model_name,  # type: ignore
+            version=version,
+            connection_name=model_connection,
         )
         embedding_generator_model._bqml_model = core.BqmlModel(session, model)
         return embedding_generator_model
@@ -415,6 +432,7 @@ class GeminiTextGenerator(base.Predictor):
 
     def __init__(
         self,
+        *,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
@@ -475,6 +493,7 @@ class GeminiTextGenerator(base.Predictor):
     def predict(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
+        *,
         temperature: float = 0.9,
         max_output_tokens: int = 8192,
         top_k: int = 40,

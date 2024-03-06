@@ -157,15 +157,13 @@ def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_inde
     ],
 )
 def test_df_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
-    bf_result = scalars_df_index.nlargest(
-        3, ["bool_col", "int64_too"], keep=keep
-    ).to_pandas()
+    bf_result = scalars_df_index.nlargest(3, ["bool_col", "int64_too"], keep=keep)
     pd_result = scalars_pandas_df_index.nlargest(
         3, ["bool_col", "int64_too"], keep=keep
     )
 
     pd.testing.assert_frame_equal(
-        bf_result,
+        bf_result.to_pandas(),
         pd_result,
     )
 
@@ -179,11 +177,11 @@ def test_df_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
     ],
 )
 def test_df_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
-    bf_result = scalars_df_index.nsmallest(6, ["bool_col"], keep=keep).to_pandas()
+    bf_result = scalars_df_index.nsmallest(6, ["bool_col"], keep=keep)
     pd_result = scalars_pandas_df_index.nsmallest(6, ["bool_col"], keep=keep)
 
     pd.testing.assert_frame_equal(
-        bf_result,
+        bf_result.to_pandas(),
         pd_result,
     )
 
@@ -1781,6 +1779,46 @@ def test_combine_first(
 
     # Some dtype inconsistency for all-NULL columns
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("columns", "numeric_only"),
+    [
+        (["bool_col", "int64_col", "float64_col"], True),
+        (["bool_col", "int64_col", "float64_col"], False),
+        (["bool_col", "int64_col", "float64_col", "string_col"], True),
+        pytest.param(
+            ["bool_col", "int64_col", "float64_col", "string_col"],
+            False,
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+    ],
+)
+def test_corr_w_numeric_only(scalars_dfs, columns, numeric_only):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
+    pd_result = scalars_pandas_df[columns].corr(numeric_only=numeric_only)
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_corr_w_invalid_parameters(scalars_dfs):
+    columns = ["int64_too", "int64_col", "float64_col"]
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[columns].corr(method="kendall")
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[columns].corr(min_periods=1)
 
 
 @pytest.mark.parametrize(
