@@ -16,7 +16,6 @@
 def test_bqml_getting_started(random_model_id):
     your_model_id = random_model_id  # for example: bqml_tutorial.sample_model
 
-    your_model_id = "stabd-testing.bqml_tutorial1.sample_model"
     # [START bigquery_dataframes_bqml_getting_started_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
