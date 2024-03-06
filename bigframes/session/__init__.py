@@ -1152,9 +1152,9 @@ class Session(
 
             pandas_obj = pandas.read_parquet(
                 path,
-                engine=engine,
+                engine=engine,  # type: ignore
                 **read_parquet_kwargs,
-            )  # type: ignore
+            )
             return self._read_pandas(pandas_obj, "read_parquet")
 
     def read_json(
