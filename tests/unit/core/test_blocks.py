@@ -16,6 +16,7 @@ import pandas
 import pandas.testing
 import pytest
 
+import bigframes
 import bigframes.core.blocks as blocks
 
 
@@ -74,8 +75,9 @@ import bigframes.core.blocks as blocks
 )
 def test_block_from_local(data):
     expected = pandas.DataFrame(data)
+    session = bigframes.get_global_session()
 
-    block = blocks.Block.from_local(data)
+    block = blocks.Block.from_local(data, session)
 
     pandas.testing.assert_index_equal(block.column_labels, expected.columns)
     assert tuple(block.index.names) == tuple(expected.index.names)
