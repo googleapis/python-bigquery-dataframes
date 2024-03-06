@@ -80,7 +80,9 @@ from bigframes.functions.remote_function import read_gbq_function as bigframes_r
 from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
+import bigframes.session.validation
 import bigframes.version
+import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as _pandas_helpers
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
@@ -853,7 +855,12 @@ class Session(
         model = self.bqclient.get_model(model_ref)
         return bigframes.ml.loader.from_bq(self, model)
 
-    def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> dataframe.DataFrame:
+    def read_pandas(
+        self,
+        pandas_dataframe: pandas.DataFrame,
+        *,
+        write_engine: constants.WriteEngineType = "default",
+    ) -> dataframe.DataFrame:
         """Loads DataFrame from a pandas DataFrame.
 
         The pandas DataFrame will be persisted as a temporary BigQuery table, which can be
@@ -878,37 +885,70 @@ class Session(
         Args:
             pandas_dataframe (pandas.DataFrame):
                 a pandas DataFrame object to be loaded.
+            write_engine (str):
+                How data should be written to BigQuery (if at all). Supported
+                values:
+
+                * "default":
+                  Select either "bigquery_inline" or "bigquery_load",
+                  depending on data size.
+                * "bigquery_inline": Inline data in BigQuery SQL.
+                * "bigquery_load": Use a BigQuery load job.
+                * "bigquery_streaming": Use the BigQuery streaming JSON API.
 
         Returns:
             bigframes.dataframe.DataFrame: The BigQuery DataFrame.
         """
-        return self._read_pandas(pandas_dataframe, "read_pandas")
+        return self._read_pandas(
+            pandas_dataframe, "read_pandas", write_engine=write_engine
+        )
 
     def _read_pandas(
-        self, pandas_dataframe: pandas.DataFrame, api_name: str
+        self,
+        pandas_dataframe: pandas.DataFrame,
+        api_name: str,
+        write_engine: constants.WriteEngineType = "default",
     ) -> dataframe.DataFrame:
-        if (
-            pandas_dataframe.size < MAX_INLINE_DF_SIZE
-            # TODO(swast): Workaround data types limitation in inline data.
-            and not any(
-                (
-                    isinstance(s.dtype, pandas.ArrowDtype)
-                    or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
-                    or pandas.api.types.is_datetime64_any_dtype(s)
+        if write_engine == "default":
+            # Pick write engine based on same heuristic as DataFrame constructor.
+            if (
+                pandas_dataframe.size < MAX_INLINE_DF_SIZE
+                # TODO(swast): Workaround data types limitation in inline data.
+                and not any(
+                    (
+                        isinstance(s.dtype, pandas.ArrowDtype)
+                        or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
+                        or pandas.api.types.is_datetime64_any_dtype(s)
+                    )
+                    for _, s in pandas_dataframe.items()
                 )
-                for _, s in pandas_dataframe.items()
-            )
-        ):
+            ):
+                write_engine = "bigquery_inline"
+            else:
+                write_engine = "bigquery_load"
+
+        if write_engine == "bigquery_inline":
             return self._read_pandas_inline(pandas_dataframe)
-        return self._read_pandas_load_job(pandas_dataframe, api_name)
+        elif write_engine in ("bigquery_load", "bigquery_streaming"):
+            return self._read_pandas_bigquery_table(
+                pandas_dataframe, api_name, write_engine=write_engine
+            )
+        else:
+            raise ValueError(
+                f"got unexpected write_engine={repr(write_engine)}, "
+                f"expected one of {repr(constants.VALID_WRITE_ENGINES)}."
+            )
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> dataframe.DataFrame:
         return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe))
 
-    def _read_pandas_load_job(
-        self, pandas_dataframe: pandas.DataFrame, api_name: str
+    def _read_pandas_bigquery_table(
+        self,
+        pandas_dataframe: pandas.DataFrame,
+        api_name: str,
+        write_engine: str,
     ) -> dataframe.DataFrame:
         col_labels, idx_labels = (
             pandas_dataframe.columns.to_list(),
@@ -928,42 +968,43 @@ class Session(
         pandas_dataframe_copy.index.names = new_idx_ids
         pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
-
-        # Specify the datetime dtypes, which is auto-detected as timestamp types.
-        schema: list[bigquery.SchemaField] = []
-        for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
-            if dtype == "timestamp[us][pyarrow]":
-                schema.append(
-                    bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
-                )
-
-        # Clustering probably not needed anyways as pandas tables are small
-        cluster_cols = [ordering_col]
-
-        job_config = bigquery.LoadJobConfig(schema=schema)
-        job_config.clustering_fields = cluster_cols
-        job_config.labels = {"bigframes-api": api_name}
-
-        load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
-        load_job = self.bqclient.load_table_from_dataframe(
+        schema: Sequence[bigquery.SchemaField] = _pandas_helpers.dataframe_to_bq_schema(
             pandas_dataframe_copy,
-            load_table_destination,
-            job_config=job_config,
+            (),
         )
-        self._start_generic_job(load_job)
+
+        if write_engine == "bigquery_load":
+            table_expression = bigframes_io.pandas_to_bigquery_load(
+                api_name=api_name,
+                bqclient=self.bqclient,
+                dataframe=pandas_dataframe_copy,
+                dataset=self._anonymous_dataset,
+                ibis_client=self.ibis_client,
+                ordering_col=ordering_col,
+                schema=schema,
+                wait_for_job=self._start_generic_job,
+            )
+        elif write_engine == "bigquery_streaming":
+            table_expression = bigframes_io.pandas_to_bigquery_streaming(
+                bqclient=self.bqclient,
+                dataframe=pandas_dataframe_copy,
+                dataset=self._anonymous_dataset,
+                ibis_client=self.ibis_client,
+                ordering_col=ordering_col,
+                schema=schema,
+            )
+        else:
+            raise ValueError(f"got unexpected write_engine={repr(write_engine)}")
 
         ordering = orderings.ExpressionOrdering(
             ordering_value_columns=tuple([OrderingColumnReference(ordering_col)]),
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
-        table_expression = self.ibis_client.table(  # type: ignore
-            load_table_destination.table_id,
-            schema=load_table_destination.dataset_id,
-            database=load_table_destination.project,
-        )
 
-        # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
+        # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(),
+        # that only when the DF is empty, the index columns disappear in
+        # table_expression.
         if any(
             [new_idx_id not in table_expression.columns for new_idx_id in new_idx_ids]
         ):
@@ -1018,8 +1059,13 @@ class Session(
             Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
         ] = None,
         encoding: Optional[str] = None,
+        write_engine: constants.WriteEngineType = "default",
         **kwargs,
     ) -> dataframe.DataFrame:
+        bigframes.session.validation.validate_engine_compatibility(
+            engine=engine,
+            write_engine=write_engine,
+        )
         table = bigframes_io.random_table(self._anonymous_dataset)
 
         if engine is not None and engine == "bigquery":
@@ -1061,6 +1107,10 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
+            # TODO(swast): Support "bigquery_external_table" as an engine, in
+            # which case, this would be a query job config with a temporary
+            # external table. See:
+            # https://cloud.google.com/bigquery/docs/query-cloud-storage-data#query_temporary_external_tables
             job_config = bigquery.LoadJobConfig()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
@@ -1094,25 +1144,34 @@ class Session(
 
             if isinstance(filepath_or_buffer, str):
                 self._check_file_size(filepath_or_buffer)
-            pandas_df = pandas.read_csv(
-                filepath_or_buffer,
-                sep=sep,
-                header=header,
-                names=names,
-                index_col=index_col,
-                usecols=usecols,  # type: ignore
-                dtype=dtype,
-                engine=engine,
-                encoding=encoding,
-                **kwargs,
+            pandas_df = typing.cast(
+                pandas.DataFrame,
+                pandas.read_csv(
+                    filepath_or_buffer,
+                    sep=sep,
+                    header=header,
+                    names=names,
+                    index_col=index_col,
+                    usecols=usecols,  # type: ignore
+                    dtype=dtype,
+                    engine=engine,
+                    encoding=encoding,
+                    **kwargs,
+                ),
             )
-            return self._read_pandas(pandas_df, "read_csv")  # type: ignore
+            return self._read_pandas(
+                pandas_df,
+                api_name="read_csv",
+                write_engine=write_engine,
+            )  # type: ignore
 
     def read_pickle(
         self,
         filepath_or_buffer: FilePath | ReadPickleBuffer,
         compression: CompressionOptions = "infer",
         storage_options: StorageOptions = None,
+        *,
+        write_engine: constants.WriteEngineType = "default",
     ):
         pandas_obj = pandas.read_pickle(
             filepath_or_buffer,
@@ -1123,14 +1182,17 @@ class Session(
         if isinstance(pandas_obj, pandas.Series):
             if pandas_obj.name is None:
                 pandas_obj.name = "0"
-            bigframes_df = self._read_pandas(pandas_obj.to_frame(), "read_pickle")
+            bigframes_df = self._read_pandas(
+                pandas_obj.to_frame(), api_name="read_pickle"
+            )
             return bigframes_df[bigframes_df.columns[0]]
-        return self._read_pandas(pandas_obj, "read_pickle")
+        return self._read_pandas(pandas_obj, "read_pickle", write_engine=write_engine)
 
     def read_parquet(
         self,
         path: str | IO["bytes"],
     ) -> dataframe.DataFrame:
+        # TODO(swast): Add engine and write_engine.
         # Note: "engine" is omitted because it is redundant. Loading a table
         # from a pandas DataFrame will just create another parquet file + load
         # job anyway.
@@ -1155,8 +1217,13 @@ class Session(
         encoding: Optional[str] = None,
         lines: bool = False,
         engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
+        write_engine: constants.WriteEngineType = "default",
         **kwargs,
     ) -> dataframe.DataFrame:
+        bigframes.session.validation.validate_engine_compatibility(
+            engine=engine,
+            write_engine=write_engine,
+        )
         table = bigframes_io.random_table(self._anonymous_dataset)
 
         if engine == "bigquery":
@@ -1223,7 +1290,9 @@ class Session(
                     engine=engine,
                     **kwargs,
                 )
-            return self._read_pandas(pandas_df, "read_json")
+            return self._read_pandas(
+                pandas_df, api_name="read_json", write_engine=write_engine
+            )
 
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes

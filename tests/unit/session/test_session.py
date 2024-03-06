@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import re
 from unittest import mock
 
 import google.api_core.exceptions
@@ -21,6 +22,29 @@ import pytest
 import bigframes
 
 from .. import resources
+
+
+@pytest.mark.parametrize(
+    ("engine", "write_engine"),
+    (
+        ("bigquery", "bigquery_streaming"),
+        ("bigquery", "bigquery_inline"),
+    ),
+)
+def test_read_csv_with_incompatible_write_engine(engine, write_engine):
+    session = resources.create_bigquery_session()
+
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"write_engine={repr(write_engine)} is incompatible with engine={repr(engine)}"
+        ),
+    ):
+        session.read_csv(
+            "gs://cloud-samples-data/bigquery/us-states/us-states.csv",
+            engine=engine,
+            write_engine=write_engine,
+        )
 
 
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])

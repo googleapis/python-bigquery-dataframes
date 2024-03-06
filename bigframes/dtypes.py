@@ -134,6 +134,11 @@ BIGFRAMES_TO_IBIS: Dict[Dtype, ibis_dtypes.DataType] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
 
+NUMERIC_PRECISION = 38
+NUMERIC_ARROW_TYPE = pa.decimal128(NUMERIC_PRECISION, 9)
+BIGNUMERIC_PRECISION = 76
+BIGNUMERIC_ARROW_TYPE = pa.decimal256(BIGNUMERIC_PRECISION, 38)
+
 IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.boolean: pa.bool_(),
     ibis_dtypes.date: pa.date32(),
@@ -144,8 +149,16 @@ IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.Timestamp(timezone=None): pa.timestamp("us"),
     ibis_dtypes.Timestamp(timezone="UTC"): pa.timestamp("us", tz="UTC"),
     ibis_dtypes.binary: pa.binary(),
-    ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pa.decimal128(38, 9),
-    ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pa.decimal256(76, 38),
+    ibis_dtypes.Decimal(
+        precision=NUMERIC_PRECISION,
+        scale=9,
+        nullable=True,
+    ): NUMERIC_ARROW_TYPE,
+    ibis_dtypes.Decimal(
+        precision=BIGNUMERIC_PRECISION,
+        scale=38,
+        nullable=True,
+    ): BIGNUMERIC_ARROW_TYPE,
 }
 
 ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in IBIS_TO_ARROW.items()}
@@ -204,13 +217,22 @@ def ibis_dtype_to_bigframes_dtype(
     Raises:
         ValueError: if passed an unexpected type
     """
-    # Special cases: Ibis supports variations on these types, but currently
-    # our IO returns them as objects. Eventually, we should support them as
-    # ArrowDType (and update the IO accordingly)
-    if isinstance(ibis_dtype, ibis_dtypes.Array):
-        return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
-
-    if isinstance(ibis_dtype, ibis_dtypes.Struct):
+    # Special cases: these types are parametrized in various ways, so a plain
+    # dictionary mapping is insufficient.
+    if isinstance(
+        ibis_dtype,
+        (
+            # Array and Struct have sub-fields with different names and types.
+            ibis_dtypes.Array,
+            ibis_dtypes.Struct,
+            # Timestamp is parametrized by scale (unit), but BigQuery only
+            # supports int64 with microsecond units.
+            ibis_dtypes.Timestamp,
+            # Decimal has parameterized scale and precision, but BigQuery
+            # only supports a couple of fixed sized.
+            ibis_dtypes.Decimal,
+        ),
+    ):
         return pd.ArrowDtype(ibis_dtype_to_arrow_dtype(ibis_dtype))
 
     # BigQuery only supports integers of size 64 bits.
@@ -241,6 +263,25 @@ def ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
                 for name, dtype in ibis_dtype.fields.items()
             ]
         )
+
+    if isinstance(ibis_dtype, ibis_dtypes.Timestamp):
+        # Only UTC timezone or None is supported.
+        tz = ibis_dtype.timezone
+        if tz not in (None, "UTC"):
+            raise NotImplementedError(
+                f"Only UTC timezone is supported, got {repr(tz)}. {constants.FEEDBACK_LINK}"
+            )
+        return pa.timestamp(
+            # Only microsecond precision is supported in BigQuery.
+            "us",
+            tz=tz,
+        )
+
+    if isinstance(ibis_dtype, ibis_dtypes.Decimal):
+        if ibis_dtype.precision <= NUMERIC_PRECISION:
+            return NUMERIC_ARROW_TYPE
+        else:
+            return BIGNUMERIC_ARROW_TYPE
 
     if ibis_dtype in IBIS_TO_ARROW:
         return IBIS_TO_ARROW[ibis_dtype]

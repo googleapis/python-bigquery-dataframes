@@ -20,10 +20,15 @@ import datetime
 import itertools
 import textwrap
 import types
-from typing import Dict, Iterable, Optional, Sequence, Union
+from typing import Callable, Dict, Iterable, Optional, Sequence, Union
 import uuid
 
 import google.cloud.bigquery as bigquery
+import ibis
+import ibis.expr.types as ibis_types
+import pandas
+
+import bigframes.constants as constants
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
@@ -207,3 +212,106 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     if isinstance(value, bool):
         return f"{key}=true" if value else f"{key}=false"
     return f"{key}={repr(value)}"
+
+
+def pandas_to_bigquery_load(
+    *,
+    api_name: str,
+    bqclient: bigquery.Client,
+    dataframe: pandas.DataFrame,
+    dataset: bigquery.DatasetReference,
+    ibis_client: ibis.BaseBackend,
+    ordering_col: str,
+    schema: Sequence[bigquery.SchemaField],
+    wait_for_job: Callable,
+) -> ibis_types.Table:
+    """Load a pandas DataFrame to BigQuery.
+
+    It is assumed that the pandas DataFrame has already been pre-processed to
+    include an ordering ID column as well as column names which are valid in
+    SQL.
+
+    Args:
+        api_name (str):
+            Public function used to initiate this load job. Used for telemetry.
+        bqclient (google.cloud.bigquery.Client):
+            Client to make API requests.
+        dataframe (pandas.DataFrame):
+            Pre-processed DataFrame to load into BigQuery.
+        dataset (google.cloud.bigquery.DatasetReference):
+            Staging dataset to create the new table in.
+        ibis_client (ibis.BaseBackend):
+            Ibis client to create the expression.
+        ordering_col (str):
+            ID of the column used for the ordering ID.
+        schema (Sequence[google.cloud.bigquery.SchemaField]):
+            Expected schema of the table to be created. Used as hints by the
+            BigQuery client library in serializing the DataFrame to parquet.
+        wait_for_job (Callable):
+            A function that waits for the job object to finish. Used to show
+            progress to the user.
+
+    Returns:
+        ibis.expr.types.Table:
+            An ibis table expression representing the loaded table.
+    """
+    job_config = bigquery.LoadJobConfig(schema=schema)
+    job_config.clustering_fields = [ordering_col]
+    job_config.labels = {"bigframes-api": api_name}
+
+    destination = random_table(dataset)
+    load_job = bqclient.load_table_from_dataframe(
+        dataframe,
+        destination,
+        job_config=job_config,
+    )
+    wait_for_job(load_job)
+
+    return ibis_client.table(  # type: ignore
+        destination.table_id,
+        schema=destination.dataset_id,
+        database=destination.project,
+    )
+
+
+def pandas_to_bigquery_streaming(
+    *,
+    bqclient: bigquery.Client,
+    dataframe: pandas.DataFrame,
+    dataset: bigquery.DatasetReference,
+    ibis_client: ibis.BaseBackend,
+    ordering_col: str,
+    schema: Sequence[bigquery.SchemaField],
+) -> ibis_types.Table:
+    """Same as pandas_to_bigquery_load, but uses the BQ legacy streaming API."""
+
+    destination = bigquery.Table(random_table(dataset))
+    destination.schema = schema
+    destination.clustering_fields = [ordering_col]
+    bqclient.create_table(destination)
+
+    # TODO(swast): Confirm that the index is written.
+    for errors in bqclient.insert_rows_from_dataframe(
+        destination,
+        dataframe,
+    ):
+        if errors:
+            raise ValueError(
+                f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
+            )
+
+    # There may be duplicate rows because of hidden retries, so use a query to
+    # deduplicate based on the ordering ID, which is guaranteed to be unique.
+    table_expression = ibis_client.table(  # type: ignore
+        destination.table_id,
+        schema=destination.dataset_id,
+        database=destination.project,
+    )
+    grouped = table_expression.group_by(ordering_col)
+    return grouped.aggregate(
+        **{
+            column: table_expression[column].arbitrary()
+            for column in table_expression.columns
+            if column != ordering_col
+        }
+    )

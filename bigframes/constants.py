@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+from typing import Literal
 
 """Constants used across BigQuery DataFrames.
 
@@ -27,3 +28,15 @@ FEEDBACK_LINK = (
 ABSTRACT_METHOD_ERROR_MESSAGE = f"Abstract method. You have likely encountered a bug. Please share this stacktrace and how you reached it with the BigQuery DataFrames team. {FEEDBACK_LINK}"
 
 DEFAULT_EXPIRATION = datetime.timedelta(days=7)
+
+# TODO(swast): Use unpack operator to avoid redundancy when Python 3.11 is
+# the minimum version.
+VALID_WRITE_ENGINES = [
+    "default",
+    "bigquery_inline",
+    "bigquery_load",
+    "bigquery_streaming",
+]
+WriteEngineType = Literal[
+    "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
+]

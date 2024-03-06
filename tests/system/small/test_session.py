@@ -413,7 +413,16 @@ def test_read_pandas_tokyo(
 
 
 @skip_legacy_pandas
-def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
+@pytest.mark.parametrize(
+    ("write_engine",),
+    (
+        ("default",),
+        ("bigquery_inline",),
+        ("bigquery_load",),
+        ("bigquery_streaming",),
+    ),
+)
+def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, write_engine):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
         path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
@@ -427,6 +436,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
         read_path,
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
+        write_engine=write_engine,
     )
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
