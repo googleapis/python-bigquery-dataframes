@@ -602,14 +602,20 @@ def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
     return result
 
 
-def infer_literal_type(literal, arrow: bool = False) -> typing.Optional[Dtype]:
+def infer_literal_type(literal) -> typing.Optional[Dtype]:
     if pd.isna(literal):
         return None  # Null value without a definite type
     # Temporary logic, use ibis inferred type
     ibis_literal = literal_to_ibis_scalar(literal)
-    if arrow:
-        return ibis_dtype_to_arrow_dtype(ibis_literal.type())
     return ibis_dtype_to_bigframes_dtype(ibis_literal.type())
+
+
+def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
+    if pd.isna(literal):
+        return None  # Null value without a definite type
+    # Temporary logic, use ibis inferred type
+    ibis_literal = literal_to_ibis_scalar(literal)
+    return ibis_dtype_to_arrow_dtype(ibis_literal.type())
 
 
 # Input and output types supported by BigQuery DataFrames remote functions.

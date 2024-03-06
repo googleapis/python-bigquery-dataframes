@@ -74,7 +74,10 @@ class ArrayValue:
         node = nodes.ReadGbqNode(
             table=table,
             table_session=session,
-            columns=tuple(columns),
+            columns=tuple(
+                bigframes.dtypes.ibis_value_to_canonical_type(column)
+                for column in columns
+            ),
             hidden_ordering_columns=tuple(hidden_ordering_columns),
             ordering=ordering,
         )

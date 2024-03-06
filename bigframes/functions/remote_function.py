@@ -811,6 +811,7 @@ def remote_function(
             packages,
         )
 
+        # TODO: Move ibis logic to compiler step
         node = ibis.udf.scalar.builtin(
             f,
             name=rf_name,
@@ -821,6 +822,9 @@ def remote_function(
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
         node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
+        node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+            ibis_signature.output_type
+        )
         return node
 
     return wrapper

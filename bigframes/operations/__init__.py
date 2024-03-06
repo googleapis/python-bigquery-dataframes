@@ -389,10 +389,8 @@ class RemoteFunctionOp(UnaryOp):
     apply_on_null: bool
 
     def output_type(self, *input_types):
-        python_type = self.func.__signature__.output_type
-        ibis_type = dtypes.ibis_type_from_python_type(python_type)
-        dtype = dtypes.ibis_dtype_to_bigframes_dtype(ibis_type)
-        return dtype
+        # This property should be set to a valid Dtype by the @remote_function decorator
+        return self.func.output_dtype
 
 
 @dataclasses.dataclass(frozen=True)
@@ -425,16 +423,14 @@ add_op = create_binary_op(name="add", type_rule=op_typing.NUMERIC)
 sub_op = create_binary_op(name="sub", type_rule=op_typing.NUMERIC)
 mul_op = create_binary_op(name="mul", type_rule=op_typing.NUMERIC)
 div_op = create_binary_op(name="div", type_rule=op_typing.REAL_NUMERIC)
-floordiv_op = create_binary_op(
-    name="floordiv", type_rule=op_typing.Fixed(dtypes.FLOAT_DTYPE)
-)
-pow_op = create_binary_op(name="pow", type_rule=op_typing.REAL_NUMERIC)
+floordiv_op = create_binary_op(name="floordiv", type_rule=op_typing.NUMERIC)
+pow_op = create_binary_op(name="pow", type_rule=op_typing.NUMERIC)
 mod_op = create_binary_op(name="mod", type_rule=op_typing.NUMERIC)
 round_op = create_binary_op(name="round", type_rule=op_typing.REAL_NUMERIC)
 unsafe_pow_op = create_binary_op(name="unsafe_pow_op", type_rule=op_typing.REAL_NUMERIC)
 # Logical Ops
-and_op = create_binary_op(name="and", type_rule=op_typing.PREDICATE)
-or_op = create_binary_op(name="or", type_rule=op_typing.PREDICATE)
+and_op = create_binary_op(name="and")
+or_op = create_binary_op(name="or")
 
 ## Comparison Ops
 eq_op = create_binary_op(name="eq", type_rule=op_typing.PREDICATE)

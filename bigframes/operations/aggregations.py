@@ -96,6 +96,13 @@ class SumOp(UnaryAggregateOp):
 class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        # These will change if median is changed to exact implementation.
+        if pd.api.types.is_bool_dtype(input_types[0]):
+            return dtypes.INT_DTYPE
+        else:
+            return input_types[0]
+
 
 @dataclasses.dataclass(frozen=True)
 class ApproxQuartilesOp(UnaryAggregateOp):
@@ -105,13 +112,23 @@ class ApproxQuartilesOp(UnaryAggregateOp):
     def name(self):
         return f"{self.quartile*25}%"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        if pd.api.types.is_bool_dtype(input_types[0]):
+            return dtypes.FLOAT_DTYPE
+        elif pd.api.types.is_integer_dtype(input_types[0]):
+            return dtypes.FLOAT_DTYPE
+        else:
+            return input_types[0]
+
 
 @dataclasses.dataclass(frozen=True)
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
     def output_type(self, *input_types: dtypes.ExpressionType):
-        if pd.api.types.is_integer_dtype(input_types[0]):
+        if pd.api.types.is_bool_dtype(input_types[0]):
+            return dtypes.FLOAT_DTYPE
+        elif pd.api.types.is_integer_dtype(input_types[0]):
             return dtypes.FLOAT_DTYPE
         else:
             return input_types[0]
@@ -120,9 +137,6 @@ class MeanOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class ProductOp(UnaryAggregateOp):
     name: ClassVar[str] = "product"
-
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -186,11 +200,15 @@ class CutOp(UnaryWindowOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType):
-        if isinstance(self.bins, int):
+        if self.labels is False:
             return dtypes.INT_DTYPE
         else:
             # Assumption: buckets use same numeric type
-            interval_dtype = dtypes.infer_literal_type(self.bins[0][0], arrow=True)
+            interval_dtype = (
+                pa.float64()
+                if isinstance(self.bins, int)
+                else dtypes.infer_literal_arrow_type(self.bins[0][0])
+            )
             pa_type = pa.struct(
                 [
                     ("left_exclusive", interval_dtype),
