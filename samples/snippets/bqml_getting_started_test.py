@@ -143,7 +143,7 @@ def test_bqml_getting_started(random_model_id):
     # - log_loss — The loss function used in a logistic regression. This is the measure of how far the
     # model's predictions are from the correct labels.
 
-    # - roc_auc — The area under the ROC curve. This is the probability that a classifier is morepy confident that
+    # - roc_auc — The area under the ROC curve. This is the probability that a classifier is more confident that
     # a randomly chosen positive example
     # is actually positive than that a randomly chosen negative example is positive. For more information,
     # see ['Classification']('https://developers.google.com/machine-learning/crash-course/classification/video-lecture')
@@ -192,7 +192,9 @@ def test_bqml_getting_started(random_model_id):
             "pageviews": pageviews,
         }
     )
-    # Use Logistic Regression predict method to, find more information here in
+    # Use Logistic Regression predict method to predict results
+    # using your model.
+    # Find more information here in
     # [BigFrames](https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
 
     predictions = model.predict(features)
