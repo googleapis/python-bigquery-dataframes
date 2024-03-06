@@ -891,10 +891,10 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, e
 
     # DATETIME gets loaded as TIMESTAMP in parquet. See:
     # https://cloud.google.com/bigquery/docs/exporting-data#parquet_export_details
-    if engine == "bigquery" or pd.__version__.startswith("1."):
-        df_out = df_out.assign(
-            datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]")
-        )
+    df_out = df_out.assign(
+        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]"),
+        timestamp_col=df_out["timestamp_col"].astype("timestamp[us, tz=UTC][pyarrow]"),
+    )
 
     # Make sure we actually have at least some values before comparing.
     assert df_out.size != 0
