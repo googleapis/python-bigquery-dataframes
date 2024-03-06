@@ -1631,7 +1631,10 @@ class Session(
         sql = self._to_sql(
             array_value, sorted=sorted, col_id_overrides=col_id_overrides
         )  # type:ignore
-        job_config = bigquery.QueryJobConfig(dry_run=dry_run)
+        if job_config is None:
+            job_config = bigquery.QueryJobConfig(dry_run=dry_run)
+        else:
+            job_config.dry_run = dry_run
         return self._start_query(
             sql=sql,
             job_config=job_config,
