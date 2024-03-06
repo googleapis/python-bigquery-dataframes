@@ -63,15 +63,31 @@ def test_read_gbq_not_found_tables(not_found_table_id):
     ],
 )
 def test_read_gbq_external_table_no_drive_access(api_name, query_or_table):
-    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-    bqclient.project = "test-project"
-    bqclient.get_table.side_effect = google.api_core.exceptions.Forbidden(
-        "Access Denied: BigQuery BigQuery: Permission denied while getting Drive credentials."
-    )
-    session = resources.create_bigquery_session(bqclient=bqclient)
+    session = resources.create_bigquery_session()
+    session_query_mock = session.bqclient.query
+
+    def query_mock(query, *args, **kwargs):
+        if query.lstrip().startswith("SELECT *"):
+            raise google.api_core.exceptions.Forbidden(
+                "Access Denied: BigQuery BigQuery: Permission denied while getting Drive credentials."
+            )
+
+        return session_query_mock(query, *args, **kwargs)
+
+    session.bqclient.query = query_mock
+
+    def get_table_mock(dataset_ref):
+        dataset = google.cloud.bigquery.Dataset(dataset_ref)
+        dataset.location = session._location
+        return dataset
+
+    session.bqclient.get_table = get_table_mock
 
     api = getattr(session, api_name)
-    with pytest.raises(google.api_core.exceptions.Forbidden):
+    with pytest.raises(
+        google.api_core.exceptions.Forbidden,
+        match="Check https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions.",
+    ):
         api(query_or_table)
 
 
@@ -109,7 +125,7 @@ def test_session_init_fails_with_no_project():
             "test_table",
             [],
             [("date_col", ">", "2022-10-20")],
-            "SELECT * FROM test_table AS sub WHERE `date_col` > '2022-10-20'",
+            "SELECT * FROM `test_table` AS sub WHERE `date_col` > '2022-10-20'",
             id="table_input",
         ),
         pytest.param(
@@ -120,7 +136,7 @@ def test_session_init_fails_with_no_project():
                 (("string_col", "in", ["Hello, World!", "こんにちは"]),),
             ],
             (
-                "SELECT `row_index`, `string_col` FROM test_table AS sub WHERE "
+                "SELECT `row_index`, `string_col` FROM `test_table` AS sub WHERE "
                 "`rowindex` NOT IN (0, 6) OR `string_col` IN ('Hello, World!', "
                 "'こんにちは')"
             ),
@@ -140,5 +156,30 @@ def test_session_init_fails_with_no_project():
 )
 def test_read_gbq_with_filters(query_or_table, columns, filters, expected_output):
     session = resources.create_bigquery_session()
-    query = session._filters_to_query(query_or_table, columns, filters)
+    query = session._to_query(query_or_table, columns, filters)
+    assert query == expected_output
+
+
+@pytest.mark.parametrize(
+    ("query_or_table", "columns", "filters", "expected_output"),
+    [
+        pytest.param(
+            "test_table*",
+            [],
+            [],
+            "SELECT * FROM `test_table*` AS sub",
+            id="wildcard_table_input",
+        ),
+        pytest.param(
+            "test_table*",
+            [],
+            [("_TABLE_SUFFIX", ">", "2022-10-20")],
+            "SELECT * FROM `test_table*` AS sub WHERE `_TABLE_SUFFIX` > '2022-10-20'",
+            id="wildcard_table_input_with_filter",
+        ),
+    ],
+)
+def test_read_gbq_wildcard(query_or_table, columns, filters, expected_output):
+    session = resources.create_bigquery_session()
+    query = session._to_query(query_or_table, columns, filters)
     assert query == expected_output

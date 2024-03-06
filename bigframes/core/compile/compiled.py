@@ -26,6 +26,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
+import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -434,7 +435,7 @@ class UnorderedIR(BaseIbisIR):
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> OrderedIR:
@@ -446,9 +447,10 @@ class UnorderedIR(BaseIbisIR):
             dropna: whether null keys should be dropped
         """
         table = self._to_ibis_expr()
+        bindings = {col: table[col] for col in self.column_ids}
         stats = {
-            col_out: agg_op._as_ibis(table[col_in])
-            for col_in, agg_op, col_out in aggregations
+            col_out: agg_compiler.compile_aggregate(aggregate, bindings)
+            for aggregate, col_out in aggregations
         }
         if by_column_ids:
             result = table.group_by(by_column_ids).aggregate(**stats)
@@ -486,35 +488,6 @@ class UnorderedIR(BaseIbisIR):
                 hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
                 ordering=ordering,
             )
-
-    def corr_aggregate(
-        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
-    ) -> OrderedIR:
-        """
-        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
-        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
-        Arguments:
-            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
-        """
-        table = self._to_ibis_expr()
-        stats = {
-            col_out: table[col_left].corr(table[col_right], how="pop")
-            for col_left, col_right, col_out in corr_aggregations
-        }
-        aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
-        result = table.aggregate(**aggregates)
-        # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
-        ordering = ExpressionOrdering(
-            ordering_value_columns=tuple([OrderingColumnReference(ORDER_ID_COLUMN)]),
-            total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
-            integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
-        )
-        return OrderedIR(
-            result,
-            columns=[result[col_id] for col_id in [*stats.keys()]],
-            hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
-            ordering=ordering,
-        )
 
     def _uniform_sampling(self, fraction: float) -> UnorderedIR:
         """Sampling the table on given fraction.
@@ -791,7 +764,7 @@ class OrderedIR(BaseIbisIR):
     def project_window_op(
         self,
         column_name: str,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
         output_name=None,
         *,
@@ -809,8 +782,11 @@ class OrderedIR(BaseIbisIR):
         """
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
-        window_op = op._as_ibis(column, window)
+        window_op = agg_compiler.compile_analytic(
+            ex.UnaryAggregation(op, ex.free_var(column_name)), window, bindings=bindings
+        )
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
@@ -818,12 +794,20 @@ class OrderedIR(BaseIbisIR):
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
-                observation_count = agg_ops.count_op._as_ibis(column, window)
+                observation_count = agg_compiler.compile_analytic(
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(column_name)),
+                    window,
+                    bindings=bindings,
+                )
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
-                observation_count = agg_ops.count_op._as_ibis(denulled_value, window)
+                observation_count = agg_compiler.compile_analytic(
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var("_denulled")),
+                    window,
+                    bindings={**bindings, "_denulled": denulled_value},
+                )
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
@@ -1115,17 +1099,14 @@ class OrderedIR(BaseIbisIR):
         if not columns:
             return ibis.memtable([])
 
+        # Make sure we don't have any unbound (deferred) columns.
+        table = self._table.select(columns)
+
         # Make sure all dtypes are the "canonical" ones for BigFrames. This is
         # important for operations like UNION where the schema must match.
-        table = self._table.select(
-            bigframes.dtypes.ibis_value_to_canonical_type(
-                column.resolve(self._table)
-                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
-                # public API to refer to Deferred type.
-                if isinstance(column, ibis.common.deferred.Deferred)
-                else column
-            )
-            for column in columns
+        table = table.select(
+            bigframes.dtypes.ibis_value_to_canonical_type(table[column])
+            for column in table.columns
         )
         base_table = table
         if self._reduced_predicate is not None:

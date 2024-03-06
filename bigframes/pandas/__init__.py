@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from datetime import datetime
 import inspect
 import sys
 import typing
@@ -52,6 +53,7 @@ import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
 import bigframes.core.reshape
+import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.series
@@ -61,6 +63,7 @@ import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pan
 import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
+import third_party.bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
 import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
@@ -548,6 +551,7 @@ def read_gbq_table(
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
     max_results: Optional[int] = None,
+    filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
@@ -558,6 +562,7 @@ def read_gbq_table(
         index_col=index_col,
         columns=columns,
         max_results=max_results,
+        filters=filters,
         use_cache=use_cache,
         col_order=col_order,
     )
@@ -592,10 +597,13 @@ def read_pickle(
 read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
-def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
+def read_parquet(
+    path: str | IO["bytes"], *, engine: str = "auto"
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
+        engine=engine,
     )
 
 
@@ -610,6 +618,7 @@ def remote_function(
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
+    cloud_function_service_account: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -620,6 +629,7 @@ def remote_function(
         reuse=reuse,
         name=name,
         packages=packages,
+        cloud_function_service_account=cloud_function_service_account,
     )
 
 
@@ -634,6 +644,30 @@ def read_gbq_function(function_name: str):
 
 
 read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_function)
+
+
+def to_datetime(
+    arg: Union[
+        vendored_pandas_datetimes.local_scalars,
+        vendored_pandas_datetimes.local_iterables,
+        bigframes.series.Series,
+        bigframes.dataframe.DataFrame,
+    ],
+    *,
+    utc: bool = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
+) -> Union[pandas.Timestamp, datetime, bigframes.series.Series]:
+    return bigframes.core.tools.to_datetime(
+        arg,
+        utc=utc,
+        format=format,
+        unit=unit,
+    )
+
+
+to_datetime.__doc__ = vendored_pandas_datetimes.to_datetime.__doc__
+
 
 # pandas dtype attributes
 NA = pandas.NA
@@ -680,6 +714,7 @@ __all___ = [
     "read_pandas",
     "read_pickle",
     "remote_function",
+    "to_datetime",
     # pandas dtype attributes
     "NA",
     "BooleanDtype",
