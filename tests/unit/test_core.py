@@ -16,6 +16,7 @@ import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core as core
+import bigframes.core.expression as ex
 import bigframes.core.ordering
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -117,7 +118,7 @@ def test_arrayvalues_to_ibis_expr_with_concat():
         total_ordering_columns=["col1"],
     )
     expr = value.concat([value])
-    actual = expr._compile_ordered()._to_ibis_expr(ordering_mode="unordered")
+    actual = expr._compile_unordered()._to_ibis_expr()
     assert len(actual.columns) == 3
     # TODO(ashleyxu, b/299631930): test out the union expression
     assert actual.columns[0] == "column_0"
@@ -196,7 +197,9 @@ def test_arrayvalue_to_ibis_expr_with_aggregate():
         total_ordering_columns=["col1"],
     )
     expr = value.aggregate(
-        aggregations=(("col1", agg_ops.sum_op, "col4"),),
+        aggregations=(
+            (ex.UnaryAggregation(agg_ops.sum_op, ex.free_var("col1")), "col4"),
+        ),
         by_column_ids=["col1"],
         dropna=False,
     )._compile_ordered()
@@ -205,23 +208,3 @@ def test_arrayvalue_to_ibis_expr_with_aggregate():
     assert actual.columns[0] == "col1"
     assert actual.columns[1] == "col4"
     assert expr.columns[1].type().is_int64()
-
-
-def test_arrayvalue_to_ibis_expr_with_corr_aggregate():
-    value = resources.create_arrayvalue(
-        pandas.DataFrame(
-            {
-                "col1": [1, 2, 3],
-                "col2": ["a", "b", "c"],
-                "col3": [0.1, 0.2, 0.3],
-            }
-        ),
-        total_ordering_columns=["col1"],
-    )
-    expr = value.corr_aggregate(
-        corr_aggregations=[("col1", "col3", "col4")]
-    )._compile_ordered()
-    actual = expr._to_ibis_expr(ordering_mode="unordered")
-    assert len(expr.columns) == 1
-    assert actual.columns[0] == "col4"
-    assert expr.columns[0].type().is_float64()

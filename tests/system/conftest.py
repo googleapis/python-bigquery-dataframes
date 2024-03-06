@@ -105,6 +105,11 @@ def cloudfunctions_client(
 
 
 @pytest.fixture(scope="session")
+def project_id(bigquery_client: bigquery.Client) -> str:
+    return bigquery_client.project
+
+
+@pytest.fixture(scope="session")
 def resourcemanager_client(
     session: bigframes.Session,
 ) -> resourcemanager_v3.ProjectsClient:
@@ -159,9 +164,8 @@ def dataset_id_not_created(bigquery_client: bigquery.Client):
 
 
 @pytest.fixture(scope="session")
-def dataset_id_permanent(bigquery_client: bigquery.Client) -> str:
+def dataset_id_permanent(bigquery_client: bigquery.Client, project_id: str) -> str:
     """Create a dataset if it doesn't exist."""
-    project_id = bigquery_client.project
     dataset_id = f"{project_id}.{PERMANENT_DATASET}"
     dataset = bigquery.Dataset(dataset_id)
     bigquery_client.create_dataset(dataset, exists_ok=True)
@@ -231,6 +235,7 @@ def load_test_data_tables(
     for table_name, schema_filename, data_filename in [
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
+        ("nested", "nested_schema.json", "nested.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
@@ -296,6 +301,11 @@ def scalars_table_tokyo(test_data_tables_tokyo) -> str:
 
 
 @pytest.fixture(scope="session")
+def nested_table_id(test_data_tables) -> str:
+    return test_data_tables["nested"]
+
+
+@pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
 
@@ -313,6 +323,28 @@ def matrix_2by3_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def matrix_3by4_table_id(test_data_tables) -> str:
     return test_data_tables["matrix_3by4"]
+
+
+@pytest.fixture(scope="session")
+def nested_df(
+    nested_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(nested_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def nested_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    df = pd.read_json(
+        DATA_DIR / "nested.jsonl",
+        lines=True,
+    )
+    convert_pandas_dtypes(df, bytes_col=True)
+
+    df = df.set_index("rowindex")
+    return df
 
 
 @pytest.fixture(scope="session")

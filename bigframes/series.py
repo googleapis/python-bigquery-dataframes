@@ -58,6 +58,12 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
+_remote_function_recommendation_message = (
+    "Your functions could not be applied directly to the Series."
+    " Try converting it to a remote function."
+)
+
+
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
     def __init__(self, *args, **kwargs):
@@ -183,7 +189,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block = self._block
             for k, v in index.items():
                 new_idx_ids = []
-                for idx_id, idx_dtype in zip(block.index_columns, block.index_dtypes):
+                for idx_id, idx_dtype in zip(block.index_columns, block.index.dtypes):
                     # Will throw if key type isn't compatible with index type, which leads to invalid SQL.
                     block.create_constant(k, dtype=idx_dtype)
 
@@ -199,7 +205,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     new_idx_ids.append(new_idx_id)
                     block = block.drop_columns([const_id, cond_id])
 
-                block = block.set_index(new_idx_ids, index_labels=block.index_labels)
+                block = block.set_index(new_idx_ids, index_labels=block.index.names)
 
             return Series(block)
 
@@ -259,6 +265,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
 
+        self._cached()
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._set_internal_query_job(query_job)
 
@@ -368,7 +375,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(self._block.reorder_levels(resolved_level_ids))
 
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
-        return self._block.resolve_index_level(level)
+        return self._block.index.resolve_level(level)
 
     def between(self, left, right, inclusive="both"):
         if inclusive not in ["both", "neither", "left", "right"]:
@@ -733,8 +740,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(decimals, ops.round_op)
 
     def corr(self, other: Series, method="pearson", min_periods=None) -> float:
-        # TODO(kemppeterson): Validate early that both are numeric
-        # TODO(kemppeterson): Handle partially-numeric columns
+        # TODO(tbergeron): Validate early that both are numeric
+        # TODO(tbergeron): Handle partially-numeric columns
         if method != "pearson":
             raise NotImplementedError(
                 f"Only Pearson correlation is currently supported. {constants.FEEDBACK_LINK}"
@@ -743,7 +750,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise NotImplementedError(
                 f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
             )
-        return self._apply_corr_aggregation(other)
+        return self._apply_binary_aggregation(other, agg_ops.CorrOp())
+
+    def cov(self, other: Series) -> float:
+        return self._apply_binary_aggregation(other, agg_ops.CovOp())
 
     def all(self) -> bool:
         return typing.cast(bool, self._apply_aggregation(agg_ops.all_op))
@@ -1044,7 +1054,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         values, index = self._align_n([other1, other2], how)
         return (values[0], values[1], values[2], index)
 
-    def _apply_aggregation(self, op: agg_ops.AggregateOp) -> Any:
+    def _apply_aggregation(self, op: agg_ops.UnaryAggregateOp) -> Any:
         return self._block.get_stat(self._value_column, op)
 
     def _apply_window_op(
@@ -1179,19 +1189,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         value_col = self._value_column
         for key in by:
             if isinstance(key, Series):
-                combined_index, (
+                block, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(
-                    key._block.index, how="inner" if dropna else "left"
-                )
+                ) = block.join(key._block, how="inner" if dropna else "left")
 
                 value_col = get_column_left[self._value_column]
                 grouping_cols = [
                     *[get_column_left[value] for value in grouping_cols],
                     get_column_right[key._value_column],
                 ]
-                block = combined_index._block
             else:
                 # Interpret as index level
                 matches = block.index_name_to_col_id.get(key, [])
@@ -1209,12 +1216,43 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             dropna=dropna,
         )
 
-    def apply(self, func) -> Series:
+    def apply(
+        self, func, by_row: typing.Union[typing.Literal["compat"], bool] = "compat"
+    ) -> Series:
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
         # Reproject as workaround to applying filter too late. This forces the filter
         # to be applied before passing data to remote function, protecting from bad
         # inputs causing errors.
+
+        if by_row not in ["compat", False]:
+            raise ValueError("Param by_row must be one of 'compat' or False")
+
+        if not callable(func):
+            raise ValueError(
+                "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
+            )
+
+        if not hasattr(func, "bigframes_remote_function"):
+            # It is not a remote function
+            # Then it must be a vectorized function that applies to the Series
+            # as a whole
+            if by_row:
+                raise ValueError(
+                    "A vectorized non-remote function can be provided only with by_row=False."
+                    " For element-wise operation it must be a remote function."
+                )
+
+            try:
+                return func(self)
+            except Exception as ex:
+                # This could happen if any of the operators in func is not
+                # supported on a Series. Let's guide the customer to use a
+                # remote function instead
+                if hasattr(ex, "message"):
+                    ex.message += f"\n{_remote_function_recommendation_message}"
+                raise
+
         reprojected_series = Series(self._block._force_reproject())
         return reprojected_series._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
@@ -1241,7 +1279,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         if len(self._block.index_columns) > 1:
             raise NotImplementedError(
-                "Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
+                f"Method filter does not support rows multiindex. {constants.FEEDBACK_LINK}"
             )
         if (like is not None) or (regex is not None):
             block = self._block
@@ -1324,7 +1362,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def mask(self, cond, other=None) -> Series:
         if callable(cond):
-            cond = self.apply(cond)
+            if hasattr(cond, "bigframes_remote_function"):
+                cond = self.apply(cond)
+            else:
+                # For non-remote function assume that it is applicable on Series
+                cond = self.apply(cond, by_row=False)
 
         if not isinstance(cond, Series):
             raise TypeError(
@@ -1521,8 +1563,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ),
         )
 
-    def _cached(self) -> Series:
-        self._set_block(self._block.cached())
+    def _cached(self, *, force: bool = True) -> Series:
+        self._set_block(self._block.cached(force=force))
         return self
 
 

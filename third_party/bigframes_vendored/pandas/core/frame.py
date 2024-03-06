@@ -2805,6 +2805,40 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def corr(self, method, min_periods, numeric_only) -> DataFrame:
+        """
+        Compute pairwise correlation of columns, excluding NA/null values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600],
+            ...                    'C': [0.8, 0.4, 0.9]})
+            >>> df.corr(numeric_only=True)
+                      A         B         C
+            A       1.0       1.0  0.188982
+            B       1.0       1.0  0.188982
+            C  0.188982  0.188982       1.0
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            method (string, default "pearson"):
+                Correlation method to use - currently only "pearson" is supported.
+            min_periods (int, default None):
+                The minimum number of observations needed to return a result.  Non-default values
+                are not yet supported, so a result will be returned for at least two observations.
+            numeric_only(bool, default False):
+                Include only float, int, boolean, decimal data.
+
+        Returns:
+            DataFrame:  Correlation matrix.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def update(
         self, other, join: str = "left", overwrite: bool = True, filter_func=None
     ) -> DataFrame:
@@ -3296,19 +3330,19 @@ class DataFrame(NDFrame):
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
-            col1	col2
-            0	1	3
-            1	2	4
-            <BLANKLINE>
-            [2 rows x 2 columns]
-
-            >>> def sqaure(x):
-            ...     return x * x
-            >>> df1 = df.apply(sqaure)
-            >>> df
                col1  col2
             0     1     3
             1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> def square(x):
+            ...     return x * x
+
+            >>> df.apply(square)
+               col1  col2
+            0     1     9
+            1     4    16
             <BLANKLINE>
             [2 rows x 2 columns]
 

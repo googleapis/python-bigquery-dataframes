@@ -387,6 +387,17 @@ def e2e(session: nox.sessions.Session):
     )
 
 
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def load(session: nox.sessions.Session):
+    """Run the very large tests in system test suite."""
+    run_system(
+        session=session,
+        prefix_name="load",
+        test_folder=os.path.join("tests", "system", "load"),
+        print_duration=True,
+    )
+
+
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def samples(session):
     """Run the samples test suite."""
@@ -551,7 +562,11 @@ def prerelease(session: nox.sessions.Session, tests_path):
         # https://github.com/googleapis/python-bigquery-dataframes/issues/341
         # https://github.com/googleapis/python-bigquery-dataframes/issues/337
         # are resolved
-        "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0",
+        #
+        # We exclude each version individually so that we can continue to test
+        # some prerelease packages. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/pull/268#discussion_r1423205172
+        "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
     )
     already_installed.add("pandas")
 
@@ -561,12 +576,12 @@ def prerelease(session: nox.sessions.Session, tests_path):
     # session.install(
     #     "--upgrade",
     #     "-e",  # Use -e so that py.typed file is included.
-    #     "git+https://github.com/ibis-project/ibis.git@7.x.x#egg=ibis-framework",
+    #     "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
     # )
     session.install(
         "--upgrade",
-        # "--pre",
-        "ibis-framework>=7.1.0,<7.2.0dev",
+        "--pre",
+        "ibis-framework>=8.0.0,<9.0.0dev",
     )
     already_installed.add("ibis-framework")
 
