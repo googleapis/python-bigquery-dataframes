@@ -138,6 +138,12 @@ class MeanOp(UnaryAggregateOp):
 class ProductOp(UnaryAggregateOp):
     name: ClassVar[str] = "product"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        if pd.api.types.is_bool_dtype(input_types[0]):
+            return dtypes.INT_DTYPE
+        else:
+            return input_types[0]
+
 
 @dataclasses.dataclass(frozen=True)
 class MaxOp(UnaryAggregateOp):
@@ -200,7 +206,7 @@ class CutOp(UnaryWindowOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType):
-        if self.labels is False:
+        if isinstance(self.bins, int) and (self.labels is False):
             return dtypes.INT_DTYPE
         else:
             # Assumption: buckets use same numeric type

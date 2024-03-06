@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import io
+import os
 import typing
 from typing import Iterable, Sequence
 
@@ -45,10 +46,6 @@ if typing.TYPE_CHECKING:
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
-# Enable only for testing, will slow down performance
-# DO NOT COMMIT : Set to False
-_VALIDATE_SCHEMA_WITH_IBIS = True
-
 
 @dataclass(frozen=True)
 class ArrayValue:
@@ -59,7 +56,9 @@ class ArrayValue:
     node: nodes.BigFrameNode
 
     def __post_init__(self):
-        if _VALIDATE_SCHEMA_WITH_IBIS:
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
             self.validate_schema()
 
     @classmethod

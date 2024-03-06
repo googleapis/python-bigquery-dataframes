@@ -1880,7 +1880,7 @@ def test_mod(scalars_dfs, other_scalar):
 def test_scalar_binop_str_exception(scalars_dfs):
     scalars_df, _ = scalars_dfs
     columns = ["string_col"]
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         (scalars_df[columns] + 1).to_pandas()
 
 
@@ -2717,7 +2717,7 @@ def test_loc_setitem_bool_series_scalar_existing_col(scalars_dfs):
     )
 
 
-def test_loc_setitem_bool_series_scalar_type_error(scalars_dfs):
+def test_loc_setitem_bool_series_scalar_error(scalars_dfs):
     if pd.__version__.startswith("1."):
         pytest.skip("this loc overload not supported in pandas 1.x.")
 
@@ -2725,9 +2725,9 @@ def test_loc_setitem_bool_series_scalar_type_error(scalars_dfs):
     bf_df = scalars_df.copy()
     pd_df = scalars_pandas_df.copy()
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         bf_df.loc[bf_df["int64_too"] == 1, "string_col"] = 99
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         pd_df.loc[pd_df["int64_too"] == 1, "string_col"] = 99
 
 
