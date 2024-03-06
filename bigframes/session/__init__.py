@@ -1144,7 +1144,7 @@ class Session(
 
             return self._read_bigquery_load_job(path, table, job_config=job_config)
         else:
-            pandas_obj = pandas.read_parquet(path, engine=engine)
+            pandas_obj = pandas.read_parquet(path, engine=engine)  # type: ignore
             return self._read_pandas(pandas_obj, "read_parquet")
 
     def read_json(
