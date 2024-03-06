@@ -1144,7 +1144,17 @@ class Session(
 
             return self._read_bigquery_load_job(path, table, job_config=job_config)
         else:
-            pandas_obj = pandas.read_parquet(path, engine=engine)  # type: ignore
+            read_parquet_kwargs: Dict[str, Any] = {}
+            if pandas.__version__.startswith("1."):
+                read_parquet_kwargs["use_nullable_dtypes"] = True
+            else:
+                read_parquet_kwargs["dtype_backend"] = "pyarrow"
+
+            pandas_obj = pandas.read_parquet(
+                path,
+                engine=engine,
+                **read_parquet_kwargs,
+            )  # type: ignore
             return self._read_pandas(pandas_obj, "read_parquet")
 
     def read_json(
