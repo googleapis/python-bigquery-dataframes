@@ -24,6 +24,20 @@ import third_party.bigframes_vendored.pandas.core.computation.parsing as vendore
 
 
 def eval(df: dataframe.DataFrame, expr: str, target: Optional[dataframe.DataFrame]):
+    """
+    Evaluate the given python expression
+
+    Args:
+        df (DataFrame):
+            Columns of this dataframe will be used to resolve variables in expression.
+        expr (str):
+            One or more python expression to evaluate.
+        target (DataFrame or None):
+            The evaluation result will be written to the target if provided.
+
+    Returns:
+        Result of evaluation.
+    """
     index_resolver = {
         vendored_pandas_eval_parsing.clean_column_name(str(name)): EvalSeries(
             df.index.get_level_values(level).to_series()

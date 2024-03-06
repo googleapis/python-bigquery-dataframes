@@ -3663,6 +3663,7 @@ def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("expr",),
     [
@@ -3680,6 +3681,7 @@ def test_df_eval(scalars_dfs, expr):
     pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("expr",),
     [
