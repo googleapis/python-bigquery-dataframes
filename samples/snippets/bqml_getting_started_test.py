@@ -16,6 +16,7 @@
 def test_bqml_getting_started(random_model_id):
     your_model_id = random_model_id  # for example: bqml_tutorial.sample_model
 
+    your_model_id = "stabd-testing.bqml_tutorial1.sample_model"
     # [START bigquery_dataframes_bqml_getting_started_tutorial]
     from bigframes.ml.linear_model import LogisticRegression
     import bigframes.pandas as bpd
@@ -48,7 +49,7 @@ def test_bqml_getting_started(random_model_id):
     # ecommerce transactions within the Google Analytics session.
     # If the number of transactions is NULL, the value in the label
     # column is set to 0. Otherwise, it is set to 1.
-    label = transactions.notnull().map({True: 1, False: 0})
+    label = transactions.notnull().map({True: 1, False: 0}).rename("label")
 
     # Extract the operating system of the visitor's device.
     operating_system = df["device"].struct.field("operatingSystem")
@@ -110,7 +111,7 @@ def test_bqml_getting_started(random_model_id):
     )
 
     transactions = df["totals"].struct.field("transactions")
-    label = transactions.notnull().map({True: 1, False: 0})
+    label = transactions.notnull().map({True: 1, False: 0}).rename("label")
     operating_system = df["device"].struct.field("operatingSystem")
     operating_system = operating_system.fillna("")
     is_mobile = df["device"].struct.field("isMobile")
@@ -196,12 +197,19 @@ def test_bqml_getting_started(random_model_id):
     # [BigFrames](https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.linear_model.LogisticRegression#bigframes_ml_linear_model_LogisticRegression_predict)
 
     predictions = model.predict(features)
+
+    # Call groupby method to group predicted_label by country.
+    # Call sum method to get the total_predicted_label by country.
     total_predicted_purchases = predictions.groupby(["country"])[
         ["predicted_label"]
     ].sum()
+
+    # Call the sort_values method with the parameter
+    # ascending = False to get the highest values.
+    # Call head method to limit to the 10 highest values.
     total_predicted_purchases.sort_values(ascending=False).head(10)
 
-    # country         # total_predicted_purchases
+    # country
     # United States    220
     # Taiwan             8
     # Canada             7
@@ -218,9 +226,21 @@ def test_bqml_getting_started(random_model_id):
 
     # [START bigquery_dataframes_bqml_getting_started_tutorial_predict_by_visitor]
 
+    import bigframes.pandas as bpd
+
+    # Select model you'll use for predicting.
+    # `read_gbq_model` loads model data from
+    # BigQuery, but you could also use the `model`
+    # object from the previous steps.
     model = bpd.read_gbq_model(
         your_model_id,  # For example: "bqml_tutorial.sample_model",
     )
+
+    # The filters parameter limits the number of tables scanned by the query.
+    # The date range scanned is July 1, 2017 to August 1, 2017. This is the
+    # data you're using to make the prediction.
+    # It was collected in the month immediately following the time period
+    # spanned by the training data.
     df = bpd.read_gbq_table(
         "bigquery-public-data.google_analytics_sample.ga_sessions_*",
         filters=[
@@ -247,13 +267,19 @@ def test_bqml_getting_started(random_model_id):
     )
 
     predictions = model.predict(features)
+
+    # Call groupby method to group predicted_label by visitor.
+    # Call sum method to get the total_predicted_label by visitor.
     total_predicted_purchases = predictions.groupby(["fullVisitorId"])[
         ["predicted_label"]
     ].sum()
 
+    # Call the sort_values method with the parameter
+    # ascending = False to get the highest values.
+    # Call head method to limit to the 10 highest values.
     total_predicted_purchases.sort_values(ascending=False).head(10)
 
-    # fullVisitorId         # total_predicted_purchases
+    # fullVisitorId
     # 9417857471295131045    4
     # 0376394056092189113    2
     # 0456807427403774085    2
