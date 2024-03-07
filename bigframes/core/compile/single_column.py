@@ -33,7 +33,7 @@ def join_by_column_ordered(
     left: compiled.OrderedIR,
     right: compiled.OrderedIR,
     join: join_defs.JoinDefinition,
-    allow_row_identity_join: bool = True,
+    allow_row_identity_join: bool = False,
 ) -> compiled.OrderedIR:
     """Join two expressions by column equality.
 
@@ -64,8 +64,6 @@ def join_by_column_ordered(
             .equals(right._get_ibis_column(rcol).name("index"))
             for lcol, rcol in join.conditions
         )
-        and not left._predicates
-        and not right._predicates
     ):
         return bigframes.core.compile.row_identity.join_by_row_identity_ordered(
             left, right, join_def=join
@@ -136,7 +134,7 @@ def join_by_column_unordered(
     left: compiled.UnorderedIR,
     right: compiled.UnorderedIR,
     join: join_defs.JoinDefinition,
-    allow_row_identity_join: bool = True,
+    allow_row_identity_join: bool = False,
 ) -> compiled.UnorderedIR:
     """Join two expressions by column equality.
 
@@ -167,8 +165,6 @@ def join_by_column_unordered(
             .equals(right._get_ibis_column(rcol).name("index"))
             for lcol, rcol in join.conditions
         )
-        and not left._predicates
-        and not right._predicates
     ):
         return bigframes.core.compile.row_identity.join_by_row_identity_unordered(
             left, right, join_def=join

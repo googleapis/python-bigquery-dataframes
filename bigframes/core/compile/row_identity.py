@@ -28,7 +28,7 @@ import bigframes.core.join_def as join_def
 import bigframes.core.joins as joining
 import bigframes.core.ordering as orderings
 
-SUPPORTED_ROW_IDENTITY_HOW = {"outer", "left", "inner"}
+SUPPORTED_ROW_IDENTITY_HOW = {"outer", "left", "right", "inner"}
 
 
 def join_by_row_identity_unordered(
@@ -39,7 +39,8 @@ def join_by_row_identity_unordered(
     """Compute join when we are joining by row identity not a specific column."""
     if join_def.type not in SUPPORTED_ROW_IDENTITY_HOW:
         raise NotImplementedError(
-            f"Only how='outer','left','inner' currently supported. {constants.FEEDBACK_LINK}"
+            f"Only how={repr(SUPPORTED_ROW_IDENTITY_HOW)} currently supported. "
+            + constants.FEEDBACK_LINK
         )
 
     if not left._table.equals(right._table):
@@ -98,7 +99,8 @@ def join_by_row_identity_ordered(
     """Compute join when we are joining by row identity not a specific column."""
     if join_def.type not in SUPPORTED_ROW_IDENTITY_HOW:
         raise NotImplementedError(
-            f"Only how='outer','left','inner' currently supported. {constants.FEEDBACK_LINK}"
+            f"Only how={repr(SUPPORTED_ROW_IDENTITY_HOW)} currently supported. "
+            + constants.FEEDBACK_LINK
         )
 
     if not left._table.equals(right._table):
@@ -225,6 +227,8 @@ def _join_predicates(
         return (joined_predicates,)
     if join_type == "left":
         return tuple(left_predicates)
+    if join_type == "right":
+        return tuple(right_predicates)
     if join_type == "inner":
         _, right_relative_predicates = _get_relative_predicates(
             left_predicates, right_predicates
