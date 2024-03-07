@@ -137,26 +137,8 @@ class ClientsProvider:
     def bqclient(self):
         if not self._bqclient:
             self._bqclient = self._create_bigquery_client()
-            if self._bq_kms_key_name:
-                self._bqclient.default_query_job_config = bigquery.QueryJobConfig(
-                    destination_encryption_configuration=bigquery.EncryptionConfiguration(
-                        kms_key_name=self._bq_kms_key_name
-                    )
-                )
-                self._bqclient.default_load_job_config = bigquery.LoadJobConfig(
-                    destination_encryption_configuration=bigquery.EncryptionConfiguration(
-                        kms_key_name=self._bq_kms_key_name
-                    )
-                )
 
         return self._bqclient
-
-    @property
-    def bqmlclient(self):
-        if not self._bqmlclient:
-            self._bqmlclient = self._create_bigquery_client()
-
-        return self._bqmlclient
 
     @property
     def bqconnectionclient(self):

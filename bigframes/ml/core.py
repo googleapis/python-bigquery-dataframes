@@ -212,11 +212,8 @@ class BqmlModel(BaseBqml):
         return self._session.read_gbq(sql)
 
     def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
-        job_config = bigquery.job.CopyJobConfig(
-            destination_encryption_configuration=bigquery.EncryptionConfiguration(
-                kms_key_name=self._session._bq_kms_key_name
-            )
-        )
+        job_config = self._session._prepare_copy_job_config()
+
         if replace:
             job_config.write_disposition = "WRITE_TRUNCATE"
 

@@ -30,12 +30,10 @@ def bq_cmek() -> str:
     See https://cloud.google.com/bigquery/docs/customer-managed-encryption for steps.
     """
 
-    # NOTE: Set a key here for local testing.
-    # We are keeping this empty by default, in which case the dependent tests
-    # are skipped.
-    # TODO(shobs): Automate the tests depending on this fixture by either creating
-    # a static key in the test project or automating the key creation during the test.
-    return ""
+    # NOTE: This key is manually set up through the cloud console
+    # TODO(shobs): Automate the the key creation during the test. This will
+    # require extra IAM privileges for the test runner.
+    return "projects/bigframes-dev-perf/locations/global/keyRings/shobsKeyRing/cryptoKeys/shobsKey"
 
 
 @pytest.fixture(scope="module")
@@ -64,26 +62,11 @@ def _assert_bq_table_is_encrypted(
     assert table.encryption_configuration.kms_key_name == cmek
 
 
-def test_session_default_configs(bq_cmek, session_with_bq_cmek):
-    if not bq_cmek:
-        pytest.skip("no cmek set for testing")
-
-    # Session should have cmek set in the default query and load job configs
-    assert (
-        session_with_bq_cmek.bqclient.default_query_job_config.destination_encryption_configuration.kms_key_name
-        == bq_cmek
-    )
-    assert (
-        session_with_bq_cmek.bqclient.default_load_job_config.destination_encryption_configuration.kms_key_name
-        == bq_cmek
-    )
-
-
 def test_session_query_job(bq_cmek, session_with_bq_cmek):
     if not bq_cmek:
         pytest.skip("no cmek set for testing")
 
-    query_job = session_with_bq_cmek.bqclient.query("SELECT 123")
+    _, query_job = session_with_bq_cmek._start_query("SELECT 123")
     query_job.result()
 
     assert query_job.destination_encryption_configuration.kms_key_name.startswith(
@@ -103,12 +86,17 @@ def test_session_load_job(bq_cmek, session_with_bq_cmek):
     load_table = bigframes.session._io.bigquery.random_table(
         session_with_bq_cmek._anonymous_dataset
     )
+
+    df = pandas.DataFrame({"col0": [1, 2, 3]})
+    load_job_config = session_with_bq_cmek._prepare_load_job_config()
+    load_job_config.schema = [
+        bigquery.SchemaField(df.columns[0], bigquery.enums.SqlTypeNames.INT64)
+    ]
+
     load_job = session_with_bq_cmek.bqclient.load_table_from_dataframe(
-        pandas.DataFrame({"col0": [1, 2, 3]}),
+        df,
         load_table,
-        job_config=bigquery.LoadJobConfig(
-            schema=[bigquery.SchemaField("col0", bigquery.enums.SqlTypeNames.INT64)]
-        ),
+        job_config=load_job_config,
     )
     load_job.result()
 

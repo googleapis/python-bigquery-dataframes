@@ -215,26 +215,15 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     return f"{key}={repr(value)}"
 
 
-def _prepare_job_config(
-    job_config: Optional[bigquery.QueryJobConfig] = None,
-) -> bigquery.QueryJobConfig:
-    if job_config is None:
-        job_config = bigquery.QueryJobConfig()
-    if bigframes.options.compute.maximum_bytes_billed is not None:
-        job_config.maximum_bytes_billed = bigframes.options.compute.maximum_bytes_billed
-    return job_config
-
-
 def start_query_with_client(
     bq_client: bigquery.Client,
     sql: str,
-    job_config: Optional[bigquery.job.QueryJobConfig] = None,
+    job_config: bigquery.job.QueryJobConfig,
     max_results: Optional[int] = None,
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
     """
     Starts query job and waits for results.
     """
-    job_config = _prepare_job_config(job_config)
     api_methods = log_adapter.get_and_reset_api_methods()
     job_config.labels = bigframes_io.create_job_configs_labels(
         job_configs_labels=job_config.labels, api_methods=api_methods

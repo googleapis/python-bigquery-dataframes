@@ -207,10 +207,6 @@ class Session(
         return self._clients_provider.bqclient
 
     @property
-    def bqmlclient(self):
-        return self._clients_provider.bqmlclient
-
-    @property
     def bqconnectionclient(self):
         return self._clients_provider.bqconnectionclient
 
@@ -944,6 +940,8 @@ class Session(
         pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
+        job_config = self._prepare_load_job_config()
+
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
         schema: list[bigquery.SchemaField] = []
         for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
@@ -951,12 +949,12 @@ class Session(
                 schema.append(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
                 )
+        job_config.schema = schema
 
         # Clustering probably not needed anyways as pandas tables are small
         cluster_cols = [ordering_col]
-
-        job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols
+
         job_config.labels = {"bigframes-api": api_name}
 
         load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
@@ -1076,7 +1074,7 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            job_config = bigquery.LoadJobConfig()
+            job_config = self._prepare_load_job_config()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1151,7 +1149,7 @@ class Session(
         # job anyway.
         table = bigframes_io.random_table(self._anonymous_dataset)
 
-        job_config = bigquery.LoadJobConfig()
+        job_config = self._prepare_load_job_config()
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
         job_config.source_format = bigquery.SourceFormat.PARQUET
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1196,7 +1194,7 @@ class Session(
                     "'lines' keyword is only valid when 'orient' is 'records'."
                 )
 
-            job_config = bigquery.LoadJobConfig()
+            job_config = self._prepare_load_job_config()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1520,6 +1518,50 @@ class Session(
             session=self,
         )
 
+    def _prepare_query_job_config(
+        self,
+        job_config: Optional[bigquery.QueryJobConfig] = None,
+    ) -> bigquery.QueryJobConfig:
+        if job_config is None:
+            job_config = bigquery.QueryJobConfig()
+        else:
+            # Create a copy so that we don't mutate the original config passed
+            job_config = bigquery.QueryJobConfig.from_api_repr(job_config.to_api_repr())
+
+        if bigframes.options.compute.maximum_bytes_billed is not None:
+            job_config.maximum_bytes_billed = (
+                bigframes.options.compute.maximum_bytes_billed
+            )
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
+    def _prepare_load_job_config(self) -> bigquery.LoadJobConfig:
+        # Create a copy so that we don't mutate the original config passed
+        job_config = bigquery.LoadJobConfig()
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
+    def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:
+        # Create a copy so that we don't mutate the original config passed
+        job_config = bigquery.CopyJobConfig()
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
     def _start_query(
         self,
         sql: str,
@@ -1529,6 +1571,7 @@ class Session(
         """
         Starts BigQuery query job and waits for results.
         """
+        job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
             self.bqclient, sql, job_config, max_results
         )
@@ -1536,14 +1579,18 @@ class Session(
     def _start_query_bqml(
         self,
         sql: str,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery ML query job and waits for results.
         """
+        job_config = self._prepare_query_job_config()
+
+        # BQML expects kms_key_name through OPTIONS and not through job config,
+        # so we must reset any encryption set in the job config
+        job_config.destination_encryption_configuration = None
+
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqmlclient, sql, job_config, max_results
+            self.bqclient, sql, job_config
         )
 
     def _cache_with_cluster_cols(
