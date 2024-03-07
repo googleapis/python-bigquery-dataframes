@@ -33,7 +33,7 @@ def bq_cmek() -> str:
     # NOTE: This key is manually set up through the cloud console
     # TODO(shobs): Automate the the key creation during the test. This will
     # require extra IAM privileges for the test runner.
-    return "projects/bigframes-dev-perf/locations/global/keyRings/shobsKeyRing/cryptoKeys/shobsKey"
+    return "projects/bigframes-dev-perf/locations/us/keyRings/bigframesKeyRing/cryptoKeys/bigframesKey"
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +66,9 @@ def test_session_query_job(bq_cmek, session_with_bq_cmek):
     if not bq_cmek:
         pytest.skip("no cmek set for testing")
 
-    _, query_job = session_with_bq_cmek._start_query("SELECT 123")
+    _, query_job = session_with_bq_cmek._start_query(
+        "SELECT 123", job_config=bigquery.QueryJobConfig(use_query_cache=False)
+    )
     query_job.result()
 
     assert query_job.destination_encryption_configuration.kms_key_name.startswith(
