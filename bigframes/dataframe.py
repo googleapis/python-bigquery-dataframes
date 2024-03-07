@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
 import sys
 import textwrap
@@ -1060,6 +1061,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._block.expr.validate_schema()
+
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
