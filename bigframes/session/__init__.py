@@ -1539,7 +1539,10 @@ class Session(
             job_config = bigquery.QueryJobConfig()
         else:
             # Create a copy so that we don't mutate the original config passed
-            job_config = bigquery.QueryJobConfig.from_api_repr(job_config.to_api_repr())
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(job_config.to_api_repr()),
+            )
 
         if bigframes.options.compute.maximum_bytes_billed is not None:
             job_config.maximum_bytes_billed = (
