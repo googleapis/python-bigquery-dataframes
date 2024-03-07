@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
+
 import bigframes.core.nodes as nodes
 
 
+@functools.cache
 def is_trivially_executable(node: nodes.BigFrameNode) -> bool:
     if local_only(node):
         return True

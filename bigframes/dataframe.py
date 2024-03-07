@@ -1060,6 +1060,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1071,6 +1072,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame"""
+        self._optimize_query_complexity()
         return self._block.to_pandas_batches()
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
@@ -2973,6 +2975,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         session = self._block.expr.session
+        self._optimize_query_complexity()
         export_array, id_overrides = self._prepare_export(
             index=index, ordering_id=ordering_id
         )
@@ -3108,6 +3111,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         self._set_block(self._block.cached(force=force))
         return self
+
+    def _optimize_query_complexity(self):
+        """Reduce query complexity by caching repeated subtrees and recursively materializing maximum-complexity subtrees.
+        May generate many queries and take substantial time to execute.
+        """
+        # TODO: Move all this to session
+        new_expr = self._session._simplify_with_caching(self._block.expr)
+        self._set_block(self._block.swap_array_expr(new_expr))
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 

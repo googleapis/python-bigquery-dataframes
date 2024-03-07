@@ -27,6 +27,7 @@ import pytest
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.dataframe as dataframe
+import bigframes.pandas
 import bigframes.series as series
 from tests.system.utils import (
     assert_pandas_df_equal,
@@ -3880,6 +3881,30 @@ def test_recursion_limit(scalars_df_index):
     for i in range(400):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()
+
+
+def test_query_complexity_repeated_subtrees(scalars_df_index, scalars_pandas_df_index):
+    # Recursively union the data, if fully decorrelated has 10^5 identical root tables.
+    pd_df = scalars_pandas_df_index
+    bf_df = scalars_df_index
+    for _ in range(5):
+        pd_df = pd.concat(10 * [pd_df]).head(5)
+        bf_df = bigframes.pandas.concat(10 * [bf_df]).head(5)
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+def test_query_complexity_repeated_analytic(scalars_df_index, scalars_pandas_df_index):
+    bf_df = scalars_df_index[["int64_col", "int64_too"]]
+    pd_df = scalars_pandas_df_index[["int64_col", "int64_too"]]
+    # Uses LAG analytic operator, each in a new SELECT
+    for _ in range(50):
+        bf_df = bf_df.diff()
+        pd_df = pd_df.diff()
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_to_pandas_downsampling_option_override(session):
