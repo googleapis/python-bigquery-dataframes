@@ -168,6 +168,8 @@ class BqmlModel(BaseBqml):
     def detect_anomalies(
         self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
     ) -> bpd.DataFrame:
+        assert self._model.model_type in ("PCA", "KMEANS", "ARIMA_PLUS")
+
         return self._apply_sql(
             input_data,
             lambda source_df: self._model_manipulation_sql_generator.ml_detect_anomalies(

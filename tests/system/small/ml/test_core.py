@@ -293,7 +293,7 @@ def test_model_detect_anomalies(
     penguins_bqml_pca_model: core.BqmlModel, new_penguins_df
 ):
     options = {"contamination": 0.25}
-    predictions = penguins_bqml_pca_model.detect_anomalies(
+    anomalies = penguins_bqml_pca_model.detect_anomalies(
         new_penguins_df, options
     ).to_pandas()
     expected = pd.DataFrame(
@@ -304,7 +304,7 @@ def test_model_detect_anomalies(
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pd.testing.assert_frame_equal(
-        predictions[["is_anomaly", "mean_squared_error"]].sort_index(),
+        anomalies[["is_anomaly", "mean_squared_error"]].sort_index(),
         expected,
         check_exact=False,
         check_dtype=False,
