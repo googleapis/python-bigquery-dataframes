@@ -96,6 +96,7 @@ def test_df_construct_from_dict():
 def test_df_construct_inline_respects_location():
     import bigframes.pandas as bpd
 
+    bpd.close_session()
     bpd.options.bigquery.location = "europe-west1"
 
     df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
