@@ -1130,19 +1130,32 @@ class Session(
     def read_parquet(
         self,
         path: str | IO["bytes"],
+        *,
+        engine: str = "auto",
     ) -> dataframe.DataFrame:
-        # Note: "engine" is omitted because it is redundant. Loading a table
-        # from a pandas DataFrame will just create another parquet file + load
-        # job anyway.
         table = bigframes_io.random_table(self._anonymous_dataset)
 
-        job_config = bigquery.LoadJobConfig()
-        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-        job_config.source_format = bigquery.SourceFormat.PARQUET
-        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-        job_config.labels = {"bigframes-api": "read_parquet"}
+        if engine == "bigquery":
+            job_config = bigquery.LoadJobConfig()
+            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+            job_config.source_format = bigquery.SourceFormat.PARQUET
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+            job_config.labels = {"bigframes-api": "read_parquet"}
 
-        return self._read_bigquery_load_job(path, table, job_config=job_config)
+            return self._read_bigquery_load_job(path, table, job_config=job_config)
+        else:
+            read_parquet_kwargs: Dict[str, Any] = {}
+            if pandas.__version__.startswith("1."):
+                read_parquet_kwargs["use_nullable_dtypes"] = True
+            else:
+                read_parquet_kwargs["dtype_backend"] = "pyarrow"
+
+            pandas_obj = pandas.read_parquet(
+                path,
+                engine=engine,  # type: ignore
+                **read_parquet_kwargs,
+            )
+            return self._read_pandas(pandas_obj, "read_parquet")
 
     def read_json(
         self,
@@ -1337,6 +1350,7 @@ class Session(
         reuse: bool = True,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
+        cloud_function_service_account: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1410,6 +1424,13 @@ class Session(
                 Explicit name of the external package dependencies. Each dependency
                 is added to the `requirements.txt` as is, and can be of the form
                 supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
+            cloud_function_service_account (str, Optional):
+                Service account to use for the cloud functions. If not provided
+                then the default service account would be used. See
+                https://cloud.google.com/functions/docs/securing/function-identity
+                for more details. Please make sure the service account has the
+                necessary IAM permissions configured as described in
+                https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1428,6 +1449,7 @@ class Session(
             reuse=reuse,
             name=name,
             packages=packages,
+            cloud_function_service_account=cloud_function_service_account,
         )
 
     def read_gbq_function(

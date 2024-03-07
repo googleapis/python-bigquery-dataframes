@@ -597,10 +597,13 @@ def read_pickle(
 read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
-def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
+def read_parquet(
+    path: str | IO["bytes"], *, engine: str = "auto"
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
+        engine=engine,
     )
 
 
@@ -615,6 +618,7 @@ def remote_function(
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
+    cloud_function_service_account: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -625,6 +629,7 @@ def remote_function(
         reuse=reuse,
         name=name,
         packages=packages,
+        cloud_function_service_account=cloud_function_service_account,
     )
 
 
