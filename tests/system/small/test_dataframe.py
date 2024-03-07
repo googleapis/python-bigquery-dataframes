@@ -995,14 +995,14 @@ def test_df_pipe(
     bf_result = (
         scalars_df_index[columns]
         .pipe((foo, "df"), x=7, y=9)
-        .pipe(lambda x: x.cumsum())
+        .pipe(lambda x: x**2)
         .to_pandas()
     )
 
     pd_result = (
         scalars_pandas_df_index[columns]
         .pipe((foo, "df"), x=7, y=9)
-        .pipe(lambda x: x.cumsum())
+        .pipe(lambda x: x**2)
     )
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
