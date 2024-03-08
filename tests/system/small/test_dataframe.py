@@ -104,6 +104,7 @@ def test_df_construct_inline_respects_location():
 
     table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
     assert table.location == "europe-west1"
+    bpd.close_session()
 
 
 def test_get_column(scalars_dfs):
