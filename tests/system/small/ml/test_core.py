@@ -394,6 +394,7 @@ def test_model_register(ephemera_penguins_bqml_linear_model: core.BqmlModel):
     model = ephemera_penguins_bqml_linear_model
     model.register()
 
+    assert model.model.model_id is not None
     model_name = "bigframes_" + model.model.model_id
     # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
     assert model_name in model.model.training_runs[-1]["vertexAiModelId"]
