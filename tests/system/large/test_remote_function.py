@@ -174,7 +174,6 @@ def test_remote_function_stringify_with_ibis(
     ibis_client,
     dataset_id,
     bq_cf_connection,
-    cloudfunctions_client,
 ):
     try:
 
@@ -210,13 +209,13 @@ def test_remote_function_stringify_with_ibis(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, stringify
+            session.bqclient, session.cloudfunctionsclient, stringify
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_decorator_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -254,12 +253,14 @@ def test_remote_function_decorator_with_bigframes_series(
         assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, cloudfunctions_client, square)
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_explicit_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -299,7 +300,7 @@ def test_remote_function_explicit_with_bigframes_series(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, remote_add_one
+            session.bqclient, session.cloudfunctionsclient, remote_add_one
         )
 
 
@@ -309,7 +310,6 @@ def test_remote_function_explicit_dataset_not_created(
     scalars_dfs,
     dataset_id_not_created,
     bq_cf_connection,
-    cloudfunctions_client,
 ):
     try:
 
@@ -347,12 +347,14 @@ def test_remote_function_explicit_dataset_not_created(
         assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, cloudfunctions_client, square)
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_var(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
         POSITIVE_SIGN = 1
@@ -399,13 +401,13 @@ def test_remote_udf_referring_outside_var(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, remote_sign
+            session.bqclient, session.cloudfunctionsclient, remote_sign
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
         import math as mymath
@@ -446,13 +448,13 @@ def test_remote_udf_referring_outside_import(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, remote_circumference
+            session.bqclient, session.cloudfunctionsclient, remote_circumference
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_global_var_and_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -495,7 +497,7 @@ def test_remote_udf_referring_global_var_and_import(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, remote_find_team
+            session.bqclient, session.cloudfunctionsclient, remote_find_team
         )
 
 
@@ -505,7 +507,6 @@ def test_remote_function_restore_with_bigframes_series(
     scalars_dfs,
     dataset_id,
     bq_cf_connection,
-    cloudfunctions_client,
 ):
     try:
 
@@ -521,7 +522,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be no cloud function yet for the unique udf
         cloud_functions = list(
             get_cloud_functions(
-                cloudfunctions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -542,7 +543,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should have been excactly one cloud function created at this point
         cloud_functions = list(
             get_cloud_functions(
-                cloudfunctions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -582,7 +583,7 @@ def test_remote_function_restore_with_bigframes_series(
 
         # Let's delete the cloud function while not touching the bq remote function
         delete_operation = delete_cloud_function(
-            cloudfunctions_client, cloud_functions[0].name
+            session.cloudfunctionsclient, cloud_functions[0].name
         )
         delete_operation.result()
         assert delete_operation.done()
@@ -590,7 +591,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be no cloud functions at this point for the uniq udf
         cloud_functions = list(
             get_cloud_functions(
-                cloudfunctions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -612,7 +613,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be excactly one cloud function again
         cloud_functions = list(
             get_cloud_functions(
-                cloudfunctions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -629,13 +630,13 @@ def test_remote_function_restore_with_bigframes_series(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, remote_add_one
+            session.bqclient, session.cloudfunctionsclient, remote_add_one
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_default_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -669,13 +670,13 @@ def test_remote_udf_mask_default_value(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, is_odd_remote
+            session.bqclient, session.cloudfunctionsclient, is_odd_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_custom_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -712,14 +713,12 @@ def test_remote_udf_mask_custom_value(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, is_odd_remote
+            session.bqclient, session.cloudfunctionsclient, is_odd_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_lambda(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
-):
+def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
     try:
         add_one_lambda = lambda x: x + 1  # noqa: E731
 
@@ -756,13 +755,13 @@ def test_remote_udf_lambda(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, add_one_lambda_remote
+            session.bqclient, session.cloudfunctionsclient, add_one_lambda_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -813,13 +812,13 @@ def test_remote_function_with_explicit_name(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, square_remote
+            session.bqclient, session.cloudfunctionsclient, square_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_external_package_dependencies(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -858,13 +857,13 @@ def test_remote_function_with_external_package_dependencies(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, pd_np_foo_remote
+            session.bqclient, session.cloudfunctionsclient, pd_np_foo_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name_reuse(
-    session, scalars_dfs, dataset_id, bq_cf_connection, cloudfunctions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -1011,13 +1010,13 @@ def test_remote_function_with_explicit_name_reuse(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, square_remote1
+            session.bqclient, session.cloudfunctionsclient, square_remote1
         )
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, square_remote2
+            session.bqclient, session.cloudfunctionsclient, square_remote2
         )
         cleanup_remote_function_assets(
-            session.bqclient, cloudfunctions_client, plusone_remote
+            session.bqclient, session.cloudfunctionsclient, plusone_remote
         )
         for dir_ in dirs_to_cleanup:
             shutil.rmtree(dir_)
