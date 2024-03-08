@@ -21,6 +21,7 @@ import textwrap
 import typing
 from typing import Dict, Optional
 
+from google.api_core.exceptions import NotFound, ResourceExhausted
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
 import google.cloud.exceptions
@@ -34,7 +35,20 @@ import pytz
 import test_utils.prefixer
 
 import bigframes
-from tests.system.utils import convert_pandas_dtypes
+from tests.system.utils import (
+    convert_pandas_dtypes,
+    delete_cloud_function,
+    get_cloud_functions,
+    get_remote_function_endpoints,
+)
+
+# Use this to control the number of cloud functions being deleted in a single
+# test session. This should help soften the spike of the number of mutations per
+# minute tracked against a quota limit (default 60, increased to 120 for
+# bigframes-dev project) by the Cloud Functions API
+# We are running pytest with "-n 20". Let's say each session lasts about a
+# minute, so we are setting a limit of 120/20 = 6 deletions per session.
+MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 6
 
 CURRENT_DIR = pathlib.Path(__file__).parent
 DATA_DIR = CURRENT_DIR.parent / "data"
@@ -1040,3 +1054,53 @@ def floats_bf(session, floats_pd):
 @pytest.fixture()
 def floats_product_bf(session, floats_product_pd):
     return session.read_pandas(floats_product_pd)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent):
+    """Clean up stale cloud functions."""
+    permanent_endpoints = get_remote_function_endpoints(
+        session.bqclient, dataset_id_permanent
+    )
+    delete_count = 0
+    for cloud_function in get_cloud_functions(
+        cloudfunctions_client,
+        session.bqclient.project,
+        session.bqclient.location,
+        name_prefix="bigframes-",
+    ):
+        # Ignore bigframes cloud functions referred by the remote functions in
+        # the permanent dataset
+        if cloud_function.service_config.uri in permanent_endpoints:
+            continue
+
+        # Ignore the functions less than one day old
+        age = datetime.now() - datetime.fromtimestamp(
+            cloud_function.update_time.timestamp()
+        )
+        if age.days <= 0:
+            continue
+
+        # Go ahead and delete
+        try:
+            delete_cloud_function(cloudfunctions_client, cloud_function.name)
+            delete_count += 1
+            if delete_count >= MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
+                break
+        except NotFound:
+            # This can happen when multiple pytest sessions are running in
+            # parallel. Two or more sessions may discover the same cloud
+            # function, but only one of them would be able to delete it
+            # successfully, while the other instance will run into this
+            # exception. Ignore this exception.
+            pass
+        except ResourceExhausted:
+            # This can happen if we are hitting GCP limits, e.g.
+            # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
+            # for quota metric 'Per project mutation requests' and limit
+            # 'Per project mutation requests per minute per region' of service
+            # 'cloudfunctions.googleapis.com' for consumer
+            # 'project_number:1084210331973'.
+            # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
+            # Let's stop further clean up and leave it to later.
+            break
