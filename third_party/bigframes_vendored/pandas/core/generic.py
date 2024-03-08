@@ -975,21 +975,6 @@ class NDFrame(indexing.IndexingMixin):
         """
         Apply chainable functions that expect Series or DataFrames.
 
-        Args:
-            func (function):
-                Function to apply to this object.
-                ``args``, and ``kwargs`` are passed into ``func``.
-                Alternatively a ``(callable, data_keyword)`` tuple where
-                ``data_keyword`` is a string indicating the keyword of
-                ``callable`` that expects this object.
-            *args (iterable, optional):
-                Positional arguments passed into ``func``.
-            **kwargs (mapping, optional):
-                A dictionary of keyword arguments passed into ``func``.
-
-        Returns:
-            same type as caller
-
         **Examples:**
 
         Constructing a income DataFrame from a dictionary.
@@ -1062,6 +1047,21 @@ class NDFrame(indexing.IndexingMixin):
             2   3682.8  1473.12
             <BLANKLINE>
             [3 rows x 2 columns]
+
+        Args:
+            func (function):
+                Function to apply to this object.
+                ``args``, and ``kwargs`` are passed into ``func``.
+                Alternatively a ``(callable, data_keyword)`` tuple where
+                ``data_keyword`` is a string indicating the keyword of
+                ``callable`` that expects this object.
+            args (iterable, optional):
+                Positional arguments passed into ``func``.
+            kwargs (mapping, optional):
+                A dictionary of keyword arguments passed into ``func``.
+
+        Returns:
+            same type as caller
         """
         return common.pipe(self, func, *args, **kwargs)
 
