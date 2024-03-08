@@ -1592,17 +1592,18 @@ class Session(
             self.bqclient, sql, job_config, max_results
         )
 
-    def _start_query_bqml(
+    def _start_query_create_model(
         self,
         sql: str,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts BigQuery ML query job and waits for results.
+        Starts BigQuery ML CREATE MODEL query job and waits for results.
         """
         job_config = self._prepare_query_job_config()
 
         # BQML expects kms_key_name through OPTIONS and not through job config,
         # so we must reset any encryption set in the job config
+        # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
 
         return bigframes.session._io.bigquery.start_query_with_client(
