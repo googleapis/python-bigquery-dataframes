@@ -103,7 +103,6 @@ class ClientsProvider:
 
         # cloud clients initialized for lazy load
         self._bqclient = None
-        self._bqmlclient = None
         self._bqconnectionclient = None
         self._bqstoragereadclient = None
         self._cloudfunctionsclient = None
