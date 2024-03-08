@@ -406,7 +406,7 @@ It also contains code derived from the following third-party packages:
 * `XGBoost <https://xgboost.readthedocs.io/en/stable/>`_
 
 For details, see the `third_party
-<https://github.com/googleapis/python-bigquery-dataframes/tree/main/third_party/bigframes_vendored>`_
+<https://github.com/googleapis/python-bigquery-dataframes/tree/main/bigframes_vendored>`_
 directory.
 
 
