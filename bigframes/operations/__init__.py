@@ -365,6 +365,14 @@ class StructFieldOp(UnaryOp):
     name: typing.ClassVar[str] = "struct_field"
     name_or_index: str | int
 
+    def output_type(self, *input_types):
+        pd_type = typing.cast(pd.ArrowDtype, input_types[0])
+        pa_struct_t = typing.cast(pa.StructType, pd_type.pyarrow_dtype)
+        pa_result_type = pa_struct_t[self.name_or_index]
+        # TODO: Directly convert from arrow to pandas type
+        ibis_result_type = dtypes.arrow_dtype_to_ibis_dtype(pa_result_type)
+        return dtypes.ibis_dtype_to_bigframes_dtype(ibis_result_type)
+
 
 @dataclasses.dataclass(frozen=True)
 class AsTypeOp(UnaryOp):
