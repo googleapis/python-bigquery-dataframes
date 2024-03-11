@@ -85,6 +85,9 @@ class HistPlot(bfplt.MPLPlot):
         weights_pd = pd.DataFrame(
             list(itertools.zip_longest(*weights.values())), columns=list(weights.keys())
         ).sort_index(axis=1)[self.data.columns.values]
+
+        # Prevents pandas from dropping NA values and causing length mismatches by
+        # filling them with zeros.
         hist_x_pd.fillna(0, inplace=True)
         weights_pd.fillna(0, inplace=True)
 
