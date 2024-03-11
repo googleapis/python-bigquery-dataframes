@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
-
+import abc
 import matplotlib.pyplot as plt
 
 
-class MPLPlot(ABC):
-    @abstractmethod
+class MPLPlot(abc.ABC):
+    @abc.abstractmethod
     def generate(self):
         pass
 

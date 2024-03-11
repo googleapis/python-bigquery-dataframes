@@ -42,3 +42,11 @@ Struct handling
     :members:
     :inherited-members:
     :undoc-members:
+
+Plotting handling
+^^^^^^^^^^^^^^^
+
+.. automodule:: bigframes.operations.plotting
+    :members:
+    :inherited-members:
+    :undoc-members:

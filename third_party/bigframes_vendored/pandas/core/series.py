@@ -3117,7 +3117,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Make plots of Series.
 
         Returns:
-            bigframes.operations.plot.PlotAccessor:
+            bigframes.operations.plotting.PlotAccessor:
                 An accessor making plots.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

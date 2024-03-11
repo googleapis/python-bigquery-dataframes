@@ -5231,7 +5231,7 @@ class DataFrame(NDFrame):
         Make plots of Dataframes.
 
         Returns:
-            bigframes.operations.plot.PlotAccessor:
+            bigframes.operations.plotting.PlotAccessor:
                 An accessor making plots.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

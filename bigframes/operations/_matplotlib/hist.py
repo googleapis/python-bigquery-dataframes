@@ -19,10 +19,10 @@ import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
-from bigframes.operations._matplotlib.core import MPLPlot
+import bigframes.operations._matplotlib.core as bfplt
 
 
-class HistPlot(MPLPlot):
+class HistPlot(bfplt.MPLPlot):
     @property
     def _kind(self) -> Literal["hist"]:
         return "hist"
@@ -54,44 +54,53 @@ class HistPlot(MPLPlot):
         self.data = self._compute_plot_data(data)
 
     def generate(self) -> None:
-        hist_bars = self._calculate_hist_bar(self.data, self.bins)
+        """
+        Calculates weighted histograms through BigQuery and plots them through pandas
+        native histogram plot.
+        """
+        hist_bars = self._calculate_hist_bars(self.data, self.bins)
+        bin_edges = self._calculate_bin_edges(
+            hist_bars, self.bins, self.kwargs.get("range", None)
+        )
 
-        bin_edges = None
-        hist_x = {}
-        weights = {}
-        for col_name, hist_bar in hist_bars.items():
-            left = hist_bar.index.get_level_values("left_exclusive")
-            right = hist_bar.index.get_level_values("right_inclusive")
-
-            hist_x[col_name] = pd.Series((left + right) / 2.0)
-            weights[col_name] = hist_bar.values
-            if bin_edges is None:
-                bin_edges = left.union(right)
-            else:
-                bin_edges = left.union(right).union(bin_edges)
-
-        bins = None
-        if bin_edges is not None:
-            _, bins = np.histogram(
-                bin_edges, bins=self.bins, range=self.kwargs.get("range", None)
+        weights = {
+            col_name: hist_bar.values for col_name, hist_bar in hist_bars.items()
+        }
+        hist_x = {
+            col_name: pd.Series(
+                (
+                    hist_bar.index.get_level_values("left_exclusive")
+                    + hist_bar.index.get_level_values("right_inclusive")
+                )
+                / 2.0
             )
+            for col_name, hist_bar in hist_bars.items()
+        }
 
-        # Fills with NA values when items have different lengths.
-        ordered_columns = self.data.columns.values
+        # Align DataFrames for plotting despite potential differences in column
+        # lengths, filling shorter columns with zeros.
         hist_x_pd = pd.DataFrame(
             list(itertools.zip_longest(*hist_x.values())), columns=list(hist_x.keys())
-        ).sort_index(axis=1)
+        ).sort_index(axis=1)[self.data.columns.values]
         weights_pd = pd.DataFrame(
             list(itertools.zip_longest(*weights.values())), columns=list(weights.keys())
-        ).sort_index(axis=1)
+        ).sort_index(axis=1)[self.data.columns.values]
+        hist_x_pd.fillna(0, inplace=True)
+        weights_pd.fillna(0, inplace=True)
 
-        self.axes = hist_x_pd[ordered_columns].plot.hist(
-            bins=bins,
-            weights=np.array(weights_pd[ordered_columns].values),
+        self.axes = hist_x_pd.plot.hist(
+            bins=bin_edges,
+            weights=np.array(weights_pd.values),
             **self.kwargs,
         )  # type: ignore
 
     def _compute_plot_data(self, data):
+        """
+        Prepares data for plotting, focusing on numeric data types.
+
+        Raises:
+            TypeError: If the input data contains no numeric columns.
+        """
         # Importing at the top of the file causes a circular import.
         import bigframes.series as series
 
@@ -118,7 +127,13 @@ class HistPlot(MPLPlot):
         return numeric_data
 
     @staticmethod
-    def _calculate_hist_bar(data, bins):
+    def _calculate_hist_bars(data, bins):
+        """
+        Calculates histogram bars for each column in a BigFrames DataFrame, and
+        returns a dictionary where keys are column names and values are pandas
+        Series. The series values are the histogram bins' heights with a
+        multi-index defining 'left_exclusive' and 'right_inclusive' bin edges.
+        """
         import bigframes.pandas as bpd
 
         # TODO: Optimize this by batching multiple jobs into one.
@@ -132,3 +147,23 @@ class HistPlot(MPLPlot):
                 .sort_index(level="left_exclusive")
             )
         return hist_bar
+
+    @staticmethod
+    def _calculate_bin_edges(hist_bars, bins, range):
+        """
+        Calculate bin edges from the histogram bars.
+        """
+        bin_edges = None
+        for _, hist_bar in hist_bars.items():
+            left = hist_bar.index.get_level_values("left_exclusive")
+            right = hist_bar.index.get_level_values("right_inclusive")
+            if bin_edges is None:
+                bin_edges = left.union(right)
+            else:
+                bin_edges = left.union(right).union(bin_edges)
+
+        if bin_edges is None:
+            return None
+
+        _, bins = np.histogram(bin_edges, bins=bins, range=range)
+        return bins
