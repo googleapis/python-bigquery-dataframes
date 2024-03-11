@@ -54,44 +54,50 @@ class HistPlot(MPLPlot):
         self.data = self._compute_plot_data(data)
 
     def generate(self) -> None:
-        hist_bars = self._calculate_hist_bar(self.data, self.bins)
+        hist_bars = self._calculate_hist_bars(self.data, self.bins)
+        bin_edges = self._calculate_bin_edges(hist_bars, self.bins, self.kwargs.get("range", None))
 
-        bin_edges = None
-        hist_x = {}
-        weights = {}
+        print(f"hist_bars: {hist_bars}")
+        print(f"hist_bars: {bin_edges}")
+
+        num_bars = len(bin_edges)
+        weights = {"index": bin_edges}
         for col_name, hist_bar in hist_bars.items():
-            left = hist_bar.index.get_level_values("left_exclusive")
-            right = hist_bar.index.get_level_values("right_inclusive")
+            weights[col_name] = np.zeros(num_bars)
 
-            hist_x[col_name] = pd.Series((left + right) / 2.0)
-            weights[col_name] = hist_bar.values
-            if bin_edges is None:
-                bin_edges = left.union(right)
-            else:
-                bin_edges = left.union(right).union(bin_edges)
+            positions = (hist_bar.index.get_level_values("left_exclusive") +
+                   hist_bar.index.get_level_values("right_inclusive")) / 2.0
+            values = hist_bar.values
 
-        bins = None
-        if bin_edges is not None:
-            _, bins = np.histogram(
-                bin_edges, bins=self.bins, range=self.kwargs.get("range", None)
-            )
+            bin_idx = 0
+            for position, value in zip(positions, values):
+                while bin_idx + 1 < num_bars and position - bin_edges[bin_idx + 1] > 1e-9:
+                    bin_idx += 1
+                if bin_idx < num_bars:
+                    weights[col_name][bin_idx] += value
 
         # Fills with NA values when items have different lengths.
         ordered_columns = self.data.columns.values
-        hist_x_pd = pd.DataFrame(
-            list(itertools.zip_longest(*hist_x.values())), columns=list(hist_x.keys())
-        ).sort_index(axis=1)
         weights_pd = pd.DataFrame(
             list(itertools.zip_longest(*weights.values())), columns=list(weights.keys())
         ).sort_index(axis=1)
+        weights_pd = weights_pd.set_index("index")
 
-        self.axes = hist_x_pd[ordered_columns].plot.hist(
-            bins=bins,
-            weights=np.array(weights_pd[ordered_columns].values),
+        weights_pd.index.name = None
+        #self.data = self.data.fillna(value=0)
+        self.axes = weights_pd[ordered_columns].plot.bar(
+            align=self.kwargs.get("align", "edge"),
+            width=self.kwargs.get("width", 2),
             **self.kwargs,
         )  # type: ignore
 
     def _compute_plot_data(self, data):
+        """
+        Prepares data for plotting, focusing on numeric data types.
+
+        Raises:
+            TypeError: If the input data contains no numeric columns.
+        """
         # Importing at the top of the file causes a circular import.
         import bigframes.series as series
 
@@ -118,7 +124,12 @@ class HistPlot(MPLPlot):
         return numeric_data
 
     @staticmethod
-    def _calculate_hist_bar(data, bins):
+    def _calculate_hist_bars(data, bins):
+        """
+        Calculates histogram bars for each column in a BigFrames DataFrame, and
+        returns a dictionary where keys are column names and values are pandas
+        Series containing the histogram bar counts and ranges.
+        """
         import bigframes.pandas as bpd
 
         # TODO: Optimize this by batching multiple jobs into one.
@@ -132,3 +143,24 @@ class HistPlot(MPLPlot):
                 .sort_index(level="left_exclusive")
             )
         return hist_bar
+
+    @staticmethod
+    def _calculate_bin_edges(hist_bars, bins, range):
+        """
+        TODO: comments
+        """
+        bin_edges = None
+        for _, hist_bar in hist_bars.items():
+            left = hist_bar.index.get_level_values("left_exclusive")
+            right = hist_bar.index.get_level_values("right_inclusive")
+            if bin_edges is None:
+                bin_edges = left.union(right)
+            else:
+                bin_edges = left.union(right).union(bin_edges)
+
+        if bin_edges is None:
+            return None
+        _, bins = np.histogram(
+            bin_edges, bins=bins, range=range
+        )
+        return bins
