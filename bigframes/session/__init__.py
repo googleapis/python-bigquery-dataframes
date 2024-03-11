@@ -89,7 +89,6 @@ import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
 
-
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
 _MAX_CLUSTER_COLUMNS = 4
