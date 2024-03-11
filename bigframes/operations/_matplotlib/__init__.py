@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from bigframes.operations._matplotlib.core import MPLPlot
-from bigframes.operations._matplotlib.hist import HistPlot
+import bigframes.operations._matplotlib.core as core
+import bigframes.operations._matplotlib.hist as hist
 
-PLOT_CLASSES: dict[str, type[MPLPlot]] = {
-    "hist": HistPlot,
+PLOT_CLASSES: dict[str, type[core.MPLPlot]] = {
+    "hist": hist.HistPlot,
 }
 
 

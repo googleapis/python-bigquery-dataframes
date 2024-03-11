@@ -12,7 +12,7 @@ Accessors
 ---------
 
 Plotting handling
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 .. automodule:: bigframes.operations.plotting
     :members:

@@ -44,7 +44,7 @@ Struct handling
     :undoc-members:
 
 Plotting handling
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 .. automodule:: bigframes.operations.plotting
     :members:

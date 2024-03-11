@@ -15,8 +15,9 @@
 from typing import Optional, Sequence
 
 import bigframes.constants as constants
-import bigframes.operations._matplotlib as plotbackend
+import bigframes.operations._matplotlib as bfplt
 import third_party.bigframes_vendored.pandas.plotting._core as vendordt
+
 
 class PlotAccessor:
     __doc__ = vendordt.PlotAccessor.__doc__
@@ -29,6 +30,5 @@ class PlotAccessor:
             raise NotImplementedError(
                 f"Only support matplotlib backend for now. {constants.FEEDBACK_LINK}"
             )
-        kwargs["by"] = by
-        kwargs["bins"] = bins
-        return plotbackend.plot(self._parent.copy(), kind="hist", **kwargs)
+        # Calls matplotlib backend to plot the data.
+        return bfplt.plot(self._parent.copy(), kind="hist", by=by, bins=bins, **kwargs)
