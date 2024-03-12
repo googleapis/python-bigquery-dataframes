@@ -23,6 +23,7 @@ import textwrap
 import typing
 from typing import Any, Mapping, Optional, Tuple, Union
 
+import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -50,9 +51,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
+import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
-import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -1556,6 +1557,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def str(self) -> strings.StringMethods:
         return strings.StringMethods(self._block)
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     def _slice(
         self,
