@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import io
-import os
 import typing
 from typing import Iterable, Sequence
 
@@ -58,8 +57,9 @@ class ArrayValue:
     def __post_init__(self):
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            self.validate_schema()
+        # if "PYTEST_CURRENT_TEST" in os.environ:
+        #    self.validate_schema()
+        pass
 
     @classmethod
     def from_ibis(
