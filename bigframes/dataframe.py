@@ -34,6 +34,8 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
+import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -63,8 +65,6 @@ import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
-import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
-import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 if typing.TYPE_CHECKING:
     import bigframes.session
@@ -1646,7 +1646,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise NotImplementedError(
                     "Cannot reindex with index with different nlevels"
                 )
-            new_indexer = DataFrame(index=index)[[]]
+            new_indexer = DataFrame(index=index, session=self._session)[[]]
         # multiindex join is senstive to index names, so we will set all these
         result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
             self.rename_axis(range(self.index.nlevels)),

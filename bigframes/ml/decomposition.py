@@ -19,21 +19,21 @@ from __future__ import annotations
 
 from typing import List, Optional, Union
 
+import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 
 @log_adapter.class_logger
 class PCA(
     base.UnsupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
+    bigframes_vendored.sklearn.decomposition._pca.PCA,
 ):
-    __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
+    __doc__ = bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
     def __init__(self, n_components: int = 3):
         self.n_components = n_components
@@ -109,6 +109,34 @@ class PCA(
         (X,) = utils.convert_to_dataframe(X)
 
         return self._bqml_model.predict(X)
+
+    def detect_anomalies(
+        self, X: Union[bpd.DataFrame, bpd.Series], *, contamination=0.1
+    ) -> bpd.DataFrame:
+        """Detect the anomaly data points of the input.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Series or a DataFrame to detect anomalies.
+            contamination (float, default 0.1):
+                Identifies the proportion of anomalies in the training dataset that are used to create the model.
+                The value must be in the range [0, 0.5].
+
+        Returns:
+            bigframes.dataframe.DataFrame: detected DataFrame."""
+        if contamination < 0.0 or contamination > 0.5:
+            raise ValueError(
+                f"contamination must be [0.0, 0.5], but is {contamination}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before detect_anomalies")
+
+        (X,) = utils.convert_to_dataframe(X)
+
+        return self._bqml_model.detect_anomalies(
+            X, options={"contamination": contamination}
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
         """Save the model to BigQuery.
