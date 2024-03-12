@@ -51,11 +51,8 @@ class PlotAccessor:
 
     def line(
         self,
-        x: typing.Hashable | None = None,
-        y: typing.Hashable | None = None,
-        stacked: bool = True,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
         **kwargs,
     ):
         """
@@ -126,11 +123,9 @@ class PlotAccessor:
 
     def area(
         self,
-        x: typing.Hashable | None = None,
-        y: typing.Hashable | None = None,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
         stacked: bool = True,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
         **kwargs,
     ):
         """
@@ -211,11 +206,10 @@ class PlotAccessor:
 
     def scatter(
         self,
-        x: typing.Hashable | None = None,
-        y: typing.Hashable | None = None,
-        stacked: bool = True,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        s: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        c: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
         **kwargs,
     ):
         """

@@ -37,10 +37,8 @@ class PlotAccessor:
 
     def line(
         self,
-        x: typing.Hashable | None = None,
-        y: typing.Hashable | None = None,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
         **kwargs,
     ):
         return bfplt.plot(
@@ -48,18 +46,14 @@ class PlotAccessor:
             kind="line",
             x=x,
             y=y,
-            sampling_n=sampling_n,
-            sampling_random_state=sampling_random_state,
             **kwargs,
         )
 
     def area(
         self,
-        x: typing.Hashable | None = None,
-        y: typing.Hashable | None = None,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
         stacked: bool = True,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
         **kwargs,
     ):
         return bfplt.plot(
@@ -68,19 +62,15 @@ class PlotAccessor:
             x=x,
             y=y,
             stacked=stacked,
-            sampling_n=sampling_n,
-            sampling_random_state=sampling_random_state,
             **kwargs,
         )
 
     def scatter(
         self,
-        x: typing.Hashable,
-        y: typing.Hashable,
-        s: typing.Hashable | typing.Sequence[typing.Hashable] | None = None,
-        c: typing.Hashable | typing.Sequence[typing.Hashable] | None = None,
-        sampling_n: typing.Optional[int] = 100,
-        sampling_random_state: typing.Optional[int] = 0,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        s: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        c: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
         **kwargs,
     ):
         return bfplt.plot(
@@ -90,7 +80,5 @@ class PlotAccessor:
             y=y,
             s=s,
             c=c,
-            sampling_n=sampling_n,
-            sampling_random_state=sampling_random_state,
             **kwargs,
         )
