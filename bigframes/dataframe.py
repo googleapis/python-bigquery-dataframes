@@ -34,6 +34,8 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
+import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -59,11 +61,10 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
-import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
-import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 if typing.TYPE_CHECKING:
     import bigframes.session
@@ -2932,8 +2933,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return clustering_columns_for_index + clustering_columns_for_df
 
-    def _create_io_query(self, index: bool, ordering_id: Optional[str]) -> str:
-        """Create query text representing this dataframe for I/O."""
+    def _prepare_export(
+        self, index: bool, ordering_id: Optional[str]
+    ) -> Tuple[bigframes.core.ArrayValue, Dict[str, str]]:
         array_value = self._block.expr
 
         new_col_labels, new_idx_labels = utils.get_standardized_ids(
@@ -2961,10 +2963,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             array_value = array_value.promote_offsets(ordering_id)
-        return self._block.session._to_sql(
-            array_value=array_value,
-            col_id_overrides=id_overrides,
-        )
+        return array_value, id_overrides
 
     def _run_io_query(
         self,
@@ -2974,11 +2973,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> bigquery.TableReference:
         """Executes a query job presenting this dataframe and returns the destination
         table."""
-        expr = self._block.expr
-        session = expr.session
-        sql = self._create_io_query(index=index, ordering_id=ordering_id)
-        _, query_job = session._start_query(
-            sql=sql, job_config=job_config  # type: ignore
+        session = self._block.expr.session
+        export_array, id_overrides = self._prepare_export(
+            index=index, ordering_id=ordering_id
+        )
+
+        _, query_job = session._execute(
+            export_array,
+            job_config=job_config,
+            sorted=False,
+            col_id_overrides=id_overrides,
         )
         self._set_internal_query_job(query_job)
 
@@ -3189,5 +3193,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             result = result[result.columns[0]].rename()
 
         return result
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     __matmul__ = dot
