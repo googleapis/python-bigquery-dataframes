@@ -1712,7 +1712,7 @@ class Session(
         # Heuristic: log(Complexity) * (copies of subtree)
         best_candidate = max(
             valid_candidates,
-            key=lambda i: math.log(i[0].complexity) * i[1],
+            key=lambda i: math.log(i[0].complexity) + i[1],
             default=None,
         )
 
@@ -1738,6 +1738,8 @@ class Session(
 
     def _simplify_with_caching(self, array_value: core.ArrayValue) -> core.ArrayValue:
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
+        if not bigframes.options.compute.enable_multi_query_execution:
+            return array_value
         node = array_value.node
         if node.complexity < COMPLEXITY_SOFT_LIMIT:
             return array_value
