@@ -27,6 +27,8 @@ NOT_PRESENT = "not_present"
 CLASSES = [
     bpd.DataFrame,
     bpd.Series,
+    bpd.Index,
+    bigframes.session.Session,
     bigframes.operations.strings.StringMethods,
     bigframes.operations.datetimes.DatetimeMethods,
     bigframes.operations.structs.StructAccessor,
@@ -36,6 +38,7 @@ ML_MODULE_NAMES = [
     "cluster",
     "compose",
     "decomposition",
+    "ensemble",
     "linear_model",
     "metrics",
     "model_selection",
