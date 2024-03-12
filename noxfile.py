@@ -219,7 +219,10 @@ def unit_noextras(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def mypy(session):
     """Run type checks with mypy."""
-    session.install("-e", ".")
+    # Editable mode is not compatible with mypy when there are multiple
+    # package directories. See:
+    # https://github.com/python/mypy/issues/10564#issuecomment-851687749
+    session.install(".")
 
     # Just install the dependencies' type info directly, since "mypy --install-types"
     # might require an additional pass.
@@ -290,6 +293,7 @@ def run_system(
     install_test_extra=True,
     print_duration=False,
     extra_pytest_options=(),
+    timeout_seconds=900,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -311,7 +315,7 @@ def run_system(
         "--quiet",
         "-n=20",
         # Any individual test taking longer than 15 mins will be terminated.
-        "--timeout=900",
+        f"--timeout={timeout_seconds}",
         # Log 20 slowest tests
         "--durations=20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
@@ -395,6 +399,7 @@ def load(session: nox.sessions.Session):
         prefix_name="load",
         test_folder=os.path.join("tests", "system", "load"),
         print_duration=True,
+        timeout_seconds=60 * 60,
     )
 
 
