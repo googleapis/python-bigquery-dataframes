@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Sequence
+import typing
 
 import bigframes_vendored.pandas.plotting._core as vendordt
 
@@ -26,10 +26,71 @@ class PlotAccessor:
     def __init__(self, data) -> None:
         self._parent = data
 
-    def hist(self, by: Optional[Sequence[str]] = None, bins: int = 10, **kwargs):
+    def hist(
+        self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
+    ):
         if kwargs.pop("backend", None) is not None:
             raise NotImplementedError(
                 f"Only support matplotlib backend for now. {constants.FEEDBACK_LINK}"
             )
-        # Calls matplotlib backend to plot the data.
         return bfplt.plot(self._parent.copy(), kind="hist", by=by, bins=bins, **kwargs)
+
+    def line(
+        self,
+        x: typing.Hashable | None = None,
+        y: typing.Hashable | None = None,
+        sampling_n: typing.Optional[int] = 100,
+        sampling_random_state: typing.Optional[int] = 0,
+        **kwargs,
+    ):
+        return bfplt.plot(
+            self._parent,
+            kind="line",
+            x=x,
+            y=y,
+            sampling_n=sampling_n,
+            sampling_random_state=sampling_random_state,
+            **kwargs,
+        )
+
+    def area(
+        self,
+        x: typing.Hashable | None = None,
+        y: typing.Hashable | None = None,
+        stacked: bool = True,
+        sampling_n: typing.Optional[int] = 100,
+        sampling_random_state: typing.Optional[int] = 0,
+        **kwargs,
+    ):
+        return bfplt.plot(
+            self._parent.copy(),
+            kind="area",
+            x=x,
+            y=y,
+            stacked=stacked,
+            sampling_n=sampling_n,
+            sampling_random_state=sampling_random_state,
+            **kwargs,
+        )
+
+    def scatter(
+        self,
+        x: typing.Hashable,
+        y: typing.Hashable,
+        s: typing.Hashable | typing.Sequence[typing.Hashable] | None = None,
+        c: typing.Hashable | typing.Sequence[typing.Hashable] | None = None,
+        sampling_n: typing.Optional[int] = 100,
+        sampling_random_state: typing.Optional[int] = 0,
+        **kwargs,
+    ):
+        return bfplt.plot(
+            self._parent.copy(),
+            kind="scatter",
+            x=x,
+            y=y,
+            s=s,
+            c=c,
+            sampling_n=sampling_n,
+            sampling_random_state=sampling_random_state,
+            **kwargs,
+        )
