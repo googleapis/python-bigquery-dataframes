@@ -128,14 +128,12 @@ class BqmlModel(BaseBqml):
         return self._model
 
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
-        # TODO: validate input data schema
         return self._apply_sql(
             input_data,
             self._model_manipulation_sql_generator.ml_predict,
         )
 
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
-        # TODO: validate input data schema
         return self._apply_sql(
             input_data,
             self._model_manipulation_sql_generator.ml_transform,
@@ -146,7 +144,6 @@ class BqmlModel(BaseBqml):
         input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
     ) -> bpd.DataFrame:
-        # TODO: validate input data schema
         return self._apply_sql(
             input_data,
             lambda source_df: self._model_manipulation_sql_generator.ml_generate_text(
@@ -160,10 +157,22 @@ class BqmlModel(BaseBqml):
         input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
     ) -> bpd.DataFrame:
-        # TODO: validate input data schema
         return self._apply_sql(
             input_data,
             lambda source_df: self._model_manipulation_sql_generator.ml_generate_text_embedding(
+                source_df=source_df,
+                struct_options=options,
+            ),
+        )
+
+    def detect_anomalies(
+        self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
+    ) -> bpd.DataFrame:
+        assert self._model.model_type in ("PCA", "KMEANS", "ARIMA_PLUS")
+
+        return self._apply_sql(
+            input_data,
+            lambda source_df: self._model_manipulation_sql_generator.ml_detect_anomalies(
                 source_df=source_df,
                 struct_options=options,
             ),
@@ -174,7 +183,6 @@ class BqmlModel(BaseBqml):
         return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
-        # TODO: validate input data schema
         sql = self._model_manipulation_sql_generator.ml_evaluate(input_data)
 
         return self._session.read_gbq(sql)
@@ -212,7 +220,8 @@ class BqmlModel(BaseBqml):
         return self._session.read_gbq(sql)
 
     def copy(self, new_model_name: str, replace: bool = False) -> BqmlModel:
-        job_config = bigquery.job.CopyJobConfig()
+        job_config = self._session._prepare_copy_job_config()
+
         if replace:
             job_config.write_disposition = "WRITE_TRUNCATE"
 
@@ -236,7 +245,7 @@ class BqmlModel(BaseBqml):
             options={"vertex_ai_model_id": vertex_ai_model_id}
         )
         # Register the model and wait it to finish
-        self._session._start_query(sql)
+        self._session._start_query_create_model(sql)
 
         self._model = self._session.bqclient.get_model(self.model_name)
         return self
@@ -255,7 +264,7 @@ class BqmlModelFactory:
 
     def _create_model_with_sql(self, session: bigframes.Session, sql: str) -> BqmlModel:
         # fit the model, synchronously
-        _, job = session._start_query(sql)
+        _, job = session._start_query_create_model(sql)
 
         # real model path in the session specific hidden dataset and table prefix
         model_name_full = f"{job.destination.project}.{job.destination.dataset_id}.{job.destination.table_id}"
@@ -298,6 +307,9 @@ class BqmlModelFactory:
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
+        if session._bq_kms_key_name:
+            options.update({"kms_key_name": session._bq_kms_key_name})
+
         model_ref = self._create_model_ref(session._anonymous_dataset)
 
         sql = self._model_creation_sql_generator.create_model(

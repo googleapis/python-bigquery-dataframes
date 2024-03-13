@@ -36,6 +36,12 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
+import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
+import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
+import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
+import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
+import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 from google.cloud import bigquery
 import numpy
 import pandas
@@ -59,12 +65,6 @@ import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
 import bigframes.session.clients
-import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
-import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
-import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
-import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
-import third_party.bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
-import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
 # Include method definition so that the method appears in our docs for
@@ -383,6 +383,7 @@ def _set_default_session_location_if_possible(query):
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
         credentials=options.bigquery.credentials,
         application_name=options.bigquery.application_name,
+        bq_kms_key_name=options.bigquery.kms_key_name,
     )
 
     bqclient = clients_provider.bqclient
@@ -597,10 +598,13 @@ def read_pickle(
 read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
-def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
+def read_parquet(
+    path: str | IO["bytes"], *, engine: str = "auto"
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
+        engine=engine,
     )
 
 
@@ -615,6 +619,7 @@ def remote_function(
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
+    cloud_function_service_account: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -625,6 +630,7 @@ def remote_function(
         reuse=reuse,
         name=name,
         packages=packages,
+        cloud_function_service_account=cloud_function_service_account,
     )
 
 

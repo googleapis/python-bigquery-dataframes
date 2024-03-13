@@ -105,6 +105,11 @@ def cloudfunctions_client(
 
 
 @pytest.fixture(scope="session")
+def project_id(bigquery_client: bigquery.Client) -> str:
+    return bigquery_client.project
+
+
+@pytest.fixture(scope="session")
 def resourcemanager_client(
     session: bigframes.Session,
 ) -> resourcemanager_v3.ProjectsClient:
@@ -159,9 +164,8 @@ def dataset_id_not_created(bigquery_client: bigquery.Client):
 
 
 @pytest.fixture(scope="session")
-def dataset_id_permanent(bigquery_client: bigquery.Client) -> str:
+def dataset_id_permanent(bigquery_client: bigquery.Client, project_id: str) -> str:
     """Create a dataset if it doesn't exist."""
-    project_id = bigquery_client.project
     dataset_id = f"{project_id}.{PERMANENT_DATASET}"
     dataset = bigquery.Dataset(dataset_id)
     bigquery_client.create_dataset(dataset, exists_ok=True)
@@ -279,6 +283,13 @@ def test_data_tables_tokyo(
 @pytest.fixture(scope="session")
 def scalars_table_id(test_data_tables) -> str:
     return test_data_tables["scalars"]
+
+
+@pytest.fixture(scope="session")
+def baseball_schedules_df(session: bigframes.Session) -> bigframes.dataframe.DataFrame:
+    """Public BQ table"""
+    df = session.read_gbq("bigquery-public-data.baseball.schedules")
+    return df
 
 
 @pytest.fixture(scope="session")

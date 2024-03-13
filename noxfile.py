@@ -219,7 +219,10 @@ def unit_noextras(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def mypy(session):
     """Run type checks with mypy."""
-    session.install("-e", ".")
+    # Editable mode is not compatible with mypy when there are multiple
+    # package directories. See:
+    # https://github.com/python/mypy/issues/10564#issuecomment-851687749
+    session.install(".")
 
     # Just install the dependencies' type info directly, since "mypy --install-types"
     # might require an additional pass.
@@ -290,6 +293,7 @@ def run_system(
     install_test_extra=True,
     print_duration=False,
     extra_pytest_options=(),
+    timeout_seconds=900,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -311,7 +315,7 @@ def run_system(
         "--quiet",
         "-n=20",
         # Any individual test taking longer than 15 mins will be terminated.
-        "--timeout=900",
+        f"--timeout={timeout_seconds}",
         # Log 20 slowest tests
         "--durations=20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
@@ -384,6 +388,18 @@ def e2e(session: nox.sessions.Session):
         prefix_name="e2e",
         test_folder=os.path.join("tests", "system", "large"),
         print_duration=True,
+    )
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def load(session: nox.sessions.Session):
+    """Run the very large tests in system test suite."""
+    run_system(
+        session=session,
+        prefix_name="load",
+        test_folder=os.path.join("tests", "system", "load"),
+        print_duration=True,
+        timeout_seconds=60 * 60,
     )
 
 
@@ -700,6 +716,7 @@ def notebook(session: nox.Session):
         # TODO(swast): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
+        "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
