@@ -1631,13 +1631,14 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
+        timeout: Optional[float] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery query job and waits for results.
         """
         job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, max_results
+            self.bqclient, sql, job_config, max_results, timeout
         )
 
     def _start_query_create_model(
