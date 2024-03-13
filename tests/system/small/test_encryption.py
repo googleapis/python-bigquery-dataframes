@@ -130,7 +130,7 @@ def test_df_apis(bq_cmek, session_with_bq_cmek, scalars_table_id):
     # Read a BQ table and assert encryption
     df = session_with_bq_cmek.read_gbq(scalars_table_id)
 
-    # Perform a few dataframe operations and assert assertion
+    # Perform a few dataframe operations and assert encryption
     df1 = df.dropna()
     _assert_bq_table_is_encrypted(df1, bq_cmek, session_with_bq_cmek)
 
@@ -179,14 +179,31 @@ def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
     df = session_with_bq_cmek.read_gbq(scalars_table_id)
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
 
-    # Modify the dataframe and assert assertion
+    # Modify the dataframe and assert encryption
     df = df.dropna().head()
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
 
-    # Write the result to BQ and assert assertion
+    # Write the result to BQ and assert encryption
     output_table_id = df.to_gbq()
     output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
     assert output_table.encryption_configuration.kms_key_name == bq_cmek
+
+    # Write the result to BQ custom table and assert encryption
+    session_with_bq_cmek.bqclient.get_table(output_table_id)
+    output_table_ref = bigframes.session._io.bigquery.random_table(
+        session_with_bq_cmek._anonymous_dataset
+    )
+    output_table_id = str(output_table_ref)
+    df.to_gbq(output_table_id)
+    output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
+    assert output_table.encryption_configuration.kms_key_name == bq_cmek
+
+    # Lastly, assert that the encryption is not because of any default set at
+    # the dataset level
+    output_table_dataset = session_with_bq_cmek.bqclient.get_dataset(
+        output_table.dataset_id
+    )
+    assert output_table_dataset.default_encryption_configuration is None
 
 
 @pytest.mark.skip(
