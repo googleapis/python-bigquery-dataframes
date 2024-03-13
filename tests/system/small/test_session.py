@@ -20,6 +20,7 @@ import time
 import typing
 from typing import List
 
+import google
 from google.api_core.exceptions import InternalServerError
 import google.cloud.bigquery as bigquery
 import numpy as np
@@ -357,7 +358,19 @@ def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
 @pytest.mark.parametrize(
     ("config"),
     [
-        {"query": {"useQueryCache": True, "maximumBytesBilled": "1000000000"}},
+        {
+            "query": {
+                "useQueryCache": True,
+                "maximumBytesBilled": "1000000000",
+                "timeoutMs": 10000,
+            }
+        },
+        pytest.param(
+            {"query": {"useQueryCache": True, "timeoutMs": 50}},
+            marks=pytest.mark.xfail(
+                raises=google.api_core.exceptions.BadRequest,
+            ),
+        ),
         pytest.param(
             {"query": {"useQueryCache": False, "maximumBytesBilled": "100"}},
             marks=pytest.mark.xfail(

@@ -19,10 +19,10 @@ class GBQIOMixin:
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: Optional[dict] = None,
+        configuration: dict = {},
         max_results: Optional[int] = None,
         filters: FiltersType = (),
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
     ):
         """Loads a DataFrame from BigQuery.
@@ -127,8 +127,10 @@ class GBQIOMixin:
                 If using wildcard table suffix in query_or_table, can specify
                 '_table_suffix' pseudo column to filter the tables to be read
                 into the DataFrame.
-            use_cache (bool, default True):
-                Whether to cache the query inputs. Default to True.
+            use_cache (Optional[bool], default None):
+                Caches query results if set to `True`. When `None`, it behaves
+                as `True`, but should not be combined with `useQueryCache` in
+                `configuration` to avoid conflicts.
             col_order (Iterable[str]):
                 Alias for columns, retained for backwards compatibility.
 

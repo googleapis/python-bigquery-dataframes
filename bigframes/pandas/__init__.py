@@ -490,10 +490,10 @@ def read_gbq(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
-    configuration: Optional[dict] = None,
+    configuration: dict = {},
     max_results: Optional[int] = None,
     filters: vendored_pandas_gbq.FiltersType = (),
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
@@ -528,8 +528,9 @@ def read_gbq_query(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
+    configuration: dict = {},
     max_results: Optional[int] = None,
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
@@ -538,6 +539,7 @@ def read_gbq_query(
         query,
         index_col=index_col,
         columns=columns,
+        configuration=configuration,
         max_results=max_results,
         use_cache=use_cache,
         col_order=col_order,
