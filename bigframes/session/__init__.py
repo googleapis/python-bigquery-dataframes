@@ -530,7 +530,7 @@ class Session(
     ) -> dataframe.DataFrame:
         configuration = _transform_read_gbq_configuration(configuration)
 
-        if not "query" in configuration:
+        if "query" not in configuration:
             configuration["query"] = {}
 
         if "query" in configuration["query"]:
