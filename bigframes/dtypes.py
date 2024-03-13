@@ -34,7 +34,6 @@ import pyarrow as pa
 
 import bigframes.constants as constants
 
-
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
     pd.BooleanDtype,
