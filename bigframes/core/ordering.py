@@ -23,6 +23,8 @@ from typing import Optional, Sequence
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
+import bigframes.core.expression as expression
+
 # TODO(tbergeron): Encode more efficiently
 ORDERING_ID_STRING_BASE: int = 10
 # Sufficient to store any value up to 2^63
@@ -58,6 +60,26 @@ class OrderingColumnReference:
     def with_reverse(self):
         return OrderingColumnReference(
             self.column_id, self.direction.reverse(), not self.na_last
+        )
+
+
+@dataclass(frozen=True)
+class OrderingExpression:
+    """A more flexible version of OrderingColumnReference."""
+
+    # TODO: Maybe migrate BFET to use this?
+    scalar_expression: expression.Expression
+    direction: OrderingDirection = OrderingDirection.ASC
+    na_last: bool = True
+
+    def remap_names(self, mapping: dict[str, str]):
+        return OrderingExpression(
+            self.scalar_expression.rename(mapping), self.direction, self.na_last
+        )
+
+    def with_reverse(self):
+        return OrderingExpression(
+            self.scalar_expression, self.direction.reverse(), not self.na_last
         )
 
 
