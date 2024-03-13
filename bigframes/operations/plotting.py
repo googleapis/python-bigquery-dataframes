@@ -42,7 +42,7 @@ class PlotAccessor:
         **kwargs,
     ):
         return bfplt.plot(
-            self._parent,
+            self._parent.copy(),
             kind="line",
             x=x,
             y=y,

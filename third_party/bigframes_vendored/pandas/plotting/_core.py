@@ -19,24 +19,7 @@ class PlotAccessor:
         into bins and draws all bins in one :class:`matplotlib.axes.Axes`.
         This is useful when the DataFrame's Series are in a similar scale.
 
-        Parameters
-        ----------
-        by : str or sequence, optional
-            Column in the DataFrame to group by. It is not supported yet.
-        bins : int, default 10
-            Number of histogram bins to be used.
-        **kwargs
-            Additional keyword arguments are documented in
-            :meth:`DataFrame.plot`.
-
-        Returns
-        -------
-        class:`matplotlib.AxesSubplot`
-            Return a histogram plot.
-
-        Examples
-        --------
-        For Series:
+        **Examples:**
 
         .. plot::
             :context: close-figs
@@ -46,6 +29,19 @@ class PlotAccessor:
             >>> df = bpd.DataFrame(np.random.randint(1, 7, 6000), columns=['one'])
             >>> df['two'] = np.random.randint(1, 7, 6000) + np.random.randint(1, 7, 6000)
             >>> ax = df.plot.hist(bins=12, alpha=0.5)
+
+        Args:
+            by (str or sequence, optional):
+                Column in the DataFrame to group by. It is not supported yet.
+            bins (int, default 10):
+                Number of histogram bins to be used.
+            **kwargs:
+                Additional keyword arguments are documented in
+                :meth:`DataFrame.plot`.
+
+        Returns:
+            class:`matplotlib.AxesSubplot`: A histogram plot.
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -63,48 +59,7 @@ class PlotAccessor:
         of items. For consistent results, the random sampling is reproducible.
         Use the `sampling_random_state` parameter to modify the sampling seed.
 
-        Parameters
-        ----------
-        x : label or position, optional
-            Allows plotting of one column versus another. If not specified,
-            the index of the DataFrame is used.
-        y : label or position, optional
-            Allows plotting of one column versus another. If not specified,
-            all numerical columns are used.
-        color : str, array-like, or dict, optional
-            The color for each of the DataFrame's columns. Possible values are:
-
-            - A single color string referred to by name, RGB or RGBA code,
-                for instance 'red' or '#a98d19'.
-
-            - A sequence of color strings referred to by name, RGB or RGBA
-                code, which will be used for each column recursively. For
-                instance ['green','yellow'] each column's %(kind)s will be filled in
-                green or yellow, alternatively. If there is only a single column to
-                be plotted, then only the first color from the color list will be
-                used.
-
-            - A dict of the form {column name : color}, so that each column will be
-                colored accordingly. For example, if your columns are called `a` and
-                `b`, then passing {'a': 'green', 'b': 'red'} will color %(kind)ss for
-                column `a` in green and %(kind)ss for column `b` in red.
-        sampling_n: int, default 100:
-            Number of random items for plotting.
-        sampling_random_state: int, default 0:
-            Seed for random number generator.
-
-        **kwargs
-            Additional keyword arguments are documented in
-            :meth:`DataFrame.plot`.
-
-        Returns
-        -------
-        matplotlib.axes.Axes or np.ndarray of them
-            An ndarray is returned with one :class:`matplotlib.axes.Axes`
-            per column when ``subplots=True``.
-
-        Examples
-        --------
+        **Examples:**
 
         .. plot::
             :context: close-figs
@@ -118,6 +73,44 @@ class PlotAccessor:
             ...     }
             ... )
             >>> ax = df.plot.line(x='one')
+
+        Args:
+            x (label or position, optional):
+                Allows plotting of one column versus another. If not specified,
+                the index of the DataFrame is used.
+            y (label or position, optional):
+                Allows plotting of one column versus another. If not specified,
+                all numerical columns are used.
+            color (str, array-like, or dict, optional):
+                The color for each of the DataFrame's columns. Possible values are:
+
+                - A single color string referred to by name, RGB or RGBA code,
+                    for instance 'red' or '#a98d19'.
+
+                - A sequence of color strings referred to by name, RGB or RGBA
+                    code, which will be used for each column recursively. For
+                    instance ['green','yellow'] each column's %(kind)s will be filled in
+                    green or yellow, alternatively. If there is only a single column to
+                    be plotted, then only the first color from the color list will be
+                    used.
+
+                - A dict of the form {column name : color}, so that each column will be
+                    colored accordingly. For example, if your columns are called `a` and
+                    `b`, then passing {'a': 'green', 'b': 'red'} will color %(kind)ss for
+                    column `a` in green and %(kind)ss for column `b` in red.
+            sampling_n (int, default 100):
+                Number of random items for plotting.
+            sampling_random_state (int, default 0):
+                Seed for random number generator.
+
+            **kwargs:
+                Additional keyword arguments are documented in
+                :meth:`DataFrame.plot`.
+
+        Returns:
+            matplotlib.axes.Axes or np.ndarray of them:
+                An ndarray is returned with one :class:`matplotlib.axes.Axes`
+                per column when ``subplots=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -135,30 +128,8 @@ class PlotAccessor:
         of items. For consistent results, the random sampling is reproducible.
         Use the `sampling_random_state` parameter to modify the sampling seed.
 
-        Parameters
-        ----------
-        x : label or position, optional
-            Coordinates for the X axis. By default uses the index.
-        y : label or position, optional
-            Column to plot. By default uses all columns.
-        stacked : bool, default True
-            Area plots are stacked by default. Set to False to create a
-            unstacked plot.
-        sampling_n: int, default 100:
-            Number of random items for plotting.
-        sampling_random_state: int, default 0:
-            Seed for random number generator.
-        **kwargs
-            Additional keyword arguments are documented in
-            :meth:`DataFrame.plot`.
+        **Examples:**
 
-        Returns
-        -------
-        matplotlib.axes.Axes or numpy.ndarray
-            Area plot, or array of area plots if subplots is True.
-
-        Examples
-        --------
         Draw an area plot based on basic business metrics:
 
         .. plot::
@@ -201,6 +172,26 @@ class PlotAccessor:
             ...     'day': [1, 2, 3],
             ... })
             >>> ax = df.plot.area(x='day')
+
+        Args:
+            x (label or position, optional):
+                Coordinates for the X axis. By default uses the index.
+            y (label or position, optional):
+                Column to plot. By default uses all columns.
+            stacked (bool, default True):
+                Area plots are stacked by default. Set to False to create a
+                unstacked plot.
+            sampling_n (int, default 100):
+                Number of random items for plotting.
+            sampling_random_state (int, default 0):
+                Seed for random number generator.
+            **kwargs:
+                Additional keyword arguments are documented in
+                :meth:`DataFrame.plot`.
+
+        Returns:
+            matplotlib.axes.Axes or numpy.ndarray:
+                Area plot, or array of area plots if subplots is True.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -219,55 +210,8 @@ class PlotAccessor:
         of items. For consistent results, the random sampling is reproducible.
         Use the `sampling_random_state` parameter to modify the sampling seed.
 
-        Parameters
+        **Examples:**
 
-        ----------
-        x : int or str
-            The column name or column position to be used as horizontal
-            coordinates for each point.
-        y : int or str
-            The column name or column position to be used as vertical
-            coordinates for each point.
-        s : str, scalar or array-like, optional
-            The size of each point. Possible values are:
-
-            - A string with the name of the column to be used for marker's size.
-
-            - A single scalar so all points have the same size.
-
-            - A sequence of scalars, which will be used for each point's size
-              recursively. For instance, when passing [2,14] all points size
-              will be either 2 or 14, alternatively.
-        c : str, int or array-like, optional
-            The color of each point. Possible values are:
-
-            - A single color string referred to by name, RGB or RGBA code,
-              for instance 'red' or '#a98d19'.
-
-            - A sequence of color strings referred to by name, RGB or RGBA
-              code, which will be used for each point's color recursively. For
-              instance ['green','yellow'] all points will be filled in green or
-              yellow, alternatively.
-
-            - A column name or position whose values will be used to color the
-              marker points according to a colormap.
-        sampling_n: int, default 100:
-            Number of random items for plotting.
-        sampling_random_state: int, default 0:
-            Seed for random number generator.
-
-        **kwargs
-            Additional keyword arguments are documented in
-            :meth:`DataFrame.plot`.
-
-        Returns
-        -------
-        matplotlib.axes.Axes or np.ndarray of them
-            An ndarray is returned with one :class:`matplotlib.axes.Axes`
-            per column when ``subplots=True``.
-
-        Examples
-        --------
         Let's see how to draw a scatter plot using coordinates from the values
         in a DataFrame's columns.
 
@@ -291,5 +235,50 @@ class PlotAccessor:
             ...                       y='width',
             ...                       c='species',
             ...                       colormap='viridis')
+
+
+        Args:
+            x (int or str):
+                The column name or column position to be used as horizontal
+                coordinates for each point.
+            y (int or str):
+                The column name or column position to be used as vertical
+                coordinates for each point.
+            s (str, scalar or array-like, optional):
+                The size of each point. Possible values are:
+
+                - A string with the name of the column to be used for marker's size.
+
+                - A single scalar so all points have the same size.
+
+                - A sequence of scalars, which will be used for each point's size
+                recursively. For instance, when passing [2,14] all points size
+                will be either 2 or 14, alternatively.
+            c (str, int or array-like, optional):
+                The color of each point. Possible values are:
+
+                - A single color string referred to by name, RGB or RGBA code,
+                for instance 'red' or '#a98d19'.
+
+                - A sequence of color strings referred to by name, RGB or RGBA
+                code, which will be used for each point's color recursively. For
+                instance ['green','yellow'] all points will be filled in green or
+                yellow, alternatively.
+
+                - A column name or position whose values will be used to color the
+                marker points according to a colormap.
+            sampling_n (int, default 100):
+                Number of random items for plotting.
+            sampling_random_state (int, default 0):
+                Seed for random number generator.
+
+            **kwargs:
+                Additional keyword arguments are documented in
+                :meth:`DataFrame.plot`.
+
+        Returns:
+            matplotlib.axes.Axes or np.ndarray of them:
+                An ndarray is returned with one :class:`matplotlib.axes.Axes`
+                per column when ``subplots=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
