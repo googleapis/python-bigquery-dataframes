@@ -26,20 +26,20 @@ def test_create_single_timeseries(random_model_id):
     # for updates to `read_gbq` to support wildcard tables.
     
     # Read and visualize the time series you want to forecast.
-    df = bpd.read_gbq('''
-        SELECT PARSE_TIMESTAMP("%Y%m%d", date) AS parsed_date,
-        SUM(totals.visits) AS total_visits
-        FROM
-        `bigquery-public-data.google_analytics_sample.ga_sessions_*`
-        GROUP BY date
-        ''')
-    X = df[["parsed_date"]]
-    y = df[["total_visits"]]
+    df = bpd.read_gbq(
+        'bigquery-public-data.google_analytics_sample.ga_sessions_*'
+        )
+    parsed_date = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
+    total_visits = df.groupby(["date"])["parsed_date"].sum()
+    visits = df["totals"].struct.field("visits")
 
-    # Create an Arima-based time series model using the Google Analytics 360 data.
+    # Create an Arima-based time series model using the Google Analytics 360 data. 
     from bigframes.ml.forecasting import ARIMAPlus
 
     ga_arima_model = ARIMAPlus()
+
+    X = df[["parsed_date"]]
+    y = df[["total_visits"]]
 
     # Fit the model to your dataframe.
     ga_arima_model.fit(X,y)
