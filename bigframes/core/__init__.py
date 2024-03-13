@@ -69,7 +69,7 @@ class ArrayValue:
         return cls(node)
 
     @classmethod
-    def from_pandas(cls, pd_df: pandas.DataFrame):
+    def from_pandas(cls, pd_df: pandas.DataFrame, session: bigframes.Session):
         iobytes = io.BytesIO()
         # Use alphanumeric identifiers, to avoid downstream problems with escaping.
         as_ids = [
@@ -78,7 +78,7 @@ class ArrayValue:
         ]
         unique_ids = tuple(bigframes.core.utils.disambiguate_ids(as_ids))
         pd_df.reset_index(drop=True).set_axis(unique_ids, axis=1).to_feather(iobytes)
-        node = nodes.ReadLocalNode(iobytes.getvalue())
+        node = nodes.ReadLocalNode(feather_bytes=iobytes.getvalue(), session=session)
         return cls(node)
 
     @property
@@ -349,7 +349,7 @@ class ArrayValue:
         self,
         other: ArrayValue,
         join_def: join_def.JoinDefinition,
-        allow_row_identity_join: bool = True,
+        allow_row_identity_join: bool = False,
     ):
         return ArrayValue(
             nodes.JoinNode(

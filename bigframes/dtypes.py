@@ -20,10 +20,11 @@ import textwrap
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
-from ibis.backends.bigquery.datatypes import BigQueryType
 import ibis.expr.datatypes as ibis_dtypes
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
 import ibis.expr.types as ibis_types
@@ -32,8 +33,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -492,21 +491,6 @@ def cast_ibis_value(
     )
 
 
-def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
-    """For each STRUCT field, make sure we specify the full type to use."""
-    # TODO(swast): Also override ARRAY fields.
-    dtypes = {}
-    for field in schema:
-        if field.field_type == "RECORD" and field.mode != "REPEATED":
-            # TODO(swast): We're using a private API here. Would likely be
-            # better if we called `to_arrow()` and converted to a pandas
-            # DataFrame ourselves from that.
-            dtypes[field.name] = pd.ArrowDtype(
-                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
-            )
-    return dtypes
-
-
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
     """Captures whether a scalar can be losslessly represented by a dtype."""
     if scalar is None:
@@ -643,4 +627,4 @@ def ibis_type_from_python_type(t: type) -> ibis_dtypes.DataType:
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> ibis_dtypes.DataType:
     if tk not in SUPPORTED_IO_BIGQUERY_TYPEKINDS:
         raise UnsupportedTypeError(tk, SUPPORTED_IO_BIGQUERY_TYPEKINDS)
-    return BigQueryType.to_ibis(tk)
+    return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)

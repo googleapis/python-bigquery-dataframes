@@ -23,6 +23,7 @@ import textwrap
 import typing
 from typing import Any, Mapping, Optional, Tuple, Union
 
+import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -50,9 +51,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
+import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
-import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -1253,10 +1254,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
+        # We are working with remote function at this point
         reprojected_series = Series(self._block._force_reproject())
-        return reprojected_series._apply_unary_op(
+        result_series = reprojected_series._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
+
+        # return Series with materialized result so that any error in the remote
+        # function is caught early
+        materialized_series = result_series._cached()
+        return materialized_series
 
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))
@@ -1550,6 +1557,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def str(self) -> strings.StringMethods:
         return strings.StringMethods(self._block)
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     def _slice(
         self,
