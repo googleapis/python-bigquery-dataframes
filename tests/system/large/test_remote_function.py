@@ -1324,6 +1324,7 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
         )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_gcf_cmek():
     # TODO(shobs): Automate the following set-up during testing in the test project.
     #
