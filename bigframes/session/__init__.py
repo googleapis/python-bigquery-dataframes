@@ -289,7 +289,7 @@ class Session(
             # TODO(swast): Query the snapshot table but mark it as a
             # deterministic query so we can avoid serializing if we have a
             # unique index.
-            if configuration:
+            if configuration is not None:
                 raise ValueError(
                     "The 'configuration' argument is not allowed when "
                     "directly reading from a table. Please remove "
