@@ -54,13 +54,6 @@ class ArrayValue:
 
     node: nodes.BigFrameNode
 
-    def __post_init__(self):
-        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
-        # Do not execute these validations outside of testing suite.
-        # if "PYTEST_CURRENT_TEST" in os.environ:
-        #    self.validate_schema()
-        pass
-
     @classmethod
     def from_ibis(
         cls,
@@ -118,23 +111,28 @@ class ArrayValue:
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        return self.node.schema
+        # TODO: switch to use self.node.schema
+        return self._compiled_schema
 
-    def validate_schema(self):
-        schema = self.schema
+    @functools.cached_property
+    def _compiled_schema(self) -> schemata.ArraySchema:
         compiled = self._compile_unordered()
-        items = [
+        items = tuple(
             schemata.SchemaItem(id, compiled.get_column_type(id))
             for id in compiled.column_ids
-        ]
-        ibis_schema = schemata.ArraySchema(items)
-        if schema.names != ibis_schema.names:
+        )
+        return schemata.ArraySchema(items)
+
+    def validate_schema(self):
+        tree_derived = self.node.schema
+        ibis_derived = self._compiled_schema
+        if tree_derived.names != ibis_derived.names:
             raise ValueError(
-                f"Unexpected names internal {schema.names} vs generated {ibis_schema.names}"
+                f"Unexpected names internal {tree_derived.names} vs compiled {ibis_derived.names}"
             )
-        if schema.dtypes != ibis_schema.dtypes:
+        if tree_derived.dtypes != ibis_derived.dtypes:
             raise ValueError(
-                f"Unexpected types internal {schema.dtypes} vs generated {ibis_schema.dtypes}"
+                f"Unexpected types internal {tree_derived.dtypes} vs compiled {ibis_derived.dtypes}"
             )
 
     def _try_evaluate_local(self):
