@@ -624,6 +624,8 @@ def remote_function(
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
     cloud_function_service_account: Optional[str] = None,
+    cloud_function_kms_key_name: Optional[str] = None,
+    cloud_function_docker_repository: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -635,6 +637,8 @@ def remote_function(
         name=name,
         packages=packages,
         cloud_function_service_account=cloud_function_service_account,
+        cloud_function_kms_key_name=cloud_function_kms_key_name,
+        cloud_function_docker_repository=cloud_function_docker_repository,
     )
 
 
