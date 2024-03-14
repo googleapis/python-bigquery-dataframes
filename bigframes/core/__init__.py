@@ -83,7 +83,7 @@ class ArrayValue:
         return cls(node)
 
     @classmethod
-    def from_pyarrow(cls, arrow_table: pa.Table):
+    def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
         iobytes = io.BytesIO()
         pa_feather.write_feather(arrow_table, iobytes)
         schema_items = tuple(
@@ -96,7 +96,9 @@ class ArrayValue:
             for field in arrow_table.schema
         )
         node = nodes.ReadLocalNode(
-            iobytes.getvalue(), data_schema=schemata.ArraySchema(schema_items)
+            iobytes.getvalue(),
+            data_schema=schemata.ArraySchema(schema_items),
+            session=session,
         )
 
         return cls(node)

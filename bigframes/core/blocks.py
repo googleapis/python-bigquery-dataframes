@@ -141,7 +141,7 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
 
     @classmethod
-    def from_local(cls, data) -> Block:
+    def from_local(cls, data, session: bigframes.Session) -> Block:
         # Try to intrpet data into columns of supported dtypes
         pd_data = pd.DataFrame(data)
         column_labels = pd_data.columns
@@ -155,7 +155,7 @@ class Block:
         pd_data = pd_data.reset_index(names=index_ids)
         pd_data = cls._adapt_pandas_schema(pd_data)
         as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
-        keys_expr = core.ArrayValue.from_pyarrow(as_pyarrow)
+        keys_expr = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
         return cls(
             keys_expr,
             column_labels=column_labels,

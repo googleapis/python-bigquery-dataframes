@@ -39,6 +39,14 @@ from typing import (
 )
 import warnings
 
+# Even though the ibis.backends.bigquery import is unused, it's needed
+# to register new and replacement ops with the Ibis BigQuery backend.
+import bigframes_vendored.ibis.backends.bigquery  # noqa
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
+import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
+import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
+import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.api_core.client_info
 import google.api_core.client_options
 import google.api_core.exceptions
@@ -80,14 +88,6 @@ from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
-import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
-import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
-import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
-import third_party.bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -916,7 +916,7 @@ class Session(
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> dataframe.DataFrame:
-        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe))
+        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -1364,6 +1364,8 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
         cloud_function_service_account: Optional[str] = None,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1444,6 +1446,20 @@ class Session(
                 for more details. Please make sure the service account has the
                 necessary IAM permissions configured as described in
                 https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
+            cloud_function_kms_key_name (str, Optional):
+                Customer managed encryption key to protect cloud functions and
+                related data at rest. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/keyRings/KEYRING/cryptoKeys/KEY.
+                Read https://cloud.google.com/functions/docs/securing/cmek for
+                more details including granting necessary service accounts
+                access to the key.
+            cloud_function_docker_repository (str, Optional):
+                Docker repository created with the same encryption key as
+                `cloud_function_kms_key_name` to store encrypted artifacts
+                created to support the cloud function. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
+                For more details see
+                https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1463,6 +1479,8 @@ class Session(
             name=name,
             packages=packages,
             cloud_function_service_account=cloud_function_service_account,
+            cloud_function_kms_key_name=cloud_function_kms_key_name,
+            cloud_function_docker_repository=cloud_function_docker_repository,
         )
 
     def read_gbq_function(
@@ -1592,12 +1610,13 @@ class Session(
             self.bqclient, sql, job_config, max_results
         )
 
-    def _start_query_create_model(
+    def _start_query_ml_ddl(
         self,
         sql: str,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts BigQuery ML CREATE MODEL query job and waits for results.
+        Starts BigQuery ML DDL query job (CREATE MODEL/ALTER MODEL/...) and
+        waits for results.
         """
         job_config = self._prepare_query_job_config()
 

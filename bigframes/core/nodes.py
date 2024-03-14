@@ -199,6 +199,7 @@ class ConcatNode(BigFrameNode):
 class ReadLocalNode(BigFrameNode):
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
+    session: typing.Optional[bigframes.session.Session] = None
 
     def __hash__(self):
         return self._node_hash

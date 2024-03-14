@@ -20,6 +20,8 @@ import textwrap
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
@@ -31,8 +33,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -70,7 +70,7 @@ DtypeString = Literal[
     "date32[day][pyarrow]",
     "time64[us][pyarrow]",
     "decimal128(38, 9)[pyarrow]",
-    "decimal256(38, 9)[pyarrow]",
+    "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
 ]
 
@@ -173,7 +173,7 @@ BIGFRAMES_STRING_TO_BIGFRAMES: Dict[DtypeString, Dtype] = {
 }
 
 # special case - string[pyarrow] doesn't include the storage in its name, and both
-# "string" and "string[pyarrow] are accepted"
+# "string" and "string[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarrow")
 
 # For the purposes of dataframe.memory_usage
