@@ -4,9 +4,7 @@ from bigframes import constants
 
 
 class PlotAccessor:
-    """
-    Make plots of Series or DataFrame with the `matplotlib` backend.
-    """
+    """Make plots of Series or DataFrame with the `matplotlib` backend."""
 
     def hist(
         self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
@@ -20,9 +18,6 @@ class PlotAccessor:
         This is useful when the DataFrame's Series are in a similar scale.
 
         **Examples:**
-
-        .. plot::
-            :context: close-figs
 
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
@@ -60,9 +55,6 @@ class PlotAccessor:
         Use the `sampling_random_state` parameter to modify the sampling seed.
 
         **Examples:**
-
-        .. plot::
-            :context: close-figs
 
             >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame(
@@ -102,7 +94,6 @@ class PlotAccessor:
                 Number of random items for plotting.
             sampling_random_state (int, default 0):
                 Seed for random number generator.
-
             **kwargs:
                 Additional keyword arguments are documented in
                 :meth:`DataFrame.plot`.
@@ -132,9 +123,6 @@ class PlotAccessor:
 
         Draw an area plot based on basic business metrics:
 
-        .. plot::
-            :context: close-figs
-
             >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame(
             ...     {
@@ -149,22 +137,13 @@ class PlotAccessor:
         Area plots are stacked by default. To produce an unstacked plot,
         pass ``stacked=False``:
 
-        .. plot::
-            :context: close-figs
-
             >>> ax = df.plot.area(stacked=False)
 
         Draw an area plot for a single column:
 
-        .. plot::
-            :context: close-figs
-
             >>> ax = df.plot.area(y='sales')
 
         Draw with a different `x`:
-
-        .. plot::
-            :context: close-figs
 
             >>> df = bpd.DataFrame({
             ...     'sales': [3, 2, 3],
@@ -215,9 +194,6 @@ class PlotAccessor:
         Let's see how to draw a scatter plot using coordinates from the values
         in a DataFrame's columns.
 
-        .. plot::
-            :context: close-figs
-
             >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame([[5.1, 3.5, 0], [4.9, 3.0, 0], [7.0, 3.2, 1],
             ...                    [6.4, 3.2, 1], [5.9, 3.0, 2]],
@@ -228,14 +204,10 @@ class PlotAccessor:
 
         And now with the color determined by a column as well.
 
-        .. plot::
-            :context: close-figs
-
             >>> ax2 = df.plot.scatter(x='length',
             ...                       y='width',
             ...                       c='species',
             ...                       colormap='viridis')
-
 
         Args:
             x (int or str):
@@ -248,30 +220,27 @@ class PlotAccessor:
                 The size of each point. Possible values are:
 
                 - A string with the name of the column to be used for marker's size.
-
                 - A single scalar so all points have the same size.
-
                 - A sequence of scalars, which will be used for each point's size
-                recursively. For instance, when passing [2,14] all points size
-                will be either 2 or 14, alternatively.
+                  recursively. For instance, when passing [2,14] all points size
+                  will be either 2 or 14, alternatively.
+
             c (str, int or array-like, optional):
                 The color of each point. Possible values are:
 
                 - A single color string referred to by name, RGB or RGBA code,
-                for instance 'red' or '#a98d19'.
-
+                  for instance 'red' or '#a98d19'.
                 - A sequence of color strings referred to by name, RGB or RGBA
-                code, which will be used for each point's color recursively. For
-                instance ['green','yellow'] all points will be filled in green or
-                yellow, alternatively.
-
+                  code, which will be used for each point's color recursively. For
+                  instance ['green','yellow'] all points will be filled in green or
+                  yellow, alternatively.
                 - A column name or position whose values will be used to color the
-                marker points according to a colormap.
+                  marker points according to a colormap.
+
             sampling_n (int, default 100):
                 Number of random items for plotting.
             sampling_random_state (int, default 0):
                 Seed for random number generator.
-
             **kwargs:
                 Additional keyword arguments are documented in
                 :meth:`DataFrame.plot`.

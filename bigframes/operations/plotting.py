@@ -20,7 +20,7 @@ import bigframes.constants as constants
 import bigframes.operations._matplotlib as bfplt
 
 
-class PlotAccessor:
+class PlotAccessor(vendordt.PlotAccessor):
     __doc__ = vendordt.PlotAccessor.__doc__
 
     def __init__(self, data) -> None:
