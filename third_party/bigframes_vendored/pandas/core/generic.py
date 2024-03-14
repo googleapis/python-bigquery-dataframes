@@ -175,7 +175,7 @@ class NDFrame(indexing.IndexingMixin):
         path_or_buf: str,
         *,
         index: bool = True,
-    ) -> None:
+    ) -> str | None:
         """Write object to a line-delimited JSON file on Cloud Storage.
 
         .. note::

@@ -1403,9 +1403,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def to_json(
         self,
         path_or_buf=None,
-        orient: typing.Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
         **kwargs,
     ) -> typing.Optional[str]:
         # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.

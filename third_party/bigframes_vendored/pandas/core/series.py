@@ -538,9 +538,6 @@ class Series(NDFrame):  # type: ignore[misc]
     def to_json(
         self,
         path_or_buf=None,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
         **kwarg,
     ) -> str | None:
         """
@@ -554,15 +551,6 @@ class Series(NDFrame):  # type: ignore[misc]
                 String, path object (implementing os.PathLike[str]), or file-like
                 object implementing a write() function. If None, the result is
                 returned as a string.
-            orient ({"split", "records", "index", "columns", "values", "table"}, default "columns"):
-                Indication of expected JSON string format.
-                'split' : dict like {{'index' -> [index], 'columns' -> [columns],'data' -> [values]}}
-                'records' : list like [{{column -> value}}, ... , {{column -> value}}]
-                'index' : dict like {{index -> {{column -> value}}}}
-                'columns' : dict like {{column -> {{index -> value}}}}
-                'values' : just the values array
-                'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
-                Describing the data, where data component is like ``orient='records'``.
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting json format as a
