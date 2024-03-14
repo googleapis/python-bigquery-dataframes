@@ -46,6 +46,9 @@ User can execute the job by calling .to_pandas()
     <BLANKLINE>
     [344 rows x 7 columns]
 
+Reset option
+    >>> bpd.options.display.repr_mode = "head"
+
 Attributes:
     max_columns (int, default 20):
         If `max_columns` is exceeded, switch to truncate view.
