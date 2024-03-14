@@ -19,7 +19,7 @@ class GBQIOMixin:
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: dict = {},
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         filters: FiltersType = (),
         use_cache: Optional[bool] = None,

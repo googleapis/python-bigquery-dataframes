@@ -256,7 +256,7 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: dict = {},
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
@@ -445,7 +445,7 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: dict = {},
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
@@ -523,7 +523,7 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: dict = {},
+        configuration: Optional[dict] = None,
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_query",
         use_cache: Optional[bool] = None,
@@ -1854,7 +1854,7 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
 
 
-def _transform_read_gbq_configuration(configuration):
+def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
     """
     For backwards-compatibility, convert any previously client-side only
     parameters such as timeoutMs to the property name expected by the REST API.
@@ -1863,7 +1863,7 @@ def _transform_read_gbq_configuration(configuration):
     """
 
     if configuration is None:
-        return None
+        return {}
 
     timeout_ms = configuration.get("query", {}).get("timeoutMs")
     if timeout_ms is not None:
