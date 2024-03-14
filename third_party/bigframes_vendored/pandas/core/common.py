@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from third_party.bigframes_vendored.pandas.pandas._typing import T
+    from bigframes_vendored.pandas.pandas._typing import T
 
 
 def pipe(
@@ -17,21 +17,19 @@ def pipe(
     that function as a keyword argument whose key is the value of the second
     element of the tuple.
 
-    Parameters
-    ----------
-    func : callable or tuple of (callable, str)
-        Function to apply to this object or, alternatively, a
-        ``(callable, data_keyword)`` tuple where ``data_keyword`` is a
-        string indicating the keyword of ``callable`` that expects the
-        object.
-    *args : iterable, optional
-        Positional arguments passed into ``func``.
-    **kwargs : dict, optional
-        A dictionary of keyword arguments passed into ``func``.
+    Args:
+        func (callable or tuple of (callable, str)):
+            Function to apply to this object or, alternatively, a
+            ``(callable, data_keyword)`` tuple where ``data_keyword`` is a
+            string indicating the keyword of ``callable`` that expects the
+            object.
+        args (iterable, optional):
+            Positional arguments passed into ``func``.
+        kwargs (dict, optional):
+            A dictionary of keyword arguments passed into ``func``.
 
-    Returns
-    -------
-    object : the return type of ``func``.
+    Returns:
+        object: the return type of ``func``.
     """
     if isinstance(func, tuple):
         func, target = func

@@ -9,7 +9,7 @@ import bigframes_vendored.pandas.core.common as common
 from bigframes import constants
 
 if TYPE_CHECKING:
-    from third_party.bigframes_vendored.pandas.pandas._typing import T
+    from bigframes_vendored.pandas.pandas._typing import T
 
 
 class NDFrame(indexing.IndexingMixin):
@@ -987,7 +987,7 @@ class NDFrame(indexing.IndexingMixin):
             >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
             >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])
             >>> df
-            Salary  Others
+               Salary  Others
             0    8000  1000.0
             1    9500    <NA>
             2    5000  2000.0
