@@ -90,6 +90,9 @@ class NormalizedSelect:
     def maybe_join(
         self, right: NormalizedSelect, join_def: join_defs.JoinDefinition
     ) -> Optional[NormalizedSelect]:
+        if join_def.type == "cross":
+            # Cannot convert cross join to projection
+            return None
 
         r_exprs_by_id = {id: expr for expr, id in right.columns}
         l_exprs_by_id = {id: expr for expr, id in self.columns}
