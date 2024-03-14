@@ -30,7 +30,6 @@ from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery as bigquery
-import ibis
 import pandas as pd
 import pyarrow as pa
 
@@ -142,8 +141,26 @@ class Block:
 
     @classmethod
     def from_local(cls, data, session: bigframes.Session) -> Block:
-        # Try to intrpet data into columns of supported dtypes
         pd_data = pd.DataFrame(data)
+        # Attempt to convert to bigframes supported types
+        pd_data = pd_data.convert_dtypes()
+
+        def convert_type(column: pd.Series):
+            if isinstance(column.dtype, pd.StringDtype) and (
+                column.dtype != bigframes.dtypes.STRING_DTYPE
+            ):
+                return column.astype(bigframes.dtypes.STRING_DTYPE)
+            else:
+                return column
+
+        pd_data = pd_data.apply(convert_type)
+
+        for column, dtype in pd_data.dtypes.items():
+            if dtype not in bigframes.dtypes.BIGFRAMES_TO_IBIS.keys():
+                raise TypeError(
+                    f"BigFrames unable to convert column `{column}` with dtype `{dtype}` to a supported dtype"
+                )
+
         column_labels = pd_data.columns
         index_labels = list(pd_data.index.names)
 
@@ -153,7 +170,6 @@ class Block:
 
         pd_data = pd_data.set_axis(column_ids, axis=1)
         pd_data = pd_data.reset_index(names=index_ids)
-        pd_data = cls._adapt_pandas_schema(pd_data)
         as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
         keys_expr = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
         return cls(
@@ -162,21 +178,6 @@ class Block:
             index_columns=index_ids,
             index_labels=index_labels,
         )
-
-    @classmethod
-    def _adapt_pandas_schema(cls, pd_df: pd.DataFrame) -> pd.DataFrame:
-        """Adapts a pandas dataframe to use BigFrames compatible types (or throw if not possible)"""
-        # Remove values before giving to ibis, as we just want ibis to adapt the schema
-        # Passing the actual values can make ibis error out
-        keys_memtable = ibis.memtable(pd_df[0:0])
-        schema = keys_memtable.schema()
-
-        def convert_series_to_bf_type(col: pd.Series) -> pd.Series:
-            return col.astype(
-                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(schema[col.name])
-            )
-
-        return pd_df.apply(convert_series_to_bf_type)
 
     @property
     def index(self) -> BlockIndexProperties:

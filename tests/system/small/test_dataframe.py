@@ -51,6 +51,17 @@ def test_df_construct_pandas(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_construct_dict_roundtrip(scalars_dfs):
+    _, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(scalars_pandas_df.to_dict()).to_pandas()
+
+    # TODO: Interpret nulls in int column as NA rather than NaN, which result in nullable float
+    bf_result.int64_col = bf_result.int64_col.astype(pd.Int64Dtype())
+    pandas.testing.assert_frame_equal(
+        bf_result, scalars_pandas_df.reset_index(drop=True), check_index_type=False
+    )
+
+
 def test_df_construct_pandas_set_dtype(scalars_dfs):
     columns = [
         "int64_too",

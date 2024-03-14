@@ -42,6 +42,20 @@ def test_series_construct_copy(scalars_dfs):
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_series_construct_nullable_ints():
+    bf_result = series.Series(
+        [1, 3, bigframes.pandas.NA], index=[0, 4, bigframes.pandas.NA]
+    ).to_pandas()
+
+    expected_index = pd.Index(
+        [0, 4, None],
+        dtype=pd.Int64Dtype(),
+    )
+    expected = pd.Series([1, 3, pd.NA], dtype=pd.Int64Dtype(), index=expected_index)
+
+    pd.testing.assert_series_equal(bf_result, expected)
+
+
 def test_series_construct_copy_with_index(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = series.Series(
