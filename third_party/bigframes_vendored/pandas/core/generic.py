@@ -1,7 +1,7 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/generic.py
 from __future__ import annotations
 
-from typing import Iterator, Literal, Optional
+from typing import Iterator, Optional
 
 from bigframes_vendored.pandas.core import indexing
 
@@ -173,20 +173,14 @@ class NDFrame(indexing.IndexingMixin):
     def to_json(
         self,
         path_or_buf: str,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
         *,
         index: bool = True,
-        lines: bool = False,
-    ) -> str | None:
-        """Convert the object to a JSON string, written to Cloud Storage.
-
-        Note NaN's and None will be converted to null and datetime objects
-        will be converted to UNIX timestamps.
+    ) -> None:
+        """Write object to a line-delimited JSON file on Cloud Storage.
 
         .. note::
-            Only ``orient='records'`` and ``lines=True`` is supported so far.
+            NaN's and None will be converted to null and datetime objects
+            will be converted to UNIX timestamps.
 
         Args:
             path_or_buf (str):
@@ -199,38 +193,8 @@ class NDFrame(indexing.IndexingMixin):
                 varies.
 
                 None, file-like objects or local file paths not yet supported.
-            orient ({`split`, `records`, `index`, `columns`, `values`, `table`}, default 'columns):
-                Indication of expected JSON string format.
-
-                * Series:
-
-                    - default is 'index'
-                    - allowed values are: {{'split', 'records', 'index', 'table'}}.
-
-                * DataFrame:
-
-                    - default is 'columns'
-                    - allowed values are: {{'split', 'records', 'index', 'columns',
-                      'values', 'table'}}.
-
-                * The format of the JSON string:
-
-                    - 'split' : dict like {{'index' -> [index], 'columns' -> [columns],
-                      'data' -> [values]}}
-                    - 'records' : list like [{{column -> value}}, ... , {{column -> value}}]
-                    - 'index' : dict like {{index -> {{column -> value}}}}
-                    - 'columns' : dict like {{column -> {{index -> value}}}}
-                    - 'values' : just the values array
-                    - 'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
-
-                    Describing the data, where data component is like ``orient='records'``.
             index (bool, default True):
                 If True, write row names (index).
-
-            lines (bool, default False):
-                If 'orient' is 'records' write out line-delimited json format. Will
-                throw ValueError if incorrect 'orient' since others are not
-                list-like.
 
         Returns:
             None: String output not yet supported.

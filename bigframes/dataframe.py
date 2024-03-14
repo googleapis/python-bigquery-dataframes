@@ -2573,11 +2573,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def to_json(
         self,
         path_or_buf: str,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
         *,
-        lines: bool = False,
         index: bool = True,
     ) -> None:
         # TODO(swast): Can we support partition columns argument?
@@ -2587,18 +2583,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
-
-        if lines is True and orient != "records":
-            raise ValueError(
-                "'lines' keyword is only valid when 'orient' is 'records'."
-            )
-
-        # TODO(ashleyxu) Support lines=False for small tables with arrays and TO_JSON_STRING.
-        # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string
-        if lines is False:
-            raise NotImplementedError(
-                f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
-            )
 
         result_table = self._run_io_query(
             index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
