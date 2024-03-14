@@ -30,21 +30,7 @@ Users can also get a dry run of the job by accessing the query_job property befo
     28947
 
 User can execute the job by calling .to_pandas()
-    >>> df.to_pandas()
-                                        species     island  culmen_length_mm  culmen_depth_mm  flipper_length_mm  body_mass_g     sex
-    0            Gentoo penguin (Pygoscelis papua)     Biscoe              50.5             15.9              225.0       5400.0    MALE
-    1            Gentoo penguin (Pygoscelis papua)     Biscoe              45.1             14.5              215.0       5000.0  FEMALE
-    2          Adelie Penguin (Pygoscelis adeliae)  Torgersen              41.4             18.5              202.0       3875.0    MALE
-    3          Adelie Penguin (Pygoscelis adeliae)  Torgersen              38.6             17.0              188.0       2900.0  FEMALE
-    4            Gentoo penguin (Pygoscelis papua)     Biscoe              46.5             14.8              217.0       5200.0  FEMALE
-    ..                                         ...        ...               ...              ...                ...          ...     ...
-    339        Adelie Penguin (Pygoscelis adeliae)      Dream              38.1             17.6              187.0       3425.0  FEMALE
-    340        Adelie Penguin (Pygoscelis adeliae)     Biscoe              36.4             17.1              184.0       2850.0  FEMALE
-    341  Chinstrap penguin (Pygoscelis antarctica)      Dream              40.9             16.6              187.0       3200.0  FEMALE
-    342        Adelie Penguin (Pygoscelis adeliae)     Biscoe              41.3             21.1              195.0       4400.0    MALE
-    343  Chinstrap penguin (Pygoscelis antarctica)      Dream              45.2             16.6              191.0       3250.0  FEMALE
-    <BLANKLINE>
-    [344 rows x 7 columns]
+    >>> # df.to_pandas()
 
 Reset option
     >>> bpd.options.display.repr_mode = "head"
