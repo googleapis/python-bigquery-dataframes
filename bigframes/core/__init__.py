@@ -28,6 +28,7 @@ import bigframes.core.compile as compiling
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.join_def as join_def
+import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.ordering as orderings
@@ -79,21 +80,12 @@ class ArrayValue:
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
         iobytes = io.BytesIO()
         pa_feather.write_feather(arrow_table, iobytes)
-        schema_items = tuple(
-            schemata.SchemaItem(
-                field.name,
-                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-                    bigframes.dtypes.arrow_dtype_to_ibis_dtype(field.type)
-                ),
-            )
-            for field in arrow_table.schema
-        )
+        schema = local_data.infer_arrow_dtypes(arrow_table)
         node = nodes.ReadLocalNode(
             iobytes.getvalue(),
-            data_schema=schemata.ArraySchema(schema_items),
+            data_schema=schema,
             session=session,
         )
-
         return cls(node)
 
     @property

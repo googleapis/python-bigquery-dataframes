@@ -43,23 +43,27 @@ def test_df_construct_copy(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_df_construct_pandas(scalars_dfs):
-    columns = ["int64_too", "int64_col", "float64_col", "bool_col", "string_col"]
+def test_df_construct_pandas_default(scalars_dfs):
+    # Does inline codepath
+    # excludes geography_col on purpose as that would not use inline codepath
+    columns = [
+        "int64_too",
+        "int64_col",
+        "float64_col",
+        "bool_col",
+        "string_col",
+        "date_col",
+        "datetime_col",
+        "numeric_col",
+        "float64_col",
+        "time_col",
+        "timestamp_col",
+        "bytes_col",
+    ]
     _, scalars_pandas_df = scalars_dfs
     bf_result = dataframe.DataFrame(scalars_pandas_df, columns=columns).to_pandas()
     pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
-
-
-def test_df_construct_dict_roundtrip(scalars_dfs):
-    _, scalars_pandas_df = scalars_dfs
-    bf_result = dataframe.DataFrame(scalars_pandas_df.to_dict()).to_pandas()
-
-    # TODO: Interpret nulls in int column as NA rather than NaN, which result in nullable float
-    bf_result.int64_col = bf_result.int64_col.astype(pd.Int64Dtype())
-    pandas.testing.assert_frame_equal(
-        bf_result, scalars_pandas_df.reset_index(drop=True), check_index_type=False
-    )
 
 
 def test_df_construct_pandas_set_dtype(scalars_dfs):

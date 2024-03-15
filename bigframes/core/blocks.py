@@ -141,31 +141,8 @@ class Block:
 
     @classmethod
     def from_local(cls, data: pd.DataFrame, session: bigframes.Session) -> Block:
-        original_columns = data.columns
-        # Attempt to convert to bigframes supported types
-        if data.empty:
-            pd_data = data.astype(bigframes.dtypes.DEFAULT_DTYPE)
-        else:
-            pd_data = data.convert_dtypes()
-            # convert_dtypes seems to modify columns axis dtypes destructively
-            pd_data.columns = original_columns
-
-            def convert_type(column: pd.Series):
-                if isinstance(column.dtype, pd.StringDtype) and (
-                    column.dtype != bigframes.dtypes.STRING_DTYPE
-                ):
-                    return column.astype(bigframes.dtypes.STRING_DTYPE)
-                else:
-                    return column
-
-            pd_data = pd_data.apply(convert_type)
-
-        for column, dtype in pd_data.dtypes.items():
-            if dtype not in bigframes.dtypes.BIGFRAMES_TO_IBIS.keys():
-                raise TypeError(
-                    f"BigFrames unable to convert column `{column}` with dtype `{dtype}` to a supported dtype"
-                )
-
+        # Assumes caller has already converted datatypes to bigframes ones.
+        pd_data = data
         column_labels = pd_data.columns
         index_labels = list(pd_data.index.names)
 
@@ -176,9 +153,9 @@ class Block:
         pd_data = pd_data.set_axis(column_ids, axis=1)
         pd_data = pd_data.reset_index(names=index_ids)
         as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
-        keys_expr = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
+        array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
         return cls(
-            keys_expr,
+            array_value,
             column_labels=column_labels,
             index_columns=index_ids,
             index_labels=index_labels,

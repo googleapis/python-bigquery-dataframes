@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime as dt
 import math
 import re
 import tempfile
@@ -54,6 +55,18 @@ def test_series_construct_nullable_ints():
     expected = pd.Series([1, 3, pd.NA], dtype=pd.Int64Dtype(), index=expected_index)
 
     pd.testing.assert_series_equal(bf_result, expected)
+
+
+def test_series_construct_timestamps():
+    datetimes = [
+        dt.datetime(2020, 1, 20, 20, 20, 20, 20),
+        dt.datetime(2019, 1, 20, 20, 20, 20, 20),
+        None,
+    ]
+    bf_result = series.Series(datetimes).to_pandas()
+    pd_result = pd.Series(datetimes, dtype=pd.ArrowDtype(pa.timestamp("us")))
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_series_construct_copy_with_index(scalars_dfs):

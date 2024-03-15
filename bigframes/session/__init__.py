@@ -47,6 +47,7 @@ import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
+import geopandas as gpd  # type: ignore
 import google.api_core.client_info
 import google.api_core.client_options
 import google.api_core.exceptions
@@ -82,6 +83,7 @@ import bigframes.core.ordering as orderings
 import bigframes.core.traversal as traversals
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
+import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.functions.remote_function import remote_function as bigframes_rf
@@ -903,9 +905,8 @@ class Session(
             # TODO(swast): Workaround data types limitation in inline data.
             and not any(
                 (
-                    isinstance(s.dtype, pandas.ArrowDtype)
-                    or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
-                    or pandas.api.types.is_datetime64_any_dtype(s)
+                    (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
+                    or s.dtype == gpd.array.GeometryDtype()
                 )
                 for _, s in pandas_dataframe.items()
             )
