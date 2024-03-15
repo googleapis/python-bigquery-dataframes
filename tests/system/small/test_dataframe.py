@@ -93,6 +93,23 @@ def test_df_construct_from_dict():
     )
 
 
+def test_df_construct_inline_respects_location():
+    import bigframes.pandas as bpd
+
+    bpd.close_session()
+    bpd.options.bigquery.location = "europe-west1"
+
+    df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    repr(df)
+
+    table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
+    assert table.location == "europe-west1"
+
+    # Reset global session
+    bpd.close_session()
+    bpd.options.bigquery.location = "us"
+
+
 def test_get_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -981,6 +998,31 @@ def test_apply_series_scalar_callable(
     pd_result = scalars_pandas_df_index[columns].apply(lambda x: x.sum())
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_df_pipe(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    columns = ["int64_too", "int64_col"]
+
+    def foo(x: int, y: int, df):
+        return (df + x) % y
+
+    bf_result = (
+        scalars_df_index[columns]
+        .pipe((foo, "df"), x=7, y=9)
+        .pipe(lambda x: x**2)
+        .to_pandas()
+    )
+
+    pd_result = (
+        scalars_pandas_df_index[columns]
+        .pipe((foo, "df"), x=7, y=9)
+        .pipe(lambda x: x**2)
+    )
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_df_keys(
