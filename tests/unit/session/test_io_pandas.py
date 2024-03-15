@@ -29,6 +29,8 @@ import bigframes.features
 import bigframes.pandas
 import bigframes.session._io.pandas
 
+from .. import resources
+
 _LIST_OF_SCALARS = [
     [1, 2, 3],
     [],
@@ -481,9 +483,10 @@ def test_arrow_to_pandas_wrong_size_dtypes(
 
 
 def test_read_pandas_with_bigframes_dataframe():
+    session = resources.create_bigquery_session()
     df = mock.create_autospec(bigframes.pandas.DataFrame, instance=True)
 
     with pytest.raises(
         ValueError, match=re.escape("read_pandas() expects a pandas.DataFrame")
     ):
-        bigframes.pandas.read_pandas(df)
+        session.read_pandas(df)
