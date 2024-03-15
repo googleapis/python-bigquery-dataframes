@@ -2996,8 +2996,8 @@ def test_query_job_setters(scalars_dfs):
     ],
 )
 def test_is_monotonic_increasing(series_input):
-    scalars_df = series.Series(series_input)
-    scalars_pandas_df = pd.Series(series_input)
+    scalars_df = series.Series(series_input, dtype=pd.Int64Dtype())
+    scalars_pandas_df = pd.Series(series_input, dtype=pd.Int64Dtype())
     assert (
         scalars_df.is_monotonic_increasing == scalars_pandas_df.is_monotonic_increasing
     )

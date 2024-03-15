@@ -2746,7 +2746,7 @@ def test_loc_setitem_bool_series_scalar_new_col(scalars_dfs):
     pd_df.loc[pd_df["int64_too"] == 0, "new_col"] = 99
 
     # pandas type difference
-    pd_df["new_col"] = pd_df["new_col"].astype("Float64")
+    pd_df["new_col"] = pd_df["new_col"].astype("Int64")
 
     pd.testing.assert_frame_equal(
         bf_df.to_pandas(),

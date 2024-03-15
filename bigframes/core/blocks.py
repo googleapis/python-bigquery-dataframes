@@ -140,20 +140,25 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
 
     @classmethod
-    def from_local(cls, data, session: bigframes.Session) -> Block:
-        pd_data = pd.DataFrame(data)
+    def from_local(cls, data: pd.DataFrame, session: bigframes.Session) -> Block:
+        original_columns = data.columns
         # Attempt to convert to bigframes supported types
-        pd_data = pd_data.convert_dtypes()
+        if data.empty:
+            pd_data = data.astype(bigframes.dtypes.DEFAULT_DTYPE)
+        else:
+            pd_data = data.convert_dtypes()
+            # convert_dtypes seems to modify columns axis dtypes destructively
+            pd_data.columns = original_columns
 
-        def convert_type(column: pd.Series):
-            if isinstance(column.dtype, pd.StringDtype) and (
-                column.dtype != bigframes.dtypes.STRING_DTYPE
-            ):
-                return column.astype(bigframes.dtypes.STRING_DTYPE)
-            else:
-                return column
+            def convert_type(column: pd.Series):
+                if isinstance(column.dtype, pd.StringDtype) and (
+                    column.dtype != bigframes.dtypes.STRING_DTYPE
+                ):
+                    return column.astype(bigframes.dtypes.STRING_DTYPE)
+                else:
+                    return column
 
-        pd_data = pd_data.apply(convert_type)
+            pd_data = pd_data.apply(convert_type)
 
         for column, dtype in pd_data.dtypes.items():
             if dtype not in bigframes.dtypes.BIGFRAMES_TO_IBIS.keys():
