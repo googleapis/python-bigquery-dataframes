@@ -42,7 +42,7 @@ def compile_peak_sql(node: nodes.BigFrameNode, n_rows: int) -> typing.Optional[s
 
 
 # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
-@functools.lru_cache(maxsize=50)
+@functools.lru_cache(maxsize=5000)
 def compile_node(
     node: nodes.BigFrameNode, ordered: bool = True
 ) -> compiled.UnorderedIR | compiled.OrderedIR:
