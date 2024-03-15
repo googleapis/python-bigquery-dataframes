@@ -629,6 +629,24 @@ class Session(
         job_config.labels["bigframes-api"] = api_name
         if use_cache and table_ref in self._df_snapshot.keys():
             snapshot_timestamp = self._df_snapshot[table_ref]
+
+            # Cache hit could be unexpected. See internal issue 329545805.
+            # Raise a warning with more information about how to avoid the
+            # problems with the cache.
+            warnings.warn(
+                f"Reading cached table from {snapshot_timestamp} to avoid "
+                "incompatibilies with previous reads of this table. To read "
+                "the latest version, set `use_cache=False` or close the "
+                "current session with Session.close() or "
+                "bigframes.pandas.close_session().",
+                # There are many layers before we get to (possibly) the user's code:
+                # pandas.read_gbq_table
+                # -> with_default_session
+                # -> Session.read_gbq_table
+                # -> _read_gbq_table
+                # -> _get_snapshot_sql_and_primary_key
+                stacklevel=6,
+            )
         else:
             snapshot_timestamp = list(
                 self.bqclient.query(
@@ -1364,6 +1382,8 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
         cloud_function_service_account: Optional[str] = None,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1444,6 +1464,20 @@ class Session(
                 for more details. Please make sure the service account has the
                 necessary IAM permissions configured as described in
                 https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
+            cloud_function_kms_key_name (str, Optional):
+                Customer managed encryption key to protect cloud functions and
+                related data at rest. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/keyRings/KEYRING/cryptoKeys/KEY.
+                Read https://cloud.google.com/functions/docs/securing/cmek for
+                more details including granting necessary service accounts
+                access to the key.
+            cloud_function_docker_repository (str, Optional):
+                Docker repository created with the same encryption key as
+                `cloud_function_kms_key_name` to store encrypted artifacts
+                created to support the cloud function. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
+                For more details see
+                https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1463,6 +1497,8 @@ class Session(
             name=name,
             packages=packages,
             cloud_function_service_account=cloud_function_service_account,
+            cloud_function_kms_key_name=cloud_function_kms_key_name,
+            cloud_function_docker_repository=cloud_function_docker_repository,
         )
 
     def read_gbq_function(
@@ -1592,12 +1628,13 @@ class Session(
             self.bqclient, sql, job_config, max_results
         )
 
-    def _start_query_create_model(
+    def _start_query_ml_ddl(
         self,
         sql: str,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts BigQuery ML CREATE MODEL query job and waits for results.
+        Starts BigQuery ML DDL query job (CREATE MODEL/ALTER MODEL/...) and
+        waits for results.
         """
         job_config = self._prepare_query_job_config()
 
