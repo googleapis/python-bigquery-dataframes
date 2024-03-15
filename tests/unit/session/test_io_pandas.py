@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import datetime
+import re
 from typing import Dict, Union
+import unittest.mock as mock
 
 import geopandas  # type: ignore
 import numpy
@@ -24,6 +26,7 @@ import pyarrow  # type: ignore
 import pytest
 
 import bigframes.features
+import bigframes.pandas
 import bigframes.session._io.pandas
 
 _LIST_OF_SCALARS = [
@@ -475,3 +478,12 @@ def test_arrow_to_pandas_wrong_size_dtypes(
 ):
     with pytest.raises(ValueError, match=f"Number of types {len(dtypes)}"):
         bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+
+
+def test_read_pandas_with_bigframes_dataframe():
+    df = mock.create_autospec(bigframes.pandas.DataFrame, instance=True)
+
+    with pytest.raises(
+        ValueError, match=re.escape("read_pandas() expects a pandas.DataFrame")
+    ):
+        bigframes.pandas.read_pandas(df)
