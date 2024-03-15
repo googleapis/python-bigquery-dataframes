@@ -231,9 +231,7 @@ def test_dt_unit(scalars_dfs, col_name):
     ],
 )
 @skip_legacy_pandas
-def test_dt_strftime(
-    scalars_df_index, scalars_pandas_df_index, column, date_format
-):
+def test_dt_strftime(scalars_df_index, scalars_pandas_df_index, column, date_format):
     bf_result = scalars_df_index[column].dt.strftime(date_format).to_pandas()
     pd_result = scalars_pandas_df_index[column].dt.strftime(date_format)
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -245,9 +243,7 @@ def test_dt_strftime_date():
         ["2014-08-15", "2215-08-15", "2016-02-29"]
     ).astype("date32[day][pyarrow]")
 
-    expected_result = pd.Series(
-        ["08/15/2014", "08/15/2215", "02/29/2016"]
-    )
+    expected_result = pd.Series(["08/15/2014", "08/15/2215", "02/29/2016"])
     bf_result = bf_series.dt.strftime("%m/%d/%Y").to_pandas()
 
     pd.testing.assert_series_equal(

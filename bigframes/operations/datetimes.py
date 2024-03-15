@@ -21,13 +21,15 @@ from bigframes.core import log_adapter
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 import third_party.bigframes_vendored.pandas.core.arrays.datetimelike as vendored_pandas_datetimelike
+import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 
 @log_adapter.class_logger
 class DatetimeMethods(
-    bigframes.operations.base.SeriesMethods, vendordt.DatetimeProperties, vendored_pandas_datetimelike.DatelikeOps
+    bigframes.operations.base.SeriesMethods,
+    vendordt.DatetimeProperties,
+    vendored_pandas_datetimelike.DatelikeOps,
 ):
     __doc__ = vendordt.DatetimeProperties.__doc__
 

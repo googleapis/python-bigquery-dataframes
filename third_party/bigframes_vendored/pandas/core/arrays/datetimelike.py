@@ -2,7 +2,8 @@
 
 from bigframes import constants
 
-class DatelikeOps():
+
+class DatelikeOps:
     def strftime(self, date_format: str):
         """
         Convert to string Series using specified date_format.
