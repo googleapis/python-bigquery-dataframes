@@ -2679,6 +2679,7 @@ def test_date_time_astype_int(
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert bf_result.dtype == "Int64"
 
 
 def test_string_astype_int():
@@ -2770,6 +2771,7 @@ def test_timestamp_astype_string():
     pd.testing.assert_series_equal(
         bf_result, expected_result, check_index_type=False, check_dtype=False
     )
+    assert bf_result.dtype == "string[pyarrow]"
 
 
 @pytest.mark.parametrize(

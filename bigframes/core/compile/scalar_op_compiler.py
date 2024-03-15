@@ -673,7 +673,8 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
 
     if x.type() == ibis_dtypes.int64:
         # The conversion unit is set to "us" (microseconds) for consistency
-        # with pandas converting timestamp[us][pyarrow] to int64[pyarrow].
+        # with pandas converting int64[pyarrow] to timestamp[us][pyarrow],
+        # timestamp[us, tz=UTC][pyarrow], and time64[us][pyarrow].
         unit = "us"
         x_converted = numeric_to_datatime(x, unit)
         if to_type == ibis_dtypes.timestamp:
