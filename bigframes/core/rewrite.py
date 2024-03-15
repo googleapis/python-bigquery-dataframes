@@ -28,16 +28,17 @@ import bigframes.operations as ops
 Selection = Tuple[Tuple[scalar_exprs.Expression, str], ...]
 
 
-@dataclasses.dataclass
-class NormalizedSelect:
+@dataclasses.dataclass(frozen=True)
+class SquashedSelect:
+    """Squash together as many nodes as possible, separating out the projection, filter and reordering expressions."""
+
     root: nodes.BigFrameNode
     columns: Tuple[Tuple[scalar_exprs.Expression, str], ...]
     predicate: Optional[scalar_exprs.Expression]
     ordering: Tuple[order.OrderingExpression, ...]
 
     @classmethod
-    def from_node(cls, node: nodes.BigFrameNode) -> NormalizedSelect:
-        """Decompose a node into a base table, selection, and filter. Used to normalize."""
+    def from_node(cls, node: nodes.BigFrameNode) -> SquashedSelect:
         if isinstance(node, nodes.ProjectionNode):
             return cls.from_node(node.child).project(node.assignments)
         elif isinstance(node, nodes.FilterNode):
@@ -55,26 +56,26 @@ class NormalizedSelect:
 
     def project(
         self, projection: Tuple[Tuple[scalar_exprs.Expression, str], ...]
-    ) -> NormalizedSelect:
+    ) -> SquashedSelect:
         lookup = {id: expr for expr, id in self.columns}
         new_columns = tuple(
-            (expr.bind_variables(lookup, bind_all=True), id) for expr, id in projection
+            (expr.bind_all_variables(lookup), id) for expr, id in projection
         )
-        return NormalizedSelect(self.root, new_columns, self.predicate, self.ordering)
+        return SquashedSelect(self.root, new_columns, self.predicate, self.ordering)
 
-    def filter(self, predicate: scalar_exprs.Expression) -> NormalizedSelect:
+    def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
         lookup = {id: expr for expr, id in self.columns}
         if self.predicate is None:
-            new_predicate = predicate.bind_variables(lookup, bind_all=True)
+            new_predicate = predicate.bind_all_variables(lookup)
         else:
             new_predicate = ops.and_op.as_expr(
-                self.predicate, predicate.bind_variables(lookup, bind_all=True)
+                self.predicate, predicate.bind_all_variables(lookup)
             )
-        return NormalizedSelect(self.root, self.columns, new_predicate, self.ordering)
+        return SquashedSelect(self.root, self.columns, new_predicate, self.ordering)
 
-    def reverse(self) -> NormalizedSelect:
+    def reverse(self) -> SquashedSelect:
         new_ordering = tuple(expr.with_reverse() for expr in self.ordering)
-        return NormalizedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
     def order_with(self, by: Tuple[order.OrderingColumnReference, ...]):
         exprs_by_id = {id: expr for expr, id in self.columns}
@@ -85,11 +86,11 @@ class NormalizedSelect:
             for ref in by
         ]
         new_ordering = (*as_order_exprs, *self.ordering)
-        return NormalizedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
     def maybe_join(
-        self, right: NormalizedSelect, join_def: join_defs.JoinDefinition
-    ) -> Optional[NormalizedSelect]:
+        self, right: SquashedSelect, join_def: join_defs.JoinDefinition
+    ) -> Optional[SquashedSelect]:
         if join_def.type == "cross":
             # Cannot convert cross join to projection
             return None
@@ -99,75 +100,68 @@ class NormalizedSelect:
         l_join_exprs = [l_exprs_by_id[cond.left_id] for cond in join_def.conditions]
         r_join_exprs = [r_exprs_by_id[cond.right_id] for cond in join_def.conditions]
 
-        if (self.root == right.root) and all(
-            l_expr == r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)
+        if (self.root != right.root) or any(
+            l_expr != r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)
         ):
-            join_type = join_def.type
+            return None
 
-            # Mask columns and remap names to expected schema
-            lselection = self.columns
-            rselection = right.columns
-            if join_type == "inner":
-                new_predicate = and_predicates(self.predicate, right.predicate)
-            elif join_type == "outer":
-                new_predicate = or_predicates(self.predicate, right.predicate)
-            elif join_type == "left":
-                new_predicate = self.predicate
-            elif join_type == "right":
-                new_predicate = right.predicate
+        join_type = join_def.type
 
-            l_relative, r_relative = relative_predicates(
-                self.predicate, right.predicate
-            )
-            lmask = l_relative if join_type in {"right", "outer"} else None
-            rmask = r_relative if join_type in {"left", "outer"} else None
+        # Mask columns and remap names to expected schema
+        lselection = self.columns
+        rselection = right.columns
+        if join_type == "inner":
+            new_predicate = and_predicates(self.predicate, right.predicate)
+        elif join_type == "outer":
+            new_predicate = or_predicates(self.predicate, right.predicate)
+        elif join_type == "left":
+            new_predicate = self.predicate
+        elif join_type == "right":
+            new_predicate = right.predicate
+
+        l_relative, r_relative = relative_predicates(self.predicate, right.predicate)
+        lmask = l_relative if join_type in {"right", "outer"} else None
+        rmask = r_relative if join_type in {"left", "outer"} else None
+        if lmask is not None:
+            lselection = tuple((apply_mask(expr, lmask), id) for expr, id in lselection)
+        if rmask is not None:
+            rselection = tuple((apply_mask(expr, rmask), id) for expr, id in rselection)
+        new_columns = remap_names(join_def, lselection, rselection)
+
+        # Reconstruct ordering
+        if join_type == "right":
+            new_ordering = right.ordering
+        elif join_type == "outer":
             if lmask is not None:
-                lselection = tuple(
-                    (apply_mask(expr, lmask), id) for expr, id in lselection
-                )
-            if rmask is not None:
-                rselection = tuple(
-                    (apply_mask(expr, rmask), id) for expr, id in rselection
-                )
-            new_columns = remap_names(join_def, lselection, rselection)
-
-            # Reconstruct ordering
-            if join_type == "right":
-                new_ordering = right.ordering
-            elif join_type == "outer":
-                if lmask is not None:
-                    prefix = order.OrderingExpression(
-                        lmask, order.OrderingDirection.DESC
+                prefix = order.OrderingExpression(lmask, order.OrderingDirection.DESC)
+                left_ordering = tuple(
+                    order.OrderingExpression(
+                        apply_mask(ref.scalar_expression, lmask),
+                        ref.direction,
+                        ref.na_last,
                     )
-                    left_ordering = tuple(
+                    for ref in self.ordering
+                )
+                right_ordering = (
+                    tuple(
                         order.OrderingExpression(
-                            apply_mask(ref.scalar_expression, lmask),
+                            apply_mask(ref.scalar_expression, rmask),
                             ref.direction,
                             ref.na_last,
                         )
-                        for ref in self.ordering
+                        for ref in right.ordering
                     )
-                    right_ordering = (
-                        tuple(
-                            order.OrderingExpression(
-                                apply_mask(ref.scalar_expression, rmask),
-                                ref.direction,
-                                ref.na_last,
-                            )
-                            for ref in right.ordering
-                        )
-                        if rmask
-                        else right.ordering
-                    )
-                    new_ordering = (prefix, *left_ordering, *right_ordering)
-                else:
-                    new_ordering = self.ordering
-            elif join_type in {"inner", "left"}:
-                new_ordering = self.ordering
+                    if rmask
+                    else right.ordering
+                )
+                new_ordering = (prefix, *left_ordering, *right_ordering)
             else:
-                raise ValueError(f"Unexpected join type {join_type}")
-            return NormalizedSelect(self.root, new_columns, new_predicate, new_ordering)
-        return None
+                new_ordering = self.ordering
+        elif join_type in {"inner", "left"}:
+            new_ordering = self.ordering
+        else:
+            raise ValueError(f"Unexpected join type {join_type}")
+        return SquashedSelect(self.root, new_columns, new_predicate, new_ordering)
 
     def expand(self) -> nodes.BigFrameNode:
         # Safest to apply predicates first, as it may filter out inputs that cannot be handled by other expressions
@@ -204,9 +198,9 @@ class NormalizedSelect:
             return nodes.ProjectionNode(child=root, assignments=self.columns)
 
 
-def rewrite_join(join_node: nodes.JoinNode) -> Optional[nodes.BigFrameNode]:
-    left_side = NormalizedSelect.from_node(join_node.left_child)
-    right_side = NormalizedSelect.from_node(join_node.right_child)
+def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
+    left_side = SquashedSelect.from_node(join_node.left_child)
+    right_side = SquashedSelect.from_node(join_node.right_child)
     joined = left_side.maybe_join(right_side, join_node.join)
     if joined is not None:
         return joined.expand()

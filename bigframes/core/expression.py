@@ -82,9 +82,8 @@ class Expression(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], bind_all: bool = False
-    ) -> Expression:
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        """Replace all variables with expression given in `bindings`."""
         ...
 
 
@@ -105,9 +104,7 @@ class ScalarConstantExpression(Expression):
     ) -> dtypes.ExpressionType:
         return self.dtype
 
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], bind_all: bool = False
-    ) -> Expression:
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
         return self
 
 
@@ -139,14 +136,11 @@ class UnboundVariableExpression(Expression):
         else:
             raise ValueError("Type of variable has not been fixed.")
 
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], bind_all: bool = False
-    ) -> Expression:
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
         if self.id in bindings.keys():
             return bindings[self.id]
-        if bind_all:
+        else:
             raise ValueError(f"Variable {self.id} remains unbound")
-        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -184,13 +178,8 @@ class OpExpression(Expression):
         )
         return self.op.output_type(*operand_types)
 
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], bind_all: bool = False
-    ) -> Expression:
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
         return OpExpression(
             self.op,
-            tuple(
-                input.bind_variables(bindings, bind_all=bind_all)
-                for input in self.inputs
-            ),
+            tuple(input.bind_all_variables(bindings) for input in self.inputs),
         )

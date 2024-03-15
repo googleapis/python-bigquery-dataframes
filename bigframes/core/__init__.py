@@ -359,9 +359,7 @@ class ArrayValue:
             allow_row_identity_join=allow_row_identity_join,
         )
         if allow_row_identity_join:
-            as_selection = bigframes.core.rewrite.rewrite_join(join_node)
-            if as_selection:
-                return ArrayValue(as_selection)
+            return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
         return ArrayValue(join_node)
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
