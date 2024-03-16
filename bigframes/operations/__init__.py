@@ -381,6 +381,9 @@ class AsTypeOp(UnaryOp):
     to_type: dtypes.DtypeString | dtypes.Dtype
 
     def output_type(self, *input_types):
+        # TODO: We should do this conversion earlier
+        if self.to_type == pa.string():
+            return dtypes.STRING_DTYPE
         if isinstance(self.to_type, str):
             return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[self.to_type]
         return self.to_type

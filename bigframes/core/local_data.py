@@ -27,23 +27,30 @@ def infer_arrow_dtypes(arrow_table: pa.Table) -> schemata.ArraySchema:
     schema_items = tuple(
         schemata.SchemaItem(
             field.name,
-            bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-                bigframes.dtypes.arrow_dtype_to_ibis_dtype(
-                    arrow_type_replacements(field.type)
-                )
-            ),
+            bigframes_type_for_arrow_type(field.type),
         )
         for field in arrow_table.schema
     )
     return schemata.ArraySchema(schema_items)
 
 
+def bigframes_type_for_arrow_type(pa_type: pa.DataType) -> bigframes.dtypes.Dtype:
+    if pa.types.is_string(pa_type):
+        # Have to handle this explicitly, as BigFrames uses multiple string types
+        return bigframes.dtypes.STRING_DTYPE
+    else:
+        return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+            bigframes.dtypes.arrow_dtype_to_ibis_dtype(arrow_type_replacements(pa_type))
+        )
+
+
 def arrow_type_replacements(type: pa.DataType) -> pa.DataType:
     if pa.types.is_timestamp(type):
         # This is potentially lossy, but BigFrames doesn't support ns
-        return pa.timestamp(unit="us", tz=type.tz)
+        new_tz = "UTC" if (type.tz is not None) else None
+        return pa.timestamp(unit="us", tz=new_tz)
     if pa.types.is_time64(type):
         # This is potentially lossy, but BigFrames doesn't support ns
-        return pa.time64(unit="us")
+        return pa.time64("us")
     else:
         return type
