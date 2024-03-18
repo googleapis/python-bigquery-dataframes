@@ -196,6 +196,7 @@ class Session(
 
         # Resolve the BQ connection for remote function and Vertex AI integration
         self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
+        self._skip_bq_connection_check = context._skip_bq_connection_check
 
         # Now that we're starting the session, don't allow the options to be
         # changed.

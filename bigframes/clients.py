@@ -73,12 +73,6 @@ class BqConnectionManager:
             iam_role:
                 str of the IAM role that the service account of the created connection needs to aquire. E.g. 'run.invoker', 'aiplatform.user'
         """
-        # TODO(shobs): The below command to enable BigQuery Connection API needs
-        # to be automated. Disabling for now since most target users would not
-        # have the privilege to enable API in a project.
-        # log("Making sure BigQuery Connection API is enabled")
-        # if os.system("gcloud services enable bigqueryconnection.googleapis.com"):
-        #    raise ValueError("Failed to enable BigQuery Connection API")
         # If the intended connection does not exist then create it
         service_account_id = self._get_service_account_if_connection_exists(
             project_id, location, connection_id
