@@ -940,21 +940,29 @@ class Session(
 
         inline_df = self._read_pandas_inline(pandas_dataframe)
         if inline_df is not None:
-            inline_types = inline_df._block.expr.schema.dtypes
-            if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
-                return inline_df
-
+            return inline_df
         return self._read_pandas_load_job(pandas_dataframe, api_name)
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> Optional[dataframe.DataFrame]:
+        if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
+            return None
+
         try:
-            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
+            inline_df = dataframe.DataFrame(
+                blocks.Block.from_local(pandas_dataframe, self)
+            )
         except ValueError:  # Thrown by ibis for some unhandled tyeps
             return None
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
             return None
+
+        inline_types = inline_df._block.expr.schema.dtypes
+        # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.
+        if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
+            return inline_df
+        return None
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
