@@ -78,9 +78,11 @@ class ArrayValue:
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
+        adapted_table = local_data.adapt_pa_table(arrow_table)
+        schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
+
         iobytes = io.BytesIO()
-        pa_feather.write_feather(arrow_table, iobytes)
-        schema = local_data.infer_arrow_dtypes(arrow_table)
+        pa_feather.write_feather(adapted_table, iobytes)
         node = nodes.ReadLocalNode(
             iobytes.getvalue(),
             data_schema=schema,

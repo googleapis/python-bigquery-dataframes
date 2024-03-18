@@ -22,16 +22,27 @@ import bigframes.core.schema as schemata
 import bigframes.dtypes
 
 
-def infer_arrow_dtypes(arrow_table: pa.Table) -> schemata.ArraySchema:
-    """Infer the corresponding bigframes schema given a pyarrow table."""
+def arrow_schema_to_bigframes(arrow_schema: pa.Schema) -> schemata.ArraySchema:
+    """Infer the corresponding bigframes schema given a pyarrow schema."""
     schema_items = tuple(
         schemata.SchemaItem(
             field.name,
             bigframes_type_for_arrow_type(field.type),
         )
-        for field in arrow_table.schema
+        for field in arrow_schema
     )
     return schemata.ArraySchema(schema_items)
+
+
+def adapt_pa_table(arrow_table: pa.Table) -> pa.Table:
+    """Adapt a pyarrow table to one that can be handled by bigframes. Converts tz to UTC and unit to us for temporal types."""
+    new_schema = pa.schema(
+        [
+            pa.field(field.name, arrow_type_replacements(field.type))
+            for field in arrow_table.schema
+        ]
+    )
+    return arrow_table.cast(new_schema)
 
 
 def bigframes_type_for_arrow_type(pa_type: pa.DataType) -> bigframes.dtypes.Dtype:
