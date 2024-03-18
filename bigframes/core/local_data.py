@@ -35,13 +35,9 @@ def infer_arrow_dtypes(arrow_table: pa.Table) -> schemata.ArraySchema:
 
 
 def bigframes_type_for_arrow_type(pa_type: pa.DataType) -> bigframes.dtypes.Dtype:
-    if pa.types.is_string(pa_type):
-        # Have to handle this explicitly, as BigFrames uses multiple string types
-        return bigframes.dtypes.STRING_DTYPE
-    else:
-        return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-            bigframes.dtypes.arrow_dtype_to_ibis_dtype(arrow_type_replacements(pa_type))
-        )
+    return bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+        bigframes.dtypes.arrow_dtype_to_ibis_dtype(arrow_type_replacements(pa_type))
+    )
 
 
 def arrow_type_replacements(type: pa.DataType) -> pa.DataType:

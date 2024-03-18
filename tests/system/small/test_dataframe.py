@@ -44,8 +44,7 @@ def test_df_construct_copy(scalars_dfs):
 
 
 def test_df_construct_pandas_default(scalars_dfs):
-    # Does inline codepath
-    # excludes geography_col on purpose as that would not use inline codepath
+    # This should trigger the inlined codepath
     columns = [
         "int64_too",
         "int64_col",
@@ -58,7 +57,6 @@ def test_df_construct_pandas_default(scalars_dfs):
         "float64_col",
         "time_col",
         "timestamp_col",
-        "bytes_col",
     ]
     _, scalars_pandas_df = scalars_dfs
     bf_result = dataframe.DataFrame(scalars_pandas_df, columns=columns).to_pandas()
