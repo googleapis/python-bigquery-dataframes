@@ -37,6 +37,7 @@ import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
+import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
@@ -701,7 +702,7 @@ class Block:
         block = Block(
             array_val,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, label],
+            column_labels=self.column_labels.insert(len(self.column_labels), label),
             index_labels=self.index.names,
         )
         return (block, result_id)
@@ -793,7 +794,7 @@ class Block:
         if skip_null_groups:
             for key in window_spec.grouping_keys:
                 block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
-                block = block.filter(not_null_id).drop_columns([not_null_id])
+                block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
         result_id = guid.generate_guid()
         expr = block._expr.project_window_op(
             column,
@@ -806,7 +807,9 @@ class Block:
         block = Block(
             expr,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
+            column_labels=self.column_labels.insert(
+                len(self.column_labels), result_label
+            ),
             index_labels=self._index_labels,
         )
         return (block, result_id)
@@ -850,9 +853,17 @@ class Block:
         )
         return self.with_column_labels(new_labels)
 
-    def filter(self, column_id: str, keep_null: bool = False):
+    def filter_by_id(self, column_id: str, keep_null: bool = False):
         return Block(
             self._expr.filter_by_id(column_id, keep_null),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
+
+    def filter(self, predicate: scalars.Expression):
+        return Block(
+            self._expr.filter(predicate),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index.names,
@@ -1156,10 +1167,10 @@ class Block:
 
         return stats
 
-    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
+    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]) -> pd.Index:
         """Get column label for value columns, or index name for index columns"""
-        lookup = self.col_id_to_label
-        return [lookup.get(col_id, None) for col_id in column_ids]
+        indices = [self.value_columns.index(col_id) for col_id in column_ids]
+        return self.column_labels.take(indices, allow_fill=False)
 
     def _normalize_expression(
         self,
@@ -1255,7 +1266,7 @@ class Block:
 
         for cond in conditions:
             block, cond_id = block.project_expr(cond)
-            block = block.filter(cond_id)
+            block = block.filter_by_id(cond_id)
 
         return block.select_columns(self.value_columns)
 
@@ -1292,7 +1303,7 @@ class Block:
             Block(
                 expr,
                 index_columns=self.index_columns,
-                column_labels=[label, *self.column_labels],
+                column_labels=self.column_labels.insert(0, label),
                 index_labels=self._index_labels,
             ),
             result_id,
