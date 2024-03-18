@@ -1530,7 +1530,7 @@ class Block:
 
     @staticmethod
     def _create_pivot_column_index(
-        value_labels: Sequence[typing.Hashable], columns_values: pd.Index
+        value_labels: pd.Index, columns_values: pd.Index
     ) -> pd.Index:
         index_parts = []
         for value in value_labels:
