@@ -17,8 +17,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
-import bigframes_vendored.pandas.core.indexes.accessor as vendordt
 import bigframes_vendored.pandas.core.arrays.datetimelike as vendored_pandas_datetimelike
+import bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 from bigframes.core import log_adapter
 import bigframes.operations as ops
