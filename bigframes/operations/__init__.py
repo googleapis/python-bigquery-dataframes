@@ -204,7 +204,6 @@ minute_op = create_unary_op(name="minute", type_rule=op_typing.INTEGER)
 month_op = create_unary_op(name="month", type_rule=op_typing.INTEGER)
 quarter_op = create_unary_op(name="quarter", type_rule=op_typing.INTEGER)
 second_op = create_unary_op(name="second", type_rule=op_typing.INTEGER)
-strftime_op = create_unary_op(name="strftime", type_rule=op_typing.STRING)
 time_op = create_unary_op(name="time", type_rule=op_typing.INTEGER)
 year_op = create_unary_op(name="year", type_rule=op_typing.INTEGER)
 ## Trigonometry Ops
@@ -422,7 +421,7 @@ class StrftimeOp(UnaryOp):
     date_format: str
 
     def output_type(self, *input_types):
-        return input_types[0]
+        return dtypes.STRING_DTYPE
 
 
 # Binary Ops

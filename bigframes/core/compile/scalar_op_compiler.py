@@ -614,7 +614,7 @@ def second_op_impl(x: ibis_types.Value):
 
 
 @scalar_op_compiler.register_unary_op(ops.StrftimeOp, pass_op=True)
-def strftime_op_impl(x: ibis_types.Value, op: ops.strftime_op):
+def strftime_op_impl(x: ibis_types.Value, op: ops.StrftimeOp):
     return (
         typing.cast(ibis_types.TimestampValue, x)
         .strftime(op.date_format)
