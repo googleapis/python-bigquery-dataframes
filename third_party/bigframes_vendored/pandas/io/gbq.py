@@ -7,7 +7,7 @@ from typing import Any, Iterable, Literal, Optional, Tuple, Union
 
 from bigframes import constants
 
-FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">"]
+FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">", "LIKE"]
 FilterType = Tuple[str, FilterOps, Any]
 FiltersType = Union[Iterable[FilterType], Iterable[Iterable[FilterType]]]
 
