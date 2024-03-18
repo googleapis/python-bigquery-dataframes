@@ -17,12 +17,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
+import bigframes_vendored.pandas.core.indexes.accessor as vendordt
+import bigframes_vendored.pandas.core.arrays.datetimelike as vendored_pandas_datetimelike
+
 from bigframes.core import log_adapter
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.arrays.datetimelike as vendored_pandas_datetimelike
-import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 
 @log_adapter.class_logger
