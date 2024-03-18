@@ -45,7 +45,7 @@ class SamplingPlot(MPLPlot):
 
     def _compute_plot_data(self, data):
         # TODO: Cache the sampling data in the PlotAccessor.
-        sampling_n = self.kwargs.pop("sampling_n", 100)
+        sampling_n = self.kwargs.pop("sampling_n", 1000)
         sampling_random_state = self.kwargs.pop("sampling_random_state", 0)
         return (
             data.sample(n=sampling_n, random_state=sampling_random_state)
