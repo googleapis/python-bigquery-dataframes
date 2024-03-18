@@ -112,7 +112,7 @@ class GBQIOMixin:
                 query results.
             filters (Union[Iterable[FilterType], Iterable[Iterable[FilterType]]], default ()): To
                 filter out data. Filter syntax: [[(column, op, val), …],…] where
-                op is [==, >, >=, <, <=, !=, in, not in]. The innermost tuples
+                op is [==, >, >=, <, <=, !=, in, not in, LIKE]. The innermost tuples
                 are transposed into a set of filters applied through an AND
                 operation. The outer Iterable combines these sets of filters
                 through an OR operation. A single Iterable of tuples can also
