@@ -20,6 +20,8 @@ import textwrap
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
@@ -31,9 +33,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
-import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -61,6 +60,7 @@ DtypeString = Literal[
     "boolean",
     "Float64",
     "Int64",
+    "int64[pyarrow]",
     "string",
     "string[pyarrow]",
     "timestamp[us, tz=UTC][pyarrow]",
@@ -68,7 +68,7 @@ DtypeString = Literal[
     "date32[day][pyarrow]",
     "time64[us][pyarrow]",
     "decimal128(38, 9)[pyarrow]",
-    "decimal256(38, 9)[pyarrow]",
+    "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
 ]
 
@@ -171,8 +171,11 @@ BIGFRAMES_STRING_TO_BIGFRAMES: Dict[DtypeString, Dtype] = {
 }
 
 # special case - string[pyarrow] doesn't include the storage in its name, and both
-# "string" and "string[pyarrow] are accepted"
+# "string" and "string[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarrow")
+
+# special case - both "Int64" and "int64[pyarrow]" are accepted
+BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = pd.Int64Dtype()
 
 # For the purposes of dataframe.memory_usage
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#data_type_sizes
@@ -311,11 +314,12 @@ def bigframes_dtype_to_ibis_dtype(
             textwrap.dedent(
                 f"""
                 Unexpected data type {bigframes_dtype}. The following
-                        str dtypes are supppted: 'boolean','Float64','Int64', 'string',
-                        'string[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
-                        'timestamp[us][pyarrow]','date32[day][pyarrow]',
-                        'time64[us][pyarrow]'. The following pandas.ExtensionDtype are
-                        supported: pandas.BooleanDtype(), pandas.Float64Dtype(),
+                        str dtypes are supppted: 'boolean','Float64','Int64',
+                        'int64[pyarrow]','string','string[pyarrow]',
+                        'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
+                        'date32[day][pyarrow]','time64[us][pyarrow]'.
+                        The following pandas.ExtensionDtype are supported:
+                        pandas.BooleanDtype(), pandas.Float64Dtype(),
                         pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
                         pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
                         pd.ArrowDtype(pa.timestamp("us")),
@@ -435,6 +439,9 @@ def cast_ibis_value(
             ibis_dtypes.string,
             ibis_dtypes.Decimal(precision=38, scale=9),
             ibis_dtypes.Decimal(precision=76, scale=38),
+            ibis_dtypes.time,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
         ),
         ibis_dtypes.float64: (
             ibis_dtypes.string,
@@ -448,8 +455,15 @@ def cast_ibis_value(
             ibis_dtypes.Decimal(precision=38, scale=9),
             ibis_dtypes.Decimal(precision=76, scale=38),
             ibis_dtypes.binary,
+            ibis_dtypes.date,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
         ),
-        ibis_dtypes.date: (ibis_dtypes.string,),
+        ibis_dtypes.date: (
+            ibis_dtypes.string,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
+        ),
         ibis_dtypes.Decimal(precision=38, scale=9): (
             ibis_dtypes.float64,
             ibis_dtypes.Decimal(precision=76, scale=38),
@@ -458,9 +472,24 @@ def cast_ibis_value(
             ibis_dtypes.float64,
             ibis_dtypes.Decimal(precision=38, scale=9),
         ),
-        ibis_dtypes.time: (),
-        ibis_dtypes.timestamp: (ibis_dtypes.Timestamp(timezone="UTC"),),
-        ibis_dtypes.Timestamp(timezone="UTC"): (ibis_dtypes.timestamp,),
+        ibis_dtypes.time: (
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+        ),
+        ibis_dtypes.timestamp: (
+            ibis_dtypes.date,
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+            ibis_dtypes.time,
+            ibis_dtypes.Timestamp(timezone="UTC"),
+        ),
+        ibis_dtypes.Timestamp(timezone="UTC"): (
+            ibis_dtypes.date,
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+            ibis_dtypes.time,
+            ibis_dtypes.timestamp,
+        ),
         ibis_dtypes.binary: (ibis_dtypes.string,),
     }
 
@@ -490,21 +519,6 @@ def cast_ibis_value(
     raise TypeError(
         f"Unsupported cast {value.type()} to {to_type}. {constants.FEEDBACK_LINK}"
     )
-
-
-def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
-    """For each STRUCT field, make sure we specify the full type to use."""
-    # TODO(swast): Also override ARRAY fields.
-    dtypes = {}
-    for field in schema:
-        if field.field_type == "RECORD" and field.mode != "REPEATED":
-            # TODO(swast): We're using a private API here. Would likely be
-            # better if we called `to_arrow()` and converted to a pandas
-            # DataFrame ourselves from that.
-            dtypes[field.name] = pd.ArrowDtype(
-                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
-            )
-    return dtypes
 
 
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:

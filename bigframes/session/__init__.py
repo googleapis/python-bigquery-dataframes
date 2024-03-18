@@ -39,6 +39,14 @@ from typing import (
 )
 import warnings
 
+# Even though the ibis.backends.bigquery import is unused, it's needed
+# to register new and replacement ops with the Ibis BigQuery backend.
+import bigframes_vendored.ibis.backends.bigquery  # noqa
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
+import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
+import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
+import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.api_core.client_info
 import google.api_core.client_options
 import google.api_core.exceptions
@@ -65,7 +73,6 @@ from pandas._typing import (
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.constants as constants
-from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -81,15 +88,6 @@ from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
-import third_party.bigframes_vendored.ibis.backends.bigquery  # noqa
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
-import third_party.bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
-import third_party.bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
-import third_party.bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
-import third_party.bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -161,6 +159,8 @@ class Session(
         else:
             self._location = context.location
 
+        self._bq_kms_key_name = context.kms_key_name
+
         # Instantiate a clients provider to help with cloud clients that will be
         # used in the future operations in the session
         if clients_provider:
@@ -172,9 +172,17 @@ class Session(
                 use_regional_endpoints=context.use_regional_endpoints,
                 credentials=context.credentials,
                 application_name=context.application_name,
+                bq_kms_key_name=self._bq_kms_key_name,
             )
 
         self._create_bq_datasets()
+
+        # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
+        # has been fixed. The ibis client changes the default query job config
+        # so we are going to remember the current config and restore it after
+        # the ibis client has been created
+        original_default_query_job_config = self.bqclient.default_query_job_config
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
             ibis.bigquery.connect(
@@ -184,6 +192,9 @@ class Session(
             ),
         )
 
+        self.bqclient.default_query_job_config = original_default_query_job_config
+
+        # Resolve the BQ connection for remote function and Vertex AI integration
         self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
 
         # Now that we're starting the session, don't allow the options to be
@@ -618,6 +629,24 @@ class Session(
         job_config.labels["bigframes-api"] = api_name
         if use_cache and table_ref in self._df_snapshot.keys():
             snapshot_timestamp = self._df_snapshot[table_ref]
+
+            # Cache hit could be unexpected. See internal issue 329545805.
+            # Raise a warning with more information about how to avoid the
+            # problems with the cache.
+            warnings.warn(
+                f"Reading cached table from {snapshot_timestamp} to avoid "
+                "incompatibilies with previous reads of this table. To read "
+                "the latest version, set `use_cache=False` or close the "
+                "current session with Session.close() or "
+                "bigframes.pandas.close_session().",
+                # There are many layers before we get to (possibly) the user's code:
+                # pandas.read_gbq_table
+                # -> with_default_session
+                # -> Session.read_gbq_table
+                # -> _read_gbq_table
+                # -> _get_snapshot_sql_and_primary_key
+                stacklevel=6,
+            )
         else:
             snapshot_timestamp = list(
                 self.bqclient.query(
@@ -887,6 +916,12 @@ class Session(
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        if isinstance(pandas_dataframe, dataframe.DataFrame):
+            raise ValueError(
+                "read_pandas() expects a pandas.DataFrame, but got a "
+                "bigframes.pandas.DataFrame."
+            )
+
         if (
             pandas_dataframe.size < MAX_INLINE_DF_SIZE
             # TODO(swast): Workaround data types limitation in inline data.
@@ -905,7 +940,7 @@ class Session(
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> dataframe.DataFrame:
-        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe))
+        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -929,6 +964,8 @@ class Session(
         pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
+        job_config = self._prepare_load_job_config()
+
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
         schema: list[bigquery.SchemaField] = []
         for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
@@ -936,12 +973,12 @@ class Session(
                 schema.append(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
                 )
+        job_config.schema = schema
 
         # Clustering probably not needed anyways as pandas tables are small
         cluster_cols = [ordering_col]
-
-        job_config = bigquery.LoadJobConfig(schema=schema)
         job_config.clustering_fields = cluster_cols
+
         job_config.labels = {"bigframes-api": api_name}
 
         load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
@@ -1061,7 +1098,7 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            job_config = bigquery.LoadJobConfig()
+            job_config = self._prepare_load_job_config()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1136,7 +1173,7 @@ class Session(
         table = bigframes_io.random_table(self._anonymous_dataset)
 
         if engine == "bigquery":
-            job_config = bigquery.LoadJobConfig()
+            job_config = self._prepare_load_job_config()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1194,7 +1231,7 @@ class Session(
                     "'lines' keyword is only valid when 'orient' is 'records'."
                 )
 
-            job_config = bigquery.LoadJobConfig()
+            job_config = self._prepare_load_job_config()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
@@ -1351,6 +1388,8 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
         cloud_function_service_account: Optional[str] = None,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1431,6 +1470,20 @@ class Session(
                 for more details. Please make sure the service account has the
                 necessary IAM permissions configured as described in
                 https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
+            cloud_function_kms_key_name (str, Optional):
+                Customer managed encryption key to protect cloud functions and
+                related data at rest. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/keyRings/KEYRING/cryptoKeys/KEY.
+                Read https://cloud.google.com/functions/docs/securing/cmek for
+                more details including granting necessary service accounts
+                access to the key.
+            cloud_function_docker_repository (str, Optional):
+                Docker repository created with the same encryption key as
+                `cloud_function_kms_key_name` to store encrypted artifacts
+                created to support the cloud function. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
+                For more details see
+                https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1450,6 +1503,8 @@ class Session(
             name=name,
             packages=packages,
             cloud_function_service_account=cloud_function_service_account,
+            cloud_function_kms_key_name=cloud_function_kms_key_name,
+            cloud_function_docker_repository=cloud_function_docker_repository,
         )
 
     def read_gbq_function(
@@ -1518,6 +1573,53 @@ class Session(
             session=self,
         )
 
+    def _prepare_query_job_config(
+        self,
+        job_config: Optional[bigquery.QueryJobConfig] = None,
+    ) -> bigquery.QueryJobConfig:
+        if job_config is None:
+            job_config = bigquery.QueryJobConfig()
+        else:
+            # Create a copy so that we don't mutate the original config passed
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(job_config.to_api_repr()),
+            )
+
+        if bigframes.options.compute.maximum_bytes_billed is not None:
+            job_config.maximum_bytes_billed = (
+                bigframes.options.compute.maximum_bytes_billed
+            )
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
+    def _prepare_load_job_config(self) -> bigquery.LoadJobConfig:
+        # Create a copy so that we don't mutate the original config passed
+        job_config = bigquery.LoadJobConfig()
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
+    def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:
+        # Create a copy so that we don't mutate the original config passed
+        job_config = bigquery.CopyJobConfig()
+
+        if self._bq_kms_key_name:
+            job_config.destination_encryption_configuration = (
+                bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
+            )
+
+        return job_config
+
     def _start_query(
         self,
         sql: str,
@@ -1525,29 +1627,31 @@ class Session(
         max_results: Optional[int] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        Starts query job and waits for results.
+        Starts BigQuery query job and waits for results.
         """
-        job_config = self._prepare_job_config(job_config)
-        api_methods = log_adapter.get_and_reset_api_methods()
-        job_config.labels = bigframes_io.create_job_configs_labels(
-            job_configs_labels=job_config.labels, api_methods=api_methods
+        job_config = self._prepare_query_job_config(job_config)
+        return bigframes.session._io.bigquery.start_query_with_client(
+            self.bqclient, sql, job_config, max_results
         )
 
-        try:
-            query_job = self.bqclient.query(sql, job_config=job_config)
-        except google.api_core.exceptions.Forbidden as ex:
-            if "Drive credentials" in ex.message:
-                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-            raise
+    def _start_query_ml_ddl(
+        self,
+        sql: str,
+    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """
+        Starts BigQuery ML DDL query job (CREATE MODEL/ALTER MODEL/...) and
+        waits for results.
+        """
+        job_config = self._prepare_query_job_config()
 
-        opts = bigframes.options.display
-        if opts.progress_bar is not None and not query_job.configuration.dry_run:
-            results_iterator = formatting_helpers.wait_for_query_job(
-                query_job, max_results, opts.progress_bar
-            )
-        else:
-            results_iterator = query_job.result(max_results=max_results)
-        return results_iterator, query_job
+        # BQML expects kms_key_name through OPTIONS and not through job config,
+        # so we must reset any encryption set in the job config
+        # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
+        job_config.destination_encryption_configuration = None
+
+        return bigframes.session._io.bigquery.start_query_with_client(
+            self.bqclient, sql, job_config
+        )
 
     def _cache_with_cluster_cols(
         self, array_value: core.ArrayValue, cluster_cols: typing.Sequence[str]
@@ -1695,19 +1799,6 @@ class Session(
             )  # Wait for the job to complete
         else:
             job.result()
-
-    def _prepare_job_config(
-        self, job_config: Optional[bigquery.QueryJobConfig] = None
-    ) -> bigquery.QueryJobConfig:
-        if job_config is None:
-            job_config = self.bqclient.default_query_job_config
-        if job_config is None:
-            job_config = bigquery.QueryJobConfig()
-        if bigframes.options.compute.maximum_bytes_billed is not None:
-            job_config.maximum_bytes_billed = (
-                bigframes.options.compute.maximum_bytes_billed
-            )
-        return job_config
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:

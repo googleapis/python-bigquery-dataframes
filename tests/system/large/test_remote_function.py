@@ -21,7 +21,7 @@ import tempfile
 import textwrap
 
 from google.api_core.exceptions import BadRequest, NotFound
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 import pandas
 import pytest
 import test_utils.prefixer
@@ -1178,19 +1178,29 @@ def test_remote_function_anonymous_dataset(session, scalars_dfs):
         )
 
 
-@pytest.mark.skip("This requires additional project config.")
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_via_session_custom_sa(scalars_dfs):
-    # Set these values to run the test locally
-    # TODO(shobs): Automate and enable this test
-    PROJECT = ""
-    GCF_SERVICE_ACCOUNT = ""
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Create a service account as per
+    #    https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console
+    # 2. Give necessary roles as per
+    #    https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration
+    #
+    project = "bigframes-dev-perf"
+    gcf_service_account = (
+        "bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com"
+    )
 
-    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=PROJECT))
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
 
     try:
 
         @rf_session.remote_function(
-            [int], int, reuse=False, cloud_function_service_account=GCF_SERVICE_ACCOUNT
+            [int], int, reuse=False, cloud_function_service_account=gcf_service_account
         )
         def square_num(x):
             if x is None:
@@ -1213,9 +1223,74 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
         gcf = rf_session.cloudfunctionsclient.get_function(
             name=square_num.bigframes_cloud_function
         )
-        assert gcf.service_config.service_account_email == GCF_SERVICE_ACCOUNT
+        assert gcf.service_config.service_account_email == gcf_service_account
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
             rf_session.bqclient, rf_session.cloudfunctionsclient, square_num
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_with_gcf_cmek():
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Created an encryption key and granting the necessary service accounts
+    #    the required IAM permissions as per https://cloud.google.com/kms/docs/create-key
+    # 2. Created a docker repository with CMEK (created in step 1) enabled as per
+    #    https://cloud.google.com/artifact-registry/docs/repositories/create-repos#overview
+    #
+    project = "bigframes-dev-perf"
+    cmek = "projects/bigframes-dev-perf/locations/us-central1/keyRings/bigframesKeyRing/cryptoKeys/bigframesKey"
+    docker_repository = (
+        "projects/bigframes-dev-perf/locations/us-central1/repositories/rf-artifacts"
+    )
+
+    session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+    try:
+
+        @session.remote_function(
+            [int],
+            int,
+            reuse=False,
+            cloud_function_kms_key_name=cmek,
+            cloud_function_docker_repository=docker_repository,
+        )
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+        df = pandas.DataFrame({"num": [-1, 0, None, 1]}, dtype="Int64")
+        bf = session.read_pandas(df)
+
+        bf_result_col = bf["num"].apply(square_num)
+        bf_result = bf.assign(result=bf_result_col).to_pandas()
+
+        pd_result_col = df["num"].apply(lambda x: x if x is None else x * x)
+        pd_result = df.assign(result=pd_result_col)
+
+        assert_pandas_df_equal(
+            bf_result, pd_result, check_dtype=False, check_index_type=False
+        )
+
+        # Assert that the GCF is created with the intended SA
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_num.bigframes_cloud_function
+        )
+        assert gcf.kms_key_name == cmek
+
+        # Assert that GCS artifact has CMEK applied
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(gcf.build_config.source.storage_source.bucket)
+        blob = bucket.get_blob(gcf.build_config.source.storage_source.object_)
+        assert blob.kms_key_name.startswith(cmek)
+
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_num
         )
