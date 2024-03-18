@@ -3316,7 +3316,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Purely integer-location based indexing for selection by position.
 
         Returns:
-            IlocSeriesIndexer: Purely integer-location Indexers.
+            bigframes.core.indexers.IlocSeriesIndexer: Purely integer-location Indexers.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3325,7 +3325,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Access a group of rows and columns by label(s) or a boolean array.
 
         Returns:
-            LocSeriesIndexer: Indexers object.
+            bigframes.core.indexers.LocSeriesIndexer: Indexers object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

@@ -5114,7 +5114,7 @@ class DataFrame(NDFrame):
         """Purely integer-location based indexing for selection by position.
 
         Returns:
-            ILocDataFrameIndexer: Purely integer-location Indexers.
+            bigframes.core.indexers.ILocDataFrameIndexer: Purely integer-location Indexers.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5123,7 +5123,7 @@ class DataFrame(NDFrame):
         """Access a group of rows and columns by label(s) or a boolean array.
 
         Returns:
-            ILocDataFrameIndexer: Indexers object.
+            bigframes.core.indexers.ILocDataFrameIndexer: Indexers object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
