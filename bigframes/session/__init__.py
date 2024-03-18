@@ -939,15 +939,22 @@ class Session(
             )
 
         inline_df = self._read_pandas_inline(pandas_dataframe)
-        inline_types = inline_df._block.expr.schema.dtypes
-        if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
-            return inline_df
+        if inline_df is not None:
+            inline_types = inline_df._block.expr.schema.dtypes
+            if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
+                return inline_df
+
         return self._read_pandas_load_job(pandas_dataframe, api_name)
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
-    ) -> dataframe.DataFrame:
-        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
+    ) -> Optional[dataframe.DataFrame]:
+        try:
+            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
+        except ValueError:  # Thrown by ibis for some unhandled tyeps
+            return None
+        except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
+            return None
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
