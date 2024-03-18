@@ -1097,8 +1097,11 @@ class Block:
             unpivot_columns=tuple(columns),
             index_col_ids=tuple([label_col_id]),
         )
-        labels = self._get_labels_for_columns(column_ids)
-        return Block(expr, column_labels=labels, index_columns=[label_col_id])
+        return Block(
+            expr,
+            column_labels=self._get_labels_for_columns(column_ids),
+            index_columns=[label_col_id],
+        )
 
     def corr(self):
         """Returns a block object to compute the self-correlation on this block."""
@@ -1402,10 +1405,9 @@ class Block:
         if values_in_index or len(values) > 1:
             value_labels = self._get_labels_for_columns(values)
             column_index = self._create_pivot_column_index(value_labels, columns_values)
+            return result_block.with_column_labels(column_index)
         else:
-            column_index = columns_values
-
-        return result_block.with_column_labels(column_index)
+            return result_block.with_column_labels(columns_values)
 
     def stack(self, how="left", levels: int = 1):
         """Unpivot last column axis level into row axis"""
@@ -1529,7 +1531,7 @@ class Block:
     @staticmethod
     def _create_pivot_column_index(
         value_labels: Sequence[typing.Hashable], columns_values: pd.Index
-    ):
+    ) -> pd.Index:
         index_parts = []
         for value in value_labels:
             as_frame = columns_values.to_frame()

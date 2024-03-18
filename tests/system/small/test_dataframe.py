@@ -875,8 +875,6 @@ def test_df_dropna_range_columns(scalars_dfs):
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.dropna()
 
-    # Pandas uses int64 instead of Int64 (nullable) dtype.
-    # pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
