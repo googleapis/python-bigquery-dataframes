@@ -57,7 +57,7 @@ def test_palm2_text_generator_register(
     ephemera_palm2_text_generator_model: llm.PaLM2TextGenerator,
 ):
     with pytest.raises(AttributeError):
-        ephemera_palm2_text_generator_model.register()
+        ephemera_palm2_text_generator_model.register()  # type: ignore
 
 
 def test_imported_tensorflow_register(
