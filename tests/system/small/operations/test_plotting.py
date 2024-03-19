@@ -220,7 +220,7 @@ def test_sampling_plot_args_n():
 
 
 def test_sampling_plot_args_random_state():
-    df = bpd.DataFrame(np.arange(1000), columns=["one"])
+    df = bpd.DataFrame(np.arange(10000), columns=["one"])
     ax_0 = df.plot.line()
     ax_1 = df.plot.line()
     ax_2 = df.plot.line(sampling_random_state=100)
