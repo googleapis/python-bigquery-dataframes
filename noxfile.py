@@ -611,6 +611,19 @@ def prerelease(session: nox.sessions.Session, tests_path):
     session.install("--no-deps", "pandas-gbq")
     already_installed.add("pandas-gbq")
 
+    # gcsfs has introduced breaking change in version 2024.3.1
+    # https://github.com/fsspec/gcsfs/pull/614
+    # Let's exclude that version in favor of the prerelease tests. We also need
+    # to install necessary dependencies with appropriate versions.
+    # TODO(shobs): Remove the exclusion after the issue is fixed:
+    # https://github.com/fsspec/gcsfs/issues/616
+    session.install("aiohttp!=4.0.0a0, !=4.0.0a1")
+    already_installed.add("aiohttp")
+    session.install("--no-deps", "fsspec==2024.2.0")
+    already_installed.add("fsspec")
+    session.install("--no-deps", "gcsfs==2024.2.0")
+    already_installed.add("gcsfs")
+
     session.install(
         *set(UNIT_TEST_STANDARD_DEPENDENCIES + SYSTEM_TEST_STANDARD_DEPENDENCIES),
         "-c",
