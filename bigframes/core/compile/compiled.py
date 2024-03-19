@@ -36,6 +36,7 @@ from bigframes.core.ordering import (
     IntegerEncoding,
     OrderingColumnReference,
 )
+import bigframes.core.schema as schemata
 import bigframes.core.utils as utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -627,6 +628,7 @@ class OrderedIR(BaseIbisIR):
     def from_pandas(
         cls,
         pd_df: pandas.DataFrame,
+        schema: schemata.ArraySchema,
     ) -> OrderedIR:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
@@ -641,7 +643,7 @@ class OrderedIR(BaseIbisIR):
         # derive the ibis schema from the original pandas schema
         ibis_schema = [
             (name, bigframes.dtypes.bigframes_dtype_to_ibis_dtype(dtype))
-            for name, dtype in pd_df.dtypes.items()
+            for name, dtype in zip(schema.names, schema.dtypes)
         ]
         ibis_schema.append((ORDER_ID_COLUMN, ibis_dtypes.int64))
 

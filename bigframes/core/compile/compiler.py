@@ -81,7 +81,7 @@ def compile_join(node: nodes.JoinNode, ordered: bool = True):
 @_compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
     array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
-    ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd)
+    ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd, node.schema)
     if ordered:
         return ordered_ir
     else:

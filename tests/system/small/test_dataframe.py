@@ -64,6 +64,28 @@ def test_df_construct_pandas_default(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_construct_pandas_load_job(scalars_dfs):
+    # This should trigger the inlined codepath
+    columns = [
+        "int64_too",
+        "int64_col",
+        "float64_col",
+        "bool_col",
+        "string_col",
+        "date_col",
+        "datetime_col",
+        "numeric_col",
+        "float64_col",
+        "time_col",
+        "timestamp_col",
+        "geography_col",
+    ]
+    _, scalars_pandas_df = scalars_dfs
+    bf_result = dataframe.DataFrame(scalars_pandas_df, columns=columns).to_pandas()
+    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_df_construct_pandas_set_dtype(scalars_dfs):
     columns = [
         "int64_too",
