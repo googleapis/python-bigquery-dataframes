@@ -2119,11 +2119,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO: Remove the reordering step once the issue is resolved.
         # The pivot_table method results in multi-index columns that are always ordered.
         # However, the order of the pivoted result columns is not guaranteed to be sorted.
-        # Sort the multi-index columns
-        sorted_columns = pivoted.columns.sort_values()
-        pivoted = pivoted[sorted_columns]
-
-        return pivoted
+        # Sort and reorder.
+        return pivoted[pivoted.columns.sort_values()]
 
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
