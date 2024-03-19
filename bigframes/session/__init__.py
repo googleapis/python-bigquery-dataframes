@@ -318,6 +318,7 @@ class Session(
             valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
                 "in": "IN",
                 "not in": "NOT IN",
+                "LIKE": "LIKE",
                 "==": "=",
                 ">": ">",
                 "<": "<",
@@ -629,6 +630,24 @@ class Session(
         job_config.labels["bigframes-api"] = api_name
         if use_cache and table_ref in self._df_snapshot.keys():
             snapshot_timestamp = self._df_snapshot[table_ref]
+
+            # Cache hit could be unexpected. See internal issue 329545805.
+            # Raise a warning with more information about how to avoid the
+            # problems with the cache.
+            warnings.warn(
+                f"Reading cached table from {snapshot_timestamp} to avoid "
+                "incompatibilies with previous reads of this table. To read "
+                "the latest version, set `use_cache=False` or close the "
+                "current session with Session.close() or "
+                "bigframes.pandas.close_session().",
+                # There are many layers before we get to (possibly) the user's code:
+                # pandas.read_gbq_table
+                # -> with_default_session
+                # -> Session.read_gbq_table
+                # -> _read_gbq_table
+                # -> _get_snapshot_sql_and_primary_key
+                stacklevel=6,
+            )
         else:
             snapshot_timestamp = list(
                 self.bqclient.query(
@@ -898,6 +917,12 @@ class Session(
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        if isinstance(pandas_dataframe, dataframe.DataFrame):
+            raise ValueError(
+                "read_pandas() expects a pandas.DataFrame, but got a "
+                "bigframes.pandas.DataFrame."
+            )
+
         if (
             pandas_dataframe.size < MAX_INLINE_DF_SIZE
             # TODO(swast): Workaround data types limitation in inline data.
