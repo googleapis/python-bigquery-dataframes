@@ -216,7 +216,7 @@ def test_series___getitem__(scalars_dfs, index_col, key):
 def test_series___getitem___with_int_key(scalars_dfs):
     col_name = "int64_too"
     index_col = "string_col"
-    key = 2
+    key = -1
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.set_index(index_col, drop=False)
     scalars_pandas_df = scalars_pandas_df.set_index(index_col, drop=False)
