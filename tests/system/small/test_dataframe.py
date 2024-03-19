@@ -1091,10 +1091,13 @@ def test_df_iter(
         assert bf_i == df_i
 
 
+@skip_legacy_pandas
 def test_iterrows(
     scalars_df_index,
     scalars_pandas_df_index,
 ):
+    scalars_df_index = scalars_df_index.add_suffix("_suffix", axis=1)
+    scalars_pandas_df_index = scalars_pandas_df_index.add_suffix("_suffix", axis=1)
     for (bf_index, bf_series), (pd_index, pd_series) in zip(
         scalars_df_index.iterrows(), scalars_pandas_df_index.iterrows()
     ):
