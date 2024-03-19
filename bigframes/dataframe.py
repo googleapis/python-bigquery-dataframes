@@ -2123,9 +2123,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sorted_columns = pivoted.columns.sort_values()
         pivoted = pivoted[sorted_columns]
 
-        # This step ensures the column information is accurately maintained after sorting.
-        pivoted.columns = sorted_columns
-
         return pivoted
 
     def stack(self, level: LevelsType = -1):
