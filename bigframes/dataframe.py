@@ -2068,6 +2068,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
+    def pivot_table(
+        self,
+        values: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+        index: typing.Optional[
+            typing.Union[blocks.Label, Sequence[blocks.Label]]
+        ] = None,
+        columns: typing.Union[blocks.Label, Sequence[blocks.Label]] = None,
+        aggfunc: str = "mean",
+    ) -> DataFrame:
+        if isinstance(index, blocks.Label):
+            index = [index]
+        if isinstance(columns, blocks.Label):
+            columns = [columns]
+        if isinstance(values, blocks.Label):
+            values = [values]
+
+        keys = index + columns
+        agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
+
+        if isinstance(agged, bigframes.series.Series):
+            agged = agged.to_frame()
+
+        agged = agged.dropna(how="all")
+
+        if len(values) == 1:
+            agged = agged.rename(columns={agged.columns[0]: values[0]})
+
+        agged = agged.reset_index()
+
+        # Unlike pivot, pivot_table has values always ordered.
+        pivoted = agged.pivot(
+            columns=columns,
+            index=index,
+            values=sorted(values) if len(values) > 1 else None,
+        ).sort_index()
+
+        # TODO: Remove the reordering step once the issue is resolved.
+        # The pivot_table method results in multi-index columns that are always ordered.
+        # However, the order of the pivoted result columns is not guaranteed to be sorted.
+        # Sort the multi-index columns
+        sorted_columns = pivoted.columns.sort_values()
+        pivoted = pivoted[sorted_columns]
+
+        # This step ensures the column information is accurately maintained after sorting.
+        pivoted.columns = sorted_columns
+
+        return pivoted
+
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
             if level not in [0, -1, self.columns.name]:

@@ -4632,6 +4632,32 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def pivot_table(self, values=None, index=None, columns=None, aggfunc="mean"):
+        """
+        Create a spreadsheet-style pivot table as a DataFrame.
+
+        The levels in the pivot table will be stored in MultiIndex objects (hierarchical indexes)
+        on the index and columns of the result DataFrame.
+
+        Args:
+            values (str, object or a list of the previous, optional):
+                Column(s) to use for populating new frame's values. If not
+                specified, all remaining columns will be used and the result will
+                have hierarchically indexed columns.
+
+            index (str or object or a list of str, optional):
+                Column to use to make new frame's index. If not given, uses existing index.
+
+            columns (str or object or a list of str):
+                Column to use to make new frame's columns.
+            aggfunc (str, default “mean”):
+                Aggregation function name to compute summary statistics (e.g., 'sum', 'mean').
+
+        Returns:
+            DataFrame: An Excel style pivot table.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def stack(self, level=-1):
         """
         Stack the prescribed level(s) from columns to index.
