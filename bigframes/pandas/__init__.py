@@ -36,6 +36,12 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
+import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
+import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
+import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
+import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
+import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 from google.cloud import bigquery
 import numpy
 import pandas
@@ -59,12 +65,6 @@ import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
 import bigframes.session.clients
-import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
-import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
-import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
-import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
-import third_party.bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
-import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
 # Include method definition so that the method appears in our docs for
@@ -620,6 +620,8 @@ def remote_function(
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
     cloud_function_service_account: Optional[str] = None,
+    cloud_function_kms_key_name: Optional[str] = None,
+    cloud_function_docker_repository: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -631,6 +633,8 @@ def remote_function(
         name=name,
         packages=packages,
         cloud_function_service_account=cloud_function_service_account,
+        cloud_function_kms_key_name=cloud_function_kms_key_name,
+        cloud_function_docker_repository=cloud_function_docker_repository,
     )
 
 

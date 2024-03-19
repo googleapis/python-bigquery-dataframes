@@ -34,6 +34,8 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
+import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -59,11 +61,10 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
-import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
-import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 if typing.TYPE_CHECKING:
     import bigframes.session
@@ -524,7 +525,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ) = self._block.join(key._block, how="left")
         block = combined_index
         filter_col_id = get_column_right[key._value_column]
-        block = block.filter(filter_col_id)
+        block = block.filter_by_id(filter_col_id)
         block = block.drop_columns([filter_col_id])
         return DataFrame(block)
 
@@ -1087,19 +1088,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = False) -> pandas.DataFrame:
+    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
-        DataFrame.peek(force=False) will always be very fast, but will not succeed if data requires
-        full data scanning. Using force=True will always succeed, but may be perform expensive
-        computations.
+        ``DataFrame.peek(force=False)`` will always be very fast, but will not succeed if data requires
+        full data scanning. Using ``force=True`` will always succeed, but may be perform queries.
+        Query results will be cached so that future steps will benefit from these queries.
 
         Args:
             n (int, default 5):
                 The number of rows to select from the dataframe. Which N rows are returned is non-deterministic.
-            force (bool, default False):
+            force (bool, default True):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
-                of the operation if force=True. If force=False, the operation will throw a ValueError.
+                of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
@@ -1194,7 +1195,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block, condition_id = block.project_expr(
                     ops.ne_op.as_expr(level_id, ex.const(index))
                 )
-            block = block.filter(condition_id, keep_null=True).select_columns(
+            block = block.filter_by_id(condition_id, keep_null=True).select_columns(
                 self._block.value_columns
             )
         if columns:
@@ -1215,7 +1216,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ops.isnull_op,
         )
 
-        drop_block = drop_block.filter(drop_col)
+        drop_block = drop_block.filter_by_id(drop_col)
         original_columns = [
             get_column_left[column] for column in self._block.value_columns
         ]
@@ -1559,7 +1560,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns(self._block.value_columns)
             return DataFrame(block)
         elif items is not None:
@@ -1568,7 +1569,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block, mask_id = block.apply_unary_op(
                 self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns(self._block.value_columns)
             return DataFrame(block)
         else:
@@ -1647,7 +1648,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise NotImplementedError(
                     "Cannot reindex with index with different nlevels"
                 )
-            new_indexer = DataFrame(index=index)[[]]
+            new_indexer = DataFrame(index=index, session=self._session)[[]]
         # multiindex join is senstive to index names, so we will set all these
         result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
             self.rename_axis(range(self.index.nlevels)),
@@ -2311,7 +2312,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return left._perform_join_by_index(right, how=how)
 
-    def _perform_join_by_index(self, other: DataFrame, *, how: str = "left"):
+    def _perform_join_by_index(
+        self, other: Union[DataFrame, indexes.Index], *, how: str = "left"
+    ):
         block, _ = self._block.join(other._block, how=how, block_identity_join=True)
         return DataFrame(block)
 
@@ -2336,6 +2339,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             blocks.Label,
             bigframes.series.Series,
             typing.Sequence[typing.Union[blocks.Label, bigframes.series.Series]],
+            None,
         ] = None,
         *,
         level: typing.Optional[LevelsType] = None,
@@ -2589,16 +2593,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        if lines is True and orient != "records":
-            raise ValueError(
-                "'lines' keyword is only valid when 'orient' is 'records'."
-            )
-
         # TODO(ashleyxu) Support lines=False for small tables with arrays and TO_JSON_STRING.
         # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string
         if lines is False:
             raise NotImplementedError(
-                f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
+                f"Only newline-delimited JSON is supported. Add `lines=True` to your function call. {constants.FEEDBACK_LINK}"
+            )
+
+        if lines is True and orient != "records":
+            raise ValueError(
+                "'lines' keyword is only valid when 'orient' is 'records'."
             )
 
         result_table = self._run_io_query(
@@ -3203,5 +3207,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             result = result[result.columns[0]].rename()
 
         return result
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     __matmul__ = dot

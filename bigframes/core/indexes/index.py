@@ -19,6 +19,7 @@ from __future__ import annotations
 import typing
 from typing import Hashable, Optional, Sequence, Union
 
+import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
@@ -33,7 +34,6 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -49,6 +49,7 @@ class Index(vendored_pandas_index.Index):
         dtype=None,
         *,
         name=None,
+        session=None,
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
@@ -75,7 +76,7 @@ class Index(vendored_pandas_index.Index):
         else:
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
-            block = df.DataFrame(pd_df)._block
+            block = df.DataFrame(pd_df, session=session)._block
         self._query_job = None
         self._block: blocks.Block = block
 
@@ -378,7 +379,7 @@ class Index(vendored_pandas_index.Index):
             block, condition_id = block.project_expr(
                 ops.ne_op.as_expr(level_id, ex.const(labels))
             )
-        block = block.filter(condition_id, keep_null=True)
+        block = block.filter_by_id(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
         return Index(block)
 

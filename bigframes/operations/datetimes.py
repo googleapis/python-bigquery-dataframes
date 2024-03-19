@@ -17,16 +17,20 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
+import bigframes_vendored.pandas.core.arrays.datetimelike as vendored_pandas_datetimelike
+import bigframes_vendored.pandas.core.indexes.accessor as vendordt
+
 from bigframes.core import log_adapter
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.indexes.accessor as vendordt
 
 
 @log_adapter.class_logger
 class DatetimeMethods(
-    bigframes.operations.base.SeriesMethods, vendordt.DatetimeProperties
+    bigframes.operations.base.SeriesMethods,
+    vendordt.DatetimeProperties,
+    vendored_pandas_datetimelike.DatelikeOps,
 ):
     __doc__ = vendordt.DatetimeProperties.__doc__
 
@@ -87,3 +91,6 @@ class DatetimeMethods(
     def unit(self) -> str:
         # Assumption: pyarrow dtype
         return self._dtype.pyarrow_dtype.unit
+
+    def strftime(self, date_format: str) -> series.Series:
+        return self._apply_unary_op(ops.StrftimeOp(date_format=date_format))

@@ -28,6 +28,7 @@ import bigframes.core.join_def as join_def
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingColumnReference
 import bigframes.core.ordering as orderings
+import bigframes.core.rewrite
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -69,7 +70,7 @@ class ArrayValue:
         return cls(node)
 
     @classmethod
-    def from_pandas(cls, pd_df: pandas.DataFrame):
+    def from_pandas(cls, pd_df: pandas.DataFrame, session: bigframes.Session):
         iobytes = io.BytesIO()
         # Use alphanumeric identifiers, to avoid downstream problems with escaping.
         as_ids = [
@@ -78,7 +79,7 @@ class ArrayValue:
         ]
         unique_ids = tuple(bigframes.core.utils.disambiguate_ids(as_ids))
         pd_df.reset_index(drop=True).set_axis(unique_ids, axis=1).to_feather(iobytes)
-        node = nodes.ReadLocalNode(iobytes.getvalue())
+        node = nodes.ReadLocalNode(feather_bytes=iobytes.getvalue(), session=session)
         return cls(node)
 
     @property
@@ -351,14 +352,15 @@ class ArrayValue:
         join_def: join_def.JoinDefinition,
         allow_row_identity_join: bool = False,
     ):
-        return ArrayValue(
-            nodes.JoinNode(
-                left_child=self.node,
-                right_child=other.node,
-                join=join_def,
-                allow_row_identity_join=allow_row_identity_join,
-            )
+        join_node = nodes.JoinNode(
+            left_child=self.node,
+            right_child=other.node,
+            join=join_def,
+            allow_row_identity_join=allow_row_identity_join,
         )
+        if allow_row_identity_join:
+            return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
+        return ArrayValue(join_node)
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
         """Sampling the table on given fraction.

@@ -23,6 +23,7 @@ import textwrap
 import typing
 from typing import Any, Mapping, Optional, Tuple, Union
 
+import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
@@ -50,9 +51,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
+import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
-import third_party.bigframes_vendored.pandas.core.series as vendored_pandas_series
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -149,6 +150,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def _info_axis(self) -> indexes.Index:
         return self.index
+
+    @property
+    def _session(self) -> bigframes.Session:
+        return self._get_block().expr.session
 
     def transpose(self) -> Series:
         return self
@@ -355,7 +360,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block, condition_id = block.project_expr(
                 ops.ne_op.as_expr(level_id, ex.const(index))
             )
-        block = block.filter(condition_id, keep_null=True)
+        block = block.filter_by_id(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 
@@ -862,7 +867,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             max_value_count_col_id,
             ops.eq_op,
         )
-        block = block.filter(is_mode_col_id)
+        block = block.filter_by_id(is_mode_col_id)
         # use temporary name for reset_index to avoid collision, restore after dropping extra columns
         block = (
             block.with_index_labels(["mode_temp_internal"])
@@ -1033,7 +1038,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.iloc[indexer]
         if isinstance(indexer, Series):
             (left, right, block) = self._align(indexer, "left")
-            block = block.filter(right)
+            block = block.filter_by_id(right)
             block = block.select_column(left)
             return Series(block)
         return self.loc[indexer]
@@ -1196,7 +1201,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     get_column_right,
                 ) = block.join(key._block, how="inner" if dropna else "left")
 
-                value_col = get_column_left[self._value_column]
+                value_col = get_column_left[value_col]
                 grouping_cols = [
                     *[get_column_left[value] for value in grouping_cols],
                     get_column_right[key._value_column],
@@ -1305,7 +1310,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns([self._value_column])
             return Series(block)
         elif items is not None:
@@ -1314,7 +1319,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block, mask_id = block.apply_unary_op(
                 self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns([self._value_column])
             return Series(block)
         else:
@@ -1391,9 +1396,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return bigframes.dataframe.DataFrame(block)
 
-    def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
-        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_csv(path_or_buf, **kwargs)
+    def to_csv(
+        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
+    ) -> None:
+        return self.to_frame().to_csv(path_or_buf, sep=sep, header=header, index=index)
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
         return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
@@ -1403,14 +1409,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_json(
         self,
-        path_or_buf=None,
+        path_or_buf: str,
         orient: typing.Literal[
             "split", "records", "index", "columns", "values", "table"
         ] = "columns",
-        **kwargs,
-    ) -> typing.Optional[str]:
-        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_json(path_or_buf, **kwargs)
+        *,
+        lines: bool = False,
+        index: bool = True,
+    ) -> None:
+        return self.to_frame().to_json(
+            path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+        )
 
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
@@ -1558,6 +1567,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def str(self) -> strings.StringMethods:
         return strings.StringMethods(self._block)
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     def _slice(
         self,

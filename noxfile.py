@@ -219,7 +219,10 @@ def unit_noextras(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def mypy(session):
     """Run type checks with mypy."""
-    session.install("-e", ".")
+    # Editable mode is not compatible with mypy when there are multiple
+    # package directories. See:
+    # https://github.com/python/mypy/issues/10564#issuecomment-851687749
+    session.install(".")
 
     # Just install the dependencies' type info directly, since "mypy --install-types"
     # might require an additional pass.
@@ -713,6 +716,7 @@ def notebook(session: nox.Session):
         # TODO(swast): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
+        "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
