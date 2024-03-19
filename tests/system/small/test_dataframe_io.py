@@ -115,7 +115,6 @@ def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
         pd.testing.assert_series_equal(actual, expected)
 
 
-@pytest.mark.skip(reason="Disable to unblock kokoro tests")
 @pytest.mark.parametrize(
     ("index"),
     [True, False],
@@ -154,6 +153,7 @@ def test_to_csv_index(
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
+        storage_options=dict(expand=True),
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -164,7 +164,6 @@ def test_to_csv_index(
     pd.testing.assert_frame_equal(gcs_df, scalars_pandas_df)
 
 
-@pytest.mark.skip(reason="Disable to unblock kokoro tests")
 def test_to_csv_tabs(
     scalars_dfs: Tuple[bigframes.dataframe.DataFrame, pd.DataFrame],
     gcs_folder: str,
@@ -194,6 +193,7 @@ def test_to_csv_tabs(
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
+        storage_options=dict(expand=True),
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -415,7 +415,6 @@ def test_to_json_index_invalid_lines(
         scalars_df.to_json(path, index=index)
 
 
-@pytest.mark.skip(reason="Disable to unblock kokoro tests")
 @pytest.mark.parametrize(
     ("index"),
     [True, False],
@@ -435,7 +434,12 @@ def test_to_json_index_records_orient(
     """ Test the `to_json` API with `orient` is `records` and `lines` is True"""
     scalars_df.to_json(path, index=index, orient="records", lines=True)
 
-    gcs_df = pd.read_json(path, lines=True, convert_dates=["datetime_col"])
+    gcs_df = pd.read_json(
+        path,
+        lines=True,
+        convert_dates=["datetime_col"],
+        storage_options=dict(expand=True),
+    )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     if index and scalars_df.index.name is not None:
         gcs_df = gcs_df.set_index(scalars_df.index.name)
