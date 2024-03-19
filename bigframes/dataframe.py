@@ -2094,6 +2094,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             values = list(values)
 
+        # Unlike pivot, pivot_table has values always ordered.
         values.sort()
 
         keys = index + columns
@@ -2109,7 +2110,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         agged = agged.reset_index()
 
-        # Unlike pivot, pivot_table has values always ordered.
         pivoted = agged.pivot(
             columns=columns,
             index=index,
