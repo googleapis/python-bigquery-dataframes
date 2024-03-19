@@ -298,17 +298,11 @@ def _loc_getitem_series_or_dataframe(
         )
     elif isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
         return series_or_dataframe[key]
-    elif isinstance(key, bigframes.series.Series):
-        temp_name = guid.generate_guid(prefix="temp_series_name_")
-        if len(series_or_dataframe.index.names) > 1:
-            temp_name = series_or_dataframe.index.names[0]
-        key = key.rename(temp_name)
-        keys_df = key.to_frame()
-        keys_df = keys_df.set_index(temp_name, drop=True)
-        return _perform_loc_list_join(series_or_dataframe, keys_df.index)
-    elif isinstance(key, indexes.Index):
-        return _perform_loc_list_join(series_or_dataframe, key)
-    elif pd.api.types.is_list_like(key) and not isinstance(key, tuple):
+    elif (
+        isinstance(key, bigframes.series.Series)
+        or isinstance(key, indexes.Index)
+        or (pd.api.types.is_list_like(key) and not isinstance(key, tuple))
+    ):
         index = indexes.Index(key, session=series_or_dataframe._session)
         index.names = series_or_dataframe.index.names[: index.nlevels]
         return _perform_loc_list_join(series_or_dataframe, index)
