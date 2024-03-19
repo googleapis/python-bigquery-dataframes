@@ -2081,10 +2081,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if isinstance(index, blocks.Label):
             index = [index]
+        else:
+            index = list(index)
+
         if isinstance(columns, blocks.Label):
             columns = [columns]
+        else:
+            columns = list(columns)
+
         if isinstance(values, blocks.Label):
             values = [values]
+        else:
+            values = list(values)
+
+        values.sort()
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
@@ -2103,7 +2113,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pivoted = agged.pivot(
             columns=columns,
             index=index,
-            values=sorted(values) if len(values) > 1 else None,
+            values=values if len(values) > 1 else None,
         ).sort_index()
 
         # TODO: Remove the reordering step once the issue is resolved.
