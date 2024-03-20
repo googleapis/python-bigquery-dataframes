@@ -113,9 +113,9 @@ class ApproxQuartilesOp(UnaryAggregateOp):
         return f"{self.quartile*25}%"
 
     def output_type(self, *input_types: dtypes.ExpressionType):
-        if pd.api.types.is_bool_dtype(input_types[0]):
-            return dtypes.FLOAT_DTYPE
-        elif pd.api.types.is_integer_dtype(input_types[0]):
+        if pd.api.types.is_bool_dtype(input_types[0]) or pd.api.types.is_integer_dtype(
+            input_types[0]
+        ):
             return dtypes.FLOAT_DTYPE
         else:
             return input_types[0]
@@ -126,9 +126,9 @@ class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
     def output_type(self, *input_types: dtypes.ExpressionType):
-        if pd.api.types.is_bool_dtype(input_types[0]):
-            return dtypes.FLOAT_DTYPE
-        elif pd.api.types.is_integer_dtype(input_types[0]):
+        if pd.api.types.is_bool_dtype(input_types[0]) or pd.api.types.is_integer_dtype(
+            input_types[0]
+        ):
             return dtypes.FLOAT_DTYPE
         else:
             return input_types[0]

@@ -954,7 +954,7 @@ class Session(
             inline_df = dataframe.DataFrame(
                 blocks.Block.from_local(pandas_dataframe, self)
             )
-        except ValueError:  # Thrown by ibis for some unhandled tyeps
+        except ValueError:  # Thrown by ibis for some unhandled types
             return None
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
             return None
