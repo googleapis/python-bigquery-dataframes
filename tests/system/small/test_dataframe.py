@@ -3015,7 +3015,7 @@ def test_sample_args_sort(scalars_dfs):
     scalars_df, _ = scalars_dfs
     index = [4, 3, 2, 5, 1, 0]
     scalars_df = scalars_df.iloc[index]
-    
+
     kwargs = {"frac": 1.0, "random_state": 333}
 
     df = scalars_df.sample(**kwargs).to_pandas()
