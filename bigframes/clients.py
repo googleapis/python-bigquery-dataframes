@@ -116,12 +116,6 @@ class BqConnectionManager:
         project = f"projects/{project_id}"
         service_account = f"serviceAccount:{service_account_id}"
         role = f"roles/{iam_role}"
-        # request = iam_policy_pb2.TestIamPermissionsRequest()
-        self._cloud_resource_manager_client.test_iam_permissions(
-            resource=project,
-            permissions=[role],
-        )
-
         request = iam_policy_pb2.GetIamPolicyRequest(resource=project)
         policy = self._cloud_resource_manager_client.get_iam_policy(request=request)
 
