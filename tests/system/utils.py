@@ -28,8 +28,6 @@ import pytest
 
 from bigframes.functions import remote_function
 
-FIRST_GCS_FILE_SUFFIX = "000000000000"
-
 
 def skip_legacy_pandas(test):
     @functools.wraps(test)
@@ -306,3 +304,7 @@ def delete_cloud_function(
     request = functions_v2.DeleteFunctionRequest(name=full_name)
     operation = functions_client.delete_function(request=request)
     return operation
+
+
+def get_first_file_from_wildcard(path):
+    return path.replace("*", "000000000000")
