@@ -206,6 +206,7 @@ quarter_op = create_unary_op(name="quarter", type_rule=op_typing.INTEGER)
 second_op = create_unary_op(name="second", type_rule=op_typing.INTEGER)
 time_op = create_unary_op(name="time", type_rule=op_typing.INTEGER)
 year_op = create_unary_op(name="year", type_rule=op_typing.INTEGER)
+normalize_op = create_unary_op(name="normalize")
 ## Trigonometry Ops
 sin_op = create_unary_op(name="sin", type_rule=op_typing.REAL_NUMERIC)
 cos_op = create_unary_op(name="cos", type_rule=op_typing.REAL_NUMERIC)

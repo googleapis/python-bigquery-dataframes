@@ -266,3 +266,19 @@ def test_dt_strftime_time():
         bf_result, expected_result, check_index_type=False, check_dtype=False
     )
     assert bf_result.dtype == "string[pyarrow]"
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
+    DATETIME_COL_NAMES,
+)
+def test_dt_normalize(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.dt.normalize().to_pandas()
+    pd_result = scalars_pandas_df[col_name].dt.normalize()
+
+    assert_series_equal(
+        pd_result.astype(pd.Int64Dtype()),
+        bf_result,
+    )

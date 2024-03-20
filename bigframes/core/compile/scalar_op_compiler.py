@@ -632,6 +632,11 @@ def year_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).year().cast(ibis_dtypes.int64)
 
 
+@scalar_op_compiler.register_unary_op(ops.normalize_op)
+def normalize_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.TimestampValue, x).truncate("D")
+
+
 # Parameterized ops
 @scalar_op_compiler.register_unary_op(ops.StructFieldOp, pass_op=True)
 def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
