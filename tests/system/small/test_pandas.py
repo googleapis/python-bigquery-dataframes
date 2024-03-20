@@ -540,6 +540,7 @@ def test_to_datetime_series(scalars_dfs):
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
+
 @pytest.mark.parametrize(
     ("arg", "unit"),
     [
@@ -555,15 +556,12 @@ def test_to_datetime_series(scalars_dfs):
     ],
 )
 def test_to_datetime_unit_param(arg, unit):
-    bf_result = (
-        bpd.to_datetime(arg, unit=unit)
-        .to_pandas()
-        .astype("datetime64[ns]")
-    )
+    bf_result = bpd.to_datetime(arg, unit=unit).to_pandas().astype("datetime64[ns]")
     pd_result = pd.Series(pd.to_datetime(arg, unit=unit)).dt.floor("us")
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
+
 
 @pytest.mark.parametrize(
     ("arg", "utc", "format"),
@@ -571,7 +569,7 @@ def test_to_datetime_unit_param(arg, unit):
         ([20230110, 20230101, 20230101], False, "%Y%m%d"),
         ([201301.01], False, "%Y%m.%d"),
         (["2023-01-10", "2023-01-20", "2023-01-01"], True, "%Y-%m-%d"),
-        (['2014-08-15 07:19'], True, "%Y-%m-%d %H:%M"),
+        (["2014-08-15 07:19"], True, "%Y-%m-%d %H:%M"),
     ],
 )
 def test_to_datetime_format_param(arg, utc, format):
@@ -580,9 +578,7 @@ def test_to_datetime_format_param(arg, utc, format):
         .to_pandas()
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
-    pd_result = pd.Series(
-        pd.to_datetime(arg, utc=utc, format=format)
-    ).dt.floor("us")
+    pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )

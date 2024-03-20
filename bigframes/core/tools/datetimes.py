@@ -74,9 +74,7 @@ def to_datetime(
         )
 
     if format and unit and arg.dtype in ("Int64", "Float64"):  # type: ignore
-        raise ValueError(
-            f"cannot specify both format and unit"
-        )
+        raise ValueError(f"cannot specify both format and unit")
 
     if unit and arg.dtype not in ("Int64", "Float64"):  # type: ignore
         raise NotImplementedError(
