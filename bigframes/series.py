@@ -21,7 +21,7 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, Mapping, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
@@ -289,6 +289,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dtype_backend: Union[None, Literal["pyarrow"]] = None,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -311,6 +312,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dtype_backend (str, default None):
+                Controls dtypes returns. Options include:
+
+                * ``None``: a mix of dtypes, optimizing correctness and compatibility.
+                * ``"pyarrow"``: pyarrow-backed ArrowDtype for all columns.
 
 
         Returns:
@@ -322,6 +328,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            dtype_backend=dtype_backend,
         )
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)

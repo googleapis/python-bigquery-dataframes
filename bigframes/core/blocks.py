@@ -26,7 +26,7 @@ import functools
 import itertools
 import random
 import typing
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
@@ -415,11 +415,16 @@ class Block:
         level_names = [self.col_id_to_index_name[index_id] for index_id in ids]
         return Block(self.expr, ids, self.column_labels, level_names)
 
-    def _to_dataframe(self, result) -> pd.DataFrame:
+    def _to_dataframe(
+        self, result, dtype_backend: Union[None, Literal["pyarrow"]] = None
+    ) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
+
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self.session._rows_to_dataframe(result, dtypes)
+        return self.session._rows_to_dataframe(
+            result, dtypes, dtype_backend=dtype_backend
+        )
 
     def to_pandas(
         self,
@@ -428,6 +433,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dtype_backend: Union[None, Literal["pyarrow"]] = None,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
@@ -447,7 +453,8 @@ class Block:
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
                 downsampling=sampling, ordered=ordered
-            )
+            ),
+            dtype_backend=dtype_backend,
         )
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
@@ -486,7 +493,9 @@ class Block:
             df.index.names = self.index.names  # type: ignore
 
     def _materialize_local(
-        self, materialize_options: MaterializationOptions = MaterializationOptions()
+        self,
+        materialize_options: MaterializationOptions = MaterializationOptions(),
+        dtype_backend: Union[None, Literal["pyarrow"]] = None,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
@@ -538,7 +547,10 @@ class Block:
             )
         else:
             total_rows = results_iterator.total_rows
-            df = self._to_dataframe(results_iterator)
+            df = self._to_dataframe(
+                results_iterator,
+                dtype_backend=dtype_backend,
+            )
             self._copy_index_to_pandas(df)
 
         return df, query_job

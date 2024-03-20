@@ -49,7 +49,8 @@ def _arrow_to_pandas_arrowdtype(
 
 
 def arrow_to_pandas(
-    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch], dtypes: Dict
+    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch],
+    dtypes: Dict,
 ):
     if len(dtypes) != arrow_table.num_columns:
         raise ValueError(

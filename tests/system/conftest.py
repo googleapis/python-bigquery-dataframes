@@ -425,6 +425,17 @@ def scalars_pandas_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_pandas_df_index_pyarrow() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    if pd.__version__.startswith("1."):
+        pytest.skip("dtype_backend='pyarrow' not supported in pandas 1.x")
+
+    df = pd.read_json(DATA_DIR / "scalars.jsonl", lines=True, dtype_backend="pyarrow")
+    return df.set_index("rowindex").sort_index()
+
+
+@pytest.fixture(scope="session")
 def scalars_pandas_df_multi_index(
     scalars_pandas_df_default_index: pd.DataFrame,
 ) -> pd.DataFrame:

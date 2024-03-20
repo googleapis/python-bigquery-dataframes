@@ -1788,10 +1788,24 @@ class Session(
         return table.num_bytes
 
     def _rows_to_dataframe(
-        self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
+        self,
+        row_iterator: bigquery.table.RowIterator,
+        dtypes: Dict,
+        dtype_backend: Union[None, Literal["pyarrow"]] = None,
     ) -> pandas.DataFrame:
         arrow_table = row_iterator.to_arrow()
-        return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+
+        if dtype_backend is None:
+            return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+        elif dtype_backend == "pyarrow":
+            return pandas.DataFrame(
+                {
+                    name: pandas.Series(value, dtype=pandas.ArrowDtype(value.type))
+                    for name, value in zip(arrow_table.column_names, arrow_table)
+                }
+            )
+        else:
+            raise ValueError(f"got unexpected dtype_backend={repr(dtype_backend)}")
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
         if bigframes.options.display.progress_bar is not None:

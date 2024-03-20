@@ -1032,6 +1032,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dtype_backend: Union[None, Literal["pyarrow"]] = None,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1054,6 +1055,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dtype_backend (str, default None):
+                Controls dtypes returns. Options include:
+
+                * ``None``: a mix of dtypes, optimizing correctness and compatibility.
+                * ``"pyarrow"``: pyarrow-backed ArrowDtype for all columns.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
@@ -1066,6 +1072,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            dtype_backend=dtype_backend,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)

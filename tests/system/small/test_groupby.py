@@ -240,12 +240,14 @@ def test_dataframe_groupby_multi_sum(
     ],
 )
 def test_dataframe_groupby_analytic(
-    scalars_df_index, scalars_pandas_df_index, operator
+    scalars_df_index, scalars_pandas_df_index_pyarrow, operator
 ):
-    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
-    bf_result = operator(scalars_df_index[col_names].groupby("string_col"))
-    pd_result = operator(scalars_pandas_df_index[col_names].groupby("string_col"))
-    bf_result_computed = bf_result.to_pandas()
+    df_bf = scalars_df_index
+    df_pd = scalars_pandas_df_index_pyarrow
+    col_names = ["float64_col", "int64_col", "bool_col", "int64_too"]
+    bf_result = operator(df_bf[col_names].groupby("int64_too"))
+    pd_result = operator(df_pd[col_names].groupby("int64_too"))
+    bf_result_computed = bf_result.to_pandas(dtype_backend="pyarrow")
 
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
