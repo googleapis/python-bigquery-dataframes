@@ -34,6 +34,13 @@ class WindowOp:
 
 
 @dataclasses.dataclass(frozen=True)
+class NullaryWindowOp(WindowOp):
+    @property
+    def arguments(self) -> int:
+        return 0
+
+
+@dataclasses.dataclass(frozen=True)
 class UnaryWindowOp(WindowOp):
     @property
     def arguments(self) -> int:
@@ -56,6 +63,13 @@ class AggregateOp(WindowOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
+    @property
+    def arguments(self) -> int:
+        return 0
+
+
+@dataclasses.dataclass(frozen=True)
 class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
     @property
     def arguments(self) -> int:
@@ -67,6 +81,11 @@ class BinaryAggregateOp(AggregateOp):
     @property
     def arguments(self) -> int:
         return 2
+
+
+@dataclasses.dataclass(frozen=True)
+class SizeOp(NullaryAggregateOp):
+    name: ClassVar[str] = "size"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -270,6 +289,7 @@ class CovOp(BinaryAggregateOp):
     name: ClassVar[str] = "cov"
 
 
+size_op = SizeOp()
 sum_op = SumOp()
 mean_op = MeanOp()
 median_op = MedianOp()

@@ -41,6 +41,11 @@ class Aggregation(abc.ABC):
 
 
 @dataclasses.dataclass(frozen=True)
+class NullaryAggregation(Aggregation):
+    op: agg_ops.NullaryWindowOp = dataclasses.field()
+
+
+@dataclasses.dataclass(frozen=True)
 class UnaryAggregation(Aggregation):
     op: agg_ops.UnaryWindowOp = dataclasses.field()
     arg: Union[

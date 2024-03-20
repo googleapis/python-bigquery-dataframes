@@ -35,6 +35,8 @@ def compile_aggregate(
     aggregate: ex.Aggregation,
     bindings: typing.Dict[str, ibis_types.Value],
 ) -> ibis_types.Value:
+    if isinstance(aggregate, ex.NullaryAggregation):
+        return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         return compile_unary_agg(
@@ -54,7 +56,9 @@ def compile_analytic(
     window: window_spec.WindowSpec,
     bindings: typing.Dict[str, ibis_types.Value],
 ) -> ibis_types.Value:
-    if isinstance(aggregate, ex.UnaryAggregation):
+    if isinstance(aggregate, ex.NullaryAggregation):
+        return compile_nullary_agg(aggregate.op, window)
+    elif isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         return compile_unary_agg(aggregate.op, input, window)
     elif isinstance(aggregate, ex.BinaryAggregation):
@@ -81,6 +85,14 @@ def compile_unary_agg(
     raise ValueError(f"Can't compile unrecognized operation: {op}")
 
 
+@functools.singledispatch
+def compile_nullary_agg(
+    op: agg_ops.WindowOp,
+    window: Optional[window_spec.WindowSpec] = None,
+) -> ibis_types.Value:
+    raise ValueError(f"Can't compile unrecognized operation: {op}")
+
+
 def numeric_op(operation):
     @functools.wraps(operation)
     def constrained_op(op, column: ibis_types.Column, window=None):
@@ -99,6 +111,11 @@ def numeric_op(operation):
 
 
 ### Specific Op implementations Below
+
+
+@compile_nullary_agg.register
+def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
+    return _apply_window_if_present(vendored_ibis_ops.count(1), window)
 
 
 @compile_unary_agg.register

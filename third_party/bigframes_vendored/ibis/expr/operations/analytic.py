@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import ibis
 import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
+
+
+@ibis.udf.agg.builtin
+def count(value: int) -> int:
+    """Count of a scalar."""
+    return 0  # pragma: NO COVER
 
 
 class FirstNonNullValue(ops.Analytic):
@@ -21,6 +28,7 @@ class LastNonNullValue(ops.Analytic):
 
 
 __all__ = [
+    "count",
     "FirstNonNullValue",
     "LastNonNullValue",
 ]
