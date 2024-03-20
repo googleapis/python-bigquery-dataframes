@@ -56,8 +56,7 @@ class DatelikeOps:
                         start='2014-08-01 10:00',
                         freq='h',
                         periods=3,
-                        tz='Asia/Calcutta')
-                    ) # note timezones will be converted to UTC here
+                        tz='Asia/Calcutta')) # note timezones will be converted to UTC here
             >>> s.dt.normalize()
             0    2014-08-01 00:00:00+00:00
             1    2014-08-01 00:00:00+00:00
