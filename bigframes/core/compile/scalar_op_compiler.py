@@ -634,7 +634,9 @@ def year_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.normalize_op)
 def normalize_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.TimestampValue, x).truncate("D")
+    result_type = x.type()
+    result = x.truncate("D")
+    return result.cast(result_type)
 
 
 # Parameterized ops

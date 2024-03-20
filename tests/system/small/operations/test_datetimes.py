@@ -279,6 +279,6 @@ def test_dt_normalize(scalars_dfs, col_name):
     pd_result = scalars_pandas_df[col_name].dt.normalize()
 
     assert_series_equal(
-        pd_result.astype(pd.Int64Dtype()),
+        pd_result.astype(bf_series.dtype), # normalize preserves type
         bf_result,
     )
