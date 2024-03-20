@@ -93,6 +93,23 @@ def test_df_construct_from_dict():
     )
 
 
+def test_df_construct_inline_respects_location():
+    import bigframes.pandas as bpd
+
+    bpd.close_session()
+    bpd.options.bigquery.location = "europe-west1"
+
+    df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    repr(df)
+
+    table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
+    assert table.location == "europe-west1"
+
+    # Reset global session
+    bpd.close_session()
+    bpd.options.bigquery.location = "us"
+
+
 def test_get_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -157,15 +174,13 @@ def test_tail_with_custom_column_labels(scalars_df_index, scalars_pandas_df_inde
     ],
 )
 def test_df_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
-    bf_result = scalars_df_index.nlargest(
-        3, ["bool_col", "int64_too"], keep=keep
-    ).to_pandas()
+    bf_result = scalars_df_index.nlargest(3, ["bool_col", "int64_too"], keep=keep)
     pd_result = scalars_pandas_df_index.nlargest(
         3, ["bool_col", "int64_too"], keep=keep
     )
 
     pd.testing.assert_frame_equal(
-        bf_result,
+        bf_result.to_pandas(),
         pd_result,
     )
 
@@ -179,11 +194,11 @@ def test_df_nlargest(scalars_df_index, scalars_pandas_df_index, keep):
     ],
 )
 def test_df_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
-    bf_result = scalars_df_index.nsmallest(6, ["bool_col"], keep=keep).to_pandas()
+    bf_result = scalars_df_index.nsmallest(6, ["bool_col"], keep=keep)
     pd_result = scalars_pandas_df_index.nsmallest(6, ["bool_col"], keep=keep)
 
     pd.testing.assert_frame_equal(
-        bf_result,
+        bf_result.to_pandas(),
         pd_result,
     )
 
@@ -414,14 +429,14 @@ def test_rename(scalars_dfs):
 
 def test_df_peek(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    peek_result = scalars_df.peek(n=3)
+    peek_result = scalars_df.peek(n=3, force=False)
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
 
 def test_df_peek_filtered(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    peek_result = scalars_df[scalars_df.int64_col != 0].peek(n=3)
+    peek_result = scalars_df[scalars_df.int64_col != 0].peek(n=3, force=False)
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -434,9 +449,9 @@ def test_df_peek_exception(scalars_dfs):
         scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=False)
 
 
-def test_df_peek_force(scalars_dfs):
+def test_df_peek_force_default(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    peek_result = scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3, force=True)
+    peek_result = scalars_df[["int64_col", "int64_too"]].cumsum().peek(n=3)
     pd.testing.assert_index_equal(
         scalars_pandas_df[["int64_col", "int64_too"]].columns, peek_result.columns
     )
@@ -827,6 +842,7 @@ def test_assign_callable_lambda(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("axis", "how", "ignore_index"),
     [
@@ -837,8 +853,6 @@ def test_assign_callable_lambda(scalars_dfs):
     ],
 )
 def test_df_dropna(scalars_dfs, axis, how, ignore_index):
-    if pd.__version__.startswith("1."):
-        pytest.skip("ignore_index parameter not supported in pandas 1.x.")
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df.dropna(axis=axis, how=how, ignore_index=ignore_index)
     bf_result = df.to_pandas()
@@ -846,6 +860,21 @@ def test_df_dropna(scalars_dfs, axis, how, ignore_index):
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@skip_legacy_pandas
+def test_df_dropna_range_columns(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    scalars_df = scalars_df.copy()
+    scalars_pandas_df = scalars_pandas_df.copy()
+    scalars_df.columns = pandas.RangeIndex(0, len(scalars_df.columns))
+    scalars_pandas_df.columns = pandas.RangeIndex(0, len(scalars_pandas_df.columns))
+
+    df = scalars_df.dropna()
+    bf_result = df.to_pandas()
+    pd_result = scalars_pandas_df.dropna()
+
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -983,6 +1012,31 @@ def test_apply_series_scalar_callable(
     pd_result = scalars_pandas_df_index[columns].apply(lambda x: x.sum())
 
     pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_df_pipe(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    columns = ["int64_too", "int64_col"]
+
+    def foo(x: int, y: int, df):
+        return (df + x) % y
+
+    bf_result = (
+        scalars_df_index[columns]
+        .pipe((foo, "df"), x=7, y=9)
+        .pipe(lambda x: x**2)
+        .to_pandas()
+    )
+
+    pd_result = (
+        scalars_pandas_df_index[columns]
+        .pipe((foo, "df"), x=7, y=9)
+        .pipe(lambda x: x**2)
+    )
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_df_keys(
@@ -2016,11 +2070,23 @@ def test_join_same_table(scalars_dfs, how):
     bf_df, pd_df = scalars_dfs
 
     bf_df_a = bf_df.set_index("int64_too")[["string_col", "int64_col"]]
+    bf_df_a = bf_df_a.sort_index()
+
     bf_df_b = bf_df.set_index("int64_too")[["float64_col"]]
+    bf_df_b = bf_df_b[bf_df_b.float64_col > 0]
+    bf_df_b = bf_df_b.sort_values("float64_col")
+
     bf_result = bf_df_a.join(bf_df_b, how=how).to_pandas()
-    pd_df_a = pd_df.set_index("int64_too")[["string_col", "int64_col"]]
+
+    pd_df_a = pd_df.set_index("int64_too")[["string_col", "int64_col"]].sort_index()
+    pd_df_a = pd_df_a.sort_index()
+
     pd_df_b = pd_df.set_index("int64_too")[["float64_col"]]
+    pd_df_b = pd_df_b[pd_df_b.float64_col > 0]
+    pd_df_b = pd_df_b.sort_values("float64_col")
+
     pd_result = pd_df_a.join(pd_df_b, how=how)
+
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 

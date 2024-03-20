@@ -29,6 +29,7 @@ import typing
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
+import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import google.cloud.bigquery as bigquery
 import pandas as pd
 
@@ -36,6 +37,7 @@ import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
+import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
@@ -45,7 +47,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
-import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -140,7 +141,7 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
 
     @classmethod
-    def from_local(cls, data) -> Block:
+    def from_local(cls, data, session: bigframes.Session) -> Block:
         pd_data = pd.DataFrame(data)
         columns = pd_data.columns
 
@@ -162,7 +163,7 @@ class Block:
         )
         index_ids = pd_data.columns[: len(index_labels)]
 
-        keys_expr = core.ArrayValue.from_pandas(pd_data)
+        keys_expr = core.ArrayValue.from_pandas(pd_data, session)
         return cls(
             keys_expr,
             column_labels=columns,
@@ -701,7 +702,7 @@ class Block:
         block = Block(
             array_val,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, label],
+            column_labels=self.column_labels.insert(len(self.column_labels), label),
             index_labels=self.index.names,
         )
         return (block, result_id)
@@ -793,7 +794,7 @@ class Block:
         if skip_null_groups:
             for key in window_spec.grouping_keys:
                 block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
-                block = block.filter(not_null_id).drop_columns([not_null_id])
+                block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
         result_id = guid.generate_guid()
         expr = block._expr.project_window_op(
             column,
@@ -806,7 +807,9 @@ class Block:
         block = Block(
             expr,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
+            column_labels=self.column_labels.insert(
+                len(self.column_labels), result_label
+            ),
             index_labels=self._index_labels,
         )
         return (block, result_id)
@@ -850,9 +853,17 @@ class Block:
         )
         return self.with_column_labels(new_labels)
 
-    def filter(self, column_id: str, keep_null: bool = False):
+    def filter_by_id(self, column_id: str, keep_null: bool = False):
         return Block(
             self._expr.filter_by_id(column_id, keep_null),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
+
+    def filter(self, predicate: scalars.Expression):
+        return Block(
+            self._expr.filter(predicate),
             index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self.index.names,
@@ -1086,8 +1097,11 @@ class Block:
             unpivot_columns=tuple(columns),
             index_col_ids=tuple([label_col_id]),
         )
-        labels = self._get_labels_for_columns(column_ids)
-        return Block(expr, column_labels=labels, index_columns=[label_col_id])
+        return Block(
+            expr,
+            column_labels=self._get_labels_for_columns(column_ids),
+            index_columns=[label_col_id],
+        )
 
     def corr(self):
         """Returns a block object to compute the self-correlation on this block."""
@@ -1156,10 +1170,10 @@ class Block:
 
         return stats
 
-    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
+    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]) -> pd.Index:
         """Get column label for value columns, or index name for index columns"""
-        lookup = self.col_id_to_label
-        return [lookup.get(col_id, None) for col_id in column_ids]
+        indices = [self.value_columns.index(col_id) for col_id in column_ids]
+        return self.column_labels.take(indices, allow_fill=False)
 
     def _normalize_expression(
         self,
@@ -1255,7 +1269,7 @@ class Block:
 
         for cond in conditions:
             block, cond_id = block.project_expr(cond)
-            block = block.filter(cond_id)
+            block = block.filter_by_id(cond_id)
 
         return block.select_columns(self.value_columns)
 
@@ -1292,7 +1306,7 @@ class Block:
             Block(
                 expr,
                 index_columns=self.index_columns,
-                column_labels=[label, *self.column_labels],
+                column_labels=self.column_labels.insert(0, label),
                 index_labels=self._index_labels,
             ),
             result_id,
@@ -1391,10 +1405,9 @@ class Block:
         if values_in_index or len(values) > 1:
             value_labels = self._get_labels_for_columns(values)
             column_index = self._create_pivot_column_index(value_labels, columns_values)
+            return result_block.with_column_labels(column_index)
         else:
-            column_index = columns_values
-
-        return result_block.with_column_labels(column_index)
+            return result_block.with_column_labels(columns_values)
 
     def stack(self, how="left", levels: int = 1):
         """Unpivot last column axis level into row axis"""
@@ -1517,8 +1530,8 @@ class Block:
 
     @staticmethod
     def _create_pivot_column_index(
-        value_labels: Sequence[typing.Hashable], columns_values: pd.Index
-    ):
+        value_labels: pd.Index, columns_values: pd.Index
+    ) -> pd.Index:
         index_parts = []
         for value in value_labels:
             as_frame = columns_values.to_frame()

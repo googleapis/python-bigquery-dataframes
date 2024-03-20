@@ -39,13 +39,12 @@ dependencies = [
     "geopandas >=0.12.2",
     "google-auth >=2.15.0,<3.0dev",
     "google-cloud-bigquery[bqstorage,pandas] >=3.10.0",
-    "google-cloud-functions >=1.10.1",
+    "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    # TODO: Relax upper bound once we have fixed unit tests with 7.2.0.
-    "ibis-framework[bigquery] >=7.1.0,<7.2.0dev",
+    "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
     # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
     "pandas >=1.5.0,<2.1.4",
     "pydata-google-auth >=1.8.2",
@@ -55,10 +54,11 @@ dependencies = [
     # Keep sqlglot versions in sync with ibis-framework. This avoids problems
     # where the incorrect version of sqlglot is installed, such as
     # https://github.com/googleapis/python-bigquery-dataframes/issues/315
-    "sqlglot >=19.9.0,<20",
+    "sqlglot >=20.8.0,<=20.11",
     "tabulate >= 0.9",
     "ipywidgets >=7.7.1",
     "humanize >= 4.6.0",
+    "matplotlib >= 3.7.1",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
@@ -88,7 +88,11 @@ version_id = version["__version__"]
 packages = [
     package
     for package in setuptools.find_namespace_packages()
-    if package.startswith("bigframes") or package.startswith("third_party")
+    if package.startswith("bigframes")
+] + [
+    package
+    for package in setuptools.find_namespace_packages("third_party")
+    if package.startswith("bigframes_vendored")
 ]
 
 setuptools.setup(
@@ -115,6 +119,10 @@ setuptools.setup(
     install_requires=dependencies,
     extras_require=extras,
     platforms="Posix; MacOS X; Windows",
+    package_dir={
+        "bigframes": "bigframes",
+        "bigframes_vendored": "third_party/bigframes_vendored",
+    },
     packages=packages,
     python_requires=">=3.9",
     include_package_data=True,

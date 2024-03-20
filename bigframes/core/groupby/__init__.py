@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import typing
 
+import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 import pandas as pd
 
 import bigframes.constants as constants
@@ -30,7 +31,6 @@ import bigframes.dataframe as df
 import bigframes.dtypes as dtypes
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 
 @log_adapter.class_logger
@@ -358,8 +358,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
-            dtype in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
-            for dtype in self._block.dtypes
+            self._column_type(col) in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+            for col in self._selected_cols
         ):
             raise NotImplementedError(
                 f"'{op}' does not support non-numeric columns. "

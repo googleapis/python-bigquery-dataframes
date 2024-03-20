@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy as np
 import pandas as pd
 
 from bigframes import constants
-from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -3935,6 +3935,11 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=False).head(n)``, but more
         performant.
 
+        .. note::
+            This function cannot be used with all column types. For example, when
+            specifying columns with `object` or `category` dtypes, ``TypeError`` is
+            raised.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -4002,11 +4007,6 @@ class DataFrame(NDFrame):
 
         Returns:
             DataFrame: The first `n` rows ordered by the given columns in descending order.
-
-        .. note::
-            This function cannot be used with all column types. For example, when
-            specifying columns with `object` or `category` dtypes, ``TypeError`` is
-            raised.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4021,6 +4021,12 @@ class DataFrame(NDFrame):
         This method is equivalent to
         ``df.sort_values(columns, ascending=True).head(n)``, but more
         performant.
+
+        .. note::
+
+            This function cannot be used with all column types. For example, when
+            specifying columns with `object` or `category` dtypes, ``TypeError`` is
+            raised.
 
         **Examples:**
 
@@ -4090,11 +4096,6 @@ class DataFrame(NDFrame):
 
         Returns:
             DataFrame: The first `n` rows ordered by the given columns in ascending order.
-
-        .. note::
-            This function cannot be used with all column types. For example, when
-            specifying columns with `object` or `category` dtypes, ``TypeError`` is
-            raised.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5110,17 +5111,38 @@ class DataFrame(NDFrame):
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def dot(self, other):
@@ -5221,5 +5243,16 @@ class DataFrame(NDFrame):
                 If `other` is a Series, return the matrix product between self and
                 other as a Series. If other is a DataFrame, return
                 the matrix product of self and other in a DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def plot(self):
+        """
+        Make plots of Dataframes.
+
+        Returns:
+            bigframes.operations.plotting.PlotAccessor:
+                An accessor making plots.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

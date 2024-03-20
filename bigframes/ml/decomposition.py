@@ -17,26 +17,32 @@ https://scikit-learn.org/stable/modules/decomposition.html."""
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
+import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.decomposition._pca
 
 
 @log_adapter.class_logger
 class PCA(
     base.UnsupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.decomposition._pca.PCA,
+    bigframes_vendored.sklearn.decomposition._pca.PCA,
 ):
-    __doc__ = third_party.bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
+    __doc__ = bigframes_vendored.sklearn.decomposition._pca.PCA.__doc__
 
-    def __init__(self, n_components: int = 3):
+    def __init__(
+        self,
+        n_components: int = 3,
+        *,
+        svd_solver: Literal["full", "randomized", "auto"] = "auto",
+    ):
         self.n_components = n_components
+        self.svd_solver = svd_solver
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -44,12 +50,14 @@ class PCA(
     def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> PCA:
         assert model.model_type == "PCA"
 
-        kwargs = {}
+        kwargs: dict = {}
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
         if "numPrincipalComponents" in last_fitting:
             kwargs["n_components"] = int(last_fitting["numPrincipalComponents"])
+        if "pcaSolver" in last_fitting:
+            kwargs["svd_solver"] = str(last_fitting["pcaSolver"])
 
         new_pca = cls(**kwargs)
         new_pca._bqml_model = core.BqmlModel(session, model)
@@ -69,6 +77,7 @@ class PCA(
             options={
                 "model_type": "PCA",
                 "num_principal_components": self.n_components,
+                "pca_solver": self.svd_solver,
             },
         )
         return self
@@ -109,6 +118,34 @@ class PCA(
         (X,) = utils.convert_to_dataframe(X)
 
         return self._bqml_model.predict(X)
+
+    def detect_anomalies(
+        self, X: Union[bpd.DataFrame, bpd.Series], *, contamination: float = 0.1
+    ) -> bpd.DataFrame:
+        """Detect the anomaly data points of the input.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Series or a DataFrame to detect anomalies.
+            contamination (float, default 0.1):
+                Identifies the proportion of anomalies in the training dataset that are used to create the model.
+                The value must be in the range [0, 0.5].
+
+        Returns:
+            bigframes.dataframe.DataFrame: detected DataFrame."""
+        if contamination < 0.0 or contamination > 0.5:
+            raise ValueError(
+                f"contamination must be [0.0, 0.5], but is {contamination}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before detect_anomalies")
+
+        (X,) = utils.convert_to_dataframe(X)
+
+        return self._bqml_model.detect_anomalies(
+            X, options={"contamination": contamination}
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
         """Save the model to BigQuery.
