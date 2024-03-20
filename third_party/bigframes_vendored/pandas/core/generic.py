@@ -162,7 +162,7 @@ class NDFrame(indexing.IndexingMixin):
             0    2023010000246789
             1    1624123244123101
             2    1054834234120101
-            Name: 0, dtype: Int64
+            dtype: Int64
 
         Args:
             dtype (str or pandas.ExtensionDtype):
