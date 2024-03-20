@@ -2497,7 +2497,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
-        sort: Optional[bool] = False,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> DataFrame:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")

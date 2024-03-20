@@ -472,7 +472,7 @@ class NDFrame(indexing.IndexingMixin):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
-        sort: Optional[bool] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ):
         """Return a random sample of items from an axis of object.
 
@@ -531,12 +531,12 @@ class NDFrame(indexing.IndexingMixin):
                 Fraction of axis items to return. Cannot be used with `n`.
             random_state (Optional[int], default None):
                 Seed for random number generator.
-            sort (Optional[bool], default False):
+            sort (Optional[bool|Literal["random"]], default "random"):
 
-                - 'False' (default): No specific ordering will be applied after
+                - 'random' (default): No specific ordering will be applied after
                   sampling.
                 - 'True' : Index columns will determine the sample's order.
-                - None: The sample will retain the original object's order.
+                - 'False': The sample will retain the original object's order.
 
         Returns:
             A new object of same type as caller containing `n` items randomly

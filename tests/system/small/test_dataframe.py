@@ -3022,10 +3022,14 @@ def test_sample_args_sort(scalars_dfs):
     assert df.index.values != index
     assert df.index.values != sorted(index)
 
+    df = scalars_df.sample(sort="random", **kwargs).to_pandas()
+    assert df.index.values != index
+    assert df.index.values != sorted(index)
+
     df = scalars_df.sample(sort=True, **kwargs).to_pandas()
     assert df.index.values == sorted(index)
 
-    df = scalars_df.sample(sort=None, **kwargs).to_pandas()
+    df = scalars_df.sample(sort=False, **kwargs).to_pandas()
     assert df.index.values == index
 
 
