@@ -14,11 +14,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+import abc
+from dataclasses import dataclass, field, fields, replace
 import functools
 import itertools
 import typing
-from typing import Tuple
+from typing import Callable, Tuple
 
 import pandas
 
@@ -100,6 +101,19 @@ class BigFrameNode:
         )
         return set(roots)
 
+    @functools.cached_property
+    @abc.abstractmethod
+    def complexity(self) -> int:
+        """A crude measure of the query complexity. Not necessarily predictive of the complexity of the actual computation."""
+        ...
+
+    @abc.abstractmethod
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        """Apply a function to each child node."""
+        ...
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -108,6 +122,15 @@ class UnaryNode(BigFrameNode):
     @property
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return (self.child,)
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return replace(self, child=t(self.child))
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
 
 
 @dataclass(frozen=True)
@@ -138,6 +161,18 @@ class JoinNode(BigFrameNode):
         single_root = len(self.roots) == 1
         return children_peekable and single_root
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        child_complexity = sum(child.complexity for child in self.child_nodes)
+        return child_complexity * 2
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return replace(
+            self, left_child=t(self.left_child), right_child=t(self.right_child)
+        )
+
 
 @dataclass(frozen=True)
 class ConcatNode(BigFrameNode):
@@ -149,6 +184,16 @@ class ConcatNode(BigFrameNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        child_complexity = sum(child.complexity for child in self.child_nodes)
+        return child_complexity * 2
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return replace(self, children=tuple(t(child) for child in self.children))
 
 
 # Input Nodex
@@ -167,6 +212,16 @@ class ReadLocalNode(BigFrameNode):
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
         return {self}
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        # TODO: Set to number of columns once this is more readily available
+        return 500
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
 
 
 # TODO: Refactor to take raw gbq object reference
@@ -193,6 +248,15 @@ class ReadGbqNode(BigFrameNode):
     def roots(self) -> typing.Set[BigFrameNode]:
         return {self}
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return len(self.columns) + 5
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
 
 # Unary nodes
 @dataclass(frozen=True)
@@ -210,6 +274,10 @@ class PromoteOffsetsNode(UnaryNode):
     def non_local(self) -> bool:
         return False
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity * 2
+
 
 @dataclass(frozen=True)
 class FilterNode(UnaryNode):
@@ -222,6 +290,10 @@ class FilterNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
+
 
 @dataclass(frozen=True)
 class OrderByNode(UnaryNode):
@@ -229,6 +301,10 @@ class OrderByNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
 
 
 @dataclass(frozen=True)
@@ -239,6 +315,10 @@ class ReversedNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
+
 
 @dataclass(frozen=True)
 class ProjectionNode(UnaryNode):
@@ -246,6 +326,10 @@ class ProjectionNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
 
 
 # TODO: Merge RowCount into Aggregate Node?
@@ -259,6 +343,10 @@ class RowCountNode(UnaryNode):
     @property
     def non_local(self) -> bool:
         return True
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
 
 
 @dataclass(frozen=True)
@@ -282,6 +370,10 @@ class AggregateNode(UnaryNode):
     def non_local(self) -> bool:
         return True
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity * 2
+
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
@@ -303,11 +395,21 @@ class WindowOpNode(UnaryNode):
     def non_local(self) -> bool:
         return True
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        if self.skip_reproject_unsafe:
+            return self.child.complexity
+        return self.child.complexity * 2
+
 
 @dataclass(frozen=True)
 class ReprojectOpNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity * 2
 
 
 @dataclass(frozen=True)
@@ -338,6 +440,10 @@ class UnpivotNode(UnaryNode):
     def peekable(self) -> bool:
         return False
 
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity * 2
+
 
 @dataclass(frozen=True)
 class RandomSampleNode(UnaryNode):
@@ -350,6 +456,10 @@ class RandomSampleNode(UnaryNode):
     @property
     def row_preserving(self) -> bool:
         return False
+
+    @functools.cached_property
+    def complexity(self) -> int:
+        return self.child.complexity + 1
 
     def __hash__(self):
         return self._node_hash
