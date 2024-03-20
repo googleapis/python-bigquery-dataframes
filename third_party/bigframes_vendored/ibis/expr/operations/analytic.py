@@ -7,6 +7,8 @@ import ibis.expr.operations as ops
 import ibis.expr.rules as rlz
 
 
+# TODO(swast): We can remove this if ibis adds aggregates over scalar values.
+# See: https://github.com/ibis-project/ibis/issues/8698
 @ibis.udf.agg.builtin
 def count(value: int) -> int:
     """Count of a scalar."""
