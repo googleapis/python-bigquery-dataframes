@@ -19,7 +19,11 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from tests.system.utils import assert_pandas_df_equal, convert_pandas_dtypes
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    convert_pandas_dtypes,
+    FIRST_GCS_FILE_SUFFIX,
+)
 
 try:
     import pandas_gbq  # type: ignore
@@ -149,7 +153,7 @@ def test_to_csv_index(
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
     gcs_df = pd.read_csv(
-        path.replace("*", "000000000000"),
+        path.replace("*", FIRST_GCS_FILE_SUFFIX),
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
@@ -187,7 +191,7 @@ def test_to_csv_tabs(
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
     gcs_df = pd.read_csv(
-        path.replace("*", "000000000000"),
+        path.replace("*", FIRST_GCS_FILE_SUFFIX),
         sep="\t",
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
@@ -433,7 +437,7 @@ def test_to_json_index_records_orient(
     scalars_df.to_json(path, index=index, orient="records", lines=True)
 
     gcs_df = pd.read_json(
-        path.replace("*", "000000000000"),
+        path.replace("*", FIRST_GCS_FILE_SUFFIX),
         lines=True,
         convert_dates=["datetime_col"],
     )
@@ -475,7 +479,7 @@ def test_to_parquet_index(scalars_dfs, gcs_folder, index):
     # table.
     scalars_df.to_parquet(path, index=index)
 
-    gcs_df = pd.read_parquet(path.replace("*", "000000000000"))
+    gcs_df = pd.read_parquet(path.replace("*", FIRST_GCS_FILE_SUFFIX))
     convert_pandas_dtypes(gcs_df, bytes_col=False)
     if index and scalars_df.index.name is not None:
         gcs_df = gcs_df.set_index(scalars_df.index.name)

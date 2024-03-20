@@ -28,6 +28,8 @@ import pytest
 
 from bigframes.functions import remote_function
 
+FIRST_GCS_FILE_SUFFIX = "000000000000"
+
 
 def skip_legacy_pandas(test):
     @functools.wraps(test)
