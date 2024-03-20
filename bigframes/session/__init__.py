@@ -230,7 +230,7 @@ class Session(
     def bqconnectionmanager(self):
         if not self._skip_bq_connection_check and not self._bq_connection_manager:
             self._bq_connection_manager = bigframes.clients.BqConnectionManager(
-                self.session.bqconnectionclient, self.session.resourcemanagerclient
+                self.bqconnectionclient, self.resourcemanagerclient
             )
         return self._bq_connection_manager
 
