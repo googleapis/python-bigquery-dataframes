@@ -209,7 +209,7 @@ def test_scatter(scalars_dfs):
 
 
 def test_sampling_plot_args_n():
-    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLE_N * 10), columns=["one"])
+    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLING_N * 10), columns=["one"])
     ax = df.plot.line()
     assert len(ax.lines) == 1
     assert len(ax.lines[0].get_data()[1]) == bf_mpl.DEFAULT_SAMPLING_N
