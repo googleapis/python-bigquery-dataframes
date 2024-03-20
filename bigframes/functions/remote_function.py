@@ -814,7 +814,7 @@ def remote_function(
             " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
         )
 
-    bq_connection_manager = False if session is None else session.bqconnectionmanager
+    bq_connection_manager = None if session is None else session.bqconnectionmanager
 
     def wrapper(f):
         if not callable(f):
