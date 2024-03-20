@@ -26,7 +26,7 @@ import functools
 import itertools
 import random
 import typing
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
@@ -563,7 +563,7 @@ class Block:
             block = self._split(
                 fracs=(fraction,),
                 random_state=random_state,
-                sort=None,
+                sort=False,
             )[0]
             return block
         else:
@@ -579,7 +579,7 @@ class Block:
         fracs: Iterable[float] = (),
         *,
         random_state: Optional[int] = None,
-        sort: Optional[bool] = False,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> List[Block]:
         """Internal function to support splitting Block to multiple parts along index axis.
 
@@ -642,7 +642,7 @@ class Block:
                 )
                 for sliced_block in sliced_blocks
             ]
-        elif sort is None:
+        elif sort is False:
             sliced_blocks = [
                 sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
                 for sliced_block in sliced_blocks

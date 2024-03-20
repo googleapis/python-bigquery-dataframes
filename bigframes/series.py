@@ -21,7 +21,7 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, Mapping, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
@@ -1529,7 +1529,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
-        sort: Optional[bool] = False,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> Series:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
