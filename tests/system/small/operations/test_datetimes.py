@@ -272,6 +272,7 @@ def test_dt_strftime_time():
     ("col_name",),
     DATETIME_COL_NAMES,
 )
+@skip_legacy_pandas
 def test_dt_normalize(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
