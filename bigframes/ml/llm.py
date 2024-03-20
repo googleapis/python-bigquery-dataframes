@@ -73,16 +73,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = (
-            None
-            if self.session._skip_bq_connection_check
-            else clients.BqConnectionManager(
-                self.session.bqconnectionclient, self.session.resourcemanagerclient
-            )
-        )
+        self._bq_connection_manager = self.session._bq_connection_manager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.BqConnectionManager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -295,16 +289,10 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         self.model_name = model_name
         self.version = version
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = (
-            None
-            if self.session._skip_bq_connection_check
-            else clients.BqConnectionManager(
-                self.session.bqconnectionclient, self.session.resourcemanagerclient
-            )
-        )
+        self._bq_connection_manager = self.session._bq_connection_manager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.BqConnectionManager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -449,16 +437,10 @@ class GeminiTextGenerator(base.BaseEstimator):
         connection_name: Optional[str] = None,
     ):
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = (
-            None
-            if self.session._skip_bq_connection_check
-            else clients.BqConnectionManager(
-                self.session.bqconnectionclient, self.session.resourcemanagerclient
-            )
-        )
+        self._bq_connection_manager = self.session._bq_connection_manager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.BqConnectionManager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,

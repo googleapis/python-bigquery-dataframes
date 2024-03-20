@@ -39,8 +39,6 @@ from typing import (
 )
 import warnings
 
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
 import bigframes_vendored.ibis.backends.bigquery  # noqa
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -71,7 +69,10 @@ from pandas._typing import (
     StorageOptions,
 )
 
+# Even though the ibis.backends.bigquery import is unused, it's needed
+# to register new and replacement ops with the Ibis BigQuery backend.
 import bigframes._config.bigquery_options as bigquery_options
+import bigframes.clients
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -137,7 +138,7 @@ class Session(
             Configuration adjusting how to connect to BigQuery and related
             APIs. Note that some options are ignored if ``clients_provider`` is
             set.
-        clients_provider (bigframes.session.bigframes.session.clients.ClientsProvider):
+        clients_provider (bigframes.session.clients.ClientsProvider):
             An object providing client library objects.
     """
 
@@ -222,6 +223,16 @@ class Session(
     @property
     def resourcemanagerclient(self):
         return self._clients_provider.resourcemanagerclient
+
+    _bq_connection_manager: Optional[bigframes.clients.BqConnectionManager] = None
+
+    @property
+    def bqconnectionmanager(self):
+        if not self._skip_bq_connection_check and not self._bq_connection_manager:
+            self._bq_connection_manager = bigframes.clients.BqConnectionManager(
+                self.session.bqconnectionclient, self.session.resourcemanagerclient
+            )
+        return self._bq_connection_manager
 
     @property
     def _project(self):

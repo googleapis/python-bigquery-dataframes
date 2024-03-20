@@ -33,24 +33,23 @@ class BigQueryOptions:
 
     def __init__(
         self,
-        *,
         credentials: Optional[google.auth.credentials.Credentials] = None,
         project: Optional[str] = None,
         location: Optional[str] = None,
-        use_regional_endpoints: bool = False,
         bq_connection: Optional[str] = None,
-        skip_bq_connection_check: bool = False,
+        use_regional_endpoints: bool = False,
         application_name: Optional[str] = None,
         kms_key_name: Optional[str] = None,
+        skip_bq_connection_check: bool = False,
     ):
         self._credentials = credentials
         self._project = project
         self._location = location
-        self._use_regional_endpoints = use_regional_endpoints
         self._bq_connection = bq_connection
-        self._skip_bq_connection_check = skip_bq_connection_check
+        self._use_regional_endpoints = use_regional_endpoints
         self._application_name = application_name
         self._kms_key_name = kms_key_name
+        self._skip_bq_connection_check = skip_bq_connection_check
         self._session_started = False
 
     @property

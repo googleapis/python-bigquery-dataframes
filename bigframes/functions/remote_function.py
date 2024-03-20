@@ -782,7 +782,7 @@ def remote_function(
     if not bigquery_connection:
         bigquery_connection = session._bq_connection  # type: ignore
 
-    bigquery_connection = clients.BqConnectionManager.resolve_full_connection_name(
+    bigquery_connection = clients.resolve_full_bq_connection_name(
         bigquery_connection,
         default_project=dataset_ref.project,
         default_location=bq_location,
@@ -814,16 +814,7 @@ def remote_function(
             " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
         )
 
-    skip_bq_connection_check = (
-        False if session is None else session._skip_bq_connection_check
-    )
-    bq_connection_manager = (
-        None
-        if skip_bq_connection_check
-        else clients.BqConnectionManager(
-            bigquery_connection_client, resource_manager_client
-        )
-    )
+    bq_connection_manager = False if session is None else session.bqconnectionmanager
 
     def wrapper(f):
         if not callable(f):
