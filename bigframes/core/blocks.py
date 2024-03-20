@@ -563,7 +563,7 @@ class Block:
             block = self._split(
                 fracs=(fraction,),
                 random_state=random_state,
-                preserve_order=True,
+                sort=None,
             )[0]
             return block
         else:
@@ -579,7 +579,7 @@ class Block:
         fracs: Iterable[float] = (),
         *,
         random_state: Optional[int] = None,
-        preserve_order: Optional[bool] = False,
+        sort: Optional[bool] = False,
     ) -> List[Block]:
         """Internal function to support splitting Block to multiple parts along index axis.
 
@@ -631,7 +631,18 @@ class Block:
             typing.cast(Block, block.slice(start=lower, stop=upper))
             for lower, upper in intervals
         ]
-        if preserve_order:
+
+        if sort is True:
+            sliced_blocks = [
+                sliced_block.order_by(
+                    [
+                        ordering.OrderingColumnReference(idx_col)
+                        for idx_col in sliced_block.index_columns
+                    ]
+                )
+                for sliced_block in sliced_blocks
+            ]
+        elif sort is None:
             sliced_blocks = [
                 sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
                 for sliced_block in sliced_blocks
