@@ -149,11 +149,10 @@ def test_to_csv_index(
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
     gcs_df = pd.read_csv(
-        path,
+        path.replace("*", "000000000000"),
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
-        storage_options=dict(expand=True),
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -188,12 +187,11 @@ def test_to_csv_tabs(
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
     gcs_df = pd.read_csv(
-        path,
+        path.replace("*", "000000000000"),
         sep="\t",
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
-        storage_options=dict(expand=True),
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -435,10 +433,9 @@ def test_to_json_index_records_orient(
     scalars_df.to_json(path, index=index, orient="records", lines=True)
 
     gcs_df = pd.read_json(
-        path,
+        path.replace("*", "000000000000"),
         lines=True,
         convert_dates=["datetime_col"],
-        storage_options=dict(expand=True),
     )
     convert_pandas_dtypes(gcs_df, bytes_col=True)
     if index and scalars_df.index.name is not None:
