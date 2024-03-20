@@ -16,6 +16,7 @@ import numpy as np
 import pandas._testing as tm
 import pytest
 
+import bigframes.operations._matplotlib.core as bf_mpl
 import bigframes.pandas as bpd
 
 
@@ -208,11 +209,10 @@ def test_scatter(scalars_dfs):
 
 
 def test_sampling_plot_args_n():
-    df = bpd.DataFrame(np.arange(1000), columns=["one"])
+    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLE_N * 10), columns=["one"])
     ax = df.plot.line()
     assert len(ax.lines) == 1
-    # Default sampling_n is 100
-    assert len(ax.lines[0].get_data()[1]) == 100
+    assert len(ax.lines[0].get_data()[1]) == bf_mpl.DEFAULT_SAMPLING_N
 
     ax = df.plot.line(sampling_n=2)
     assert len(ax.lines) == 1
@@ -220,7 +220,7 @@ def test_sampling_plot_args_n():
 
 
 def test_sampling_plot_args_random_state():
-    df = bpd.DataFrame(np.arange(10000), columns=["one"])
+    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLING_N * 10), columns=["one"])
     ax_0 = df.plot.line()
     ax_1 = df.plot.line()
     ax_2 = df.plot.line(sampling_random_state=100)
