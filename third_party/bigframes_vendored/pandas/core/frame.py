@@ -1673,6 +1673,17 @@ class DataFrame(NDFrame):
         """
         Iterate over DataFrame rows as namedtuples.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> next(df.itertuples(name="Pair"))
+            Pair(Index=0, A=1, B=4)
+
         Args:
             index (bool, default True):
                 If True, return the index as the first element of the tuple.
@@ -1685,18 +1696,6 @@ class DataFrame(NDFrame):
                 An object to iterate over namedtuples for each row in the
                 DataFrame with the first field possibly being the index and
                 following fields being the column values.
-
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> next(df.itertuples(name="Pair"))
-            Pair(Index=0, A=1, B=4)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
