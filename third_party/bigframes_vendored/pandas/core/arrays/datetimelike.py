@@ -73,7 +73,7 @@ class DatelikeOps:
         Perform floor operation on the data to the specified freq.
 
         Supported freq arguments are: 'Y' (year), 'Q' (quarter), 'M'
-        (month), 'W' (week), 'D' (day), 'h' (hour), 'm' (minute), 's'
+        (month), 'W' (week), 'D' (day), 'h' (hour), 'min' (minute), 's'
         (second), 'ms' (microsecond), 'us' (nanosecond), 'ns' (nanosecond)
 
         Behavior around clock changes (i.e. daylight savings) is determined
