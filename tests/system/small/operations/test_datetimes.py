@@ -293,6 +293,7 @@ def test_dt_normalize(scalars_dfs, col_name):
         ("datetime_col", "us"),
     ],
 )
+@skip_legacy_pandas
 def test_dt_floor(scalars_dfs, col_name, freq):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].dt.floor(freq).to_pandas()
