@@ -52,7 +52,6 @@ PREDICATE_COLUMN = "bigframes_predicate"
 T = typing.TypeVar("T", bound="BaseIbisIR")
 
 op_compiler = op_compilers.scalar_op_compiler
-ibis_backend = ibis_bigquery.Backend()
 
 
 class BaseIbisIR(abc.ABC):
@@ -221,7 +220,7 @@ class UnorderedIR(BaseIbisIR):
         # Peek currently implemented as top level LIMIT op.
         # Execution engine handles limit pushdown.
         # In future, may push down limit/filters in compilation.
-        sql = ibis_backend.compile(self._to_ibis_expr().limit(n))
+        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
         return typing.cast(str, sql)
 
     def to_sql(
@@ -232,7 +231,7 @@ class UnorderedIR(BaseIbisIR):
     ) -> str:
         if offset_column or sorted:
             raise ValueError("Cannot produce sorted sql in unordered mode")
-        sql = ibis_backend.compile(
+        sql = ibis_bigquery.Backend().compile(
             self._to_ibis_expr(
                 col_id_overrides=col_id_overrides,
             )
@@ -978,7 +977,7 @@ class OrderedIR(BaseIbisIR):
         if sorted:
             # Need to bake ordering expressions into the selected column in order for our ordering clause builder to work.
             baked_ir = self._bake_ordering()
-            sql = ibis_backend.compile(
+            sql = ibis_bigquery.Backend().compile(
                 baked_ir._to_ibis_expr(
                     ordering_mode="unordered",
                     col_id_overrides=col_id_overrides,
@@ -1002,7 +1001,7 @@ class OrderedIR(BaseIbisIR):
                 f"{order_by_clause}\n"
             )
         else:
-            sql = ibis_backend.compile(
+            sql = ibis_bigquery.Backend().compile(
                 self._to_ibis_expr(
                     ordering_mode="unordered",
                     col_id_overrides=col_id_overrides,
@@ -1241,6 +1240,7 @@ class OrderedIR(BaseIbisIR):
             columns=self.columns,
             hidden_ordering_columns=[*self._hidden_ordering_columns, *new_baked_cols],
             ordering=ordering,
+            predicates=self._predicates,
         )
 
     def _project_offsets(self) -> OrderedIR:
