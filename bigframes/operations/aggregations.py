@@ -99,6 +99,9 @@ class BinaryAggregateOp(AggregateOp):
 class SizeOp(NullaryAggregateOp):
     name: ClassVar[str] = "size"
 
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
 
 @dataclasses.dataclass(frozen=True)
 class SumOp(UnaryAggregateOp):

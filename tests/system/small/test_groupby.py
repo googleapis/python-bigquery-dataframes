@@ -18,10 +18,10 @@ import pytest
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
 
-
 # =================
 # DataFrame.groupby
 # =================
+
 
 @pytest.mark.parametrize(
     ("operator"),
@@ -362,9 +362,11 @@ def test_dataframe_groupby_nonnumeric_with_mean():
         pd_result, bf_result, check_index_type=False, check_dtype=False
     )
 
+
 # ==============
 # Series.groupby
 # ==============
+
 
 def test_series_groupby_agg_string(scalars_df_index, scalars_pandas_df_index):
     bf_result = (
