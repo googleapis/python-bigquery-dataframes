@@ -26,18 +26,19 @@ import functools
 import itertools
 import random
 import typing
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery as bigquery
 import pandas as pd
+import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
+import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
-import bigframes.core.indexes as indexes
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
 import bigframes.core.utils
@@ -46,7 +47,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
-import third_party.bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -103,11 +103,11 @@ class Block:
     ):
         """Construct a block object, will create default index if no index columns specified."""
         index_columns = list(index_columns)
-        if index_labels:
+        if index_labels is not None:
             index_labels = list(index_labels)
             if len(index_labels) != len(index_columns):
                 raise ValueError(
-                    "'index_columns' and 'index_labels' must have equal length"
+                    f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
         if len(index_columns) == 0:
             new_index_col_id = guid.generate_guid()
@@ -140,10 +140,32 @@ class Block:
 
         self._stats_cache[" ".join(self.index_columns)] = {}
 
+    @classmethod
+    def from_local(cls, data: pd.DataFrame, session: bigframes.Session) -> Block:
+        # Assumes caller has already converted datatypes to bigframes ones.
+        pd_data = data
+        column_labels = pd_data.columns
+        index_labels = list(pd_data.index.names)
+
+        # unique internal ids
+        column_ids = [f"column_{i}" for i in range(len(pd_data.columns))]
+        index_ids = [f"level_{level}" for level in range(pd_data.index.nlevels)]
+
+        pd_data = pd_data.set_axis(column_ids, axis=1)
+        pd_data = pd_data.reset_index(names=index_ids)
+        as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
+        array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
+        return cls(
+            array_value,
+            column_labels=column_labels,
+            index_columns=index_ids,
+            index_labels=index_labels,
+        )
+
     @property
-    def index(self) -> indexes.IndexValue:
+    def index(self) -> BlockIndexProperties:
         """Row identities for values in the Block."""
-        return indexes.IndexValue(self)
+        return BlockIndexProperties(self)
 
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
@@ -166,11 +188,6 @@ class Block:
     def index_columns(self) -> Sequence[str]:
         """Column(s) to use as row labels."""
         return self._index_columns
-
-    @property
-    def index_labels(self) -> Sequence[Label]:
-        """Name of column(s) to use as row labels."""
-        return self._index_labels
 
     @property
     def value_columns(self) -> Sequence[str]:
@@ -196,13 +213,6 @@ class Block:
     ) -> Sequence[bigframes.dtypes.Dtype]:
         """Returns the dtypes of the value columns."""
         return [self.expr.get_column_type(col) for col in self.value_columns]
-
-    @property
-    def index_dtypes(
-        self,
-    ) -> Sequence[bigframes.dtypes.Dtype]:
-        """Returns the dtypes of the index columns."""
-        return [self.expr.get_column_type(col) for col in self.index_columns]
 
     @property
     def session(self) -> core.Session:
@@ -287,7 +297,6 @@ class Block:
             A new Block because dropping index columns can break references
             from Index classes that point to this block.
         """
-        block = self
         new_index_col_id = guid.generate_guid()
         expr = self._expr.promote_offsets(new_index_col_id)
         if drop:
@@ -295,7 +304,7 @@ class Block:
             # ordering expression as reset_index shouldn't change the row
             # order.
             expr = expr.drop_columns(self.index_columns)
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=self.column_labels,
@@ -321,13 +330,12 @@ class Block:
                 # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
                 column_labels_modified = column_labels_modified.insert(level, label)
 
-            block = Block(
+            return Block(
                 expr,
                 index_columns=[new_index_col_id],
                 column_labels=column_labels_modified,
                 index_labels=[None],
             )
-        return block
 
     def set_index(
         self,
@@ -400,7 +408,7 @@ class Block:
 
     def _to_dataframe(self, result) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
-        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         return self.session._rows_to_dataframe(result, dtypes)
 
@@ -432,11 +440,21 @@ class Block:
                 downsampling=sampling, ordered=ordered
             )
         )
+        df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
+
+    def try_peek(self, n: int = 20) -> typing.Optional[pd.DataFrame]:
+        if self.expr.node.peekable:
+            iterator, _ = self.session._peek(self.expr, n)
+            df = self._to_dataframe(iterator)
+            self._copy_index_to_pandas(df)
+            return df
+        else:
+            return None
 
     def to_pandas_batches(self):
         """Download results one message at a time."""
-        dtypes = dict(zip(self.index_columns, self.index_dtypes))
+        dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         results_iterator, _ = self.session._execute(self.expr, sorted=True)
         for arrow_table in results_iterator.to_arrow_iterable(
@@ -457,6 +475,7 @@ class Block:
             # general Sequence[Label] that BigQuery DataFrames has.
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
+        df.columns = self.column_labels
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
@@ -536,7 +555,7 @@ class Block:
             block = self._split(
                 fracs=(fraction,),
                 random_state=random_state,
-                preserve_order=True,
+                sort=False,
             )[0]
             return block
         else:
@@ -552,7 +571,7 @@ class Block:
         fracs: Iterable[float] = (),
         *,
         random_state: Optional[int] = None,
-        preserve_order: Optional[bool] = False,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> List[Block]:
         """Internal function to support splitting Block to multiple parts along index axis.
 
@@ -604,7 +623,18 @@ class Block:
             typing.cast(Block, block.slice(start=lower, stop=upper))
             for lower, upper in intervals
         ]
-        if preserve_order:
+
+        if sort is True:
+            sliced_blocks = [
+                sliced_block.order_by(
+                    [
+                        ordering.OrderingColumnReference(idx_col)
+                        for idx_col in sliced_block.index_columns
+                    ]
+                )
+                for sliced_block in sliced_blocks
+            ]
+        elif sort is False:
             sliced_blocks = [
                 sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
                 for sliced_block in sliced_blocks
@@ -675,7 +705,7 @@ class Block:
         block = Block(
             array_val,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, label],
+            column_labels=self.column_labels.insert(len(self.column_labels), label),
             index_labels=self.index.names,
         )
         return (block, result_id)
@@ -767,7 +797,7 @@ class Block:
         if skip_null_groups:
             for key in window_spec.grouping_keys:
                 block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
-                block = block.filter(not_null_id).drop_columns([not_null_id])
+                block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
         result_id = guid.generate_guid()
         expr = block._expr.project_window_op(
             column,
@@ -780,7 +810,9 @@ class Block:
         block = Block(
             expr,
             index_columns=self.index_columns,
-            column_labels=[*self.column_labels, result_label],
+            column_labels=self.column_labels.insert(
+                len(self.column_labels), result_label
+            ),
             index_labels=self._index_labels,
         )
         return (block, result_id)
@@ -824,7 +856,7 @@ class Block:
         )
         return self.with_column_labels(new_labels)
 
-    def filter(self, column_id: str, keep_null: bool = False):
+    def filter_by_id(self, column_id: str, keep_null: bool = False):
         return Block(
             self._expr.filter_by_id(column_id, keep_null),
             index_columns=self.index_columns,
@@ -832,9 +864,17 @@ class Block:
             index_labels=self.index.names,
         )
 
+    def filter(self, predicate: scalars.Expression):
+        return Block(
+            self._expr.filter(predicate),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
+
     def aggregate_all_and_stack(
         self,
-        operation: agg_ops.AggregateOp,
+        operation: agg_ops.UnaryAggregateOp,
         *,
         axis: int | str = 0,
         value_col_id: str = "values",
@@ -846,7 +886,8 @@ class Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
             aggregations = [
-                (col_id, operation, col_id) for col_id in self.value_columns
+                (ex.UnaryAggregation(operation, ex.free_var(col_id)), col_id)
+                for col_id in self.value_columns
             ]
             index_col_ids = [
                 guid.generate_guid() for i in range(self.column_labels.nlevels)
@@ -876,10 +917,13 @@ class Block:
                 dtype=dtype,
             )
             index_aggregations = [
-                (col_id, agg_ops.AnyValueOp(), col_id)
+                (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
                 for col_id in [*self.index_columns]
             ]
-            main_aggregation = (value_col_id, operation, value_col_id)
+            main_aggregation = (
+                ex.UnaryAggregation(operation, ex.free_var(value_col_id)),
+                value_col_id,
+            )
             result_expr = stacked_expr.aggregate(
                 [*index_aggregations, main_aggregation],
                 by_column_ids=[offset_col],
@@ -889,7 +933,7 @@ class Block:
                 result_expr.drop_columns([offset_col]),
                 self.index_columns,
                 column_labels=[None],
-                index_labels=self.index_labels,
+                index_labels=self.index.names,
             )
 
     def select_column(self, id: str) -> Block:
@@ -940,7 +984,7 @@ class Block:
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str] = (),
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp]] = (),
+        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.UnaryAggregateOp]] = (),
         *,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
@@ -953,10 +997,13 @@ class Block:
             dropna: whether null keys should be dropped
         """
         agg_specs = [
-            (input_id, operation, guid.generate_guid())
+            (
+                ex.UnaryAggregation(operation, ex.free_var(input_id)),
+                guid.generate_guid(),
+            )
             for input_id, operation in aggregations
         ]
-        output_col_ids = [agg_spec[2] for agg_spec in agg_specs]
+        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
 
         aggregate_labels = self._get_labels_for_columns(
@@ -978,7 +1025,7 @@ class Block:
             output_col_ids,
         )
 
-    def get_stat(self, column_id: str, stat: agg_ops.AggregateOp):
+    def get_stat(self, column_id: str, stat: agg_ops.UnaryAggregateOp):
         """Gets aggregates immediately, and caches it"""
         if stat.name in self._stats_cache[column_id]:
             return self._stats_cache[column_id][stat.name]
@@ -988,7 +1035,10 @@ class Block:
         standard_stats = self._standard_stats(column_id)
         stats_to_fetch = standard_stats if stat in standard_stats else [stat]
 
-        aggregations = [(column_id, stat, stat.name) for stat in stats_to_fetch]
+        aggregations = [
+            (ex.UnaryAggregation(stat, ex.free_var(column_id)), stat.name)
+            for stat in stats_to_fetch
+        ]
         expr = self.expr.aggregate(aggregations)
         offset_index_id = guid.generate_guid()
         expr = expr.promote_offsets(offset_index_id)
@@ -1004,37 +1054,40 @@ class Block:
         self._stats_cache[column_id].update(stats_map)
         return stats_map[stat.name]
 
-    def get_corr_stat(self, column_id_left: str, column_id_right: str):
+    def get_binary_stat(
+        self, column_id_left: str, column_id_right: str, stat: agg_ops.BinaryAggregateOp
+    ):
         # TODO(kemppeterson): Clean up the column names for DataFrames.corr support
         # TODO(kemppeterson): Add a cache here.
-        corr_aggregations = [
+        aggregations = [
             (
-                column_id_left,
-                column_id_right,
-                "corr_" + column_id_left + column_id_right,
+                ex.BinaryAggregation(
+                    stat, ex.free_var(column_id_left), ex.free_var(column_id_right)
+                ),
+                f"{stat.name}_{column_id_left}{column_id_right}",
             )
         ]
-        expr = self.expr.corr_aggregate(corr_aggregations)
+        expr = self.expr.aggregate(aggregations)
         offset_index_id = guid.generate_guid()
         expr = expr.promote_offsets(offset_index_id)
         block = Block(
             expr,
             index_columns=[offset_index_id],
-            column_labels=[a[2] for a in corr_aggregations],
+            column_labels=[a[1] for a in aggregations],
         )
         df, _ = block.to_pandas()
-        return df.loc[0, "corr_" + column_id_left + column_id_right]
+        return df.loc[0, f"{stat.name}_{column_id_left}{column_id_right}"]
 
     def summarize(
         self,
         column_ids: typing.Sequence[str],
-        stats: typing.Sequence[agg_ops.AggregateOp],
+        stats: typing.Sequence[agg_ops.UnaryAggregateOp],
     ):
         """Get a list of stats as a deferred block object."""
         label_col_id = guid.generate_guid()
         labels = [stat.name for stat in stats]
         aggregations = [
-            (col_id, stat, f"{col_id}-{stat.name}")
+            (ex.UnaryAggregation(stat, ex.free_var(col_id)), f"{col_id}-{stat.name}")
             for stat in stats
             for col_id in column_ids
         ]
@@ -1047,10 +1100,53 @@ class Block:
             unpivot_columns=tuple(columns),
             index_col_ids=tuple([label_col_id]),
         )
-        labels = self._get_labels_for_columns(column_ids)
-        return Block(expr, column_labels=labels, index_columns=[label_col_id])
+        return Block(
+            expr,
+            column_labels=self._get_labels_for_columns(column_ids),
+            index_columns=[label_col_id],
+        )
 
-    def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.AggregateOp]:
+    def corr(self):
+        """Returns a block object to compute the self-correlation on this block."""
+        aggregations = [
+            (
+                ex.BinaryAggregation(
+                    agg_ops.CorrOp(), ex.free_var(left_col), ex.free_var(right_col)
+                ),
+                f"{left_col}-{right_col}",
+            )
+            for left_col in self.value_columns
+            for right_col in self.value_columns
+        ]
+        expr = self.expr.aggregate(aggregations)
+
+        index_col_ids = [
+            guid.generate_guid() for i in range(self.column_labels.nlevels)
+        ]
+        input_count = len(self.value_columns)
+        unpivot_columns = tuple(
+            (
+                guid.generate_guid(),
+                tuple(expr.column_ids[input_count * i : input_count * (i + 1)]),
+            )
+            for i in range(input_count)
+        )
+        labels = self._get_labels_for_columns(self.value_columns)
+
+        expr = expr.unpivot(
+            row_labels=labels,
+            index_col_ids=index_col_ids,
+            unpivot_columns=unpivot_columns,
+        )
+
+        return Block(
+            expr,
+            column_labels=self.column_labels,
+            index_columns=index_col_ids,
+            index_labels=self.column_labels.names,
+        )
+
+    def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
         Gets a standard set of stats to preemptively fetch for a column if
         any other stat is fetched.
@@ -1061,7 +1157,7 @@ class Block:
         """
         # TODO: annotate aggregations themself with this information
         dtype = self.expr.get_column_type(column_id)
-        stats: list[agg_ops.AggregateOp] = [agg_ops.count_op]
+        stats: list[agg_ops.UnaryAggregateOp] = [agg_ops.count_op]
         if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
             stats += [agg_ops.min_op, agg_ops.max_op]
         if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
@@ -1077,10 +1173,10 @@ class Block:
 
         return stats
 
-    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]):
+    def _get_labels_for_columns(self, column_ids: typing.Sequence[str]) -> pd.Index:
         """Get column label for value columns, or index name for index columns"""
-        lookup = self.col_id_to_label
-        return [lookup.get(col_id, None) for col_id in column_ids]
+        indices = [self.value_columns.index(col_id) for col_id in column_ids]
+        return self.column_labels.take(indices, allow_fill=False)
 
     def _normalize_expression(
         self,
@@ -1176,7 +1272,7 @@ class Block:
 
         for cond in conditions:
             block, cond_id = block.project_expr(cond)
-            block = block.filter(cond_id)
+            block = block.filter_by_id(cond_id)
 
         return block.select_columns(self.value_columns)
 
@@ -1213,7 +1309,7 @@ class Block:
             Block(
                 expr,
                 index_columns=self.index_columns,
-                column_labels=[label, *self.column_labels],
+                column_labels=self.column_labels.insert(0, label),
                 index_labels=self._index_labels,
             ),
             result_id,
@@ -1312,10 +1408,9 @@ class Block:
         if values_in_index or len(values) > 1:
             value_labels = self._get_labels_for_columns(values)
             column_index = self._create_pivot_column_index(value_labels, columns_values)
+            return result_block.with_column_labels(column_index)
         else:
-            column_index = columns_values
-
-        return result_block.with_column_labels(column_index)
+            return result_block.with_column_labels(columns_values)
 
     def stack(self, how="left", levels: int = 1):
         """Unpivot last column axis level into row axis"""
@@ -1438,8 +1533,8 @@ class Block:
 
     @staticmethod
     def _create_pivot_column_index(
-        value_labels: Sequence[typing.Hashable], columns_values: pd.Index
-    ):
+        value_labels: pd.Index, columns_values: pd.Index
+    ) -> pd.Index:
         index_parts = []
         for value in value_labels:
             as_frame = columns_values.to_frame()
@@ -1626,6 +1721,37 @@ class Block:
         expr = joined_expr.promote_offsets(offset_index_id)
         return Block(expr, index_columns=[offset_index_id], column_labels=labels)
 
+    def join(
+        self,
+        other: Block,
+        *,
+        how="left",
+        sort=False,
+        block_identity_join: bool = False,
+    ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+        if not isinstance(other, Block):
+            # TODO(swast): We need to improve this error message to be more
+            # actionable for the user. For example, it's possible they
+            # could call set_index and try again to resolve this error.
+            raise ValueError(
+                f"Tried to join with an unexpected type: {type(other)}. {constants.FEEDBACK_LINK}"
+            )
+
+        # TODO(swast): Support cross-joins (requires reindexing).
+        if how not in {"outer", "left", "right", "inner"}:
+            raise NotImplementedError(
+                f"Only how='outer','left','right','inner' currently supported. {constants.FEEDBACK_LINK}"
+            )
+        if self.index.nlevels == other.index.nlevels == 1:
+            return join_mono_indexed(
+                self, other, how=how, sort=sort, block_identity_join=block_identity_join
+            )
+        else:
+            # Always sort mult-index join
+            return join_multi_indexed(
+                self, other, how=how, sort=sort, block_identity_join=block_identity_join
+            )
+
     def _force_reproject(self) -> Block:
         """Forces a reprojection of the underlying tables expression. Used to force predicate/order application before subsequent operations."""
         return Block(
@@ -1662,7 +1788,7 @@ class Block:
                 return empty lists.
         """
         array_value = self._expr
-        col_labels, idx_labels = list(self.column_labels), list(self.index_labels)
+        col_labels, idx_labels = list(self.column_labels), list(self.index.names)
         old_col_ids, old_idx_ids = list(self.value_columns), list(self.index_columns)
 
         if not include_index:
@@ -1687,32 +1813,23 @@ class Block:
             idx_labels,
         )
 
-    def cached(self) -> Block:
+    def cached(self, *, optimize_offsets=False, force: bool = False) -> Block:
         """Write the block to a session table and create a new block object that references it."""
+        # use a heuristic for whether something needs to be cached
+        if (not force) and self.session._is_trivially_executable(self.expr):
+            return self
+        if optimize_offsets:
+            expr = self.session._cache_with_offsets(self.expr)
+        else:
+            expr = self.session._cache_with_cluster_cols(
+                self.expr, cluster_cols=self.index_columns
+            )
         return Block(
-            self.session._execute_and_cache(self.expr, cluster_cols=self.index_columns),
+            expr,
             index_columns=self.index_columns,
             column_labels=self.column_labels,
-            index_labels=self.index_labels,
+            index_labels=self.index.names,
         )
-
-    def resolve_index_level(self, level: LevelsType) -> typing.Sequence[str]:
-        if utils.is_list_like(level):
-            levels = list(level)
-        else:
-            levels = [level]
-        resolved_level_ids = []
-        for level_ref in levels:
-            if isinstance(level_ref, int):
-                resolved_level_ids.append(self.index_columns[level_ref])
-            elif isinstance(level_ref, typing.Hashable):
-                matching_ids = self.index_name_to_col_id.get(level_ref, [])
-                if len(matching_ids) != 1:
-                    raise ValueError("level name cannot be found or is ambiguous")
-                resolved_level_ids.append(matching_ids[0])
-            else:
-                raise ValueError(f"Unexpected level: {level_ref}")
-        return resolved_level_ids
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
@@ -1770,42 +1887,301 @@ class Block:
         return result
 
 
-def block_from_local(data) -> Block:
-    pd_data = pd.DataFrame(data)
-    columns = pd_data.columns
+class BlockIndexProperties:
+    """Accessor for the index-related block properties."""
 
-    # Make a flattened version to treat as a table.
-    if len(pd_data.columns.names) > 1:
-        pd_data.columns = columns.to_flat_index()
+    def __init__(self, block: Block):
+        self._block = block
 
-    index_labels = list(pd_data.index.names)
-    # The ArrayValue layer doesn't know about indexes, so make sure indexes
-    # are real columns with unique IDs.
-    pd_data = pd_data.reset_index(
-        names=[f"level_{level}" for level in range(len(index_labels))]
-    )
-    pd_data = pd_data.set_axis(
-        vendored_pandas_io_common.dedup_names(
-            list(pd_data.columns), is_potential_multiindex=False
+    @property
+    def _expr(self) -> core.ArrayValue:
+        return self._block.expr
+
+    @property
+    def name(self) -> Label:
+        return self._block._index_labels[0]
+
+    @property
+    def names(self) -> typing.Sequence[Label]:
+        return self._block._index_labels
+
+    @property
+    def nlevels(self) -> int:
+        return len(self._block._index_columns)
+
+    @property
+    def dtypes(
+        self,
+    ) -> typing.Sequence[bigframes.dtypes.Dtype]:
+        return [
+            self._block.expr.get_column_type(col) for col in self._block.index_columns
+        ]
+
+    @property
+    def session(self) -> core.Session:
+        return self._expr.session
+
+    @property
+    def column_ids(self) -> Sequence[str]:
+        """Column(s) to use as row labels."""
+        return self._block._index_columns
+
+    def __repr__(self) -> str:
+        """Converts an Index to a string."""
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole index by using job
+        # metadata, like we do with DataFrame.
+        preview = self.to_pandas()
+        return repr(preview)
+
+    def to_pandas(self) -> pd.Index:
+        """Executes deferred operations and downloads the results."""
+        # Project down to only the index column. So the query can be cached to visualize other data.
+        index_columns = list(self._block.index_columns)
+        dtypes = dict(zip(index_columns, self.dtypes))
+        expr = self._expr.select_columns(index_columns)
+        results, _ = self.session._execute(expr)
+        df = expr.session._rows_to_dataframe(results, dtypes)
+        df = df.set_index(index_columns)
+        index = df.index
+        index.names = list(self._block._index_labels)  # type:ignore
+        return index
+
+    def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
+        if utils.is_list_like(level):
+            levels = list(level)
+        else:
+            levels = [level]
+        resolved_level_ids = []
+        for level_ref in levels:
+            if isinstance(level_ref, int):
+                resolved_level_ids.append(self._block.index_columns[level_ref])
+            elif isinstance(level_ref, typing.Hashable):
+                matching_ids = self._block.index_name_to_col_id.get(level_ref, [])
+                if len(matching_ids) != 1:
+                    raise ValueError("level name cannot be found or is ambiguous")
+                resolved_level_ids.append(matching_ids[0])
+            else:
+                raise ValueError(f"Unexpected level: {level_ref}")
+        return resolved_level_ids
+
+    def resolve_level_exact(self: BlockIndexProperties, label: Label) -> str:
+        matches = self._block.index_name_to_col_id.get(label, [])
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous index level name {label}")
+        if len(matches) == 0:
+            raise ValueError(f"Cannot resolve index level name {label}")
+        return matches[0]
+
+    def is_uniquely_named(self: BlockIndexProperties):
+        return len(set(self.names)) == len(self.names)
+
+
+def join_mono_indexed(
+    left: Block,
+    right: Block,
+    *,
+    how="left",
+    sort=False,
+    block_identity_join: bool = False,
+) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+    left_expr = left.expr
+    right_expr = right.expr
+    left_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in left_expr.column_ids
+    ]
+    right_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in right_expr.column_ids
+    ]
+
+    join_def = join_defs.JoinDefinition(
+        conditions=(
+            join_defs.JoinCondition(left.index_columns[0], right.index_columns[0]),
         ),
-        axis="columns",
+        mappings=(*left_mappings, *right_mappings),
+        type=how,
     )
-    index_ids = pd_data.columns[: len(index_labels)]
+    combined_expr = left_expr.join(
+        right_expr,
+        join_def=join_def,
+        allow_row_identity_join=(not block_identity_join),
+    )
+    get_column_left = join_def.get_left_mapping()
+    get_column_right = join_def.get_right_mapping()
+    # Drop original indices from each side. and used the coalesced combination generated by the join.
+    left_index = get_column_left[left.index_columns[0]]
+    right_index = get_column_right[right.index_columns[0]]
+    # Drop original indices from each side. and used the coalesced combination generated by the join.
+    combined_expr, coalesced_join_cols = coalesce_columns(
+        combined_expr, [left_index], [right_index], how=how
+    )
+    if sort:
+        combined_expr = combined_expr.order_by(
+            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+        )
+    block = Block(
+        combined_expr,
+        index_columns=coalesced_join_cols,
+        column_labels=[*left.column_labels, *right.column_labels],
+        index_labels=[left.index.name]
+        if left.index.name == right.index.name
+        else [None],
+    )
+    return (
+        block,
+        (get_column_left, get_column_right),
+    )
 
-    keys_expr = core.ArrayValue.from_pandas(pd_data)
-    return Block(
-        keys_expr,
-        column_labels=columns,
-        index_columns=index_ids,
+
+def join_multi_indexed(
+    left: Block,
+    right: Block,
+    *,
+    how="left",
+    sort=False,
+    block_identity_join: bool = False,
+) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+    if not (left.index.is_uniquely_named() and right.index.is_uniquely_named()):
+        raise ValueError("Joins not supported on indices with non-unique level names")
+
+    common_names = [name for name in left.index.names if name in right.index.names]
+    if len(common_names) == 0:
+        raise ValueError("Cannot join without a index level in common.")
+
+    left_only_names = [
+        name for name in left.index.names if name not in right.index.names
+    ]
+    right_only_names = [
+        name for name in right.index.names if name not in left.index.names
+    ]
+
+    left_join_ids = [left.index.resolve_level_exact(name) for name in common_names]
+    right_join_ids = [right.index.resolve_level_exact(name) for name in common_names]
+
+    names_fully_match = len(left_only_names) == 0 and len(right_only_names) == 0
+
+    left_expr = left.expr
+    right_expr = right.expr
+
+    left_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in left_expr.column_ids
+    ]
+    right_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in right_expr.column_ids
+    ]
+
+    join_def = join_defs.JoinDefinition(
+        conditions=tuple(
+            join_defs.JoinCondition(left, right)
+            for left, right in zip(left_join_ids, right_join_ids)
+        ),
+        mappings=(*left_mappings, *right_mappings),
+        type=how,
+    )
+
+    combined_expr = left_expr.join(
+        right_expr,
+        join_def=join_def,
+        # If we're only joining on a subset of the index columns, we need to
+        # perform a true join.
+        allow_row_identity_join=(names_fully_match and not block_identity_join),
+    )
+    get_column_left = join_def.get_left_mapping()
+    get_column_right = join_def.get_right_mapping()
+    left_ids_post_join = [get_column_left[id] for id in left_join_ids]
+    right_ids_post_join = [get_column_right[id] for id in right_join_ids]
+    # Drop original indices from each side. and used the coalesced combination generated by the join.
+    combined_expr, coalesced_join_cols = coalesce_columns(
+        combined_expr, left_ids_post_join, right_ids_post_join, how=how
+    )
+    if sort:
+        combined_expr = combined_expr.order_by(
+            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+        )
+
+    if left.index.nlevels == 1:
+        index_labels = right.index.names
+    elif right.index.nlevels == 1:
+        index_labels = left.index.names
+    else:
+        index_labels = [*common_names, *left_only_names, *right_only_names]
+
+    def resolve_label_id(label: Label) -> str:
+        # if name is shared between both blocks, coalesce the values
+        if label in common_names:
+            return coalesced_join_cols[common_names.index(label)]
+        if label in left_only_names:
+            return get_column_left[left.index.resolve_level_exact(label)]
+        if label in right_only_names:
+            return get_column_right[right.index.resolve_level_exact(label)]
+        raise ValueError(f"Unexpected label: {label}")
+
+    index_columns = [resolve_label_id(label) for label in index_labels]
+
+    block = Block(
+        combined_expr,
+        index_columns=index_columns,
+        column_labels=[*left.column_labels, *right.column_labels],
         index_labels=index_labels,
     )
+    return (
+        block,
+        (get_column_left, get_column_right),
+    )
+
+
+def coalesce_columns(
+    expr: core.ArrayValue,
+    left_ids: typing.Sequence[str],
+    right_ids: typing.Sequence[str],
+    how: str,
+) -> Tuple[core.ArrayValue, Sequence[str]]:
+    result_ids = []
+    for left_id, right_id in zip(left_ids, right_ids):
+        if how == "left" or how == "inner":
+            result_ids.append(left_id)
+            expr = expr.drop_columns([right_id])
+        elif how == "right":
+            result_ids.append(right_id)
+            expr = expr.drop_columns([left_id])
+        elif how == "outer":
+            coalesced_id = guid.generate_guid()
+            expr = expr.project_to_id(
+                ops.coalesce_op.as_expr(left_id, right_id), coalesced_id
+            )
+            expr = expr.drop_columns([left_id, right_id])
+            result_ids.append(coalesced_id)
+        else:
+            raise ValueError(f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}")
+    return expr, result_ids
 
 
 def _cast_index(block: Block, dtypes: typing.Sequence[bigframes.dtypes.Dtype]):
     original_block = block
     result_ids = []
     for idx_id, idx_dtype, target_dtype in zip(
-        block.index_columns, block.index_dtypes, dtypes
+        block.index_columns, block.index.dtypes, dtypes
     ):
         if idx_dtype != target_dtype:
             block, result_id = block.apply_unary_op(idx_id, ops.AsTypeOp(target_dtype))
@@ -1818,10 +2194,12 @@ def _cast_index(block: Block, dtypes: typing.Sequence[bigframes.dtypes.Dtype]):
         expr,
         index_columns=result_ids,
         column_labels=original_block.column_labels,
-        index_labels=original_block.index_labels,
+        index_labels=original_block.index.names,
     )
 
 
+### Schema alignment Utils
+### TODO: Pull out to separate module?
 def _align_block_to_schema(
     block: Block, schema: dict[Label, bigframes.dtypes.Dtype]
 ) -> Block:

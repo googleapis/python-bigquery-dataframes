@@ -26,6 +26,7 @@ import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
 
+import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -35,6 +36,7 @@ from bigframes.core.ordering import (
     IntegerEncoding,
     OrderingColumnReference,
 )
+import bigframes.core.schema as schemata
 import bigframes.core.utils as utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -207,6 +209,13 @@ class UnorderedIR(BaseIbisIR):
             columns=self._columns,
             predicates=self._predicates,
         )
+
+    def peek_sql(self, n: int):
+        # Peek currently implemented as top level LIMIT op.
+        # Execution engine handles limit pushdown.
+        # In future, may push down limit/filters in compilation.
+        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
+        return typing.cast(str, sql)
 
     def to_sql(
         self,
@@ -427,7 +436,7 @@ class UnorderedIR(BaseIbisIR):
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.AggregateOp, str]],
+        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> OrderedIR:
@@ -439,9 +448,10 @@ class UnorderedIR(BaseIbisIR):
             dropna: whether null keys should be dropped
         """
         table = self._to_ibis_expr()
+        bindings = {col: table[col] for col in self.column_ids}
         stats = {
-            col_out: agg_op._as_ibis(table[col_in])
-            for col_in, agg_op, col_out in aggregations
+            col_out: agg_compiler.compile_aggregate(aggregate, bindings)
+            for aggregate, col_out in aggregations
         }
         if by_column_ids:
             result = table.group_by(by_column_ids).aggregate(**stats)
@@ -479,35 +489,6 @@ class UnorderedIR(BaseIbisIR):
                 hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
                 ordering=ordering,
             )
-
-    def corr_aggregate(
-        self, corr_aggregations: typing.Sequence[typing.Tuple[str, str, str]]
-    ) -> OrderedIR:
-        """
-        Get correlations between each lef_column_id and right_column_id, stored in the respective output_column_id.
-        This uses BigQuery's CORR under the hood, and thus only Pearson's method is used.
-        Arguments:
-            corr_aggregations: left_column_id, right_column_id, output_column_id tuples
-        """
-        table = self._to_ibis_expr()
-        stats = {
-            col_out: table[col_left].corr(table[col_right], how="pop")
-            for col_left, col_right, col_out in corr_aggregations
-        }
-        aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
-        result = table.aggregate(**aggregates)
-        # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
-        ordering = ExpressionOrdering(
-            ordering_value_columns=tuple([OrderingColumnReference(ORDER_ID_COLUMN)]),
-            total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
-            integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
-        )
-        return OrderedIR(
-            result,
-            columns=[result[col_id] for col_id in [*stats.keys()]],
-            hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
-            ordering=ordering,
-        )
 
     def _uniform_sampling(self, fraction: float) -> UnorderedIR:
         """Sampling the table on given fraction.
@@ -647,56 +628,30 @@ class OrderedIR(BaseIbisIR):
     def from_pandas(
         cls,
         pd_df: pandas.DataFrame,
+        schema: schemata.ArraySchema,
     ) -> OrderedIR:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
+
+        Assumed that the dataframe has unique string column names and bigframes-suppported dtypes.
         """
-        # We can't include any hidden columns in the ArrayValue constructor, so
-        # grab the column names before we add the hidden ordering column.
-        column_names = [str(column) for column in pd_df.columns]
-        # Make sure column names are all strings.
-        pd_df = pd_df.set_axis(column_names, axis="columns")
-        pd_df = pd_df.assign(**{ORDER_ID_COLUMN: range(len(pd_df))})
 
         # ibis memtable cannot handle NA, must convert to None
-        pd_df = pd_df.astype("object")  # type: ignore
-        pd_df = pd_df.where(pandas.notnull(pd_df), None)
+        # this destroys the schema however
+        ibis_values = pd_df.astype("object").where(pandas.notnull(pd_df), None)  # type: ignore
+        ibis_values = ibis_values.assign(**{ORDER_ID_COLUMN: range(len(pd_df))})
+        # derive the ibis schema from the original pandas schema
+        ibis_schema = [
+            (name, bigframes.dtypes.bigframes_dtype_to_ibis_dtype(dtype))
+            for name, dtype in zip(schema.names, schema.dtypes)
+        ]
+        ibis_schema.append((ORDER_ID_COLUMN, ibis_dtypes.int64))
 
-        # NULL type isn't valid in BigQuery, so retry with an explicit schema in these cases.
-        keys_memtable = ibis.memtable(pd_df)
-        schema = keys_memtable.schema()
-        new_schema = []
-        for column_index, column in enumerate(schema):
-            if column == ORDER_ID_COLUMN:
-                new_type: ibis_dtypes.DataType = ibis_dtypes.int64
-            else:
-                column_type = schema[column]
-                # The autodetected type might not be one we can support, such
-                # as NULL type for empty rows, so convert to a type we do
-                # support.
-                new_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(
-                    bigframes.dtypes.ibis_dtype_to_bigframes_dtype(column_type)
-                )
-                # TODO(swast): Ibis memtable doesn't use backticks in struct
-                # field names, so spaces and other characters aren't allowed in
-                # the memtable context. Blocked by
-                # https://github.com/ibis-project/ibis/issues/7187
-                column = f"col_{column_index}"
-            new_schema.append((column, new_type))
-
-        # must set non-null column labels. these are not the user-facing labels
-        pd_df = pd_df.set_axis(
-            [column for column, _ in new_schema],
-            axis="columns",
-        )
-        keys_memtable = ibis.memtable(pd_df, schema=ibis.schema(new_schema))
+        keys_memtable = ibis.memtable(ibis_values, schema=ibis.schema(ibis_schema))
 
         return cls(
             keys_memtable,
-            columns=[
-                keys_memtable[f"col_{column_index}"].name(column)
-                for column_index, column in enumerate(column_names)
-            ],
+            columns=[keys_memtable[column].name(column) for column in pd_df.columns],
             ordering=ExpressionOrdering(
                 ordering_value_columns=tuple(
                     [OrderingColumnReference(ORDER_ID_COLUMN)]
@@ -784,7 +739,7 @@ class OrderedIR(BaseIbisIR):
     def project_window_op(
         self,
         column_name: str,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
         output_name=None,
         *,
@@ -802,8 +757,11 @@ class OrderedIR(BaseIbisIR):
         """
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(window_spec, allow_ties=op.handles_ties)
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
-        window_op = op._as_ibis(column, window)
+        window_op = agg_compiler.compile_analytic(
+            ex.UnaryAggregation(op, ex.free_var(column_name)), window, bindings=bindings
+        )
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
@@ -811,12 +769,20 @@ class OrderedIR(BaseIbisIR):
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
-                observation_count = agg_ops.count_op._as_ibis(column, window)
+                observation_count = agg_compiler.compile_analytic(
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(column_name)),
+                    window,
+                    bindings=bindings,
+                )
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
-                observation_count = agg_ops.count_op._as_ibis(denulled_value, window)
+                observation_count = agg_compiler.compile_analytic(
+                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var("_denulled")),
+                    window,
+                    bindings={**bindings, "_denulled": denulled_value},
+                )
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
@@ -1108,17 +1074,14 @@ class OrderedIR(BaseIbisIR):
         if not columns:
             return ibis.memtable([])
 
+        # Make sure we don't have any unbound (deferred) columns.
+        table = self._table.select(columns)
+
         # Make sure all dtypes are the "canonical" ones for BigFrames. This is
         # important for operations like UNION where the schema must match.
-        table = self._table.select(
-            bigframes.dtypes.ibis_value_to_canonical_type(
-                column.resolve(self._table)
-                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
-                # public API to refer to Deferred type.
-                if isinstance(column, ibis.common.deferred.Deferred)
-                else column
-            )
-            for column in columns
+        table = table.select(
+            bigframes.dtypes.ibis_value_to_canonical_type(table[column])
+            for column in table.columns
         )
         base_table = table
         if self._reduced_predicate is not None:

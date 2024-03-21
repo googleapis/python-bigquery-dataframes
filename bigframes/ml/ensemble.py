@@ -19,14 +19,14 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
+import bigframes_vendored.sklearn.ensemble._forest
+import bigframes_vendored.xgboost.sklearn
 from google.cloud import bigquery
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.ensemble._forest
-import third_party.bigframes_vendored.xgboost.sklearn
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
@@ -51,13 +51,14 @@ _BQML_PARAMS_MAPPING = {
 @log_adapter.class_logger
 class XGBRegressor(
     base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
+    bigframes_vendored.xgboost.sklearn.XGBRegressor,
 ):
-    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
+    __doc__ = bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
     def __init__(
         self,
         num_parallel_tree: int = 1,
+        *,
         booster: Literal["gbtree", "dart"] = "gbtree",
         dart_normalized_type: Literal["tree", "forest"] = "tree",
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
@@ -207,14 +208,15 @@ class XGBRegressor(
 @log_adapter.class_logger
 class XGBClassifier(
     base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
+    bigframes_vendored.xgboost.sklearn.XGBClassifier,
 ):
 
-    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
+    __doc__ = bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
 
     def __init__(
         self,
         num_parallel_tree: int = 1,
+        *,
         booster: Literal["gbtree", "dart"] = "gbtree",
         dart_normalized_type: Literal["tree", "forest"] = "tree",
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
@@ -362,16 +364,15 @@ class XGBClassifier(
 @log_adapter.class_logger
 class RandomForestRegressor(
     base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
+    bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
 ):
 
-    __doc__ = (
-        third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor.__doc__
-    )
+    __doc__ = bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor.__doc__
 
     def __init__(
         self,
         num_parallel_tree: int = 100,
+        *,
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
         min_tree_child_weight: int = 1,
         colsample_bytree=1.0,
@@ -528,16 +529,15 @@ class RandomForestRegressor(
 @log_adapter.class_logger
 class RandomForestClassifier(
     base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
+    bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
 ):
 
-    __doc__ = (
-        third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier.__doc__
-    )
+    __doc__ = bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier.__doc__
 
     def __init__(
         self,
         num_parallel_tree: int = 100,
+        *,
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
         min_tree_child_weight: int = 1,
         colsample_bytree: float = 1.0,

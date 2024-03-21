@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import functools
 import typing
 
 import pandas as pd
@@ -38,8 +39,7 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
     block1 = block1.reset_index(drop=False)
     block2 = block2.reset_index(drop=False)
 
-    joined, (lmap, rmap) = block1.index.join(block2.index, how="outer")
-    joined_block = joined._block
+    joined_block, (lmap, rmap) = block1.join(block2, how="outer")
 
     equality_ids = []
     for lcol, rcol in zip(block1.value_columns, block2.value_columns):
@@ -130,7 +130,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         if len(index_columns) != 1:
             raise ValueError("only method 'linear' supports multi-index")
         xvalues = block.index_columns[0]
-        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
+        if block.index.dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             raise ValueError("Can only interpolate on numeric index.")
 
     for column in original_columns:
@@ -308,7 +308,7 @@ def drop_duplicates(
 ) -> blocks.Block:
     block, dupe_indicator_id = indicate_duplicates(block, columns, keep)
     block, keep_indicator_id = block.apply_unary_op(dupe_indicator_id, ops.invert_op)
-    return block.filter(keep_indicator_id).drop_columns(
+    return block.filter_by_id(keep_indicator_id).drop_columns(
         (dupe_indicator_id, keep_indicator_id)
     )
 
@@ -460,32 +460,14 @@ def dropna(
     """
     Drop na entries from block
     """
+    predicates = [ops.notnull_op.as_expr(column_id) for column_id in column_ids]
+    if len(predicates) == 0:
+        return block
     if how == "any":
-        filtered_block = block
-        for column in column_ids:
-            filtered_block, result_id = filtered_block.apply_unary_op(
-                column, ops.notnull_op
-            )
-            filtered_block = filtered_block.filter(result_id)
-            filtered_block = filtered_block.drop_columns([result_id])
-        return filtered_block
+        predicate = functools.reduce(ops.and_op.as_expr, predicates)
     else:  # "all"
-        filtered_block = block
-        predicate = None
-        for column in column_ids:
-            filtered_block, partial_predicate = filtered_block.apply_unary_op(
-                column, ops.notnull_op
-            )
-            if predicate:
-                filtered_block, predicate = filtered_block.apply_binary_op(
-                    partial_predicate, predicate, ops.or_op
-                )
-            else:
-                predicate = partial_predicate
-        if predicate:
-            filtered_block = filtered_block.filter(predicate)
-        filtered_block = filtered_block.select_columns(block.value_columns)
-        return filtered_block
+        predicate = functools.reduce(ops.or_op.as_expr, predicates)
+    return block.filter(predicate)
 
 
 def nsmallest(
@@ -514,7 +496,7 @@ def nsmallest(
             window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
-        block = block.filter(condition)
+        block = block.filter_by_id(condition)
         return block.drop_columns([counter, condition])
 
 
@@ -544,7 +526,7 @@ def nlargest(
             window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
-        block = block.filter(condition)
+        block = block.filter_by_id(condition)
         return block.drop_columns([counter, condition])
 
 
@@ -743,14 +725,14 @@ def align_rows(
     right_block: blocks.Block,
     join: str = "outer",
 ):
-    joined_index, (get_column_left, get_column_right) = left_block.index.join(
-        right_block.index, how=join
+    joined_block, (get_column_left, get_column_right) = left_block.join(
+        right_block, how=join
     )
     left_columns = [get_column_left[col] for col in left_block.value_columns]
     right_columns = [get_column_right[col] for col in right_block.value_columns]
 
-    left_block = joined_index._block.select_columns(left_columns)
-    right_block = joined_index._block.select_columns(right_columns)
+    left_block = joined_block.select_columns(left_columns)
+    right_block = joined_block.select_columns(right_columns)
     return left_block, right_block
 
 

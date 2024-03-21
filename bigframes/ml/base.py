@@ -24,12 +24,13 @@ This library is an evolving attempt to
 import abc
 from typing import cast, Optional, TypeVar, Union
 
+import bigframes_vendored.sklearn.base
+
 from bigframes.ml import core
 import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.base
 
 
-class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
+class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
     A BigQuery DataFrames machine learning component following the SKLearn API
     design Ref: https://bit.ly/3NyhKjN
@@ -80,7 +81,7 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, a
 
         # Estimator pretty printer adapted from Sklearn's, which is in turn an adaption of
         # the inbuilt pretty-printer in CPython
-        import third_party.bigframes_vendored.cpython._pprint as adapted_pprint
+        import bigframes_vendored.cpython._pprint as adapted_pprint
 
         prettyprinter = adapted_pprint._EstimatorPrettyPrinter(
             compact=True, indent=1, indent_at_name=True, n_max_elements_to_show=30
@@ -89,6 +90,7 @@ class BaseEstimator(third_party.bigframes_vendored.sklearn.base.BaseEstimator, a
         return prettyprinter.pformat(self)
 
 
+# TODO(garrettwu): refactor to reflect the actual property. Now the class contains .register() method.
 class Predictor(BaseEstimator):
     """A BigQuery DataFrames ML Model base class that can be used to predict outputs."""
 
@@ -127,6 +129,10 @@ class Predictor(BaseEstimator):
         self._bqml_model.register(vertex_ai_model_id)
         return self
 
+    @abc.abstractmethod
+    def to_gbq(self, model_name, replace):
+        pass
+
 
 class TrainablePredictor(Predictor):
     """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
@@ -139,11 +145,6 @@ class TrainablePredictor(Predictor):
 
     @abc.abstractmethod
     def score(self, X, y):
-        pass
-
-    # TODO(b/291812029): move to Predictor after implement in LLM and imported models
-    @abc.abstractmethod
-    def to_gbq(self, model_name, replace):
         pass
 
 
@@ -165,7 +166,7 @@ class SupervisedTrainablePredictor(TrainablePredictor):
 class UnsupervisedTrainablePredictor(TrainablePredictor):
     """A BigQuery DataFrames ML Unsupervised Model base class that can be used to fit and predict outputs.
 
-    Only need to provide both X (y is optional and ignored) in unsupervised tasks."""
+    Only need to provide X (y is optional and ignored) in unsupervised tasks."""
 
     _T = TypeVar("_T", bound="UnsupervisedTrainablePredictor")
 

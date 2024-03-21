@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import typing
 
+import bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
+
 from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.operations.aggregations as agg_ops
-import third_party.bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
 
 
 @log_adapter.class_logger
@@ -64,7 +65,7 @@ class Window(vendored_pandas_rolling.Window):
 
     def _apply_aggregate(
         self,
-        op: agg_ops.AggregateOp,
+        op: agg_ops.UnaryAggregateOp,
     ):
         block = self._block
         labels = [block.col_id_to_label[col] for col in self._value_column_ids]

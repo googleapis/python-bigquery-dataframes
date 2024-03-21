@@ -169,13 +169,32 @@ def test_concat_multi_indices_ignore_index(scalars_df_index, scalars_pandas_df_i
     pandas.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
 
-def test_multi_index_loc(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("key"),
+    [
+        (2),
+        ([2, 0]),
+        ([(2, "capitalize, This "), (-2345, "Hello, World!")]),
+    ],
+)
+def test_multi_index_loc_multi_row(scalars_df_index, scalars_pandas_df_index, key):
     bf_result = (
-        scalars_df_index.set_index(["int64_too", "bool_col"]).loc[[2, 0]].to_pandas()
+        scalars_df_index.set_index(["int64_too", "string_col"]).loc[key].to_pandas()
     )
-    pd_result = scalars_pandas_df_index.set_index(["int64_too", "bool_col"]).loc[[2, 0]]
+    pd_result = scalars_pandas_df_index.set_index(["int64_too", "string_col"]).loc[key]
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_multi_index_loc_single_row(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.set_index(["int64_too", "string_col"]).loc[
+        (2, "capitalize, This ")
+    ]
+    pd_result = scalars_pandas_df_index.set_index(["int64_too", "string_col"]).loc[
+        (2, "capitalize, This ")
+    ]
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
 def test_multi_index_getitem_bool(scalars_df_index, scalars_pandas_df_index):
@@ -878,6 +897,27 @@ def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_corr_w_multi_index(scalars_df_index, scalars_pandas_df_index):
+    columns = ["int64_too", "float64_col", "int64_col"]
+    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "b"], [1, 2, 2]))
+
+    bf = scalars_df_index[columns].copy()
+    bf.columns = multi_columns
+
+    pd_df = scalars_pandas_df_index[columns].copy()
+    pd_df.columns = multi_columns
+
+    bf_result = bf.corr(numeric_only=True).to_pandas()
+    pd_result = pd_df.corr(numeric_only=True)
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pandas.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(

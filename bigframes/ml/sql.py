@@ -16,7 +16,7 @@
 Generates SQL queries needed for BigQuery DataFrames ML
 """
 
-from typing import Iterable, Mapping, Optional, Union
+from typing import Iterable, Literal, Mapping, Optional, Union
 
 import google.cloud.bigquery
 
@@ -38,7 +38,9 @@ class BaseSqlGenerator:
             inner = ", ".join([self.encode_value(x) for x in v])
             return f"[{inner}]"
         else:
-            raise ValueError(f"Unexpected value type. {constants.FEEDBACK_LINK}")
+            raise ValueError(
+                f"Unexpected value type {type(v)}. {constants.FEEDBACK_LINK}"
+            )
 
     def build_parameters(self, **kwargs: Union[str, int, float, Iterable[str]]) -> str:
         """Encode a dict of values into a formatted Iterable of key-value pairs for SQL"""
@@ -133,6 +135,19 @@ class BaseSqlGenerator:
         https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-label-encoder for params."""
         return f"""ML.LABEL_ENCODER({numeric_expr_sql}, {top_k}, {frequency_threshold}) OVER() AS {name}"""
 
+    def ml_distance(
+        self,
+        col_x: str,
+        col_y: str,
+        type: Literal["EUCLIDEAN", "MANHATTAN", "COSINE"],
+        source_df: bpd.DataFrame,
+        name: str,
+    ) -> str:
+        """Encode ML.DISTANCE for BQML.
+        https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-distance"""
+        source_sql, _, _ = source_df._to_sql_query(include_index=True)
+        return f"""SELECT *, ML.DISTANCE({col_x}, {col_y}, '{type}') AS {name} FROM ({source_sql})"""
+
 
 class ModelCreationSqlGenerator(BaseSqlGenerator):
     """Sql generator for creating a model entity. Model id is the standalone id without project id and dataset id."""
@@ -193,6 +208,24 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
             parts.append(self.options(**options))
         return "\n".join(parts)
 
+    def create_xgboost_imported_model(
+        self,
+        model_ref: google.cloud.bigquery.ModelReference,
+        input: Mapping[str, str] = {},
+        output: Mapping[str, str] = {},
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML remote model."""
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        if input:
+            parts.append(self.input(**input))
+        if output:
+            parts.append(self.output(**output))
+        if options:
+            parts.append(self.options(**options))
+        return "\n".join(parts)
+
 
 class ModelManipulationSqlGenerator(BaseSqlGenerator):
     """Sql generator for manipulating a model entity. Model name is the full model path of project_id.dataset_id.model_id."""
@@ -244,6 +277,14 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
+
+    def ml_detect_anomalies(
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+    ) -> str:
+        """Encode ML.DETECT_ANOMALIES for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.DETECT_ANOMALIES(MODEL `{self._model_name}`,
+  {struct_options_sql}, ({self._source_sql(source_df)}))"""
 
     # ML evaluation TVFs
     def ml_evaluate(self, source_df: Optional[bpd.DataFrame] = None) -> str:

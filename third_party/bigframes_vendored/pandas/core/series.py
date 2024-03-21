@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
 
+from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy as np
 from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
 
 from bigframes import constants
-from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 if TYPE_CHECKING:
-    from third_party.bigframes_vendored.pandas.core.frame import DataFrame
-    from third_party.bigframes_vendored.pandas.core.groupby import SeriesGroupBy
+    from bigframes_vendored.pandas.core.frame import DataFrame
+    from bigframes_vendored.pandas.core.groupby import SeriesGroupBy
 
 
 class Series(NDFrame):  # type: ignore[misc]
@@ -69,7 +69,7 @@ class Series(NDFrame):  # type: ignore[misc]
             30    35
             Name: Age, dtype: Int64
             >>> s.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> s.index.values
             array([10, 20, 30], dtype=object)
 
@@ -84,7 +84,10 @@ class Series(NDFrame):  # type: ignore[misc]
             Aritra  Kona        35
             Name: Age, dtype: Int64
             >>> s1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -532,59 +535,6 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_json(
-        self,
-        path_or_buf=None,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
-        **kwarg,
-    ) -> str | None:
-        """
-        Convert the object to a JSON string.
-
-        Note NaN's and None will be converted to null and datetime objects
-        will be converted to UNIX timestamps.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string.
-            orient ({"split", "records", "index", "columns", "values", "table"}, default "columns"):
-                Indication of expected JSON string format.
-                'split' : dict like {{'index' -> [index], 'columns' -> [columns],'data' -> [values]}}
-                'records' : list like [{{column -> value}}, ... , {{column -> value}}]
-                'index' : dict like {{index -> {{column -> value}}}}
-                'columns' : dict like {{column -> {{index -> value}}}}
-                'values' : just the values array
-                'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
-                Describing the data, where data component is like ``orient='records'``.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting json format as a
-                string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
-        """
-        Write object to a comma-separated values (csv) file.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string. If a non-binary file object is passed, it should
-                be opened with `newline=''`, disabling universal newlines. If a binary
-                file object is passed, `mode` might need to contain a `'b'`.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting csv format
-                as a string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
     def agg(self, func):
         """
         Aggregate using one or more operations over the specified axis.
@@ -837,7 +787,28 @@ class Series(NDFrame):  # type: ignore[misc]
             float:  Will return NaN if there are fewer than two numeric pairs, either series has a
                 variance or covariance of zero, or any input value is infinite.
         """
-        raise NotImplementedError("abstract method")
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def cov(
+        self,
+        other,
+    ) -> float:
+        """
+        Compute covariance with Series, excluding missing values.
+
+        The two `Series` objects are not required to be the same length and
+        will be aligned internally before the covariance is calculated.
+
+        Args:
+            other (Series):
+                Series with which to compute the covariance.
+
+        Returns:
+            float:
+                Covariance between Series and other normalized by N-1
+                (unbiased estimator).
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def diff(self) -> Series:
         """
@@ -1092,18 +1063,24 @@ class Series(NDFrame):  # type: ignore[misc]
     def apply(
         self,
         func,
+        by_row="compat",
     ) -> DataFrame | Series:
         """
         Invoke function on values of a Series.
+
+        Can be ufunc (a NumPy function that applies to the entire Series) or a
+        Python function that only works on single values. If it is an arbitrary
+        python function then converting it into a `remote_function` is recommended.
 
         **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Let's use ``reuse=False`` flag to make sure a new ``remote_function``
+        For applying arbitrary python function a `remote_funciton` is recommended.
+        Let's use ``reuse=False`` flag to make sure a new `remote_function`
         is created every time we run the following code, but you can skip it
-        to potentially reuse a previously deployed ``remote_function`` from
+        to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
             >>> @bpd.remote_function([int], float, reuse=False)
@@ -1128,9 +1105,9 @@ class Series(NDFrame):  # type: ignore[misc]
             4    2.0
             dtype: Float64
 
-        You could turn a user defined function with external package
-        dependencies into a BigQuery DataFrames remote function. You would
-        provide the names of the packages via ``packages`` param.
+        To turn a user defined function with external package dependencies into
+        a `remote_function`, you would provide the names of the packages via
+        `packages` param.
 
             >>> @bpd.remote_function(
             ...     [str],
@@ -1152,11 +1129,48 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> names = bpd.Series(["Alice", "Bob"])
             >>> hashes = names.apply(get_hash)
 
+        Simple vectorized functions, lambdas or ufuncs can be applied directly
+        with `by_row=False`.
+
+            >>> nums = bpd.Series([1, 2, 3, 4])
+            >>> nums
+            0    1
+            1    2
+            2    3
+            3    4
+            dtype: Int64
+            >>> nums.apply(lambda x: x*x + 2*x + 1, by_row=False)
+            0     4
+            1     9
+            2    16
+            3    25
+            dtype: Int64
+
+            >>> def is_odd(num):
+            ...     return num % 2 == 1
+            >>> nums.apply(is_odd, by_row=False)
+            0     True
+            1    False
+            2     True
+            3    False
+            dtype: boolean
+
+            >>> nums.apply(np.log, by_row=False)
+            0         0.0
+            1    0.693147
+            2    1.098612
+            3    1.386294
+            dtype: Float64
+
         Args:
             func (function):
                 BigFrames DataFrames ``remote_function`` to apply. The function
                 should take a scalar and return a scalar. It will be applied to
                 every element in the ``Series``.
+            by_row (False or "compat", default "compat"):
+                If `"compat"` , func must be a remote function which will be
+                passed each element of the Series, like `Series.map`. If False,
+                the func will be passed the whole Series at once.
 
         Returns:
             bigframes.series.Series: A new Series with values representing the
@@ -1774,6 +1788,42 @@ class Series(NDFrame):  # type: ignore[misc]
         corresponding Series element is between the boundary values `left` and
         `right`. NA values are treated as `False`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Boundary values are included by default:
+
+            >>> s = bpd.Series([2, 0, 4, 8, np.nan])
+            >>> s.between(1, 4)
+            0     True
+            1    False
+            2     True
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        With inclusive set to "neither" boundary values are excluded:
+
+            >>> s.between(1, 4, inclusive="neither")
+            0     True
+            1    False
+            2    False
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        left and right can be any scalar value:
+
+            >>> s = bpd.Series(['Alice', 'Bob', 'Carol', 'Eve'])
+            >>> s.between('Anna', 'Daniel')
+            0    False
+            1     True
+            2     True
+            3    False
+            dtype: boolean
+
         Args:
             left (scalar or list-like):
                 Left boundary.
@@ -1795,6 +1845,30 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns a DataFrame or Series of the same size containing the cumulative
         product.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cumprod()
+            0     2.0
+            1    <NA>
+            2    10.0
+            3   -10.0
+            4     0.0
+            dtype: Float64
 
         Returns:
             bigframes.series.Series: Return cumulative sum of scalar or Series.
@@ -1961,11 +2035,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> a = bpd.Series([1, 2, 3, bpd.NA])
             >>> a
-            0     1.0
-            1     2.0
-            2     3.0
+            0       1
+            1       2
+            2       3
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
             >>> b = bpd.Series([10, 20, 30, 40])
             >>> b
@@ -1976,20 +2050,20 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> a.add(b)
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         You can also use the mathematical operator ``+``:
 
             >>> a + b
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         Adding two Series with explicit indexes:
 
@@ -2297,12 +2371,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.max()
-            3.0
+            3
 
         Returns:
             scalar: Scalar.
@@ -2337,12 +2411,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.min()
-            1.0
+            1
 
         Returns:
             scalar: Scalar.
@@ -2424,12 +2498,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.sum()
-            4.0
+            4
 
         Returns:
             scalar: Scalar.
@@ -2458,10 +2532,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.mean()
             2.0
 
@@ -2596,7 +2670,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
         You can mask the values in the Series based on a condition. The values
-        matching the condition would be masked.
+        matching the condition would be masked. The condition can be provided in
+        formm of a Series.
 
             >>> s.mask(s % 2 == 0)
             0    <NA>
@@ -2651,6 +2726,32 @@ class Series(NDFrame):  # type: ignore[misc]
             1         Bob
             2    Caroline
             dtype: string
+
+        Simple vectorized (i.e. they only perform operations supported on a
+        Series) lambdas or python functions can be used directly.
+
+            >>> nums = bpd.Series([1, 2, 3, 4], name="nums")
+            >>> nums
+            0    1
+            1    2
+            2    3
+            3    4
+            Name: nums, dtype: Int64
+            >>> nums.mask(lambda x: (x+1) % 2 == 1)
+            0        1
+            1     <NA>
+            2        3
+            3     <NA>
+            Name: nums, dtype: Int64
+
+            >>> def is_odd(num):
+            ...     return num % 2 == 1
+            >>> nums.mask(is_odd)
+            0     <NA>
+            1        2
+            2     <NA>
+            3        4
+            Name: nums, dtype: Int64
 
         Args:
             cond (bool Series/DataFrame, array-like, or callable):
@@ -2957,6 +3058,17 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    @property
+    def plot(self):
+        """
+        Make plots of Series.
+
+        Returns:
+            bigframes.operations.plotting.PlotAccessor:
+                An accessor making plots.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def isin(self, values):
         """
         Whether elements in Series are contained in values.
@@ -3148,17 +3260,38 @@ class Series(NDFrame):  # type: ignore[misc]
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.IlocSeriesIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.LocSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property

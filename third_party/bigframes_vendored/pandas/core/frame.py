@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy as np
 import pandas as pd
 
 from bigframes import constants
-from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -2805,6 +2805,40 @@ class DataFrame(NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def corr(self, method, min_periods, numeric_only) -> DataFrame:
+        """
+        Compute pairwise correlation of columns, excluding NA/null values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600],
+            ...                    'C': [0.8, 0.4, 0.9]})
+            >>> df.corr(numeric_only=True)
+                      A         B         C
+            A       1.0       1.0  0.188982
+            B       1.0       1.0  0.188982
+            C  0.188982  0.188982       1.0
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            method (string, default "pearson"):
+                Correlation method to use - currently only "pearson" is supported.
+            min_periods (int, default None):
+                The minimum number of observations needed to return a result.  Non-default values
+                are not yet supported, so a result will be returned for at least two observations.
+            numeric_only(bool, default False):
+                Include only float, int, boolean, decimal data.
+
+        Returns:
+            DataFrame:  Correlation matrix.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def update(
         self, other, join: str = "left", overwrite: bool = True, filter_func=None
     ) -> DataFrame:
@@ -3296,19 +3330,19 @@ class DataFrame(NDFrame):
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
-            col1	col2
-            0	1	3
-            1	2	4
-            <BLANKLINE>
-            [2 rows x 2 columns]
-
-            >>> def sqaure(x):
-            ...     return x * x
-            >>> df1 = df.apply(sqaure)
-            >>> df
                col1  col2
             0     1     3
             1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> def square(x):
+            ...     return x * x
+
+            >>> df.apply(square)
+               col1  col2
+            0     1     9
+            1     4    16
             <BLANKLINE>
             [2 rows x 2 columns]
 
@@ -3901,6 +3935,11 @@ class DataFrame(NDFrame):
         ``df.sort_values(columns, ascending=False).head(n)``, but more
         performant.
 
+        .. note::
+            This function cannot be used with all column types. For example, when
+            specifying columns with `object` or `category` dtypes, ``TypeError`` is
+            raised.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -3968,11 +4007,6 @@ class DataFrame(NDFrame):
 
         Returns:
             DataFrame: The first `n` rows ordered by the given columns in descending order.
-
-        .. note::
-            This function cannot be used with all column types. For example, when
-            specifying columns with `object` or `category` dtypes, ``TypeError`` is
-            raised.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3987,6 +4021,12 @@ class DataFrame(NDFrame):
         This method is equivalent to
         ``df.sort_values(columns, ascending=True).head(n)``, but more
         performant.
+
+        .. note::
+
+            This function cannot be used with all column types. For example, when
+            specifying columns with `object` or `category` dtypes, ``TypeError`` is
+            raised.
 
         **Examples:**
 
@@ -4056,11 +4096,6 @@ class DataFrame(NDFrame):
 
         Returns:
             DataFrame: The first `n` rows ordered by the given columns in ascending order.
-
-        .. note::
-            This function cannot be used with all column types. For example, when
-            specifying columns with `object` or `category` dtypes, ``TypeError`` is
-            raised.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4714,7 +4749,7 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
             >>> df.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            Index([10, 20, 30], dtype='Int64')
             >>> df.index.values
             array([10, 20, 30], dtype=object)
 
@@ -4731,7 +4766,10 @@ class DataFrame(NDFrame):
             <BLANKLINE>
             [3 rows x 1 columns]
             >>> df1.index # doctest: +ELLIPSIS
-            <bigframes.core.indexes.index.Index object at ...>
+            MultiIndex([( 'Alice',  'Seattle'),
+                (   'Bob', 'New York'),
+                ('Aritra',     'Kona')],
+               name='Name')
             >>> df1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -5073,17 +5111,38 @@ class DataFrame(NDFrame):
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def dot(self, other):
@@ -5184,5 +5243,16 @@ class DataFrame(NDFrame):
                 If `other` is a Series, return the matrix product between self and
                 other as a Series. If other is a DataFrame, return
                 the matrix product of self and other in a DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def plot(self):
+        """
+        Make plots of Dataframes.
+
+        Returns:
+            bigframes.operations.plotting.PlotAccessor:
+                An accessor making plots.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
