@@ -24,6 +24,10 @@ class LogisticRegression(LinearClassifierMixin, BaseEstimator):
     """Logistic Regression (aka logit, MaxEnt) classifier.
 
     Args:
+        optimize_strategy (str, default "auto_strategy"):
+            The strategy to train logistic regression models. Possible values are
+            "auto_strategy", "batch_gradient_descent", "normal_equation". Default
+            to "auto_strategy".
         fit_intercept (default True):
             Default True. Specifies if a constant (a.k.a. bias or intercept)
             should be added to the decision function.

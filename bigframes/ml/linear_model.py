@@ -61,7 +61,7 @@ class LinearRegression(
         *,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
-        ] = "normal_equation",
+        ] = "auto_strategy",
         fit_intercept: bool = True,
         l1_reg: Optional[float] = None,
         l2_reg: float = 0.0,
@@ -216,7 +216,7 @@ class LogisticRegression(
         *,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
-        ] = "normal_equation",
+        ] = "auto_strategy",
         fit_intercept: bool = True,
         l1_reg: Optional[float] = None,
         l2_reg: float = 0.0,
