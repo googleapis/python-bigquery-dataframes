@@ -26,7 +26,7 @@ import functools
 import itertools
 import random
 import typing
-from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery as bigquery
@@ -407,7 +407,7 @@ class Block:
         return Block(self.expr, ids, self.column_labels, level_names)
 
     def _to_dataframe(
-        self, result, dtype_backend: Union[None, Literal["pyarrow"]] = None
+        self, result, dtype_backend: Literal["default", "pyarrow"] = "default"
     ) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
 
@@ -424,7 +424,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
-        dtype_backend: Union[None, Literal["pyarrow"]] = None,
+        dtype_backend: Literal["default", "pyarrow"] = "default",
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
@@ -487,7 +487,7 @@ class Block:
     def _materialize_local(
         self,
         materialize_options: MaterializationOptions = MaterializationOptions(),
-        dtype_backend: Union[None, Literal["pyarrow"]] = None,
+        dtype_backend: Literal["default", "pyarrow"] = "default",
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.

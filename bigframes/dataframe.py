@@ -1038,7 +1038,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
-        dtype_backend: Union[None, Literal["pyarrow"]] = None,
+        dtype_backend: Literal["default", "pyarrow"] = "default",
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1061,10 +1061,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query.
-            dtype_backend (str, default None):
+             dtype_backend (str, default "default"):
                 Controls dtypes returns. Options include:
 
-                * ``None``: a mix of dtypes, optimizing correctness and compatibility.
+                * ``"default"``: a mix of dtypes, optimizing correctness and compatibility.
                 * ``"pyarrow"``: pyarrow-backed ArrowDtype for all columns.
 
         Returns:

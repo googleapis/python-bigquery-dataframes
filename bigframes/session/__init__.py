@@ -1825,11 +1825,11 @@ class Session(
         self,
         row_iterator: bigquery.table.RowIterator,
         dtypes: Dict,
-        dtype_backend: Union[None, Literal["pyarrow"]] = None,
+        dtype_backend: Literal["default", "pyarrow"] = "default",
     ) -> pandas.DataFrame:
         arrow_table = row_iterator.to_arrow()
 
-        if dtype_backend is None:
+        if dtype_backend == "default":
             return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
         elif dtype_backend == "pyarrow":
             return pandas.DataFrame(
