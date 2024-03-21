@@ -1627,9 +1627,6 @@ class DataFrame(NDFrame):
 
         This is index for Series, columns for DataFrame.
 
-        Returns:
-            Index: Info axis.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -1641,6 +1638,9 @@ class DataFrame(NDFrame):
             ...     })
             >>> df.keys()
             Index(['A', 'B'], dtype='object')
+
+        Returns:
+            Index: Info axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
