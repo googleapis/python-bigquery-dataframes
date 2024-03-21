@@ -369,7 +369,6 @@ def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
             marks=pytest.mark.xfail(
                 raises=google.api_core.exceptions.BadRequest,
                 reason="Expected failure due to timeout being set too short.",
-                match=r"API deadline too short",
             ),
         ),
         pytest.param(
@@ -377,7 +376,6 @@ def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
             marks=pytest.mark.xfail(
                 raises=google.api_core.exceptions.InternalServerError,
                 reason="Expected failure when the query exceeds the maximum bytes billed limit.",
-                match=r"Query exceeded limit for bytes billed",
             ),
         ),
     ],
