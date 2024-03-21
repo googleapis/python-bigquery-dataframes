@@ -295,6 +295,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dtype_backend: Literal["default", "pyarrow"] = "default",
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -317,6 +318,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query.
+             dtype_backend (str, default "default"):
+                Controls dtypes returns. Options include:
+
+                * ``"default"``: a mix of dtypes, optimizing correctness and compatibility.
+                * ``"pyarrow"``: pyarrow-backed ArrowDtype for all columns.
 
 
         Returns:
@@ -328,6 +334,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            dtype_backend=dtype_backend,
         )
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
