@@ -15,8 +15,6 @@
 import abc
 import typing
 
-import matplotlib.pyplot as plt
-
 
 class MPLPlot(abc.ABC):
     @abc.abstractmethod
@@ -24,6 +22,11 @@ class MPLPlot(abc.ABC):
         pass
 
     def draw(self) -> None:
+        # This import can fail with "Matplotlib failed to acquire the
+        # following lock file" so import here to reduce the chance of
+        # our parallel test suite from triggering this.
+        import matplotlib.pyplot as plt
+
         plt.draw_if_interactive()
 
     @property
