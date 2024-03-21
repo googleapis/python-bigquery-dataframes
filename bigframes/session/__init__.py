@@ -980,11 +980,18 @@ class Session(
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        col_index = pandas_dataframe.columns.copy()
         col_labels, idx_labels = (
-            pandas_dataframe.columns.to_list(),
+            col_index.to_list(),
             pandas_dataframe.index.names,
         )
-        new_col_ids, new_idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
+        new_col_ids, new_idx_ids = utils.get_standardized_ids(
+            col_labels,
+            idx_labels,
+            # Loading parquet files into BigQuery with special column names
+            # is only supported under an allowlist.
+            strict=True,
+        )
 
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
@@ -1003,7 +1010,7 @@ class Session(
 
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
         schema: list[bigquery.SchemaField] = []
-        for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
+        for column, dtype in zip(new_col_ids, pandas_dataframe.dtypes):
             if dtype == "timestamp[us][pyarrow]":
                 schema.append(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
@@ -1057,7 +1064,7 @@ class Session(
         block = blocks.Block(
             array_value,
             index_columns=new_idx_ids,
-            column_labels=col_labels,
+            column_labels=col_index,
             index_labels=idx_labels,
         )
         return dataframe.DataFrame(block)
