@@ -613,6 +613,15 @@ def second_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).second().cast(ibis_dtypes.int64)
 
 
+@scalar_op_compiler.register_unary_op(ops.StrftimeOp, pass_op=True)
+def strftime_op_impl(x: ibis_types.Value, op: ops.StrftimeOp):
+    return (
+        typing.cast(ibis_types.TimestampValue, x)
+        .strftime(op.date_format)
+        .cast(ibis_dtypes.str)
+    )
+
+
 @scalar_op_compiler.register_unary_op(ops.time_op)
 def time_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).time()
@@ -621,6 +630,13 @@ def time_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.year_op)
 def year_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).year().cast(ibis_dtypes.int64)
+
+
+@scalar_op_compiler.register_unary_op(ops.normalize_op)
+def normalize_op_impl(x: ibis_types.Value):
+    result_type = x.type()
+    result = x.truncate("D")
+    return result.cast(result_type)
 
 
 # Parameterized ops
@@ -634,11 +650,56 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
     return struct_value[name].name(name)
 
 
+def numeric_to_datatime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
+    if not isinstance(x, ibis_types.IntegerValue) and not isinstance(
+        x, ibis_types.FloatingValue
+    ):
+        raise TypeError("Non-numerical types are not supposed to reach this function.")
+
+    if unit not in UNIT_TO_US_CONVERSION_FACTORS:
+        raise ValueError(f"Cannot convert input with unit '{unit}'.")
+    x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
+    x_converted = x_converted.cast(ibis_dtypes.int64)
+
+    # Note: Due to an issue where casting directly to a timestamp
+    # without a timezone does not work, we first cast to UTC. This
+    # approach appears to bypass a potential bug in Ibis's cast function,
+    # allowing for subsequent casting to a timestamp type without timezone
+    # information. Further investigation is needed to confirm this behavior.
+    return x_converted.to_timestamp(unit="us").cast(
+        ibis_dtypes.Timestamp(timezone="UTC")
+    )
+
+
 @scalar_op_compiler.register_unary_op(ops.AsTypeOp, pass_op=True)
 def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
     to_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(op.to_type)
     if isinstance(x, ibis_types.NullScalar):
         return ibis_types.null().cast(to_type)
+
+    # When casting DATETIME column into INT column, we need to convert the column into TIMESTAMP first.
+    if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.timestamp:
+        x_converted = x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
+        return bigframes.dtypes.cast_ibis_value(x_converted, to_type)
+
+    if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.time:
+        # The conversion unit is set to "us" (microseconds) for consistency
+        # with pandas converting time64[us][pyarrow] to int64[pyarrow].
+        return x.delta(ibis.time("00:00:00"), part="microsecond")
+
+    if x.type() == ibis_dtypes.int64:
+        # The conversion unit is set to "us" (microseconds) for consistency
+        # with pandas converting int64[pyarrow] to timestamp[us][pyarrow],
+        # timestamp[us, tz=UTC][pyarrow], and time64[us][pyarrow].
+        unit = "us"
+        x_converted = numeric_to_datatime(x, unit)
+        if to_type == ibis_dtypes.timestamp:
+            return x_converted.cast(ibis_dtypes.Timestamp())
+        elif to_type == ibis_dtypes.Timestamp(timezone="UTC"):
+            return x_converted
+        elif to_type == ibis_dtypes.time:
+            return x_converted.time()
+
     return bigframes.dtypes.cast_ibis_value(x, to_type)
 
 
@@ -677,19 +738,7 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
         # The default unit is set to "ns" (nanoseconds) for consistency
         # with pandas, where "ns" is the default unit for datetime operations.
         unit = op.unit or "ns"
-        if unit not in UNIT_TO_US_CONVERSION_FACTORS:
-            raise ValueError(f"Cannot convert input with unit '{unit}'.")
-        x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
-        x_converted = x_converted.cast(ibis_dtypes.int64)
-
-        # Note: Due to an issue where casting directly to a timestamp
-        # without a timezone does not work, we first cast to UTC. This
-        # approach appears to bypass a potential bug in Ibis's cast function,
-        # allowing for subsequent casting to a timestamp type without timezone
-        # information. Further investigation is needed to confirm this behavior.
-        x = x_converted.to_timestamp(unit="us").cast(
-            ibis_dtypes.Timestamp(timezone="UTC")
-        )
+        x = numeric_to_datatime(x, unit)
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
 
@@ -1028,8 +1077,16 @@ def floordiv_op(
     )
 
 
-def _is_float(x: ibis_types.Value):
-    return isinstance(x, (ibis_types.FloatingColumn, ibis_types.FloatingScalar))
+def _is_bignumeric(x: ibis_types.Value):
+    if not isinstance(x, ibis_types.DecimalValue):
+        return False
+    # Should be exactly 76 for bignumeric
+    return x.precision > 70
+
+
+def _is_numeric(x: ibis_types.Value):
+    # either big-numeric or numeric
+    return isinstance(x, ibis_types.DecimalValue)
 
 
 @scalar_op_compiler.register_binary_op(ops.mod_op)
@@ -1038,40 +1095,88 @@ def mod_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    is_result_float = _is_float(x) | _is_float(y)
-    x_numeric = typing.cast(
-        ibis_types.NumericValue,
-        x.cast(ibis_dtypes.Decimal(precision=38, scale=9, nullable=True))
-        if is_result_float
-        else x,
-    )
-    y_numeric = typing.cast(
-        ibis_types.NumericValue,
-        y.cast(ibis_dtypes.Decimal(precision=38, scale=9, nullable=True))
-        if is_result_float
-        else y,
-    )
     # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
     if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
-    bq_mod = x_numeric % y_numeric  # Bigquery will maintain x sign here
-    if is_result_float:
-        bq_mod = typing.cast(ibis_types.NumericValue, bq_mod.cast(ibis_dtypes.float64))
+    if x.type().is_integer() and y.type().is_integer():
+        # both are ints, no casting necessary
+        return _int_mod(x, y)
+
+    else:
+        # bigquery doens't support float mod, so just cast to bignumeric and hope for the best
+        x_numeric = typing.cast(
+            ibis_types.DecimalValue,
+            x.cast(ibis_dtypes.Decimal(precision=76, scale=38, nullable=True)),
+        )
+        y_numeric = typing.cast(
+            ibis_types.DecimalValue,
+            y.cast(ibis_dtypes.Decimal(precision=76, scale=38, nullable=True)),
+        )
+        mod_numeric = _bignumeric_mod(x_numeric, y_numeric)
+
+        # Cast back down based on original types
+        if _is_bignumeric(x) or _is_bignumeric(y):
+            return mod_numeric
+        if _is_numeric(x) or _is_numeric(y):
+            return mod_numeric.cast(ibis_dtypes.Decimal(38, 9))
+        else:
+            return mod_numeric.cast(ibis_dtypes.float64)
+
+
+def _bignumeric_mod(
+    x: ibis_types.IntegerValue,
+    y: ibis_types.IntegerValue,
+):
+    # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
+    op = y.op()
+    if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
+        return ibis_types.null().cast(x.type())
+
+    bq_mod = x % y  # Bigquery will maintain x sign here
 
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
     return (
         ibis.case()
         .when(
-            y_numeric == _ZERO,
-            _NAN * x_numeric if is_result_float else _ZERO * x_numeric,
+            y == _ZERO,
+            _NAN * x,
         )  # Dummy op to propogate nulls and type from x arg
         .when(
-            (y_numeric < _ZERO) & (bq_mod > _ZERO), (y_numeric + bq_mod)
+            (y < _ZERO) & (bq_mod > _ZERO), (y + bq_mod)
         )  # Convert positive result to negative
         .when(
-            (y_numeric > _ZERO) & (bq_mod < _ZERO), (y_numeric + bq_mod)
+            (y > _ZERO) & (bq_mod < _ZERO), (y + bq_mod)
+        )  # Convert negative result to positive
+        .else_(bq_mod)
+        .end()
+    )
+
+
+def _int_mod(
+    x: ibis_types.IntegerValue,
+    y: ibis_types.IntegerValue,
+):
+    # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
+    op = y.op()
+    if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
+        return ibis_types.null().cast(x.type())
+
+    bq_mod = x % y  # Bigquery will maintain x sign here
+
+    # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
+    return (
+        ibis.case()
+        .when(
+            y == _ZERO,
+            _ZERO * x,
+        )  # Dummy op to propogate nulls and type from x arg
+        .when(
+            (y < _ZERO) & (bq_mod > _ZERO), (y + bq_mod)
+        )  # Convert positive result to negative
+        .when(
+            (y > _ZERO) & (bq_mod < _ZERO), (y + bq_mod)
         )  # Convert negative result to positive
         .else_(bq_mod)
         .end()

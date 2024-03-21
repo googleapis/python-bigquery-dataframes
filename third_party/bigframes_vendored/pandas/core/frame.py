@@ -5111,17 +5111,38 @@ class DataFrame(NDFrame):
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.ILocDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtDataFrameIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def dot(self, other):
