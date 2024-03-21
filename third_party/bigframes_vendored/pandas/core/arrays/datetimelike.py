@@ -83,6 +83,8 @@ class DatelikeOps:
 
         **Examples:**
 
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
             >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
             >>> bpd.Series(rng).dt.floor("h")
             0    2018-01-01 11:00:00
