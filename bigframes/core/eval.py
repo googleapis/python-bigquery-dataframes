@@ -15,12 +15,12 @@
 import dataclasses
 from typing import Optional
 
-import pandas
+import bigframes_vendored.pandas.core.computation.eval as vendored_pandas_eval
+import bigframes_vendored.pandas.core.computation.parsing as vendored_pandas_eval_parsing
 
 import bigframes.dataframe as dataframe
 import bigframes.dtypes
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.computation.parsing as vendored_pandas_eval_parsing
 
 
 def eval(df: dataframe.DataFrame, expr: str, target: Optional[dataframe.DataFrame]):
@@ -49,7 +49,7 @@ def eval(df: dataframe.DataFrame, expr: str, target: Optional[dataframe.DataFram
         for name, series in df.items()
     }
     # 3 Levels: user -> logging wrapper -> dataframe -> eval helper (this)
-    return pandas.eval(
+    return vendored_pandas_eval.eval(
         expr=expr, level=3, target=target, resolvers=(index_resolver, column_resolver)  # type: ignore
     )
 
