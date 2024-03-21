@@ -70,8 +70,10 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
+import bigframes.clients
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -82,6 +84,7 @@ import bigframes.core.ordering as orderings
 import bigframes.core.traversal as traversals
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
+import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.functions.remote_function import remote_function as bigframes_rf
@@ -112,6 +115,20 @@ MAX_INLINE_DF_SIZE = 5000
 
 logger = logging.getLogger(__name__)
 
+# Excludes geography, bytes, and nested (array, struct) datatypes
+INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
+    pandas.BooleanDtype(),
+    pandas.Float64Dtype(),
+    pandas.Int64Dtype(),
+    pandas.StringDtype(storage="pyarrow"),
+    pandas.ArrowDtype(pa.date32()),
+    pandas.ArrowDtype(pa.time64("us")),
+    pandas.ArrowDtype(pa.timestamp("us")),
+    pandas.ArrowDtype(pa.timestamp("us", tz="UTC")),
+    pandas.ArrowDtype(pa.decimal128(38, 9)),
+    pandas.ArrowDtype(pa.decimal256(76, 38)),
+)
+
 
 def _is_query(query_or_table: str) -> bool:
     """Determine if `query_or_table` is a table ID or a SQL string"""
@@ -137,7 +154,7 @@ class Session(
             Configuration adjusting how to connect to BigQuery and related
             APIs. Note that some options are ignored if ``clients_provider`` is
             set.
-        clients_provider (bigframes.session.bigframes.session.clients.ClientsProvider):
+        clients_provider (bigframes.session.clients.ClientsProvider):
             An object providing client library objects.
     """
 
@@ -196,6 +213,7 @@ class Session(
 
         # Resolve the BQ connection for remote function and Vertex AI integration
         self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
+        self._skip_bq_connection_check = context._skip_bq_connection_check
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
@@ -221,6 +239,16 @@ class Session(
     @property
     def resourcemanagerclient(self):
         return self._clients_provider.resourcemanagerclient
+
+    _bq_connection_manager: Optional[bigframes.clients.BqConnectionManager] = None
+
+    @property
+    def bqconnectionmanager(self):
+        if not self._skip_bq_connection_check and not self._bq_connection_manager:
+            self._bq_connection_manager = bigframes.clients.BqConnectionManager(
+                self.bqconnectionclient, self.resourcemanagerclient
+            )
+        return self._bq_connection_manager
 
     @property
     def _project(self):
@@ -923,25 +951,31 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
-        if (
-            pandas_dataframe.size < MAX_INLINE_DF_SIZE
-            # TODO(swast): Workaround data types limitation in inline data.
-            and not any(
-                (
-                    isinstance(s.dtype, pandas.ArrowDtype)
-                    or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
-                    or pandas.api.types.is_datetime64_any_dtype(s)
-                )
-                for _, s in pandas_dataframe.items()
-            )
-        ):
-            return self._read_pandas_inline(pandas_dataframe)
+        inline_df = self._read_pandas_inline(pandas_dataframe)
+        if inline_df is not None:
+            return inline_df
         return self._read_pandas_load_job(pandas_dataframe, api_name)
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
-    ) -> dataframe.DataFrame:
-        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
+    ) -> Optional[dataframe.DataFrame]:
+        if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
+            return None
+
+        try:
+            inline_df = dataframe.DataFrame(
+                blocks.Block.from_local(pandas_dataframe, self)
+            )
+        except ValueError:  # Thrown by ibis for some unhandled types
+            return None
+        except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
+            return None
+
+        inline_types = inline_df._block.expr.schema.dtypes
+        # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.
+        if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
+            return inline_df
+        return None
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str

@@ -39,6 +39,12 @@ class Aggregation(abc.ABC):
 
     op: agg_ops.WindowOp = dataclasses.field()
 
+    @abc.abstractmethod
+    def output_type(
+        self, input_types: dict[str, dtypes.ExpressionType]
+    ) -> dtypes.ExpressionType:
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class NullaryAggregation(Aggregation):
@@ -52,6 +58,11 @@ class UnaryAggregation(Aggregation):
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
 
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        return self.op.output_type(self.arg.output_type(input_types))
+
 
 @dataclasses.dataclass(frozen=True)
 class BinaryAggregation(Aggregation):
@@ -62,6 +73,13 @@ class BinaryAggregation(Aggregation):
     right: Union[
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        return self.op.output_type(
+            self.left.output_type(input_types), self.right.output_type(input_types)
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -139,7 +157,7 @@ class UnboundVariableExpression(Expression):
         if self.id in input_types:
             return input_types[self.id]
         else:
-            raise ValueError("Type of variable has not been fixed.")
+            raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
         if self.id in bindings.keys():
