@@ -173,8 +173,6 @@ class SquashedSelect:
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
     left_side = SquashedSelect.from_node(join_node.left_child)
     right_side = SquashedSelect.from_node(join_node.right_child)
-    left_side.expand()
-    right_side.expand()
     joined = left_side.maybe_join(right_side, join_node.join)
     if joined is not None:
         return joined.expand()
