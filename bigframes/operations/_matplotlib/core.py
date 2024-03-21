@@ -15,7 +15,6 @@
 import abc
 import typing
 
-
 DEFAULT_SAMPLING_N = 1000
 DEFAULT_SAMPLING_STATE = 0
 
