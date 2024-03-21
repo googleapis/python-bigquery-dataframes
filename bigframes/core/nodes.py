@@ -292,6 +292,15 @@ class FilterNode(UnaryNode):
 class OrderByNode(UnaryNode):
     by: Tuple[OrderingExpression, ...]
 
+    def __post_init__(self):
+        available_variables = self.child.schema.names
+        for order_expr in self.by:
+            for variable in order_expr.scalar_expression.unbound_variables:
+                if variable not in available_variables:
+                    raise ValueError(
+                        f"Cannot over unknown id:{variable}, columns are {available_variables}"
+                    )
+
     def __hash__(self):
         return self._node_hash
 

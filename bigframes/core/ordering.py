@@ -59,6 +59,15 @@ class OrderingExpression:
             self.scalar_expression.rename(mapping), self.direction, self.na_last
         )
 
+    def bind_variables(
+        self, mapping: Mapping[str, expression.Expression]
+    ) -> OrderingExpression:
+        return OrderingExpression(
+            self.scalar_expression.bind_all_variables(mapping),
+            self.direction,
+            self.na_last,
+        )
+
     def with_reverse(self) -> OrderingExpression:
         return OrderingExpression(
             self.scalar_expression, self.direction.reverse(), not self.na_last

@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import Optional, Sequence, Tuple
+from typing import Mapping, Optional, Sequence, Tuple
 
 import bigframes.core.expression as scalar_exprs
 import bigframes.core.join_def as join_defs
@@ -53,22 +53,24 @@ class SquashedSelect:
             )
             return cls(node, selection, None, ())
 
+    @property
+    def column_lookup(self) -> Mapping[str, scalar_exprs.Expression]:
+        return {col_id: expr for expr, col_id in self.columns}
+
     def project(
         self, projection: Tuple[Tuple[scalar_exprs.Expression, str], ...]
     ) -> SquashedSelect:
-        lookup = {id: expr for expr, id in self.columns}
         new_columns = tuple(
-            (expr.bind_all_variables(lookup), id) for expr, id in projection
+            (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
         )
         return SquashedSelect(self.root, new_columns, self.predicate, self.ordering)
 
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
-        lookup = {id: expr for expr, id in self.columns}
         if self.predicate is None:
-            new_predicate = predicate.bind_all_variables(lookup)
+            new_predicate = predicate.bind_all_variables(self.column_lookup)
         else:
             new_predicate = ops.and_op.as_expr(
-                self.predicate, predicate.bind_all_variables(lookup)
+                self.predicate, predicate.bind_all_variables(self.column_lookup)
             )
         return SquashedSelect(self.root, self.columns, new_predicate, self.ordering)
 
@@ -77,7 +79,10 @@ class SquashedSelect:
         return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
     def order_with(self, by: Tuple[order.OrderingExpression, ...]):
-        new_ordering = (*by, *self.ordering)
+        adjusted_orderings = [
+            order_part.bind_variables(self.column_lookup) for order_part in by
+        ]
+        new_ordering = (*adjusted_orderings, *self.ordering)
         return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
     def maybe_join(
@@ -168,6 +173,8 @@ class SquashedSelect:
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
     left_side = SquashedSelect.from_node(join_node.left_child)
     right_side = SquashedSelect.from_node(join_node.right_child)
+    left_side.expand()
+    right_side.expand()
     joined = left_side.maybe_join(right_side, join_node.join)
     if joined is not None:
         return joined.expand()
