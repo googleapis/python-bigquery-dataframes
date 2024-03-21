@@ -18,7 +18,7 @@ import abc
 import dataclasses
 import itertools
 import typing
-from typing import Union
+from typing import Mapping, Union
 
 import bigframes.dtypes as dtypes
 import bigframes.operations
@@ -39,6 +39,12 @@ class Aggregation(abc.ABC):
 
     op: agg_ops.WindowOp = dataclasses.field()
 
+    @abc.abstractmethod
+    def output_type(
+        self, input_types: dict[str, dtypes.ExpressionType]
+    ) -> dtypes.ExpressionType:
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregation(Aggregation):
@@ -46,6 +52,11 @@ class UnaryAggregation(Aggregation):
     arg: Union[
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        return self.op.output_type(self.arg.output_type(input_types))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -57,6 +68,13 @@ class BinaryAggregation(Aggregation):
     right: Union[
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        return self.op.output_type(
+            self.left.output_type(input_types), self.right.output_type(input_types)
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,6 +99,11 @@ class Expression(abc.ABC):
     ) -> dtypes.ExpressionType:
         ...
 
+    @abc.abstractmethod
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        """Replace all variables with expression given in `bindings`."""
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -98,6 +121,9 @@ class ScalarConstantExpression(Expression):
         self, input_types: dict[str, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
         return self.dtype
+
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,7 +152,13 @@ class UnboundVariableExpression(Expression):
         if self.id in input_types:
             return input_types[self.id]
         else:
-            raise ValueError("Type of variable has not been fixed.")
+            raise ValueError(f"Type of variable {self.id} has not been fixed.")
+
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        if self.id in bindings.keys():
+            return bindings[self.id]
+        else:
+            raise ValueError(f"Variable {self.id} remains unbound")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -163,3 +195,9 @@ class OpExpression(Expression):
             map(lambda x: x.output_type(input_types=input_types), self.inputs)
         )
         return self.op.output_type(*operand_types)
+
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        return OpExpression(
+            self.op,
+            tuple(input.bind_all_variables(bindings) for input in self.inputs),
+        )

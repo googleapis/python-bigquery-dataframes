@@ -30,9 +30,7 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
-from tests.system.utils import skip_legacy_pandas
-
-FIRST_FILE = "000000000000"
+from tests.system import utils
 
 
 def test_read_gbq_tokyo(
@@ -327,6 +325,18 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     assert df3 is not None
 
 
+def test_read_gbq_table_clustered_with_filter(session: bigframes.Session):
+    df = session.read_gbq_table(
+        "bigquery-public-data.cloud_storage_geo_index.landsat_index",
+        filters=[[("sensor_id", "LIKE", "OLI%")], [("sensor_id", "LIKE", "%TIRS")]],  # type: ignore
+        columns=["sensor_id"],
+    )
+    sensors = df.groupby(["sensor_id"]).agg("count").to_pandas(ordered=False)
+    assert "OLI" in sensors.index
+    assert "TIRS" in sensors.index
+    assert "OLI_TIRS" in sensors.index
+
+
 def test_read_gbq_wildcard(session: bigframes.Session):
     df = session.read_gbq("bigquery-public-data.noaa_gsod.gsod193*")
     assert df.shape == (348485, 32)
@@ -367,6 +377,17 @@ def test_read_pandas(session, scalars_dfs):
     expected = scalars_pandas_df
 
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_read_pandas_inline_respects_location():
+    options = bigframes.BigQueryOptions(location="europe-west1")
+    session = bigframes.Session(options)
+
+    df = session.read_pandas(pd.DataFrame([[1, 2, 3], [4, 5, 6]]))
+    repr(df)
+
+    table = session.bqclient.get_table(df.query_job.destination)
+    assert table.location == "europe-west1"
 
 
 def test_read_pandas_col_label_w_space(session: bigframes.Session):
@@ -412,14 +433,14 @@ def test_read_pandas_tokyo(
     pd.testing.assert_frame_equal(result, expected)
 
 
-@skip_legacy_pandas
+@utils.skip_legacy_pandas
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     if scalars_df.index.name is not None:
         path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     else:
         path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index*.csv"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df.to_csv(path, index=False)
     dtype = scalars_df.dtypes.to_dict()
     dtype.pop("geography_col")
@@ -469,7 +490,7 @@ def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
         pytest.param("\t", id="custom_sep"),
     ],
 )
-@skip_legacy_pandas
+@utils.skip_legacy_pandas
 def test_read_csv_local_default_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
@@ -618,7 +639,7 @@ def test_read_csv_default_engine_throws_not_implemented_error(
         gcs_folder
         + "test_read_csv_gcs_default_engine_throws_not_implemented_error*.csv"
     )
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_index.to_csv(path)
     with pytest.raises(NotImplementedError, match=match):
         session.read_csv(read_path, **kwargs)
@@ -626,7 +647,7 @@ def test_read_csv_default_engine_throws_not_implemented_error(
 
 def test_read_csv_gcs_default_engine_w_header(session, scalars_df_index, gcs_folder):
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_header*.csv"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_index.to_csv(path)
 
     # Skips header=N rows, normally considers the N+1th row as the header, but overridden by
@@ -693,7 +714,7 @@ def test_read_csv_gcs_default_engine_w_index_col_name(
     session, scalars_df_default_index, gcs_folder
 ):
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_name*.csv"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_default_index.to_csv(path)
 
     df = session.read_csv(read_path, index_col="rowindex")
@@ -708,7 +729,7 @@ def test_read_csv_gcs_default_engine_w_index_col_index(
     session, scalars_df_default_index, gcs_folder
 ):
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_index_col_index*.csv"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_default_index.to_csv(path)
 
     index_col = scalars_df_default_index.columns.to_list().index("rowindex")
@@ -767,7 +788,7 @@ def test_read_csv_local_default_engine_w_index_col_index(
 def test_read_csv_gcs_w_usecols(session, scalars_df_index, gcs_folder, engine):
     path = gcs_folder + "test_read_csv_gcs_w_usecols"
     path = path + "_default_engine*.csv" if engine is None else path + "_bq_engine*.csv"
-    read_path = path.replace("*", FIRST_FILE) if engine is None else path
+    read_path = utils.get_first_file_from_wildcard(path) if engine is None else path
     scalars_df_index.to_csv(path)
 
     # df should only have 1 column which is bool_col.
@@ -856,11 +877,19 @@ def test_read_pickle_gcs(session, penguins_pandas_df_default_index, gcs_folder):
     pd.testing.assert_frame_equal(penguins_pandas_df_default_index, df.to_pandas())
 
 
-def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
+@pytest.mark.parametrize(
+    ("engine",),
+    (
+        ("auto",),
+        ("bigquery",),
+    ),
+)
+def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, engine):
     scalars_df, _ = scalars_dfs
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
     path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     # GEOGRAPHY not supported in parquet export.
     df_in = df_in.drop(columns="geography_col")
@@ -869,8 +898,12 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
     df_write.to_parquet(path, index=True)
 
+    # Only bigquery engine for reads supports wildcards in path name.
+    if engine != "bigquery":
+        path = utils.get_first_file_from_wildcard(path)
+
     df_out = (
-        session.read_parquet(path)
+        session.read_parquet(path, engine=engine)
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.
@@ -880,7 +913,8 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder):
     # DATETIME gets loaded as TIMESTAMP in parquet. See:
     # https://cloud.google.com/bigquery/docs/exporting-data#parquet_export_details
     df_out = df_out.assign(
-        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]")
+        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]"),
+        timestamp_col=df_out["timestamp_col"].astype("timestamp[us, tz=UTC][pyarrow]"),
     )
 
     # Make sure we actually have at least some values before comparing.
@@ -919,7 +953,7 @@ def test_read_parquet_gcs_compressed(
     df_write.to_parquet(path, compression=compression, index=True)
 
     df_out = (
-        session.read_parquet(path)
+        session.read_parquet(path, engine="bigquery")
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.
@@ -976,7 +1010,7 @@ def test_read_parquet_gcs_compression_not_supported(
 def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     path = gcs_folder + "test_read_json_gcs_bq_engine_w_index*.json"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df.to_json(path, index=False, lines=True, orient="records")
     df = session.read_json(read_path, lines=True, orient="records", engine="bigquery")
 
@@ -1000,7 +1034,7 @@ def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
     path = gcs_folder + "test_read_json_gcs_default_engine_w_index*.json"
-    read_path = path.replace("*", FIRST_FILE)
+    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df.to_json(
         path,
         index=False,
