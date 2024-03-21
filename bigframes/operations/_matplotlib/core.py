@@ -14,10 +14,15 @@
 
 import abc
 import typing
+import uuid
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+import bigframes.dtypes as dtypes
 
 DEFAULT_SAMPLING_N = 1000
 DEFAULT_SAMPLING_STATE = 0
-
 
 class MPLPlot(abc.ABC):
     @abc.abstractmethod
@@ -44,12 +49,13 @@ class SamplingPlot(MPLPlot):
 
     def __init__(self, data, **kwargs) -> None:
         self.kwargs = kwargs
-        self.data = self._compute_plot_data(data)
+        self.data = data
 
     def generate(self) -> None:
-        self.axes = self.data.plot(kind=self._kind, **self.kwargs)
+        plot_data = self._compute_plot_data()
+        self.axes = plot_data.plot(kind=self._kind, **self.kwargs)
 
-    def _compute_plot_data(self, data):
+    def _compute_sample_data(self, data):
         # TODO: Cache the sampling data in the PlotAccessor.
         sampling_n = self.kwargs.pop("sampling_n", DEFAULT_SAMPLING_N)
         sampling_random_state = self.kwargs.pop(
@@ -60,6 +66,9 @@ class SamplingPlot(MPLPlot):
             random_state=sampling_random_state,
             sort=False,
         ).to_pandas()
+
+    def _compute_plot_data(self):
+        return self._compute_sample_data(self.data)
 
 
 class LinePlot(SamplingPlot):
@@ -78,3 +87,56 @@ class ScatterPlot(SamplingPlot):
     @property
     def _kind(self) -> typing.Literal["scatter"]:
         return "scatter"
+
+    def __init__(self, data, **kwargs) -> None:
+        super().__init__(data, **kwargs)
+
+        c = self.kwargs.get("c", None)
+        if self._is_sequence_arg(c) and len(c) != self.data.shape[0]:
+            raise ValueError(
+                f"'c' argument has {len(c)} elements, which is "
+                + f"inconsistent with 'x' and 'y' with size {self.data.shape[0]}"
+            )
+
+    def _compute_plot_data(self):
+        data = self.data.copy()
+
+        c = self.kwargs.get("c", None)
+        c_id = None
+        if self._is_sequence_arg(c):
+            c_id = self._generate_new_column_name(data)
+            print(c_id)
+            data[c_id] = c
+
+        sample = self._compute_sample_data(data)
+
+        # Works around a pandas bug:
+        # https://github.com/pandas-dev/pandas/commit/45b937d64f6b7b6971856a47e379c7c87af7e00a
+        if self._is_column_name(c, sample) and sample[c].dtype == dtypes.STRING_DTYPE:
+            sample[c] = sample[c].astype("object")
+
+        if c_id is not None:
+            self.kwargs["c"] = sample[c_id]
+            sample = sample.drop(columns=[c_id])
+
+        return sample
+
+    def _is_sequence_arg(self, arg):
+        return (
+            arg is not None
+            and not isinstance(arg, str)
+            and isinstance(arg, typing.Iterable)
+        )
+
+    def _is_column_name(self, arg, data):
+        return (
+            arg is not None
+            and pd.core.dtypes.common.is_hashable(arg)
+            and arg in data.columns
+        )
+
+    def _generate_new_column_name(self, data):
+        col_name = None
+        while col_name is None or col_name in data.columns:
+            col_name = f"plot_temp_{str(uuid.uuid4())[:8]}"
+        return col_name
