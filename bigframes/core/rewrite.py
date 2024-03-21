@@ -19,7 +19,6 @@ import itertools
 from typing import Optional, Sequence, Tuple
 
 import bigframes.core.expression as scalar_exprs
-import bigframes.core.guid as guids
 import bigframes.core.join_def as join_defs
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
@@ -77,15 +76,8 @@ class SquashedSelect:
         new_ordering = tuple(expr.with_reverse() for expr in self.ordering)
         return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
-    def order_with(self, by: Tuple[order.OrderingColumnReference, ...]):
-        exprs_by_id = {id: expr for expr, id in self.columns}
-        as_order_exprs = [
-            order.OrderingExpression(
-                exprs_by_id[ref.column_id], ref.direction, ref.na_last
-            )
-            for ref in by
-        ]
-        new_ordering = (*as_order_exprs, *self.ordering)
+    def order_with(self, by: Tuple[order.OrderingExpression, ...]):
+        new_ordering = (*by, *self.ordering)
         return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
 
     def maybe_join(
@@ -165,37 +157,12 @@ class SquashedSelect:
 
     def expand(self) -> nodes.BigFrameNode:
         # Safest to apply predicates first, as it may filter out inputs that cannot be handled by other expressions
-        root = (
-            nodes.FilterNode(child=self.root, predicate=self.predicate)
-            if self.predicate
-            else self.root
-        )
+        root = self.root
+        if self.predicate:
+            root = nodes.FilterNode(child=root, predicate=self.predicate)
         if self.ordering:
-            # Need this clumsy 3-node expansion as OrderByNode doesn't support expressions (yet?)
-            # Could also directly compile this whole class directly
-            ordering_assignments = [
-                (ref.scalar_expression, guids.generate_guid()) for ref in self.ordering
-            ]
-            as_ordering_refs = tuple(
-                order.OrderingColumnReference(id, ref.direction, ref.na_last)
-                for ref, (_, id) in zip(self.ordering, ordering_assignments)
-            )
-            extended_projection = nodes.ProjectionNode(
-                child=root, assignments=(*self.columns, *ordering_assignments)
-            )
-            ordered_node = nodes.OrderByNode(
-                child=extended_projection, by=as_ordering_refs
-            )
-            drop_ordering_selection = tuple(
-                (scalar_exprs.UnboundVariableExpression(id), id)
-                for _, id in self.columns
-            )
-            pruned_node = nodes.ProjectionNode(
-                child=ordered_node, assignments=drop_ordering_selection
-            )
-            return pruned_node
-        else:
-            return nodes.ProjectionNode(child=root, assignments=self.columns)
+            root = nodes.OrderByNode(child=root, by=self.ordering)
+        return nodes.ProjectionNode(child=root, assignments=self.columns)
 
 
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:

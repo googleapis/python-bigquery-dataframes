@@ -26,7 +26,7 @@ import pandas
 import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.join_def import JoinColumnMapping, JoinDefinition, JoinSide
-from bigframes.core.ordering import OrderingColumnReference
+from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
 import bigframes.core.window_spec as window
 import bigframes.dtypes
@@ -290,7 +290,7 @@ class FilterNode(UnaryNode):
 
 @dataclass(frozen=True)
 class OrderByNode(UnaryNode):
-    by: Tuple[OrderingColumnReference, ...]
+    by: Tuple[OrderingExpression, ...]
 
     def __hash__(self):
         return self._node_hash
