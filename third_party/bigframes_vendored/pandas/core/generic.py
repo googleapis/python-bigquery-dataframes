@@ -128,7 +128,7 @@ class NDFrame(indexing.IndexingMixin):
             0    2023010000246789
             1    1624123244123101
             2    1054834234120101
-            Name: 0, dtype: Int64
+            dtype: Int64
 
         Convert to ``Float64`` type:
 
@@ -149,11 +149,10 @@ class NDFrame(indexing.IndexingMixin):
         Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
 
             >>> bpd.to_datetime(ser, unit='us', utc=True)
-            >>> ser
             0    2034-02-08 11:13:20.246789+00:00
             1    2021-06-19 17:20:44.123101+00:00
             2    2003-06-05 17:30:34.120101+00:00
-            Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
+            dtype: timestamp[us, tz=UTC][pyarrow]
 
         Convert ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))`` type to ``Int64`` type:
 
