@@ -123,28 +123,55 @@ class NDFrame(indexing.IndexingMixin):
 
         Create a series of type ``Int64``:
 
-            >>> ser = bpd.Series([1, 2], dtype='Int64')
+            >>> ser = bpd.Series([2023010000246789, 1624123244123101, 1054834234120101], dtype='Int64')
             >>> ser
-            0    1
-            1    2
+            0    2023010000246789
+            1    1624123244123101
+            2    1054834234120101
             dtype: Int64
 
         Convert to ``Float64`` type:
 
             >>> ser.astype('Float64')
-            0    1.0
-            1    2.0
+            0    2023010000246789.0
+            1    1624123244123101.0
+            2    1054834234120101.0
             dtype: Float64
+
+        Convert to ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))`` type:
+
+            >>> ser.astype("timestamp[us, tz=UTC][pyarrow]")
+            0    2034-02-08 11:13:20.246789+00:00
+            1    2021-06-19 17:20:44.123101+00:00
+            2    2003-06-05 17:30:34.120101+00:00
+            dtype: timestamp[us, tz=UTC][pyarrow]
+
+        Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
+
+            >>> bpd.to_datetime(ser, unit='us', utc=True)
+            0    2034-02-08 11:13:20.246789+00:00
+            1    2021-06-19 17:20:44.123101+00:00
+            2    2003-06-05 17:30:34.120101+00:00
+            dtype: timestamp[us, tz=UTC][pyarrow]
+
+        Convert ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))`` type to ``Int64`` type:
+
+            >>> timestamp_ser = ser.astype("timestamp[us, tz=UTC][pyarrow]")
+            >>> timestamp_ser.astype('Int64')
+            0    2023010000246789
+            1    1624123244123101
+            2    1054834234120101
+            dtype: Int64
 
         Args:
             dtype (str or pandas.ExtensionDtype):
-                A dtype supported by BigQuery DataFrame include 'boolean','Float64','Int64',
-                'string', 'string[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
-                'timestamp[us][pyarrow]','date32[day][pyarrow]','time64[us][pyarrow]'
-                A pandas.ExtensionDtype include pandas.BooleanDtype(), pandas.Float64Dtype(),
-                pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                pd.ArrowDtype(pa.timestamp("us")), pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
+                A dtype supported by BigQuery DataFrame include ``'boolean'``, ``'Float64'``, ``'Int64'``,
+                ``'int64[pyarrow]'``, ``'string'``, ``'string[pyarrow]'``, ``'timestamp[us, tz=UTC][pyarrow]'``,
+                ``'timestamp\[us\]\[pyarrow\]'``, ``'date32\[day\]\[pyarrow\]'``, ``'time64\[us\]\[pyarrow\]'``.
+                A pandas.ExtensionDtype include ``pandas.BooleanDtype()``, ``pandas.Float64Dtype()``,
+                ``pandas.Int64Dtype()``, ``pandas.StringDtype(storage="pyarrow")``,
+                ``pd.ArrowDtype(pa.date32())``, ``pd.ArrowDtype(pa.time64("us"))``,
+                ``pd.ArrowDtype(pa.timestamp("us"))``, ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))``.
 
         Returns:
             same type as caller
@@ -472,6 +499,7 @@ class NDFrame(indexing.IndexingMixin):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ):
         """Return a random sample of items from an axis of object.
 
@@ -530,6 +558,12 @@ class NDFrame(indexing.IndexingMixin):
                 Fraction of axis items to return. Cannot be used with `n`.
             random_state (Optional[int], default None):
                 Seed for random number generator.
+            sort (Optional[bool|Literal["random"]], default "random"):
+
+                - 'random' (default): No specific ordering will be applied after
+                  sampling.
+                - 'True' : Index columns will determine the sample's order.
+                - 'False': The sample will retain the original object's order.
 
         Returns:
             A new object of same type as caller containing `n` items randomly
@@ -756,12 +790,12 @@ class NDFrame(indexing.IndexingMixin):
 
             >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
             >>> ser
-            0     5.0
+            0       5
             1    <NA>
-            2     6.0
+            2       6
             3    <NA>
             4    <NA>
-            dtype: Float64
+            dtype: Int64
 
             >>> ser.isna()
             0    False

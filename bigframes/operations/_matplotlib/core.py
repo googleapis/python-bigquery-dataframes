@@ -52,11 +52,11 @@ class SamplingPlot(MPLPlot):
         sampling_random_state = self.kwargs.pop(
             "sampling_random_state", DEFAULT_SAMPLING_STATE
         )
-        return (
-            data.sample(n=sampling_n, random_state=sampling_random_state)
-            .to_pandas()
-            .sort_index()
-        )
+        return data.sample(
+            n=sampling_n,
+            random_state=sampling_random_state,
+            sort=False,
+        ).to_pandas()
 
 
 class LinePlot(SamplingPlot):
