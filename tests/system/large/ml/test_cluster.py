@@ -121,7 +121,6 @@ def test_cluster_configure_fit_score_predict(
     assert reloaded_model.init == "RANDOM"
     assert reloaded_model.distance_type == "EUCLIDEAN"
     assert reloaded_model.max_iter == 20
-    assert reloaded_model.early_stop is True
     assert reloaded_model.tol == 0.01
 
 
@@ -131,7 +130,6 @@ def test_cluster_configure_fit_load_params(penguins_df_default_index, dataset_id
         init="random",
         distance_type="cosine",
         max_iter=30,
-        early_stop=True,
         tol=0.001,
     )
 
@@ -163,5 +161,4 @@ def test_cluster_configure_fit_load_params(penguins_df_default_index, dataset_id
     assert reloaded_model.init == "RANDOM"
     assert reloaded_model.distance_type == "COSINE"
     assert reloaded_model.max_iter == 30
-    assert reloaded_model.early_stop is True
     assert reloaded_model.tol == 0.001
