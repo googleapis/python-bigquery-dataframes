@@ -92,6 +92,6 @@ class DatelikeOps:
 
         Args:
             freq (str):
-                Frequency string (e.g. "D", "m", "s").
+                Frequency string (e.g. "D", "min", "s").
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
