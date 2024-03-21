@@ -275,11 +275,10 @@ def test_dt_strftime_time():
 @skip_legacy_pandas
 def test_dt_normalize(scalars_dfs, col_name):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_series: bigframes.series.Series = scalars_df[col_name]
-    bf_result = bf_series.dt.normalize().to_pandas()
+    bf_result = scalars_df[col_name].dt.normalize().to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.normalize()
 
     assert_series_equal(
-        pd_result.astype(bf_series.dtype),  # normalize preserves type
+        pd_result.astype(scalars_df[col_name].dtype),  # normalize preserves type
         bf_result,
     )
