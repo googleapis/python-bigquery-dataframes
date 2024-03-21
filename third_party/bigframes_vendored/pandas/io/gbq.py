@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union
 
 from bigframes import constants
 
@@ -19,7 +19,7 @@ class GBQIOMixin:
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
-        configuration: Optional[dict] = None,
+        configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
         filters: FiltersType = (),
         use_cache: Optional[bool] = None,

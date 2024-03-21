@@ -21,7 +21,6 @@ import typing
 from typing import List
 
 import google
-from google.api_core.exceptions import InternalServerError
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
@@ -369,12 +368,16 @@ def test_read_gbq_table_wildcard_with_filter(session: bigframes.Session):
             {"query": {"useQueryCache": True, "timeoutMs": 50}},
             marks=pytest.mark.xfail(
                 raises=google.api_core.exceptions.BadRequest,
+                reason="Expected failure due to timeout being set too short.",
+                match=r"API deadline too short",
             ),
         ),
         pytest.param(
             {"query": {"useQueryCache": False, "maximumBytesBilled": "100"}},
             marks=pytest.mark.xfail(
-                raises=InternalServerError,
+                raises=google.api_core.exceptions.InternalServerError,
+                reason="Expected failure when the query exceeds the maximum bytes billed limit.",
+                match=r"Query exceeded limit for bytes billed",
             ),
         ),
     ],
