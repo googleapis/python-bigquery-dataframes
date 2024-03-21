@@ -52,6 +52,7 @@ PREDICATE_COLUMN = "bigframes_predicate"
 T = typing.TypeVar("T", bound="BaseIbisIR")
 
 op_compiler = op_compilers.scalar_op_compiler
+ibis_backend = ibis_bigquery.Backend()
 
 
 class BaseIbisIR(abc.ABC):
@@ -220,7 +221,7 @@ class UnorderedIR(BaseIbisIR):
         # Peek currently implemented as top level LIMIT op.
         # Execution engine handles limit pushdown.
         # In future, may push down limit/filters in compilation.
-        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
+        sql = ibis_backend.compile(self._to_ibis_expr().limit(n))
         return typing.cast(str, sql)
 
     def to_sql(
@@ -231,7 +232,7 @@ class UnorderedIR(BaseIbisIR):
     ) -> str:
         if offset_column or sorted:
             raise ValueError("Cannot produce sorted sql in unordered mode")
-        sql = ibis_bigquery.Backend().compile(
+        sql = ibis_backend.compile(
             self._to_ibis_expr(
                 col_id_overrides=col_id_overrides,
             )
@@ -974,20 +975,24 @@ class OrderedIR(BaseIbisIR):
         col_id_overrides: typing.Mapping[str, str] = {},
         sorted: bool = False,
     ) -> str:
-        sql = ibis_bigquery.Backend().compile(
-            self._to_ibis_expr(
-                ordering_mode="unordered",
-                col_id_overrides=col_id_overrides,
-                expose_hidden_cols=sorted,
-            )
-        )
         if sorted:
+            # Need to bake ordering expressions into the selected column in order for our ordering clause builder to work.
+            baked_ir = self._bake_ordering()
+            sql = ibis_backend.compile(
+                baked_ir._to_ibis_expr(
+                    ordering_mode="unordered",
+                    col_id_overrides=col_id_overrides,
+                    expose_hidden_cols=True,
+                )
+            )
             output_columns = [
                 col_id_overrides.get(col) if (col in col_id_overrides) else col
-                for col in self.column_ids
+                for col in baked_ir.column_ids
             ]
             selection = ", ".join(map(lambda col_id: f"`{col_id}`", output_columns))
-            order_by_clause = self._ordering_clause(self._ordering.all_ordering_columns)
+            order_by_clause = baked_ir._ordering_clause(
+                baked_ir._ordering.all_ordering_columns
+            )
 
             sql = textwrap.dedent(
                 f"SELECT {selection}\n"
@@ -995,6 +1000,14 @@ class OrderedIR(BaseIbisIR):
                 f"{sql}\n"
                 ")\n"
                 f"{order_by_clause}\n"
+            )
+        else:
+            sql = ibis_backend.compile(
+                self._to_ibis_expr(
+                    ordering_mode="unordered",
+                    col_id_overrides=col_id_overrides,
+                    expose_hidden_cols=False,
+                )
             )
         return typing.cast(str, sql)
 
@@ -1203,6 +1216,32 @@ class OrderedIR(BaseIbisIR):
         ]
         expr_builder.ordering = self._ordering.with_column_remap({column_id: new_name})
         return expr_builder.build()
+
+    def _bake_ordering(self) -> OrderedIR:
+        """Bakes ordering expression into the selection, maybe creating hidden columns."""
+        ordering_expressions = self._ordering.all_ordering_columns
+        new_exprs = []
+        new_baked_cols = []
+        for expr in ordering_expressions:
+            if isinstance(expr.scalar_expression, ex.OpExpression):
+                baked_column = self._compile_expression(expr.scalar_expression).name(
+                    bigframes.core.guid.generate_guid()
+                )
+                new_baked_cols.append(baked_column)
+                new_expr = OrderingExpression(
+                    ex.free_var(baked_column.name), expr.direction, expr.na_last
+                )
+                new_exprs.append(new_expr)
+            else:
+                new_exprs.append(expr)
+
+        ordering = self._ordering.with_ordering_columns(new_exprs)
+        return OrderedIR(
+            self._table,
+            columns=self.columns,
+            hidden_ordering_columns=[*self._hidden_ordering_columns, *new_baked_cols],
+            ordering=ordering,
+        )
 
     def _project_offsets(self) -> OrderedIR:
         """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
