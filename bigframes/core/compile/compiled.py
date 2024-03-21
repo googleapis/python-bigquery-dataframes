@@ -32,6 +32,7 @@ import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.ordering import (
+    ascending_over,
     encode_order_string,
     ExpressionOrdering,
     IntegerEncoding,
@@ -248,7 +249,7 @@ class UnorderedIR(BaseIbisIR):
             ibis_table,
             (ibis_table["count"],),
             ordering=ExpressionOrdering(
-                ordering_value_columns=(OrderingExpression(ex.free_var("count")),),
+                ordering_value_columns=(ascending_over("count"),),
                 total_ordering_columns=frozenset(["count"]),
             ),
         )
@@ -462,12 +463,7 @@ class UnorderedIR(BaseIbisIR):
             result = table.group_by(by_column_ids).aggregate(**stats)
             # Must have deterministic ordering, so order by the unique "by" column
             ordering = ExpressionOrdering(
-                tuple(
-                    [
-                        OrderingExpression(ex.free_var(column_id))
-                        for column_id in by_column_ids
-                    ]
-                ),
+                tuple([ascending_over(column_id) for column_id in by_column_ids]),
                 total_ordering_columns=frozenset(by_column_ids),
             )
             columns = tuple(result[key] for key in result.columns)
@@ -483,9 +479,8 @@ class UnorderedIR(BaseIbisIR):
             # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
             # TODO: Maybe can make completely empty
             ordering = ExpressionOrdering(
-                ordering_value_columns=tuple([OrderingExpression(ex.const(0))]),
-                total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
-                integer_encoding=IntegerEncoding(is_encoded=True, is_sequential=True),
+                ordering_value_columns=tuple([]),
+                total_ordering_columns=frozenset([]),
             )
             return OrderedIR(
                 result,
@@ -587,9 +582,6 @@ class OrderedIR(BaseIbisIR):
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         super().__init__(table, columns, predicates)
-        # TODO: Validate ordering
-        if not ordering.total_ordering_columns:
-            raise ValueError("Must have total ordering defined by one or more columns")
         self._ordering = ordering
         # Meta columns store ordering, or other data that doesn't correspond to dataframe columns
         self._hidden_ordering_columns = (
@@ -658,9 +650,7 @@ class OrderedIR(BaseIbisIR):
             keys_memtable,
             columns=[keys_memtable[column].name(column) for column in pd_df.columns],
             ordering=ExpressionOrdering(
-                ordering_value_columns=tuple(
-                    [OrderingExpression(ex.free_var(ORDER_ID_COLUMN))]
-                ),
+                ordering_value_columns=tuple([ascending_over(ORDER_ID_COLUMN)]),
                 total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             ),
             hidden_ordering_columns=(keys_memtable[ORDER_ID_COLUMN],),
@@ -917,7 +907,7 @@ class OrderedIR(BaseIbisIR):
                 ordering_value_columns=tuple(
                     [
                         *old_ordering.ordering_value_columns,
-                        OrderingExpression(unpivot_offset_id),
+                        ascending_over(unpivot_offset_id),
                     ]
                 ),
                 total_ordering_columns=frozenset(
@@ -928,7 +918,7 @@ class OrderedIR(BaseIbisIR):
             new_ordering = ExpressionOrdering(
                 ordering_value_columns=tuple(
                     [
-                        OrderingExpression(unpivot_offset_id),
+                        ascending_over(unpivot_offset_id),
                         *old_ordering.ordering_value_columns,
                     ]
                 ),
@@ -1015,6 +1005,9 @@ class OrderedIR(BaseIbisIR):
             null_clause = "NULLS LAST" if col_ref.na_last else "NULLS FIRST"
             ordering_expr = col_ref.scalar_expression
             # We don't know how to compile scalar expressions in isolation
+            if ordering_expr.is_const:
+                # Probably shouldn't have constants in ordering definition, but best to ignore if somehow they end up here.
+                continue
             if not isinstance(ordering_expr, ex.UnboundVariableExpression):
                 raise ValueError("Expected direct column reference.")
             part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
@@ -1220,9 +1213,7 @@ class OrderedIR(BaseIbisIR):
         )
         columns = [table[column_name] for column_name in self._column_names]
         ordering = ExpressionOrdering(
-            ordering_value_columns=tuple(
-                [OrderingExpression(ex.free_var(ORDER_ID_COLUMN))]
-            ),
+            ordering_value_columns=tuple([ascending_over(ORDER_ID_COLUMN)]),
             total_ordering_columns=frozenset([ORDER_ID_COLUMN]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
