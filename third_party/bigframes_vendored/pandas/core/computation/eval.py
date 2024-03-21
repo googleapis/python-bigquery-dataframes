@@ -194,6 +194,8 @@ def eval(
       animal  age
     0    dog   10
     1    pig   20
+    <BLANKLINE>
+    [2 rows x 2 columns]
 
     We can add a new column using ``pd.eval``:
 
@@ -201,6 +203,8 @@ def eval(
       animal  age  double_age
     0    dog   10          20
     1    pig   20          40
+    <BLANKLINE>
+    [2 rows x 3 columns]
 
     Args:
         expr (str):
