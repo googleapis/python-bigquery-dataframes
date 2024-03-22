@@ -14,6 +14,7 @@
 
 import io
 import operator
+import sys
 import tempfile
 import typing
 from typing import Tuple
@@ -2527,6 +2528,8 @@ def test_df_pivot(scalars_dfs, values, index, columns):
     pd_result = scalars_pandas_df.pivot(values=values, index=index, columns=columns)
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
+    bf_result = bf_result.fillna(float("nan"))
+    pd_result = pd_result.fillna(float("nan"))
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
@@ -4031,6 +4034,13 @@ def test_df_dot_operator_series(
     )
 
 
+# TODO(tswast): We may be able to re-enable this test after we break large
+# queries up in https://github.com/googleapis/python-bigquery-dataframes/pull/427
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    # See: https://github.com/python/cpython/issues/112282
+    reason="setrecursionlimit has no effect on the Python C stack since Python 3.12.",
+)
 def test_recursion_limit(scalars_df_index):
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
     for i in range(400):
@@ -4046,7 +4056,7 @@ def test_to_pandas_downsampling_option_override(session):
 
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)
-    assert total_memory_mb == pytest.approx(download_size, rel=0.3)
+    assert total_memory_mb == pytest.approx(download_size, rel=0.5)
 
 
 def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):

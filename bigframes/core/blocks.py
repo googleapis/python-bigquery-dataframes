@@ -270,7 +270,7 @@ class Block:
 
     def order_by(
         self,
-        by: typing.Sequence[ordering.OrderingColumnReference],
+        by: typing.Sequence[ordering.OrderingExpression],
     ) -> Block:
         return Block(
             self._expr.order_by(by),
@@ -610,7 +610,9 @@ class Block:
             string_ordering_col, random_state_col, ops.strconcat_op
         )
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
-        block = block.order_by([ordering.OrderingColumnReference(hash_string_sum_col)])
+        block = block.order_by(
+            [ordering.OrderingExpression(ex.free_var(hash_string_sum_col))]
+        )
 
         intervals = []
         cur = 0
@@ -628,7 +630,7 @@ class Block:
             sliced_blocks = [
                 sliced_block.order_by(
                     [
-                        ordering.OrderingColumnReference(idx_col)
+                        ordering.OrderingExpression(ex.free_var(idx_col))
                         for idx_col in sliced_block.index_columns
                     ]
                 )
@@ -636,7 +638,9 @@ class Block:
             ]
         elif sort is False:
             sliced_blocks = [
-                sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
+                sliced_block.order_by(
+                    [ordering.OrderingExpression(ex.free_var(ordering_col))]
+                )
                 for sliced_block in sliced_blocks
             ]
 
@@ -1715,7 +1719,10 @@ class Block:
         if sort:
             # sort uses coalesced join keys always
             joined_expr = joined_expr.order_by(
-                [ordering.OrderingColumnReference(col_id) for col_id in coalesced_ids],
+                [
+                    ordering.OrderingExpression(ex.free_var(col_id))
+                    for col_id in coalesced_ids
+                ],
             )
 
         joined_expr = joined_expr.select_columns(result_columns)
@@ -2037,7 +2044,10 @@ def join_mono_indexed(
     )
     if sort:
         combined_expr = combined_expr.order_by(
-            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+            [
+                ordering.OrderingExpression(ex.free_var(col_id))
+                for col_id in coalesced_join_cols
+            ]
         )
     block = Block(
         combined_expr,
@@ -2126,7 +2136,10 @@ def join_multi_indexed(
     )
     if sort:
         combined_expr = combined_expr.order_by(
-            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+            [
+                ordering.OrderingExpression(ex.free_var(col_id))
+                for col_id in coalesced_join_cols
+            ]
         )
 
     if left.index.nlevels == 1:

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
-from bigframes_vendored.pandas.core.generic import NDFrame
+import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
 
@@ -23,7 +23,7 @@ from bigframes import constants
 # DataFrame class
 
 
-class DataFrame(NDFrame):
+class DataFrame(generic.NDFrame):
     """Two-dimensional, size-mutable, potentially heterogeneous tabular data.
 
     Data structure also contains labeled axes (rows and columns).
@@ -592,7 +592,7 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_records()
             rec.array([(0, 1, 3), (1, 2, 4)],
-                      dtype=[('index', 'O'), ('col1', 'O'), ('col2', 'O')])
+                      dtype=[('index', '<i8'), ('col1', '<i8'), ('col2', '<i8')])
 
         Args:
             index (bool, default True):
@@ -1141,7 +1141,7 @@ class DataFrame(NDFrame):
 
         Args:
             other (DataFrame or Series):
-            join ({{'outer', 'inner', 'left', 'right'}}, default 'outer'):
+            join ({'outer', 'inner', 'left', 'right'}, default 'outer'):
                 Type of alignment to be performed.
                 left: use only keys from left frame, preserve key order.
                 right: use only keys from right frame, preserve key order.
@@ -1627,9 +1627,6 @@ class DataFrame(NDFrame):
 
         This is index for Series, columns for DataFrame.
 
-        Returns:
-            Index: Info axis.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -1641,6 +1638,9 @@ class DataFrame(NDFrame):
             ...     })
             >>> df.keys()
             Index(['A', 'B'], dtype='object')
+
+        Returns:
+            Index: Info axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1673,6 +1673,17 @@ class DataFrame(NDFrame):
         """
         Iterate over DataFrame rows as namedtuples.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> next(df.itertuples(name="Pair"))
+            Pair(Index=0, A=1, B=4)
+
         Args:
             index (bool, default True):
                 If True, return the index as the first element of the tuple.
@@ -1685,18 +1696,6 @@ class DataFrame(NDFrame):
                 An object to iterate over namedtuples for each row in the
                 DataFrame with the first field possibly being the index and
                 following fields being the column values.
-
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> next(df.itertuples(name="Pair"))
-            Pair(Index=0, A=1, B=4)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3183,7 +3182,7 @@ class DataFrame(NDFrame):
             on:
                 Column in the caller to join on the index in other, otherwise
                 joins index-on-index. Like an Excel VLOOKUP operation.
-            how ({'left', 'right', 'outer', 'inner'}, default 'left'`):
+            how ({'left', 'right', 'outer', 'inner'}, default 'left'):
                 How to handle the operation of the two objects.
                 ``left``: use calling frame's index (or column if on is specified)
                 ``right``: use `other`'s index. ``outer``: form union of calling
@@ -4431,7 +4430,7 @@ class DataFrame(NDFrame):
     def diff(
         self,
         periods: int = 1,
-    ) -> NDFrame:
+    ) -> generic.NDFrame:
         """First discrete difference of element.
 
         Calculates the difference of a DataFrame element compared with another
@@ -4779,7 +4778,7 @@ class DataFrame(NDFrame):
             >>> df.index # doctest: +ELLIPSIS
             Index([10, 20, 30], dtype='Int64')
             >>> df.index.values
-            array([10, 20, 30], dtype=object)
+            array([10, 20, 30])
 
         Let's try setting a new index for the dataframe and see that reflect via
         ``index`` property.

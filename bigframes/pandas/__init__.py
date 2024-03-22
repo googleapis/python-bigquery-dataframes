@@ -492,9 +492,10 @@ def read_gbq(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
+    configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
     filters: vendored_pandas_gbq.FiltersType = (),
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
@@ -503,6 +504,7 @@ def read_gbq(
         query_or_table,
         index_col=index_col,
         columns=columns,
+        configuration=configuration,
         max_results=max_results,
         filters=filters,
         use_cache=use_cache,
@@ -528,8 +530,9 @@ def read_gbq_query(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
+    configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
@@ -538,6 +541,7 @@ def read_gbq_query(
         query,
         index_col=index_col,
         columns=columns,
+        configuration=configuration,
         max_results=max_results,
         use_cache=use_cache,
         col_order=col_order,
@@ -706,6 +710,9 @@ reset_session = global_session.close_session
 
 # SQL Compilation uses recursive algorithms on deep trees
 # 10M tree depth should be sufficient to generate any sql that is under bigquery limit
+# Note: This limit does not have the desired effect on Python 3.12 in
+# which the applicable limit is now hard coded. See:
+# https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
 resource.setrlimit(
     resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
