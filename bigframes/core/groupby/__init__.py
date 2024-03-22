@@ -234,7 +234,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             min_periods=min_periods or window,
         )
         block = self._block.order_by(
-            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            [order.ascending_over(col) for col in self._by_col_ids],
         )
         return windows.Window(
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
@@ -247,7 +247,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             min_periods=min_periods,
         )
         block = self._block.order_by(
-            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            [order.ascending_over(col) for col in self._by_col_ids],
         )
         return windows.Window(
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
@@ -594,7 +594,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             min_periods=min_periods or window,
         )
         block = self._block.order_by(
-            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            [order.ascending_over(col) for col in self._by_col_ids],
         )
         return windows.Window(
             block,
@@ -611,7 +611,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             min_periods=min_periods,
         )
         block = self._block.order_by(
-            [order.OrderingColumnReference(col) for col in self._by_col_ids],
+            [order.ascending_over(col) for col in self._by_col_ids],
         )
         return windows.Window(
             block,
