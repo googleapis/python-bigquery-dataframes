@@ -42,6 +42,8 @@ _FLOAT64_EXP_BOUND = typing.cast(ibis_types.NumericValue, ibis_types.literal(709
 
 # Datetime constants
 UNIT_TO_US_CONVERSION_FACTORS = {
+    "W": 7 * 24 * 60 * 60 * 1000 * 1000,
+    "d": 24 * 60 * 60 * 1000 * 1000,
     "D": 24 * 60 * 60 * 1000 * 1000,
     "h": 60 * 60 * 1000 * 1000,
     "m": 60 * 1000 * 1000,
@@ -622,6 +624,26 @@ def strftime_op_impl(x: ibis_types.Value, op: ops.StrftimeOp):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
+def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
+    supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]
+    pandas_to_ibis_freqs = {"min": "m"}
+    if op.freq not in supported_freqs:
+        raise NotImplementedError(
+            f"Unsupported freq paramater: {op.freq}"
+            + " Supported freq parameters are: "
+            + ",".join(supported_freqs)
+        )
+    if op.freq in pandas_to_ibis_freqs:
+        ibis_freq = pandas_to_ibis_freqs[op.freq]
+    else:
+        ibis_freq = op.freq
+    result_type = x.type()
+    result = typing.cast(ibis_types.TimestampValue, x)
+    result = result.truncate(ibis_freq)
+    return result.cast(result_type)
+
+
 @scalar_op_compiler.register_unary_op(ops.time_op)
 def time_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).time()
@@ -630,6 +652,13 @@ def time_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.year_op)
 def year_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).year().cast(ibis_dtypes.int64)
+
+
+@scalar_op_compiler.register_unary_op(ops.normalize_op)
+def normalize_op_impl(x: ibis_types.Value):
+    result_type = x.type()
+    result = x.truncate("D")
+    return result.cast(result_type)
 
 
 # Parameterized ops
@@ -726,12 +755,19 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
         x = x.to_timestamp(op.format) if op.format else timestamp(x)
     elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
+        if op.format:
+            raise NotImplementedError(
+                f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
+            )
         return x
     elif x.type() != ibis_dtypes.timestamp:
-        # The default unit is set to "ns" (nanoseconds) for consistency
-        # with pandas, where "ns" is the default unit for datetime operations.
-        unit = op.unit or "ns"
-        x = numeric_to_datatime(x, unit)
+        if op.format:
+            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
+        else:
+            # The default unit is set to "ns" (nanoseconds) for consistency
+            # with pandas, where "ns" is the default unit for datetime operations.
+            unit = op.unit or "ns"
+            x = numeric_to_datatime(x, unit)
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
 

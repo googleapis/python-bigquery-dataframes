@@ -58,7 +58,7 @@ class LinearRegression(
         *,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
-        ] = "normal_equation",
+        ] = "auto_strategy",
         fit_intercept: bool = True,
         l1_reg: Optional[float] = None,
         l2_reg: float = 0.0,
@@ -135,7 +135,7 @@ class LinearRegression(
         if self.ls_init_learning_rate is not None:
             options["ls_init_learn_rate"] = self.ls_init_learning_rate
         # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
-        if self.warm_start is True:
+        if self.warm_start:
             options["warm_start"] = self.warm_start
 
         return options
@@ -208,10 +208,34 @@ class LogisticRegression(
     def __init__(
         self,
         *,
+        optimize_strategy: Literal[
+            "auto_strategy", "batch_gradient_descent", "normal_equation"
+        ] = "auto_strategy",
         fit_intercept: bool = True,
+        l1_reg: Optional[float] = None,
+        l2_reg: float = 0.0,
+        max_iterations: int = 20,
+        warm_start: bool = False,
+        learning_rate: Optional[float] = None,
+        learning_rate_strategy: Literal["line_search", "constant"] = "line_search",
+        tol: float = 0.01,
+        ls_init_learning_rate: Optional[float] = None,
+        calculate_p_values: bool = False,
+        enable_global_explain: bool = False,
         class_weight: Optional[Union[Literal["balanced"], Dict[str, float]]] = None,
     ):
+        self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+        self.max_iterations = max_iterations
+        self.warm_start = warm_start
+        self.learning_rate = learning_rate
+        self.learning_rate_strategy = learning_rate_strategy
+        self.tol = tol
+        self.ls_init_learning_rate = ls_init_learning_rate
+        self.calculate_p_values = calculate_p_values
+        self.enable_global_explain = enable_global_explain
         self.class_weight = class_weight
         self._auto_class_weight = class_weight == "balanced"
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -227,8 +251,16 @@ class LogisticRegression(
 
         # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
         last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "fitIntercept" in last_fitting:
-            kwargs["fit_intercept"] = last_fitting["fitIntercept"]
+        dummy_logistic = cls()
+        for bf_param, bf_value in dummy_logistic.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param in last_fitting:
+                # Convert types
+                kwargs[bf_param] = (
+                    float(last_fitting[bqml_param])
+                    if bf_param in ["l1_reg", "learning_rate", "ls_init_learning_rate"]
+                    else type(bf_value)(last_fitting[bqml_param])
+                )
         if last_fitting["autoClassWeights"]:
             kwargs["class_weight"] = "balanced"
         # TODO(ashleyxu) support class_weight in the constructor.
@@ -240,16 +272,34 @@ class LogisticRegression(
         return new_logistic_regression
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "LOGISTIC_REG",
             "data_split_method": "NO_SPLIT",
             "fit_intercept": self.fit_intercept,
             "auto_class_weights": self._auto_class_weight,
+            "optimize_strategy": self.optimize_strategy,
+            "l2_reg": self.l2_reg,
+            "max_iterations": self.max_iterations,
+            "learning_rate_strategy": self.learning_rate_strategy,
+            "min_rel_progress": self.tol,
+            "calculate_p_values": self.calculate_p_values,
+            "enable_global_explain": self.enable_global_explain,
             # TODO(ashleyxu): support class_weight (struct array as dict in our API)
             # "class_weight": self.class_weight,
         }
+        if self.l1_reg is not None:
+            options["l1_reg"] = self.l1_reg
+        if self.learning_rate is not None:
+            options["learn_rate"] = self.learning_rate
+        if self.ls_init_learning_rate is not None:
+            options["ls_init_learn_rate"] = self.ls_init_learning_rate
+        # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
+        if self.warm_start:
+            options["warm_start"] = self.warm_start
+
+        return options
 
     def _fit(
         self,

@@ -42,6 +42,11 @@ class RowOp(typing.Protocol):
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
 
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        ...
+
 
 # These classes can be used to create simple ops that don't take local parameters
 # All is needed is a unique name, and to register an implementation in ibis_mappings.py
@@ -66,6 +71,11 @@ class UnaryOp:
         return bigframes.core.expression.OpExpression(
             self, (_convert_expr_input(input_id),)
         )
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -95,6 +105,11 @@ class BinaryOp:
                 _convert_expr_input(right_input),
             ),
         )
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,6 +141,11 @@ class TernaryOp:
                 _convert_expr_input(input3),
             ),
         )
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
 
 
 def _convert_expr_input(
@@ -212,6 +232,7 @@ time_op = create_unary_op(
     name="time", type_rule=op_typing.Fixed(pd.ArrowDtype(pa.time64("us")))
 )
 year_op = create_unary_op(name="year", type_rule=op_typing.INTEGER)
+normalize_op = create_unary_op(name="normalize")
 ## Trigonometry Ops
 sin_op = create_unary_op(name="sin", type_rule=op_typing.REAL_NUMERIC)
 cos_op = create_unary_op(name="cos", type_rule=op_typing.REAL_NUMERIC)
@@ -438,6 +459,15 @@ class StrftimeOp(UnaryOp):
 
     def output_type(self, *input_types):
         return dtypes.STRING_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class FloorDtOp(UnaryOp):
+    name: typing.ClassVar[str] = "floor_dt"
+    freq: str
+
+    def output_type(self, *input_types):
+        return input_types[0]
 
 
 # Binary Ops
