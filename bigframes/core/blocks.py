@@ -952,7 +952,6 @@ class Block:
         ]
         output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
-        aggregate_labels = self._get_labels_for_columns(["size"])
         names: typing.List[Label] = []
         for by_col_id in by_column_ids:
             if by_col_id in self.value_columns:
@@ -963,7 +962,7 @@ class Block:
             Block(
                 result_expr,
                 index_columns=by_column_ids,
-                column_labels=aggregate_labels,
+                column_labels=["size"],
                 index_labels=names,
             ),
             output_col_ids,
