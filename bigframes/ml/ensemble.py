@@ -124,6 +124,7 @@ class XGBRegressor(
         return {
             "model_type": "BOOSTED_TREE_REGRESSOR",
             "data_split_method": "NO_SPLIT",
+            "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
@@ -279,6 +280,7 @@ class XGBClassifier(
         return {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
             "data_split_method": "NO_SPLIT",
+            "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
@@ -423,6 +425,7 @@ class RandomForestRegressor(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "RANDOM_FOREST_REGRESSOR",
+            "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,
@@ -585,6 +588,7 @@ class RandomForestClassifier(
         """The model options as they will be set for BQML"""
         return {
             "model_type": "RANDOM_FOREST_CLASSIFIER",
+            "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,

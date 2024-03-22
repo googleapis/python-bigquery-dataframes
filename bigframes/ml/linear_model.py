@@ -282,7 +282,7 @@ class LogisticRegression(
             "optimize_strategy": self.optimize_strategy,
             "l2_reg": self.l2_reg,
             "max_iterations": self.max_iterations,
-            "learning_rate_strategy": self.learning_rate_strategy,
+            "learn_rate_strategy": self.learning_rate_strategy,
             "min_rel_progress": self.tol,
             "calculate_p_values": self.calculate_p_values,
             "enable_global_explain": self.enable_global_explain,
