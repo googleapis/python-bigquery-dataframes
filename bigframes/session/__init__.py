@@ -70,18 +70,21 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
+import bigframes.clients
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
 import bigframes.core.guid as guid
-from bigframes.core.ordering import IntegerEncoding, OrderingColumnReference
-import bigframes.core.ordering as orderings
+from bigframes.core.ordering import IntegerEncoding
+import bigframes.core.ordering as order
 import bigframes.core.traversal as traversals
 import bigframes.core.utils as utils
 import bigframes.dataframe as dataframe
+import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.functions.remote_function import remote_function as bigframes_rf
@@ -112,6 +115,20 @@ MAX_INLINE_DF_SIZE = 5000
 
 logger = logging.getLogger(__name__)
 
+# Excludes geography, bytes, and nested (array, struct) datatypes
+INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
+    pandas.BooleanDtype(),
+    pandas.Float64Dtype(),
+    pandas.Int64Dtype(),
+    pandas.StringDtype(storage="pyarrow"),
+    pandas.ArrowDtype(pa.date32()),
+    pandas.ArrowDtype(pa.time64("us")),
+    pandas.ArrowDtype(pa.timestamp("us")),
+    pandas.ArrowDtype(pa.timestamp("us", tz="UTC")),
+    pandas.ArrowDtype(pa.decimal128(38, 9)),
+    pandas.ArrowDtype(pa.decimal256(76, 38)),
+)
+
 
 def _is_query(query_or_table: str) -> bool:
     """Determine if `query_or_table` is a table ID or a SQL string"""
@@ -137,7 +154,7 @@ class Session(
             Configuration adjusting how to connect to BigQuery and related
             APIs. Note that some options are ignored if ``clients_provider`` is
             set.
-        clients_provider (bigframes.session.bigframes.session.clients.ClientsProvider):
+        clients_provider (bigframes.session.clients.ClientsProvider):
             An object providing client library objects.
     """
 
@@ -196,6 +213,7 @@ class Session(
 
         # Resolve the BQ connection for remote function and Vertex AI integration
         self._bq_connection = context.bq_connection or _BIGFRAMES_DEFAULT_CONNECTION_ID
+        self._skip_bq_connection_check = context._skip_bq_connection_check
 
         # Now that we're starting the session, don't allow the options to be
         # changed.
@@ -221,6 +239,16 @@ class Session(
     @property
     def resourcemanagerclient(self):
         return self._clients_provider.resourcemanagerclient
+
+    _bq_connection_manager: Optional[bigframes.clients.BqConnectionManager] = None
+
+    @property
+    def bqconnectionmanager(self):
+        if not self._skip_bq_connection_check and not self._bq_connection_manager:
+            self._bq_connection_manager = bigframes.clients.BqConnectionManager(
+                self.bqconnectionclient, self.resourcemanagerclient
+            )
+        return self._bq_connection_manager
 
     @property
     def _project(self):
@@ -318,6 +346,7 @@ class Session(
             valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
                 "in": "IN",
                 "not in": "NOT IN",
+                "LIKE": "LIKE",
                 "==": "=",
                 ">": ">",
                 "<": "<",
@@ -718,10 +747,9 @@ class Session(
             # Note: currently, a table has a total ordering only when the
             # primary key(s) are set on a table. The query engine assumes such
             # columns are unique, even if not enforced.
-            ordering = orderings.ExpressionOrdering(
+            ordering = order.ExpressionOrdering(
                 ordering_value_columns=tuple(
-                    core.OrderingColumnReference(column_id)
-                    for column_id in total_ordering_cols
+                    order.ascending_over(column_id) for column_id in total_ordering_cols
                 ),
                 total_ordering_columns=frozenset(total_ordering_cols),
             )
@@ -736,12 +764,9 @@ class Session(
 
         elif len(index_cols) != 0:
             # We have index columns, lets see if those are actually total_order_columns
-            ordering = orderings.ExpressionOrdering(
+            ordering = order.ExpressionOrdering(
                 ordering_value_columns=tuple(
-                    [
-                        core.OrderingColumnReference(column_id)
-                        for column_id in index_cols
-                    ]
+                    [order.ascending_over(column_id) for column_id in index_cols]
                 ),
                 total_ordering_columns=frozenset(index_cols),
             )
@@ -916,25 +941,37 @@ class Session(
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
-        if (
-            pandas_dataframe.size < MAX_INLINE_DF_SIZE
-            # TODO(swast): Workaround data types limitation in inline data.
-            and not any(
-                (
-                    isinstance(s.dtype, pandas.ArrowDtype)
-                    or (len(s) > 0 and pandas.api.types.is_list_like(s.iloc[0]))
-                    or pandas.api.types.is_datetime64_any_dtype(s)
-                )
-                for _, s in pandas_dataframe.items()
+        if isinstance(pandas_dataframe, dataframe.DataFrame):
+            raise ValueError(
+                "read_pandas() expects a pandas.DataFrame, but got a "
+                "bigframes.pandas.DataFrame."
             )
-        ):
-            return self._read_pandas_inline(pandas_dataframe)
+
+        inline_df = self._read_pandas_inline(pandas_dataframe)
+        if inline_df is not None:
+            return inline_df
         return self._read_pandas_load_job(pandas_dataframe, api_name)
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
-    ) -> dataframe.DataFrame:
-        return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
+    ) -> Optional[dataframe.DataFrame]:
+        if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
+            return None
+
+        try:
+            inline_df = dataframe.DataFrame(
+                blocks.Block.from_local(pandas_dataframe, self)
+            )
+        except ValueError:  # Thrown by ibis for some unhandled types
+            return None
+        except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
+            return None
+
+        inline_types = inline_df._block.expr.schema.dtypes
+        # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.
+        if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
+            return inline_df
+        return None
 
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -983,8 +1020,8 @@ class Session(
         )
         self._start_generic_job(load_job)
 
-        ordering = orderings.ExpressionOrdering(
-            ordering_value_columns=tuple([OrderingColumnReference(ordering_col)]),
+        ordering = order.ExpressionOrdering(
+            ordering_value_columns=tuple([order.ascending_over(ordering_col)]),
             total_ordering_columns=frozenset([ordering_col]),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
         )
@@ -1339,9 +1376,9 @@ class Session(
             itertools.chain(original_column_ids, [full_row_hash, random_value])
         )
 
-        ordering_ref1 = core.OrderingColumnReference(ordering_hash_part)
-        ordering_ref2 = core.OrderingColumnReference(ordering_rand_part)
-        ordering = orderings.ExpressionOrdering(
+        ordering_ref1 = order.ascending_over(ordering_hash_part)
+        ordering_ref2 = order.ascending_over(ordering_rand_part)
+        ordering = order.ExpressionOrdering(
             ordering_value_columns=(ordering_ref1, ordering_ref2),
             total_ordering_columns=frozenset([ordering_hash_part, ordering_rand_part]),
         )
@@ -1705,7 +1742,7 @@ class Session(
             table_expression,
             columns=new_columns,
             hidden_ordering_columns=new_hidden_columns,
-            ordering=orderings.ExpressionOrdering.from_offset_col("bigframes_offsets"),
+            ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         )
 
     def _is_trivially_executable(self, array_value: core.ArrayValue):

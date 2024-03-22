@@ -19,9 +19,10 @@ from __future__ import annotations
 import functools
 import itertools
 import numbers
+import os
 import textwrap
 import typing
-from typing import Any, Mapping, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
@@ -39,7 +40,7 @@ import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
-from bigframes.core.ordering import OrderingColumnReference, OrderingDirection
+import bigframes.core.ordering as order
 import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -70,6 +71,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
+
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._block.expr.validate_schema()
 
     @property
     def dt(self) -> dt.DatetimeMethods:
@@ -150,6 +156,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def _info_axis(self) -> indexes.Index:
         return self.index
+
+    @property
+    def _session(self) -> bigframes.Session:
+        return self._get_block().expr.session
 
     def transpose(self) -> Series:
         return self
@@ -354,7 +364,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block, condition_id = block.project_expr(
                 ops.ne_op.as_expr(level_id, ex.const(index))
             )
-        block = block.filter(condition_id, keep_null=True)
+        block = block.filter_by_id(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 
@@ -861,11 +871,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             max_value_count_col_id,
             ops.eq_op,
         )
-        block = block.filter(is_mode_col_id)
+        block = block.filter_by_id(is_mode_col_id)
         # use temporary name for reset_index to avoid collision, restore after dropping extra columns
         block = (
             block.with_index_labels(["mode_temp_internal"])
-            .order_by([OrderingColumnReference(self._value_column)])
+            .order_by([order.ascending_over(self._value_column)])
             .reset_index(drop=False)
         )
         block = block.select_column(self._value_column).with_column_labels([self.name])
@@ -931,10 +941,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
-                OrderingColumnReference(
-                    self._value_column, direction=OrderingDirection.DESC
-                ),
-                OrderingColumnReference(row_nums),
+                order.descending_over(self._value_column),
+                order.ascending_over(row_nums),
             ]
         )
         return typing.cast(
@@ -945,8 +953,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
-                OrderingColumnReference(self._value_column),
-                OrderingColumnReference(row_nums),
+                order.ascending_over(self._value_column),
+                order.ascending_over(row_nums),
             ]
         )
         return typing.cast(
@@ -979,11 +987,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def idxmax(self) -> blocks.Label:
         block = self._block.order_by(
             [
-                OrderingColumnReference(
-                    self._value_column, direction=OrderingDirection.DESC
-                ),
+                order.descending_over(self._value_column),
                 *[
-                    OrderingColumnReference(idx_col)
+                    order.ascending_over(idx_col)
                     for idx_col in self._block.index_columns
                 ],
             ]
@@ -994,9 +1000,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def idxmin(self) -> blocks.Label:
         block = self._block.order_by(
             [
-                OrderingColumnReference(self._value_column),
+                order.ascending_over(self._value_column),
                 *[
-                    OrderingColumnReference(idx_col)
+                    order.ascending_over(idx_col)
                     for idx_col in self._block.index_columns
                 ],
             ]
@@ -1032,7 +1038,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.iloc[indexer]
         if isinstance(indexer, Series):
             (left, right, block) = self._align(indexer, "left")
-            block = block.filter(right)
+            block = block.filter_by_id(right)
             block = block.select_column(left)
             return Series(block)
         return self.loc[indexer]
@@ -1089,14 +1095,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
         block = self._block.order_by(
             [
-                OrderingColumnReference(
-                    self._value_column,
-                    direction=direction,
-                    na_last=(na_position == "last"),
-                )
+                order.ascending_over(self._value_column, (na_position == "last"))
+                if ascending
+                else order.descending_over(self._value_column, (na_position == "last"))
             ],
         )
         return Series(block)
@@ -1106,10 +1109,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._block
-        direction = OrderingDirection.ASC if ascending else OrderingDirection.DESC
         na_last = na_position == "last"
         ordering = [
-            OrderingColumnReference(column, direction=direction, na_last=na_last)
+            order.ascending_over(column, na_last)
+            if ascending
+            else order.descending_over(column, na_last)
             for column in block.index_columns
         ]
         block = block.order_by(ordering)
@@ -1195,7 +1199,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     get_column_right,
                 ) = block.join(key._block, how="inner" if dropna else "left")
 
-                value_col = get_column_left[self._value_column]
+                value_col = get_column_left[value_col]
                 grouping_cols = [
                     *[get_column_left[value] for value in grouping_cols],
                     get_column_right[key._value_column],
@@ -1304,7 +1308,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns([self._value_column])
             return Series(block)
         elif items is not None:
@@ -1313,7 +1317,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block, mask_id = block.apply_unary_op(
                 self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns([self._value_column])
             return Series(block)
         else:
@@ -1390,9 +1394,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return bigframes.dataframe.DataFrame(block)
 
-    def to_csv(self, path_or_buf=None, **kwargs) -> typing.Optional[str]:
-        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_csv(path_or_buf, **kwargs)
+    def to_csv(
+        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
+    ) -> None:
+        return self.to_frame().to_csv(path_or_buf, sep=sep, header=header, index=index)
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
         return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
@@ -1402,14 +1407,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_json(
         self,
-        path_or_buf=None,
+        path_or_buf: str,
         orient: typing.Literal[
             "split", "records", "index", "columns", "values", "table"
         ] = "columns",
-        **kwargs,
-    ) -> typing.Optional[str]:
-        # TODO(b/280651142): Implement version that leverages bq export native csv support to bypass local pandas step.
-        return self.to_pandas().to_json(path_or_buf, **kwargs)
+        *,
+        lines: bool = False,
+        index: bool = True,
+    ) -> None:
+        return self.to_frame().to_json(
+            path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+        )
 
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
@@ -1521,6 +1529,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> Series:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
@@ -1528,7 +1537,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return Series(
-            self._block._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+            self._block._split(
+                ns=ns, fracs=fracs, random_state=random_state, sort=sort
+            )[0]
         )
 
     def __array_ufunc__(

@@ -535,59 +535,6 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_json(
-        self,
-        path_or_buf=None,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
-        **kwarg,
-    ) -> str | None:
-        """
-        Convert the object to a JSON string.
-
-        Note NaN's and None will be converted to null and datetime objects
-        will be converted to UNIX timestamps.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string.
-            orient ({"split", "records", "index", "columns", "values", "table"}, default "columns"):
-                Indication of expected JSON string format.
-                'split' : dict like {{'index' -> [index], 'columns' -> [columns],'data' -> [values]}}
-                'records' : list like [{{column -> value}}, ... , {{column -> value}}]
-                'index' : dict like {{index -> {{column -> value}}}}
-                'columns' : dict like {{column -> {{index -> value}}}}
-                'values' : just the values array
-                'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
-                Describing the data, where data component is like ``orient='records'``.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting json format as a
-                string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
-        """
-        Write object to a comma-separated values (csv) file.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string. If a non-binary file object is passed, it should
-                be opened with `newline=''`, disabling universal newlines. If a binary
-                file object is passed, `mode` might need to contain a `'b'`.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting csv format
-                as a string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
     def agg(self, func):
         """
         Aggregate using one or more operations over the specified axis.
@@ -2088,11 +2035,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> a = bpd.Series([1, 2, 3, bpd.NA])
             >>> a
-            0     1.0
-            1     2.0
-            2     3.0
+            0       1
+            1       2
+            2       3
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
             >>> b = bpd.Series([10, 20, 30, 40])
             >>> b
@@ -2103,20 +2050,20 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> a.add(b)
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         You can also use the mathematical operator ``+``:
 
             >>> a + b
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         Adding two Series with explicit indexes:
 
@@ -2424,12 +2371,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.max()
-            3.0
+            3
 
         Returns:
             scalar: Scalar.
@@ -2464,12 +2411,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.min()
-            1.0
+            1
 
         Returns:
             scalar: Scalar.
@@ -2551,12 +2498,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.sum()
-            4.0
+            4
 
         Returns:
             scalar: Scalar.
@@ -2585,10 +2532,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.mean()
             2.0
 
@@ -3313,17 +3260,38 @@ class Series(NDFrame):  # type: ignore[misc]
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.IlocSeriesIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.LocSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
