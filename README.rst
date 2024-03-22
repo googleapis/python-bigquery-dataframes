@@ -241,7 +241,10 @@ and you must be granted the following IAM roles:
   ``PROJECT_NUMBER-compute@developer.gserviceaccount.com``
 * Vertex AI User (roles/aiplatform.user)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
-  BigQuery connection, or Browser (roles/browser) if using a pre-created connection
+  BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
+  This requirement can be avoided by setting ``skip_bq_connection_check`` option
+  to ``True``, in which case the connection (default or pre-configured) would be
+  used as-is without any existence or permission check.
 
 
 ML locations
@@ -288,15 +291,22 @@ into `BigQuery remote functions
 <https://cloud.google.com/bigquery/docs/remote-functions>`_ . Creating a remote
 function in BigQuery DataFrames (See `code samples
 <https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes>`_)
-creates a BigQuery remote function, a `BigQuery
-connection
-<https://cloud.google.com/bigquery/docs/create-cloud-resource-connection>`_ ,
-and a `Cloud Functions (2nd gen) function
-<https://cloud.google.com/functions/docs/concepts/overview>`_ .
+creates:
+
+1. A `Cloud Functions (2nd gen) function <https://cloud.google.com/functions/docs/concepts/overview>`_.
+2. A `BigQuery connection <https://cloud.google.com/bigquery/docs/create-cloud-resource-connection>`_
+   if the connection does not exist and ``skip_bq_connection_check`` option is
+   not set to ``True``. You can use a pre-configured BigQuery connection if you
+   prefer. If the BigQuery connection is created, the BigQuery service will
+   create a
+   `Google Cloud–managed IAM service account https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin`_
+   and attach it to the connection.
+3. A BigQuery remote function that talks to the cloud function (1) using the BigQuery
+   connection (2).
 
 BigQuery connections are created in the same location as the BigQuery
 DataFrames session, using the name you provide in the custom function
-definition. To view and manage connections, do the following:
+definition.  To view and manage connections, do the following:
 
 1. Go to `BigQuery in the Google Cloud Console <https://console.cloud.google.com/bigquery>`__.
 2. Select the project in which you created the remote function.
@@ -341,7 +351,10 @@ following IAM roles:
   ``PROJECT_NUMBER-compute@developer.gserviceaccount.com``
 * Storage Object Viewer (roles/storage.objectViewer)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
-  BigQuery connection, or Browser (roles/browser) if using a pre-created connection
+  BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
+  This requirement can be avoided by setting ``skip_bq_connection_check`` option
+  to ``True``, in which case the connection (default or pre-configured) would be
+  used as-is without any existence or permission check.
 
 **Limitations**
 
