@@ -18,6 +18,7 @@ import uuid
 
 import pandas as pd
 
+import bigframes.constants as constants
 import bigframes.dtypes as dtypes
 
 DEFAULT_SAMPLING_N = 1000
@@ -92,31 +93,24 @@ class ScatterPlot(SamplingPlot):
         super().__init__(data, **kwargs)
 
         c = self.kwargs.get("c", None)
-        if self._is_sequence_arg(c) and len(c) != self.data.shape[0]:
-            raise ValueError(
-                f"'c' argument has {len(c)} elements, which is "
-                + f"inconsistent with 'x' and 'y' with size {self.data.shape[0]}"
+        if self._is_sequence_arg(c):
+            raise NotImplementedError(
+                f"Only support a single color string or a column name/posision. {constants.FEEDBACK_LINK}"
             )
 
     def _compute_plot_data(self):
-        data = self.data.copy()
-
-        c = self.kwargs.get("c", None)
-        c_id = None
-        if self._is_sequence_arg(c):
-            c_id = self._generate_new_column_name(data)
-            data[c_id] = c
-
-        sample = self._compute_sample_data(data)
+        sample = self._compute_sample_data(self.data)
 
         # Works around a pandas bug:
         # https://github.com/pandas-dev/pandas/commit/45b937d64f6b7b6971856a47e379c7c87af7e00a
+        c = self.kwargs.get("c", None)
+        if (
+            pd.core.dtypes.common.is_integer(c)
+            and not self.data.columns._holds_integer()
+        ):
+            c = self.data.columns[c]
         if self._is_column_name(c, sample) and sample[c].dtype == dtypes.STRING_DTYPE:
             sample[c] = sample[c].astype("object")
-
-        if c_id is not None:
-            self.kwargs["c"] = sample[c_id]
-            sample = sample.drop(columns=[c_id])
 
         return sample
 

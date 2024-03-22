@@ -215,15 +215,7 @@ def test_scatter(scalars_dfs):
         pytest.param("red", id="red"),
         pytest.param("c", id="int_column"),
         pytest.param("species", id="color_column"),
-        pytest.param(["red", "green", "blue"], id="color_sequence"),
-        pytest.param([3.4, 5.3, 2.0], id="number_sequence"),
-        pytest.param(
-            [3.4, 5.3],
-            id="length_mismatches_sequence",
-            marks=pytest.mark.xfail(
-                raises=ValueError,
-            ),
-        ),
+        pytest.param(3, id="column_index"),
     ],
 )
 def test_scatter_args_c(c):
@@ -238,32 +230,6 @@ def test_scatter_args_c(c):
 
     ax = df.plot.scatter(x="a", y="b", c=c)
     pd_ax = pd_df.plot.scatter(x="a", y="b", c=c)
-    assert len(ax.collections[0].get_facecolor()) == len(
-        pd_ax.collections[0].get_facecolor()
-    )
-    for idx in range(len(ax.collections[0].get_facecolor())):
-        tm.assert_numpy_array_equal(
-            ax.collections[0].get_facecolor()[idx],
-            pd_ax.collections[0].get_facecolor()[idx],
-        )
-
-
-def test_scatter_args_c_sampling():
-    data = {
-        "plot_temp_0": [1, 2, 3, 4, 5],
-        "plot_temp_1": [5, 4, 3, 2, 1],
-    }
-    c = ["red", "green", "blue", "orange", "black"]
-
-    df = bpd.DataFrame(data)
-    pd_df = pd.DataFrame(data)
-
-    ax = df.plot.scatter(x="plot_temp_0", y="plot_temp_1", c=c, sampling_n=3)
-
-    sampling_index = [0, 1, 2]
-    pd_ax = pd_df.iloc[sampling_index].plot.scatter(
-        x="plot_temp_0", y="plot_temp_1", c=[c[i] for i in sampling_index]
-    )
     assert len(ax.collections[0].get_facecolor()) == len(
         pd_ax.collections[0].get_facecolor()
     )
