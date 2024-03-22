@@ -236,9 +236,8 @@ and you must be granted the following IAM roles:
 
 * BigQuery Data Editor (roles/bigquery.dataEditor)
 * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
-* Service Account User (roles/iam.serviceAccountUser) on the
-  `service account <https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration>`__
-  ``PROJECT_NUMBER-compute@developer.gserviceaccount.com``
+* Service Account User (roles/iam.serviceAccountUser) in the project or on the
+  `service account of the BigQuery connection <https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin>`_
 * Vertex AI User (roles/aiplatform.user)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
   BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
@@ -299,7 +298,7 @@ creates:
    not set to ``True``. You can use a pre-configured BigQuery connection if you
    prefer. If the BigQuery connection is created, the BigQuery service will
    create a
-   `Google Cloud–managed IAM service account https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin`_
+   `Google Cloud-managed IAM service account <https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin>`_
    and attach it to the connection.
 3. A BigQuery remote function that talks to the cloud function (1) using the BigQuery
    connection (2).
@@ -308,16 +307,16 @@ BigQuery connections are created in the same location as the BigQuery
 DataFrames session, using the name you provide in the custom function
 definition.  To view and manage connections, do the following:
 
-1. Go to `BigQuery in the Google Cloud Console <https://console.cloud.google.com/bigquery>`__.
+1. Go to `BigQuery in the Google Cloud Console <https://console.cloud.google.com/bigquery>`_.
 2. Select the project in which you created the remote function.
 3. In the Explorer pane, expand that project and then expand External connections.
 
 BigQuery remote functions are created in the dataset you specify, or
-in a special type of `hidden dataset <https://cloud.google.com/bigquery/docs/datasets#hidden_datasets>`__
+in a special type of `hidden dataset <https://cloud.google.com/bigquery/docs/datasets#hidden_datasets>`_
 referred to as an anonymous dataset. To view and manage remote functions created
 in a user provided dataset, do the following:
 
-1. Go to `BigQuery in the Google Cloud Console <https://console.cloud.google.com/bigquery>`__.
+1. Go to `BigQuery in the Google Cloud Console <https://console.cloud.google.com/bigquery>`_.
 2. Select the project in which you created the remote function.
 3. In the Explorer pane, expand that project, expand the dataset in which you
    created the remote function, and then expand Routines.
@@ -346,9 +345,12 @@ following IAM roles:
 * BigQuery Data Editor (roles/bigquery.dataEditor)
 * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
 * Cloud Functions Developer (roles/cloudfunctions.developer)
-* Service Account User (roles/iam.serviceAccountUser) on the
-  `service account <https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration>`__
+* Service Account User (roles/iam.serviceAccountUser) in the project or on the
+  service accounts
+  * Cloud Function user provided service account via or the
+  `default service account <https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration>`_
   ``PROJECT_NUMBER-compute@developer.gserviceaccount.com``
+  * `Service account of the BigQuery connection <https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin>`_
 * Storage Object Viewer (roles/storage.objectViewer)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
   BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
