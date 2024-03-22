@@ -259,7 +259,11 @@ def test_scatter_args_c_sampling():
     pd_df = pd.DataFrame(data)
 
     ax = df.plot.scatter(x="plot_temp_0", y="plot_temp_1", c=c, sampling_n=3)
-    pd_ax = pd_df.plot.scatter(x="plot_temp_0", y="plot_temp_1", c=c)
+
+    sampling_index = [0, 1, 2]
+    pd_ax = pd_df.iloc[sampling_index].plot.scatter(
+        x="plot_temp_0", y="plot_temp_1", c=[c[i] for i in sampling_index]
+    )
     assert len(ax.collections[0].get_facecolor()) == len(
         pd_ax.collections[0].get_facecolor()
     )

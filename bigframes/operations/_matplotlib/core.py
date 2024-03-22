@@ -16,13 +16,13 @@ import abc
 import typing
 import uuid
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
 import bigframes.dtypes as dtypes
 
 DEFAULT_SAMPLING_N = 1000
 DEFAULT_SAMPLING_STATE = 0
+
 
 class MPLPlot(abc.ABC):
     @abc.abstractmethod
@@ -105,7 +105,6 @@ class ScatterPlot(SamplingPlot):
         c_id = None
         if self._is_sequence_arg(c):
             c_id = self._generate_new_column_name(data)
-            print(c_id)
             data[c_id] = c
 
         sample = self._compute_sample_data(data)
