@@ -1115,7 +1115,8 @@ class Block:
         """
         if len(self.value_columns) > 30:
             raise NotImplementedError(
-                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
+                "This function supports dataframes with 30 columns or fewer. "
+                f"Provided dataframe has {len(self.value_columns)} columns. {constants.FEEDBACK_LINK}"
             )
 
         aggregations = [
