@@ -186,25 +186,25 @@ def eval(
     with plain ol' Python evaluation.
 
     **Examples:**
-    >>> import bigframes.pandas as bpd
-    >>> bpd.options.display.progress_bar = None
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
 
-    >>> df = bpd.DataFrame({"animal": ["dog", "pig"], "age": [10, 20]})
-    >>> df
-      animal  age
-    0    dog   10
-    1    pig   20
-    <BLANKLINE>
-    [2 rows x 2 columns]
+        >>> df = bpd.DataFrame({"animal": ["dog", "pig"], "age": [10, 20]})
+        >>> df
+        animal  age
+        0    dog   10
+        1    pig   20
+        <BLANKLINE>
+        [2 rows x 2 columns]
 
-    We can add a new column using ``pd.eval``:
+        We can add a new column using ``pd.eval``:
 
-    >>> df.eval("double_age = df.age * 2")
-      animal  age  double_age
-    0    dog   10          20
-    1    pig   20          40
-    <BLANKLINE>
-    [2 rows x 3 columns]
+        >>> df.eval("double_age = age * 2")
+        animal  age  double_age
+        0    dog   10          20
+        1    pig   20          40
+        <BLANKLINE>
+        [2 rows x 3 columns]
 
     Args:
         expr (str):
