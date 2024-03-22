@@ -15,7 +15,8 @@
 import abc
 import typing
 
-import matplotlib.pyplot as plt
+DEFAULT_SAMPLING_N = 1000
+DEFAULT_SAMPLING_STATE = 0
 
 
 class MPLPlot(abc.ABC):
@@ -24,6 +25,11 @@ class MPLPlot(abc.ABC):
         pass
 
     def draw(self) -> None:
+        # This import can fail with "Matplotlib failed to acquire the
+        # following lock file" so import here to reduce the chance of
+        # our parallel test suite from triggering this.
+        import matplotlib.pyplot as plt
+
         plt.draw_if_interactive()
 
     @property
@@ -45,8 +51,10 @@ class SamplingPlot(MPLPlot):
 
     def _compute_plot_data(self, data):
         # TODO: Cache the sampling data in the PlotAccessor.
-        sampling_n = self.kwargs.pop("sampling_n", 100)
-        sampling_random_state = self.kwargs.pop("sampling_random_state", 0)
+        sampling_n = self.kwargs.pop("sampling_n", DEFAULT_SAMPLING_N)
+        sampling_random_state = self.kwargs.pop(
+            "sampling_random_state", DEFAULT_SAMPLING_STATE
+        )
         return data.sample(
             n=sampling_n,
             random_state=sampling_random_state,
