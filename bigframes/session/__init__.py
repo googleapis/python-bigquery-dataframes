@@ -1890,10 +1890,7 @@ class Session(
         self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
     ) -> pandas.DataFrame:
         # Can ignore inferred datatype until dtype emulation breaks 1:1 mapping between BQ types and bigframes types
-        dtypes_from_bq = {
-            field.name: bigframes.dtypes.bf_type_from_type_kind(field.field_type)
-            for field in row_iterator.schema
-        }
+        dtypes_from_bq = bigframes.dtypes.bf_type_from_type_kind(row_iterator.schema)
         arrow_table = row_iterator.to_arrow()
         return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes_from_bq)
 
