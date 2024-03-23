@@ -70,10 +70,10 @@ import bigframes.session._io.bigquery
 if typing.TYPE_CHECKING:
     import bigframes.session
 
+    SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
-SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 ERROR_IO_ONLY_GS_PATHS = f"Only Google Cloud Storage (gs://...) paths are supported. {constants.FEEDBACK_LINK}"
 ERROR_IO_REQUIRES_WILDCARD = (
@@ -1019,17 +1019,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
             )
-        if len(self.columns) > 30:
-            raise NotImplementedError(
-                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
-            )
 
         if not numeric_only:
             frame = self._raise_on_non_numeric("corr")
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.corr())
+        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+
+    def cov(self, *, numeric_only: bool = False) -> DataFrame:
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("corr")
+        else:
+            frame = self._drop_non_numeric()
+
+        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
 
     def to_pandas(
         self,

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 import itertools
 import logging
@@ -83,7 +84,6 @@ from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
 import bigframes.core.traversal as traversals
 import bigframes.core.utils as utils
-import bigframes.dataframe as dataframe
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
@@ -91,6 +91,10 @@ from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session.clients
 import bigframes.version
+
+# Avoid circular imports.
+if typing.TYPE_CHECKING:
+    import bigframes.dataframe as dataframe
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -283,9 +287,10 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame:
@@ -306,6 +311,7 @@ class Session(
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
+                configuration=configuration,
                 max_results=max_results,
                 api_name="read_gbq",
                 use_cache=use_cache,
@@ -314,13 +320,20 @@ class Session(
             # TODO(swast): Query the snapshot table but mark it as a
             # deterministic query so we can avoid serializing if we have a
             # unique index.
+            if configuration is not None:
+                raise ValueError(
+                    "The 'configuration' argument is not allowed when "
+                    "directly reading from a table. Please remove "
+                    "'configuration' or use a query."
+                )
+
             return self._read_gbq_table(
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
                 max_results=max_results,
                 api_name="read_gbq",
-                use_cache=use_cache,
+                use_cache=use_cache if use_cache is not None else True,
             )
 
     def _to_query(
@@ -405,7 +418,7 @@ class Session(
         query: str,
         index_cols: List[str],
         api_name: str,
-        use_cache: bool = True,
+        configuration: dict = {"query": {"useQueryCache": True}},
     ) -> Tuple[Optional[bigquery.TableReference], Optional[bigquery.QueryJob]]:
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
@@ -427,23 +440,35 @@ class Session(
         ][:_MAX_CLUSTER_COLUMNS]
         temp_table = self._create_empty_temp_table(schema, cluster_cols)
 
-        job_config = bigquery.QueryJobConfig()
+        timeout_ms = configuration.get("jobTimeoutMs") or configuration["query"].get(
+            "timeoutMs"
+        )
+
+        # Convert timeout_ms to seconds, ensuring a minimum of 0.1 seconds to avoid
+        # the program getting stuck on too-short timeouts.
+        timeout = max(int(timeout_ms) * 1e-3, 0.1) if timeout_ms else None
+
+        job_config = typing.cast(
+            bigquery.QueryJobConfig,
+            bigquery.QueryJobConfig.from_api_repr(configuration),
+        )
         job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
-        job_config.use_query_cache = use_cache
 
         try:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
             job_config.labels["error_caught"] = "true"
-            _, query_job = self._start_query(query, job_config=job_config)
+            _, query_job = self._start_query(
+                query, job_config=job_config, timeout=timeout
+            )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
             # Some SELECT statements still aren't compatible with cluster
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, timeout=timeout)
             return query_job.destination, query_job
 
     def read_gbq_query(
@@ -452,8 +477,9 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
     ) -> dataframe.DataFrame:
         """Turn a SQL query into a DataFrame.
@@ -517,6 +543,7 @@ class Session(
             query=query,
             index_col=index_col,
             columns=columns,
+            configuration=configuration,
             max_results=max_results,
             api_name="read_gbq_query",
             use_cache=use_cache,
@@ -528,10 +555,36 @@ class Session(
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_query",
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
     ) -> dataframe.DataFrame:
+        import bigframes.dataframe as dataframe
+
+        configuration = _transform_read_gbq_configuration(configuration)
+
+        if "query" not in configuration:
+            configuration["query"] = {}
+
+        if "query" in configuration["query"]:
+            raise ValueError(
+                "The query statement must not be included in the ",
+                "'configuration' because it is already provided as",
+                " a separate parameter.",
+            )
+
+        if "useQueryCache" in configuration["query"]:
+            if use_cache is not None:
+                raise ValueError(
+                    "'useQueryCache' in 'configuration' conflicts with"
+                    " 'use_cache' parameter. Please specify only one."
+                )
+        else:
+            configuration["query"]["useQueryCache"] = (
+                True if use_cache is None else use_cache
+            )
+
         if isinstance(index_col, str):
             index_cols = [index_col]
         else:
@@ -541,7 +594,7 @@ class Session(
             query,
             index_cols,
             api_name=api_name,
-            use_cache=use_cache,
+            configuration=configuration,
         )
 
         # If there was no destination table, that means the query must have
@@ -565,7 +618,7 @@ class Session(
             index_col=index_cols,
             columns=columns,
             max_results=max_results,
-            use_cache=use_cache,
+            use_cache=configuration["query"]["useQueryCache"],
         )
 
     def read_gbq_table(
@@ -706,6 +759,8 @@ class Session(
         api_name: str,
         use_cache: bool = True,
     ) -> dataframe.DataFrame:
+        import bigframes.dataframe as dataframe
+
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
 
@@ -941,6 +996,8 @@ class Session(
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        import bigframes.dataframe as dataframe
+
         if isinstance(pandas_dataframe, dataframe.DataFrame):
             raise ValueError(
                 "read_pandas() expects a pandas.DataFrame, but got a "
@@ -955,6 +1012,8 @@ class Session(
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> Optional[dataframe.DataFrame]:
+        import bigframes.dataframe as dataframe
+
         if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
             return None
 
@@ -976,11 +1035,20 @@ class Session(
     def _read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
+        import bigframes.dataframe as dataframe
+
+        col_index = pandas_dataframe.columns.copy()
         col_labels, idx_labels = (
-            pandas_dataframe.columns.to_list(),
+            col_index.to_list(),
             pandas_dataframe.index.names,
         )
-        new_col_ids, new_idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
+        new_col_ids, new_idx_ids = utils.get_standardized_ids(
+            col_labels,
+            idx_labels,
+            # Loading parquet files into BigQuery with special column names
+            # is only supported under an allowlist.
+            strict=True,
+        )
 
         # Add order column to pandas DataFrame to preserve order in BigQuery
         ordering_col = "rowid"
@@ -999,7 +1067,7 @@ class Session(
 
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
         schema: list[bigquery.SchemaField] = []
-        for column, dtype in zip(pandas_dataframe.columns, pandas_dataframe.dtypes):
+        for column, dtype in zip(new_col_ids, pandas_dataframe.dtypes):
             if dtype == "timestamp[us][pyarrow]":
                 schema.append(
                     bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
@@ -1053,7 +1121,7 @@ class Session(
         block = blocks.Block(
             array_value,
             index_columns=new_idx_ids,
-            column_labels=col_labels,
+            column_labels=col_index,
             index_labels=idx_labels,
         )
         return dataframe.DataFrame(block)
@@ -1656,13 +1724,14 @@ class Session(
         sql: str,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
+        timeout: Optional[float] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery query job and waits for results.
         """
         job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, max_results
+            self.bqclient, sql, job_config, max_results, timeout
         )
 
     def _start_query_ml_ddl(
@@ -1876,3 +1945,25 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     # Escape backslashes and use backslash as delineator
     escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace("\\", "\\\\")  # type: ignore
     return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
+
+
+def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
+    """
+    For backwards-compatibility, convert any previously client-side only
+    parameters such as timeoutMs to the property name expected by the REST API.
+
+    Makes a copy of configuration if changes are needed.
+    """
+
+    if configuration is None:
+        return {}
+
+    timeout_ms = configuration.get("query", {}).get("timeoutMs")
+    if timeout_ms is not None:
+        # Transform timeoutMs to an actual server-side configuration.
+        # https://github.com/googleapis/python-bigquery-pandas/issues/479
+        configuration = copy.deepcopy(configuration)
+        del configuration["query"]["timeoutMs"]
+        configuration["jobTimeoutMs"] = timeout_ms
+
+    return configuration
