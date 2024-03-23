@@ -13,9 +13,7 @@ from bigframes_vendored.pandas.core.computation.expr import Expr, PARSERS
 from bigframes_vendored.pandas.core.computation.parsing import tokenize_string
 from bigframes_vendored.pandas.core.computation.scope import ensure_scope
 from bigframes_vendored.pandas.core.generic import NDFrame
-from bigframes_vendored.pandas.util._exceptions import find_stack_level
 from bigframes_vendored.pandas.util._validators import validate_bool_kwarg
-from pandas.core.dtypes.common import is_extension_array_dtype
 from pandas.io.formats.printing import pprint_thing
 
 if TYPE_CHECKING:
@@ -35,33 +33,20 @@ def _check_engine(engine: str | None) -> str:
     ------
     KeyError
       * If an invalid engine is passed.
-    ImportError
-      * If numexpr was requested but doesn't exist.
 
     Returns
     -------
     str
         Engine name.
     """
-    from pandas.core.computation.check import NUMEXPR_INSTALLED
-    from pandas.core.computation.expressions import USE_NUMEXPR
 
     if engine is None:
-        engine = "numexpr" if USE_NUMEXPR else "python"
+        engine = "python"
 
     if engine not in ENGINES:
         valid_engines = list(ENGINES.keys())
         raise KeyError(
             f"Invalid engine '{engine}' passed, valid engines are {valid_engines}"
-        )
-
-    # TODO: validate this in a more general way (thinking of future engines
-    # that won't necessarily be import-able)
-    # Could potentially be done on engine instantiation
-    if engine == "numexpr" and not NUMEXPR_INSTALLED:
-        raise ImportError(
-            "'numexpr' is not installed or an unsupported version. Cannot use "
-            "engine='numexpr' for query/eval if 'numexpr' is not installed"
         )
 
     return engine
@@ -220,13 +205,11 @@ def eval(
             ``'python'`` parser to retain strict Python semantics.  See the
             :ref:`enhancing performance <enhancingperf.eval>` documentation for
             more details.
-        engine ({'python', 'numexpr'}, default 'numexpr'):
+        engine ({'python'}, default None):
 
             The engine used to evaluate the expression. Supported engines are
 
-            - None : tries to use ``numexpr``, falls back to ``python``
-            - ``'numexpr'`` : This default engine evaluates pandas objects using
-            numexpr for large speed ups in complex expressions with large frames.
+            - None : defaults to ``python``
             - ``'python'`` : Performs operations as if you had ``eval``'d in top
             level python. This engine is generally not that useful.
 
@@ -318,22 +301,6 @@ def eval(
         )
 
         parsed_expr = Expr(expr, engine=engine, parser=parser, env=env)
-
-        if engine == "numexpr" and (
-            is_extension_array_dtype(parsed_expr.terms.return_type)
-            or getattr(parsed_expr.terms, "operand_types", None) is not None
-            and any(
-                is_extension_array_dtype(elem)
-                for elem in parsed_expr.terms.operand_types
-            )
-        ):
-            warnings.warn(
-                "Engine has switched to 'python' because numexpr does not support "
-                "extension array dtypes. Please set your engine to python manually.",
-                RuntimeWarning,
-                stacklevel=find_stack_level(),
-            )
-            engine = "python"
 
         # construct the engine and evaluate the parsed expression
         eng = ENGINES[engine]

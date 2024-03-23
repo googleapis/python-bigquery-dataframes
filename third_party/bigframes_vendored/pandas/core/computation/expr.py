@@ -21,9 +21,7 @@ from bigframes_vendored.pandas.core.computation.ops import (
     FuncNode,
     is_term,
     LOCAL_TAG,
-    MATHOPS,
     Op,
-    REDUCTIONS,
     Term,
     UNARY_OPS_SYMS,
     UnaryOp,
@@ -738,7 +736,6 @@ class BaseExprVisitor(ast.NodeVisitor):
 
 
 _python_not_supported = frozenset(["Dict", "BoolOp", "In", "NotIn"])
-_numexpr_supported_calls = frozenset(REDUCTIONS + MATHOPS)
 
 
 @disallow(

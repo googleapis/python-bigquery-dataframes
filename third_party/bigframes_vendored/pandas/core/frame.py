@@ -4911,6 +4911,68 @@ class DataFrame(generic.NDFrame):
         `eval` to run arbitrary code, which can make you vulnerable to code
         injection if you pass user input to this function.
 
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6), 'B': range(10, 0, -2)})
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+            >>> df.eval('A + B')
+            0    11
+            1    10
+            2     9
+            3     8
+            4     7
+            dtype: int64
+
+            Assignment is allowed though by default the original DataFrame is not
+            modified.
+
+            >>> df.eval('C = A + B')
+            A   B   C
+            0  1  10  11
+            1  2   8  10
+            2  3   6   9
+            3  4   4   8
+            4  5   2   7
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+            Multiple columns can be assigned to using multi-line expressions:
+
+            >>> df.eval(
+            ...     '''
+            ... C = A + B
+            ... D = A - B
+            ... '''
+            ... )
+            A   B   C  D
+            0  1  10  11 -9
+            1  2   8  10 -6
+            2  3   6   9 -3
+            3  4   4   8  0
+            4  5   2   7  3
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+
         Args:
             expr (str):
                 The expression string to evaluate.
@@ -4923,6 +4985,52 @@ class DataFrame(generic.NDFrame):
     def query(self, expr: str) -> DataFrame | None:
         """
         Query the columns of a DataFrame with a boolean expression.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6),
+            ...                    'B': range(10, 0, -2),
+            ...                    'C C': range(10, 5, -1)})
+            >>> df
+            A   B  C C
+            0  1  10   10
+            1  2   8    9
+            2  3   6    8
+            3  4   4    7
+            4  5   2    6
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df.query('A > B')
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.A > df.B]
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            For columns with spaces in their name, you can use backtick quoting.
+
+            >>> df.query('B == `C C`')
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.B == df['C C']]
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
 
         Args:
             expr (str):
