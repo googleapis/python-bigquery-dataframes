@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime as dt
 import math
 import re
 import tempfile
@@ -27,6 +28,7 @@ import bigframes.series as series
 from tests.system.utils import (
     assert_pandas_df_equal,
     assert_series_equal,
+    get_first_file_from_wildcard,
     skip_legacy_pandas,
 )
 
@@ -40,6 +42,32 @@ def test_series_construct_copy(scalars_dfs):
         scalars_pandas_df["int64_col"], name="test_series", dtype="Float64"
     )
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_construct_nullable_ints():
+    bf_result = series.Series(
+        [1, 3, bigframes.pandas.NA], index=[0, 4, bigframes.pandas.NA]
+    ).to_pandas()
+
+    expected_index = pd.Index(
+        [0, 4, None],
+        dtype=pd.Int64Dtype(),
+    )
+    expected = pd.Series([1, 3, pd.NA], dtype=pd.Int64Dtype(), index=expected_index)
+
+    pd.testing.assert_series_equal(bf_result, expected)
+
+
+def test_series_construct_timestamps():
+    datetimes = [
+        dt.datetime(2020, 1, 20, 20, 20, 20, 20),
+        dt.datetime(2019, 1, 20, 20, 20, 20, 20),
+        None,
+    ]
+    bf_result = series.Series(datetimes).to_pandas()
+    pd_result = pd.Series(datetimes, dtype=pd.ArrowDtype(pa.timestamp("us")))
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_series_construct_copy_with_index(scalars_dfs):
@@ -212,10 +240,18 @@ def test_series___getitem__(scalars_dfs, index_col, key):
     pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
-def test_series___getitem___with_int_key(scalars_dfs):
+@pytest.mark.parametrize(
+    ("key",),
+    (
+        (-2,),
+        (-1,),
+        (0,),
+        (1,),
+    ),
+)
+def test_series___getitem___with_int_key(scalars_dfs, key):
     col_name = "int64_too"
     index_col = "string_col"
-    key = 2
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.set_index(index_col, drop=False)
     scalars_pandas_df = scalars_pandas_df.set_index(index_col, drop=False)
@@ -1461,7 +1497,8 @@ def test_groupby_prod(scalars_dfs):
         (lambda x: x.cumcount()),
         (lambda x: x.cummin()),
         (lambda x: x.cummax()),
-        (lambda x: x.cumprod()),
+        # Pandas 2.2 casts to cumprod to float.
+        (lambda x: x.cumprod().astype("Float64")),
         (lambda x: x.diff()),
         (lambda x: x.shift(2)),
         (lambda x: x.shift(-2)),
@@ -1485,7 +1522,7 @@ def test_groupby_window_ops(scalars_df_index, scalars_pandas_df_index, operator)
     ).to_pandas()
     pd_series = operator(
         scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
-    ).astype(pd.Int64Dtype())
+    ).astype(bf_series.dtype)
     pd.testing.assert_series_equal(
         pd_series,
         bf_series,
@@ -1629,6 +1666,21 @@ def test_empty_true_memtable(session: bigframes.Session):
 
     assert pd_result
     assert bf_result == pd_result
+
+
+def test_series_names(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].copy()
+    bf_result.index.name = "new index name"
+    bf_result.name = "new series name"
+
+    pd_result = scalars_pandas_df["string_col"].copy()
+    pd_result.index.name = "new index name"
+    pd_result.name = "new series name"
+
+    assert pd_result.name == bf_result.name
+    assert pd_result.index.name == bf_result.index.name
 
 
 def test_dtype(scalars_dfs):
@@ -2390,11 +2442,10 @@ def test_to_frame(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
-@pytest.mark.skip(reason="Disable to unblock kokoro tests")
 def test_to_json(gcs_folder, scalars_df_index, scalars_pandas_df_index):
     path = gcs_folder + "test_series_to_json*.jsonl"
     scalars_df_index["int64_col"].to_json(path, lines=True, orient="records")
-    gcs_df = pd.read_json(path, lines=True)
+    gcs_df = pd.read_json(get_first_file_from_wildcard(path), lines=True)
 
     pd.testing.assert_series_equal(
         gcs_df["int64_col"].astype(pd.Int64Dtype()),
@@ -2404,11 +2455,10 @@ def test_to_json(gcs_folder, scalars_df_index, scalars_pandas_df_index):
     )
 
 
-@pytest.mark.skip(reason="Disable to unblock kokoro tests")
 def test_to_csv(gcs_folder, scalars_df_index, scalars_pandas_df_index):
     path = gcs_folder + "test_series_to_csv*.csv"
     scalars_df_index["int64_col"].to_csv(path)
-    gcs_df = pd.read_csv(path)
+    gcs_df = pd.read_csv(get_first_file_from_wildcard(path))
 
     pd.testing.assert_series_equal(
         gcs_df["int64_col"].astype(pd.Int64Dtype()),
@@ -2660,7 +2710,14 @@ def test_mask_simple_udf(scalars_dfs):
         ("timestamp_col", "time64[us][pyarrow]"),
         ("timestamp_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("datetime_col", "date32[day][pyarrow]"),
-        ("datetime_col", "string[pyarrow]"),
+        pytest.param(
+            "datetime_col",
+            "string[pyarrow]",
+            marks=pytest.mark.skipif(
+                pd.__version__.startswith("2.2"),
+                reason="pandas 2.2 uses T as date/time separator whereas earlier versions use space",
+            ),
+        ),
         ("datetime_col", "time64[us][pyarrow]"),
         ("datetime_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
         ("date_col", "string[pyarrow]"),
@@ -3100,8 +3157,8 @@ def test_query_job_setters(scalars_dfs):
     ],
 )
 def test_is_monotonic_increasing(series_input):
-    scalars_df = series.Series(series_input)
-    scalars_pandas_df = pd.Series(series_input)
+    scalars_df = series.Series(series_input, dtype=pd.Int64Dtype())
+    scalars_pandas_df = pd.Series(series_input, dtype=pd.Int64Dtype())
     assert (
         scalars_df.is_monotonic_increasing == scalars_pandas_df.is_monotonic_increasing
     )
@@ -3245,7 +3302,10 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
-    pd_result = pd_col.apply(lambda_)
+    if pd.__version__.startswith("2.2"):
+        pd_result = pd_col.apply(lambda_, by_row=False)
+    else:
+        pd_result = pd_col.apply(lambda_)
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -3296,7 +3356,11 @@ def test_apply_simple_udf(scalars_dfs):
     bf_result = bf_col.apply(foo, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df["int64_col"]
-    pd_result = pd_col.apply(foo)
+
+    if pd.__version__.startswith("2.2"):
+        pd_result = pd_col.apply(foo, by_row=False)
+    else:
+        pd_result = pd_col.apply(foo)
 
     # ignore dtype check, which are Int64 and object respectively
     assert_series_equal(bf_result, pd_result, check_dtype=False)

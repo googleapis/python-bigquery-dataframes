@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
 import sys
 import textwrap
@@ -69,10 +70,10 @@ import bigframes.session._io.bigquery
 if typing.TYPE_CHECKING:
     import bigframes.session
 
+    SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
-SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 ERROR_IO_ONLY_GS_PATHS = f"Only Google Cloud Storage (gs://...) paths are supported. {constants.FEEDBACK_LINK}"
 ERROR_IO_REQUIRES_WILDCARD = (
@@ -172,6 +173,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
         self._query_job: Optional[bigquery.QueryJob] = None
+
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._block.expr.validate_schema()
 
     def __dir__(self):
         return dir(type(self)) + [
@@ -1013,17 +1019,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
             )
-        if len(self.columns) > 30:
-            raise NotImplementedError(
-                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
-            )
 
         if not numeric_only:
             frame = self._raise_on_non_numeric("corr")
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.corr())
+        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+
+    def cov(self, *, numeric_only: bool = False) -> DataFrame:
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("corr")
+        else:
+            frame = self._drop_non_numeric()
+
+        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
 
     def to_pandas(
         self,
@@ -1061,6 +1071,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1438,13 +1449,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        direction = (
-            order.OrderingDirection.ASC if ascending else order.OrderingDirection.DESC
-        )
         na_last = na_position == "last"
         index_columns = self._block.index_columns
         ordering = [
-            order.OrderingColumnReference(column, direction=direction, na_last=na_last)
+            order.ascending_over(column, na_last)
+            if ascending
+            else order.descending_over(column, na_last)
             for column in index_columns
         ]
         return DataFrame(self._block.order_by(ordering))
@@ -1474,16 +1484,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordering = []
         for i in range(len(sort_labels)):
             column_id = sort_column_ids[i]
-            direction = (
-                order.OrderingDirection.ASC
-                if sort_directions[i]
-                else order.OrderingDirection.DESC
-            )
+            is_ascending = sort_directions[i]
             na_last = na_position == "last"
             ordering.append(
-                order.OrderingColumnReference(
-                    column_id, direction=direction, na_last=na_last
-                )
+                order.ascending_over(column_id, na_last)
+                if is_ascending
+                else order.descending_over(column_id, na_last)
             )
         return DataFrame(self._block.order_by(ordering))
 
@@ -2497,6 +2503,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> DataFrame:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
@@ -2504,7 +2511,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return DataFrame(
-            self._block._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+            self._block._split(
+                ns=ns, fracs=fracs, random_state=random_state, sort=sort
+            )[0]
         )
 
     def _split(

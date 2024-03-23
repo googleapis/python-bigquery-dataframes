@@ -26,12 +26,12 @@ import functools
 import itertools
 import random
 import typing
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
 
-import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import google.cloud.bigquery as bigquery
 import pandas as pd
+import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants as constants
@@ -141,32 +141,23 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
 
     @classmethod
-    def from_local(cls, data, session: bigframes.Session) -> Block:
-        pd_data = pd.DataFrame(data)
-        columns = pd_data.columns
-
-        # Make a flattened version to treat as a table.
-        if len(pd_data.columns.names) > 1:
-            pd_data.columns = columns.to_flat_index()
-
+    def from_local(cls, data: pd.DataFrame, session: bigframes.Session) -> Block:
+        # Assumes caller has already converted datatypes to bigframes ones.
+        pd_data = data
+        column_labels = pd_data.columns
         index_labels = list(pd_data.index.names)
-        # The ArrayValue layer doesn't know about indexes, so make sure indexes
-        # are real columns with unique IDs.
-        pd_data = pd_data.reset_index(
-            names=[f"level_{level}" for level in range(len(index_labels))]
-        )
-        pd_data = pd_data.set_axis(
-            vendored_pandas_io_common.dedup_names(
-                list(pd_data.columns), is_potential_multiindex=False
-            ),
-            axis="columns",
-        )
-        index_ids = pd_data.columns[: len(index_labels)]
 
-        keys_expr = core.ArrayValue.from_pandas(pd_data, session)
+        # unique internal ids
+        column_ids = [f"column_{i}" for i in range(len(pd_data.columns))]
+        index_ids = [f"level_{level}" for level in range(pd_data.index.nlevels)]
+
+        pd_data = pd_data.set_axis(column_ids, axis=1)
+        pd_data = pd_data.reset_index(names=index_ids)
+        as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
+        array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
         return cls(
-            keys_expr,
-            column_labels=columns,
+            array_value,
+            column_labels=column_labels,
             index_columns=index_ids,
             index_labels=index_labels,
         )
@@ -279,7 +270,7 @@ class Block:
 
     def order_by(
         self,
-        by: typing.Sequence[ordering.OrderingColumnReference],
+        by: typing.Sequence[ordering.OrderingExpression],
     ) -> Block:
         return Block(
             self._expr.order_by(by),
@@ -484,6 +475,7 @@ class Block:
             # general Sequence[Label] that BigQuery DataFrames has.
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
+        df.columns = self.column_labels
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
@@ -563,7 +555,7 @@ class Block:
             block = self._split(
                 fracs=(fraction,),
                 random_state=random_state,
-                preserve_order=True,
+                sort=False,
             )[0]
             return block
         else:
@@ -579,7 +571,7 @@ class Block:
         fracs: Iterable[float] = (),
         *,
         random_state: Optional[int] = None,
-        preserve_order: Optional[bool] = False,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> List[Block]:
         """Internal function to support splitting Block to multiple parts along index axis.
 
@@ -618,7 +610,9 @@ class Block:
             string_ordering_col, random_state_col, ops.strconcat_op
         )
         block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
-        block = block.order_by([ordering.OrderingColumnReference(hash_string_sum_col)])
+        block = block.order_by(
+            [ordering.OrderingExpression(ex.free_var(hash_string_sum_col))]
+        )
 
         intervals = []
         cur = 0
@@ -631,9 +625,22 @@ class Block:
             typing.cast(Block, block.slice(start=lower, stop=upper))
             for lower, upper in intervals
         ]
-        if preserve_order:
+
+        if sort is True:
             sliced_blocks = [
-                sliced_block.order_by([ordering.OrderingColumnReference(ordering_col)])
+                sliced_block.order_by(
+                    [
+                        ordering.OrderingExpression(ex.free_var(idx_col))
+                        for idx_col in sliced_block.index_columns
+                    ]
+                )
+                for sliced_block in sliced_blocks
+            ]
+        elif sort is False:
+            sliced_blocks = [
+                sliced_block.order_by(
+                    [ordering.OrderingExpression(ex.free_var(ordering_col))]
+                )
                 for sliced_block in sliced_blocks
             ]
 
@@ -1103,13 +1110,22 @@ class Block:
             index_columns=[label_col_id],
         )
 
-    def corr(self):
-        """Returns a block object to compute the self-correlation on this block."""
+    def calculate_pairwise_metric(self, op=agg_ops.CorrOp()):
+        """
+        Returns a block object to compute pairwise metrics among all value columns in this block.
+
+        The metric to be computed is specified by the `op` parameter, which can be either a
+        correlation operation (default) or a covariance operation.
+        """
+        if len(self.value_columns) > 30:
+            raise NotImplementedError(
+                "This function supports dataframes with 30 columns or fewer. "
+                f"Provided dataframe has {len(self.value_columns)} columns. {constants.FEEDBACK_LINK}"
+            )
+
         aggregations = [
             (
-                ex.BinaryAggregation(
-                    agg_ops.CorrOp(), ex.free_var(left_col), ex.free_var(right_col)
-                ),
+                ex.BinaryAggregation(op, ex.free_var(left_col), ex.free_var(right_col)),
                 f"{left_col}-{right_col}",
             )
             for left_col in self.value_columns
@@ -1703,7 +1719,10 @@ class Block:
         if sort:
             # sort uses coalesced join keys always
             joined_expr = joined_expr.order_by(
-                [ordering.OrderingColumnReference(col_id) for col_id in coalesced_ids],
+                [
+                    ordering.OrderingExpression(ex.free_var(col_id))
+                    for col_id in coalesced_ids
+                ],
             )
 
         joined_expr = joined_expr.select_columns(result_columns)
@@ -2025,7 +2044,10 @@ def join_mono_indexed(
     )
     if sort:
         combined_expr = combined_expr.order_by(
-            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+            [
+                ordering.OrderingExpression(ex.free_var(col_id))
+                for col_id in coalesced_join_cols
+            ]
         )
     block = Block(
         combined_expr,
@@ -2114,7 +2136,10 @@ def join_multi_indexed(
     )
     if sort:
         combined_expr = combined_expr.order_by(
-            [ordering.OrderingColumnReference(col_id) for col_id in coalesced_join_cols]
+            [
+                ordering.OrderingExpression(ex.free_var(col_id))
+                for col_id in coalesced_join_cols
+            ]
         )
 
     if left.index.nlevels == 1:
