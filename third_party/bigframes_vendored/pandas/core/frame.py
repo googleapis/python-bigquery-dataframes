@@ -2865,6 +2865,7 @@ class DataFrame(generic.NDFrame):
         Returns:
             DataFrame: The covariance matrix of the series of the DataFrame.
         """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def update(
         self, other, join: str = "left", overwrite: bool = True, filter_func=None
@@ -4959,7 +4960,7 @@ class DataFrame(generic.NDFrame):
             2     9
             3     8
             4     7
-            dtype: int64
+            dtype: Int64
 
             Assignment is allowed though by default the original DataFrame is not
             modified.
