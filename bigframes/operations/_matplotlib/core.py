@@ -104,10 +104,7 @@ class ScatterPlot(SamplingPlot):
         # Works around a pandas bug:
         # https://github.com/pandas-dev/pandas/commit/45b937d64f6b7b6971856a47e379c7c87af7e00a
         c = self.kwargs.get("c", None)
-        if (
-            pd.core.dtypes.common.is_integer(c)
-            and not self.data.columns._holds_integer()
-        ):
+        if pd.core.dtypes.common.is_integer(c):
             c = self.data.columns[c]
         if self._is_column_name(c, sample) and sample[c].dtype == dtypes.STRING_DTYPE:
             sample[c] = sample[c].astype("object")
