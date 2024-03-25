@@ -473,8 +473,8 @@ class Block:
         results_iterator, query_job = self.session._execute(
             self.expr, sorted=True, max_results=max_rows
         )
-        results_iterator = results_iterator.to_arrow_iterable()
-        arrow_table = next(results_iterator)
+        arrow_results_iterator = results_iterator.to_arrow_iterable()
+        arrow_table = next(arrow_results_iterator)
         downloaded_df = bigframes.session._io.pandas.arrow_to_pandas(
             arrow_table, dtypes
         )
