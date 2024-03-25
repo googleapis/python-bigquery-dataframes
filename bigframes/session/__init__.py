@@ -1886,7 +1886,7 @@ class Session(
         table = self.bqclient.get_table(destination_table)
         return table.num_bytes
 
-    def _get_table_shape(self, destination_table):
+    def _get_table_shape(self, destination_table) -> Tuple[int, int]:
         table = self.bqclient.get_table(destination_table)
         row_count = table.num_rows
         column_count = len(table.schema)
