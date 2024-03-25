@@ -745,7 +745,34 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (self.rfloordiv(other), self.rmod(other))
 
     def __matmul__(self, other):
-        return (self * other).sum()
+        if isinstance(other, Series):
+            return (self * other).sum()
+
+        # At this point other must be a DataFrame
+        if len(other.columns.names) == 1:
+            # Single level columns in other
+            na_df = other.isna().any()
+            mul_df = Series(
+                [(self * other[col]).sum() for col in other.columns],
+                index=other.columns,
+                name=self.name,
+            )
+            result = mul_df.mask(na_df)
+        else:
+            # Multi level columns in other
+            # TODO(b/313747368): Remove this once DataFrame.any() honors
+            # multi-level index, as the logic in the if clause should generalize
+            # for multi-level columns in other
+            result = Series(
+                [
+                    pandas.NA if other[col].isna().any() else (self * other[col]).sum()
+                    for col in other.columns
+                ],
+                index=other.columns,
+                name=self.name,
+            )
+
+        return result
 
     dot = __matmul__
 
