@@ -73,7 +73,7 @@ REP_ENABLED_BIGQUERY_LOCATIONS = [
 ]
 
 
-def _assert_and_get_session(session: bigquery.Client):
+def _assert_bq_execution_location(session: bigquery.Client):
     df = session.read_gbq(
         """
         SELECT "aaa" as name, 111 as number
@@ -97,6 +97,20 @@ def _assert_and_get_session(session: bigquery.Client):
     assert result.query_job.location == session.bqclient.location
 
 
+def test_bq_location_default():
+    session = bigframes.Session()
+
+    assert session.bqclient.location == "US"
+
+    # by default global endpoint is used
+    assert (
+        session.bqclient._connection.API_BASE_URL == "https://bigquery.googleapis.com"
+    )
+
+    # assert that bigframes session honors the location
+    _assert_bq_execution_location(session)
+
+
 @pytest.mark.parametrize("bigquery_location", ALL_BIGQUERY_LOCATIONS)
 def test_bq_location(bigquery_location):
     session = bigframes.Session(
@@ -111,7 +125,7 @@ def test_bq_location(bigquery_location):
     )
 
     # assert that bigframes session honors the location
-    _assert_and_get_session(session)
+    _assert_bq_execution_location(session)
 
 
 @pytest.mark.parametrize(
@@ -134,7 +148,7 @@ def test_bq_rep_endpoints(bigquery_location):
     )
 
     # assert that bigframes session honors the location
-    _assert_and_get_session(session)
+    _assert_bq_execution_location(session)
 
 
 @pytest.mark.parametrize(
