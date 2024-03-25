@@ -232,12 +232,11 @@ you must enable the following APIs:
 * The BigQuery Connection API (bigqueryconnection.googleapis.com)
 * The Vertex AI API (aiplatform.googleapis.com)
 
-and you must be granted the following IAM roles:
+and you must be granted the following IAM roles in the project:
 
 * BigQuery Data Editor (roles/bigquery.dataEditor)
 * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
-* Service Account User (roles/iam.serviceAccountUser) in the project or on the
-  `service account of the BigQuery connection <https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin>`__
+* Service Account User (roles/iam.serviceAccountUser)
 * Vertex AI User (roles/aiplatform.user)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
   BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
@@ -340,19 +339,12 @@ To use BigQuery DataFrames remote functions, you must enable the following APIs:
 * The Cloud Resource Manager API (cloudresourcemanager.googleapis.com)
 
 To use BigQuery DataFrames remote functions, you must be granted the
-following IAM roles:
+following IAM roles in the project:
 
 * BigQuery Data Editor (roles/bigquery.dataEditor)
 * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
 * Cloud Functions Developer (roles/cloudfunctions.developer)
-* Service Account User (roles/iam.serviceAccountUser) in the project or on the
-  service accounts
-
-  * User provided service account for Cloud Function or the
-    `default service account <https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration>`_
-    ``PROJECT_NUMBER-compute@developer.gserviceaccount.com``
-  * `Service account of the BigQuery connection <https://cloud.google.com/bigquery/docs/working-with-connections#before_you_begin>`__
-
+* Service Account User (roles/iam.serviceAccountUser)
 * Storage Object Viewer (roles/storage.objectViewer)
 * Project IAM Admin (roles/resourcemanager.projectIamAdmin) if using default
   BigQuery connection, or Browser (roles/browser) if using a pre-configured connection.
