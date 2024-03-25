@@ -20,7 +20,6 @@ import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetim
 import pandas as pd
 
 import bigframes.constants as constants
-import bigframes.core.global_session as global_session
 import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.series
