@@ -574,9 +574,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string. Calls to_pandas.
+        """Converts a DataFrame to a string using pandas dataframe __repr__.
 
-        Only represents the first `bigframes.options.display.max_rows`.
+        Only represents the first `bigframes.options.display.max_rows`
+        and `bigframes.options.display.max_columns`.
         """
         if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
@@ -610,7 +611,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         Returns an html string primarily for use by notebooks for displaying
         a representation of the DataFrame. Displays at most the number of rows
-        given by `bigframes.options.display.max_rows`.
+        and columns given by `bigframes.options.display.max_rows` and
+        `bigframes.options.display.max_columns`.
         """
 
         if bigframes.options.display.repr_mode == "deferred":
