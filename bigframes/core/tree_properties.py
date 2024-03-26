@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
 
 import bigframes.core.nodes as nodes
 
@@ -31,7 +30,6 @@ def local_only(node: nodes.BigFrameNode) -> bool:
     return all(isinstance(node, nodes.ReadLocalNode) for node in node.roots)
 
 
-@functools.cache
 def peekable(node: nodes.BigFrameNode) -> bool:
     if local_only(node):
         return True
