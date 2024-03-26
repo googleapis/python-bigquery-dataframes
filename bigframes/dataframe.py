@@ -307,6 +307,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.to_numpy()
 
     @property
+    def session(self) -> bigframes.Session:
+        """Session corresponding with the DataFrame."""
+        return self._session
+
+    @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
 
