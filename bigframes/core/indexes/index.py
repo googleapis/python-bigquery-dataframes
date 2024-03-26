@@ -211,11 +211,10 @@ class Index(vendored_pandas_index.Index):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
 
-        pandas_df, _, query_job, block = self._block.retrieve_repr_request_results(
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(
             max_results, max_columns
         )
         self._query_job = query_job
-        self._block = block
 
         return repr(pandas_df.index)
 

@@ -278,11 +278,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
 
-        pandas_df, _, query_job, block = self._block.retrieve_repr_request_results(
+        self._cached()
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(
             max_results, max_columns
         )
         self._set_internal_query_job(query_job)
-        self._set_block(block)
 
         return repr(pandas_df.iloc[:, 0])
 

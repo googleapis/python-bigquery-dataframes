@@ -580,6 +580,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         pandas_df, shape = self._perform_repr_request()
 
+        if bigframes.options.display.repr_mode == "deferred":
+            return formatter.repr_query_job(self.query_job)
         with display_options.pandas_repr(bigframes.options.display):
             repr_string = repr(pandas_df)
 
@@ -597,10 +599,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _perform_repr_request(self) -> Tuple[pandas.DataFrame, Tuple[int, int]]:
         max_results = bigframes.options.display.max_rows
         max_columns = bigframes.options.display.max_columns
-        pandas_df, shape, query_job, block = self._block.retrieve_repr_request_results(
+        self._cached()
+        pandas_df, shape, query_job = self._block.retrieve_repr_request_results(
             max_results, max_columns
         )
-        self._set_block(block)
         self._set_internal_query_job(query_job)
         return pandas_df, shape
 
