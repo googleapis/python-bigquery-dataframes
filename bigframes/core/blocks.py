@@ -1321,14 +1321,15 @@ class Block:
         of rows and columns of the table, as well as the query job used.
         """
         pandas_df, query_job = self.download_pandas_preview(max_results)
-        shape = self.session._get_table_shape(query_job.destination)
+        row_count = self.session._get_table_row_count(query_job.destination)
+        column_count = len(self.value_columns)
 
         formatted_df = pandas_df.set_axis(self.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
         # limit column count
         formatted_df = formatted_df.iloc[:, 0:max_columns]
-        return formatted_df, shape, query_job
+        return formatted_df, (row_count, column_count), query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         result_id = guid.generate_guid()

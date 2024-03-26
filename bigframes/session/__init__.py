@@ -1886,13 +1886,9 @@ class Session(
         table = self.bqclient.get_table(destination_table)
         return table.num_bytes
 
-    def _get_table_shape(self, destination_table) -> Tuple[int, int]:
+    def _get_table_row_count(self, destination_table) -> int:
         table = self.bqclient.get_table(destination_table)
-        row_count = table.num_rows
-        column_count = len(
-            [field for field in table.schema if field.name != "rowindex"]
-        )
-        return (row_count, column_count)
+        return table.num_rows
 
     def _rows_to_dataframe(
         self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
