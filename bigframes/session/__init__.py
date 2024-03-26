@@ -1889,7 +1889,9 @@ class Session(
     def _get_table_shape(self, destination_table) -> Tuple[int, int]:
         table = self.bqclient.get_table(destination_table)
         row_count = table.num_rows
-        column_count = len(table.schema)
+        column_count = len(
+            [field for field in table.schema if field.name != "rowindex"]
+        )
         return (row_count, column_count)
 
     def _rows_to_dataframe(
