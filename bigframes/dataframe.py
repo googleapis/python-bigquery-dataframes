@@ -578,10 +578,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Only represents the first `bigframes.options.display.max_rows`.
         """
-        pandas_df, shape = self._perform_repr_request()
-
         if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
+
+        pandas_df, shape = self._perform_repr_request()
         with display_options.pandas_repr(bigframes.options.display):
             repr_string = repr(pandas_df)
 
