@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 from google.cloud import bigquery
 import pytest
 
@@ -73,7 +75,7 @@ REP_ENABLED_BIGQUERY_LOCATIONS = [
 ]
 
 
-def _assert_bq_execution_location(session: bigquery.Client):
+def _assert_bq_execution_location(session: bigframes.Session):
     df = session.read_gbq(
         """
         SELECT "aaa" as name, 111 as number
@@ -84,7 +86,10 @@ def _assert_bq_execution_location(session: bigquery.Client):
     """
     )
 
-    assert df.query_job.location == session.bqclient.location
+    assert (
+        typing.cast(bigquery.QueryJob, df.query_job).location
+        == session.bqclient.location
+    )
 
     result = (
         df[["name", "number"]]
@@ -94,7 +99,10 @@ def _assert_bq_execution_location(session: bigquery.Client):
         .head()
     )
 
-    assert result.query_job.location == session.bqclient.location
+    assert (
+        typing.cast(bigquery.QueryJob, result.query_job).location
+        == session.bqclient.location
+    )
 
 
 def test_bq_location_default():
