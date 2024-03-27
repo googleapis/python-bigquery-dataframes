@@ -10,6 +10,7 @@ powered by the BigQuery engine.
 BigQuery DataFrames is an open-source package. You can run
 ``pip install --upgrade bigframes`` to install the latest version.
 
+
 Documentation
 -------------
 
@@ -17,6 +18,25 @@ Documentation
 * `BigQuery DataFrames source code (GitHub) <https://github.com/googleapis/python-bigquery-dataframes>`_
 * `BigQuery DataFrames sample notebooks <https://github.com/googleapis/python-bigquery-dataframes/tree/main/notebooks>`_
 * `BigQuery DataFrames API reference <https://cloud.google.com/python/docs/reference/bigframes/latest/summary_overview>`_
+
+
+License
+-------
+
+BigQuery DataFrames is distributed with the `Apache-2.0 license
+<https://github.com/googleapis/python-bigquery-dataframes/blob/main/LICENSE>`_.
+
+It also contains code derived from the following third-party packages:
+
+* `Ibis <https://ibis-project.org/>`_
+* `pandas <https://pandas.pydata.org/>`_
+* `Python <https://www.python.org/>`_
+* `scikit-learn <https://scikit-learn.org/>`_
+* `XGBoost <https://xgboost.readthedocs.io/en/stable/>`_
+
+For details, see the `third_party
+<https://github.com/googleapis/python-bigquery-dataframes/tree/main/third_party/bigframes_vendored>`_
+directory.
 
 
 Contact Us
