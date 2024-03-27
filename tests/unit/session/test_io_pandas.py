@@ -446,16 +446,28 @@ def test_arrow_to_pandas(
     expected: pandas.DataFrame,
 ):
     actual = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
-    pandas.testing.assert_series_equal(actual.dtypes, expected.dtypes)
+
+    # Dtypes match only on newer versions of pyarrow.
+    if int(pyarrow.__version__.split(".")[0]) > 6:
+        pandas.testing.assert_series_equal(actual.dtypes, expected.dtypes)
 
     # assert_frame_equal is converting to numpy internally, which causes some
     # loss of precision with the extreme values in this test.
     for column in actual.columns:
         assert tuple(
-            (index, value) if (value is pandas.NA or value == value) else (index, "nan")
+            (index, value)
+            if (
+                # Can't use pandas.isna because some values are iterable.
+                value is not pandas.NA
+                and value is not None
+                and value == value
+            )
+            else (index, "nan")
             for index, value in actual[column].items()
         ) == tuple(
-            (index, value) if (value is pandas.NA or value == value) else (index, "nan")
+            (index, value)
+            if (value is not pandas.NA and value is not None and value == value)
+            else (index, "nan")
             for index, value in expected[column].items()
         )
 
@@ -469,7 +481,9 @@ def test_arrow_to_pandas(
             id="too-few-dtypes",
         ),
         pytest.param(
-            pyarrow.Table.from_pydict({"col1": [1]}),
+            pyarrow.RecordBatch.from_pydict({"col1": [1]})
+            if hasattr(pyarrow.RecordBatch, "from_pydict")
+            else pyarrow.Table.from_pydict({"col1": [1]}),
             {"col1": "Int64", "col2": "string[pyarrow]"},
             id="too-many-dtypes",
         ),
