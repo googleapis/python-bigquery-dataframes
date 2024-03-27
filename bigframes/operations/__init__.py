@@ -193,13 +193,13 @@ invert_op = create_unary_op(
 isnull_op = create_unary_op(
     name="isnull",
     type_signature=op_typing.FixedOutputType(
-        lambda x: True, dtypes.INT_DTYPE, description="nullable"
+        lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
     ),
 )
 notnull_op = create_unary_op(
     name="notnull",
     type_signature=op_typing.FixedOutputType(
-        lambda x: True, dtypes.INT_DTYPE, description="nullable"
+        lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
     ),
 )
 hash_op = create_unary_op(

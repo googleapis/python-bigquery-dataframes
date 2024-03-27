@@ -19,14 +19,19 @@ from typing import Callable
 import bigframes.dtypes
 from bigframes.dtypes import ExpressionType
 
-# TODO: Apply input type constraints to help pre-empt invalid expression construction
-
 
 @dataclasses.dataclass
 class TypeSignature(abc.ABC):
+    """
+    Type Signature represent a mapping from input types to output type.
+
+    Type signatures should throw a TypeError if the input types cannot be handled by the operation.
+    """
+
     @property
     @abc.abstractmethod
     def as_method(self):
+        """Convert the signature into an object method. Convenience function for constructing ops that use the signature."""
         ...
 
 
@@ -101,6 +106,7 @@ class UnaryRealNumeric(UnaryTypeSignature):
         if not bigframes.dtypes.is_numeric(type):
             raise TypeError(f"Type {type} is not numeric")
         if type in (bigframes.dtypes.INT_DTYPE, bigframes.dtypes.BOOL_DTYPE):
+            # Real numeric ops produce floats on int input
             return bigframes.dtypes.FLOAT_DTYPE
         return type
 
@@ -118,13 +124,14 @@ class BinaryRealNumeric(BinaryTypeSignature):
             raise TypeError(f"Type {right_type} is not numeric")
         lcd_type = bigframes.dtypes.lcd_etype(left_type, right_type)
         if lcd_type == bigframes.dtypes.INT_DTYPE:
+            # Real numeric ops produce floats on int input
             return bigframes.dtypes.FLOAT_DTYPE
         return lcd_type
 
 
 @dataclasses.dataclass
-class Numeric(BinaryTypeSignature):
-    """Type signature for numeric functions like plus, minus, multiply that can map ints to ints."""
+class BinaryNumeric(BinaryTypeSignature):
+    """Type signature for numeric functions like multiply, modulo that can map ints to ints."""
 
     def output_type(
         self, left_type: ExpressionType, right_type: ExpressionType
@@ -176,7 +183,7 @@ class Logical(BinaryTypeSignature):
 # Common type signatures
 UNARY_NUMERIC = TypePreserving(bigframes.dtypes.is_numeric, description="numeric")
 UNARY_REAL_NUMERIC = UnaryRealNumeric()
-BINARY_NUMERIC = Numeric()
+BINARY_NUMERIC = BinaryNumeric()
 BINARY_REAL_NUMERIC = BinaryRealNumeric()
 COMPARISON = Comparison()
 COMMON_SUPERTYPE = Supertype()
