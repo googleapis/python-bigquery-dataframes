@@ -1850,7 +1850,7 @@ class Session(
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """A 'peek' efficiently accesses a small number of rows in the dataframe."""
         if not tree_properties.peekable(array_value.node):
-            raise NotImplementedError("cannot efficient peek this dataframe")
+            warnings.warn("Peeking this value cannot be done efficiently.")
         sql = self._compile_unordered(array_value).peek_sql(n_rows)
         return self._start_query(
             sql=sql,
