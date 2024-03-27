@@ -341,8 +341,8 @@ def run_system(
     pytest_cmd.extend(extra_pytest_options)
     session.run(
         *pytest_cmd,
-        test_folder,
         *session.posargs,
+        test_folder,
     )
 
 
@@ -399,7 +399,7 @@ def load(session: nox.sessions.Session):
         prefix_name="load",
         test_folder=os.path.join("tests", "system", "load"),
         print_duration=True,
-        timeout_seconds=60 * 60,
+        timeout_seconds=60 * 60 * 12,
     )
 
 
