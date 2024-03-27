@@ -301,6 +301,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.to_numpy()
 
     @property
+    def bqclient(self) -> bigframes.Session:
+        """BigQuery REST API Client the DataFrame uses for operations."""
+        return self._session.bqclient
+
+    @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
 
@@ -1486,6 +1491,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else order.descending_over(column_id, na_last)
             )
         return DataFrame(self._block.order_by(ordering))
+
+    def eval(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        return bf_eval.eval(self, expr, target=self)
+
+    def query(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        eval_result = bf_eval.eval(self, expr, target=None)
+        return self[eval_result]
 
     def value_counts(
         self,
