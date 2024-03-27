@@ -1,5 +1,5 @@
 def test_multiple_timeseries_forecasting_model(random_model_id):
-    # [START bigquery_dataframes_bqml_create_data__set(1)]
+    # [START bigquery_dataframes_bqml_create_data__set]
     your_model_id = random_model_id
 
     from bigframes.ml import forecasting
@@ -15,7 +15,7 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
 
     # [END bigquery_dataframes_bqml_create_data__set(1)]
 
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast(2)]
+    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
     features = bpd.DataFrame(
         {
             "num_trips": df.starttime,
@@ -62,21 +62,20 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
         rot=45,
     )
 
-    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast(2)]
+    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
 
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast(3)]
+    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
 
     date = df["starttime"].dt.date
     df.groupby([date])
     # EXPLAIN AS INDEX
-    num_trips = features.groupby(["date"], as_index=False).count()
     features = bpd.DataFrame(
         {
             "num_trips": df.starttime,
             "date": df["starttime"].dt.date,
         }
     )
-
+    num_trips = features.groupby(["date"], as_index=False).count()
     model = forecasting.ARIMAPlus()
 
     X = num_trips["date"].to_frame()
@@ -86,19 +85,17 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
     # The model.fit() call above created a temporary model.
     # Use the to_gbq() method to write to a permanent location.
 
-    your_model_id = "stabd-testing.bqml_tutorial.nyc_citibike_arima_model"
-
     model.to_gbq(
         your_model_id,  # For example: "bqml_tutorial.sample_model",
         replace=True,
-    )  # RESULTS OF MODEL FIT:
-    # ARIMAPlus : (auto_arima_max_order=5, data_frequency='AUTO_FREQUENCY',
+    )
+    # ARIMAPlus(auto_arima_max_order=5, data_frequency='AUTO_FREQUENCY',
     # max_time_series_length=3, min_time_series_length=20,
     # time_series_length_fraction=1.0, trend_smoothing_window_size=-1)
 
-    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast(3)]
+    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
 
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast(4)]
+    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
 
 
 #  model.summary()
@@ -106,4 +103,4 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
 #  0	0	1	5	False	-11291.255555	22594.51111	10665799.388004	['WEEKLY' 'YEARLY']	False	True	True
 #  1 rows × 12 columns
 
-# [1 rows x 12 columns in total]    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast(4)]
+# [1 rows x 12 columns in total]    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
