@@ -161,7 +161,7 @@ def test_bq_rep_endpoints(bigquery_location):
 
 @pytest.mark.parametrize(
     "bigquery_location",
-    set(ALL_BIGQUERY_LOCATIONS) - set(REP_ENABLED_BIGQUERY_LOCATIONS),
+    sorted(set(ALL_BIGQUERY_LOCATIONS) - set(REP_ENABLED_BIGQUERY_LOCATIONS)),
 )
 def test_bq_lep_endpoints(bigquery_location):
     session = bigframes.Session(
