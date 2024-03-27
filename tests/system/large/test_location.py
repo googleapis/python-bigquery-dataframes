@@ -18,61 +18,8 @@ from google.cloud import bigquery
 import pytest
 
 import bigframes
-
-# https://cloud.google.com/bigquery/docs/locations
-ALL_BIGQUERY_LOCATIONS = [
-    "us-east5",
-    "us-south1",
-    "us-central1",
-    "us-west4",
-    "us-west2",
-    "northamerica-northeast1",
-    "us-east4",
-    "us-west1",
-    "us-west3",
-    "southamerica-east1",
-    "southamerica-west1",
-    "us-east1",
-    "northamerica-northeast2",
-    "asia-south2",
-    "asia-east2",
-    "asia-southeast2",
-    "australia-southeast2",
-    "asia-south1",
-    "asia-northeast2",
-    "asia-northeast3",
-    "asia-southeast1",
-    "australia-southeast1",
-    "asia-east1",
-    "asia-northeast1",
-    "europe-west1",
-    "europe-west10",
-    "europe-north1",
-    "europe-west3",
-    "europe-west2",
-    "europe-southwest1",
-    "europe-west8",
-    "europe-west4",
-    "europe-west9",
-    "europe-west12",
-    "europe-central2",
-    "europe-west6",
-    "me-central2",
-    "me-central1",
-    "me-west1",
-    "me-central2",
-    "me-central1",
-    "me-west1",
-    "africa-south1",
-]
-
-REP_ENABLED_BIGQUERY_LOCATIONS = [
-    "me-central2",
-    "europe-west9",
-    "europe-west3",
-    "us-east4",
-    "us-west1",
-]
+import bigframes.session.clients
+from tests import config
 
 
 def _assert_bq_execution_location(session: bigframes.Session):
@@ -119,7 +66,7 @@ def test_bq_location_default():
     _assert_bq_execution_location(session)
 
 
-@pytest.mark.parametrize("bigquery_location", ALL_BIGQUERY_LOCATIONS)
+@pytest.mark.parametrize("bigquery_location", config.ALL_BIGQUERY_LOCATIONS)
 def test_bq_location(bigquery_location):
     session = bigframes.Session(
         context=bigframes.BigQueryOptions(location=bigquery_location)
@@ -138,7 +85,7 @@ def test_bq_location(bigquery_location):
 
 @pytest.mark.parametrize(
     "bigquery_location",
-    REP_ENABLED_BIGQUERY_LOCATIONS,
+    config.REP_ENABLED_BIGQUERY_LOCATIONS,
 )
 def test_bq_rep_endpoints(bigquery_location):
     session = bigframes.Session(
@@ -161,24 +108,12 @@ def test_bq_rep_endpoints(bigquery_location):
 
 @pytest.mark.parametrize(
     "bigquery_location",
-    sorted(set(ALL_BIGQUERY_LOCATIONS) - set(REP_ENABLED_BIGQUERY_LOCATIONS)),
+    config.LEP_ENABLED_BIGQUERY_LOCATIONS,
 )
 def test_bq_lep_endpoints(bigquery_location):
-    session = bigframes.Session(
-        context=bigframes.BigQueryOptions(
-            location=bigquery_location, use_regional_endpoints=True
-        )
-    )
-
-    assert session.bqclient.location == bigquery_location
-    assert (
-        session.bqclient._connection.API_BASE_URL
-        == "https://{location}-bigquery.googleapis.com".format(
-            location=bigquery_location
-        )
-    )
-
-    # We are not testing BQ query execution with LEP endpoints
-    # as that requires the project to be allowlisted for LEP access.
-    # We could hardcode one project which is allowlisted but then not every
-    # open source will have access to that.
+    # We are not testing BigFrames Session for LEP endpoints because it involves
+    # query execution using the endpoint, which requires the project to be
+    # allowlisted for LEP access. We could hardcode one project which is
+    # allowlisted but then not every open source developer will have access to
+    # that. Let's rely on the unit tests for LEP.
+    pass
