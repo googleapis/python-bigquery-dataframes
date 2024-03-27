@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
 import dataclasses
-import functools
+from typing import Callable
 
 import bigframes.dtypes
 from bigframes.dtypes import ExpressionType
@@ -22,54 +23,175 @@ from bigframes.dtypes import ExpressionType
 
 
 @dataclasses.dataclass
-class OpTypeRule:
-    def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        raise NotImplementedError("Abstract typing rule has no output type")
+class TypeSignature(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def as_method(self):
+        ...
+
+
+class UnaryTypeSignature(TypeSignature):
+    @abc.abstractmethod
+    def output_type(self, input_type: ExpressionType) -> ExpressionType:
+        ...
 
     @property
     def as_method(self):
         def meth(_, *input_types: ExpressionType) -> ExpressionType:
-            return self.output_type(*input_types)
+            assert len(input_types) == 1
+            return self.output_type(input_types[0])
+
+        return meth
+
+
+class BinaryTypeSignature(TypeSignature):
+    @abc.abstractmethod
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        ...
+
+    @property
+    def as_method(self):
+        def meth(_, *input_types: ExpressionType) -> ExpressionType:
+            assert len(input_types) == 2
+            return self.output_type(input_types[0], input_types[1])
 
         return meth
 
 
 @dataclasses.dataclass
-class InputType(OpTypeRule):
-    def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        assert len(input_types) == 1
-        return input_types[0]
+class InputType(UnaryTypeSignature):
+    def output_type(self, input_type: ExpressionType) -> ExpressionType:
+        return input_type
 
 
 @dataclasses.dataclass
-class RealNumeric(OpTypeRule):
-    def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        return functools.reduce(
-            lambda t1, t2: bigframes.dtypes.lcd_etype(t1, t2),
-            [*input_types, bigframes.dtypes.FLOAT_DTYPE],
-        )
+class TypePreserving(UnaryTypeSignature):
+    type_predicate: Callable[[ExpressionType], bool]
+    description: str
+
+    def output_type(self, input_type: ExpressionType) -> ExpressionType:
+        if not self.type_predicate(input_type):
+            raise TypeError(
+                f"Type {input_type} is not supported. Type must be {self.description}"
+            )
+        return input_type
 
 
 @dataclasses.dataclass
-class Supertype(OpTypeRule):
-    def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        return functools.reduce(
-            lambda t1, t2: bigframes.dtypes.lcd_etype(t1, t2), input_types
-        )
+class FixedOutputType(UnaryTypeSignature):
+    type_predicate: Callable[[ExpressionType], bool]
+    fixed_type: ExpressionType
+    description: str
+
+    def output_type(self, input_type: ExpressionType) -> ExpressionType:
+        if not self.type_predicate(input_type):
+            raise TypeError(
+                f"Type {input_type} is not supported. Type must be {self.description}"
+            )
+        return self.fixed_type
 
 
 @dataclasses.dataclass
-class Fixed(OpTypeRule):
-    out_type: ExpressionType
+class UnaryRealNumeric(UnaryTypeSignature):
+    """Type signature for real-valued functions like exp, log, sin, tan."""
 
-    def output_type(self, *input_types: ExpressionType) -> ExpressionType:
-        return self.out_type
+    def output_type(self, type: ExpressionType) -> ExpressionType:
+        if not bigframes.dtypes.is_numeric(type):
+            raise TypeError(f"Type {type} is not numeric")
+        if type in (bigframes.dtypes.INT_DTYPE, bigframes.dtypes.BOOL_DTYPE):
+            return bigframes.dtypes.FLOAT_DTYPE
+        return type
 
 
-# Common type rules
-NUMERIC = Supertype()
-REAL_NUMERIC = RealNumeric()
-PREDICATE = Fixed(bigframes.dtypes.BOOL_DTYPE)
-INTEGER = Fixed(bigframes.dtypes.INT_DTYPE)
-STRING = Fixed(bigframes.dtypes.STRING_DTYPE)
-INPUT_TYPE = InputType()
+@dataclasses.dataclass
+class BinaryRealNumeric(BinaryTypeSignature):
+    """Type signature for real-valued functions like divide, arctan2, pow."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        if not bigframes.dtypes.is_numeric(left_type):
+            raise TypeError(f"Type {left_type} is not numeric")
+        if not bigframes.dtypes.is_numeric(right_type):
+            raise TypeError(f"Type {right_type} is not numeric")
+        lcd_type = bigframes.dtypes.lcd_etype(left_type, right_type)
+        if lcd_type == bigframes.dtypes.INT_DTYPE:
+            return bigframes.dtypes.FLOAT_DTYPE
+        return lcd_type
+
+
+@dataclasses.dataclass
+class Numeric(BinaryTypeSignature):
+    """Type signature for numeric functions like plus, minus, multiply that can map ints to ints."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        if not bigframes.dtypes.is_numeric(left_type):
+            raise TypeError(f"Type {left_type} is not numeric")
+        if not bigframes.dtypes.is_numeric(right_type):
+            raise TypeError(f"Type {right_type} is not numeric")
+        return bigframes.dtypes.lcd_etype(left_type, right_type)
+
+
+@dataclasses.dataclass
+class Supertype(BinaryTypeSignature):
+    """Type signature for functions that return a the supertype of its inputs. Currently BigFrames just supports upcasting numerics."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        return bigframes.dtypes.lcd_etype(left_type, right_type)
+
+
+@dataclasses.dataclass
+class Comparison(BinaryTypeSignature):
+    """Type signature for comparison operators."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        common_type = bigframes.dtypes.lcd_etype(left_type, right_type)
+        if not bigframes.dtypes.is_comparable(common_type):
+            raise TypeError(f"Types {left_type} and {right_type} are not comparable")
+        return bigframes.dtypes.BOOL_DTYPE
+
+
+@dataclasses.dataclass
+class Logical(BinaryTypeSignature):
+    """Type signature for logical operators like AND, OR and NOT."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        if left_type != bigframes.dtypes.BOOL_DTYPE:
+            raise TypeError(f"Type {left_type} is not boolean")
+        if right_type != bigframes.dtypes.BOOL_DTYPE:
+            raise TypeError(f"Type {right_type} is not boolean")
+        return bigframes.dtypes.BOOL_DTYPE
+
+
+# Common type signatures
+UNARY_NUMERIC = TypePreserving(bigframes.dtypes.is_numeric, description="numeric")
+UNARY_REAL_NUMERIC = UnaryRealNumeric()
+BINARY_NUMERIC = Numeric()
+BINARY_REAL_NUMERIC = BinaryRealNumeric()
+COMPARISON = Comparison()
+COMMON_SUPERTYPE = Supertype()
+LOGICAL = Logical()
+STRING_TRANSFORM = TypePreserving(
+    bigframes.dtypes.is_string_like, description="numeric"
+)
+STRING_PREDICATE = FixedOutputType(
+    bigframes.dtypes.is_string_like,
+    bigframes.dtypes.BOOL_DTYPE,
+    description="string-like",
+)
+DATELIKE_ACCESSOR = FixedOutputType(
+    bigframes.dtypes.is_date_like, bigframes.dtypes.INT_DTYPE, description="date-like"
+)
+TIMELIKE_ACCESSOR = FixedOutputType(
+    bigframes.dtypes.is_time_like, bigframes.dtypes.INT_DTYPE, description="time-like"
+)
