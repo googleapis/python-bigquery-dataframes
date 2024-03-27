@@ -469,7 +469,7 @@ def test_arrow_to_pandas(
             id="too-few-dtypes",
         ),
         pytest.param(
-            pyarrow.RecordBatch.from_pydict({"col1": [1]}),
+            pyarrow.Table.from_pydict({"col1": [1]}),
             {"col1": "Int64", "col2": "string[pyarrow]"},
             id="too-many-dtypes",
         ),
