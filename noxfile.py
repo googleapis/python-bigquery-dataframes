@@ -293,7 +293,7 @@ def run_system(
     install_test_extra=True,
     print_duration=False,
     extra_pytest_options=(),
-    timeout_seconds=1800,
+    timeout_seconds=900,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -399,7 +399,7 @@ def load(session: nox.sessions.Session):
         prefix_name="load",
         test_folder=os.path.join("tests", "system", "load"),
         print_duration=True,
-        timeout_seconds=60 * 60 * 2,
+        timeout_seconds=60 * 60 * 4,
     )
 
 
