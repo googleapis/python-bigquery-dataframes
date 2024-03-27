@@ -106,8 +106,7 @@ class ArrayValue:
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        # TODO: switch to use self.node.schema
-        return self._compiled_schema
+        return self.node.schema
 
     @functools.cached_property
     def _compiled_schema(self) -> schemata.ArraySchema:
@@ -117,18 +116,6 @@ class ArrayValue:
             for id in compiled.column_ids
         )
         return schemata.ArraySchema(items)
-
-    def validate_schema(self):
-        tree_derived = self.node.schema
-        ibis_derived = self._compiled_schema
-        if tree_derived.names != ibis_derived.names:
-            raise ValueError(
-                f"Unexpected names internal {tree_derived.names} vs compiled {ibis_derived.names}"
-            )
-        if tree_derived.dtypes != ibis_derived.dtypes:
-            raise ValueError(
-                f"Unexpected types internal {tree_derived.dtypes} vs compiled {ibis_derived.dtypes}"
-            )
 
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
@@ -196,7 +183,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).rewrite_projection()
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
@@ -221,7 +208,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).rewrite_projection()
 
     def assign_constant(
         self,
@@ -251,7 +238,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).rewrite_projection()
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         selections = ((ex.free_var(col_id), col_id) for col_id in column_ids)
@@ -260,7 +247,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(selections),
             )
-        )
+        ).rewrite_projection()
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         new_projection = (
@@ -273,7 +260,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(new_projection),
             )
-        )
+        ).rewrite_projection()
 
     def aggregate(
         self,
@@ -404,3 +391,7 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
+
+    def rewrite_projection(self) -> ArrayValue:
+        rewritten = bigframes.core.rewrite.maybe_squash_projection(self.node)
+        return ArrayValue(rewritten)

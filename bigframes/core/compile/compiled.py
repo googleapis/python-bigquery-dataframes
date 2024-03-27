@@ -1228,18 +1228,24 @@ class OrderedIR(BaseIbisIR):
                 )
                 new_baked_cols.append(baked_column)
                 new_expr = OrderingExpression(
-                    ex.free_var(baked_column.name), expr.direction, expr.na_last
+                    ex.free_var(baked_column.get_name()), expr.direction, expr.na_last
                 )
                 new_exprs.append(new_expr)
-            else:
+            elif isinstance(expr.scalar_expression, ex.UnboundVariableExpression):
                 new_exprs.append(expr)
+                new_baked_cols.append(self._ibis_bindings[expr.scalar_expression.id])
 
-        ordering = self._ordering.with_ordering_columns(new_exprs)
+        new_ordering = ExpressionOrdering(
+            tuple(new_exprs),
+            self._ordering.integer_encoding,
+            self._ordering.string_encoding,
+            self._ordering.total_ordering_columns,
+        )
         return OrderedIR(
             self._table,
             columns=self.columns,
-            hidden_ordering_columns=[*self._hidden_ordering_columns, *new_baked_cols],
-            ordering=ordering,
+            hidden_ordering_columns=tuple(new_baked_cols),
+            ordering=new_ordering,
             predicates=self._predicates,
         )
 
