@@ -20,7 +20,6 @@ import typing
 from typing import Tuple
 
 import geopandas as gpd  # type: ignore
-import numpy as np
 import pandas as pd
 import pandas.testing
 import pyarrow as pa  # type: ignore
