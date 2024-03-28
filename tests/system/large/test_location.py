@@ -115,5 +115,15 @@ def test_bq_lep_endpoints(bigquery_location):
     # query execution using the endpoint, which requires the project to be
     # allowlisted for LEP access. We could hardcode one project which is
     # allowlisted but then not every open source developer will have access to
-    # that. Let's rely on the unit tests for LEP.
-    pass
+    # that. Let's rely on just creating the clients for LEP.
+    clients_provider = bigframes.session.clients.ClientsProvider(
+        location=bigquery_location, use_regional_endpoints=True
+    )
+
+    assert clients_provider.bqclient.location == bigquery_location
+    assert (
+        clients_provider.bqclient._connection.API_BASE_URL
+        == "https://{location}-bigquery.googleapis.com".format(
+            location=bigquery_location
+        )
+    )
