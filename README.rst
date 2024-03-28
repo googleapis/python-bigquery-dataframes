@@ -19,6 +19,12 @@ Documentation
 * `BigQuery DataFrames API reference <https://cloud.google.com/python/docs/reference/bigframes/latest/summary_overview>`_
 
 
+Getting started with BigQuery DataFrames
+----------------------------------------
+Try the `BigQuery DataFrames quickstart <https://cloud.google.com/bigquery/docs/dataframes-quickstart>`_
+to get up and running in just a few minutes.
+
+
 License
 -------
 
