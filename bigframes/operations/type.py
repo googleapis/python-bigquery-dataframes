@@ -66,12 +66,6 @@ class BinaryTypeSignature(TypeSignature):
 
 
 @dataclasses.dataclass
-class InputType(UnaryTypeSignature):
-    def output_type(self, input_type: ExpressionType) -> ExpressionType:
-        return input_type
-
-
-@dataclasses.dataclass
 class TypePreserving(UnaryTypeSignature):
     type_predicate: Callable[[ExpressionType], bool]
     description: str
@@ -91,7 +85,7 @@ class FixedOutputType(UnaryTypeSignature):
     description: str
 
     def output_type(self, input_type: ExpressionType) -> ExpressionType:
-        if not self.type_predicate(input_type):
+        if (input_type is not None) and not self.type_predicate(input_type):
             raise TypeError(
                 f"Type {input_type} is not supported. Type must be {self.description}"
             )
@@ -103,6 +97,8 @@ class UnaryRealNumeric(UnaryTypeSignature):
     """Type signature for real-valued functions like exp, log, sin, tan."""
 
     def output_type(self, type: ExpressionType) -> ExpressionType:
+        if type is None:
+            return bigframes.dtypes.FLOAT_DTYPE
         if not bigframes.dtypes.is_numeric(type):
             raise TypeError(f"Type {type} is not numeric")
         if type in (bigframes.dtypes.INT_DTYPE, bigframes.dtypes.BOOL_DTYPE):
@@ -112,35 +108,35 @@ class UnaryRealNumeric(UnaryTypeSignature):
 
 
 @dataclasses.dataclass
-class BinaryRealNumeric(BinaryTypeSignature):
-    """Type signature for real-valued functions like divide, arctan2, pow."""
-
-    def output_type(
-        self, left_type: ExpressionType, right_type: ExpressionType
-    ) -> ExpressionType:
-        if not bigframes.dtypes.is_numeric(left_type):
-            raise TypeError(f"Type {left_type} is not numeric")
-        if not bigframes.dtypes.is_numeric(right_type):
-            raise TypeError(f"Type {right_type} is not numeric")
-        lcd_type = bigframes.dtypes.lcd_etype(left_type, right_type)
-        if lcd_type == bigframes.dtypes.INT_DTYPE:
-            # Real numeric ops produce floats on int input
-            return bigframes.dtypes.FLOAT_DTYPE
-        return lcd_type
-
-
-@dataclasses.dataclass
 class BinaryNumeric(BinaryTypeSignature):
     """Type signature for numeric functions like multiply, modulo that can map ints to ints."""
 
     def output_type(
         self, left_type: ExpressionType, right_type: ExpressionType
     ) -> ExpressionType:
-        if not bigframes.dtypes.is_numeric(left_type):
+        if (left_type is not None) and not bigframes.dtypes.is_numeric(left_type):
             raise TypeError(f"Type {left_type} is not numeric")
-        if not bigframes.dtypes.is_numeric(right_type):
+        if (right_type is not None) and not bigframes.dtypes.is_numeric(right_type):
             raise TypeError(f"Type {right_type} is not numeric")
         return bigframes.dtypes.lcd_etype(left_type, right_type)
+
+
+@dataclasses.dataclass
+class BinaryRealNumeric(BinaryTypeSignature):
+    """Type signature for real-valued functions like divide, arctan2, pow."""
+
+    def output_type(
+        self, left_type: ExpressionType, right_type: ExpressionType
+    ) -> ExpressionType:
+        if (left_type is not None) and not bigframes.dtypes.is_numeric(left_type):
+            raise TypeError(f"Type {left_type} is not numeric")
+        if (right_type is not None) and not bigframes.dtypes.is_numeric(right_type):
+            raise TypeError(f"Type {right_type} is not numeric")
+        lcd_type = bigframes.dtypes.lcd_etype(left_type, right_type)
+        if lcd_type == bigframes.dtypes.INT_DTYPE:
+            # Real numeric ops produce floats on int input
+            return bigframes.dtypes.FLOAT_DTYPE
+        return lcd_type
 
 
 @dataclasses.dataclass
@@ -173,11 +169,17 @@ class Logical(BinaryTypeSignature):
     def output_type(
         self, left_type: ExpressionType, right_type: ExpressionType
     ) -> ExpressionType:
-        if left_type != bigframes.dtypes.BOOL_DTYPE:
-            raise TypeError(f"Type {left_type} is not boolean")
-        if right_type != bigframes.dtypes.BOOL_DTYPE:
-            raise TypeError(f"Type {right_type} is not boolean")
-        return bigframes.dtypes.BOOL_DTYPE
+        if left_type is None or right_type is None:
+            return bigframes.dtypes.BOOL_DTYPE
+        if not bigframes.dtypes.is_binary_like(left_type):
+            raise TypeError(f"Type {left_type} is not binary")
+        if not bigframes.dtypes.is_binary_like(right_type):
+            raise TypeError(f"Type {right_type} is not binary")
+        if left_type != right_type:
+            raise TypeError(
+                "Bitwise operands {left_type} and {right_type} do not match"
+            )
+        return left_type
 
 
 # Common type signatures

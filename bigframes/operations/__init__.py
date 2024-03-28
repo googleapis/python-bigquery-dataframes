@@ -558,10 +558,47 @@ clipupper_op = create_binary_op(
 coalesce_op = create_binary_op(
     name="coalesce", type_signature=op_typing.COMMON_SUPERTYPE
 )
+
+
 ## Math Ops
-# TODO: Be more specific about "add-able" and "subtract-able" types
-add_op = create_binary_op(name="add", type_signature=op_typing.COMMON_SUPERTYPE)
-sub_op = create_binary_op(name="sub", type_signature=op_typing.COMMON_SUPERTYPE)
+@dataclasses.dataclass(frozen=True)
+class AddOp(BinaryOp):
+    name: typing.ClassVar[str] = "add"
+
+    def output_type(self, *input_types):
+        left_type = input_types[0]
+        right_type = input_types[1]
+        if all(map(dtypes.is_string_like, input_types)) and len(set(input_types)) == 1:
+            # String addition
+            return input_types[0]
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            # Numeric addition
+            return dtypes.lcd_etype(left_type, right_type)
+        # TODO: Add temporal addition once delta types supported
+        raise TypeError(f"Cannot add dtypes {left_type} and {right_type}")
+
+
+@dataclasses.dataclass(frozen=True)
+class SubOp(BinaryOp):
+    name: typing.ClassVar[str] = "sub"
+
+    # Note: this is actualyl a vararg op, but we don't model that yet
+    def output_type(self, *input_types):
+        left_type = input_types[0]
+        right_type = input_types[1]
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            # Numeric subtraction
+            return dtypes.lcd_etype(left_type, right_type)
+        # TODO: Add temporal addition once delta types supported
+        raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
+
+
+add_op = AddOp()
+sub_op = SubOp()
 mul_op = create_binary_op(name="mul", type_signature=op_typing.BINARY_NUMERIC)
 div_op = create_binary_op(name="div", type_signature=op_typing.BINARY_REAL_NUMERIC)
 floordiv_op = create_binary_op(name="floordiv", type_signature=op_typing.BINARY_NUMERIC)
