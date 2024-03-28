@@ -75,7 +75,7 @@ def test_index_repr_large_table():
 
 
 def test_to_pandas_batches_large_table():
-    df = bpd.read_gbq("load_testing.scalars_1gb")
+    df = bpd.read_gbq("load_testing.scalars_10gb")
     # df will be downloaded locally
     expected_row_count, expected_column_count = df.shape
 
