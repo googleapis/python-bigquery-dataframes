@@ -4,6 +4,33 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.1.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.0.0...v1.1.0) (2024-03-28)
+
+
+### Features
+
+* Add `DataFrame.eval` and `DataFrame.query` ([#361](https://github.com/googleapis/python-bigquery-dataframes/issues/361)) ([5e28ebd](https://github.com/googleapis/python-bigquery-dataframes/commit/5e28ebd1ba3a5559e093c2ea676c0714c1434ba9))
+* Add support for numpy expm1, log1p, floor, ceil, arctan2 ops ([#505](https://github.com/googleapis/python-bigquery-dataframes/issues/505)) ([e8e66cf](https://github.com/googleapis/python-bigquery-dataframes/commit/e8e66cf25887f64d2a7cb26081c2ef3cea10827d))
+* Expose `DataFrame.bqclient` to assist in integrations ([#519](https://github.com/googleapis/python-bigquery-dataframes/issues/519)) ([0be8911](https://github.com/googleapis/python-bigquery-dataframes/commit/0be891191ed89be77494e4dcda30fb37836842ac))
+
+
+### Bug Fixes
+
+* Don't download 100gb onto local python machine in load test ([#537](https://github.com/googleapis/python-bigquery-dataframes/issues/537)) ([082c58b](https://github.com/googleapis/python-bigquery-dataframes/commit/082c58bbe76821b90337dc5af0ab5fa7515682c2))
+* Product operation produces float result for all input types ([#501](https://github.com/googleapis/python-bigquery-dataframes/issues/501)) ([6873b30](https://github.com/googleapis/python-bigquery-dataframes/commit/6873b30b691a11a368308825a72013d8ec1408ed))
+
+
+### Dependencies
+
+* Include `pyarrow` as a dependency ([#529](https://github.com/googleapis/python-bigquery-dataframes/issues/529)) ([9b1525a](https://github.com/googleapis/python-bigquery-dataframes/commit/9b1525a0c359455160bfbc0dc1366e37982ad01f))
+
+
+### Documentation
+
+* Add progress_bar code sample ([#508](https://github.com/googleapis/python-bigquery-dataframes/issues/508)) ([92a1af3](https://github.com/googleapis/python-bigquery-dataframes/commit/92a1af35b8de4afb6cdb5b5e89facdceb5c151d2))
+* Add the code samples for metrics{auc, roc_auc_score, roc_curve} ([#520](https://github.com/googleapis/python-bigquery-dataframes/issues/520)) ([5f37b09](https://github.com/googleapis/python-bigquery-dataframes/commit/5f37b0902fae2c099207acf3ce2e251c09ac889d))
+* Fix docs of ARIMAPlus.predict ([#512](https://github.com/googleapis/python-bigquery-dataframes/issues/512)) ([3b80f95](https://github.com/googleapis/python-bigquery-dataframes/commit/3b80f956755c9d7043138aab6e5687cba50be8cb))
+
 ## [1.0.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v0.26.0...v1.0.0) (2024-03-25)
 
 
