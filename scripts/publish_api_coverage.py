@@ -17,17 +17,36 @@ and sklearn API coverage to BigQuery, where it can be used in our dashboards."""
 
 import argparse
 import inspect
+import pathlib
+import sys
 
 import pandas as pd
 
+import bigframes
 import bigframes.pandas as bpd
+
+REPO_ROOT = pathlib.Path(__file__).parent.parent
+
+
+def names_from_signature(signature):
+    """Extract the names of parameters from signature
+
+    See: https://docs.python.org/3/library/inspect.html#inspect.signature
+    """
+    return frozenset({parameter for parameter in signature.parameters})
+
+
+def calculate_missing_parameters(bigframes_function, target_function):
+    bigframes_params = names_from_signature(inspect.signature(bigframes_function))
+    target_params = names_from_signature(inspect.signature(target_function))
+    return target_params - bigframes_params
 
 
 def generate_pandas_api_coverage():
     """Inspect all our pandas objects, and compare with the real pandas objects, to see
     which methods we implement. For each, generate a regex that can be used to check if
     its present in a notebook"""
-    header = ["api", "pattern", "kind", "is_in_bigframes"]
+    header = ["api", "pattern", "kind", "is_in_bigframes", "missing_parameters"]
     api_patterns = []
     targets = [
         ("pandas", pd, bpd),
@@ -38,6 +57,8 @@ def generate_pandas_api_coverage():
     indexers = ["loc", "iloc", "iat", "ix", "at"]
     for name, pandas_obj, bigframes_obj in targets:
         for member in dir(pandas_obj):
+            missing_parameters = ""
+
             # skip private functions and properties
             if member[0] == "_" and member[1] != "_":
                 continue
@@ -50,6 +71,17 @@ def generate_pandas_api_coverage():
                 # Function, match .member(
                 token = f"\\.{member}\\("
                 token_type = "function"
+
+                if hasattr(bigframes_obj, member):
+                    bigframes_function = getattr(bigframes_obj, member)
+                    pandas_function = getattr(pandas_obj, member)
+                    missing_parameters = ", ".join(
+                        sorted(
+                            calculate_missing_parameters(
+                                bigframes_function, pandas_function
+                            )
+                        )
+                    )
             elif member in indexers:
                 # Indexer, match .indexer[
                 token = f"\\.{member}\\["
@@ -62,7 +94,13 @@ def generate_pandas_api_coverage():
             is_in_bigframes = hasattr(bigframes_obj, member)
 
             api_patterns.append(
-                [f"{name}.{member}", token, token_type, is_in_bigframes]
+                [
+                    f"{name}.{member}",
+                    token,
+                    token_type,
+                    is_in_bigframes,
+                    missing_parameters,
+                ]
             )
 
     return pd.DataFrame(api_patterns, columns=header)
@@ -165,14 +203,65 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     return combined_df.infer_objects().convert_dtypes()
 
 
+def generate_api_coverage_csv(df, api_prefix):
+    dataframe_apis = df.loc[df["api"].str.startswith(f"{api_prefix}.")]
+    fully_implemented = (
+        dataframe_apis["missing_parameters"].str.len() == 0
+    ) & dataframe_apis["is_in_bigframes"]
+    partial_implemented = (
+        dataframe_apis["missing_parameters"].str.len() != 0
+    ) & dataframe_apis["is_in_bigframes"]
+    not_implemented = ~dataframe_apis["is_in_bigframes"]
+    dataframe_table = pd.DataFrame(
+        {
+            "API": (
+                "``"
+                + dataframe_apis["api"].str.slice(start=len(f"{api_prefix}."))
+                + "``"
+            ),
+            "Implemented": "",
+            "Missing parameters": dataframe_apis["missing_parameters"],
+        }
+    )
+    dataframe_table.loc[fully_implemented, "Implemented"] = "**Y**"  # Bold
+    dataframe_table.loc[partial_implemented, "Implemented"] = "*P*"  # Italics
+    dataframe_table.loc[not_implemented, "Implemented"] = "N"
+
+    with open(
+        REPO_ROOT
+        / "docs"
+        / "reference"
+        / "bigframes.pandas"
+        / "supported_apis"
+        / f"{api_prefix}.csv",
+        "w",
+    ) as csv_file:
+        dataframe_table.to_csv(csv_file, index=False, header=True)
+
+
+def generate_api_coverage_csvs(df):
+    generate_api_coverage_csv(df, "pandas")
+    generate_api_coverage_csv(df, "dataframe")
+    generate_api_coverage_csv(df, "series")
+    generate_api_coverage_csv(df, "index")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bigframes_version")
-    parser.add_argument("--release_version")
+    parser.add_argument("output_type")
+    parser.add_argument("--bigframes_version", default=bigframes.__version__)
+    parser.add_argument("--release_version", default="")
     parser.add_argument("--bigquery_table_name")
     args = parser.parse_args()
     df = build_api_coverage_table(args.bigframes_version, args.release_version)
-    df.to_gbq(args.bigquery_table_name, if_exists="append")
+
+    if args.output_type == "bigquery":
+        df.to_gbq(args.bigquery_table_name, if_exists="append")
+    elif args.output_type == "docs":
+        generate_api_coverage_csvs(df)
+    else:
+        print(f"Unexpected output_type {repr(args.output_type)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
