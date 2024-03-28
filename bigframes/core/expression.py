@@ -108,6 +108,10 @@ class Expression(abc.ABC):
     def is_bijective(self) -> bool:
         return False
 
+    @property
+    def is_raw_variable(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -171,6 +175,10 @@ class UnboundVariableExpression(Expression):
 
     @property
     def is_bijective(self) -> bool:
+        return True
+
+    @property
+    def is_raw_variable(self) -> bool:
         return True
 
 
