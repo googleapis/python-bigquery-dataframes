@@ -610,7 +610,7 @@ def test_assign_new_column_w_loc(scalars_dfs):
     ("scalar",),
     [
         (2.1,),
-        (np.nan,),
+        (None,),
     ],
 )
 def test_assign_new_column_w_setitem(scalars_dfs, scalar):
