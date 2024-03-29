@@ -110,8 +110,9 @@ def from_bq(
 
 
 def _transformer_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
-    transformer = compose.ColumnTransformer._extract_from_bq_model(bq_model)
-    transformer = transformer._merge(bq_model)
+    transformer = compose.ColumnTransformer._extract_from_bq_model(bq_model)._merge(
+        bq_model
+    )
     transformer._bqml_model = core.BqmlModel(session, bq_model)
 
     return transformer
