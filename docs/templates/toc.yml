@@ -32,6 +32,8 @@
       name: Session
     name: Core Objects
   - items:
+    - href: supported_pandas_apis.html
+      name: Supported pandas APIs
     - name: DataFrame
       uid: bigframes.dataframe.DataFrame
     - items:
@@ -72,8 +74,6 @@
       name: Series
     - name: Window
       uid: bigframes.core.window.Window
-    - name: Supported pandas APIs
-      href: supported_pandas_apis.html
     name: bigframes.pandas
   - items:
     - items:
