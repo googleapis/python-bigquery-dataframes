@@ -12,22 +12,22 @@ DataFrame
 ---------
 
 .. raw:: html
-    :file: bf_dataframe.html
+    :file: supported_pandas_apis/bf_dataframe.html
 
 Series
 ------
 
 .. raw:: html
-    :file: bf_series.html
+    :file: supported_pandas_apis/bf_series.html
 
 Index
 -----
 
 .. raw:: html
-    :file: bf_index.html
+    :file: supported_pandas_apis/bf_index.html
 
 pandas module
 -------------
 
 .. raw:: html
-    :file: bf_pandas.html
+    :file: supported_pandas_apis/bf_pandas.html
