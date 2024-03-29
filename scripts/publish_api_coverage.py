@@ -302,8 +302,9 @@ def generate_api_coverage(df, api_prefix):
     return dataframe_table
 
 
-def generate_api_coverage_csv(df, api_prefix):
+def generate_api_coverage_doc(df, api_prefix):
     dataframe_table = generate_api_coverage(df, api_prefix)
+    dataframe_table = dataframe_table.loc[~(dataframe_table["Implemented"] == "N")]
     dataframe_table["Implemented"] = dataframe_table["Implemented"].map(
         {
             "Y": "<b>Y</b>",
@@ -320,10 +321,10 @@ def generate_api_coverage_csv(df, api_prefix):
         )
 
 
-def generate_api_coverage_csvs(df):
+def generate_api_coverage_docs(df):
     for target in PANDAS_TARGETS:
         api_prefix = target[0]
-        generate_api_coverage_csv(df, api_prefix)
+        generate_api_coverage_doc(df, api_prefix)
 
 
 def print_api_coverage_summary(df, api_prefix):
@@ -364,7 +365,7 @@ def main():
     if args.output_type == "bigquery":
         df.to_gbq(args.bigquery_table_name, if_exists="append")
     elif args.output_type == "docs":
-        generate_api_coverage_csvs(df)
+        generate_api_coverage_docs(df)
     elif args.output_type == "summary":
         print_api_coverage_summaries(df)
     else:

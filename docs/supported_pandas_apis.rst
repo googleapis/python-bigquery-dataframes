@@ -5,7 +5,6 @@ The following tables show the pandas APIs that have been implemented (or not)
 in BigQuery DataFrames.
 
 * 'Y' means it implements all parameters.
-* 'N' means it's not implemented yet.
 * 'P' means it implements only some parameters.
 
 DataFrame
