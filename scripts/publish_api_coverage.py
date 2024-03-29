@@ -28,7 +28,10 @@ import bigframes.pandas as bpd
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 
 URL_PREFIX = {
-    "dataframe": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_"
+    "dataframe": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_",
+    "series": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.series.Series#bigframes_series_Series_",
+    "pandas": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.pandas#bigframes_pandas_",
+    # TODO: Index not documented.
 }
 
 
@@ -208,7 +211,8 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
-    formatted = "<code>" + api_names.str.slice(start=len(f"{api_prefix}.")) + "</code>"
+    api_names = api_names.str.slice(start=len(f"{api_prefix}."))
+    formatted = "<code>" + api_names + "</code>"
     url_prefix = URL_PREFIX.get(api_prefix)
     if url_prefix is None:
         return formatted
@@ -217,7 +221,7 @@ def format_api(api_names, is_in_bigframes, api_prefix):
     return formatted.mask(is_in_bigframes, linked)
 
 
-def generate_api_coverage_csv(df, api_prefix):
+def generate_api_coverage(df, api_prefix):
     dataframe_apis = df.loc[df["api"].str.startswith(f"{api_prefix}.")]
     fully_implemented = (
         dataframe_apis["missing_parameters"].str.len() == 0
@@ -237,9 +241,20 @@ def generate_api_coverage_csv(df, api_prefix):
             "Missing parameters": dataframe_apis["missing_parameters"],
         }
     )
-    dataframe_table.loc[fully_implemented, "Implemented"] = "<b>Y</b>"  # Bold
-    dataframe_table.loc[partial_implemented, "Implemented"] = "</i>P</i>"  # Italics
+    dataframe_table.loc[fully_implemented, "Implemented"] = "Y"
+    dataframe_table.loc[partial_implemented, "Implemented"] = "P"
     dataframe_table.loc[not_implemented, "Implemented"] = "N"
+    return dataframe_table
+
+
+def generate_api_coverage_csv(df, api_prefix):
+    dataframe_table = generate_api_coverage(df, api_prefix)
+    dataframe_table["Implemented"] = dataframe_table["Implemented"].map(
+        {
+            "Y": "<b>Y</b>",
+            "P": "<i>P</i>",
+        }
+    )
 
     with open(
         REPO_ROOT / "docs" / "supported_pandas_apis" / f"bf_{api_prefix}.html",
@@ -257,6 +272,21 @@ def generate_api_coverage_csvs(df):
     generate_api_coverage_csv(df, "index")
 
 
+def print_api_coverage_summary(df, api_prefix):
+    dataframe_table = generate_api_coverage(df, api_prefix)
+
+    print(api_prefix)
+    print(dataframe_table[["Implemented", "API"]].groupby(["Implemented"]).count())
+    print(f"{api_prefix} APIs: {dataframe_table.shape[0]}\n")
+
+
+def print_api_coverage_summaries(df):
+    print_api_coverage_summary(df, "pandas")
+    print_api_coverage_summary(df, "dataframe")
+    print_api_coverage_summary(df, "series")
+    print_api_coverage_summary(df, "index")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output_type")
@@ -270,6 +300,8 @@ def main():
         df.to_gbq(args.bigquery_table_name, if_exists="append")
     elif args.output_type == "docs":
         generate_api_coverage_csvs(df)
+    elif args.output_type == "summary":
+        print_api_coverage_summaries(df)
     else:
         print(f"Unexpected output_type {repr(args.output_type)}")
         sys.exit(1)
