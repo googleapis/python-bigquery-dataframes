@@ -27,6 +27,10 @@ import bigframes.pandas as bpd
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 
+URL_PREFIX = {
+    "dataframe": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_"
+}
+
 
 def names_from_signature(signature):
     """Extract the names of parameters from signature
@@ -203,6 +207,16 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     return combined_df.infer_objects().convert_dtypes()
 
 
+def format_api(api_names, is_in_bigframes, api_prefix):
+    formatted = "<code>" + api_names.str.slice(start=len(f"{api_prefix}.")) + "</code>"
+    url_prefix = URL_PREFIX.get(api_prefix)
+    if url_prefix is None:
+        return formatted
+
+    linked = '<a href="' + url_prefix + api_names + '">' + formatted + "</a>"
+    return formatted.mask(is_in_bigframes, linked)
+
+
 def generate_api_coverage_csv(df, api_prefix):
     dataframe_apis = df.loc[df["api"].str.startswith(f"{api_prefix}.")]
     fully_implemented = (
@@ -214,10 +228,10 @@ def generate_api_coverage_csv(df, api_prefix):
     not_implemented = ~dataframe_apis["is_in_bigframes"]
     dataframe_table = pd.DataFrame(
         {
-            "API": (
-                "<code>"
-                + dataframe_apis["api"].str.slice(start=len(f"{api_prefix}."))
-                + "</code>"
+            "API": format_api(
+                dataframe_apis["api"],
+                dataframe_apis["is_in_bigframes"],
+                api_prefix,
             ),
             "Implemented": "",
             "Missing parameters": dataframe_apis["missing_parameters"],
