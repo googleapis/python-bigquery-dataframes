@@ -153,12 +153,18 @@ def test_series_construct_from_list_escaped_strings():
         ("float64_col", pd.Float64Dtype()),
         ("geography_col", gpd.array.GeometryDtype()),
         ("int64_col", pd.Int64Dtype()),
-        # TODO(swast): Use a more efficient type.
         ("numeric_col", pd.ArrowDtype(pa.decimal128(38, 9))),
         ("int64_too", pd.Int64Dtype()),
         ("string_col", pd.StringDtype(storage="pyarrow")),
         ("time_col", pd.ArrowDtype(pa.time64("us"))),
         ("timestamp_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
+        ("array_int64_col", pd.ArrowDtype(pa.list_(pa.int64()))),
+        (
+            "array_array_col",
+            pd.ArrowDtype(
+                pa.list_(pa.struct([("array_float64_col", pa.list_(pa.float64()))]))
+            ),
+        ),
     ],
 )
 def test_get_column(scalars_dfs, col_name, expected_dtype):

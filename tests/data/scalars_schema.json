@@ -71,5 +71,22 @@
       "mode": "NULLABLE",
       "name": "timestamp_col",
       "type": "TIMESTAMP"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "array_int64_col",
+      "type": "INTEGER"
+    },
+    {
+      "mode": "REPEATED",
+      "name": "array_array_col",
+      "type": "RECORD",
+      "fields": [
+        {
+          "mode": "REPEATED",
+          "name": "array_float64_col",
+          "type": "FLOAT"
+        }
+      ]
     }
   ]
