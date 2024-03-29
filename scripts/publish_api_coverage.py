@@ -215,16 +215,16 @@ def generate_api_coverage_csv(df, api_prefix):
     dataframe_table = pd.DataFrame(
         {
             "API": (
-                "``"
+                "<code>"
                 + dataframe_apis["api"].str.slice(start=len(f"{api_prefix}."))
-                + "``"
+                + "</code>"
             ),
             "Implemented": "",
             "Missing parameters": dataframe_apis["missing_parameters"],
         }
     )
-    dataframe_table.loc[fully_implemented, "Implemented"] = "**Y**"  # Bold
-    dataframe_table.loc[partial_implemented, "Implemented"] = "*P*"  # Italics
+    dataframe_table.loc[fully_implemented, "Implemented"] = "<b>Y</b>"  # Bold
+    dataframe_table.loc[partial_implemented, "Implemented"] = "</i>P</i>"  # Italics
     dataframe_table.loc[not_implemented, "Implemented"] = "N"
 
     with open(
@@ -233,10 +233,12 @@ def generate_api_coverage_csv(df, api_prefix):
         / "reference"
         / "bigframes.pandas"
         / "supported_apis"
-        / f"{api_prefix}.csv",
+        / f"bf_{api_prefix}.html",
         "w",
-    ) as csv_file:
-        dataframe_table.to_csv(csv_file, index=False, header=True)
+    ) as html_file:
+        dataframe_table.to_html(
+            html_file, index=False, header=True, escape=False, border=0, col_space="8em"
+        )
 
 
 def generate_api_coverage_csvs(df):

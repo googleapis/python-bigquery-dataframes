@@ -11,27 +11,23 @@ in BigQuery DataFrames.
 DataFrame
 ---------
 
-.. csv-table::
-    :file: dataframe.csv
-    :header-rows: 1
+.. raw:: html
+    :file: bf_dataframe.html
 
 Series
 ------
 
-.. csv-table::
-    :file: series.csv
-    :header-rows: 1
+.. raw:: html
+    :file: bf_series.html
 
 Index
 -----
 
-.. csv-table::
-    :file: index.csv
-    :header-rows: 1
+.. raw:: html
+    :file: bf_index.html
 
 pandas module
 -------------
 
-.. csv-table::
-    :file: pandas.csv
-    :header-rows: 1
+.. raw:: html
+    :file: bf_pandas.html
