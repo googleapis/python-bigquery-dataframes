@@ -70,10 +70,10 @@ import bigframes.session._io.bigquery
 if typing.TYPE_CHECKING:
     import bigframes.session
 
+    SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
-SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 ERROR_IO_ONLY_GS_PATHS = f"Only Google Cloud Storage (gs://...) paths are supported. {constants.FEEDBACK_LINK}"
 ERROR_IO_REQUIRES_WILDCARD = (
@@ -305,6 +305,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def values(self) -> numpy.ndarray:
         return self.to_numpy()
+
+    @property
+    def bqclient(self) -> bigframes.Session:
+        """BigQuery REST API Client the DataFrame uses for operations."""
+        return self._session.bqclient
 
     @property
     def _session(self) -> bigframes.Session:
@@ -574,28 +579,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
-        """Converts a DataFrame to a string. Calls to_pandas.
+        """Converts a DataFrame to a string using pandas dataframe __repr__.
 
-        Only represents the first `bigframes.options.display.max_rows`.
+        Only represents the first `bigframes.options.display.max_rows`
+        and `bigframes.options.display.max_columns`.
         """
-        opts = bigframes.options.display
-        max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
 
-        self._cached()
-        # TODO(swast): pass max_columns and get the true column count back. Maybe
-        # get 1 more column than we have requested so that pandas can add the
-        # ... for us?
-        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
-            max_results
-        )
-
-        self._set_internal_query_job(query_job)
-
-        column_count = len(pandas_df.columns)
-
-        with display_options.pandas_repr(opts):
+        pandas_df, shape = self._perform_repr_request()
+        with display_options.pandas_repr(bigframes.options.display):
             repr_string = repr(pandas_df)
 
         # Modify the end of the string to reflect count.
@@ -603,42 +596,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
         if pattern.match(lines[-1]):
             lines = lines[:-2]
-
-        if row_count > len(lines) - 1:
+        if shape[0] > len(lines) - 1:
             lines.append("...")
-
         lines.append("")
-        lines.append(f"[{row_count} rows x {column_count} columns]")
+        lines.append(f"[{shape[0]} rows x {shape[1]} columns]")
         return "\n".join(lines)
+
+    def _perform_repr_request(self) -> Tuple[pandas.DataFrame, Tuple[int, int]]:
+        max_results = bigframes.options.display.max_rows
+        max_columns = bigframes.options.display.max_columns
+        self._cached()
+        pandas_df, shape, query_job = self._block.retrieve_repr_request_results(
+            max_results, max_columns
+        )
+        self._set_internal_query_job(query_job)
+        return pandas_df, shape
 
     def _repr_html_(self) -> str:
         """
         Returns an html string primarily for use by notebooks for displaying
-        a representation of the DataFrame. Displays 20 rows by default since
-        many notebooks are not configured for large tables.
+        a representation of the DataFrame. Displays at most the number of rows
+        and columns given by `bigframes.options.display.max_rows` and
+        `bigframes.options.display.max_columns`.
         """
-        opts = bigframes.options.display
-        max_results = bigframes.options.display.max_rows
-        if opts.repr_mode == "deferred":
+
+        if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job_html(self.query_job)
 
-        self._cached()
-        # TODO(swast): pass max_columns and get the true column count back. Maybe
-        # get 1 more column than we have requested so that pandas can add the
-        # ... for us?
-        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
-            max_results
-        )
+        pandas_df, shape = self._perform_repr_request()
 
-        self._set_internal_query_job(query_job)
-
-        column_count = len(pandas_df.columns)
-
-        with display_options.pandas_repr(opts):
+        with display_options.pandas_repr(bigframes.options.display):
             # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
             html_string = pandas_df._repr_html_()  # type:ignore
 
-        html_string += f"[{row_count} rows x {column_count} columns in total]"
+        html_string += f"[{shape[0]} rows x {shape[1]} columns in total]"
         return html_string
 
     def __setitem__(self, key: str, value: SingleItemValue):
@@ -1019,17 +1010,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
             )
-        if len(self.columns) > 30:
-            raise NotImplementedError(
-                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
-            )
 
         if not numeric_only:
             frame = self._raise_on_non_numeric("corr")
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.corr())
+        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+
+    def cov(self, *, numeric_only: bool = False) -> DataFrame:
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("corr")
+        else:
+            frame = self._drop_non_numeric()
+
+        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
 
     def to_pandas(
         self,
@@ -1488,6 +1483,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 else order.descending_over(column_id, na_last)
             )
         return DataFrame(self._block.order_by(ordering))
+
+    def eval(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        return bf_eval.eval(self, expr, target=self)
+
+    def query(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        eval_result = bf_eval.eval(self, expr, target=None)
+        return self[eval_result]
 
     def value_counts(
         self,

@@ -464,6 +464,23 @@ class Block:
             self._copy_index_to_pandas(df)
             yield df
 
+    def download_pandas_preview(
+        self, max_rows: int
+    ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
+        """Download one page of results and return the query job."""
+        dtypes = dict(zip(self.index_columns, self.index.dtypes))
+        dtypes.update(zip(self.value_columns, self.dtypes))
+        results_iterator, query_job = self.session._execute(
+            self.expr, sorted=True, max_results=max_rows
+        )
+        arrow_results_iterator = results_iterator.to_arrow_iterable()
+        arrow_table = next(arrow_results_iterator)
+        downloaded_df = bigframes.session._io.pandas.arrow_to_pandas(
+            arrow_table, dtypes
+        )
+        self._copy_index_to_pandas(downloaded_df)
+        return downloaded_df, query_job
+
     def _copy_index_to_pandas(self, df: pd.DataFrame):
         """Set the index on pandas DataFrame to match this block.
 
@@ -1138,13 +1155,22 @@ class Block:
             index_columns=[label_col_id],
         )
 
-    def corr(self):
-        """Returns a block object to compute the self-correlation on this block."""
+    def calculate_pairwise_metric(self, op=agg_ops.CorrOp()):
+        """
+        Returns a block object to compute pairwise metrics among all value columns in this block.
+
+        The metric to be computed is specified by the `op` parameter, which can be either a
+        correlation operation (default) or a covariance operation.
+        """
+        if len(self.value_columns) > 30:
+            raise NotImplementedError(
+                "This function supports dataframes with 30 columns or fewer. "
+                f"Provided dataframe has {len(self.value_columns)} columns. {constants.FEEDBACK_LINK}"
+            )
+
         aggregations = [
             (
-                ex.BinaryAggregation(
-                    agg_ops.CorrOp(), ex.free_var(left_col), ex.free_var(right_col)
-                ),
+                ex.BinaryAggregation(op, ex.free_var(left_col), ex.free_var(right_col)),
                 f"{left_col}-{right_col}",
             )
             for left_col in self.value_columns
@@ -1313,26 +1339,25 @@ class Block:
     # queries.
     @functools.cache
     def retrieve_repr_request_results(
-        self, max_results: int
-    ) -> Tuple[pd.DataFrame, int, bigquery.QueryJob]:
+        self, max_results: int, max_columns: int
+    ) -> Tuple[pd.DataFrame, Tuple[int, int], bigquery.QueryJob]:
         """
         Retrieves a pandas dataframe containing only max_results many rows for use
         with printing methods.
 
-        Returns a tuple of the dataframe and the overall number of rows of the query.
+        Returns a tuple of the dataframe preview for printing and the overall number
+        of rows and columns of the table, as well as the query job used.
         """
-        # TODO(swast): Select a subset of columns if max_columns is less than the
-        # number of columns in the schema.
-        count = self.shape[0]
-        if count > max_results:
-            head_block = self.slice(0, max_results)
-        else:
-            head_block = self
-        computed_df, query_job = head_block.to_pandas()
-        formatted_df = computed_df.set_axis(self.column_labels, axis=1)
+        pandas_df, query_job = self.download_pandas_preview(max_results)
+        row_count = self.session._get_table_row_count(query_job.destination)
+        column_count = len(self.value_columns)
+
+        formatted_df = pandas_df.set_axis(self.column_labels, axis=1)
         # we reset the axis and substitute the bf index name for the default
         formatted_df.index.name = self.index.name
-        return formatted_df, count, query_job
+        # limit column count
+        formatted_df = formatted_df.iloc[:, 0:max_columns]
+        return formatted_df, (row_count, column_count), query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         result_id = guid.generate_guid()

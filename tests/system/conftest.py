@@ -35,6 +35,7 @@ import pytz
 import test_utils.prefixer
 
 import bigframes
+import bigframes.dataframe
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -357,8 +358,6 @@ def nested_pandas_df() -> pd.DataFrame:
         DATA_DIR / "nested.jsonl",
         lines=True,
     )
-    tests.system.utils.convert_pandas_dtypes(df, bytes_col=True)
-
     df = df.set_index("rowindex")
     return df
 

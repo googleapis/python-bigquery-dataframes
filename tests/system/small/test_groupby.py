@@ -232,7 +232,8 @@ def test_dataframe_groupby_multi_sum(
         (lambda x: x.cumsum(numeric_only=True)),
         (lambda x: x.cummax(numeric_only=True)),
         (lambda x: x.cummin(numeric_only=True)),
-        (lambda x: x.cumprod()),
+        # Pre-pandas 2.2 doesn't always proeduce float.
+        (lambda x: x.cumprod().astype("Float64")),
         (lambda x: x.shift(periods=2)),
     ],
     ids=[

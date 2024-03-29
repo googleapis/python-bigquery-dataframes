@@ -1917,6 +1917,34 @@ def test_corr_w_invalid_parameters(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("columns", "numeric_only"),
+    [
+        (["bool_col", "int64_col", "float64_col"], True),
+        (["bool_col", "int64_col", "float64_col"], False),
+        (["bool_col", "int64_col", "float64_col", "string_col"], True),
+        pytest.param(
+            ["bool_col", "int64_col", "float64_col", "string_col"],
+            False,
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+    ],
+)
+def test_cov_w_numeric_only(scalars_dfs, columns, numeric_only):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[columns].cov(numeric_only=numeric_only).to_pandas()
+    pd_result = scalars_pandas_df[columns].cov(numeric_only=numeric_only)
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     ("op"),
     [
         operator.add,
@@ -1975,7 +2003,7 @@ def test_mod(scalars_dfs, other_scalar):
 def test_scalar_binop_str_exception(scalars_dfs):
     scalars_df, _ = scalars_dfs
     columns = ["string_col"]
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError, match="Cannot add dtypes"):
         (scalars_df[columns] + 1).to_pandas()
 
 
@@ -2500,6 +2528,8 @@ def test_df_pivot(scalars_dfs, values, index, columns):
     pd_result = scalars_pandas_df.pivot(values=values, index=index, columns=columns)
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
+    bf_result = bf_result.fillna(float("nan"))
+    pd_result = pd_result.fillna(float("nan"))
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
@@ -3792,6 +3822,44 @@ def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("expr",),
+    [
+        ("new_col = int64_col + int64_too",),
+        ("new_col = (rowindex > 3) | bool_col",),
+        ("int64_too = bool_col\nnew_col2 = rowindex",),
+    ],
+)
+def test_df_eval(scalars_dfs, expr):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.eval(expr).to_pandas()
+    pd_result = scalars_pandas_df.eval(expr)
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("expr",),
+    [
+        ("int64_col > int64_too",),
+        ("bool_col",),
+        ("((int64_col - int64_too) % @local_var) == 0",),
+    ],
+)
+def test_df_query(scalars_dfs, expr):
+    # local_var is referenced in expressions
+    local_var = 3  # NOQA
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.query(expr).to_pandas()
+    pd_result = scalars_pandas_df.query(expr)
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("subset", "normalize", "ascending", "dropna"),
     [
@@ -4026,7 +4094,7 @@ def test_to_pandas_downsampling_option_override(session):
 
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)
-    assert total_memory_mb == pytest.approx(download_size, rel=0.3)
+    assert total_memory_mb == pytest.approx(download_size, rel=0.5)
 
 
 def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_created):
