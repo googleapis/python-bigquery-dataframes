@@ -228,12 +228,7 @@ def generate_api_coverage_csv(df, api_prefix):
     dataframe_table.loc[not_implemented, "Implemented"] = "N"
 
     with open(
-        REPO_ROOT
-        / "docs"
-        / "reference"
-        / "bigframes.pandas"
-        / "supported_apis"
-        / f"bf_{api_prefix}.html",
+        REPO_ROOT / "docs" / "supported_pandas_apis" / f"bf_{api_prefix}.html",
         "w",
     ) as html_file:
         dataframe_table.to_html(
