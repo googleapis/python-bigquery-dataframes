@@ -21,15 +21,79 @@ import pathlib
 import sys
 
 import pandas as pd
+import pandas.core.groupby
+import pandas.core.indexes.accessors
+import pandas.core.strings.accessor
+import pandas.core.window.rolling
 
 import bigframes
+import bigframes.core.groupby
+import bigframes.core.window
+import bigframes.operations.datetimes
 import bigframes.pandas as bpd
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 
 URL_PREFIX = {
-    "dataframe": "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_"
+    "pandas": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.pandas#bigframes_pandas_"
+    ),
+    "dataframe": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_"
+    ),
+    "dataframegroupby": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.groupby.DataFrameGroupBy#bigframes_core_groupby_DataFrameGroupBy_"
+    ),
+    "series": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.series.Series#bigframes_series_Series_"
+    ),
+    "seriesgroupby": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.groupby.SeriesGroupBy#bigframes_core_groupby_SeriesGroupBy_"
+    ),
+    "datetimemethods": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.datetimes.DatetimeMethods#bigframes_operations_datetimes_DatetimeMethods_"
+    ),
+    "stringmethods": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.strings.StringMethods#bigframes_operations_strings_StringMethods_"
+    ),
+    "window": (
+        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.window.Window#bigframes_core_window_Window_"
+    ),
+    # TODO: Index not documented.
 }
+
+
+PANDAS_TARGETS = [
+    ("pandas", pd, bpd),
+    ("dataframe", pd.DataFrame, bpd.DataFrame),
+    (
+        "dataframegroupby",
+        pandas.core.groupby.DataFrameGroupBy,
+        bigframes.core.groupby.DataFrameGroupBy,
+    ),
+    ("series", pd.Series, bpd.Series),
+    (
+        "seriesgroupby",
+        pandas.core.groupby.DataFrameGroupBy,
+        bigframes.core.groupby.DataFrameGroupBy,
+    ),
+    (
+        "datetimemethods",
+        pandas.core.indexes.accessors.CombinedDatetimelikeProperties,
+        bigframes.operations.datetimes.DatetimeMethods,
+    ),
+    (
+        "stringmethods",
+        pandas.core.strings.accessor.StringMethods,
+        bigframes.operations.strings.StringMethods,
+    ),
+    (
+        "window",
+        pandas.core.window.rolling.Rolling,
+        bigframes.core.window.Window,
+    ),
+    ("index", pd.Index, bpd.Index),
+]
 
 
 def names_from_signature(signature):
@@ -52,14 +116,8 @@ def generate_pandas_api_coverage():
     its present in a notebook"""
     header = ["api", "pattern", "kind", "is_in_bigframes", "missing_parameters"]
     api_patterns = []
-    targets = [
-        ("pandas", pd, bpd),
-        ("dataframe", pd.DataFrame, bpd.DataFrame),
-        ("series", pd.Series, bpd.Series),
-        ("index", pd.Index, bpd.Index),
-    ]
     indexers = ["loc", "iloc", "iat", "ix", "at"]
-    for name, pandas_obj, bigframes_obj in targets:
+    for name, pandas_obj, bigframes_obj in PANDAS_TARGETS:
         for member in dir(pandas_obj):
             missing_parameters = ""
 
@@ -208,7 +266,8 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
-    formatted = "<code>" + api_names.str.slice(start=len(f"{api_prefix}.")) + "</code>"
+    api_names = api_names.str.slice(start=len(f"{api_prefix}."))
+    formatted = "<code>" + api_names + "</code>"
     url_prefix = URL_PREFIX.get(api_prefix)
     if url_prefix is None:
         return formatted
@@ -217,7 +276,7 @@ def format_api(api_names, is_in_bigframes, api_prefix):
     return formatted.mask(is_in_bigframes, linked)
 
 
-def generate_api_coverage_csv(df, api_prefix):
+def generate_api_coverage(df, api_prefix):
     dataframe_apis = df.loc[df["api"].str.startswith(f"{api_prefix}.")]
     fully_implemented = (
         dataframe_apis["missing_parameters"].str.len() == 0
@@ -237,9 +296,21 @@ def generate_api_coverage_csv(df, api_prefix):
             "Missing parameters": dataframe_apis["missing_parameters"],
         }
     )
-    dataframe_table.loc[fully_implemented, "Implemented"] = "<b>Y</b>"  # Bold
-    dataframe_table.loc[partial_implemented, "Implemented"] = "</i>P</i>"  # Italics
+    dataframe_table.loc[fully_implemented, "Implemented"] = "Y"
+    dataframe_table.loc[partial_implemented, "Implemented"] = "P"
     dataframe_table.loc[not_implemented, "Implemented"] = "N"
+    return dataframe_table
+
+
+def generate_api_coverage_doc(df, api_prefix):
+    dataframe_table = generate_api_coverage(df, api_prefix)
+    dataframe_table = dataframe_table.loc[~(dataframe_table["Implemented"] == "N")]
+    dataframe_table["Implemented"] = dataframe_table["Implemented"].map(
+        {
+            "Y": "<b>Y</b>",
+            "P": "<i>P</i>",
+        }
+    )
 
     with open(
         REPO_ROOT / "docs" / "supported_pandas_apis" / f"bf_{api_prefix}.html",
@@ -250,11 +321,36 @@ def generate_api_coverage_csv(df, api_prefix):
         )
 
 
-def generate_api_coverage_csvs(df):
-    generate_api_coverage_csv(df, "pandas")
-    generate_api_coverage_csv(df, "dataframe")
-    generate_api_coverage_csv(df, "series")
-    generate_api_coverage_csv(df, "index")
+def generate_api_coverage_docs(df):
+    for target in PANDAS_TARGETS:
+        api_prefix = target[0]
+        generate_api_coverage_doc(df, api_prefix)
+
+
+def print_api_coverage_summary(df, api_prefix):
+    dataframe_table = generate_api_coverage(df, api_prefix)
+
+    print(api_prefix)
+    print(dataframe_table[["Implemented", "API"]].groupby(["Implemented"]).count())
+    print(f"{api_prefix} APIs: {dataframe_table.shape[0]}\n")
+
+
+def print_api_coverage_summaries(df):
+    for target in PANDAS_TARGETS:
+        api_prefix = target[0]
+        print_api_coverage_summary(df, api_prefix)
+
+    print(f"\nAll APIs: {len(df.index)}")
+    fully_implemented = (df["missing_parameters"].str.len() == 0) & df[
+        "is_in_bigframes"
+    ]
+    print(f"Y: {fully_implemented.sum()}")
+    partial_implemented = (df["missing_parameters"].str.len() != 0) & df[
+        "is_in_bigframes"
+    ]
+    print(f"P: {partial_implemented.sum()}")
+    not_implemented = ~df["is_in_bigframes"]
+    print(f"N: {not_implemented.sum()}")
 
 
 def main():
@@ -269,7 +365,9 @@ def main():
     if args.output_type == "bigquery":
         df.to_gbq(args.bigquery_table_name, if_exists="append")
     elif args.output_type == "docs":
-        generate_api_coverage_csvs(df)
+        generate_api_coverage_docs(df)
+    elif args.output_type == "summary":
+        print_api_coverage_summaries(df)
     else:
         print(f"Unexpected output_type {repr(args.output_type)}")
         sys.exit(1)
