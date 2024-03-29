@@ -421,10 +421,11 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 class GeminiTextGenerator(base.BaseEstimator):
     """Gemini text generator LLM model.
 
-    Note: This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
-    Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
-    and might have limited support. For more information, see the launch stage descriptions
-    (https://cloud.google.com/products#product-launch-stages).
+    .. note::
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         session (bigframes.Session or None):
