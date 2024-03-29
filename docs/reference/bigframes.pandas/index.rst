@@ -14,4 +14,3 @@ BigQuery DataFrames (pandas)
     window
     groupby
     options
-    ../../supported_pandas_apis/index
