@@ -821,6 +821,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __radd__ = __add__ = radd = add
 
+    __add__.__doc__ = add.__doc__
+
     def sub(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
