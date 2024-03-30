@@ -1133,7 +1133,7 @@ def test_close(session):
     tables_before_count = len(list(tables_before))
     assert tables_before_count >= 2
 
-    session.close()
+    session.close(really=True)
 
     tables_after = bqclient.list_tables(dataset)
     assert len(list(tables_after)) <= tables_before_count - 2
