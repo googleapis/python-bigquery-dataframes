@@ -161,7 +161,9 @@ def test_create_temp_table_default_expiration():
         2023, 11, 2, 13, 44, 55, 678901, datetime.timezone.utc
     )
 
-    bigframes.session._io.bigquery.create_temp_table(bqclient, dataset, expiration)
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, "nosession", dataset, expiration
+    )
 
     bqclient.create_table.assert_called_once()
     call_args = bqclient.create_table.call_args

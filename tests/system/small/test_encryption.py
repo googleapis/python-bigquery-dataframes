@@ -87,7 +87,7 @@ def test_session_load_job(bq_cmek, session_with_bq_cmek):
 
     # Session should have cmek set in the default query and load job configs
     load_table = bigframes.session._io.bigquery.random_table(
-        session_with_bq_cmek._anonymous_dataset
+        session_with_bq_cmek._anonymous_dataset, session_with_bq_cmek.session_id
     )
 
     df = pandas.DataFrame({"col0": [1, 2, 3]})
@@ -189,7 +189,7 @@ def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
     # Write the result to BQ custom table and assert encryption
     session_with_bq_cmek.bqclient.get_table(output_table_id)
     output_table_ref = bigframes.session._io.bigquery.random_table(
-        session_with_bq_cmek._anonymous_dataset
+        session_with_bq_cmek._anonymous_dataset, session_with_bq_cmek.session_id
     )
     output_table_id = str(output_table_ref)
     df.to_gbq(output_table_id)

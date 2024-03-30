@@ -2653,7 +2653,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if_exists = "replace"
 
             temp_table_ref = bigframes.session._io.bigquery.random_table(
-                self._session._anonymous_dataset
+                self._session._anonymous_dataset, self._session.session_id
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 

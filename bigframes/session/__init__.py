@@ -22,6 +22,7 @@ import itertools
 import logging
 import os
 import re
+import secrets
 import typing
 from typing import (
     Any,
@@ -224,6 +225,11 @@ class Session(
         context._session_started = True
         self._df_snapshot: Dict[bigquery.TableReference, datetime.datetime] = {}
 
+        # unique session identifier, short enough to be human readable
+        # only needs to be unique among sessions created by the same user
+        # at the same time in the same region
+        self._session_id: str = "session" + secrets.token_hex(3)
+
     @property
     def bqclient(self):
         return self._clients_provider.bqclient
@@ -255,6 +261,10 @@ class Session(
         return self._bq_connection_manager
 
     @property
+    def session_id(self):
+        return self._session_id
+
+    @property
     def _project(self):
         return self.bqclient.project
 
@@ -279,7 +289,11 @@ class Session(
         )
 
     def close(self):
-        """No-op. Temporary resources are deleted after 7 days."""
+        """Delete tables that were created with this session's session_id."""
+        client = self.bqclient
+        dataset = self._anonymous_dataset
+
+        _delete_tables_matching_session_id(client, dataset, self.session_id)
 
     def read_gbq(
         self,
@@ -1080,7 +1094,9 @@ class Session(
 
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = bigframes_io.random_table(self._anonymous_dataset)
+        load_table_destination = bigframes_io.random_table(
+            self._anonymous_dataset, self.session_id
+        )
         load_job = self.bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -1156,7 +1172,7 @@ class Session(
         encoding: Optional[str] = None,
         **kwargs,
     ) -> dataframe.DataFrame:
-        table = bigframes_io.random_table(self._anonymous_dataset)
+        table = bigframes_io.random_table(self._anonymous_dataset, self.session_id)
 
         if engine is not None and engine == "bigquery":
             if any(param is not None for param in (dtype, names)):
@@ -1269,7 +1285,7 @@ class Session(
         *,
         engine: str = "auto",
     ) -> dataframe.DataFrame:
-        table = bigframes_io.random_table(self._anonymous_dataset)
+        table = bigframes_io.random_table(self._anonymous_dataset, self.session_id)
 
         if engine == "bigquery":
             job_config = self._prepare_load_job_config()
@@ -1306,7 +1322,7 @@ class Session(
         engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
         **kwargs,
     ) -> dataframe.DataFrame:
-        table = bigframes_io.random_table(self._anonymous_dataset)
+        table = bigframes_io.random_table(self._anonymous_dataset, self.session_id)
 
         if engine == "bigquery":
 
@@ -1410,6 +1426,7 @@ class Session(
 
         table = bigframes_io.create_temp_table(
             self.bqclient,
+            self.session_id,
             dataset,
             expiration,
             schema=schema,
@@ -1973,3 +1990,21 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
         configuration["jobTimeoutMs"] = timeout_ms
 
     return configuration
+
+
+def _delete_tables_matching_session_id(
+    client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
+):
+    """Searches within the dataset for tables conforming to the
+    expected session_id form, and instructs bigquery to delete them.
+    """
+
+    tables = client.list_tables(dataset)
+    for table in tables:
+        split_id = table.table_id.split("_")
+        if not split_id[0].startswith("bqdf"):
+            continue
+        found_session_id = split_id[1]
+        if found_session_id == session_id:
+            client.delete_table(table, not_found_ok=True)
+            print("Deleting temporary table '{}'.".format(table.table_id))

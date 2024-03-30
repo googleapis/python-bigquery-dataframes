@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import io
 import random
 import tempfile
@@ -31,6 +32,7 @@ import bigframes.core.indexes.index
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
+import bigframes.pandas as bpd
 from tests.system import utils
 
 
@@ -1107,3 +1109,63 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
+def test_close(session):
+    session_id = session.session_id
+
+    # we will create two tables and confirm that they are deleted
+    # when the session is closed
+
+    bqclient = session.bqclient
+    dataset = session._anonymous_dataset
+    expiration = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + bigframes.constants.DEFAULT_EXPIRATION
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    tables_before = bqclient.list_tables(dataset)
+    tables_before_count = len(list(tables_before))
+    assert tables_before_count >= 2
+
+    session.close()
+
+    tables_after = bqclient.list_tables(dataset)
+    assert len(list(tables_after)) <= tables_before_count - 2
+
+
+# this test works on most projects, but our test project has too many
+# hidden datasets and tables, causing close_session to take too long
+@pytest.mark.skip
+def test_pandas_close_session():
+    session = bpd.get_global_session()
+    session_id = session.session_id
+
+    # we will create two tables and confirm that they are deleted
+    # when the session is closed
+
+    bqclient = session.bqclient
+    dataset = session._anonymous_dataset
+    expiration = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + bigframes.constants.DEFAULT_EXPIRATION
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    tables_before = bqclient.list_tables(dataset)
+    tables_before_count = len(list(tables_before))
+    assert tables_before_count >= 2
+
+    bpd.close_session(session_id=session_id)
+
+    tables_after = bqclient.list_tables(dataset)
+    assert len(list(tables_after)) <= tables_before_count - 2

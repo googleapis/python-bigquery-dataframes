@@ -24,22 +24,39 @@ _global_session: Optional[bigframes.session.Session] = None
 _global_session_lock = threading.Lock()
 
 
-def close_session() -> None:
-    """Start a fresh session the next time a function requires a session.
+def close_session(session_id=None) -> None:
+    """If session_id is not provided, starts a fresh session the
+    next time a function requires a session. And closes the current
+    default session if it was already started.
 
-    Closes the current session if it was already started.
+    If session_id is provided, searches for temporary resources
+    with the corresponding session_id and deletes them. In this case,
+    the current default session is not affected.
+
+    Args:
+        session_id (str, default None):
+            The session to close. If not provided, the default
+            global session will be closed.
 
     Returns:
         None
     """
     global _global_session
 
-    with _global_session_lock:
-        if _global_session is not None:
-            _global_session.close()
-            _global_session = None
+    if session_id is None:
+        with _global_session_lock:
+            if _global_session is not None:
+                _global_session.close()
+                _global_session = None
 
-        bigframes._config.options.bigquery._session_started = False
+            bigframes._config.options.bigquery._session_started = False
+    else:
+        client = get_global_session().bqclient
+
+        for dataset in client.list_datasets(include_all=True):
+            bigframes.session._delete_tables_matching_session_id(
+                client, dataset, session_id
+            )
 
 
 def get_global_session():

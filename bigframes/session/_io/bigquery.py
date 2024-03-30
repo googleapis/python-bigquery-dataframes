@@ -32,7 +32,7 @@ import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
-TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+TEMP_TABLE_ID_FORMAT = "bqdf{date}_{session_id}_{random_id}"
 
 
 def create_job_configs_labels(
@@ -95,7 +95,9 @@ def create_export_data_statement(
     )
 
 
-def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
+def random_table(
+    dataset: bigquery.DatasetReference, session_id: str
+) -> bigquery.TableReference:
     """Generate a random table ID with BigQuery DataFrames prefix.
     Args:
         dataset (google.cloud.bigquery.DatasetReference):
@@ -107,8 +109,8 @@ def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_PREFIX.format(
-        date=now.strftime("%Y%m%d"), random_id=random_id
+    table_id = TEMP_TABLE_ID_FORMAT.format(
+        date=now.strftime("%Y%m%d"), session_id=session_id, random_id=random_id
     )
     return dataset.table(table_id)
 
@@ -138,6 +140,7 @@ def create_snapshot_sql(
 
 def create_temp_table(
     bqclient: bigquery.Client,
+    session_id: str,
     dataset: bigquery.DatasetReference,
     expiration: datetime.datetime,
     *,
@@ -145,7 +148,7 @@ def create_temp_table(
     cluster_columns: Optional[list[str]] = None,
 ) -> str:
     """Create an empty table with an expiration in the desired dataset."""
-    table_ref = random_table(dataset)
+    table_ref = random_table(dataset, session_id)
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
     destination.schema = schema

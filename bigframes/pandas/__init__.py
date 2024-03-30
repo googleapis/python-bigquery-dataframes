@@ -679,6 +679,18 @@ def to_datetime(
 to_datetime.__doc__ = vendored_pandas_datetimes.to_datetime.__doc__
 
 
+def get_default_session_id() -> str:
+    """Gets the default session id. This is the session id that is
+    used whenever a custom session has not been provided. It is the
+    session id of the default global session. It is appended to the
+    table id of all temporary tables created in the global session.
+
+    Returns:
+        str, the default global session id, ex. 'sessiona1b2c'
+    """
+    return get_global_session().session_id
+
+
 # pandas dtype attributes
 NA = pandas.NA
 BooleanDtype = pandas.BooleanDtype
