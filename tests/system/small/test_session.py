@@ -1111,6 +1111,9 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
 
 
+@pytest.mark.skip
+# this test works on most projects, but our test project has too many
+# anonymous tables, causing deletion to take too long
 def test_close(session):
     session_id = session.session_id
 
@@ -1133,14 +1136,14 @@ def test_close(session):
     tables_before_count = len(list(tables_before))
     assert tables_before_count >= 2
 
-    session.close(really=True)
+    session.close()
 
     tables_after = bqclient.list_tables(dataset)
     assert len(list(tables_after)) <= tables_before_count - 2
 
 
 # this test works on most projects, but our test project has too many
-# hidden datasets and tables, causing close_session to take too long
+# anonymous datasets and tables, causing close_session to take too long
 @pytest.mark.skip
 def test_pandas_close_session():
     session = bpd.get_global_session()

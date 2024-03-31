@@ -288,14 +288,10 @@ class Session(
             query_destination.dataset_id,
         )
 
-    def close(self, really=False):
+    def close(self):
         """Delete tables that were created with this session's session_id."""
-        if not really:
-            return
-
         client = self.bqclient
         dataset = self._anonymous_dataset
-
         _delete_tables_matching_session_id(client, dataset, self.session_id)
 
     def read_gbq(

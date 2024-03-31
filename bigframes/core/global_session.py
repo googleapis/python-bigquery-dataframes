@@ -24,10 +24,10 @@ _global_session: Optional[bigframes.session.Session] = None
 _global_session_lock = threading.Lock()
 
 
-def close_session(session_id=None) -> None:
+def close_session(session_id: Optional[str] = None, skip_cleanup: bool = False) -> None:
     """If session_id is not provided, starts a fresh session the
-    next time a function requires a session. And closes the current
-    default session if it was already started.
+    next time a function requires a session. Also closes the current
+    default session if it was already started (unless skip_cleanup is True).
 
     If session_id is provided, searches for temporary resources
     with the corresponding session_id and deletes them. In this case,
@@ -46,7 +46,8 @@ def close_session(session_id=None) -> None:
     if session_id is None:
         with _global_session_lock:
             if _global_session is not None:
-                _global_session.close()
+                if not skip_cleanup:
+                    _global_session.close()
                 _global_session = None
 
             bigframes._config.options.bigquery._session_started = False
