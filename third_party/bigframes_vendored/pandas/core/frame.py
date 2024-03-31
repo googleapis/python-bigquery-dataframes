@@ -329,7 +329,8 @@ class DataFrame(generic.NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> destination = df.to_gbq(ordering_id="ordering_id")
             >>> # The table created can be read outside of the current session.
-            >>> bpd.close_session()  # For demonstration, only.
+            >>> bpd.close_session(skip_cleanup=True)  # if skip_cleanup is False or
+            >>> # not provided, closing the session will delete the temporary tables
             >>> bpd.read_gbq(destination, index_col="ordering_id")
                          col1  col2
             ordering_id
