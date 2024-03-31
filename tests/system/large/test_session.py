@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+
 import pytest
 
-from bigframes import Session
+import bigframes
+import bigframes.pandas as bpd
 
 
 @pytest.mark.parametrize(
@@ -46,7 +49,66 @@ from bigframes import Session
         # ),
     ],
 )
-def test_read_gbq_for_large_tables(session: Session, query_or_table, index_col):
+def test_read_gbq_for_large_tables(
+    session: bigframes.Session, query_or_table, index_col
+):
     """Verify read_gbq() is able to read large tables."""
     df = session.read_gbq(query_or_table, index_col=index_col)
     assert len(df.columns) != 0
+
+
+def test_close(session):
+    session_id = session.session_id
+
+    # we will create two tables and confirm that they are deleted
+    # when the session is closed
+
+    bqclient = session.bqclient
+    dataset = session._anonymous_dataset
+    expiration = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + bigframes.constants.DEFAULT_EXPIRATION
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    tables_before = bqclient.list_tables(dataset, page_size=1000)
+    tables_before_count = len(list(tables_before))
+    assert tables_before_count >= 2
+
+    session.close()
+
+    tables_after = bqclient.list_tables(dataset, page_size=1000)
+    assert len(list(tables_after)) <= tables_before_count - 2
+
+
+def test_pandas_close_session():
+    session = bpd.get_global_session()
+    session_id = session.session_id
+
+    # we will create two tables and confirm that they are deleted
+    # when the session is closed
+
+    bqclient = session.bqclient
+    dataset = session._anonymous_dataset
+    expiration = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + bigframes.constants.DEFAULT_EXPIRATION
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        bqclient, session_id, dataset, expiration
+    )
+    tables_before = bqclient.list_tables(dataset, page_size=1000)
+    tables_before_count = len(list(tables_before))
+    assert tables_before_count >= 2
+
+    bpd.close_session(session_id=session_id)
+
+    tables_after = bqclient.list_tables(dataset, page_size=1000)
+    assert len(list(tables_after)) <= tables_before_count - 2

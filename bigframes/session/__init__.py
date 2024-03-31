@@ -1998,7 +1998,7 @@ def _delete_tables_matching_session_id(
     expected session_id form, and instructs bigquery to delete them.
     """
 
-    tables = client.list_tables(dataset)
+    tables = client.list_tables(dataset, page_size=1000)
     for table in tables:
         split_id = table.table_id.split("_")
         if not split_id[0].startswith("bqdf"):

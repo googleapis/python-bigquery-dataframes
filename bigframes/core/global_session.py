@@ -54,7 +54,9 @@ def close_session(session_id: Optional[str] = None, skip_cleanup: bool = False) 
     else:
         client = get_global_session().bqclient
 
-        for dataset in client.list_datasets(include_all=True):
+        for dataset in client.list_datasets(include_all=True, page_size=1000):
+            if dataset.dataset_id[0] != "_":
+                continue
             bigframes.session._delete_tables_matching_session_id(
                 client, dataset, session_id
             )
