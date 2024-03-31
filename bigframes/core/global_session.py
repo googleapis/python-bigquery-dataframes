@@ -17,6 +17,8 @@
 import threading
 from typing import Callable, Optional, TypeVar
 
+from google.auth.exceptions import RefreshError
+
 import bigframes._config
 import bigframes.session
 
@@ -47,7 +49,15 @@ def close_session(session_id: Optional[str] = None, skip_cleanup: bool = False) 
         with _global_session_lock:
             if _global_session is not None:
                 if not skip_cleanup:
-                    _global_session.close()
+                    try:
+                        _global_session.close()
+                    except RefreshError:
+                        print(
+                            "Unable to clean up global session with session id"
+                            + " {id}.".format(id=_global_session.session_id)
+                            + " Pass skip_cleanup=True to get a new session without cleaning up."
+                        )
+                        raise
                 _global_session = None
 
             bigframes._config.options.bigquery._session_started = False

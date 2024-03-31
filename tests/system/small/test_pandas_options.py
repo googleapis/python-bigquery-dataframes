@@ -289,7 +289,9 @@ def test_close_session_after_credentials_need_reauthentication(monkeypatch):
             bpd.read_gbq(test_query)
 
         # Now verify that closing the session works
-        bpd.close_session()
+        # skip cleanup since we don't have permission to clean up
+        bpd.close_session(skip_cleanup=True)
+
         assert bigframes.core.global_session._global_session is None
 
     # Now verify that use is able to start over
