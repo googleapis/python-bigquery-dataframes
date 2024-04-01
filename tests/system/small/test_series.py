@@ -2412,6 +2412,27 @@ def test_dot(scalars_dfs):
     assert bf_result == pd_result
 
 
+def test_dot_df(matrix_3by4_df, matrix_3by4_pandas_df):
+    bf_result = matrix_3by4_df["w"] @ matrix_3by4_df
+    pd_result = matrix_3by4_pandas_df["w"] @ matrix_3by4_pandas_df
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(), pd_result, check_index_type=False, check_dtype=False
+    )
+
+
+def test_dot_df_with_na(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_too"] @ scalars_df[["int64_col", "int64_too"]]
+    pd_result = (
+        scalars_pandas_df["int64_too"] @ scalars_pandas_df[["int64_col", "int64_too"]]
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(), pd_result, check_index_type=False, check_dtype=False
+    )
+
+
 @pytest.mark.parametrize(
     ("left", "right", "inclusive"),
     [
