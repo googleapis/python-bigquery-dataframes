@@ -136,7 +136,7 @@ class BigFrameNode:
     @property
     def planning_complexity(self) -> int:
         """Heuristic measure of planning complexity. Used to determine when to decompose overly complex computations."""
-        return self.total_variables * self.total_relational_ops
+        return self.total_variables * (self.total_relational_ops**2)
 
     @abc.abstractmethod
     def transform_children(

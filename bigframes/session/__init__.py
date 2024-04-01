@@ -18,10 +18,8 @@ from __future__ import annotations
 
 import copy
 import datetime
-import functools
 import itertools
 import logging
-import math
 import os
 import re
 import typing
@@ -121,15 +119,12 @@ _VALID_ENCODINGS = {
 # TODO(tbergeron): Convert to bytes-based limit
 MAX_INLINE_DF_SIZE = 5000
 
-# Chosen to prevent very large expression trees from being directly executed as a single query
-# Beyond this limit, expression should be cached or decomposed into multiple queries for execution.
-COMPLEXITY_SOFT_LIMIT = 2e5
+# Max complexity that should be executed as a single query
+COMPLEXITY_SOFT_LIMIT = 1e7
 # Beyond the hard limite, even decomposing the query is unlikely to succeed
-COMPLEXITY_HARD_LIMIT = 1e25
-# Number of times to factor out and cache a repeated subtree
-MAX_SUBTREE_FACTORINGS = 10
-# Limits how much bigframes will attempt to decompose complex queries into smaller queries
-MAX_DECOMPOSITION_STEPS = 5
+COMPLEXITY_HARD_LIMIT = 1e9
+# Number of times to factor out subqueries before giving up.
+MAX_SUBTREE_FACTORINGS = 5
 
 logger = logging.getLogger(__name__)
 
@@ -1828,17 +1823,38 @@ class Session(
             ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         )
 
+    def _simplify_with_caching(self, array_value: core.ArrayValue) -> core.ArrayValue:
+        """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
+        if not bigframes.options.compute.enable_multi_query_execution:
+            return array_value
+        print(f"Query has complexity: {array_value.node.planning_complexity}")
+        node = array_value.node
+        if node.planning_complexity < COMPLEXITY_SOFT_LIMIT:
+            return array_value
+
+        for _ in range(MAX_SUBTREE_FACTORINGS):
+            updated = self._cache_most_complex_subtree(node)
+            if updated is None:
+                print(f"Could not further factor query: {node.planning_complexity}")
+                return core.ArrayValue(node)
+            else:
+                print(f"Refactored query has complexity: {node.planning_complexity}")
+                node = updated
+
+        return core.ArrayValue(node)
+
     def _cache_most_complex_subtree(
         self, node: nodes.BigFrameNode
     ) -> Optional[nodes.BigFrameNode]:
-        node_counts = _node_counts(node)
-        # Only consider nodes the occur at least twice
-        # valid_candidates = filter(lambda x: x[1] >= 2, node_counts.items())
-        valid_candidates = node_counts.items()
-        # Heuristic: log(Complexity) * (copies of subtree)
+        valid_candidates = traversals.count_complex_nodes(
+            node,
+            min_complexity=(COMPLEXITY_SOFT_LIMIT / 500),
+            max_complexity=COMPLEXITY_SOFT_LIMIT,
+        ).items()
+        # Heuristic: subtree_compleixty * (copies of subtree)^2
         best_candidate = max(
             valid_candidates,
-            key=lambda i: math.log(i[0].planning_complexity) + i[1],
+            key=lambda i: i[0].planning_complexity + (i[1] ** 2),
             default=None,
         )
 
@@ -1846,53 +1862,14 @@ class Session(
             # No good subtrees to cache, just return original tree
             return None
 
-        node_to_replace = best_candidate[0]
-
         # TODO: Add clustering columns based on access patterns
-        cached_node = self._cache_with_cluster_cols(
+        materialized = self._cache_with_cluster_cols(
             core.ArrayValue(best_candidate[0]), []
         ).node
 
-        @functools.cache
-        def apply_substition(n: nodes.BigFrameNode) -> nodes.BigFrameNode:
-            if n == node_to_replace:
-                return cached_node
-            else:
-                return n.transform_children(apply_substition)
-
-        return node.transform_children(apply_substition)
-
-    def _simplify_with_caching(self, array_value: core.ArrayValue) -> core.ArrayValue:
-        """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
-        if not bigframes.options.compute.enable_multi_query_execution:
-            return array_value
-        node = array_value.node
-        if node.planning_complexity < COMPLEXITY_SOFT_LIMIT:
-            return array_value
-        node = self._cache_complex_subtrees(node, max_iterations=MAX_SUBTREE_FACTORINGS)
-        if node.planning_complexity > COMPLEXITY_HARD_LIMIT:
-            raise ValueError(
-                f"This dataframe is too complex to convert to SQL queries. Internal complexity measure: {node.planning_complexity}"
-            )
-        return core.ArrayValue(node)
-
-    def _cache_complex_subtrees(
-        self, node: nodes.BigFrameNode, max_iterations: int
-    ) -> nodes.BigFrameNode:
-        """If the computaiton is complex, execute subtrees of the compuation.
-        Main goal is to reduce query planning complexity, not query cost.
-        """
-        root = node
-        # Identify node that maximizes complexity * (repetitions - 1)
-        # Recurse into subtrees below complexity limit, then cache each of those
-
-        for _ in range(max_iterations):
-            updated = self._cache_most_complex_subtree(root)
-            if updated is not None:
-                root = updated
-            else:
-                return root
-        return root
+        return traversals.replace_nodes(
+            node, to_replace=best_candidate[0], replacemenet=materialized
+        )
 
     def _is_trivially_executable(self, array_value: core.ArrayValue):
         """
@@ -2049,24 +2026,3 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
         configuration["jobTimeoutMs"] = timeout_ms
 
     return configuration
-
-
-@functools.cache
-def _node_counts(subtree: nodes.BigFrameNode) -> Dict[nodes.BigFrameNode, int]:
-    """Helper function to count occurences of duplicate nodes in a subtree. Considers only nodes in a complexity range"""
-    if subtree.planning_complexity > COMPLEXITY_SOFT_LIMIT / 50:
-        child_counts = [_node_counts(child) for child in subtree.child_nodes]
-        node_counts = functools.reduce(
-            lambda x, y: dict(
-                (key, x.get(key, 0) + y.get(key, 0))
-                for key in itertools.chain(x.keys(), y.keys())
-            ),
-            child_counts,
-        )
-
-        if subtree.planning_complexity < COMPLEXITY_SOFT_LIMIT:
-            node_count = node_counts.get(subtree, 0) + 1
-            node_counts[subtree] = node_count
-        return node_counts
-    else:
-        return dict()

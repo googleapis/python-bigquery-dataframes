@@ -4106,7 +4106,7 @@ def test_recursion_limit(scalars_df_index):
 
 
 def test_query_complexity_repeated_subtrees(scalars_df_index, scalars_pandas_df_index):
-    # Recursively union the data, if fully decorrelated has 10^5 identical root tables.
+    # Recursively union the data, if fully inlined has 10^5 identical root tables.
     pd_df = scalars_pandas_df_index
     bf_df = scalars_df_index
     for _ in range(5):
