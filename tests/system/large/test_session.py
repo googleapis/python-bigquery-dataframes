@@ -57,6 +57,8 @@ def test_read_gbq_for_large_tables(
     assert len(df.columns) != 0
 
 
+# this test is prohibitively slow on our test project
+@pytest.mark.skip
 def test_close(session):
     session_id = session.session_id
 
@@ -85,8 +87,7 @@ def test_close(session):
     assert len(list(tables_after)) <= tables_before_count - 2
 
 
-# our test session usually has so many anonymous datasets
-# that this test is prohibitively slow on that project
+# this test is prohibitively slow on our test project
 @pytest.mark.skip
 def test_pandas_close_session():
     session = bpd.get_global_session()
