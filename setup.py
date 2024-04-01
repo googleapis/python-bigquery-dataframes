@@ -46,7 +46,8 @@ dependencies = [
     "google-cloud-storage >=2.0.0",
     "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
     # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
-    "pandas >=1.5.0,<2.1.4",
+    "pandas >=1.5.0",
+    "pyarrow >=8.0.0",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
     "scikit-learn >=1.2.2",
@@ -113,6 +114,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent",
         "Topic :: Internet",
     ],

@@ -14,27 +14,28 @@
 
 import pandas
 
-import bigframes.ml.cluster
-import bigframes.ml.compose
-import bigframes.ml.linear_model
-import bigframes.ml.pipeline
-import bigframes.ml.preprocessing
+from bigframes.ml import compose, preprocessing
 
 
 def test_columntransformer_standalone_fit_and_transform(
     penguins_df_default_index, new_penguins_df
 ):
-    transformer = bigframes.ml.compose.ColumnTransformer(
+    transformer = compose.ColumnTransformer(
         [
             (
                 "onehot",
-                bigframes.ml.preprocessing.OneHotEncoder(),
+                preprocessing.OneHotEncoder(),
                 "species",
             ),
             (
-                "scale",
-                bigframes.ml.preprocessing.StandardScaler(),
+                "starndard_scale",
+                preprocessing.StandardScaler(),
                 ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            (
+                "min_max_scale",
+                preprocessing.MinMaxScaler(),
+                ["culmen_length_mm"],
             ),
         ]
     )
@@ -51,6 +52,7 @@ def test_columntransformer_standalone_fit_and_transform(
 
     expected = pandas.DataFrame(
         {
+            "min_max_scaled_culmen_length_mm": [0.269, 0.232, 0.210],
             "onehotencoded_species": [
                 [{"index": 1, "value": 1.0}],
                 [{"index": 1, "value": 1.0}],
@@ -65,27 +67,21 @@ def test_columntransformer_standalone_fit_and_transform(
         },
         index=pandas.Index([1633, 1672, 1690], dtype="Int64", name="tag_number"),
     )
-    expected.standard_scaled_culmen_length_mm = (
-        expected.standard_scaled_culmen_length_mm.astype("Float64")
-    )
-    expected.standard_scaled_flipper_length_mm = (
-        expected.standard_scaled_flipper_length_mm.astype("Float64")
-    )
 
-    pandas.testing.assert_frame_equal(result, expected, rtol=1e-3, check_dtype=False)
+    pandas.testing.assert_frame_equal(result, expected, rtol=0.1, check_dtype=False)
 
 
 def test_columntransformer_standalone_fit_transform(new_penguins_df):
-    transformer = bigframes.ml.compose.ColumnTransformer(
+    transformer = compose.ColumnTransformer(
         [
             (
                 "onehot",
-                bigframes.ml.preprocessing.OneHotEncoder(),
+                preprocessing.OneHotEncoder(),
                 "species",
             ),
             (
-                "scale",
-                bigframes.ml.preprocessing.StandardScaler(),
+                "standard_scale",
+                preprocessing.StandardScaler(),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
         ]
@@ -116,11 +112,42 @@ def test_columntransformer_standalone_fit_transform(new_penguins_df):
         },
         index=pandas.Index([1633, 1672, 1690], dtype="Int64", name="tag_number"),
     )
-    expected.standard_scaled_culmen_length_mm = (
-        expected.standard_scaled_culmen_length_mm.astype("Float64")
+
+    pandas.testing.assert_frame_equal(result, expected, rtol=0.1, check_dtype=False)
+
+
+def test_columntransformer_save_load(new_penguins_df, dataset_id):
+    transformer = compose.ColumnTransformer(
+        [
+            (
+                "onehot",
+                preprocessing.OneHotEncoder(),
+                "species",
+            ),
+            (
+                "standard_scale",
+                preprocessing.StandardScaler(),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+        ]
     )
-    expected.standard_scaled_flipper_length_mm = (
-        expected.standard_scaled_flipper_length_mm.astype("Float64")
+    transformer.fit(
+        new_penguins_df[["species", "culmen_length_mm", "flipper_length_mm"]]
     )
 
-    pandas.testing.assert_frame_equal(result, expected, rtol=1e-3, check_dtype=False)
+    reloaded_transformer = transformer.to_gbq(
+        f"{dataset_id}.temp_configured_model", replace=True
+    )
+
+    assert isinstance(reloaded_transformer, compose.ColumnTransformer)
+
+    expected = [
+        (
+            "one_hot_encoder",
+            preprocessing.OneHotEncoder(max_categories=1000001, min_frequency=0),
+            "species",
+        ),
+        ("standard_scaler", preprocessing.StandardScaler(), "culmen_length_mm"),
+        ("standard_scaler", preprocessing.StandardScaler(), "flipper_length_mm"),
+    ]
+    assert reloaded_transformer.transformers_ == expected

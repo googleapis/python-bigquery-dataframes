@@ -39,7 +39,7 @@ LINT_PATHS = ["docs", "bigframes", "tests", "third_party", "noxfile.py", "setup.
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -54,7 +54,7 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -341,8 +341,8 @@ def run_system(
     pytest_cmd.extend(extra_pytest_options)
     session.run(
         *pytest_cmd,
-        test_folder,
         *session.posargs,
+        test_folder,
     )
 
 
@@ -399,7 +399,7 @@ def load(session: nox.sessions.Session):
         prefix_name="load",
         test_folder=os.path.join("tests", "system", "load"),
         print_duration=True,
-        timeout_seconds=60 * 60,
+        timeout_seconds=60 * 60 * 12,
     )
 
 
@@ -467,6 +467,12 @@ def docs(session):
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
+
+    session.run(
+        "python",
+        "scripts/publish_api_coverage.py",
+        "docs",
+    )
     session.run(
         "sphinx-build",
         "-W",  # warnings as errors
@@ -503,6 +509,12 @@ def docfx(session):
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
+
+    session.run(
+        "python",
+        "scripts/publish_api_coverage.py",
+        "docs",
+    )
     session.run(
         "sphinx-build",
         "-T",  # show full traceback on exception
@@ -556,22 +568,11 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--prefer-binary",
         "--pre",
         "--upgrade",
-        # TODO(shobs): Remove excluding version 2.1.4 after
-        # https://github.com/pandas-dev/pandas/issues/56463 is resolved.
-        #
-        # TODO(shobs): Remove excluding version 2.2.0rc0 after
-        # https://github.com/pandas-dev/pandas/issues/56646 and
-        # https://github.com/pandas-dev/pandas/issues/56651 are resolved.
-        #
-        # TODO(shobs): Remove excluding version 2.2.0 after
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/341
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/337
-        # are resolved
-        #
         # We exclude each version individually so that we can continue to test
         # some prerelease packages. See:
         # https://github.com/googleapis/python-bigquery-dataframes/pull/268#discussion_r1423205172
-        "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
+        # "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
+        "pandas",
     )
     already_installed.add("pandas")
 

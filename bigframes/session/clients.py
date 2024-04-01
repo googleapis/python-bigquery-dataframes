@@ -38,7 +38,13 @@ _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__} ibis/{ibis.__ver
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 # Regions for which Regional Endpoints (REPs) are supported
-_REP_SUPPORTED_REGIONS = {"me-central2"}
+_REP_SUPPORTED_REGIONS = {
+    "me-central2",
+    "europe-west9",
+    "europe-west3",
+    "us-east4",
+    "us-west1",
+}
 
 
 # BigQuery is a REST API, which requires the protocol as part of the URL.
@@ -63,12 +69,12 @@ class ClientsProvider:
 
     def __init__(
         self,
-        project: Optional[str],
-        location: Optional[str],
-        use_regional_endpoints: Optional[bool],
-        credentials: Optional[google.auth.credentials.Credentials],
-        application_name: Optional[str],
-        bq_kms_key_name: Optional[str],
+        project: Optional[str] = None,
+        location: Optional[str] = None,
+        use_regional_endpoints: Optional[bool] = None,
+        credentials: Optional[google.auth.credentials.Credentials] = None,
+        application_name: Optional[str] = None,
+        bq_kms_key_name: Optional[str] = None,
     ):
         credentials_project = None
         if credentials is None:

@@ -19,6 +19,7 @@ import pytest
 
 import bigframes
 import bigframes.ml.linear_model
+from tests.system import utils
 
 
 @pytest.fixture(scope="module")
@@ -145,9 +146,6 @@ def test_df_apis(bq_cmek, session_with_bq_cmek, scalars_table_id):
         pytest.param(
             None,
             id="default_engine",
-            marks=pytest.mark.skip(
-                reason="Internal issue 327544164, cmek does not propagate to the dataframe."
-            ),
         ),
     ],
 )
@@ -160,7 +158,7 @@ def test_read_csv_gcs(
     # Create a csv in gcs
     write_path = gcs_folder + "test_read_csv_gcs_bigquery_engine*.csv"
     read_path = (
-        write_path.replace("*", "000000000000") if engine is None else write_path
+        utils.get_first_file_from_wildcard(write_path) if engine is None else write_path
     )
     scalars_df_index.to_csv(write_path)
 
@@ -206,9 +204,6 @@ def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
     assert output_table_dataset.default_encryption_configuration is None
 
 
-@pytest.mark.skip(
-    reason="Internal issue 327544164, cmek does not propagate to the dataframe."
-)
 def test_read_pandas(bq_cmek, session_with_bq_cmek):
     if not bq_cmek:
         pytest.skip("no cmek set for testing")

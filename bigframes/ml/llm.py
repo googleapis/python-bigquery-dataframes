@@ -44,7 +44,7 @@ _EMBEDDING_GENERATOR_ENDPOINTS = (
 _GEMINI_PRO_ENDPOINT = "gemini-pro"
 
 _ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
-_ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
+_ML_EMBED_TEXT_STATUS = "ml_generate_embedding_status"
 
 
 @log_adapter.class_logger
@@ -73,12 +73,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -93,17 +91,19 @@ class PaLM2TextGenerator(base.BaseEstimator):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         if self.model_name not in _TEXT_GENERATOR_ENDPOINTS:
             raise ValueError(
@@ -289,12 +289,10 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         self.model_name = model_name
         self.version = version
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -309,17 +307,19 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         if self.model_name not in _EMBEDDING_GENERATOR_ENDPOINTS:
             raise ValueError(
@@ -389,7 +389,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
             "flatten_json_output": True,
         }
 
-        df = self._bqml_model.generate_text_embedding(X, options)
+        df = self._bqml_model.generate_embedding(X, options)
 
         if (df[_ML_EMBED_TEXT_STATUS] != "").any():
             warnings.warn(
@@ -421,6 +421,12 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 class GeminiTextGenerator(base.BaseEstimator):
     """Gemini text generator LLM model.
 
+    .. note::
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     Args:
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
@@ -437,12 +443,10 @@ class GeminiTextGenerator(base.BaseEstimator):
         connection_name: Optional[str] = None,
     ):
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -457,17 +461,19 @@ class GeminiTextGenerator(base.BaseEstimator):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         options = {"endpoint": _GEMINI_PRO_ENDPOINT}
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
-from bigframes_vendored.pandas.core.generic import NDFrame
+import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
 
@@ -23,7 +23,7 @@ from bigframes import constants
 # DataFrame class
 
 
-class DataFrame(NDFrame):
+class DataFrame(generic.NDFrame):
     """Two-dimensional, size-mutable, potentially heterogeneous tabular data.
 
     Data structure also contains labeled axes (rows and columns).
@@ -592,7 +592,7 @@ class DataFrame(NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_records()
             rec.array([(0, 1, 3), (1, 2, 4)],
-                      dtype=[('index', 'O'), ('col1', 'O'), ('col2', 'O')])
+                      dtype=[('index', '<i8'), ('col1', '<i8'), ('col2', '<i8')])
 
         Args:
             index (bool, default True):
@@ -1141,7 +1141,7 @@ class DataFrame(NDFrame):
 
         Args:
             other (DataFrame or Series):
-            join ({{'outer', 'inner', 'left', 'right'}}, default 'outer'):
+            join ({'outer', 'inner', 'left', 'right'}, default 'outer'):
                 Type of alignment to be performed.
                 left: use only keys from left frame, preserve key order.
                 right: use only keys from right frame, preserve key order.
@@ -1627,9 +1627,6 @@ class DataFrame(NDFrame):
 
         This is index for Series, columns for DataFrame.
 
-        Returns:
-            Index: Info axis.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -1641,6 +1638,9 @@ class DataFrame(NDFrame):
             ...     })
             >>> df.keys()
             Index(['A', 'B'], dtype='object')
+
+        Returns:
+            Index: Info axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1673,6 +1673,17 @@ class DataFrame(NDFrame):
         """
         Iterate over DataFrame rows as namedtuples.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+            >>> next(df.itertuples(name="Pair"))
+            Pair(Index=0, A=1, B=4)
+
         Args:
             index (bool, default True):
                 If True, return the index as the first element of the tuple.
@@ -1685,18 +1696,6 @@ class DataFrame(NDFrame):
                 An object to iterate over namedtuples for each row in the
                 DataFrame with the first field possibly being the index and
                 following fields being the column values.
-
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-            >>> next(df.itertuples(name="Pair"))
-            Pair(Index=0, A=1, B=4)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2835,7 +2834,36 @@ class DataFrame(NDFrame):
                 Include only float, int, boolean, decimal data.
 
         Returns:
-            DataFrame:  Correlation matrix.
+            DataFrame: Correlation matrix.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def cov(self, *, numeric_only) -> DataFrame:
+        """
+        Compute pairwise covariance of columns, excluding NA/null values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600],
+            ...                    'C': [0.8, 0.4, 0.9]})
+            >>> df.cov(numeric_only=True)
+                   A        B     C
+            A    1.0    100.0  0.05
+            B  100.0  10000.0   5.0
+            C   0.05      5.0  0.07
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            numeric_only(bool, default False):
+                Include only float, int, boolean, decimal data.
+
+        Returns:
+            DataFrame: The covariance matrix of the series of the DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3155,7 +3183,7 @@ class DataFrame(NDFrame):
             on:
                 Column in the caller to join on the index in other, otherwise
                 joins index-on-index. Like an Excel VLOOKUP operation.
-            how ({'left', 'right', 'outer', 'inner'}, default 'left'`):
+            how ({'left', 'right', 'outer', 'inner'}, default 'left'):
                 How to handle the operation of the two objects.
                 ``left``: use calling frame's index (or column if on is specified)
                 ``right``: use `other`'s index. ``outer``: form union of calling
@@ -4388,10 +4416,10 @@ class DataFrame(NDFrame):
             [3 rows x 2 columns]
 
             >>> df.cumprod()
-                A	B
-            0	3	1
-            1	3	2
-            2	6	6
+                 A    B
+            0  3.0  1.0
+            1  3.0  2.0
+            2  6.0  6.0
             <BLANKLINE>
             [3 rows x 2 columns]
 
@@ -4403,7 +4431,7 @@ class DataFrame(NDFrame):
     def diff(
         self,
         periods: int = 1,
-    ) -> NDFrame:
+    ) -> generic.NDFrame:
         """First discrete difference of element.
 
         Calculates the difference of a DataFrame element compared with another
@@ -4751,7 +4779,7 @@ class DataFrame(NDFrame):
             >>> df.index # doctest: +ELLIPSIS
             Index([10, 20, 30], dtype='Int64')
             >>> df.index.values
-            array([10, 20, 30], dtype=object)
+            array([10, 20, 30])
 
         Let's try setting a new index for the dataframe and see that reflect via
         ``index`` property.
@@ -4901,6 +4929,158 @@ class DataFrame(NDFrame):
 
         Returns:
             Series: Series containing counts of unique rows in the DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def eval(self, expr: str) -> DataFrame:
+        """
+        Evaluate a string describing operations on DataFrame columns.
+
+        Operates on columns only, not specific rows or elements.  This allows
+        `eval` to run arbitrary code, which can make you vulnerable to code
+        injection if you pass user input to this function.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6), 'B': range(10, 0, -2)})
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+            >>> df.eval('A + B')
+            0    11
+            1    10
+            2     9
+            3     8
+            4     7
+            dtype: Int64
+
+            Assignment is allowed though by default the original DataFrame is not
+            modified.
+
+            >>> df.eval('C = A + B')
+            A   B   C
+            0  1  10  11
+            1  2   8  10
+            2  3   6   9
+            3  4   4   8
+            4  5   2   7
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+            Multiple columns can be assigned to using multi-line expressions:
+
+            >>> df.eval(
+            ...     '''
+            ... C = A + B
+            ... D = A - B
+            ... '''
+            ... )
+            A   B   C  D
+            0  1  10  11 -9
+            1  2   8  10 -6
+            2  3   6   9 -3
+            3  4   4   8  0
+            4  5   2   7  3
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+
+        Args:
+            expr (str):
+                The expression string to evaluate.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def query(self, expr: str) -> DataFrame | None:
+        """
+        Query the columns of a DataFrame with a boolean expression.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6),
+            ...                    'B': range(10, 0, -2),
+            ...                    'C C': range(10, 5, -1)})
+            >>> df
+            A   B  C C
+            0  1  10   10
+            1  2   8    9
+            2  3   6    8
+            3  4   4    7
+            4  5   2    6
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df.query('A > B')
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.A > df.B]
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            For columns with spaces in their name, you can use backtick quoting.
+
+            >>> df.query('B == `C C`')
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.B == df['C C']]
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Args:
+            expr (str):
+                The query string to evaluate.
+
+                You can refer to variables
+                in the environment by prefixing them with an '@' character like
+                ``@a + b``.
+
+                You can refer to column names that are not valid Python variable names
+                by surrounding them in backticks. Thus, column names containing spaces
+                or punctuations (besides underscores) or starting with digits must be
+                surrounded by backticks. (For example, a column named "Area (cm^2)" would
+                be referenced as ```Area (cm^2)```). Column names which are Python keywords
+                (like "list", "for", "import", etc) cannot be used.
+
+                For example, if one of your columns is called ``a a`` and you want
+                to sum it with ``b``, your query should be ```a a` + b``.
+
+        Returns:
+            DataFrame
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import numpy as np
+import pandas as pd
 import pandas._testing as tm
 import pytest
 
+import bigframes.operations._matplotlib.core as bf_mpl
 import bigframes.pandas as bpd
 
 
@@ -207,12 +209,42 @@ def test_scatter(scalars_dfs):
     )
 
 
+@pytest.mark.parametrize(
+    ("c"),
+    [
+        pytest.param("red", id="red"),
+        pytest.param("c", id="int_column"),
+        pytest.param("species", id="color_column"),
+        pytest.param(3, id="column_index"),
+    ],
+)
+def test_scatter_args_c(c):
+    data = {
+        "a": [1, 2, 3],
+        "b": [1, 2, 3],
+        "c": [1, 2, 3],
+        "species": ["r", "g", "b"],
+    }
+    df = bpd.DataFrame(data)
+    pd_df = pd.DataFrame(data)
+
+    ax = df.plot.scatter(x="a", y="b", c=c)
+    pd_ax = pd_df.plot.scatter(x="a", y="b", c=c)
+    assert len(ax.collections[0].get_facecolor()) == len(
+        pd_ax.collections[0].get_facecolor()
+    )
+    for idx in range(len(ax.collections[0].get_facecolor())):
+        tm.assert_numpy_array_equal(
+            ax.collections[0].get_facecolor()[idx],
+            pd_ax.collections[0].get_facecolor()[idx],
+        )
+
+
 def test_sampling_plot_args_n():
-    df = bpd.DataFrame(np.arange(1000), columns=["one"])
+    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLING_N * 10), columns=["one"])
     ax = df.plot.line()
     assert len(ax.lines) == 1
-    # Default sampling_n is 100
-    assert len(ax.lines[0].get_data()[1]) == 100
+    assert len(ax.lines[0].get_data()[1]) == bf_mpl.DEFAULT_SAMPLING_N
 
     ax = df.plot.line(sampling_n=2)
     assert len(ax.lines) == 1
@@ -220,7 +252,7 @@ def test_sampling_plot_args_n():
 
 
 def test_sampling_plot_args_random_state():
-    df = bpd.DataFrame(np.arange(1000), columns=["one"])
+    df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLING_N * 10), columns=["one"])
     ax_0 = df.plot.line()
     ax_1 = df.plot.line()
     ax_2 = df.plot.line(sampling_random_state=100)
@@ -233,6 +265,18 @@ def test_sampling_plot_args_random_state():
     msg = "numpy array are different"
     with pytest.raises(AssertionError, match=msg):
         tm.assert_almost_equal(ax_0.lines[0].get_data()[1], ax_2.lines[0].get_data()[1])
+
+
+def test_sampling_preserve_ordering():
+    df = bpd.DataFrame([0.0, 1.0, 2.0, 3.0, 4.0], index=[1, 3, 4, 2, 0])
+    pd_df = pd.DataFrame([0.0, 1.0, 2.0, 3.0, 4.0], index=[1, 3, 4, 2, 0])
+    ax = df.plot.line()
+    pd_ax = pd_df.plot.line()
+    tm.assert_almost_equal(ax.get_xticks(), pd_ax.get_xticks())
+    tm.assert_almost_equal(ax.get_yticks(), pd_ax.get_yticks())
+    for line, pd_line in zip(ax.lines, pd_ax.lines):
+        # Compare y coordinates between the lines
+        tm.assert_almost_equal(line.get_data()[1], pd_line.get_data()[1])
 
 
 @pytest.mark.parametrize(
@@ -251,7 +295,7 @@ def test_sampling_plot_args_random_state():
             marks=pytest.mark.xfail(raises=ValueError),
         ),
         pytest.param(
-            "uknown",
+            "bar",
             ["int64_col", "int64_too"],
             {},
             marks=pytest.mark.xfail(raises=NotImplementedError),
