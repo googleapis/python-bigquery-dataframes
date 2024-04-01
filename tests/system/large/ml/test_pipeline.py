@@ -222,7 +222,7 @@ def test_pipeline_logistic_regression_fit_score_predict(
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_index):
     """Test a supervised model with a minimal preprocessing step"""
     pl = pipeline.Pipeline(
@@ -297,7 +297,7 @@ def test_pipeline_xgbregressor_fit_score_predict(session, penguins_df_default_in
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_pipeline_random_forest_classifier_fit_score_predict(
     session, penguins_df_default_index
 ):
@@ -445,7 +445,7 @@ def test_pipeline_PCA_fit_score_predict(session, penguins_df_default_index):
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_pipeline_standard_scaler_kmeans_fit_score_predict(
     session, penguins_pandas_df_default_index
 ):
@@ -646,7 +646,7 @@ def test_pipeline_columntransformer_to_gbq(penguins_df_default_index, dataset_id
                 compose.ColumnTransformer(
                     [
                         (
-                            "ont_hot_encoder",
+                            "one_hot_encoder",
                             preprocessing.OneHotEncoder(
                                 drop="most_frequent",
                                 min_frequency=5,
@@ -699,7 +699,7 @@ def test_pipeline_columntransformer_to_gbq(penguins_df_default_index, dataset_id
     transformers = pl_loaded._transform.transformers_
     expected = [
         (
-            "ont_hot_encoder",
+            "one_hot_encoder",
             preprocessing.OneHotEncoder(
                 drop="most_frequent", max_categories=100, min_frequency=5
             ),
