@@ -351,6 +351,10 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
         )
 
 
+def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+    return ibis_dtype_to_bigframes_dtype(arrow_dtype_to_ibis_dtype(arrow_dtype))
+
+
 def bigframes_dtype_to_ibis_dtype(
     bigframes_dtype: Union[DtypeString, Dtype, np.dtype[Any]]
 ) -> ibis_dtypes.DataType:

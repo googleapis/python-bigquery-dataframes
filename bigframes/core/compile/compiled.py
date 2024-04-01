@@ -504,12 +504,45 @@ class UnorderedIR(BaseIbisIR):
         )
 
     def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
-        """TODO"""
-        # TODO: HERE
         table = self._to_ibis_expr()
-        columns = [table[column_name] for column_name in self._column_names]
+        other_columns = [
+            column_id for column_id in self._column_names if column_id not in column_ids
+        ]
+
+        if len(column_ids) == 1:
+            unnested_column = table[column_ids[0]].unnest().name(column_ids[0])
+            table_w_unnest = table.select(
+                unnested_column,
+                *other_columns,
+            )
+        else:
+            zip_array_id = bigframes.core.guid.generate_guid("zip_array_")
+            zip_array = (
+                table[column_ids[0]]
+                .zip(*[table[column_id] for column_id in column_ids[1:]])
+                .name(zip_array_id)
+            )
+            table_w_zip_array = table.select(
+                zip_array,
+                *self._column_names,
+            )
+
+            unnest_array_id = bigframes.core.guid.generate_guid("unnest_array_")
+            unnest_array = (
+                table_w_zip_array[zip_array_id].unnest().name(unnest_array_id)
+            )
+            unnested_columns = [
+                unnest_array[f"f{index+1}"].name(column_id)
+                for index, column_id in zip(range(len(column_ids)), column_ids)
+            ]
+            table_w_unnest = table_w_zip_array.select(
+                *unnested_columns,
+                *other_columns,
+            )
+
+        columns = [table_w_unnest[column_name] for column_name in self._column_names]
         return UnorderedIR(
-            table,
+            table_w_unnest,
             columns=columns,
         )
 
@@ -731,7 +764,6 @@ class OrderedIR(BaseIbisIR):
         )
 
     def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
-        """TODO"""
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
@@ -784,7 +816,6 @@ class OrderedIR(BaseIbisIR):
             *other_columns,
             *self._hidden_ordering_column_names,
         )
-        # print(ibis.to_sql(table_w_unnest))
 
         columns = [table_w_unnest[column_name] for column_name in self._column_names]
         hidden_ordering_columns = [

@@ -3416,3 +3416,104 @@ def test_series_pipe(
     )
 
     assert_series_equal(bf_result, pd_result)
+
+
+def test_series_explode_int(ignore_index):
+    data = [[1, 2, 3], [], numpy.nan, [3, 4]]
+    s = bigframes.pandas.Series(data)
+    pd_s = pd.Series(data)
+    pd.testing.assert_series_equal(
+        s.explode().to_pandas(),
+        pd_s.explode().astype(pd.Int64Dtype()),
+        check_index_type=False,
+    )
+
+
+def test_series_explode_string():
+    array = [["A", "AA", "AAA"], ["BB", "B"], numpy.nan, [], ["C"]]
+    s = bigframes.pandas.Series(array)
+    pd_s = pd.Series(array, dtype=pd.ArrowDtype(pa.list_(pa.string())))
+    pd.testing.assert_series_equal(
+        s.explode().to_pandas(),
+        pd_s.explode().astype(pd.StringDtype(storage="pyarrow")),
+        check_index_type=False,
+    )
+
+
+def test_series_explode_struct():
+    array = [
+        {"A": {"x": 1.0}, "B": "b"},
+        {"A": {"y": 2.0}, "B": "bb"},
+        {"A": {"z": 4.0}},
+        {},
+        numpy.nan,
+    ]
+    s = bigframes.pandas.Series(array)
+    pd_s = s.to_pandas()
+    pd.testing.assert_series_equal(
+        s.explode().to_pandas(),
+        pd_s.explode(),
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("ignore_index"),
+    [
+        pytest.param(True, id="include_index"),
+        pytest.param(False, id="ignore_index"),
+    ],
+)
+def test_series_explode_w_unordered_index(ignore_index):
+    data = [[], [200.0, 23.12], [4.5, -9.0], [1.0]]
+    index = [5, 1, 3, 2]
+    s = bigframes.pandas.Series(data, index=index)
+    pd_s = pd.Series(data, index=index)
+    pd.testing.assert_series_equal(
+        s.explode(ignore_index=ignore_index).to_pandas(),
+        pd_s.explode(ignore_index=ignore_index).astype(pd.Float64Dtype()),
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("ignore_index"),
+    [
+        pytest.param(True, id="include_index"),
+        pytest.param(False, id="ignore_index"),
+    ],
+)
+def test_series_explode_reserve_order(ignore_index):
+    data = [numpy.random.randint(0, 10, 10) for _ in range(10)]
+    s = bigframes.pandas.Series(data)
+    pd_s = pd.Series(data)
+    pd.testing.assert_series_equal(
+        s.explode(ignore_index=ignore_index).to_pandas(),
+        pd_s.explode(ignore_index=ignore_index).astype(pd.Int64Dtype()),
+        check_index_type=False,
+    )
+
+
+def test_series_explode_w_aggregate():
+    data = [[1, 2, 3], [], numpy.nan, [3, 4]]
+    s = bigframes.pandas.Series(data)
+    pd_s = pd.Series(data)
+    assert s.explode().sum() == pd_s.explode().sum()
+
+
+@pytest.mark.parametrize(
+    ("data"),
+    [
+        pytest.param(numpy.nan, id="null"),
+        pytest.param([numpy.nan], id="null_array"),
+        pytest.param([[]], id="empty_array"),
+        pytest.param([numpy.nan, []], id="null_and_empty_array"),
+    ],
+)
+def test_series_explode_null(data):
+    s = bigframes.pandas.Series(data)
+    pd.testing.assert_series_equal(
+        s.explode().to_pandas(),
+        s.to_pandas().explode(),
+        check_dtype=False,
+    )
