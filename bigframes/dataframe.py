@@ -673,11 +673,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 DataFrame(other), op, how=how, reverse=reverse
             )
         elif utils.get_axis_number(axis) == 0:
-            input = bigframes.core.normalize.normalize_to_bf_series(other, self.index)
-            return self._apply_series_binop_axis_0(input, op, how, reverse)
+            bf_series = bigframes.core.normalize.normalize_to_bf_series(
+                other, self.index
+            )
+            return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
-            input = bigframes.core.normalize.normalize_to_pd_series(other, self.columns)
-            return self._apply_series_binop_axis_1(input, op, how, reverse)
+            pd_series = bigframes.core.normalize.normalize_to_pd_series(
+                other, self.columns
+            )
+            return self._apply_series_binop_axis_1(pd_series, op, how, reverse)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
             f"{constants.FEEDBACK_LINK}"

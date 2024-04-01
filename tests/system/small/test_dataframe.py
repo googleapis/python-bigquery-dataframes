@@ -45,6 +45,14 @@ def test_df_construct_copy(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_df_large_inline():
+    import uuid
+
+    df = pd.DataFrame([str(uuid.uuid4()) * 500 for _ in range(4000)])
+
+    print(dataframe.DataFrame(df))
+
+
 def test_df_construct_pandas_default(scalars_dfs):
     # This should trigger the inlined codepath
     columns = [
