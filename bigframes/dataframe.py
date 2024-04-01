@@ -2532,6 +2532,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )[0]
         )
 
+    def explode(
+        self,
+        column: str | typing.Sequence[str],
+        *,
+        ignore_index: Optional[bool] = False,
+    ) -> DataFrame:
+        columns = list(column) if utils.is_list_like(column) else [column]
+        if not columns:
+            raise ValueError("column must be nonempty")
+        if len(column) > len(set(column)):
+            raise ValueError("column must be unique")
+        return DataFrame(
+            self._block.explode(column_ids=columns, ignore_index=ignore_index)
+        )
+
     def _split(
         self,
         ns: Iterable[int] = (),

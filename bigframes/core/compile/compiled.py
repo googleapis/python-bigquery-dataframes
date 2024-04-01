@@ -20,6 +20,7 @@ import textwrap
 import typing
 from typing import Collection, Iterable, Literal, Optional, Sequence
 
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
 import ibis.common.deferred  # type: ignore
@@ -502,6 +503,16 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
+    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
+        """TODO"""
+        # TODO: HERE
+        table = self._to_ibis_expr()
+        columns = [table[column_name] for column_name in self._column_names]
+        return UnorderedIR(
+            table,
+            columns=columns,
+        )
+
     ## Helpers
     def _set_or_replace_by_id(
         self, id: str, new_value: ibis_types.Value
@@ -717,6 +728,89 @@ class OrderedIR(BaseIbisIR):
             columns=columns,
             hidden_ordering_columns=hidden_ordering_columns,
             ordering=self._ordering,
+        )
+
+    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
+        """TODO"""
+        table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+
+        offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
+        offset_array = (
+            # TODO: check when all columns are empty.
+            vendored_ibis_ops.GenerateArray(
+                ibis.greatest(
+                    0,
+                    ibis.least(
+                        *[table[column_id].length() - 1 for column_id in column_ids]
+                    ),
+                )
+            )
+            .to_expr()
+            .name(offset_array_id),
+        )
+        table_w_offset = table.select(
+            offset_array,
+            *self._column_names,
+            *self._hidden_ordering_column_names,
+        )
+
+        # TODO: file ibis bug, when column name is `array`
+        zip_array_id = bigframes.core.guid.generate_guid("zip_array_")
+        zip_array = (
+            table_w_offset[offset_array_id]
+            .zip(*[table_w_offset[column_id] for column_id in column_ids])
+            .name(zip_array_id)
+        )
+        table_w_zip_array = table_w_offset.select(
+            zip_array,
+            *self._column_names,
+            *self._hidden_ordering_column_names,
+        )
+
+        unnest_array_id = bigframes.core.guid.generate_guid("unnest_array_")
+        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
+
+        unnest_array = table_w_zip_array[zip_array_id].unnest().name(unnest_array_id)
+        unnested_columns = [
+            unnest_array[f"f{index+2}"].name(column_id)
+            for index, column_id in zip(range(len(column_ids)), column_ids)
+        ]
+        other_columns = [
+            column_id for column_id in self._column_names if column_id not in column_ids
+        ]
+        table_w_unnest = table_w_zip_array.select(
+            unnest_array["f1"].name(unnest_offset_id),
+            *unnested_columns,
+            *other_columns,
+            *self._hidden_ordering_column_names,
+        )
+        # print(ibis.to_sql(table_w_unnest))
+
+        columns = [table_w_unnest[column_name] for column_name in self._column_names]
+        hidden_ordering_columns = [
+            *[
+                table_w_unnest[column_name]
+                for column_name in self._hidden_ordering_column_names
+            ],
+            table_w_unnest[unnest_offset_id],
+        ]
+        ordering = ExpressionOrdering(
+            ordering_value_columns=tuple(
+                [
+                    *self._ordering.ordering_value_columns,
+                    ascending_over(unnest_offset_id),
+                ]
+            ),
+            total_ordering_columns=frozenset(
+                [*self._ordering.total_ordering_columns, unnest_offset_id]
+            ),
+        )
+
+        return OrderedIR(
+            table_w_unnest,
+            columns=columns,
+            hidden_ordering_columns=hidden_ordering_columns,
+            ordering=ordering,
         )
 
     def promote_offsets(self, col_id: str) -> OrderedIR:

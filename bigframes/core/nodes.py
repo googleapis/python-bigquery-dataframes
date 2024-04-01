@@ -484,3 +484,11 @@ class RandomSampleNode(UnaryNode):
 
     def __hash__(self):
         return self._node_hash
+
+
+@dataclass(frozen=True)
+class ExplodeNode(UnaryNode):
+    column_ids: typing.Tuple[str, ...]
+
+    def __hash__(self):
+        return self._node_hash

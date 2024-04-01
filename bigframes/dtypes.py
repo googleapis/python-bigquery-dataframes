@@ -129,14 +129,17 @@ def is_string_like(type: ExpressionType) -> bool:
 
 
 def is_array_like(type: ExpressionType) -> bool:
-    if isinstance(type, pd.ArrowDtype) and isinstance(type.pyarrow_dtype, pa.ListType):
-        return True
-    else:
-        return type in (STRING_DTYPE, BYTES_DTYPE)
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.ListType
+    )
 
 
 def is_numeric(type: ExpressionType) -> bool:
     return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+
+
+def is_iterable(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE) or is_array_like(type)
 
 
 def is_comparable(type: ExpressionType) -> bool:

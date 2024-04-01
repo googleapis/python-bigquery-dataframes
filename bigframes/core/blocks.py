@@ -1162,6 +1162,30 @@ class Block:
             index_labels=self.column_labels.names,
         )
 
+    def explode(
+        self,
+        column_ids: typing.Sequence[str],
+        ignore_index: Optional[bool],
+    ) -> Block:
+        expr = self.expr.explode(column_ids)
+        # TODO: check multi-index
+        # TODO: check ignore_index works if column_ids is empty.
+        if ignore_index:
+            new_index_col_id = guid.generate_guid("explode_index_")
+            expr = expr.promote_offsets(new_index_col_id)
+            expr = expr.drop_columns(self.index_columns)
+            index_columns = [new_index_col_id]
+            index_labels = [None]
+        else:
+            index_columns = list(self.index_columns)
+            index_labels = self.column_labels.names
+        return Block(
+            expr,
+            column_labels=self.column_labels,
+            index_columns=index_columns,
+            index_labels=index_labels,
+        )
+
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
         Gets a standard set of stats to preemptively fetch for a column if
