@@ -26,7 +26,7 @@ import bigframes.pandas as bpd
 
 @pytest.fixture(autouse=True)
 def reset_default_session_and_location():
-    bpd.close_session()
+    bpd.close_session(skip_cleanup=True)
     bpd.options.bigquery.location = None
 
 
@@ -80,7 +80,7 @@ def test_read_gbq_start_sets_session_location(
         read_method(query)
 
     # Close global session to start over
-    bpd.close_session()
+    bpd.close_session(skip_cleanup=True)
 
     # There should still be the previous location set in the bigquery options
     assert bpd.options.bigquery.location == tokyo_location
