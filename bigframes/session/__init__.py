@@ -83,7 +83,8 @@ import bigframes.core.compile
 import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
-import bigframes.core.traversal as traversals
+import bigframes.core.tree_properties as traversals
+import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
@@ -965,7 +966,7 @@ class Session(
                 to load from the default project.
 
         Returns:
-            A bigframes.ml Model wrapping the model.
+            A bigframes.ml Model, Transformer or Pipeline wrapping the model.
         """
         import bigframes.ml.loader
 
@@ -1847,7 +1848,6 @@ class Session(
         sorted: bool = True,
         dry_run=False,
         col_id_overrides: Mapping[str, str] = {},
-        max_results: Optional[int] = None,
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         sql = self._to_sql(
             array_value, sorted=sorted, col_id_overrides=col_id_overrides
@@ -1857,15 +1857,16 @@ class Session(
         else:
             job_config.dry_run = dry_run
         return self._start_query(
-            sql=sql, job_config=job_config, max_results=max_results
+            sql=sql,
+            job_config=job_config,
         )
 
     def _peek(
         self, array_value: core.ArrayValue, n_rows: int
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """A 'peek' efficiently accesses a small number of rows in the dataframe."""
-        if not array_value.node.peekable:
-            raise NotImplementedError("cannot efficient peek this dataframe")
+        if not tree_properties.peekable(array_value.node):
+            warnings.warn("Peeking this value cannot be done efficiently.")
         sql = self._compile_unordered(array_value).peek_sql(n_rows)
         return self._start_query(
             sql=sql,
@@ -1901,10 +1902,6 @@ class Session(
     def _get_table_size(self, destination_table):
         table = self.bqclient.get_table(destination_table)
         return table.num_bytes
-
-    def _get_table_row_count(self, destination_table) -> int:
-        table = self.bqclient.get_table(destination_table)
-        return table.num_rows
 
     def _rows_to_dataframe(
         self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
