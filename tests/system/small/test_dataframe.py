@@ -2075,6 +2075,7 @@ def test_series_binop_axis_index(
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("input"),
     [
