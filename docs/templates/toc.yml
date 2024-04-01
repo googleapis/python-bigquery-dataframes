@@ -58,6 +58,16 @@
       - name: LocSeriesIndexer
         uid: bigframes.core.indexers.LocSeriesIndexer
       name: Indexers
+    - items:
+      - name: Datetime properties
+        uid: bigframes.operations.datetimes
+      - name: Plotting handling
+        uid: bigframes.operations.plotting
+      - name: String handling
+        uid: bigframes.operations.strings
+      - name: Struct handling
+        uid: bigframes.operations.structs
+      name: Operations
     - name: pandas
       uid: bigframes.pandas
     - items:
