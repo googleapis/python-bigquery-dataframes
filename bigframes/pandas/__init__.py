@@ -691,6 +691,31 @@ def get_default_session_id() -> str:
     return get_global_session().session_id
 
 
+def manual_cleanup_by_session_id(session_id: str) -> None:
+    """Searches through datasets and table names in Bigquery and
+    deletes tables found matching the expected format. This is a
+    slow operation which could be useful if the python session
+    object has been lost. Calling `session.close()` or
+    `pandas.close_session()` is preferred in most cases.
+
+    Args:
+        session_id (str):
+            The session id to clean up, which can be found using
+            session.session_id or get_default_session_id().
+
+    Returns:
+        None
+    """
+    client = get_global_session().bqclient
+
+    for dataset in client.list_datasets(include_all=True, page_size=1000):
+        if dataset.dataset_id[0] != "_":
+            continue
+        bigframes.session._delete_tables_matching_session_id(
+            client, dataset, session_id
+        )
+
+
 # pandas dtype attributes
 NA = pandas.NA
 BooleanDtype = pandas.BooleanDtype

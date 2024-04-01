@@ -14,6 +14,7 @@
 
 import datetime
 
+import google.cloud.exceptions
 import pytest
 
 import bigframes
@@ -57,39 +58,36 @@ def test_read_gbq_for_large_tables(
     assert len(df.columns) != 0
 
 
-# this test is prohibitively slow on our test project
-@pytest.mark.skip
 def test_close(session):
-    session_id = session.session_id
-
     # we will create two tables and confirm that they are deleted
     # when the session is closed
 
     bqclient = session.bqclient
-    dataset = session._anonymous_dataset
+
     expiration = (
         datetime.datetime.now(datetime.timezone.utc)
         + bigframes.constants.DEFAULT_EXPIRATION
     )
-    bigframes.session._io.bigquery.create_temp_table(
-        bqclient, session_id, dataset, expiration
-    )
-    bigframes.session._io.bigquery.create_temp_table(
-        bqclient, session_id, dataset, expiration
-    )
-    tables_before = bqclient.list_tables(dataset, page_size=1000)
-    tables_before_count = len(list(tables_before))
-    assert tables_before_count >= 2
+    full_id_1 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
+    full_id_2 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
+
+    with pytest.raises(google.cloud.exceptions.Conflict):
+        bqclient.create_table(full_id_1)
+    with pytest.raises(google.cloud.exceptions.Conflict):
+        bqclient.create_table(full_id_2)
 
     session.close()
 
-    tables_after = bqclient.list_tables(dataset, page_size=1000)
-    assert len(list(tables_after)) <= tables_before_count - 2
+    with pytest.raises(google.cloud.exceptions.NotFound):
+        bqclient.delete_table(full_id_1)
+    with pytest.raises(google.cloud.exceptions.NotFound):
+        bqclient.delete_table(full_id_2)
 
 
 # this test is prohibitively slow on our test project
+# it has only been run manually on an empty project
 @pytest.mark.skip
-def test_pandas_close_session():
+def test_manual_cleanup_by_session_id():
     session = bpd.get_global_session()
     session_id = session.session_id
 
@@ -102,17 +100,13 @@ def test_pandas_close_session():
         datetime.datetime.now(datetime.timezone.utc)
         + bigframes.constants.DEFAULT_EXPIRATION
     )
-    bigframes.session._io.bigquery.create_temp_table(
-        bqclient, session_id, dataset, expiration
-    )
-    bigframes.session._io.bigquery.create_temp_table(
-        bqclient, session_id, dataset, expiration
-    )
+    bigframes.session._io.bigquery.create_temp_table(session, expiration)
+    bigframes.session._io.bigquery.create_temp_table(session, expiration)
     tables_before = bqclient.list_tables(dataset, page_size=1000)
     tables_before_count = len(list(tables_before))
     assert tables_before_count >= 2
 
-    bpd.close_session(session_id=session_id)
+    bpd.manual_cleanup_by_session_id(session_id)
 
     tables_after = bqclient.list_tables(dataset, page_size=1000)
     assert len(list(tables_after)) <= tables_before_count - 2

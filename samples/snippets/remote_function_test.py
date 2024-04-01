@@ -23,7 +23,7 @@ def test_remote_function_and_read_gbq_function(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # We need a fresh session since we're modifying connection options.
-    bigframes.pandas.close_session(skip_cleanup=True)
+    bigframes.pandas.close_session()
 
     # Determine project id, in this case prefer the one set in the environment
     # variable GOOGLE_CLOUD_PROJECT (if any)

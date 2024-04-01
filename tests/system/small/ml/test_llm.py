@@ -55,7 +55,7 @@ def test_create_text_generator_model_default_session(
 ):
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
     bpd.options.bigquery.bq_connection = bq_connection
     bpd.options.bigquery.location = "us"
 
@@ -82,7 +82,7 @@ def test_create_text_generator_32k_model_default_session(
 ):
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
     bpd.options.bigquery.bq_connection = bq_connection
     bpd.options.bigquery.location = "us"
 
@@ -110,7 +110,7 @@ def test_create_text_generator_model_default_connection(
     from bigframes import _config
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
     _config.options = _config.Options()  # reset configs
 
     llm_text_df = bpd.read_pandas(llm_text_pandas_df)
@@ -232,7 +232,7 @@ def test_create_embedding_generator_multilingual_model(
 def test_create_text_embedding_generator_model_defaults(bq_connection):
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
     bpd.options.bigquery.bq_connection = bq_connection
     bpd.options.bigquery.location = "us"
 
@@ -244,7 +244,7 @@ def test_create_text_embedding_generator_model_defaults(bq_connection):
 def test_create_text_embedding_generator_multilingual_model_defaults(bq_connection):
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
     bpd.options.bigquery.bq_connection = bq_connection
     bpd.options.bigquery.location = "us"
 

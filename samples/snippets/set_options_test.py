@@ -17,7 +17,7 @@ def test_bigquery_dataframes_set_options():
     # Close the session before resetting the options
     import bigframes.pandas as bpd
 
-    bpd.close_session(skip_cleanup=True)
+    bpd.close_session()
 
     # [START bigquery_dataframes_set_options]
     import bigframes.pandas as bpd

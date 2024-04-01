@@ -17,8 +17,6 @@
 import threading
 from typing import Callable, Optional, TypeVar
 
-from google.auth.exceptions import RefreshError
-
 import bigframes._config
 import bigframes.session
 
@@ -26,50 +24,22 @@ _global_session: Optional[bigframes.session.Session] = None
 _global_session_lock = threading.Lock()
 
 
-def close_session(session_id: Optional[str] = None, skip_cleanup: bool = False) -> None:
+def close_session() -> None:
     """If session_id is not provided, starts a fresh session the
     next time a function requires a session. Also closes the current
-    default session if it was already started (unless skip_cleanup is True).
-
-    If session_id is provided, searches for temporary resources
-    with the corresponding session_id and deletes them. In this case,
-    the current default session is not affected.
-
-    Args:
-        session_id (str, default None):
-            The session to close. If not provided, the default
-            global session will be closed.
+    default session if it was already started.
 
     Returns:
         None
     """
     global _global_session
 
-    if session_id is None:
-        with _global_session_lock:
-            if _global_session is not None:
-                if not skip_cleanup:
-                    try:
-                        _global_session.close()
-                    except RefreshError:
-                        print(
-                            "Unable to clean up global session with session id"
-                            + " {id}.".format(id=_global_session.session_id)
-                            + " Pass skip_cleanup=True to get a new session without cleaning up."
-                        )
-                        raise
-                _global_session = None
+    with _global_session_lock:
+        if _global_session is not None:
+            _global_session.close()
+            _global_session = None
 
-            bigframes._config.options.bigquery._session_started = False
-    else:
-        client = get_global_session().bqclient
-
-        for dataset in client.list_datasets(include_all=True, page_size=1000):
-            if dataset.dataset_id[0] != "_":
-                continue
-            bigframes.session._delete_tables_matching_session_id(
-                client, dataset, session_id
-            )
+        bigframes._config.options.bigquery._session_started = False
 
 
 def get_global_session():

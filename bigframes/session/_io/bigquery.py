@@ -21,7 +21,6 @@ import itertools
 import textwrap
 import types
 from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
-import uuid
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -32,7 +31,6 @@ import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
-TEMP_TABLE_ID_FORMAT = "bqdf{date}_{session_id}_{random_id}"
 
 
 def create_job_configs_labels(
@@ -95,26 +93,6 @@ def create_export_data_statement(
     )
 
 
-def random_table(
-    dataset: bigquery.DatasetReference, session_id: str
-) -> bigquery.TableReference:
-    """Generate a random table ID with BigQuery DataFrames prefix.
-    Args:
-        dataset (google.cloud.bigquery.DatasetReference):
-            The dataset to make the table reference in. Usually the anonymous
-            dataset for the session.
-    Returns:
-        google.cloud.bigquery.TableReference:
-            Fully qualified table ID of a table that doesn't exist.
-    """
-    now = datetime.datetime.now(datetime.timezone.utc)
-    random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_ID_FORMAT.format(
-        date=now.strftime("%Y%m%d"), session_id=session_id, random_id=random_id
-    )
-    return dataset.table(table_id)
-
-
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
@@ -139,16 +117,19 @@ def create_snapshot_sql(
 
 
 def create_temp_table(
-    bqclient: bigquery.Client,
-    session_id: str,
-    dataset: bigquery.DatasetReference,
+    session: bigframes.session.Session,
     expiration: datetime.datetime,
     *,
     schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
 ) -> str:
-    """Create an empty table with an expiration in the desired dataset."""
-    table_ref = random_table(dataset, session_id)
+    """Create an empty table with an expiration in the desired session.
+
+    The table will be deleted when the session is closed or the expiration
+    is reached.
+    """
+    bqclient: bigquery.Client = session.bqclient
+    table_ref = session._random_table()
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
     destination.schema = schema
