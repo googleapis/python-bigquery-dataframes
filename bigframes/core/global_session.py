@@ -25,12 +25,9 @@ _global_session_lock = threading.Lock()
 
 
 def close_session() -> None:
-    """If session_id is not provided, starts a fresh session the
-    next time a function requires a session. Also closes the current
-    default session if it was already started.
-
-    Returns:
-        None
+    """Start a fresh session the next time a function requires a session.
+    Closes the current session if it was already started, deleting any
+    temporary tables that were created.
     """
     global _global_session
 
