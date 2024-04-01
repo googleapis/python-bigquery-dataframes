@@ -161,13 +161,9 @@ def roc_auc_score(
 
     fpr, tpr, _ = roc_curve(y_true_series, y_score_series, drop_intermediate=False)
 
-    # TODO(bmil): remove this once bigframes supports the necessary operations
-    pd_fpr = fpr.to_pandas()
-    pd_tpr = tpr.to_pandas()
-
     # Use the trapezoid rule to compute the area under the ROC curve
-    width_diff = pd_fpr.diff().iloc[1:].reset_index(drop=True)
-    height_avg = (pd_tpr.iloc[:-1] + pd_tpr.iloc[1:].reset_index(drop=True)) / 2
+    width_diff = fpr.diff().iloc[1:].reset_index(drop=True)
+    height_avg = (tpr.iloc[:-1] + tpr.iloc[1:].reset_index(drop=True)) / 2
     return (width_diff * height_avg).sum()
 
 
