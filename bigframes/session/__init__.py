@@ -120,9 +120,7 @@ _VALID_ENCODINGS = {
 MAX_INLINE_DF_SIZE = 5000
 
 # Max complexity that should be executed as a single query
-COMPLEXITY_SOFT_LIMIT = 1e7
-# Beyond the hard limite, even decomposing the query is unlikely to succeed
-COMPLEXITY_HARD_LIMIT = 1e9
+QUERY_COMPLEXITY_LIMIT = 1e7
 # Number of times to factor out subqueries before giving up.
 MAX_SUBTREE_FACTORINGS = 5
 
@@ -1827,18 +1825,15 @@ class Session(
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         if not bigframes.options.compute.enable_multi_query_execution:
             return array_value
-        print(f"Query has complexity: {array_value.node.planning_complexity}")
         node = array_value.node
-        if node.planning_complexity < COMPLEXITY_SOFT_LIMIT:
+        if node.planning_complexity < QUERY_COMPLEXITY_LIMIT:
             return array_value
 
         for _ in range(MAX_SUBTREE_FACTORINGS):
             updated = self._cache_most_complex_subtree(node)
             if updated is None:
-                print(f"Could not further factor query: {node.planning_complexity}")
                 return core.ArrayValue(node)
             else:
-                print(f"Refactored query has complexity: {node.planning_complexity}")
                 node = updated
 
         return core.ArrayValue(node)
@@ -1848,8 +1843,8 @@ class Session(
     ) -> Optional[nodes.BigFrameNode]:
         valid_candidates = traversals.count_complex_nodes(
             node,
-            min_complexity=(COMPLEXITY_SOFT_LIMIT / 500),
-            max_complexity=COMPLEXITY_SOFT_LIMIT,
+            min_complexity=(QUERY_COMPLEXITY_LIMIT / 500),
+            max_complexity=QUERY_COMPLEXITY_LIMIT,
         ).items()
         # Heuristic: subtree_compleixty * (copies of subtree)^2
         best_candidate = max(
