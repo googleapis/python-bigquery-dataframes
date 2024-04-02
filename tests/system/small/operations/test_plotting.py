@@ -281,6 +281,7 @@ def test_scatter_sequence_arg(arg_name):
     arg_value = [3, 3, 1]
     bpd.DataFrame(data).plot.scatter(x="a", y="b", **{arg_name: arg_value})
 
+
 def test_sampling_plot_args_n():
     df = bpd.DataFrame(np.arange(bf_mpl.DEFAULT_SAMPLING_N * 10), columns=["one"])
     ax = df.plot.line()
