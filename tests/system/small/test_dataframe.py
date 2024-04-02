@@ -4117,6 +4117,11 @@ def test_query_complexity_repeated_subtrees(scalars_df_index, scalars_pandas_df_
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    # See: https://github.com/python/cpython/issues/112282
+    reason="setrecursionlimit has no effect on the Python C stack since Python 3.12.",
+)
 def test_query_complexity_repeated_analytic(scalars_df_index, scalars_pandas_df_index):
     bf_df = scalars_df_index[["int64_col", "int64_too"]]
     pd_df = scalars_pandas_df_index[["int64_col", "int64_too"]]
