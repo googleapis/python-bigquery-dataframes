@@ -697,7 +697,7 @@ def cleanup_by_session_id(session_id: str) -> None:
 
     This is a slow operation which could be useful if the session
     object has been lost. Calling `session.close()` or
-    `pandas.close_session()` is preferred in most cases.
+    `bigframes.pandas.close_session()` is preferred in most cases.
 
     Args:
         session_id (str):
