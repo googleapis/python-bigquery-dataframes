@@ -88,6 +88,6 @@ def mean_squared_error(y_true, y_pred) -> float:
             Estimated target values.
 
     Returns:
-        float: Mean squared error
+        float: Mean squared error.
     """
     raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
