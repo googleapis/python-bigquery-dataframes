@@ -4166,9 +4166,7 @@ def test_dataframe_explode(col_names, ignore_index):
         pytest.param(
             ["A", "A"], id="duplicate", marks=pytest.mark.xfail(raises=ValueError)
         ),
-        pytest.param(
-            "unknown", id="unknown", marks=pytest.mark.xfail(raises=ValueError)
-        ),
+        pytest.param("unknown", id="unknown", marks=pytest.mark.xfail(raises=KeyError)),
     ],
 )
 def test_dataframe_explode_xfail(col_names):

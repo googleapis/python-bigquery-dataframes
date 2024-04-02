@@ -3443,7 +3443,7 @@ def test_series_explode(data):
     pd_s = pd.Series(data)
     pd.testing.assert_series_equal(
         s.explode().to_pandas(),
-        pd_s.explode().astype(),
+        pd_s.explode(),
         check_index_type=False,
         check_dtype=False,
     )
