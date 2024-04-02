@@ -14,12 +14,14 @@
 
 import datetime
 from unittest import mock
+import warnings
 
 import google.api_core.exceptions
 import google.auth
 import google.auth.exceptions
 import pytest
 
+import bigframes.core.global_session
 import bigframes.pandas as bpd
 
 
@@ -287,7 +289,11 @@ def test_credentials_need_reauthentication(monkeypatch):
         with pytest.raises(google.auth.exceptions.RefreshError):
             bpd.read_gbq(test_query)
 
-        # skip cleanup since we don't have permission to clean up
+        # Now verify that closing the session works
+        with warnings.catch_warnings(record=True) as warned:
+            bpd.close_session()  # warning: can't clean up
+        assert len(warned) == 1
+        assert bigframes.core.global_session._global_session is None
 
     # Now verify that use is able to start over
     df = bpd.read_gbq(test_query)
