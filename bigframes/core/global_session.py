@@ -26,6 +26,7 @@ _global_session_lock = threading.Lock()
 
 def close_session() -> None:
     """Start a fresh session the next time a function requires a session.
+
     Closes the current session if it was already started, deleting any
     temporary tables that were created.
 
