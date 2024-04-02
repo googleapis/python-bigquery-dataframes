@@ -248,7 +248,7 @@ def delete_tables_matching_session_id(
         None
     """
 
-    tables = client.list_tables(dataset, page_size=1000)
+    tables = client.list_tables(dataset, max_results=1000, page_size=1000)
     for table in tables:
         split_id = table.table_id.split("_")
         if not split_id[0].startswith("bqdf") or len(split_id) < 2:

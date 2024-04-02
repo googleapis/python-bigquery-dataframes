@@ -84,10 +84,7 @@ def test_close(session):
         bqclient.delete_table(full_id_2)
 
 
-# this test is prohibitively slow on our test project
-# it has only been run manually on an empty project
-@pytest.mark.skip
-def test_manual_cleanup_by_session_id():
+def test_clean_up_by_session_id():
     session = bpd.get_global_session()
     session_id = session.session_id
 
@@ -102,11 +99,12 @@ def test_manual_cleanup_by_session_id():
     )
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
-    tables_before = bqclient.list_tables(dataset, page_size=1000)
+
+    tables_before = bqclient.list_tables(dataset, max_results=1000, page_size=1000)
     tables_before_count = len(list(tables_before))
     assert tables_before_count >= 2
 
-    bpd.manual_cleanup_by_session_id(session_id)
+    bpd.clean_up_by_session_id(session_id)
 
-    tables_after = bqclient.list_tables(dataset, page_size=1000)
+    tables_after = bqclient.list_tables(dataset, max_results=1000, page_size=1000)
     assert len(list(tables_after)) <= tables_before_count - 2
