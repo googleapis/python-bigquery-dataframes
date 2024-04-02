@@ -1929,6 +1929,11 @@ class Session(
         The generated ID will be stored and checked for deletion when the
         session is closed, unless skip_cleanup is True.
 
+        Args:
+            skip_cleanup (bool, default False):
+                If True, do not add the generated ID to the list of tables
+                to clean up when the session is closed.
+
         Returns:
             google.cloud.bigquery.TableReference:
                 Fully qualified table ID of a table that doesn't exist.
