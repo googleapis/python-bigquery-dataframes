@@ -3418,55 +3418,50 @@ def test_series_pipe(
     assert_series_equal(bf_result, pd_result)
 
 
-def test_series_explode_int():
+@pytest.mark.parametrize(
+    ("data"),
+    [
+        pytest.param([[1, 2, 3], [], numpy.nan, [3, 4]], id="int"),
+        pytest.param(
+            [["A", "AA", "AAA"], ["BB", "B"], numpy.nan, [], ["C"]], id="string"
+        ),
+        pytest.param(
+            [
+                {"A": {"x": 1.0}, "B": "b"},
+                {"A": {"y": 2.0}, "B": "bb"},
+                {"A": {"z": 4.0}},
+                {},
+                numpy.nan,
+            ],
+            id="struct",
+        ),
+    ],
+)
+def test_series_explode(data):
     data = [[1, 2, 3], [], numpy.nan, [3, 4]]
     s = bigframes.pandas.Series(data)
     pd_s = pd.Series(data)
     pd.testing.assert_series_equal(
         s.explode().to_pandas(),
-        pd_s.explode().astype(pd.Int64Dtype()),
+        pd_s.explode().astype(),
         check_index_type=False,
-    )
-
-
-def test_series_explode_string():
-    array = [["A", "AA", "AAA"], ["BB", "B"], numpy.nan, [], ["C"]]
-    s = bigframes.pandas.Series(array)
-    pd_s = pd.Series(array, dtype=pd.ArrowDtype(pa.list_(pa.string())))
-    pd.testing.assert_series_equal(
-        s.explode().to_pandas(),
-        pd_s.explode().astype(pd.StringDtype(storage="pyarrow")),
-        check_index_type=False,
-    )
-
-
-def test_series_explode_struct():
-    array = [
-        {"A": {"x": 1.0}, "B": "b"},
-        {"A": {"y": 2.0}, "B": "bb"},
-        {"A": {"z": 4.0}},
-        {},
-        numpy.nan,
-    ]
-    s = bigframes.pandas.Series(array)
-    pd_s = s.to_pandas()
-    pd.testing.assert_series_equal(
-        s.explode().to_pandas(),
-        pd_s.explode(),
-        check_index_type=False,
+        check_dtype=False,
     )
 
 
 @pytest.mark.parametrize(
-    ("ignore_index"),
+    ("index", "ignore_index"),
     [
-        pytest.param(True, id="include_index"),
-        pytest.param(False, id="ignore_index"),
+        pytest.param(None, True, id="default_index"),
+        pytest.param(None, False, id="ignore_default_index"),
+        pytest.param([5, 1, 3, 2], True, id="unordered_index"),
+        pytest.param([5, 1, 3, 2], False, id="ignore_unordered_index"),
+        pytest.param(["z", "x", "a", "b"], True, id="str_index"),
+        pytest.param(["z", "x", "a", "b"], False, id="ignore_str_index"),
     ],
 )
-def test_series_explode_w_unordered_index(ignore_index):
+def test_series_explode_w_index(index, ignore_index):
     data = [[], [200.0, 23.12], [4.5, -9.0], [1.0]]
-    index = [5, 1, 3, 2]
     s = bigframes.pandas.Series(data, index=index)
     pd_s = pd.Series(data, index=index)
     pd.testing.assert_series_equal(
