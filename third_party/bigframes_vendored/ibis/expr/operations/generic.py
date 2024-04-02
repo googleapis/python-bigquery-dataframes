@@ -5,6 +5,5 @@ import ibis.expr.datatypes as dt
 from ibis.expr.operations.core import Unary
 
 
-# TODO: add this function to ibis
 class GenerateArray(Unary):
     dtype = dt.Array(dt.int64)

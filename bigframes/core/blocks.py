@@ -1169,20 +1169,18 @@ class Block:
     ) -> Block:
         expr = self.expr.explode(column_ids)
         if ignore_index:
-            new_index_col_id = guid.generate_guid("explode_index_")
-            expr = expr.promote_offsets(new_index_col_id)
-            expr = expr.drop_columns(self.index_columns)
-            index_columns = [new_index_col_id]
-            index_labels = [None]
+            return Block(
+                expr.drop_columns(self.index_columns),
+                column_labels=self.column_labels,
+                index_columns=[],
+            )
         else:
-            index_columns = list(self.index_columns)
-            index_labels = self.column_labels.names
-        return Block(
-            expr,
-            column_labels=self.column_labels,
-            index_columns=index_columns,
-            index_labels=index_labels,
-        )
+            return Block(
+                expr,
+                column_labels=self.column_labels,
+                index_columns=self.index_columns,
+                index_labels=self.column_labels.names,
+            )
 
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
