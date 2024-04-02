@@ -1168,8 +1168,6 @@ class Block:
         ignore_index: Optional[bool],
     ) -> Block:
         expr = self.expr.explode(column_ids)
-        # TODO: check multi-index
-        # TODO: check ignore_index works if column_ids is empty.
         if ignore_index:
             new_index_col_id = guid.generate_guid("explode_index_")
             expr = expr.promote_offsets(new_index_col_id)

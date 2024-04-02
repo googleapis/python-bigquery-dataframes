@@ -3418,7 +3418,7 @@ def test_series_pipe(
     assert_series_equal(bf_result, pd_result)
 
 
-def test_series_explode_int(ignore_index):
+def test_series_explode_int():
     data = [[1, 2, 3], [], numpy.nan, [3, 4]]
     s = bigframes.pandas.Series(data)
     pd_s = pd.Series(data)

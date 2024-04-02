@@ -1547,11 +1547,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )[0]
         )
 
-    def explode(
-        self,
-        *,
-        ignore_index: Optional[bool] = False,
-    ) -> Series:
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
         return Series(
             self._block.explode(
                 column_ids=[self._value_column], ignore_index=ignore_index

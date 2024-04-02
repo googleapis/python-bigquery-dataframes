@@ -768,7 +768,6 @@ class OrderedIR(BaseIbisIR):
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
         offset_array = (
-            # TODO: check when all columns are empty.
             vendored_ibis_ops.GenerateArray(
                 ibis.greatest(
                     0,
@@ -786,7 +785,6 @@ class OrderedIR(BaseIbisIR):
             *self._hidden_ordering_column_names,
         )
 
-        # TODO: file ibis bug, when column name is `array`
         zip_array_id = bigframes.core.guid.generate_guid("zip_array_")
         zip_array = (
             table_w_offset[offset_array_id]
