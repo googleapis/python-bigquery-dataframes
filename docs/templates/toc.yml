@@ -60,8 +60,11 @@
       name: Indexers
     - name: pandas
       uid: bigframes.pandas
-    - name: Plotting
-      uid: bigframes.operations.plotting
+    - items:
+      - name: Plotting
+        uid: bigframes.operations.plotting
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
     - items:
       - name: Series
         uid: bigframes.series.Series
