@@ -710,7 +710,11 @@ def clean_up_by_session_id(session_id: str) -> None:
     client = get_global_session().bqclient
 
     for dataset in client.list_datasets(include_all=True, page_size=1000):
-        if dataset.dataset_id[0] != "_":
+        if (
+            dataset.dataset_id[0] != "_"
+            or dataset.dataset_id.startswith("_project_level_cache")
+            or dataset.dataset_id.startswith("_script")
+        ):
             continue
         bigframes.session._io.bigquery.delete_tables_matching_session_id(
             client, dataset, session_id
