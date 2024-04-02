@@ -582,8 +582,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __repr__(self) -> str:
         """Converts a DataFrame to a string using pandas dataframe __repr__.
 
-        Only represents the first ``bigframes.options.display.max_rows``
-        and ``bigframes.options.display.max_columns``.
+        Only represents the first `bigframes.options.display.max_rows`
+        and `bigframes.options.display.max_columns`.
         """
         if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
@@ -784,10 +784,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def eq(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.eq_op, axis=axis)
 
+    def __eq__(self, other) -> DataFrame:
+        return self.eq(other)
+
     def ne(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ne_op, axis=axis)
-
-    __eq__ = eq  # type: ignore
 
     __ne__ = ne  # type: ignore
 

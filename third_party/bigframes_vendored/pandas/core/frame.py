@@ -339,6 +339,7 @@ class DataFrame(generic.NDFrame):
             [2 rows x 2 columns]
 
         Write a DataFrame to a BigQuery table with clustering columns:
+
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4], 'col3': [5, 6]})
             >>> clustering_cols = ['col1', 'col3']
             >>> df.to_gbq(
@@ -1208,7 +1209,6 @@ class DataFrame(generic.NDFrame):
         Set the name of the axis for the index.
 
         .. note::
-
             Currently only accepts a single string parameter (the new name of the index).
 
         Args:
@@ -1862,7 +1862,7 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     # ----------------------------------------------------------------------
-    # Arithmetic Methods
+    # Arithmetic and Logical Methods
 
     def eq(self, other, axis: str | int = "columns") -> DataFrame:
         """
@@ -1890,7 +1890,8 @@ class DataFrame(generic.NDFrame):
             rectangle     True
             Name: degrees, dtype: boolean
 
-        You can also use arithmetic operator ``==``:
+        You can also use logical operator `==`:
+
             >>> df["degrees"] == 360
             circle        True
             triangle     False
@@ -1906,6 +1907,38 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: Result of the comparison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __eq__(self, other) -> DataFrame:
+        """Check equality of DataFrame and other, column-wise, using logical
+        operator `==`.
+
+        Equivalent to `DataFrame.eq(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 3, 4],
+            ...         'b': [360, 0, 180]
+            ...      })
+            >>> df == 0
+                     a        b
+            0     True    False
+            1    False     True
+            2    False    False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame for equality.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2215,9 +2248,6 @@ class DataFrame(generic.NDFrame):
         Args:
             other (scalar or DataFrame):
                 Object to be added to the DataFrame.
-            axis ({0 or 'index', 1 or 'columns'}):
-                Whether to compare by the index (0 or 'index') or columns.
-                (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
             DataFrame: The result of adding `other` to DataFrame.
@@ -4172,7 +4202,6 @@ class DataFrame(generic.NDFrame):
         performant.
 
         .. note::
-
             This function cannot be used with all column types. For example, when
             specifying columns with `object` or `category` dtypes, ``TypeError`` is
             raised.
@@ -5062,6 +5091,7 @@ class DataFrame(generic.NDFrame):
         injection if you pass user input to this function.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
@@ -5083,11 +5113,11 @@ class DataFrame(generic.NDFrame):
             4     7
             dtype: Int64
 
-            Assignment is allowed though by default the original DataFrame is not
-            modified.
+        Assignment is allowed though by default the original DataFrame is not
+        modified.
 
             >>> df.eval('C = A + B')
-            A   B   C
+               A   B   C
             0  1  10  11
             1  2   8  10
             2  3   6   9
@@ -5096,7 +5126,7 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [5 rows x 3 columns]
             >>> df
-            A   B
+               A   B
             0  1  10
             1  2   8
             2  3   6
@@ -5105,7 +5135,7 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [5 rows x 2 columns]
 
-            Multiple columns can be assigned to using multi-line expressions:
+        Multiple columns can be assigned to using multi-line expressions:
 
             >>> df.eval(
             ...     '''
@@ -5113,7 +5143,7 @@ class DataFrame(generic.NDFrame):
             ... D = A - B
             ... '''
             ... )
-            A   B   C  D
+               A   B   C  D
             0  1  10  11 -9
             1  2   8  10 -6
             2  3   6   9 -3
@@ -5137,6 +5167,7 @@ class DataFrame(generic.NDFrame):
         Query the columns of a DataFrame with a boolean expression.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
@@ -5461,6 +5492,7 @@ class DataFrame(generic.NDFrame):
             DataFrame and the index of other must contain the same values, as they
             will be aligned prior to the multiplication.
 
+        .. note::
             The dot method for Series computes the inner product, instead of the
             matrix product here.
 
