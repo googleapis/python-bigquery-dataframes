@@ -1911,7 +1911,8 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __eq__(self, other) -> DataFrame:
-        """Check equality of DataFrame and other, column-wise, using logical
+        """
+        Check equality of DataFrame and other, column-wise, using logical
         operator `==`.
 
         Equivalent to `DataFrame.eq(other)`.
