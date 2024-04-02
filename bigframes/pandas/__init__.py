@@ -691,7 +691,7 @@ def get_default_session_id() -> str:
     return get_global_session().session_id
 
 
-def manual_cleanup_by_session_id(session_id: str) -> None:
+def cleanup_by_session_id(session_id: str) -> None:
     """Searches through datasets and table names in Bigquery and
     deletes tables found matching the expected format. This is a
     slow operation which could be useful if the python session
