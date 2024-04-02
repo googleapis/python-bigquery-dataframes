@@ -2016,21 +2016,3 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
         configuration["jobTimeoutMs"] = timeout_ms
 
     return configuration
-
-
-def _delete_tables_matching_session_id(
-    client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
-):
-    """Searches within the dataset for tables conforming to the
-    expected session_id form, and instructs bigquery to delete them.
-    """
-
-    tables = client.list_tables(dataset, page_size=1000)
-    for table in tables:
-        split_id = table.table_id.split("_")
-        if not split_id[0].startswith("bqdf") or len(split_id) < 2:
-            continue
-        found_session_id = split_id[1]
-        if found_session_id == session_id:
-            client.delete_table(table, not_found_ok=True)
-            print("Deleting temporary table '{}'.".format(table.table_id))

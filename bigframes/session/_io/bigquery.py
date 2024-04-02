@@ -228,3 +228,32 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
     return results_iterator, query_job
+
+
+def delete_tables_matching_session_id(
+    client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
+) -> None:
+    """Searches within the dataset for tables conforming to the
+    expected session_id form, and instructs bigquery to delete them.
+
+    Args:
+        client (bigquery.Client):
+            The client to use to list tables
+        dataset (bigquery.DatasetReference):
+            The dataset to search in
+        session_id (str):
+            The session id to match on in the table name
+
+    Returns:
+        None
+    """
+
+    tables = client.list_tables(dataset, page_size=1000)
+    for table in tables:
+        split_id = table.table_id.split("_")
+        if not split_id[0].startswith("bqdf") or len(split_id) < 2:
+            continue
+        found_session_id = split_id[1]
+        if found_session_id == session_id:
+            client.delete_table(table, not_found_ok=True)
+            print("Deleting temporary table '{}'.".format(table.table_id))

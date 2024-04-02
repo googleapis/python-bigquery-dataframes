@@ -712,7 +712,7 @@ def cleanup_by_session_id(session_id: str) -> None:
     for dataset in client.list_datasets(include_all=True, page_size=1000):
         if dataset.dataset_id[0] != "_":
             continue
-        bigframes.session._delete_tables_matching_session_id(
+        bigframes.session._io.bigquery.delete_tables_matching_session_id(
             client, dataset, session_id
         )
 

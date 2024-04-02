@@ -2666,7 +2666,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-            temp_table_ref = self._session._random_table(skip_cleanup=True)
+            temp_table_ref = self._session._random_table(
+                skip_cleanup=True
+            )  # the client code owns
+            # this table reference now, so skip_cleanup=True to not clean it up when we close the session
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 
         table_parts = destination_table.split(".")
