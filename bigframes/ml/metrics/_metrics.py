@@ -164,7 +164,7 @@ def roc_auc_score(
     # Use the trapezoid rule to compute the area under the ROC curve
     width_diff = fpr.diff().iloc[1:].reset_index(drop=True)
     height_avg = (tpr.iloc[:-1] + tpr.iloc[1:].reset_index(drop=True)) / 2
-    return (width_diff * height_avg).sum()
+    return typing.cast(float, (width_diff * height_avg).sum())
 
 
 roc_auc_score.__doc__ = inspect.getdoc(vendored_metrics_ranking.roc_auc_score)
