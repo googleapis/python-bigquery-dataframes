@@ -2152,6 +2152,78 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __add__(self, other) -> DataFrame:
+        """Get Addition of DataFrame and other, column-wise.
+
+        Equivalent to ``DataFrame.add(other)``.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'height': [1.5, 2.6],
+            ...         'weight': [500, 800]
+            ...     },
+            ...     index=['elk', 'moose'])
+            >>> df
+                   height  weight
+            elk       1.5     500
+            moose     2.6     800
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Adding a scalar affects all rows and columns.
+
+            >>> df + 1.5
+                   height  weight
+            elk       3.0   501.5
+            moose     4.1   801.5
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        You can add another DataFrame with index and columns aligned.
+
+            >>> delta = bpd.DataFrame({
+            ...         'height': [0.5, 0.9],
+            ...         'weight': [50, 80]
+            ...     },
+            ...     index=['elk', 'moose'])
+            >>> df + delta
+                   height  weight
+            elk       2.0     550
+            moose     3.5     880
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Any mis-aligned index and columns will result in invalid values.
+
+            >>> delta = bpd.DataFrame({
+            ...         'depth': [0.5, 0.9, 1.0],
+            ...         'weight': [50, 80, 100]
+            ...     },
+            ...     index=['elk', 'moose', 'bison'])
+            >>> df + delta
+                   depth  height  weight
+            elk     <NA>    <NA>     550
+            moose   <NA>    <NA>     880
+            bison   <NA>    <NA>    <NA>
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be added to the DataFrame.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: The result of adding `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def add(self, other, axis: str | int = "columns") -> DataFrame:
         """Get addition of DataFrame and other, element-wise (binary operator `+`).
 
@@ -2183,7 +2255,56 @@ class DataFrame(generic.NDFrame):
 
         You can also use arithmetic operator ``+``:
 
-            >>> df['A'] + (df['B'])
+            >>> df['A'] + df['B']
+            0    5
+            1    7
+            2    9
+            dtype: Int64
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def radd(self, other, axis: str | int = "columns") -> DataFrame:
+        """Get addition of DataFrame and other, element-wise (binary operator `+`).
+
+        Equivalent to ``other + dataframe``. With reverse version, `add`.
+
+        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
+        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
+
+        .. note::
+            Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].radd(df['B'])
+            0    5
+            1    7
+            2    9
+            dtype: Int64
+
+        You can also use arithmetic operator ``+``:
+
+            >>> df['A'] + df['B']
             0    5
             1    7
             2    9

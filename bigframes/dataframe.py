@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import inspect
 import os
 import re
 import sys
@@ -581,8 +582,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __repr__(self) -> str:
         """Converts a DataFrame to a string using pandas dataframe __repr__.
 
-        Only represents the first `bigframes.options.display.max_rows`
-        and `bigframes.options.display.max_columns`.
+        Only represents the first ``bigframes.options.display.max_rows``
+        and ``bigframes.options.display.max_columns``.
         """
         if bigframes.options.display.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
@@ -819,7 +820,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(swast): Support level parameter with MultiIndex.
         return self._apply_binop(other, ops.add_op, axis=axis)
 
-    __radd__ = __add__ = radd = add
+    def radd(
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
+    ) -> DataFrame:
+        # TODO(swast): Support fill_value parameter.
+        # TODO(swast): Support level parameter with MultiIndex.
+        return self.add(other, axis=axis)
+
+    def __add__(self, other) -> DataFrame:
+        return self.add(other)
+
+    __radd__ = __add__
+    __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
 
     def sub(
         self,
