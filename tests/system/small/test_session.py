@@ -436,6 +436,11 @@ def test_read_pandas_index(session):
     pd.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
+def test_read_pandas_w_unsupported_object_dtype(session):
+    with pytest.raises(ValueError, match="unsupported dtype: `object`"):
+        session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
+
+
 def test_read_pandas_inline_respects_location():
     options = bigframes.BigQueryOptions(location="europe-west1")
     session = bigframes.Session(options)

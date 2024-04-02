@@ -71,6 +71,7 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pandas.core.dtypes.common as pd_dtypes
 import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
@@ -1046,6 +1047,13 @@ class Session(
                 "read_pandas() expects a pandas.DataFrame, but got a "
                 "bigframes.pandas.DataFrame."
             )
+
+        for column_name, dtype in pandas_dataframe.dtypes.items():
+            if pd_dtypes.is_object_dtype(dtype):
+                raise ValueError(
+                    f"Column `{column_name}` has an unsupported dtype: `{dtype}`. "
+                    + f"{constants.FEEDBACK_LINK}"
+                )
 
         inline_df = self._read_pandas_inline(pandas_dataframe)
         if inline_df is not None:
