@@ -85,6 +85,11 @@ def test_close(session):
 
 
 def test_clean_up_by_session_id():
+    original_location = bigframes.options.bigquery.location
+    bpd.close_session()  # close the session to change regions
+    bigframes.options.bigquery.location = "europe-west10"
+    # we do this test in a different region in order to avoid
+    # overly large amounts of temp tables slowing the test down
     session = bpd.get_global_session()
     session_id = session.session_id
 
@@ -108,3 +113,6 @@ def test_clean_up_by_session_id():
 
     tables_after = bqclient.list_tables(dataset, max_results=1000, page_size=1000)
     assert len(list(tables_after)) <= tables_before_count - 2
+
+    bpd.close_session()  # close the session to change regions
+    bigframes.options.bigquery.location = original_location
