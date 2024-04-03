@@ -15,6 +15,7 @@
 """Utilities for managing a default, globally available Session object."""
 
 import threading
+import traceback
 from typing import Callable, Optional, TypeVar
 import warnings
 
@@ -48,7 +49,7 @@ def close_session() -> None:
                     "Session cleanup failed for session with"
                     + "id: {session_id}".format(session_id=session_id)
                 )
-                traceback.print_tb(err.__traceback__)
+                traceback.print_tb(e.__traceback__)
             _global_session = None
 
         bigframes._config.options.bigquery._session_started = False
