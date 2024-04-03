@@ -1028,7 +1028,7 @@ class Session(
             return self._read_pandas(pandas_dataframe, "read_pandas")
         else:
             raise ValueError(
-                f"read_pandas() expects a pandas dataframe, but got a {type(pandas_dataframe)}"
+                f"read_pandas() expects a pandas.DataFrame, but got a {type(pandas_dataframe)}"
             )
 
     def _read_pandas(
