@@ -505,40 +505,42 @@ class UnorderedIR(BaseIbisIR):
 
     def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
         table = self._to_ibis_expr()
-        other_columns = [
-            column_id for column_id in self._column_names if column_id not in column_ids
+
+        # The offset array ensures null represents empty arrays after unnesting.
+        offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
+        offset_array = (
+            vendored_ibis_ops.GenerateArray(
+                ibis.greatest(
+                    0,
+                    ibis.least(
+                        *[table[column_id].length() - 1 for column_id in column_ids]
+                    ),
+                )
+            )
+            .to_expr()
+            .name(offset_array_id),
+        )
+        table_w_offset_array = table.select(
+            offset_array,
+            *self._column_names,
+        )
+
+        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
+        unnest_offset = (
+            table_w_offset_array[offset_array_id].unnest().name(unnest_offset_id)
+        )
+        table_w_offset = table_w_offset_array.select(
+            unnest_offset,
+            *self._column_names,
+        )
+
+        unnested_columns = [
+            table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
+            if column_id in column_ids
+            else table_w_offset[column_id]
+            for column_id in self._column_names
         ]
-
-        if len(column_ids) == 1:
-            unnested_column = table[column_ids[0]].unnest().name(column_ids[0])
-            table_w_unnest = table.select(
-                unnested_column,
-                *other_columns,
-            )
-        else:
-            zip_array_id = bigframes.core.guid.generate_guid("zip_array_")
-            zip_array = (
-                table[column_ids[0]]
-                .zip(*[table[column_id] for column_id in column_ids[1:]])
-                .name(zip_array_id)
-            )
-            table_w_zip_array = table.select(
-                zip_array,
-                *self._column_names,
-            )
-
-            unnest_array_id = bigframes.core.guid.generate_guid("unnest_array_")
-            unnest_array = (
-                table_w_zip_array[zip_array_id].unnest().name(unnest_array_id)
-            )
-            unnested_columns = [
-                unnest_array[f"f{index+1}"].name(column_id)
-                for index, column_id in zip(range(len(column_ids)), column_ids)
-            ]
-            table_w_unnest = table_w_zip_array.select(
-                *unnested_columns,
-                *other_columns,
-            )
+        table_w_unnest = table_w_offset.select(*unnested_columns)
 
         columns = [table_w_unnest[column_name] for column_name in self._column_names]
         return UnorderedIR(
@@ -779,39 +781,32 @@ class OrderedIR(BaseIbisIR):
             .to_expr()
             .name(offset_array_id),
         )
-        table_w_offset = table.select(
+        table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
             *self._hidden_ordering_column_names,
         )
 
-        zip_array_id = bigframes.core.guid.generate_guid("zip_array_")
-        zip_array = (
-            table_w_offset[offset_array_id]
-            .zip(*[table_w_offset[column_id] for column_id in column_ids])
-            .name(zip_array_id)
+        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
+        unnest_offset = (
+            table_w_offset_array[offset_array_id].unnest().name(unnest_offset_id)
         )
-        table_w_zip_array = table_w_offset.select(
-            zip_array,
+        table_w_offset = table_w_offset_array.select(
+            unnest_offset,
             *self._column_names,
             *self._hidden_ordering_column_names,
         )
 
-        unnest_array_id = bigframes.core.guid.generate_guid("unnest_array_")
-        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
-
-        unnest_array = table_w_zip_array[zip_array_id].unnest().name(unnest_array_id)
         unnested_columns = [
-            unnest_array[f"f{index+2}"].name(column_id)
-            for index, column_id in zip(range(len(column_ids)), column_ids)
+            table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
+            if column_id in column_ids
+            else table_w_offset[column_id]
+            for column_id in self._column_names
         ]
-        other_columns = [
-            column_id for column_id in self._column_names if column_id not in column_ids
-        ]
-        table_w_unnest = table_w_zip_array.select(
-            unnest_array["f1"].name(unnest_offset_id),
+
+        table_w_unnest = table_w_offset.select(
+            table_w_offset[unnest_offset_id],
             *unnested_columns,
-            *other_columns,
             *self._hidden_ordering_column_names,
         )
 

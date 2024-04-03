@@ -3421,9 +3421,10 @@ def test_series_pipe(
 @pytest.mark.parametrize(
     ("data"),
     [
-        pytest.param([[1, 2, 3], [], numpy.nan, [3, 4]], id="int"),
+        pytest.param([1, 2, 3], id="int"),
+        pytest.param([[1, 2, 3], [], numpy.nan, [3, 4]], id="int_array"),
         pytest.param(
-            [["A", "AA", "AAA"], ["BB", "B"], numpy.nan, [], ["C"]], id="string"
+            [["A", "AA", "AAA"], ["BB", "B"], numpy.nan, [], ["C"]], id="string_array"
         ),
         pytest.param(
             [
@@ -3433,7 +3434,7 @@ def test_series_pipe(
                 {},
                 numpy.nan,
             ],
-            id="struct",
+            id="struct_array",
         ),
     ],
 )
@@ -3472,19 +3473,23 @@ def test_series_explode_w_index(index, ignore_index):
 
 
 @pytest.mark.parametrize(
-    ("ignore_index"),
+    ("ignore_index", "ordered"),
     [
-        pytest.param(True, id="include_index"),
-        pytest.param(False, id="ignore_index"),
+        pytest.param(True, True, id="include_index_ordered"),
+        pytest.param(True, False, id="include_index_unordered"),
+        pytest.param(False, True, id="ignore_index_ordered"),
     ],
 )
-def test_series_explode_reserve_order(ignore_index):
+def test_series_explode_reserve_order(ignore_index, ordered):
     data = [numpy.random.randint(0, 10, 10) for _ in range(10)]
     s = bigframes.pandas.Series(data)
     pd_s = pd.Series(data)
+
+    res = s.explode(ignore_index=ignore_index).to_pandas(ordered=ordered)
+    pd_res = pd_s.explode(ignore_index=ignore_index).astype(pd.Int64Dtype())
     pd.testing.assert_series_equal(
-        s.explode(ignore_index=ignore_index).to_pandas(),
-        pd_s.explode(ignore_index=ignore_index).astype(pd.Int64Dtype()),
+        res if ordered else res.sort_index(),
+        pd_res,
         check_index_type=False,
     )
 

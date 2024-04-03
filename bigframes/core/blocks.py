@@ -1167,11 +1167,21 @@ class Block:
         column_ids: typing.Sequence[str],
         ignore_index: Optional[bool],
     ) -> Block:
-        expr = self.expr.explode(column_ids)
+        column_ids = [
+            column_id
+            for column_id in column_ids
+            if bigframes.dtypes.is_array_like(self.expr.get_column_type(column_id))
+        ]
+        if len(column_ids) == 0:
+            expr = self.expr
+        else:
+            expr = self.expr.explode(column_ids)
+
         if ignore_index:
             return Block(
                 expr.drop_columns(self.index_columns),
                 column_labels=self.column_labels,
+                # Initiates default index creation using the block constructor.
                 index_columns=[],
             )
         else:

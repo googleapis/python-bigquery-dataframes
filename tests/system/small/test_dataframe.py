@@ -4160,6 +4160,33 @@ def test_dataframe_explode(col_names, ignore_index):
 
 
 @pytest.mark.parametrize(
+    ("ignore_index", "ordered"),
+    [
+        pytest.param(True, True, id="include_index_ordered"),
+        pytest.param(True, False, id="include_index_unordered"),
+        pytest.param(False, True, id="ignore_index_ordered"),
+    ],
+)
+def test_dataframe_explode_reserve_order(ignore_index, ordered):
+    data = {
+        "a": [np.random.randint(0, 10, 10) for _ in range(10)],
+        "b": [np.random.randint(0, 10, 10) for _ in range(10)],
+    }
+    df = bpd.DataFrame(data)
+    pd_df = pd.DataFrame(data)
+
+    res = df.explode(["a", "b"], ignore_index=ignore_index).to_pandas(ordered=ordered)
+    pd_res = pd_df.explode(["a", "b"], ignore_index=ignore_index).astype(
+        pd.Int64Dtype()
+    )
+    pd.testing.assert_series_equal(
+        res if ordered else res.sort_index(),
+        pd_res,
+        check_index_type=False,
+    )
+
+
+@pytest.mark.parametrize(
     ("col_names"),
     [
         pytest.param([], id="empty", marks=pytest.mark.xfail(raises=ValueError)),
