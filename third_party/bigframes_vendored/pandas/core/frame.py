@@ -1910,39 +1910,6 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __eq__(self, other) -> DataFrame:
-        """
-        Check equality of DataFrame and other, column-wise, using logical
-        operator `==`.
-
-        Equivalent to `DataFrame.eq(other)`.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...         'a': [0, 3, 4],
-            ...         'b': [360, 0, 180]
-            ...      })
-            >>> df == 0
-                     a        b
-            0     True    False
-            1    False     True
-            2    False    False
-            <BLANKLINE>
-            [3 rows x 2 columns]
-
-        Args:
-            other (scalar or DataFrame):
-                Object to be compared to the DataFrame for equality.
-
-        Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
     def ne(self, other, axis: str | int = "columns") -> DataFrame:
         """
         Get not equal to of DataFrame and other, element-wise (binary operator `ne`).
@@ -2472,6 +2439,55 @@ class DataFrame(generic.NDFrame):
         You can use method name:
 
             >>> df['A'].mul(df['B'])
+            0     4
+            1    10
+            2    18
+            dtype: Int64
+
+        You can also use arithmetic operator ``*``:
+
+            >>> df['A'] * (df['B'])
+            0     4
+            1    10
+            2    18
+            dtype: Int64
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def rmul(self, other, axis: str | int = "columns") -> DataFrame:
+        """Get multiplication of DataFrame and other, element-wise (binary operator `*`).
+
+        Equivalent to ``other * dataframe``. With reverse version, `mul`.
+
+        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
+        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
+
+        .. note::
+            Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].rmul(df['B'])
             0     4
             1    10
             2    18

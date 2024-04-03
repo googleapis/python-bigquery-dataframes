@@ -317,6 +317,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._get_block().expr.session
 
     def __len__(self):
+        """Returns number of rows in the DataFrame, serves `len` operator.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 1, 2],
+            ...         'b': [3, 4, 5]
+            ...      })
+            >>> len(df)
+            3
+        """
         rows, _ = self.shape
         return rows
 
@@ -799,32 +813,217 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_binop(other, ops.eq_op, axis=axis)
 
     def __eq__(self, other) -> DataFrame:
+        """
+        Check equality of DataFrame and other, column-wise, using logical
+        operator `==`.
+
+        Equivalent to `DataFrame.eq(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 3, 4],
+            ...         'b': [360, 0, 180]
+            ...      })
+            >>> df == 0
+                   a      b
+            0   True  False
+            1  False   True
+            2  False  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame for equality.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
         return self.eq(other)
 
     def ne(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ne_op, axis=axis)
 
-    __ne__ = ne  # type: ignore
+    def __ne__(self, other) -> DataFrame:
+        """
+        Check inequality of DataFrame and other, column-wise, using logical
+        operator `!=`.
+
+        Equivalent to `DataFrame.ne(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 3, 4],
+            ...         'b': [360, 0, 180]
+            ...      })
+            >>> df != 0
+                   a      b
+            0  False   True
+            1   True  False
+            2   True   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame for inequality.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        return self.ne(other)
 
     def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.le_op, axis=axis)
 
+    def __le__(self, other) -> DataFrame:
+        """
+        Check whether DataFrame is less than or equal to other, column-wise,
+        using logical operator `<=`.
+
+        Equivalent to `DataFrame.le(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df <= 0
+                   a      b
+            0   True  False
+            1   True   True
+            2  False   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        return self.le(other)
+
     def lt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.lt_op, axis=axis)
+
+    def __lt__(self, other) -> DataFrame:
+        """
+        Check whether DataFrame is less than other, column-wise, using logical
+        operator `<`.
+
+        Equivalent to `DataFrame.lt(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df < 0
+                   a      b
+            0  False  False
+            1   True  False
+            2  False   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        return self.lt(other)
 
     def ge(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ge_op, axis=axis)
 
+    def __ge__(self, other) -> DataFrame:
+        """
+        Check whether DataFrame is greater than or equal to other, column-wise,
+        using logical operator `>=`.
+
+        Equivalent to `DataFrame.ge(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df >= 0
+                   a      b
+            0   True   True
+            1  False   True
+            2   True  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        return self.ge(other)
+
     def gt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.gt_op, axis=axis)
 
-    __lt__ = lt
+    def __gt__(self, other) -> DataFrame:
+        """
+        Check whether DataFrame is greater than other, column-wise, using logical
+        operator `>`.
 
-    __le__ = le
+        Equivalent to `DataFrame.gt(other)`.
 
-    __gt__ = gt
+        **Examples:**
 
-    __ge__ = ge
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df > 0
+                   a      b
+            0  False   True
+            1  False  False
+            2   True  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        return self.gt(other)
 
     def add(
         self,
@@ -857,7 +1056,51 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.sub_op, axis=axis)
 
-    __sub__ = subtract = sub
+    subtract = sub
+    subtract.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.sub)
+
+    def __sub__(self, other):
+        """
+        Get subtraction of other from DataFrame, element-wise, using operator `-`.
+
+        Equivalent to `DataFrame.sub(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can subtract a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df - 2
+                a  b
+            0  -1  2
+            1   0  3
+            2   1  4
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also subtract another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df - df1
+                a  b
+            0  -1  1
+            1   0  2
+            2   1  3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to subtract from the DataFrame.
+
+        Returns:
+            DataFrame: The result of the subtraction.
+        """
+        return self.sub(other)
 
     def rsub(
         self,
@@ -866,7 +1109,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.sub_op, axis=axis, reverse=True)
 
-    __rsub__ = rsub
+    def __rsub__(self, other):
+        """
+        Get subtraction of DataFrame from other, element-wise, using operator `-`.
+
+        Equivalent to `DataFrame.rsub(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to subtract the DataFrame from.
+
+        Returns:
+            DataFrame: The result of the subtraction.
+        """
+        return self.sub(other)
 
     def mul(
         self,
@@ -875,7 +1131,101 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.mul_op, axis=axis)
 
-    __rmul__ = __mul__ = rmul = multiply = mul
+    multiply = mul
+    multiply.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.mul)
+
+    def __mul__(self, other):
+        """
+        Get multiplication of DataFrame with other, element-wise, using operator `*`.
+
+        Equivalent to `DataFrame.mul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df * 3
+               a   b
+            0  3  12
+            1  6  15
+            2  9  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df * df1
+               a   b
+            0  2  12
+            1  4  15
+            2  6  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to multiply with the DataFrame.
+
+        Returns:
+            DataFrame: The result of the multiplication.
+        """
+        return self.mul(other)
+
+    def rmul(
+        self,
+        other: float | int | bigframes.series.Series | DataFrame,
+        axis: str | int = "columns",
+    ) -> DataFrame:
+        return self.mul(other, axis=axis)
+
+    def __rmul__(self, other):
+        """
+        Get multiplication of DataFrame with other, element-wise, using operator `*`.
+
+        Equivalent to `DataFrame.rmul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df * 3
+               a   b
+            0  3  12
+            1  6  15
+            2  9  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df * df1
+               a   b
+            0  2  12
+            1  4  15
+            2  6  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to multiply the DataFrame with.
+
+        Returns:
+            DataFrame: The result of the multiplication.
+        """
+        return self.rmul(other)
 
     def truediv(
         self,
@@ -884,7 +1234,51 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.div_op, axis=axis)
 
-    div = divide = __truediv__ = truediv
+    truediv.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.truediv)
+    div = divide = truediv
+
+    def __truediv__(self, other):
+        """
+        Get division of DataFrame by other, element-wise, using operator `/`.
+
+        Equivalent to `DataFrame.truediv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df / 2
+                 a    b
+            0  0.5  2.0
+            1  1.0  2.5
+            2  1.5  3.0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> denominator = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df / denominator
+                a         b
+            0  0.5  1.333333
+            1  1.0  1.666667
+            2  1.5       2.0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide the DataFrame by.
+
+        Returns:
+            DataFrame: The result of the division.
+        """
+        return self.truediv(other)
 
     def rtruediv(
         self,
@@ -893,7 +1287,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.div_op, axis=axis, reverse=True)
 
-    __rtruediv__ = rdiv = rtruediv
+    rdiv = rtruediv
+    rdiv.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.rtruediv)
+
+    def __rtruediv__(self, other):
+        """
+        Get division of other by DataFrame, element-wise, using operator `/`.
+
+        Equivalent to `DataFrame.rtruediv(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the division.
+        """
+        return self.rtruediv(other)
 
     def floordiv(
         self,
@@ -902,7 +1312,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.floordiv_op, axis=axis)
 
-    __floordiv__ = floordiv
+    def __floordiv__(self, other):
+        """
+        Get integer divison of DataFrame by other, using arithmatic operator `//`.
+
+        Equivalent to `DataFrame.floordiv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can divide by a scalar:
+
+            >>> df = bpd.DataFrame({"a": [15, 15, 15], "b": [30, 30, 30]})
+            >>> df // 2
+               a   b
+            0  7  15
+            1  7  15
+            2  7  15
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also divide by another DataFrame with index and column labels
+        aligned:
+
+            >>> divisor = bpd.DataFrame({"a": [2, 3, 4], "b": [5, 6, 7]})
+            >>> df // divisor
+               a  b
+            0  7  6
+            1  5  5
+            2  3  4
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide the DataFrame by.
+
+        Returns:
+            DataFrame: The result of the integer divison.
+        """
+        return self.floordiv(other)
 
     def rfloordiv(
         self,
@@ -911,31 +1362,154 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.floordiv_op, axis=axis, reverse=True)
 
-    __rfloordiv__ = rfloordiv
+    def __rfloordiv__(self, other):
+        """
+        Get integer divison of other by DataFrame.
+
+        Equivalent to `DataFrame.rfloordiv(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the integer divison.
+        """
+        return self.rfloordiv(other)
 
     def mod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis)
 
+    def __mod__(self, other):
+        """
+        Get modulo of DataFrame with other, element-wise, using operator `%`.
+
+        Equivalent to `DataFrame.mod(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can modulo with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df % 3
+               a  b
+            0  1  1
+            1  2  2
+            2  0  0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also modulo with another DataFrame with index and column labels
+        aligned:
+
+            >>> modulo = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df % modulo
+               a  b
+            0  1  1
+            1  0  2
+            2  1  0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to modulo the DataFrame with.
+
+        Returns:
+            DataFrame: The result of the modulo.
+        """
+        return self.mod(other)
+
     def rmod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis, reverse=True)
 
-    __mod__ = mod
+    def __rmod__(self, other):
+        """
+        Get integer divison of other by DataFrame.
 
-    __rmod__ = rmod
+        Equivalent to `DataFrame.rmod(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to modulo by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the modulo.
+        """
+        return self.rfloordiv(other)
 
     def pow(
         self, other: int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.pow_op, axis=axis)
 
+    def __pow__(self, other):
+        """
+        Get exponentiation of DataFrame with other, element-wise, using operator
+        `**`.
+
+        Equivalent to `DataFrame.pow(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can exponentiate with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df ** 2
+               a   b
+            0  1  16
+            1  4  25
+            2  9  36
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also exponentiate with another DataFrame with index and column
+        labels aligned:
+
+            >>> exponent = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df ** exponent
+               a    b
+            0  1   64
+            1  4  125
+            2  9  216
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to exponentiate the DataFrame with.
+
+        Returns:
+            DataFrame: The result of the exponentiation.
+        """
+        return self.pow(other)
+
     def rpow(
         self, other: int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
         return self._apply_binop(other, ops.pow_op, axis=axis, reverse=True)
 
-    __pow__ = pow
+    def __rpow__(self, other):
+        """
+        Get exponentiation of other with DataFrame, element-wise, using operator
+        `**`.
 
-    __rpow__ = rpow
+        Equivalent to `DataFrame.rpow(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to exponentiate with the DataFrame.
+
+        Returns:
+            DataFrame: The result of the exponentiation.
+        """
+        return self.rpow(other)
 
     def align(
         self,
@@ -2743,7 +3317,44 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    __array__ = to_numpy
+    def __array__(self, dtype=None) -> numpy.ndarray:
+        """
+        Returns the rows as NumPy array.
+
+        Equivalent to `DataFrame.to_numpy(dtype)`.
+
+        Users should not call this directly. Rather, it is invoked by
+        `numpy.array` and `numpy.asarray`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import numpy as np
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [11, 22, 33]})
+
+            >>> np.array(df)
+            array([[1, 11],
+                [2, 22],
+                [3, 33]], dtype=object)
+
+            >>> np.asarray(df)
+            array([[1, 11],
+                [2, 22],
+                [3, 33]], dtype=object)
+
+        Args:
+            dtype (str or numpy.dtype, optional):
+                The dtype to use for the resulting NumPy array. By default,
+                the dtype is inferred from the data.
+
+        Returns:
+            numpy.ndarray:
+                The values in the series converted to a `numpy.ndarray` with the
+                specified dtype.
+        """
+        return self.to_numpy(dtype=dtype)
 
     def to_parquet(
         self,
@@ -3241,4 +3852,55 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def plot(self):
         return plotting.PlotAccessor(self)
 
-    __matmul__ = dot
+    def __matmul__(self, other) -> DataFrame:
+        """
+        Compute the matrix multiplication between the DataFrame and other, using
+        operator `@`.
+
+        Equivalent to `DataFrame.dot(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
+            >>> left
+               0  1   2   3
+            0  0  1  -2  -1
+            1  1  1   1   1
+            <BLANKLINE>
+            [2 rows x 4 columns]
+            >>> right = bpd.DataFrame([[0, 1], [1, 2], [-1, -1], [2, 0]])
+            >>> right
+                0   1
+            0   0   1
+            1   1   2
+            2  -1  -1
+            3   2   0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+            >>> left @ right
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        The operand can be a Series, in which case the result will also be a
+        Series:
+
+            >>> right = bpd.Series([1, 2, -1,0])
+            >>> left @ right
+            0    4
+            1    2
+            dtype: Int64
+
+        Args:
+            other (DataFrame or Series):
+                Object to be matrix multiplied with the DataFrame.
+
+        Returns:
+            DataFrame or Series: The result of the matrix multiplication.
+        """
+        return self.dot(other)
