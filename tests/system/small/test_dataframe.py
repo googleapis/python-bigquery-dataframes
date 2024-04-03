@@ -4179,7 +4179,7 @@ def test_dataframe_explode_reserve_order(ignore_index, ordered):
     pd_res = pd_df.explode(["a", "b"], ignore_index=ignore_index).astype(
         pd.Int64Dtype()
     )
-    pd.testing.assert_series_equal(
+    pd.testing.assert_frame_equal(
         res if ordered else res.sort_index(),
         pd_res,
         check_index_type=False,

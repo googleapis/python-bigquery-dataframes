@@ -2808,7 +2808,7 @@ class DataFrame(generic.NDFrame):
         self, column: Union[str, Sequence[str]], *, ignore_index: Optional[bool] = False
     ) -> DataFrame:
         """
-        Transform each element of a list-like to a row, replicating index values.
+        Transform each element of an array to a row, replicating index values.
 
         **Examples:**
 
