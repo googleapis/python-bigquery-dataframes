@@ -117,15 +117,15 @@ class ColumnTransformer(
 
         output_names = []
         for transform_col in bq_model._properties["transformColumns"]:
-            transform_col = cast(dict, transform_col)
+            transform_col_dict = cast(dict, transform_col)
             # pass the columns that are not transformed
-            if "transformSql" not in transform_col:
+            if "transformSql" not in transform_col_dict:
                 continue
-            transform_sql: str = transform_col["transformSql"]
+            transform_sql: str = transform_col_dict["transformSql"]
             if not transform_sql.startswith("ML."):
                 continue
 
-            output_names.append(transform_col["name"])
+            output_names.append(transform_col_dict["name"])
             found_transformer = False
             for prefix in _BQML_TRANSFROM_TYPE_MAPPING:
                 if transform_sql.startswith(prefix):
