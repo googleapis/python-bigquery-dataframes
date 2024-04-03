@@ -4105,6 +4105,21 @@ def test_recursion_limit(scalars_df_index):
     scalars_df_index.to_pandas()
 
 
+def test_query_complexity_repeated_joins(scalars_df_index, scalars_pandas_df_index):
+    pd_df = scalars_pandas_df_index
+    bf_df = scalars_df_index
+    for _ in range(6):
+        # recursively join, resuling in 2^6 - 1 = 63 joins
+        pd_df = pd_df.merge(pd_df, on="int64_col").head(30)
+        pd_df = pd_df[pd_df.columns[:50]]
+        bf_df = bf_df.merge(bf_df, on="int64_col").head(30)
+        bf_df = bf_df[bf_df.columns[:50]]
+
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result, check_index_type=False)
+
+
 def test_query_complexity_repeated_subtrees(scalars_df_index, scalars_pandas_df_index):
     # Recursively union the data, if fully inlined has 10^5 identical root tables.
     pd_df = scalars_pandas_df_index

@@ -1841,6 +1841,7 @@ class Session(
     def _cache_most_complex_subtree(
         self, node: nodes.BigFrameNode
     ) -> Optional[nodes.BigFrameNode]:
+        # TODO: If query fails, retry with lower complexity limit
         valid_candidates = traversals.count_complex_nodes(
             node,
             min_complexity=(QUERY_COMPLEXITY_LIMIT / 500),
