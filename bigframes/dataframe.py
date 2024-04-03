@@ -812,9 +812,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def eq(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.eq_op, axis=axis)
 
-    def __eq__(self, other) -> DataFrame:
+    def __eq__(self, other) -> DataFrame:  # type: ignore
         """
-        Check equality of DataFrame and other, column-wise, using logical
+        Check equality of DataFrame and other, element-wise, using logical
         operator `==`.
 
         Equivalent to `DataFrame.eq(other)`.
@@ -848,9 +848,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def ne(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ne_op, axis=axis)
 
-    def __ne__(self, other) -> DataFrame:
+    def __ne__(self, other) -> DataFrame:  # type: ignore
         """
-        Check inequality of DataFrame and other, column-wise, using logical
+        Check inequality of DataFrame and other, element-wise, using logical
         operator `!=`.
 
         Equivalent to `DataFrame.ne(other)`.
@@ -886,7 +886,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __le__(self, other) -> DataFrame:
         """
-        Check whether DataFrame is less than or equal to other, column-wise,
+        Check whether DataFrame is less than or equal to other, element-wise,
         using logical operator `<=`.
 
         Equivalent to `DataFrame.le(other)`.
@@ -922,7 +922,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __lt__(self, other) -> DataFrame:
         """
-        Check whether DataFrame is less than other, column-wise, using logical
+        Check whether DataFrame is less than other, element-wise, using logical
         operator `<`.
 
         Equivalent to `DataFrame.lt(other)`.
@@ -958,7 +958,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __ge__(self, other) -> DataFrame:
         """
-        Check whether DataFrame is greater than or equal to other, column-wise,
+        Check whether DataFrame is greater than or equal to other, element-wise,
         using logical operator `>=`.
 
         Equivalent to `DataFrame.ge(other)`.
@@ -994,7 +994,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __gt__(self, other) -> DataFrame:
         """
-        Check whether DataFrame is greater than other, column-wise, using logical
+        Check whether DataFrame is greater than other, element-wise, using logical
         operator `>`.
 
         Equivalent to `DataFrame.gt(other)`.
