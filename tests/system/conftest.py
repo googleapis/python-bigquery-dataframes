@@ -130,7 +130,7 @@ def resourcemanager_client(
 def session() -> Generator[bigframes.Session, None, None]:
     session = bigframes.Session()
     yield session
-    session.close()  # close old session before yielding a new one
+    session.close()  # close generated session at cleanup time
 
 
 @pytest.fixture(scope="session")
@@ -140,7 +140,7 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
     )
     session = bigframes.Session(context=context)
     yield session
-    session.close()  # close old session before yielding a new one
+    session.close()  # close generated session at cleanup type
 
 
 @pytest.fixture(scope="session", autouse=True)
