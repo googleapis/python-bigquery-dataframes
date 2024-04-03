@@ -48,7 +48,7 @@ def close_session() -> None:
                     "Session cleanup failed for session with"
                     + "id: {session_id}".format(session_id=session_id)
                 )
-                print(e)
+                traceback.print_tb(err.__traceback__)
             _global_session = None
 
         bigframes._config.options.bigquery._session_started = False
