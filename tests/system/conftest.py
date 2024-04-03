@@ -19,7 +19,7 @@ import math
 import pathlib
 import textwrap
 import typing
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -127,16 +127,20 @@ def resourcemanager_client(
 
 
 @pytest.fixture(scope="session")
-def session() -> bigframes.Session:
-    return bigframes.Session()
+def session() -> Generator[bigframes.Session, None, None]:
+    session = bigframes.Session()
+    yield session
+    session.close()  # close old session before yielding a new one
 
 
 @pytest.fixture(scope="session")
-def session_tokyo(tokyo_location: str) -> bigframes.Session:
+def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(
         location=tokyo_location,
     )
-    return bigframes.Session(context=context)
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close old session before yielding a new one
 
 
 @pytest.fixture(scope="session", autouse=True)
