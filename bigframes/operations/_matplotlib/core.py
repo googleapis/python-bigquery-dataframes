@@ -116,7 +116,7 @@ class ScatterPlot(SamplingPlot):
 
         # To avoid Matplotlib's automatic conversion of `Float64` or `Int64` columns
         # to `object` types (which breaks float-like behavior), this code proactively
-        # converts the column to a compatible format."
+        # converts the column to a compatible format.
         s = self.kwargs.get("s", None)
         if pd.core.dtypes.common.is_integer(s):
             s = self.data.columns[s]
