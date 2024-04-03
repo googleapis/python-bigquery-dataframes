@@ -167,7 +167,7 @@ class NDFrame(indexing.IndexingMixin):
             dtype (str or pandas.ExtensionDtype):
                 A dtype supported by BigQuery DataFrame include ``'boolean'``, ``'Float64'``, ``'Int64'``,
                 ``'int64[pyarrow]'``, ``'string'``, ``'string[pyarrow]'``, ``'timestamp[us, tz=UTC][pyarrow]'``,
-                ``'timestamp\[us\]\[pyarrow\]'``, ``'date32\[day\]\[pyarrow\]'``, ``'time64\[us\]\[pyarrow\]'``.
+                ``'timestamp[us][pyarrow]'``, ``'date32[day][pyarrow]'``, ``'time64[us][pyarrow]'``.
                 A pandas.ExtensionDtype include ``pandas.BooleanDtype()``, ``pandas.Float64Dtype()``,
                 ``pandas.Int64Dtype()``, ``pandas.StringDtype(storage="pyarrow")``,
                 ``pd.ArrowDtype(pa.date32())``, ``pd.ArrowDtype(pa.time64("us"))``,
@@ -1101,9 +1101,17 @@ class NDFrame(indexing.IndexingMixin):
         return common.pipe(self, func, *args, **kwargs)
 
     def __nonzero__(self):
+        """Returns the truth value of the object."""
         raise ValueError(
             f"The truth value of a {type(self).__name__} is ambiguous. "
             "Use a.empty, a.bool(), a.item(), a.any() or a.all()."
         )
 
     __bool__ = __nonzero__
+
+    def __getattr__(self, name: str):
+        """
+        After regular attribute access, try looking up the name
+        This allows simpler access to columns for interactive use.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

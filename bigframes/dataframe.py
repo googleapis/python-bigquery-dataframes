@@ -1122,7 +1122,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             DataFrame: The result of the subtraction.
         """
-        return self.sub(other)
+        return self.rsub(other)
 
     def mul(
         self,
@@ -1439,7 +1439,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             DataFrame: The result of the modulo.
         """
-        return self.rfloordiv(other)
+        return self.rmod(other)
 
     def pow(
         self, other: int | bigframes.series.Series, axis: str | int = "columns"
