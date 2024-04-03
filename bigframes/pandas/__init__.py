@@ -32,6 +32,7 @@ from typing import (
     Literal,
     MutableSequence,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -577,7 +578,22 @@ def read_gbq_table(
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
 
 
+@overload
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@overload
+def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+    ...
+
+
+@overload
+def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+    ...
+
+
+def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
