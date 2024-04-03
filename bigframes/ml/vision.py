@@ -40,7 +40,7 @@ class MobileNetV2ImageAnnotator:
         )
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,

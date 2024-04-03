@@ -19,6 +19,7 @@ from __future__ import annotations
 import typing
 from typing import Hashable, Optional, Sequence, Union
 
+import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
@@ -33,7 +34,6 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import third_party.bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -49,6 +49,7 @@ class Index(vendored_pandas_index.Index):
         dtype=None,
         *,
         name=None,
+        session=None,
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
@@ -75,7 +76,7 @@ class Index(vendored_pandas_index.Index):
         else:
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
-            block = df.DataFrame(pd_df)._block
+            block = df.DataFrame(pd_df, session=session)._block
         self._query_job = None
         self._block: blocks.Block = block
 
@@ -87,7 +88,12 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def name(self) -> blocks.Label:
-        return self.names[0]
+        names = self.names
+        if len(names) == 1:
+            return self.names[0]
+        else:
+            # pandas returns None for MultiIndex.name.
+            return None
 
     @name.setter
     def name(self, value: blocks.Label):
@@ -260,13 +266,12 @@ class Index(vendored_pandas_index.Index):
     def sort_values(self, *, ascending: bool = True, na_position: str = "last"):
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        direction = (
-            order.OrderingDirection.ASC if ascending else order.OrderingDirection.DESC
-        )
         na_last = na_position == "last"
         index_columns = self._block.index_columns
         ordering = [
-            order.OrderingColumnReference(column, direction=direction, na_last=na_last)
+            order.ascending_over(column, na_last)
+            if ascending
+            else order.descending_over(column, na_last)
             for column in index_columns
         ]
         return Index(self._block.order_by(ordering))
@@ -302,13 +307,8 @@ class Index(vendored_pandas_index.Index):
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
-                *[
-                    order.OrderingColumnReference(
-                        col, direction=order.OrderingDirection.DESC
-                    )
-                    for col in self._block.index_columns
-                ],
-                order.OrderingColumnReference(row_nums),
+                *[order.descending_over(col) for col in self._block.index_columns],
+                order.ascending_over(row_nums),
             ]
         )
         import bigframes.series as series
@@ -319,11 +319,8 @@ class Index(vendored_pandas_index.Index):
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
             [
-                *[
-                    order.OrderingColumnReference(col)
-                    for col in self._block.index_columns
-                ],
-                order.OrderingColumnReference(row_nums),
+                *[order.ascending_over(col) for col in self._block.index_columns],
+                order.ascending_over(row_nums),
             ]
         )
         import bigframes.series as series
@@ -378,7 +375,7 @@ class Index(vendored_pandas_index.Index):
             block, condition_id = block.project_expr(
                 ops.ne_op.as_expr(level_id, ex.const(labels))
             )
-        block = block.filter(condition_id, keep_null=True)
+        block = block.filter_by_id(condition_id, keep_null=True)
         block = block.drop_columns([condition_id])
         return Index(block)
 
@@ -467,14 +464,6 @@ class FrameIndex(Index):
     ):
         super().__init__(series_or_dataframe._block)
         self._whole_frame = series_or_dataframe
-
-    @property
-    def name(self) -> blocks.Label:
-        return self.names[0]
-
-    @name.setter
-    def name(self, value: blocks.Label):
-        self.names = [value]
 
     @property
     def names(self) -> typing.Sequence[blocks.Label]:

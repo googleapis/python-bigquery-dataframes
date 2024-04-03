@@ -47,12 +47,11 @@ def penguins_bqml_linear_model(session, penguins_linear_model_name) -> core.Bqml
 
 @pytest.fixture(scope="function")
 def ephemera_penguins_bqml_linear_model(
-    penguins_bqml_linear_model,
+    session: bigframes.Session,
+    penguins_bqml_linear_model: core.BqmlModel,
 ) -> core.BqmlModel:
     model = penguins_bqml_linear_model
-    return model.copy(
-        f"{model._model.project}.{model._model.dataset_id}.{uuid.uuid4().hex}"
-    )
+    return model.copy(f"{session._anonymous_dataset}.{uuid.uuid4().hex}")
 
 
 @pytest.fixture(scope="session")
@@ -253,6 +252,15 @@ def palm2_embedding_generator_model(
 ) -> llm.PaLM2TextEmbeddingGenerator:
     return llm.PaLM2TextEmbeddingGenerator(
         session=session, connection_name=bq_connection
+    )
+
+
+@pytest.fixture(scope="session")
+def palm2_embedding_generator_model_002(
+    session, bq_connection
+) -> llm.PaLM2TextEmbeddingGenerator:
+    return llm.PaLM2TextEmbeddingGenerator(
+        version="002", session=session, connection_name=bq_connection
     )
 
 

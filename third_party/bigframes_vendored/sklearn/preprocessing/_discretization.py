@@ -3,8 +3,9 @@
 
 # License: BSD
 
+from bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
 
 
 class KBinsDiscretizer(TransformerMixin, BaseEstimator):
@@ -17,7 +18,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator):
         strategy ({'uniform', 'quantile'}, default='quantile'):
             Strategy used to define the widths of the bins. 'uniform': All bins
             in each feature have identical widths. 'quantile': All bins in each
-            feature have the same number of points. Only `uniform` is supported now.
+            feature have the same number of points. Only `uniform` is supported.
     """
 
     def fit(self, X, y=None):

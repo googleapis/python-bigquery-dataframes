@@ -37,13 +37,27 @@ _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__} ibis/{ibis.__version__}"
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
+# Regions for which Regional Endpoints (REPs) are supported
+_REP_SUPPORTED_REGIONS = {
+    "me-central2",
+    "europe-west9",
+    "europe-west3",
+    "us-east4",
+    "us-west1",
+}
+
+
 # BigQuery is a REST API, which requires the protocol as part of the URL.
-_BIGQUERY_REGIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
+_BIGQUERY_LOCATIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
+_BIGQUERY_REGIONAL_ENDPOINT = "https://bigquery.{location}.rep.googleapis.com"
 
 # BigQuery Connection and Storage are gRPC APIs, which don't support the
 # https:// protocol in the API endpoint URL.
-_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
-_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
+_BIGQUERYCONNECTION_LOCATIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
+_BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
+_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = (
+    "https://bigquerystorage.{location}.rep.googleapis.com"
+)
 
 
 def _get_default_credentials_with_project():
@@ -55,11 +69,12 @@ class ClientsProvider:
 
     def __init__(
         self,
-        project: Optional[str],
-        location: Optional[str],
-        use_regional_endpoints: Optional[bool],
-        credentials: Optional[google.auth.credentials.Credentials],
-        application_name: Optional[str],
+        project: Optional[str] = None,
+        location: Optional[str] = None,
+        use_regional_endpoints: Optional[bool] = None,
+        credentials: Optional[google.auth.credentials.Credentials] = None,
+        application_name: Optional[str] = None,
+        bq_kms_key_name: Optional[str] = None,
     ):
         credentials_project = None
         if credentials is None:
@@ -90,6 +105,7 @@ class ClientsProvider:
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
         self._credentials = credentials
+        self._bq_kms_key_name = bq_kms_key_name
 
         # cloud clients initialized for lazy load
         self._bqclient = None
@@ -98,26 +114,34 @@ class ClientsProvider:
         self._cloudfunctionsclient = None
         self._resourcemanagerclient = None
 
+    def _create_bigquery_client(self):
+        bq_options = None
+        if self._use_regional_endpoints:
+            bq_options = google.api_core.client_options.ClientOptions(
+                api_endpoint=(
+                    _BIGQUERY_REGIONAL_ENDPOINT
+                    if self._location.lower() in _REP_SUPPORTED_REGIONS
+                    else _BIGQUERY_LOCATIONAL_ENDPOINT
+                ).format(location=self._location),
+            )
+        bq_info = google.api_core.client_info.ClientInfo(
+            user_agent=self._application_name
+        )
+
+        bq_client = bigquery.Client(
+            client_info=bq_info,
+            client_options=bq_options,
+            credentials=self._credentials,
+            project=self._project,
+            location=self._location,
+        )
+
+        return bq_client
+
     @property
     def bqclient(self):
         if not self._bqclient:
-            bq_options = None
-            if self._use_regional_endpoints:
-                bq_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    ),
-                )
-            bq_info = google.api_core.client_info.ClientInfo(
-                user_agent=self._application_name
-            )
-            self._bqclient = bigquery.Client(
-                client_info=bq_info,
-                client_options=bq_options,
-                credentials=self._credentials,
-                project=self._project,
-                location=self._location,
-            )
+            self._bqclient = self._create_bigquery_client()
 
         return self._bqclient
 
@@ -127,7 +151,7 @@ class ClientsProvider:
             bqconnection_options = None
             if self._use_regional_endpoints:
                 bqconnection_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
+                    api_endpoint=_BIGQUERYCONNECTION_LOCATIONAL_ENDPOINT.format(
                         location=self._location
                     )
                 )
@@ -150,9 +174,11 @@ class ClientsProvider:
             bqstorage_options = None
             if self._use_regional_endpoints:
                 bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    )
+                    api_endpoint=(
+                        _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
+                        if self._location.lower() in _REP_SUPPORTED_REGIONS
+                        else _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
+                    ).format(location=self._location),
                 )
             bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
                 user_agent=self._application_name

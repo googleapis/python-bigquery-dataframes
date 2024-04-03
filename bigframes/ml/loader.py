@@ -23,6 +23,8 @@ import bigframes
 import bigframes.constants as constants
 from bigframes.ml import (
     cluster,
+    compose,
+    core,
     decomposition,
     ensemble,
     forecasting,
@@ -30,6 +32,8 @@ from bigframes.ml import (
     linear_model,
     llm,
     pipeline,
+    preprocessing,
+    utils,
 )
 
 _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
@@ -78,6 +82,8 @@ def from_bq(
     llm.PaLM2TextGenerator,
     llm.PaLM2TextEmbeddingGenerator,
     pipeline.Pipeline,
+    compose.ColumnTransformer,
+    preprocessing.PreprocessingType,
 ]:
     """Load a BQML model to BigQuery DataFrames ML.
 
@@ -88,10 +94,28 @@ def from_bq(
     Returns:
         A BigQuery DataFrames ML model object.
     """
+    # TODO(garrettwu): the entire condition only to TRANSFORM_ONLY when b/331679273 is fixed.
+    if (
+        bq_model.model_type == "TRANSFORM_ONLY"
+        or bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        and "transformColumns" in bq_model._properties
+        and not _is_bq_model_remote(bq_model)
+    ):
+        return _transformer_from_bq(session, bq_model)
+
     if _is_bq_model_pipeline(bq_model):
         return pipeline.Pipeline._from_bq(session, bq_model)
 
     return _model_from_bq(session, bq_model)
+
+
+def _transformer_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
+    transformer = compose.ColumnTransformer._extract_from_bq_model(bq_model)._merge(
+        bq_model
+    )
+    transformer._bqml_model = core.BqmlModel(session, bq_model)
+
+    return transformer
 
 
 def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
@@ -99,15 +123,13 @@ def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
         return _BQML_MODEL_TYPE_MAPPING[bq_model.model_type]._from_bq(  # type: ignore
             session=session, model=bq_model
         )
-    if (
-        bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        and "remoteModelInfo" in bq_model._properties
-        and "endpoint" in bq_model._properties["remoteModelInfo"]
-    ):
+    if _is_bq_model_remote(bq_model):
         # Parse the remote model endpoint
         bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
-        endpoint_model = bqml_endpoint.split("/")[-1]
-        return _BQML_ENDPOINT_TYPE_MAPPING[endpoint_model]._from_bq(  # type: ignore
+        model_endpoint = bqml_endpoint.split("/")[-1]
+        model_name, _ = utils.parse_model_endpoint(model_endpoint)
+
+        return _BQML_ENDPOINT_TYPE_MAPPING[model_name]._from_bq(  # type: ignore
             session=session, model=bq_model
         )
 
@@ -118,3 +140,11 @@ def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
 
 def _is_bq_model_pipeline(bq_model: bigquery.Model) -> bool:
     return "transformColumns" in bq_model._properties
+
+
+def _is_bq_model_remote(bq_model: bigquery.Model) -> bool:
+    return (
+        bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        and "remoteModelInfo" in bq_model._properties
+        and "endpoint" in bq_model._properties["remoteModelInfo"]
+    )

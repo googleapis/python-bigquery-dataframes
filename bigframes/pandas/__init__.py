@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import namedtuple
 from datetime import datetime
 import inspect
+import resource
 import sys
 import typing
 from typing import (
@@ -36,6 +37,12 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
+import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
+import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
+import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
+import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
+import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 from google.cloud import bigquery
 import numpy
 import pandas
@@ -59,12 +66,6 @@ import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
 import bigframes.session.clients
-import third_party.bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
-import third_party.bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
-import third_party.bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
-import third_party.bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
-import third_party.bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
-import third_party.bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 
 
 # Include method definition so that the method appears in our docs for
@@ -383,6 +384,7 @@ def _set_default_session_location_if_possible(query):
         use_regional_endpoints=options.bigquery.use_regional_endpoints,
         credentials=options.bigquery.credentials,
         application_name=options.bigquery.application_name,
+        bq_kms_key_name=options.bigquery.kms_key_name,
     )
 
     bqclient = clients_provider.bqclient
@@ -490,9 +492,10 @@ def read_gbq(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
+    configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
     filters: vendored_pandas_gbq.FiltersType = (),
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query_or_table)
@@ -501,6 +504,7 @@ def read_gbq(
         query_or_table,
         index_col=index_col,
         columns=columns,
+        configuration=configuration,
         max_results=max_results,
         filters=filters,
         use_cache=use_cache,
@@ -526,8 +530,9 @@ def read_gbq_query(
     *,
     index_col: Iterable[str] | str = (),
     columns: Iterable[str] = (),
+    configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
-    use_cache: bool = True,
+    use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
@@ -536,6 +541,7 @@ def read_gbq_query(
         query,
         index_col=index_col,
         columns=columns,
+        configuration=configuration,
         max_results=max_results,
         use_cache=use_cache,
         col_order=col_order,
@@ -597,10 +603,13 @@ def read_pickle(
 read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
-def read_parquet(path: str | IO["bytes"]) -> bigframes.dataframe.DataFrame:
+def read_parquet(
+    path: str | IO["bytes"], *, engine: str = "auto"
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
+        engine=engine,
     )
 
 
@@ -621,6 +630,9 @@ def remote_function(
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
+    cloud_function_service_account: Optional[str] = None,
+    cloud_function_kms_key_name: Optional[str] = None,
+    cloud_function_docker_repository: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -631,6 +643,9 @@ def remote_function(
         reuse=reuse,
         name=name,
         packages=packages,
+        cloud_function_service_account=cloud_function_service_account,
+        cloud_function_kms_key_name=cloud_function_kms_key_name,
+        cloud_function_docker_repository=cloud_function_docker_repository,
     )
 
 
@@ -701,7 +716,17 @@ reset_session = global_session.close_session
 
 # SQL Compilation uses recursive algorithms on deep trees
 # 10M tree depth should be sufficient to generate any sql that is under bigquery limit
+# Note: This limit does not have the desired effect on Python 3.12 in
+# which the applicable limit is now hard coded. See:
+# https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
+
+soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
+if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
+    try:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
+    except Exception:
+        pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [

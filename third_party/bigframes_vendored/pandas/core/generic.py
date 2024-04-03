@@ -1,10 +1,15 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/generic.py
 from __future__ import annotations
 
-from typing import Iterator, Literal, Optional
+from typing import Callable, Iterator, Literal, Optional, TYPE_CHECKING
 
-from bigframes import constants
-from third_party.bigframes_vendored.pandas.core import indexing
+from bigframes_vendored.pandas.core import indexing
+import bigframes_vendored.pandas.core.common as common
+
+import bigframes.constants as constants
+
+if TYPE_CHECKING:
+    from bigframes_vendored.pandas.pandas._typing import T
 
 
 class NDFrame(indexing.IndexingMixin):
@@ -118,28 +123,55 @@ class NDFrame(indexing.IndexingMixin):
 
         Create a series of type ``Int64``:
 
-            >>> ser = bpd.Series([1, 2], dtype='Int64')
+            >>> ser = bpd.Series([2023010000246789, 1624123244123101, 1054834234120101], dtype='Int64')
             >>> ser
-            0    1
-            1    2
+            0    2023010000246789
+            1    1624123244123101
+            2    1054834234120101
             dtype: Int64
 
         Convert to ``Float64`` type:
 
             >>> ser.astype('Float64')
-            0    1.0
-            1    2.0
+            0    2023010000246789.0
+            1    1624123244123101.0
+            2    1054834234120101.0
             dtype: Float64
+
+        Convert to ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))`` type:
+
+            >>> ser.astype("timestamp[us, tz=UTC][pyarrow]")
+            0    2034-02-08 11:13:20.246789+00:00
+            1    2021-06-19 17:20:44.123101+00:00
+            2    2003-06-05 17:30:34.120101+00:00
+            dtype: timestamp[us, tz=UTC][pyarrow]
+
+        Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
+
+            >>> bpd.to_datetime(ser, unit='us', utc=True)
+            0    2034-02-08 11:13:20.246789+00:00
+            1    2021-06-19 17:20:44.123101+00:00
+            2    2003-06-05 17:30:34.120101+00:00
+            dtype: timestamp[us, tz=UTC][pyarrow]
+
+        Convert ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))`` type to ``Int64`` type:
+
+            >>> timestamp_ser = ser.astype("timestamp[us, tz=UTC][pyarrow]")
+            >>> timestamp_ser.astype('Int64')
+            0    2023010000246789
+            1    1624123244123101
+            2    1054834234120101
+            dtype: Int64
 
         Args:
             dtype (str or pandas.ExtensionDtype):
-                A dtype supported by BigQuery DataFrame include 'boolean','Float64','Int64',
-                'string', 'string[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
-                'timestamp[us][pyarrow]','date32[day][pyarrow]','time64[us][pyarrow]'
-                A pandas.ExtensionDtype include pandas.BooleanDtype(), pandas.Float64Dtype(),
-                pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                pd.ArrowDtype(pa.timestamp("us")), pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
+                A dtype supported by BigQuery DataFrame include ``'boolean'``, ``'Float64'``, ``'Int64'``,
+                ``'int64[pyarrow]'``, ``'string'``, ``'string[pyarrow]'``, ``'timestamp[us, tz=UTC][pyarrow]'``,
+                ``'timestamp\[us\]\[pyarrow\]'``, ``'date32\[day\]\[pyarrow\]'``, ``'time64\[us\]\[pyarrow\]'``.
+                A pandas.ExtensionDtype include ``pandas.BooleanDtype()``, ``pandas.Float64Dtype()``,
+                ``pandas.Int64Dtype()``, ``pandas.StringDtype(storage="pyarrow")``,
+                ``pd.ArrowDtype(pa.date32())``, ``pd.ArrowDtype(pa.time64("us"))``,
+                ``pd.ArrowDtype(pa.timestamp("us"))``, ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))``.
 
         Returns:
             same type as caller
@@ -178,7 +210,7 @@ class NDFrame(indexing.IndexingMixin):
         *,
         index: bool = True,
         lines: bool = False,
-    ) -> str | None:
+    ) -> None:
         """Convert the object to a JSON string, written to Cloud Storage.
 
         Note NaN's and None will be converted to null and datetime objects
@@ -236,7 +268,7 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
+    def to_csv(self, path_or_buf: str, *, index: bool = True) -> None:
         """Write object to a comma-separated values (csv) file on Cloud Storage.
 
         Args:
@@ -467,6 +499,7 @@ class NDFrame(indexing.IndexingMixin):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ):
         """Return a random sample of items from an axis of object.
 
@@ -525,6 +558,12 @@ class NDFrame(indexing.IndexingMixin):
                 Fraction of axis items to return. Cannot be used with `n`.
             random_state (Optional[int], default None):
                 Seed for random number generator.
+            sort (Optional[bool|Literal["random"]], default "random"):
+
+                - 'random' (default): No specific ordering will be applied after
+                  sampling.
+                - 'True' : Index columns will determine the sample's order.
+                - 'False': The sample will retain the original object's order.
 
         Returns:
             A new object of same type as caller containing `n` items randomly
@@ -751,12 +790,12 @@ class NDFrame(indexing.IndexingMixin):
 
             >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
             >>> ser
-            0     5.0
+            0       5
             1    <NA>
-            2     6.0
+            2       6
             3    <NA>
             4    <NA>
-            dtype: Float64
+            dtype: Int64
 
             >>> ser.isna()
             0    False
@@ -961,6 +1000,105 @@ class NDFrame(indexing.IndexingMixin):
             bigframes.core.window.Window: ``Expanding`` subclass.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def pipe(
+        self,
+        func: Callable[..., T] | tuple[Callable[..., T], str],
+        *args,
+        **kwargs,
+    ) -> T:
+        """
+        Apply chainable functions that expect Series or DataFrames.
+
+        **Examples:**
+
+        Constructing a income DataFrame from a dictionary.
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
+            >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])
+            >>> df
+               Salary  Others
+            0    8000  1000.0
+            1    9500    <NA>
+            2    5000  2000.0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Functions that perform tax reductions on an income DataFrame.
+
+            >>> def subtract_federal_tax(df):
+            ...     return df * 0.9
+            >>> def subtract_state_tax(df, rate):
+            ...     return df * (1 - rate)
+            >>> def subtract_national_insurance(df, rate, rate_increase):
+            ...     new_rate = rate + rate_increase
+            ...     return df * (1 - new_rate)
+
+        Instead of writing
+
+            >>> subtract_national_insurance(
+            ...     subtract_state_tax(subtract_federal_tax(df), rate=0.12),
+            ...     rate=0.05,
+            ...     rate_increase=0.02)  # doctest: +SKIP
+
+        You can write
+
+            >>> (
+            ...     df.pipe(subtract_federal_tax)
+            ...     .pipe(subtract_state_tax, rate=0.12)
+            ...     .pipe(subtract_national_insurance, rate=0.05, rate_increase=0.02)
+            ... )
+                Salary   Others
+            0  5892.48   736.56
+            1  6997.32     <NA>
+            2   3682.8  1473.12
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        If you have a function that takes the data as (say) the second
+        argument, pass a tuple indicating which keyword expects the
+        data. For example, suppose ``national_insurance`` takes its data as ``df``
+        in the second argument:
+
+            >>> def subtract_national_insurance(rate, df, rate_increase):
+            ...     new_rate = rate + rate_increase
+            ...     return df * (1 - new_rate)
+            >>> (
+            ...     df.pipe(subtract_federal_tax)
+            ...     .pipe(subtract_state_tax, rate=0.12)
+            ...     .pipe(
+            ...         (subtract_national_insurance, 'df'),
+            ...         rate=0.05,
+            ...         rate_increase=0.02
+            ...     )
+            ... )
+                Salary   Others
+            0  5892.48   736.56
+            1  6997.32     <NA>
+            2   3682.8  1473.12
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            func (function):
+                Function to apply to this object.
+                ``args``, and ``kwargs`` are passed into ``func``.
+                Alternatively a ``(callable, data_keyword)`` tuple where
+                ``data_keyword`` is a string indicating the keyword of
+                ``callable`` that expects this object.
+            args (iterable, optional):
+                Positional arguments passed into ``func``.
+            kwargs (mapping, optional):
+                A dictionary of keyword arguments passed into ``func``.
+
+        Returns:
+            same type as caller
+        """
+        return common.pipe(self, func, *args, **kwargs)
 
     def __nonzero__(self):
         raise ValueError(

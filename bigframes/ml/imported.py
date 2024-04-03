@@ -23,7 +23,6 @@ from google.cloud import bigquery
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
-from bigframes.ml.globals import _SUPPORTED_DTYPES
 import bigframes.pandas as bpd
 
 
@@ -35,7 +34,7 @@ class TensorFlowModel(base.Predictor):
         model_path (str):
             GCS path that holds the model files.
         session (BigQuery Session):
-            BQ session to create the model
+            BQ session to create the model.
     """
 
     def __init__(
@@ -114,7 +113,7 @@ class ONNXModel(base.Predictor):
         model_path (str):
             Cloud Storage path that holds the model files.
         session (BigQuery Session):
-            BQ session to create the model
+            BQ session to create the model.
     """
 
     def __init__(
@@ -208,7 +207,7 @@ class XGBoostModel(base.Predictor):
             and feature_types are both specified in the model file. Supported types
             are "bool", "string", "int64", "float64", "array<bool>", "array<string>", "array<int64>", "array<float64>".
         session (BigQuery Session):
-            BQ session to create the model
+            BQ session to create the model.
     """
 
     def __init__(
@@ -236,9 +235,9 @@ class XGBoostModel(base.Predictor):
         else:
             for io in (self.input, self.output):
                 for v in io.values():
-                    if v not in _SUPPORTED_DTYPES:
+                    if v not in globals._SUPPORTED_DTYPES:
                         raise ValueError(
-                            f"field_type {v} is not supported. We only support {', '.join(_SUPPORTED_DTYPES)}."
+                            f"field_type {v} is not supported. We only support {', '.join(globals._SUPPORTED_DTYPES)}."
                         )
 
             return self._bqml_model_factory.create_xgboost_imported_model(
