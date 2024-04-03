@@ -40,6 +40,8 @@
       - name: SeriesGroupBy
         uid: bigframes.core.groupby.SeriesGroupBy
       name: Groupby
+    - name: Index
+      uid: bigframes.core.indexes.base.Index
     - items:
       - name: AtDataFrameIndexer
         uid: bigframes.core.indexers.AtDataFrameIndexer
@@ -61,6 +63,11 @@
     - name: pandas
       uid: bigframes.pandas
     - items:
+      - name: Plotting
+        uid: bigframes.operations.plotting
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
+    - items:
       - name: Series
         uid: bigframes.series.Series
       - name: DatetimeMethods
@@ -72,6 +79,8 @@
       name: Series
     - name: Window
       uid: bigframes.core.window.Window
+    - href: supported_pandas_apis.html
+      name: Supported pandas APIs
     name: bigframes.pandas
   - items:
     - items:

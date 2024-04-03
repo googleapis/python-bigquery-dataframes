@@ -88,7 +88,12 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def name(self) -> blocks.Label:
-        return self.names[0]
+        names = self.names
+        if len(names) == 1:
+            return self.names[0]
+        else:
+            # pandas returns None for MultiIndex.name.
+            return None
 
     @name.setter
     def name(self, value: blocks.Label):
@@ -205,17 +210,17 @@ class Index(vendored_pandas_index.Index):
         return self._query_job
 
     def __repr__(self) -> str:
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole series by using job
+        # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        max_columns = opts.max_columns
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self.query_job)
 
-        pandas_df, _, query_job = self._block.retrieve_repr_request_results(
-            max_results, max_columns
-        )
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
-
         return repr(pandas_df.index)
 
     def copy(self, name: Optional[Hashable] = None):
@@ -459,14 +464,6 @@ class FrameIndex(Index):
     ):
         super().__init__(series_or_dataframe._block)
         self._whole_frame = series_or_dataframe
-
-    @property
-    def name(self) -> blocks.Label:
-        return self.names[0]
-
-    @name.setter
-    def name(self, value: blocks.Label):
-        self.names = [value]
 
     @property
     def names(self) -> typing.Sequence[blocks.Label]:
