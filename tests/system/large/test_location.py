@@ -67,7 +67,9 @@ def test_bq_location_default():
 
 
 @pytest.mark.parametrize(
-    "bigquery_location", sorted(bigframes.constants.ALL_BIGQUERY_LOCATIONS)
+    "bigquery_location",
+    # Sort the set to avoid nondeterminism.
+    sorted(bigframes.constants.ALL_BIGQUERY_LOCATIONS),
 )
 def test_bq_location(bigquery_location):
     session = bigframes.Session(
@@ -87,6 +89,7 @@ def test_bq_location(bigquery_location):
 
 @pytest.mark.parametrize(
     "bigquery_location",
+    # Sort the set to avoid nondeterminism.
     sorted(bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS),
 )
 def test_bq_rep_endpoints(bigquery_location):
@@ -110,6 +113,7 @@ def test_bq_rep_endpoints(bigquery_location):
 
 @pytest.mark.parametrize(
     "bigquery_location",
+    # Sort the set to avoid nondeterminism.
     sorted(bigframes.constants.LEP_ENABLED_BIGQUERY_LOCATIONS),
 )
 def test_bq_lep_endpoints(bigquery_location):
