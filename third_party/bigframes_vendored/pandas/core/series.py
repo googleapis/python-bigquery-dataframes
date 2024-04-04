@@ -3361,9 +3361,6 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> ser = bpd.Series([1, 2, 3])
 
             >>> np.asarray(ser)
-            array([1, 2, 3], dtype=object)
-
-            >>> np.asarray(ser, dtype="int64")
             array([1, 2, 3])
 
         Args:
