@@ -351,9 +351,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         columns: Union[blocks.Label, typing.Iterable[blocks.Label]] = None,
         level: typing.Optional[LevelType] = None,
     ) -> Series:
-        if labels and index:
-            raise ValueError("Must specify exacly one of 'labels' or 'index'")
-        index = labels or index
+        if (labels is None) == (index is None):
+            raise ValueError("Must specify exactly one of 'labels' or 'index'")
+
+        if labels is not None:
+            index = labels
 
         # ignore axis, columns params
         block = self._block
@@ -1545,6 +1547,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._block._split(
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
+        )
+
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        return Series(
+            self._block.explode(
+                column_ids=[self._value_column], ignore_index=ignore_index
+            )
         )
 
     def __array_ufunc__(
