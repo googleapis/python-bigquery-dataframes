@@ -651,12 +651,18 @@ def test_to_datetime_string_inputs(arg, utc, output_in_utc, format):
             True,
         ),
         (
-            [datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")), datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC"))],
+            [
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+            ],
             True,
             True,
         ),
         (
-            [datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("America/New_York")), datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC"))],
+            [
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("America/New_York")),
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+            ],
             True,
             True,
         ),
