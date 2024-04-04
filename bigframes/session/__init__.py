@@ -96,7 +96,9 @@ import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
+    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
+    import bigframes.series
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -115,9 +117,9 @@ _VALID_ENCODINGS = {
     "UTF-32LE",
 }
 
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_DF_SIZE = 5000
+# BigQuery has 1 MB query size limit. Don't want to take up more than a few % of that inlining a table.
+# Also must assume that text encoding as literals is much less efficient than in-memory representation.
+MAX_INLINE_DF_BYTES = 5000
 
 # Max complexity that should be executed as a single query
 QUERY_COMPLEXITY_LIMIT = 1e7
@@ -969,7 +971,23 @@ class Session(
         model = self.bqclient.get_model(model_ref)
         return bigframes.ml.loader.from_bq(self, model)
 
+    @typing.overload
+    def read_pandas(
+        self, pandas_dataframe: pandas.Index
+    ) -> bigframes.core.indexes.Index:
+        ...
+
+    @typing.overload
+    def read_pandas(self, pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+        ...
+
+    @typing.overload
     def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> dataframe.DataFrame:
+        ...
+
+    def read_pandas(
+        self, pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]
+    ):
         """Loads DataFrame from a pandas DataFrame.
 
         The pandas DataFrame will be persisted as a temporary BigQuery table, which can be
@@ -992,13 +1010,31 @@ class Session(
             [2 rows x 2 columns]
 
         Args:
-            pandas_dataframe (pandas.DataFrame):
-                a pandas DataFrame object to be loaded.
+            pandas_dataframe (pandas.DataFrame, pandas.Series, or pandas.Index):
+                a pandas DataFrame/Series/Index object to be loaded.
 
         Returns:
-            bigframes.dataframe.DataFrame: The BigQuery DataFrame.
+            An equivalent bigframes.pandas.(DataFrame/Series/Index) object
         """
-        return self._read_pandas(pandas_dataframe, "read_pandas")
+        import bigframes.series as series
+
+        # Try to handle non-dataframe pandas objects as well
+        if isinstance(pandas_dataframe, pandas.Series):
+            bf_df = self._read_pandas(pandas.DataFrame(pandas_dataframe), "read_pandas")
+            bf_series = typing.cast(series.Series, bf_df[bf_df.columns[0]])
+            # wrapping into df can set name to 0 so reset to original object name
+            bf_series.name = pandas_dataframe.name
+            return bf_series
+        if isinstance(pandas_dataframe, pandas.Index):
+            return self._read_pandas(
+                pandas.DataFrame(index=pandas_dataframe), "read_pandas"
+            ).index
+        if isinstance(pandas_dataframe, pandas.DataFrame):
+            return self._read_pandas(pandas_dataframe, "read_pandas")
+        else:
+            raise ValueError(
+                f"read_pandas() expects a pandas.DataFrame, but got a {type(pandas_dataframe)}"
+            )
 
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -1021,7 +1057,7 @@ class Session(
     ) -> Optional[dataframe.DataFrame]:
         import bigframes.dataframe as dataframe
 
-        if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
+        if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
             return None
 
         try:

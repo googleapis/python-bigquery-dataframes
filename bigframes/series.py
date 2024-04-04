@@ -1516,7 +1516,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             map_df = map_df.rename(columns={arg.name: self.name})
         elif isinstance(arg, Mapping):
             map_df = bigframes.dataframe.DataFrame(
-                {"keys": list(arg.keys()), self.name: list(arg.values())},
+                {"keys": list(arg.keys()), self.name: list(arg.values())},  # type: ignore
                 session=self._get_block().expr.session,
             )
             map_df = map_df.set_index("keys")
@@ -1547,6 +1547,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._block._split(
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
+        )
+
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        return Series(
+            self._block.explode(
+                column_ids=[self._value_column], ignore_index=ignore_index
+            )
         )
 
     def __array_ufunc__(
