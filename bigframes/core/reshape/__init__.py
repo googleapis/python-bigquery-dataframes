@@ -126,7 +126,7 @@ def cut(
             as_index: pd.IntervalIndex = bins
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
         elif len(list(bins)) == 0:
-            raise ValueError(("`bins` iterable should have at least one item"))
+            raise ValueError("`bins` iterable should have at least one item")
         elif isinstance(list(bins)[0], tuple):
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
@@ -139,6 +139,8 @@ def cut(
             as_index = pd.IntervalIndex.from_breaks(list(bins))
             bins = list(bins)
             bins = tuple([(bins[i], bins[i + 1]) for i in range(len(bins) - 1)])
+        else:
+            raise ValueError("`bins` iterable should contain tuples or numerics")
 
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
