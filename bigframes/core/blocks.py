@@ -41,6 +41,7 @@ import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
@@ -443,8 +444,10 @@ class Block:
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
 
-    def try_peek(self, n: int = 20) -> typing.Optional[pd.DataFrame]:
-        if self.expr.node.peekable:
+    def try_peek(
+        self, n: int = 20, force: bool = False
+    ) -> typing.Optional[pd.DataFrame]:
+        if force or tree_properties.peekable(self.expr.node):
             iterator, _ = self.session._peek(self.expr, n)
             df = self._to_dataframe(iterator)
             self._copy_index_to_pandas(df)
@@ -1311,8 +1314,8 @@ class Block:
             head_block = self
         computed_df, query_job = head_block.to_pandas()
         formatted_df = computed_df.set_axis(self.column_labels, axis=1)
-        # we reset the axis and substitute the bf index name for the default
-        formatted_df.index.name = self.index.name
+        # we reset the axis and substitute the bf index name(s) for the default
+        formatted_df.index.names = self.index.names  # type: ignore
         return formatted_df, count, query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:

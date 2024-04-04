@@ -82,7 +82,8 @@ import bigframes.core.compile
 import bigframes.core.guid as guid
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
-import bigframes.core.traversal as traversals
+import bigframes.core.tree_properties as traversals
+import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
@@ -94,7 +95,9 @@ import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
+    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
+    import bigframes.series
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -952,7 +955,7 @@ class Session(
                 to load from the default project.
 
         Returns:
-            A bigframes.ml Model wrapping the model.
+            A bigframes.ml Model, Transformer or Pipeline wrapping the model.
         """
         import bigframes.ml.loader
 
@@ -962,7 +965,23 @@ class Session(
         model = self.bqclient.get_model(model_ref)
         return bigframes.ml.loader.from_bq(self, model)
 
+    @typing.overload
+    def read_pandas(
+        self, pandas_dataframe: pandas.Index
+    ) -> bigframes.core.indexes.Index:
+        ...
+
+    @typing.overload
+    def read_pandas(self, pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+        ...
+
+    @typing.overload
     def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> dataframe.DataFrame:
+        ...
+
+    def read_pandas(
+        self, pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]
+    ):
         """Loads DataFrame from a pandas DataFrame.
 
         The pandas DataFrame will be persisted as a temporary BigQuery table, which can be
@@ -985,13 +1004,31 @@ class Session(
             [2 rows x 2 columns]
 
         Args:
-            pandas_dataframe (pandas.DataFrame):
-                a pandas DataFrame object to be loaded.
+            pandas_dataframe (pandas.DataFrame, pandas.Series, or pandas.Index):
+                a pandas DataFrame/Series/Index object to be loaded.
 
         Returns:
-            bigframes.dataframe.DataFrame: The BigQuery DataFrame.
+            An equivalent bigframes.pandas.(DataFrame/Series/Index) object
         """
-        return self._read_pandas(pandas_dataframe, "read_pandas")
+        import bigframes.series as series
+
+        # Try to handle non-dataframe pandas objects as well
+        if isinstance(pandas_dataframe, pandas.Series):
+            bf_df = self._read_pandas(pandas.DataFrame(pandas_dataframe), "read_pandas")
+            bf_series = typing.cast(series.Series, bf_df[bf_df.columns[0]])
+            # wrapping into df can set name to 0 so reset to original object name
+            bf_series.name = pandas_dataframe.name
+            return bf_series
+        if isinstance(pandas_dataframe, pandas.Index):
+            return self._read_pandas(
+                pandas.DataFrame(index=pandas_dataframe), "read_pandas"
+            ).index
+        if isinstance(pandas_dataframe, pandas.DataFrame):
+            return self._read_pandas(pandas_dataframe, "read_pandas")
+        else:
+            raise ValueError(
+                f"read_pandas() expects a pandas.DataFrame, but got a {type(pandas_dataframe)}"
+            )
 
     def _read_pandas(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -1848,8 +1885,8 @@ class Session(
         self, array_value: core.ArrayValue, n_rows: int
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """A 'peek' efficiently accesses a small number of rows in the dataframe."""
-        if not array_value.node.peekable:
-            raise NotImplementedError("cannot efficient peek this dataframe")
+        if not tree_properties.peekable(array_value.node):
+            warnings.warn("Peeking this value cannot be done efficiently.")
         sql = self._compile_unordered(array_value).peek_sql(n_rows)
         return self._start_query(
             sql=sql,
