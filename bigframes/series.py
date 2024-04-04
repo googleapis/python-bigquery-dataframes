@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import itertools
 import numbers
 import os
@@ -173,6 +174,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self._query_job = query_job
 
     def __len__(self):
+        """Returns number of values in the Series, serves `len` operator.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> len(s)
+            3
+        """
         return self.shape[0]
 
     def __iter__(self) -> typing.Iterator:
@@ -414,6 +426,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     pad = ffill
+    pad.__doc__ = inspect.getdoc(vendored_pandas_series.Series.ffill)
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.window_spec.WindowSpec(preceding=0, following=limit)
@@ -600,26 +613,155 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_unary_op(ops.isnull_op)
 
     isnull = isna
+    isnull.__doc__ = inspect.getdoc(vendored_pandas_series.Series.isna)
 
     def notna(self) -> "Series":
         return self._apply_unary_op(ops.notnull_op)
 
     notnull = notna
+    notnull.__doc__ = inspect.getdoc(vendored_pandas_series.Series.notna)
 
     def __and__(self, other: bool | int | Series) -> Series:
+        """Get bitwise AND of Series and other, element-wise, using operator `&`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+
+        You can operate with a scalar.
+
+            >>> s & 6
+            0    0
+            1    0
+            2    2
+            3    2
+            dtype: Int64
+
+        You can operate with another Series.
+
+            >>> s1 = bpd.Series([5, 6, 7, 8])
+            >>> s & s1
+            0    0
+            1    0
+            2    2
+            3    0
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to bitwise AND with the Series.
+
+        Returns:
+            Series: The result of the operation.
+        """
         return self._apply_binary_op(other, ops.and_op)
 
     __rand__ = __and__
 
     def __or__(self, other: bool | int | Series) -> Series:
+        """Get bitwise OR of Series and other, element-wise, using operator `|`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+
+        You can operate with a scalar.
+
+            >>> s | 6
+            0    6
+            1    7
+            2    6
+            3    7
+            dtype: Int64
+
+        You can operate with another Series.
+
+            >>> s1 = bpd.Series([5, 6, 7, 8])
+            >>> s | s1
+            0     5
+            1     7
+            2     7
+            3    11
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to bitwise OR with the Series.
+
+        Returns:
+            Series: The result of the operation.
+        """
         return self._apply_binary_op(other, ops.or_op)
 
     __ror__ = __or__
 
     def __add__(self, other: float | int | Series) -> Series:
+        """Get addition of Series and other, element-wise, using operator `+`.
+
+        Equivalent to `Series.add(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s
+            elk      1.5
+            moose    2.6
+            dtype: Float64
+
+        You can add a scalar.
+
+            >>> s + 1.5
+            elk      3.0
+            moose    4.1
+            dtype: Float64
+
+        You can add another Series with index aligned.
+
+            >>> delta = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s + delta
+            elk      3.0
+            moose    5.2
+            dtype: Float64
+
+        Adding any mis-aligned index will result in invalid values.
+
+            >>> delta = bpd.Series([1.5, 2.6], index=['moose', 'bison'])
+            >>> s + delta
+            elk      <NA>
+            moose     4.1
+            bison    <NA>
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to be added to the Series.
+
+        Returns:
+            Series: The result of adding `other` to Series.
+        """
         return self.add(other)
 
     def __radd__(self, other: float | int | Series) -> Series:
+        """Get addition of Series and other, element-wise, using operator `+`.
+
+        Equivalent to `Series.radd(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to which Series should be added.
+
+        Returns:
+            Series: The result of adding Series to `other`.
+        """
         return self.radd(other)
 
     def add(self, other: float | int | Series) -> Series:
@@ -629,9 +771,66 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.add_op, reverse=True)
 
     def __sub__(self, other: float | int | Series) -> Series:
+        """Get subtraction of other from Series, element-wise, using operator `-`.
+
+        Equivalent to `Series.sub(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s
+            elk      1.5
+            moose    2.6
+            dtype: Float64
+
+        You can subtract a scalar.
+
+            >>> s - 1.5
+            elk      0.0
+            moose    1.1
+            dtype: Float64
+
+        You can subtract another Series with index aligned.
+
+            >>> delta = bpd.Series([0.5, 1.0], index=['elk', 'moose'])
+            >>> s - delta
+            elk      1.0
+            moose    1.6
+            dtype: Float64
+
+        Adding any mis-aligned index will result in invalid values.
+
+            >>> delta = bpd.Series([0.5, 1.0], index=['moose', 'bison'])
+            >>> s - delta
+            elk      <NA>
+            moose     2.1
+            bison    <NA>
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to subtract from the Series.
+
+        Returns:
+            Series: The result of subtraction.
+        """
         return self.sub(other)
 
     def __rsub__(self, other: float | int | Series) -> Series:
+        """Get subtraction of Series from other, element-wise, using operator `-`.
+
+        Equivalent to `Series.rsub(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to subtract the Series from.
+
+        Returns:
+            Series: The result of subtraction.
+        """
         return self.rsub(other)
 
     def sub(self, other: float | int | Series) -> Series:
@@ -641,11 +840,59 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
+    subtract.__doc__ = inspect.getdoc(vendored_pandas_series.Series.sub)
 
     def __mul__(self, other: float | int | Series) -> Series:
+        """
+        Get multiplication of Series with other, element-wise, using operator `*`.
+
+        Equivalent to `Series.mul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s * 3
+            0    3
+            1    6
+            2    9
+            dtype: Int64
+
+        You can also multiply with another Series:
+
+            >>> s1 = bpd.Series([2, 3, 4])
+            >>> s * s1
+            0     2
+            1     6
+            2    12
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to multiply with the Series.
+
+        Returns:
+            Series: The result of the multiplication.
+        """
         return self.mul(other)
 
     def __rmul__(self, other: float | int | Series) -> Series:
+        """
+        Get multiplication of other with Series, element-wise, using operator `*`.
+
+        Equivalent to `Series.rmul(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to multiply the Series with.
+
+        Returns:
+            Series: The result of the multiplication.
+        """
         return self.rmul(other)
 
     def mul(self, other: float | int | Series) -> Series:
@@ -655,11 +902,59 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.mul_op, reverse=True)
 
     multiply = mul
+    multiply.__doc__ = inspect.getdoc(vendored_pandas_series.Series.mul)
 
     def __truediv__(self, other: float | int | Series) -> Series:
+        """
+        Get division of Series by other, element-wise, using operator `/`.
+
+        Equivalent to `Series.truediv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s / 2
+            0    0.5
+            1    1.0
+            2    1.5
+            dtype: Float64
+
+        You can also multiply with another Series:
+
+            >>> denominator = bpd.Series([2, 3, 4])
+            >>> s / denominator
+            0         0.5
+            1    0.666667
+            2        0.75
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to divide the Series by.
+
+        Returns:
+            Series: The result of the division.
+        """
         return self.truediv(other)
 
     def __rtruediv__(self, other: float | int | Series) -> Series:
+        """
+        Get division of other by Series, element-wise, using operator `/`.
+
+        Equivalent to `Series.rtruediv(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to divide by the Series.
+
+        Returns:
+            Series: The result of the division.
+        """
         return self.rtruediv(other)
 
     def truediv(self, other: float | int | Series) -> Series:
@@ -668,16 +963,63 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rtruediv(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.div_op, reverse=True)
 
-    div = truediv
-
-    divide = truediv
+    truediv.__doc__ = inspect.getdoc(vendored_pandas_series.Series.truediv)
+    div = divide = truediv
 
     rdiv = rtruediv
+    rdiv.__doc__ = inspect.getdoc(vendored_pandas_series.Series.rtruediv)
 
     def __floordiv__(self, other: float | int | Series) -> Series:
+        """
+        Get integer divison of Series by other, using arithmatic operator `//`.
+
+        Equivalent to `Series.floordiv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can divide by a scalar:
+
+            >>> s = bpd.Series([15, 30, 45])
+            >>> s // 2
+            0     7
+            1    15
+            2    22
+            dtype: Int64
+
+        You can also divide by another DataFrame:
+
+            >>> divisor = bpd.Series([3, 4, 4])
+            >>> s // divisor
+            0     5
+            1     7
+            2    11
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to divide the Series by.
+
+        Returns:
+            Series: The result of the integer divison.
+        """
         return self.floordiv(other)
 
     def __rfloordiv__(self, other: float | int | Series) -> Series:
+        """
+        Get integer divison of other by Series, using arithmatic operator `//`.
+
+        Equivalent to `Series.rfloordiv(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to divide by the Series.
+
+        Returns:
+            Series: The result of the integer divison.
+        """
         return self.rfloordiv(other)
 
     def floordiv(self, other: float | int | Series) -> Series:
@@ -687,9 +1029,58 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.floordiv_op, reverse=True)
 
     def __pow__(self, other: float | int | Series) -> Series:
+        """
+        Get exponentiation of Series with other, element-wise, using operator
+        `**`.
+
+        Equivalent to `Series.pow(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can exponentiate with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s ** 2
+            0    1
+            1    4
+            2    9
+            dtype: Int64
+
+        You can also exponentiate with another Series:
+
+            >>> exponent = bpd.Series([3, 2, 1])
+            >>> s ** exponent
+            0    1
+            1    4
+            2    3
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to exponentiate the Series with.
+
+        Returns:
+            Series: The result of the exponentiation.
+        """
         return self.pow(other)
 
     def __rpow__(self, other: float | int | Series) -> Series:
+        """
+        Get exponentiation of other with Series, element-wise, using operator
+        `**`.
+
+        Equivalent to `Series.rpow(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to exponentiate with the Series.
+
+        Returns:
+            Series: The result of the exponentiation.
+        """
         return self.rpow(other)
 
     def pow(self, other: float | int | Series) -> Series:
@@ -723,9 +1114,56 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.ge_op)
 
     def __mod__(self, other) -> Series:  # type: ignore
+        """
+        Get modulo of Series with other, element-wise, using operator `%`.
+
+        Equivalent to `Series.mod(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can modulo with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s % 3
+            0    1
+            1    2
+            2    0
+            dtype: Int64
+
+        You can also modulo with another Series:
+
+            >>> modulo = bpd.Series([3, 3, 3])
+            >>> s % modulo
+            0    1
+            1    2
+            2    0
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to modulo the Series by.
+
+        Returns:
+            Series: The result of the modulo.
+        """
         return self.mod(other)
 
     def __rmod__(self, other) -> Series:  # type: ignore
+        """
+        Get modulo of other with Series, element-wise, using operator `%`.
+
+        Equivalent to `Series.rmod(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to modulo by the Series.
+
+        Returns:
+            Series: The result of the modulo.
+        """
         return self.rmod(other)
 
     def mod(self, other) -> Series:  # type: ignore
@@ -744,10 +1182,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # the output should be dtype float, both floordiv and mod returns dtype int in this case.
         return (self.rfloordiv(other), self.rmod(other))
 
-    def __matmul__(self, other):
+    def dot(self, other):
         return (self * other).sum()
 
-    dot = __matmul__
+    def __matmul__(self, other):
+        return self.dot(other)
+
+    def __rmatmul__(self, other):
+        return self.dot(other)
 
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
@@ -823,6 +1265,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
 
     aggregate = agg
+    aggregate.__doc__ = inspect.getdoc(vendored_pandas_series.Series.agg)
 
     def skew(self):
         count = self.count()
@@ -857,6 +1300,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (numerator / denominator) - adjustment
 
     kurtosis = kurt
+    kurtosis.__doc__ = inspect.getdoc(vendored_pandas_series.Series.kurt)
 
     def mode(self) -> Series:
         block = self._block
@@ -904,6 +1348,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return typing.cast(float, self._apply_aggregation(agg_ops.product_op))
 
     product = prod
+    product.__doc__ = inspect.getdoc(vendored_pandas_series.Series.prod)
 
     def __eq__(self, other: object) -> Series:  # type: ignore
         return self.eq(other)
@@ -912,6 +1357,25 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.ne(other)
 
     def __invert__(self) -> Series:
+        """
+        Returns the logical inversion (binary NOT) of the Series, element-wise
+        using operator `~`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series([True, False, True])
+            >>> ~ser
+            0    False
+            1     True
+            2    False
+            dtype: boolean
+
+        Returns:
+            Series: The inverted values in the series.
+        """
         return self._apply_unary_op(ops.invert_op)
 
     def eq(self, other: object) -> Series:
@@ -1028,6 +1492,28 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def __getitem__(self, indexer):
+        """Gets the specified index from the Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([15, 30, 45])
+            >>> s[1]
+            30
+            >>> s[0:2]
+            0    15
+            1    30
+            dtype: Int64
+
+        Args:
+            indexer (int or slice):
+                Index or slice of indices.
+
+        Returns:
+            Series or Value: Value(s) at the requested index(es).
+        """
         # TODO: enforce stricter alignment, should fail if indexer is missing any keys.
         use_iloc = (
             isinstance(indexer, slice)
@@ -1435,6 +1921,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_pandas().to_list()
 
     to_list = tolist
+    to_list.__doc__ = inspect.getdoc(vendored_pandas_series.Series.tolist)
 
     def to_markdown(
         self,
@@ -1450,7 +1937,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    __array__ = to_numpy
+    def __array__(self, dtype=None) -> numpy.ndarray:
+        return self.to_numpy(dtype=dtype)
 
     def to_pickle(self, path, **kwargs) -> None:
         return self.to_pandas().to_pickle(path, **kwargs)

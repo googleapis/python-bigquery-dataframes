@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
 
 from bigframes_vendored.pandas.core.generic import NDFrame
+import numpy
 import numpy as np
 from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
@@ -874,13 +875,13 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def __matmul__(self, other):
         """
-        Matrix multiplication using binary `@` operator in Python>=3.5.
+        Matrix multiplication using binary `@` operator.
         """
         return NotImplemented
 
     def __rmatmul__(self, other):
         """
-        Matrix multiplication using binary `@` operator in Python>=3.5.
+        Matrix multiplication using binary `@` operator.
         """
         return NotImplemented
 
@@ -3339,5 +3340,40 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             int: Return the number of elements in the underlying data.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __array__(self, dtype=None) -> numpy.ndarray:
+        """
+        Returns the values as NumPy array.
+
+        Equivalent to `Series.to_numpy(dtype)`.
+
+        Users should not call this directly. Rather, it is invoked by
+        `numpy.array` and `numpy.asarray`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import numpy as np
+
+            >>> ser = bpd.Series([1, 2, 3])
+
+            >>> np.asarray(ser)
+            array([1, 2, 3], dtype=object)
+
+            >>> np.asarray(ser, dtype="int64")
+            array([1, 2, 3])
+
+        Args:
+            dtype (str or numpy.dtype, optional):
+                The dtype to use for the resulting NumPy array. By default,
+                the dtype is inferred from the data.
+
+        Returns:
+            numpy.ndarray:
+                The values in the series converted to a `numpy.ndarray` with the
+                specified dtype.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

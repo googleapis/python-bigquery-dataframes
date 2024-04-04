@@ -2154,7 +2154,7 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __add__(self, other) -> DataFrame:
-        """Get Addition of DataFrame and other, column-wise.
+        """Get addition of DataFrame and other, column-wise.
 
         Equivalent to ``DataFrame.add(other)``.
 
@@ -2198,7 +2198,7 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
-        Any mis-aligned index and columns will result in invalid values.
+        Adding any mis-aligned index and columns will result in invalid values.
 
             >>> delta = bpd.DataFrame({
             ...         'depth': [0.5, 0.9, 1.0],

@@ -1416,7 +1416,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Args:
             other (scalar or DataFrame):
-                Object to modulo the DataFrame with.
+                Object to modulo the DataFrame by.
 
         Returns:
             DataFrame: The result of the modulo.
@@ -2518,6 +2518,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block.select_column("values"))
 
     product = prod
+    product.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.prod)
 
     def count(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
@@ -2557,6 +2558,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
     aggregate = agg
+    aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
@@ -2630,6 +2632,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(result_block)
 
     kurtosis = kurt
+    kurtosis.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.kurt)
 
     def _pivot(
         self,
@@ -3029,11 +3032,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_unary_op(ops.isnull_op)
 
     isnull = isna
+    isnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.isna)
 
     def notna(self) -> DataFrame:
         return self._apply_unary_op(ops.notnull_op)
 
     notnull = notna
+    notnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.notna)
 
     def cumsum(self):
         is_numeric_types = [
@@ -3351,8 +3356,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Returns:
             numpy.ndarray:
-                The values in the series converted to a `numpy.ndarray` with the
-                specified dtype.
+                The rows in the DataFrame converted to a `numpy.ndarray` with
+                the specified dtype.
         """
         return self.to_numpy(dtype=dtype)
 
@@ -3720,6 +3725,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return
 
     applymap = map
+    applymap.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.map)
 
     def _slice(
         self,
