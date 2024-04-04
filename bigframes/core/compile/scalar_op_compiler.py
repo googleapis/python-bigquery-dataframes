@@ -29,6 +29,7 @@ import bigframes.constants as constants
 import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 _NAN = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.nan))
@@ -794,14 +795,25 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        x = x.to_timestamp(op.format) if op.format else timestamp(x)
-    elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
+        if op.utc:
+            x = x.to_timestamp(op.format) if op.format else timestamp(x)
+        else:
+            return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
+
+    elif x.type() == ibis_dtypes.timestamp:
         if op.format:
             raise NotImplementedError(
                 f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
             )
-        return x
-    elif x.type() != ibis_dtypes.timestamp:
+        if x.type() == ibis_dtypes.Timestamp(timezone="UTC") or (not op.utc and x.type() == ibis_dtypes.Timestamp(timezone=None)):
+            return x
+        elif not op.utc:
+            raise NotImplementedError(
+                f"Non-UTC timezones are not supported for Timestamp input types when utc=False. Please set utc=True if possible. {constants.FEEDBACK_LINK}"
+            )
+
+    else:
+        # Numerical inputs.
         if op.format:
             x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
         else:

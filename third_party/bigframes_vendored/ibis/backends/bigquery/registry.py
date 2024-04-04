@@ -30,6 +30,10 @@ def _generate_array(translator, op: vendored_ibis_ops.GenerateArray):
     arg = translator.translate(op.arg)
     return f"GENERATE_ARRAY(0, {arg})"
 
+def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime):
+    arg = translator.translate(op.arg)
+    return f"SAFE_CAST({arg} AS DATETIME)"
+
 
 patched_ops = {
     vendored_ibis_ops.ApproximateMultiQuantile: _approx_quantiles,  # type:ignore
@@ -37,6 +41,7 @@ patched_ops = {
     vendored_ibis_ops.LastNonNullValue: _last_non_null_value,  # type:ignore
     vendored_ibis_ops.ToJsonString: _to_json_string,  # type:ignore
     vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
+    vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
 }
 
 OPERATION_REGISTRY.update(patched_ops)
