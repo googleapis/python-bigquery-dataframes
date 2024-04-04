@@ -352,7 +352,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         level: typing.Optional[LevelType] = None,
     ) -> Series:
         if (labels is None) == (index is None):
-            raise ValueError("Must specify exacly one of 'labels' or 'index'")
+            raise ValueError("Must specify exactly one of 'labels' or 'index'")
 
         if labels is not None:
             index = labels
