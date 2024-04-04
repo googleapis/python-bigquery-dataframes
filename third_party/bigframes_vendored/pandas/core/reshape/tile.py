@@ -79,7 +79,7 @@ def cut(
     Cut with an iterable of ints:
 
         >>> bins_ints = [0, 1, 5, 20]
-        >>> bpd.cut(s, bins=bins_tuples)
+        >>> bpd.cut(s, bins=bins_ints)
         0                                            <NA>
         1     {'left_exclusive': 0, 'right_inclusive': 1}
         2     {'left_exclusive': 1, 'right_inclusive': 5}
