@@ -739,11 +739,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
-        # join columns schema
-        # indexers will be none for exact match
+        # Somewhat different alignment than df-df so separate codepath for now.
         if self.columns.equals(other.index):
             columns, lcol_indexer, rcol_indexer = self.columns, None, None
         else:
+            if not (self.columns.is_unique and other.index.is_unique):
+                raise ValueError("Cannot align non-unique indices")
             columns, lcol_indexer, rcol_indexer = self.columns.join(
                 other.index, how=how, return_indexers=True
             )
