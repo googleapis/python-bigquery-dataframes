@@ -17,6 +17,7 @@ from __future__ import annotations
 import functools
 import typing
 
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
@@ -29,7 +30,6 @@ import bigframes.constants as constants
 import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.operations as ops
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 _NAN = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.nan))
@@ -805,7 +805,9 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             raise NotImplementedError(
                 f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
             )
-        if x.type() == ibis_dtypes.Timestamp(timezone="UTC") or (not op.utc and x.type() == ibis_dtypes.Timestamp(timezone=None)):
+        if x.type() == ibis_dtypes.Timestamp(timezone="UTC") or (
+            not op.utc and x.type() == ibis_dtypes.Timestamp(timezone=None)
+        ):
             return x
         elif not op.utc:
             raise NotImplementedError(

@@ -30,6 +30,7 @@ def _generate_array(translator, op: vendored_ibis_ops.GenerateArray):
     arg = translator.translate(op.arg)
     return f"GENERATE_ARRAY(0, {arg})"
 
+
 def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime):
     arg = translator.translate(op.arg)
     return f"SAFE_CAST({arg} AS DATETIME)"

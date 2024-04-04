@@ -82,7 +82,11 @@ def to_datetime(
             return result
 
         # Verify if all the inputs are in UTC.
-        all_utc = arg._apply_unary_op(ops.EndsWithOp(pat=("Z", "-00:00", "+00:00", "-0000", "+0000", "-00", "+00"))).all()
+        all_utc = arg._apply_unary_op(
+            ops.EndsWithOp(
+                pat=("Z", "-00:00", "+00:00", "-0000", "+0000", "-00", "+00")
+            )
+        ).all()
         if all_utc:
             return arg._apply_unary_op(  # type: ignore
                 ops.ToDatetimeOp(
