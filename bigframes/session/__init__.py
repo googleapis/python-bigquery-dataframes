@@ -34,7 +34,6 @@ from typing import (
     Mapping,
     MutableSequence,
     Optional,
-    overload,
     Sequence,
     Tuple,
     Union,
@@ -966,17 +965,17 @@ class Session(
         model = self.bqclient.get_model(model_ref)
         return bigframes.ml.loader.from_bq(self, model)
 
-    @overload
+    @typing.overload
     def read_pandas(
         self, pandas_dataframe: pandas.Index
     ) -> bigframes.core.indexes.Index:
         ...
 
-    @overload
+    @typing.overload
     def read_pandas(self, pandas_dataframe: pandas.Series) -> bigframes.series.Series:
         ...
 
-    @overload
+    @typing.overload
     def read_pandas(self, pandas_dataframe: pandas.DataFrame) -> dataframe.DataFrame:
         ...
 
