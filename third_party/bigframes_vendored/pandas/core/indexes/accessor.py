@@ -9,7 +9,7 @@ class DatetimeProperties:
     @property
     def day(self):
         """The day of the datetime.
-        
+
         **Examples:**
 
             >>> import pandas as pd
@@ -122,7 +122,7 @@ class DatetimeProperties:
     @property
     def minute(self):
         """The minutes of the datetime.
-        
+
         **Examples:**
 
             >>> import pandas as pd
@@ -148,7 +148,7 @@ class DatetimeProperties:
     @property
     def month(self):
         """The month as January=1, December=12.
-        
+
         **Examples:**
 
             >>> import pandas as pd
