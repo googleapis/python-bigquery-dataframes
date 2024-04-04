@@ -800,7 +800,7 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
         else:
             return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
 
-    elif x.type() == ibis_dtypes.timestamp:
+    elif isinstance(x.type(), ibis_dtypes.Timestamp):
         if op.format:
             raise NotImplementedError(
                 f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
