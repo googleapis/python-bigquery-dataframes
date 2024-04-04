@@ -50,12 +50,12 @@ import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.convert
 import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
-import bigframes.core.normalize
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
@@ -673,14 +673,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 DataFrame(other), op, how=how, reverse=reverse
             )
         elif utils.get_axis_number(axis) == 0:
-            bf_series = bigframes.core.normalize.normalize_to_bf_series(
-                other, self.index
-            )
+            bf_series = bigframes.core.convert.to_bf_series(other, self.index)
             return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
-            pd_series = bigframes.core.normalize.normalize_to_pd_series(
-                other, self.columns
-            )
+            pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
             return self._apply_series_binop_axis_1(pd_series, op, how, reverse)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."

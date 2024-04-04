@@ -19,7 +19,7 @@ import bigframes.core.indexes as index
 import bigframes.series as series
 
 
-def normalize_to_bf_series(obj, default_index: index.Index) -> series.Series:
+def to_bf_series(obj, default_index: index.Index) -> series.Series:
     if isinstance(obj, series.Series):
         return obj
     if isinstance(obj, pd.Series):
@@ -34,7 +34,7 @@ def normalize_to_bf_series(obj, default_index: index.Index) -> series.Series:
         raise TypeError(f"Cannot interpret {obj} as series.")
 
 
-def normalize_to_pd_series(obj, default_index: pd.Index) -> pd.Series:
+def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
     if isinstance(obj, series.Series):
         return obj.to_pandas()
     if isinstance(obj, pd.Series):
