@@ -47,4 +47,4 @@ class ComputeOptions:
     """
 
     maximum_bytes_billed: Optional[int] = None
-    enable_multi_query_execution: bool = True
+    enable_multi_query_execution: bool = False
