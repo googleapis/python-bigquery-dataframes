@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-import bigframes.core.indexes.index as index
+import bigframes.core.indexes as index
 import bigframes.series as series
 
 

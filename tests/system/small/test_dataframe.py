@@ -27,7 +27,7 @@ import pytest
 
 import bigframes
 import bigframes._config.display_options as display_options
-import bigframes.core.indexes.index as bf_indexes
+import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
 import bigframes.series as series
 from tests.system.utils import (
