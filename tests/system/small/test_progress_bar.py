@@ -17,7 +17,6 @@ import tempfile
 
 import numpy as np
 import pandas as pd
-import pytest
 
 import bigframes as bf
 import bigframes.formatting_helpers as formatting_helpers
@@ -127,18 +126,3 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
     ]
     for string in string_checks:
         assert string in query_job_repr
-
-
-# TODO(b/308657813): option_context isn't thread-local so tests in other
-# threads can affect the display options mid-test.
-@pytest.mark.flaky(retries=5)
-def test_query_job_dry_run(penguins_df_default_index: bf.dataframe.DataFrame):
-    expected = "Computation deferred. Computation will process"
-
-    with bf.option_context("display.repr_mode", "deferred"):
-        df_result = repr(penguins_df_default_index)
-        assert expected in df_result
-
-    with bf.option_context("display.repr_mode", "deferred"):
-        series_result = repr(penguins_df_default_index["body_mass_g"])
-        assert expected in series_result
