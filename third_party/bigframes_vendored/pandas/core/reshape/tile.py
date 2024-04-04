@@ -89,7 +89,7 @@ def cut(
     Args:
         x (Series):
             The input Series to be binned. Must be 1-dimensional.
-        bins (int, pd.IntervalIndex, Iterable[Tuple[Union[int, float], Union[int, float]]], Iterable[Union[int, float]]):
+        bins (int, pd.IntervalIndex, Iterable):
             The criteria to bin by.
 
             int: Defines the number of equal-width bins in the range of `x`. The
@@ -99,7 +99,7 @@ def cut(
             pd.IntervalIndex or Iterable of tuples: Defines the exact bins to be used.
             It's important to ensure that these bins are non-overlapping.
 
-            Iterable of floats or ints: Defines the exact bins by using the interval
+            Iterable of numerics: Defines the exact bins by using the interval
             between each item and its following item. The items must be monotonically
             increasing.
         labels (None):
