@@ -389,7 +389,14 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
             "flatten_json_output": True,
         }
 
-        df = self._bqml_model.generate_text_embedding(X, options)
+        df = self._bqml_model.generate_embedding(X, options)
+        df = df.rename(
+            columns={
+                "ml_generate_embedding_result": "text_embedding",
+                "ml_generate_embedding_statistics": "statistics",
+                "ml_generate_embedding_status": _ML_EMBED_TEXT_STATUS,
+            }
+        )
 
         if (df[_ML_EMBED_TEXT_STATUS] != "").any():
             warnings.warn(
@@ -420,6 +427,12 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 @log_adapter.class_logger
 class GeminiTextGenerator(base.BaseEstimator):
     """Gemini text generator LLM model.
+
+    .. note::
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         session (bigframes.Session or None):

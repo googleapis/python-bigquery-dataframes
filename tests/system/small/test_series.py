@@ -1481,7 +1481,7 @@ def test_groupby_prod(scalars_dfs):
     bf_series = scalars_df[col_name].groupby(scalars_df["int64_col"]).prod()
     pd_series = (
         scalars_pandas_df[col_name].groupby(scalars_pandas_df["int64_col"]).prod()
-    )
+    ).astype(pd.Float64Dtype())
     # TODO(swast): Update groupby to use index based on group by key(s).
     bf_result = bf_series.to_pandas()
     assert_series_equal(
@@ -2783,6 +2783,12 @@ def test_string_astype_float():
 
 
 def test_string_astype_date():
+    if int(pa.__version__.split(".")[0]) < 15:
+        pytest.skip(
+            "Avoid pyarrow.lib.ArrowNotImplementedError: "
+            "Unsupported cast from string to date32 using function cast_date32."
+        )
+
     pd_series = pd.Series(["2014-08-15", "2215-08-15", "2016-02-29"]).astype(
         pd.ArrowDtype(pa.string())
     )
