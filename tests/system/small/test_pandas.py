@@ -427,10 +427,9 @@ def test_cut_default_labels(scalars_dfs):
 def test_cut_numeric_breaks(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    pd_result = pd.cut(scalars_pandas_df["float64_col"], [0, 5, 10, 15, 20, 100, 1000])
-    bf_result = bpd.cut(
-        scalars_df["float64_col"], [0, 5, 10, 15, 20, 100, 1000]
-    ).to_pandas()
+    breaks = [0, 5, 10, 15, 20, 100, 1000]
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], breaks)
+    bf_result = bpd.cut(scalars_df["float64_col"], breaks).to_pandas()
 
     # Convert to match data format
     pd_result_converted = pd.Series(
