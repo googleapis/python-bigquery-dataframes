@@ -337,7 +337,8 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     # cloud function would be common and quickly reused.
     @session_with_bq_connection.remote_function([int], int)
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
