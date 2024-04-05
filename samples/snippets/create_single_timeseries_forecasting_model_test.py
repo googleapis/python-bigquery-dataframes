@@ -79,3 +79,18 @@ def test_create_single_timeseries(random_model_id):
     [horizon AS horizon]
     [, confidence_level AS confidence_level]))
     '''
+    total_visits.plot.line(x = 'history_timestamp', y = 'history_value')
+    
+    # Visualize the forecasting results without having decompose_time_series enabled.
+    df = bpd.read_gbq(
+    'bigquery-public-data.google_analytics_sample.ga_sessions_*'
+    )
+    parsed_date = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
+    visits = df["totals"].struct.field("visits")
+    df = bpd.DataFrame(
+    {
+        'history_timestamp': parsed_date,
+        'history_value': visits,
+    }
+    )
+    total_visits = df.groupby(["history_timestamp"], as_index = False).sum(numeric_only= True)
