@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (t
 # you may not use this file except in compliance wi
@@ -79,3 +79,4 @@ def test_create_single_timeseries(random_model_id):
     [horizon AS horizon]
     [, confidence_level AS confidence_level]))
     '''
+    # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
