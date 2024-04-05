@@ -3,18 +3,18 @@ Data structure for 1-dimensional cross-sectional and time series data
 """
 from __future__ import annotations
 
-from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
+from typing import Hashable, IO, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
 
+from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy as np
 from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
 
 from bigframes import constants
-from third_party.bigframes_vendored.pandas.core.generic import NDFrame
 
 if TYPE_CHECKING:
-    from third_party.bigframes_vendored.pandas.core.frame import DataFrame
-    from third_party.bigframes_vendored.pandas.core.groupby import SeriesGroupBy
+    from bigframes_vendored.pandas.core.frame import DataFrame
+    from bigframes_vendored.pandas.core.groupby import SeriesGroupBy
 
 
 class Series(NDFrame):  # type: ignore[misc]
@@ -71,7 +71,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s.index # doctest: +ELLIPSIS
             Index([10, 20, 30], dtype='Int64')
             >>> s.index.values
-            array([10, 20, 30], dtype=object)
+            array([10, 20, 30])
 
         Let's try setting a multi-index case reflect via ``index`` property.
 
@@ -87,7 +87,7 @@ class Series(NDFrame):  # type: ignore[misc]
             MultiIndex([( 'Alice',  'Seattle'),
                 (   'Bob', 'New York'),
                 ('Aritra',     'Kona')],
-               name='Name')
+               names=['Name', 'Location'])
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -535,59 +535,6 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_json(
-        self,
-        path_or_buf=None,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
-        **kwarg,
-    ) -> str | None:
-        """
-        Convert the object to a JSON string.
-
-        Note NaN's and None will be converted to null and datetime objects
-        will be converted to UNIX timestamps.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string.
-            orient ({"split", "records", "index", "columns", "values", "table"}, default "columns"):
-                Indication of expected JSON string format.
-                'split' : dict like {{'index' -> [index], 'columns' -> [columns],'data' -> [values]}}
-                'records' : list like [{{column -> value}}, ... , {{column -> value}}]
-                'index' : dict like {{index -> {{column -> value}}}}
-                'columns' : dict like {{column -> {{index -> value}}}}
-                'values' : just the values array
-                'table' : dict like {{'schema': {{schema}}, 'data': {{data}}}}
-                Describing the data, where data component is like ``orient='records'``.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting json format as a
-                string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    def to_csv(self, path_or_buf: str, *, index: bool = True) -> str | None:
-        """
-        Write object to a comma-separated values (csv) file.
-
-        Args:
-            path_or_buf (str, path object, file-like object, or None, default None):
-                String, path object (implementing os.PathLike[str]), or file-like
-                object implementing a write() function. If None, the result is
-                returned as a string. If a non-binary file object is passed, it should
-                be opened with `newline=''`, disabling universal newlines. If a binary
-                file object is passed, `mode` might need to contain a `'b'`.
-
-        Returns:
-            None or str: If path_or_buf is None, returns the resulting csv format
-                as a string. Otherwise returns None.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
     def agg(self, func):
         """
         Aggregate using one or more operations over the specified axis.
@@ -801,6 +748,34 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             bigframes.series.Series: Rounded values of the Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        """
+        Transform each element of a list-like to a row.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([[1, 2, 3], [], [3, 4]])
+            >>> s.explode()
+            0       1
+            0       2
+            0       3
+            1    <NA>
+            2       3
+            2       4
+            dtype: Int64
+
+        Args:
+            ignore_index (bool, default False):
+                If True, the resulting index will be labeled 0, 1, …, n - 1.
+
+        Returns:
+            bigframes.series.Series: Exploded lists to rows; index will be duplicated for these rows.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2088,11 +2063,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> a = bpd.Series([1, 2, 3, bpd.NA])
             >>> a
-            0     1.0
-            1     2.0
-            2     3.0
+            0       1
+            1       2
+            2       3
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
             >>> b = bpd.Series([10, 20, 30, 40])
             >>> b
@@ -2103,20 +2078,20 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> a.add(b)
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         You can also use the mathematical operator ``+``:
 
             >>> a + b
-            0    11.0
-            1    22.0
-            2    33.0
+            0      11
+            1      22
+            2      33
             3    <NA>
-            dtype: Float64
+            dtype: Int64
 
         Adding two Series with explicit indexes:
 
@@ -2424,12 +2399,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.max()
-            3.0
+            3
 
         Returns:
             scalar: Scalar.
@@ -2464,12 +2439,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.min()
-            1.0
+            1
 
         Returns:
             scalar: Scalar.
@@ -2551,12 +2526,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.sum()
-            4.0
+            4
 
         Returns:
             scalar: Scalar.
@@ -2585,10 +2560,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 3, bpd.NA])
             >>> s
-            0     1.0
-            1     3.0
+            0       1
+            1       3
             2    <NA>
-            dtype: Float64
+            dtype: Int64
             >>> s.mean()
             2.0
 
@@ -3111,6 +3086,17 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    @property
+    def plot(self):
+        """
+        Make plots of Series.
+
+        Returns:
+            bigframes.operations.plotting.PlotAccessor:
+                An accessor making plots.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def isin(self, values):
         """
         Whether elements in Series are contained in values.
@@ -3302,17 +3288,38 @@ class Series(NDFrame):  # type: ignore[misc]
 
     @property
     def iloc(self):
-        """Purely integer-location based indexing for selection by position."""
+        """Purely integer-location based indexing for selection by position.
+
+        Returns:
+            bigframes.core.indexers.IlocSeriesIndexer: Purely integer-location Indexers.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def loc(self):
+        """Access a group of rows and columns by label(s) or a boolean array.
+
+        Returns:
+            bigframes.core.indexers.LocSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def iat(self):
-        """Access a single value for a row/column pair by integer position."""
+        """Access a single value for a row/column pair by integer position.
+
+        Returns:
+            bigframes.core.indexers.IatSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def at(self):
-        """Access a single value for a row/column label pair."""
+        """Access a single value for a row/column label pair.
+
+        Returns:
+            bigframes.core.indexers.AtSeriesIndexer: Indexers object.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -3326,7 +3333,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> bpd.Series([1, 2, 3]).values
-            array([1, 2, 3], dtype=object)
+            array([1, 2, 3])
 
             >>> bpd.Series(list('aabc')).values
             array(['a', 'a', 'b', 'c'], dtype=object)

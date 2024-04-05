@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
 import sys
 import textwrap
@@ -34,6 +35,8 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
+import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -47,6 +50,7 @@ import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.convert
 import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.guid
@@ -59,19 +63,18 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
-import third_party.bigframes_vendored.pandas.core.frame as vendored_pandas_frame
-import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 
 if typing.TYPE_CHECKING:
     import bigframes.session
 
+    SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
-SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
 
 ERROR_IO_ONLY_GS_PATHS = f"Only Google Cloud Storage (gs://...) paths are supported. {constants.FEEDBACK_LINK}"
 ERROR_IO_REQUIRES_WILDCARD = (
@@ -171,6 +174,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
         self._query_job: Optional[bigquery.QueryJob] = None
+
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._block.expr.validate_schema()
 
     def __dir__(self):
         return dir(type(self)) + [
@@ -298,6 +306,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def values(self) -> numpy.ndarray:
         return self.to_numpy()
+
+    @property
+    def bqclient(self) -> bigframes.Session:
+        """BigQuery REST API Client the DataFrame uses for operations."""
+        return self._session.bqclient
 
     @property
     def _session(self) -> bigframes.Session:
@@ -524,7 +537,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ) = self._block.join(key._block, how="left")
         block = combined_index
         filter_col_id = get_column_right[key._value_column]
-        block = block.filter(filter_col_id)
+        block = block.filter_by_id(filter_col_id)
         block = block.drop_columns([filter_col_id])
         return DataFrame(block)
 
@@ -651,22 +664,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int)):
+        if isinstance(other, (float, int, bool)):
             return self._apply_scalar_binop(other, op, reverse=reverse)
-        elif isinstance(other, indexes.Index):
-            return self._apply_series_binop(
-                other.to_series(index=self.index),
-                op,
-                axis=axis,
-                how=how,
-                reverse=reverse,
-            )
-        elif isinstance(other, bigframes.series.Series):
-            return self._apply_series_binop(
-                other, op, axis=axis, how=how, reverse=reverse
-            )
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
+        elif isinstance(other, pandas.DataFrame):
+            return self._apply_dataframe_binop(
+                DataFrame(other), op, how=how, reverse=reverse
+            )
+        elif utils.get_axis_number(axis) == 0:
+            bf_series = bigframes.core.convert.to_bf_series(other, self.index)
+            return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
+        elif utils.get_axis_number(axis) == 1:
+            pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
+            return self._apply_series_binop_axis_1(pd_series, op, how, reverse)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
             f"{constants.FEEDBACK_LINK}"
@@ -688,22 +699,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.drop_columns([column_id])
         return DataFrame(block)
 
-    def _apply_series_binop(
+    def _apply_series_binop_axis_0(
         self,
         other: bigframes.series.Series,
         op: ops.BinaryOp,
-        axis: str | int = "columns",
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
-        if axis not in ("columns", "index", 0, 1):
-            raise ValueError(f"Invalid input: axis {axis}.")
-
-        if axis in ("columns", 1):
-            raise NotImplementedError(
-                f"Row Series operations haven't been supported. {constants.FEEDBACK_LINK}"
-            )
-
         block, (get_column_left, get_column_right) = self._block.join(
             other._block, how=how
         )
@@ -725,6 +727,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.drop_columns([series_col])
         block = block.with_index_labels(self.index.names)
         return DataFrame(block)
+
+    def _apply_series_binop_axis_1(
+        self,
+        other: pandas.Series,
+        op: ops.BinaryOp,
+        how: str = "outer",
+        reverse: bool = False,
+    ) -> DataFrame:
+        # Somewhat different alignment than df-df so separate codepath for now.
+        if self.columns.equals(other.index):
+            columns, lcol_indexer, rcol_indexer = self.columns, None, None
+        else:
+            if not (self.columns.is_unique and other.index.is_unique):
+                raise ValueError("Cannot align non-unique indices")
+            columns, lcol_indexer, rcol_indexer = self.columns.join(
+                other.index, how=how, return_indexers=True
+            )
+
+        binop_result_ids = []
+
+        column_indices = zip(
+            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
+        )
+
+        block = self._block
+        for left_index, right_index in column_indices:
+            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
+                self_col_id = self._block.value_columns[left_index]
+                other_scalar = other.iloc[right_index]
+                expr = (
+                    op.as_expr(ex.const(other_scalar), self_col_id)
+                    if reverse
+                    else op.as_expr(self_col_id, ex.const(other_scalar))
+                )
+            elif left_index >= 0:
+                self_col_id = self._block.value_columns[left_index]
+                expr = (
+                    op.as_expr(ex.const(None), self_col_id)
+                    if reverse
+                    else op.as_expr(self_col_id, ex.const(None))
+                )
+            elif right_index >= 0:
+                other_scalar = other.iloc[right_index]
+                expr = (
+                    op.as_expr(ex.const(other_scalar), ex.const(None))
+                    if reverse
+                    else op.as_expr(ex.const(None), ex.const(other_scalar))
+                )
+            else:
+                # Should not be possible
+                raise ValueError("No right or left index.")
+            block, result_col_id = block.project_expr(expr)
+            binop_result_ids.append(result_col_id)
+
+        block = block.select_columns(binop_result_ids)
+        return DataFrame(block.with_column_labels(columns))
 
     def _apply_dataframe_binop(
         self,
@@ -1012,17 +1071,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"min_periods not yet supported. {constants.FEEDBACK_LINK}"
             )
-        if len(self.columns) > 30:
-            raise NotImplementedError(
-                f"Only work with dataframes containing fewer than 30 columns. Current: {len(self.columns)}. {constants.FEEDBACK_LINK}"
-            )
 
         if not numeric_only:
             frame = self._raise_on_non_numeric("corr")
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.corr())
+        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+
+    def cov(self, *, numeric_only: bool = False) -> DataFrame:
+        if not numeric_only:
+            frame = self._raise_on_non_numeric("corr")
+        else:
+            frame = self._drop_non_numeric()
+
+        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
 
     def to_pandas(
         self,
@@ -1060,6 +1123,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1071,6 +1135,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame"""
+        self._optimize_query_complexity()
         return self._block.to_pandas_batches()
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
@@ -1085,19 +1150,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = False) -> pandas.DataFrame:
+    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
-        DataFrame.peek(force=False) will always be very fast, but will not succeed if data requires
-        full data scanning. Using force=True will always succeed, but may be perform expensive
-        computations.
+        ``DataFrame.peek(force=False)`` will always be very fast, but will not succeed if data requires
+        full data scanning. Using ``force=True`` will always succeed, but may be perform queries.
+        Query results will be cached so that future steps will benefit from these queries.
 
         Args:
             n (int, default 5):
                 The number of rows to select from the dataframe. Which N rows are returned is non-deterministic.
-            force (bool, default False):
+            force (bool, default True):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
-                of the operation if force=True. If force=False, the operation will throw a ValueError.
+                of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
@@ -1108,7 +1173,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n)
+                maybe_result = self._block.try_peek(n, force=True)
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -1192,7 +1257,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block, condition_id = block.project_expr(
                     ops.ne_op.as_expr(level_id, ex.const(index))
                 )
-            block = block.filter(condition_id, keep_null=True).select_columns(
+            block = block.filter_by_id(condition_id, keep_null=True).select_columns(
                 self._block.value_columns
             )
         if columns:
@@ -1213,7 +1278,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ops.isnull_op,
         )
 
-        drop_block = drop_block.filter(drop_col)
+        drop_block = drop_block.filter_by_id(drop_col)
         original_columns = [
             get_column_left[column] for column in self._block.value_columns
         ]
@@ -1437,13 +1502,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
-        direction = (
-            order.OrderingDirection.ASC if ascending else order.OrderingDirection.DESC
-        )
         na_last = na_position == "last"
         index_columns = self._block.index_columns
         ordering = [
-            order.OrderingColumnReference(column, direction=direction, na_last=na_last)
+            order.ascending_over(column, na_last)
+            if ascending
+            else order.descending_over(column, na_last)
             for column in index_columns
         ]
         return DataFrame(self._block.order_by(ordering))
@@ -1473,18 +1537,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordering = []
         for i in range(len(sort_labels)):
             column_id = sort_column_ids[i]
-            direction = (
-                order.OrderingDirection.ASC
-                if sort_directions[i]
-                else order.OrderingDirection.DESC
-            )
+            is_ascending = sort_directions[i]
             na_last = na_position == "last"
             ordering.append(
-                order.OrderingColumnReference(
-                    column_id, direction=direction, na_last=na_last
-                )
+                order.ascending_over(column_id, na_last)
+                if is_ascending
+                else order.descending_over(column_id, na_last)
             )
         return DataFrame(self._block.order_by(ordering))
+
+    def eval(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        return bf_eval.eval(self, expr, target=self)
+
+    def query(self, expr: str) -> DataFrame:
+        import bigframes.core.eval as bf_eval
+
+        eval_result = bf_eval.eval(self, expr, target=None)
+        return self[eval_result]
 
     def value_counts(
         self,
@@ -1557,7 +1628,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     label_string_id, ops.StrContainsRegexOp(pat=regex)
                 )
 
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns(self._block.value_columns)
             return DataFrame(block)
         elif items is not None:
@@ -1566,7 +1637,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block, mask_id = block.apply_unary_op(
                 self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
-            block = block.filter(mask_id)
+            block = block.filter_by_id(mask_id)
             block = block.select_columns(self._block.value_columns)
             return DataFrame(block)
         else:
@@ -1645,7 +1716,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise NotImplementedError(
                     "Cannot reindex with index with different nlevels"
                 )
-            new_indexer = DataFrame(index=index)[[]]
+            new_indexer = DataFrame(index=index, session=self._session)[[]]
         # multiindex join is senstive to index names, so we will set all these
         result = new_indexer.rename_axis(range(new_indexer.index.nlevels)).join(
             self.rename_axis(range(self.index.nlevels)),
@@ -2309,7 +2380,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return left._perform_join_by_index(right, how=how)
 
-    def _perform_join_by_index(self, other: DataFrame, *, how: str = "left"):
+    def _perform_join_by_index(
+        self, other: Union[DataFrame, indexes.Index], *, how: str = "left"
+    ):
         block, _ = self._block.join(other._block, how=how, block_identity_join=True)
         return DataFrame(block)
 
@@ -2334,6 +2407,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             blocks.Label,
             bigframes.series.Series,
             typing.Sequence[typing.Union[blocks.Label, bigframes.series.Series]],
+            None,
         ] = None,
         *,
         level: typing.Optional[LevelsType] = None,
@@ -2493,6 +2567,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         frac: Optional[float] = None,
         *,
         random_state: Optional[int] = None,
+        sort: Optional[bool | Literal["random"]] = "random",
     ) -> DataFrame:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
@@ -2500,7 +2575,39 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return DataFrame(
-            self._block._split(ns=ns, fracs=fracs, random_state=random_state)[0]
+            self._block._split(
+                ns=ns, fracs=fracs, random_state=random_state, sort=sort
+            )[0]
+        )
+
+    def explode(
+        self,
+        column: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        ignore_index: Optional[bool] = False,
+    ) -> DataFrame:
+        if not utils.is_list_like(column):
+            column_labels = typing.cast(typing.Sequence[blocks.Label], (column,))
+        else:
+            column_labels = typing.cast(typing.Sequence[blocks.Label], tuple(column))
+
+        if not column_labels:
+            raise ValueError("column must be nonempty")
+        if len(column_labels) > len(set(column_labels)):
+            raise ValueError("column must be unique")
+
+        column_ids = [self._resolve_label_exact(label) for label in column_labels]
+        missing = [
+            column_labels[i] for i in range(len(column_ids)) if column_ids[i] is None
+        ]
+        if len(missing) > 0:
+            raise KeyError(f"None of {missing} are in the columns")
+
+        return DataFrame(
+            self._block.explode(
+                column_ids=typing.cast(typing.Sequence[str], tuple(column_ids)),
+                ignore_index=ignore_index,
+            )
         )
 
     def _split(
@@ -2587,16 +2694,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        if lines is True and orient != "records":
-            raise ValueError(
-                "'lines' keyword is only valid when 'orient' is 'records'."
-            )
-
         # TODO(ashleyxu) Support lines=False for small tables with arrays and TO_JSON_STRING.
         # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#to_json_string
         if lines is False:
             raise NotImplementedError(
-                f"Only newline delimited JSON format is supported. {constants.FEEDBACK_LINK}"
+                f"Only newline-delimited JSON is supported. Add `lines=True` to your function call. {constants.FEEDBACK_LINK}"
+            )
+
+        if lines is True and orient != "records":
+            raise ValueError(
+                "'lines' keyword is only valid when 'orient' is 'records'."
             )
 
         result_table = self._run_io_query(
@@ -2932,8 +3039,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return clustering_columns_for_index + clustering_columns_for_df
 
-    def _create_io_query(self, index: bool, ordering_id: Optional[str]) -> str:
-        """Create query text representing this dataframe for I/O."""
+    def _prepare_export(
+        self, index: bool, ordering_id: Optional[str]
+    ) -> Tuple[bigframes.core.ArrayValue, Dict[str, str]]:
         array_value = self._block.expr
 
         new_col_labels, new_idx_labels = utils.get_standardized_ids(
@@ -2961,10 +3069,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if ordering_id is not None:
             array_value = array_value.promote_offsets(ordering_id)
-        return self._block.session._to_sql(
-            array_value=array_value,
-            col_id_overrides=id_overrides,
-        )
+        return array_value, id_overrides
 
     def _run_io_query(
         self,
@@ -2974,11 +3079,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> bigquery.TableReference:
         """Executes a query job presenting this dataframe and returns the destination
         table."""
-        expr = self._block.expr
-        session = expr.session
-        sql = self._create_io_query(index=index, ordering_id=ordering_id)
-        _, query_job = session._start_query(
-            sql=sql, job_config=job_config  # type: ignore
+        session = self._block.expr.session
+        self._optimize_query_complexity()
+        export_array, id_overrides = self._prepare_export(
+            index=index, ordering_id=ordering_id
+        )
+
+        _, query_job = session._execute(
+            export_array,
+            job_config=job_config,
+            sorted=False,
+            col_id_overrides=id_overrides,
         )
         self._set_internal_query_job(query_job)
 
@@ -3106,6 +3217,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_block(self._block.cached(force=force))
         return self
 
+    def _optimize_query_complexity(self):
+        """Reduce query complexity by caching repeated subtrees and recursively materializing maximum-complexity subtrees.
+        May generate many queries and take substantial time to execute.
+        """
+        # TODO: Move all this to session
+        new_expr = self._session._simplify_with_caching(self._block.expr)
+        self._set_block(self._block.swap_array_expr(new_expr))
+
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
@@ -3189,5 +3308,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             result = result[result.columns[0]].rename()
 
         return result
+
+    @property
+    def plot(self):
+        return plotting.PlotAccessor(self)
 
     __matmul__ = dot

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 import importlib.util
 import inspect
 import math  # must keep this at top level to test udf referring global import
@@ -21,26 +20,19 @@ import shutil
 import tempfile
 import textwrap
 
-from google.api_core.exceptions import NotFound, ResourceExhausted
-from google.cloud import bigquery, functions_v2
+from google.api_core.exceptions import BadRequest, NotFound
+from google.cloud import bigquery, storage
 import pandas
 import pytest
 import test_utils.prefixer
 
 import bigframes
-from bigframes.functions.remote_function import (
-    get_cloud_function_name,
-    get_remote_function_locations,
+from bigframes.functions.remote_function import get_cloud_function_name
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    delete_cloud_function,
+    get_cloud_functions,
 )
-from tests.system.utils import assert_pandas_df_equal
-
-# Use this to control the number of cloud functions being deleted in a single
-# test session. This should help soften the spike of the number of mutations per
-# minute tracked against a quota limit (default 60, increased to 120 for
-# bigframes-dev project) by the Cloud Functions API
-# We are running pytest with "-n 20". Let's say each session lasts about a
-# minute, so we are setting a limit of 120/20 = 6 deletions per session.
-_MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 6
 
 # NOTE: Keep this import at the top level to test global var behavior with
 # remote functions
@@ -48,57 +40,8 @@ _team_pi = "Team Pi"
 _team_euler = "Team Euler"
 
 
-def get_remote_function_endpoints(bigquery_client, dataset_id):
-    """Get endpoints used by the remote functions in a datset"""
-    endpoints = set()
-    routines = bigquery_client.list_routines(dataset=dataset_id)
-    for routine in routines:
-        rf_options = routine._properties.get("remoteFunctionOptions")
-        if not rf_options:
-            continue
-        rf_endpoint = rf_options.get("endpoint")
-        if rf_endpoint:
-            endpoints.add(rf_endpoint)
-    return endpoints
-
-
-def get_cloud_functions(
-    functions_client, project, location, name=None, name_prefix=None
-):
-    """Get the cloud functions in the given project and location."""
-
-    assert (
-        not name or not name_prefix
-    ), f"At most one of the {name.__name__} or {name_prefix.__name__} can be passed."
-
-    _, location = get_remote_function_locations(location)
-    parent = f"projects/{project}/locations/{location}"
-    request = functions_v2.ListFunctionsRequest(parent=parent)
-    page_result = functions_client.list_functions(request=request)
-    for response in page_result:
-        # If name is provided and it does not match then skip
-        if bool(name):
-            full_name = parent + f"/functions/{name}"
-            if response.name != full_name:
-                continue
-        # If name prefix is provided and it does not match then skip
-        elif bool(name_prefix):
-            full_name_prefix = parent + f"/functions/{name_prefix}"
-            if not response.name.startswith(full_name_prefix):
-                continue
-
-        yield response
-
-
-def delete_cloud_function(functions_client, full_name):
-    """Delete a cloud function with the given fully qualified name."""
-    request = functions_v2.DeleteFunctionRequest(name=full_name)
-    operation = functions_client.delete_function(request=request)
-    return operation
-
-
 def cleanup_remote_function_assets(
-    bigquery_client, functions_client, remote_udf, ignore_failures=True
+    bigquery_client, cloudfunctions_client, remote_udf, ignore_failures=True
 ):
     """Clean up the GCP assets behind a bigframes remote function."""
 
@@ -112,7 +55,9 @@ def cleanup_remote_function_assets(
 
     # Clean up cloud function
     try:
-        delete_cloud_function(functions_client, remote_udf.bigframes_cloud_function)
+        delete_cloud_function(
+            cloudfunctions_client, remote_udf.bigframes_cloud_function
+        )
     except Exception:
         # By default don't raise exception in cleanup
         if not ignore_failures:
@@ -169,70 +114,14 @@ def bq_cf_connection() -> str:
     return "bigframes-rf-conn"
 
 
-@pytest.fixture(scope="module")
-def functions_client() -> functions_v2.FunctionServiceClient:
-    """Cloud Functions client"""
-    return functions_v2.FunctionServiceClient()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def cleanup_cloud_functions(session, functions_client, dataset_id_permanent):
-    """Clean up stale cloud functions."""
-    permanent_endpoints = get_remote_function_endpoints(
-        session.bqclient, dataset_id_permanent
-    )
-    delete_count = 0
-    for cloud_function in get_cloud_functions(
-        functions_client,
-        session.bqclient.project,
-        session.bqclient.location,
-        name_prefix="bigframes-",
-    ):
-        # Ignore bigframes cloud functions referred by the remote functions in
-        # the permanent dataset
-        if cloud_function.service_config.uri in permanent_endpoints:
-            continue
-
-        # Ignore the functions less than one day old
-        age = datetime.now() - datetime.fromtimestamp(
-            cloud_function.update_time.timestamp()
-        )
-        if age.days <= 0:
-            continue
-
-        # Go ahead and delete
-        try:
-            delete_cloud_function(functions_client, cloud_function.name)
-            delete_count += 1
-            if delete_count >= _MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
-                break
-        except NotFound:
-            # This can happen when multiple pytest sessions are running in
-            # parallel. Two or more sessions may discover the same cloud
-            # function, but only one of them would be able to delete it
-            # successfully, while the other instance will run into this
-            # exception. Ignore this exception.
-            pass
-        except ResourceExhausted:
-            # This can happen if we are hitting GCP limits, e.g.
-            # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
-            # for quota metric 'Per project mutation requests' and limit
-            # 'Per project mutation requests per minute per region' of service
-            # 'cloudfunctions.googleapis.com' for consumer
-            # 'project_number:1084210331973'.
-            # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
-            # Let's stop further clean up and leave it to later.
-            break
-
-
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_multiply_with_ibis(
     session,
     scalars_table_id,
+    bigquery_client,
     ibis_client,
     dataset_id,
     bq_cf_connection,
-    functions_client,
 ):
     try:
 
@@ -246,20 +135,22 @@ def test_remote_function_multiply_with_ibis(
         def multiply(x, y):
             return x * y
 
-        project_id, dataset_name, table_name = scalars_table_id.split(".")
+        _, dataset_name, table_name = scalars_table_id.split(".")
         if not ibis_client.dataset:
             ibis_client.dataset = dataset_name
 
         col_name = "int64_col"
         table = ibis_client.tables[table_name]
         table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        pandas_df_orig = table.execute()
+        sql = table.compile()
+        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
 
         col = table[col_name]
         col_2x = multiply(col, 2).name("int64_col_2x")
         col_square = multiply(col, col).name("int64_col_square")
         table = table.mutate([col_2x, col_square])
-        pandas_df_new = table.execute()
+        sql = table.compile()
+        pandas_df_new = bigquery_client.query(sql).to_dataframe()
 
         pandas.testing.assert_series_equal(
             pandas_df_orig[col_name] * 2,
@@ -274,17 +165,19 @@ def test_remote_function_multiply_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, functions_client, multiply)
+        cleanup_remote_function_assets(
+            bigquery_client, session.cloudfunctionsclient, multiply
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_stringify_with_ibis(
     session,
     scalars_table_id,
+    bigquery_client,
     ibis_client,
     dataset_id,
     bq_cf_connection,
-    functions_client,
 ):
     try:
 
@@ -298,19 +191,21 @@ def test_remote_function_stringify_with_ibis(
         def stringify(x):
             return f"I got {x}"
 
-        project_id, dataset_name, table_name = scalars_table_id.split(".")
+        _, dataset_name, table_name = scalars_table_id.split(".")
         if not ibis_client.dataset:
             ibis_client.dataset = dataset_name
 
         col_name = "int64_col"
         table = ibis_client.tables[table_name]
         table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        pandas_df_orig = table.execute()
+        sql = table.compile()
+        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
 
         col = table[col_name]
         col_2x = stringify(col).name("int64_str_col")
         table = table.mutate([col_2x])
-        pandas_df_new = table.execute()
+        sql = table.compile()
+        pandas_df_new = bigquery_client.query(sql).to_dataframe()
 
         pandas.testing.assert_series_equal(
             pandas_df_orig[col_name].apply(lambda x: f"I got {x}"),
@@ -319,12 +214,14 @@ def test_remote_function_stringify_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, functions_client, stringify)
+        cleanup_remote_function_assets(
+            bigquery_client, session.cloudfunctionsclient, stringify
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_decorator_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -362,12 +259,14 @@ def test_remote_function_decorator_with_bigframes_series(
         assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, functions_client, square)
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_explicit_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -407,13 +306,16 @@ def test_remote_function_explicit_with_bigframes_series(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, remote_add_one
+            session.bqclient, session.cloudfunctionsclient, remote_add_one
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_explicit_dataset_not_created(
-    session, scalars_dfs, dataset_id_not_created, bq_cf_connection, functions_client
+    session,
+    scalars_dfs,
+    dataset_id_not_created,
+    bq_cf_connection,
 ):
     try:
 
@@ -451,12 +353,14 @@ def test_remote_function_explicit_dataset_not_created(
         assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, functions_client, square)
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_var(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
         POSITIVE_SIGN = 1
@@ -502,12 +406,14 @@ def test_remote_udf_referring_outside_var(
         assert_pandas_df_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(session.bqclient, functions_client, remote_sign)
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, remote_sign
+        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_outside_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
         import math as mymath
@@ -548,13 +454,13 @@ def test_remote_udf_referring_outside_import(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, remote_circumference
+            session.bqclient, session.cloudfunctionsclient, remote_circumference
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_referring_global_var_and_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -597,7 +503,7 @@ def test_remote_udf_referring_global_var_and_import(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, remote_find_team
+            session.bqclient, session.cloudfunctionsclient, remote_find_team
         )
 
 
@@ -607,7 +513,6 @@ def test_remote_function_restore_with_bigframes_series(
     scalars_dfs,
     dataset_id,
     bq_cf_connection,
-    functions_client,
 ):
     try:
 
@@ -623,7 +528,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be no cloud function yet for the unique udf
         cloud_functions = list(
             get_cloud_functions(
-                functions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -644,7 +549,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should have been excactly one cloud function created at this point
         cloud_functions = list(
             get_cloud_functions(
-                functions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -684,7 +589,7 @@ def test_remote_function_restore_with_bigframes_series(
 
         # Let's delete the cloud function while not touching the bq remote function
         delete_operation = delete_cloud_function(
-            functions_client, cloud_functions[0].name
+            session.cloudfunctionsclient, cloud_functions[0].name
         )
         delete_operation.result()
         assert delete_operation.done()
@@ -692,7 +597,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be no cloud functions at this point for the uniq udf
         cloud_functions = list(
             get_cloud_functions(
-                functions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -714,7 +619,7 @@ def test_remote_function_restore_with_bigframes_series(
         # There should be excactly one cloud function again
         cloud_functions = list(
             get_cloud_functions(
-                functions_client,
+                session.cloudfunctionsclient,
                 session.bqclient.project,
                 session.bqclient.location,
                 name=add_one_uniq_cf_name,
@@ -731,13 +636,13 @@ def test_remote_function_restore_with_bigframes_series(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, remote_add_one
+            session.bqclient, session.cloudfunctionsclient, remote_add_one
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_default_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -771,13 +676,13 @@ def test_remote_udf_mask_default_value(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, is_odd_remote
+            session.bqclient, session.cloudfunctionsclient, is_odd_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_custom_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -814,14 +719,12 @@ def test_remote_udf_mask_custom_value(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, is_odd_remote
+            session.bqclient, session.cloudfunctionsclient, is_odd_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_lambda(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
-):
+def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
     try:
         add_one_lambda = lambda x: x + 1  # noqa: E731
 
@@ -858,13 +761,13 @@ def test_remote_udf_lambda(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, add_one_lambda_remote
+            session.bqclient, session.cloudfunctionsclient, add_one_lambda_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -915,13 +818,13 @@ def test_remote_function_with_explicit_name(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, square_remote
+            session.bqclient, session.cloudfunctionsclient, square_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_external_package_dependencies(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -960,13 +863,13 @@ def test_remote_function_with_external_package_dependencies(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, pd_np_foo_remote
+            session.bqclient, session.cloudfunctionsclient, pd_np_foo_remote
         )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name_reuse(
-    session, scalars_dfs, dataset_id, bq_cf_connection, functions_client
+    session, scalars_dfs, dataset_id, bq_cf_connection
 ):
     try:
 
@@ -1113,13 +1016,13 @@ def test_remote_function_with_explicit_name_reuse(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, square_remote1
+            session.bqclient, session.cloudfunctionsclient, square_remote1
         )
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, square_remote2
+            session.bqclient, session.cloudfunctionsclient, square_remote2
         )
         cleanup_remote_function_assets(
-            session.bqclient, functions_client, plusone_remote
+            session.bqclient, session.cloudfunctionsclient, plusone_remote
         )
         for dir_ in dirs_to_cleanup:
             shutil.rmtree(dir_)
@@ -1144,7 +1047,7 @@ def test_remote_function_via_session_context_connection_setter(
         # unique dataset_id, even though the cloud function would be reused, the bq
         # remote function would still be created, making use of the bq connection
         # set in the BigQueryOptions above.
-        @session.remote_function([int], int, dataset=dataset_id)
+        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
         def square(x):
             return x * x
 
@@ -1181,7 +1084,7 @@ def test_remote_function_via_session_context_connection_setter(
 def test_remote_function_default_connection(session, scalars_dfs, dataset_id):
     try:
 
-        @session.remote_function([int], int, dataset=dataset_id)
+        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
         def square(x):
             return x * x
 
@@ -1207,6 +1110,28 @@ def test_remote_function_default_connection(session, scalars_dfs, dataset_id):
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
         assert_pandas_df_equal(bf_result, pd_result)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_runtime_error(session, scalars_dfs, dataset_id):
+    try:
+
+        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
+        def square(x):
+            return x * x
+
+        scalars_df, _ = scalars_dfs
+
+        with pytest.raises(
+            BadRequest, match="400.*errorMessage.*unsupported operand type"
+        ):
+            # int64_col has nulls which should cause error in square
+            scalars_df["int64_col"].apply(square).to_pandas()
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -1256,4 +1181,122 @@ def test_remote_function_anonymous_dataset(session, scalars_dfs):
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, square
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_via_session_custom_sa(scalars_dfs):
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Create a service account as per
+    #    https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console
+    # 2. Give necessary roles as per
+    #    https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration
+    #
+    project = "bigframes-dev-perf"
+    gcf_service_account = (
+        "bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com"
+    )
+
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+
+    try:
+
+        @rf_session.remote_function(
+            [int], int, reuse=False, cloud_function_service_account=gcf_service_account
+        )
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_col"]
+        bf_result_col = bf_int64_col.apply(square_num)
+        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
+
+        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x * x)
+        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+        assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+        # Assert that the GCF is created with the intended SA
+        gcf = rf_session.cloudfunctionsclient.get_function(
+            name=square_num.bigframes_cloud_function
+        )
+        assert gcf.service_config.service_account_email == gcf_service_account
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            rf_session.bqclient, rf_session.cloudfunctionsclient, square_num
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_with_gcf_cmek():
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Created an encryption key and granting the necessary service accounts
+    #    the required IAM permissions as per https://cloud.google.com/kms/docs/create-key
+    # 2. Created a docker repository with CMEK (created in step 1) enabled as per
+    #    https://cloud.google.com/artifact-registry/docs/repositories/create-repos#overview
+    #
+    project = "bigframes-dev-perf"
+    cmek = "projects/bigframes-dev-perf/locations/us-central1/keyRings/bigframesKeyRing/cryptoKeys/bigframesKey"
+    docker_repository = (
+        "projects/bigframes-dev-perf/locations/us-central1/repositories/rf-artifacts"
+    )
+
+    session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+    try:
+
+        @session.remote_function(
+            [int],
+            int,
+            reuse=False,
+            cloud_function_kms_key_name=cmek,
+            cloud_function_docker_repository=docker_repository,
+        )
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+        df = pandas.DataFrame({"num": [-1, 0, None, 1]}, dtype="Int64")
+        bf = session.read_pandas(df)
+
+        bf_result_col = bf["num"].apply(square_num)
+        bf_result = bf.assign(result=bf_result_col).to_pandas()
+
+        pd_result_col = df["num"].apply(lambda x: x if x is None else x * x)
+        pd_result = df.assign(result=pd_result_col)
+
+        assert_pandas_df_equal(
+            bf_result, pd_result, check_dtype=False, check_index_type=False
+        )
+
+        # Assert that the GCF is created with the intended SA
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_num.bigframes_cloud_function
+        )
+        assert gcf.kms_key_name == cmek
+
+        # Assert that GCS artifact has CMEK applied
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(gcf.build_config.source.storage_source.bucket)
+        blob = bucket.get_blob(gcf.build_config.source.storage_source.object_)
+        assert blob.kms_key_name.startswith(cmek)
+
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_num
         )

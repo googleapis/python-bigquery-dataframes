@@ -39,7 +39,7 @@ LINT_PATHS = ["docs", "bigframes", "tests", "third_party", "noxfile.py", "setup.
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -54,7 +54,7 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.11"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -112,8 +112,7 @@ def lint(session):
         "--check",
         *LINT_PATHS,
     )
-    # TODO(tswast): lint all LINT_PATHS
-    session.run("flake8", "bigframes", "tests")
+    session.run("flake8", *LINT_PATHS)
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -219,7 +218,10 @@ def unit_noextras(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def mypy(session):
     """Run type checks with mypy."""
-    session.install("-e", ".")
+    # Editable mode is not compatible with mypy when there are multiple
+    # package directories. See:
+    # https://github.com/python/mypy/issues/10564#issuecomment-851687749
+    session.install(".")
 
     # Just install the dependencies' type info directly, since "mypy --install-types"
     # might require an additional pass.
@@ -290,6 +292,7 @@ def run_system(
     install_test_extra=True,
     print_duration=False,
     extra_pytest_options=(),
+    timeout_seconds=900,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -311,7 +314,7 @@ def run_system(
         "--quiet",
         "-n=20",
         # Any individual test taking longer than 15 mins will be terminated.
-        "--timeout=900",
+        f"--timeout={timeout_seconds}",
         # Log 20 slowest tests
         "--durations=20",
         f"--junitxml={prefix_name}_{session.python}_sponge_log.xml",
@@ -337,8 +340,8 @@ def run_system(
     pytest_cmd.extend(extra_pytest_options)
     session.run(
         *pytest_cmd,
-        test_folder,
         *session.posargs,
+        test_folder,
     )
 
 
@@ -387,6 +390,18 @@ def e2e(session: nox.sessions.Session):
     )
 
 
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+def load(session: nox.sessions.Session):
+    """Run the very large tests in system test suite."""
+    run_system(
+        session=session,
+        prefix_name="load",
+        test_folder=os.path.join("tests", "system", "load"),
+        print_duration=True,
+        timeout_seconds=60 * 60 * 12,
+    )
+
+
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def samples(session):
     """Run the samples test suite."""
@@ -395,8 +410,8 @@ def samples(session):
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
 
-    # TODO(swast): Use `requirements.txt` files from the samples directories to
-    # test samples.
+    # TODO(b/332735129): Remove this session and use python_samples templates
+    # where each samples directory has its own noxfile.py file, instead.
     install_test_extra = True
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
@@ -418,12 +433,12 @@ def cover(session):
     session.run("coverage", "report", "--show-missing", "--fail-under=90")
 
     # Make sure there is no dead code in our test directories.
-    # TODO(swast): Cleanup dead code in the system tests directory.
     session.run(
         "coverage",
         "report",
         "--show-missing",
         "--include=tests/unit/*",
+        "--include=tests/system/small/*",
         "--fail-under=100",
     )
 
@@ -451,6 +466,12 @@ def docs(session):
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
+
+    session.run(
+        "python",
+        "scripts/publish_api_coverage.py",
+        "docs",
+    )
     session.run(
         "sphinx-build",
         "-W",  # warnings as errors
@@ -483,10 +504,16 @@ def docfx(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
-        "gcp-sphinx-docfx-yaml",
+        "gcp-sphinx-docfx-yaml==3.0.1",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
+
+    session.run(
+        "python",
+        "scripts/publish_api_coverage.py",
+        "docs",
+    )
     session.run(
         "sphinx-build",
         "-T",  # show full traceback on exception
@@ -540,22 +567,11 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--prefer-binary",
         "--pre",
         "--upgrade",
-        # TODO(shobs): Remove excluding version 2.1.4 after
-        # https://github.com/pandas-dev/pandas/issues/56463 is resolved.
-        #
-        # TODO(shobs): Remove excluding version 2.2.0rc0 after
-        # https://github.com/pandas-dev/pandas/issues/56646 and
-        # https://github.com/pandas-dev/pandas/issues/56651 are resolved.
-        #
-        # TODO(shobs): Remove excluding version 2.2.0 after
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/341
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/337
-        # are resolved
-        #
         # We exclude each version individually so that we can continue to test
         # some prerelease packages. See:
         # https://github.com/googleapis/python-bigquery-dataframes/pull/268#discussion_r1423205172
-        "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
+        # "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
+        "pandas",
     )
     already_installed.add("pandas")
 
@@ -697,9 +713,10 @@ def notebook(session: nox.Session):
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
         "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
-        # TODO(swast): investigate why we get 404 errors, even though
+        # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
+        "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.

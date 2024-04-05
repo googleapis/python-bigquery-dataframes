@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes.core.nodes as nodes
+import bigframes.operations._matplotlib.core as core
+import bigframes.operations._matplotlib.hist as hist
+
+PLOT_CLASSES: dict[str, type[core.MPLPlot]] = {
+    "hist": hist.HistPlot,
+    "line": core.LinePlot,
+    "area": core.AreaPlot,
+    "scatter": core.ScatterPlot,
+}
 
 
-def is_trivially_executable(node: nodes.BigFrameNode) -> bool:
-    if local_only(node):
-        return True
-    children_trivial = all(is_trivially_executable(child) for child in node.child_nodes)
-    self_trivial = (not node.non_local) and (node.row_preserving)
-    return children_trivial and self_trivial
+def plot(data, kind, **kwargs):
+    plot_obj = PLOT_CLASSES[kind](data, **kwargs)
+    plot_obj.generate()
+    plot_obj.draw()
+    return plot_obj.result
 
 
-def local_only(node: nodes.BigFrameNode) -> bool:
-    return all(isinstance(node, nodes.ReadLocalNode) for node in node.roots)
+__all__ = ["plot"]

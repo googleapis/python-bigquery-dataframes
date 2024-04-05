@@ -31,6 +31,9 @@ import bigframes.session.clients
 """Utilities for creating test resources."""
 
 
+TEST_SCHEMA = (google.cloud.bigquery.SchemaField("col", "INTEGER"),)
+
+
 def create_bigquery_session(
     bqclient: Optional[mock.Mock] = None,
     session_id: str = "abcxyz",
@@ -43,6 +46,13 @@ def create_bigquery_session(
     if bqclient is None:
         bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
         bqclient.project = "test-project"
+
+        # Mock the location.
+        table = mock.create_autospec(google.cloud.bigquery.Table, instance=True)
+        table._properties = {}
+        type(table).location = mock.PropertyMock(return_value="test-region")
+        type(table).schema = mock.PropertyMock(return_value=TEST_SCHEMA)
+        bqclient.get_table.return_value = table
 
     if anonymous_dataset is None:
         anonymous_dataset = google.cloud.bigquery.DatasetReference(
@@ -61,6 +71,8 @@ def create_bigquery_session(
 
         if query.startswith("SELECT CURRENT_TIMESTAMP()"):
             query_job.result = mock.MagicMock(return_value=[[datetime.datetime.now()]])
+        else:
+            type(query_job).schema = mock.PropertyMock(return_value=TEST_SCHEMA)
 
         return query_job
 
@@ -107,7 +119,7 @@ def create_arrayvalue(
     columns = tuple(ibis_table[key] for key in ibis_table.columns)
     ordering = bigframes.core.ordering.ExpressionOrdering(
         tuple(
-            [core.OrderingColumnReference(column) for column in total_ordering_columns]
+            [core.orderings.ascending_over(column) for column in total_ordering_columns]
         ),
         total_ordering_columns=frozenset(total_ordering_columns),
     )
