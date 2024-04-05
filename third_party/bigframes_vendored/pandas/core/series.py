@@ -3310,6 +3310,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(bpd.Series([1, 2, 3]))
             >>> bpd.options.display.progress_bar = None
             >>> s
@@ -3332,9 +3333,9 @@ class Series(NDFrame):  # type: ignore[misc]
     def at(self):
         """Access a single value for a row/column label pair.
 
-
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
             >>> bpd.options.display.progress_bar = None
             >>> s
@@ -3345,7 +3346,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Get value at specified row label
 
-            >>> s.iat['B']
+            >>> s.at['B']
             2
 
 
