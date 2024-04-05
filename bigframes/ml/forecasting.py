@@ -119,24 +119,17 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
 
-    def arima_coefficients(
+    @property 
+    def coef_(
             self,
-            project_id, 
-            dataset, 
-            model,
     ) -> bpd.DataFrame:
-    """Inspect the coefficients of the model.
-    ..note::
+        """Inspect the coefficients of the model.
+            ..note::
 
             Output matches that of the ML.ARIMA_COEFFICIENTS function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-arima-coefficients
             for the outputs relevant to this model type.
         
-        Args:
-        project_id: Your project ID.
-        dataset: The BigQuery dataset that contains the mode.
-        model: The name of the model.
-
         Returns:
         time_series_id_col or time_series_id_cols: a value that contains the identifiers of a time series. 
         ar_coefficients: an ARRAY<FLOAT64> value that contains the autoregressive coefficients, which corresponds to non-seasonal p.
@@ -147,6 +140,12 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         category_weights.category: a STRING value that contains the category name if the processed_input value is non-numeric.
         category_weights.weight: a FLOAT64 that contains the category's weight if the processed_input value is non-numeric.
         """
+    
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before inspect coefficients")
+        return self._bqml_model.arima_coefficients(
+        options={}
+        )
     
     def score(
         self,
