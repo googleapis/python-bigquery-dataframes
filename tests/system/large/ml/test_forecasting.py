@@ -77,3 +77,14 @@ def test_arima_plus_model_fit_summary(time_series_df_default_index, dataset_id):
     assert (
         f"{dataset_id}.temp_arima_plus_model" in reloaded_model._bqml_model.model_name
     )
+
+    ARIMA_COEFFICIENTS_OUTPUT_COL = [
+        "time_series_id_col",
+        "ar_coefficients",
+        "ma_coefficients",
+        "intercept_or_drift",
+        "processed_input",
+        "weight",
+        "category_weights.category",
+        "category_weights.weight",
+    ]

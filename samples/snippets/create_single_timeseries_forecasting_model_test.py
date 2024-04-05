@@ -30,8 +30,8 @@ def test_create_single_timeseries(random_model_id):
         'bigquery-public-data.google_analytics_sample.ga_sessions_*'
         )
     parsed_date = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
-    total_visits = df.groupby(["date"])["parsed_date"].sum()
     visits = df["totals"].struct.field("visits")
+    total_visits = df.groupby(["date"])["parsed_date"].sum()
 
     # Create an Arima-based time series model using the Google Analytics 360 data. 
     from bigframes.ml.forecasting import ARIMAPlus
@@ -59,7 +59,7 @@ def test_create_single_timeseries(random_model_id):
     
     print(evaluation)
 
-    # Inspect the coefficients of your model
+    # Step 5 Inspect the coefficients of your model
     f'''
     SELECT *
     FROM ML.ARIMA_COEFFICIENTS(MODEL `{your_model_id}`)
@@ -70,7 +70,7 @@ def test_create_single_timeseries(random_model_id):
     #standardSQL
     your_model_id.forecast()
 
-    # Explain and visualize the forecasting results
+    # Step 7 Explain and visualize the forecasting results
     f'''
     SELECT *
     FROM ML.EXPLAIN_FORECAST(
@@ -79,4 +79,45 @@ def test_create_single_timeseries(random_model_id):
     [horizon AS horizon]
     [, confidence_level AS confidence_level]))
     '''
+
+    # Step 8 Visualize the forecasting results w/o having decompose_time_series enabled
+    # Read and visualize the time series you want to forecast.
+    df = bpd.read_gbq(
+    'bigquery-public-data.google_analytics_sample.ga_sessions_*'
+    ).concat([df_Inner,df_Upper, df_Lower])
+
+    timestamp = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
+    #visits = df["totals"].struct.field("visits")
+    history_value = df["totals"].struct.field("visits").groupby(["date"], 
+                    as_index= False).sum(numeric_only=True)
+
+    df_Inner= bpd.DataFrame(
+        {
+            'history_timestamp': timestamp,
+            'visits' : df["totals"].struct.field("visits")
+            'history_value': history_value,
+        } ) 
+
+    df_Upper= bpd.DataFrame(
+        {
+            'history_timestamp': parsed_date,
+            'history_value': history_value,
+            'forecast_value': None ,
+            'prediction_interval_lower_bound': None,
+            'prediction_interval_upper_bpound': None,
+        })
+    
+    df_Lower = bpd.DataFrame(
+        {
+            'forecast_timestamp': timestamp,
+            'history_value': None,
+            'forecast_value': forecast_value ,
+            'prediction_interval_lower_bound': prediction_interval_lower_bound,
+            'prediction_interval_upper_bpound':prediction_interval_upper_bound,
+        })
+
+    #Visualize the results by plotting them using the plot method
+    total_visits.plot.line(x = 'history_timestamp', y = 'history_value')
+    total_visits.plot.line(x='forecast_value', y= 'prediction_interval_lower_bound',
+                            z= 'prediction_interval_upper_bound')
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
