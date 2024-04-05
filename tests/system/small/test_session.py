@@ -24,6 +24,7 @@ import google
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 import bigframes
@@ -436,8 +437,8 @@ def test_read_pandas_index(session):
     pd.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
-def test_read_pandas_w_unsupported_object_dtype(session):
-    with pytest.raises(ValueError, match="unsupported dtype: `object`"):
+def test_read_pandas_w_unsupported_mixed_dtype(session):
+    with pytest.raises(pa.ArrowInvalid, match="Unsupported dtype"):
         session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
 
 

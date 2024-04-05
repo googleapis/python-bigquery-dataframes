@@ -1048,17 +1048,13 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
-        for column_name, dtype in pandas_dataframe.dtypes.items():
-            if pd_dtypes.is_object_dtype(dtype):
-                raise ValueError(
-                    f"Column `{column_name}` has an unsupported dtype: `{dtype}`. "
-                    + f"{constants.FEEDBACK_LINK}"
-                )
-
         inline_df = self._read_pandas_inline(pandas_dataframe)
         if inline_df is not None:
             return inline_df
-        return self._read_pandas_load_job(pandas_dataframe, api_name)
+        try:
+            return self._read_pandas_load_job(pandas_dataframe, api_name)
+        except pa.ArrowInvalid as e:
+            raise pa.ArrowInvalid(f"Unsupported dtype: `{e}`. ")
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
@@ -1072,7 +1068,9 @@ class Session(
             inline_df = dataframe.DataFrame(
                 blocks.Block.from_local(pandas_dataframe, self)
             )
-        except ValueError:  # Thrown by ibis for some unhandled types
+        except pa.ArrowInvalid as e:
+            raise pa.ArrowInvalid(f"Unsupported dtype: `{e}`. ")
+        except ValueError as e:  # Thrown by ibis for some unhandled types
             return None
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
             return None
