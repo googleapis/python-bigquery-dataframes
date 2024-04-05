@@ -71,7 +71,6 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
-import pandas.core.dtypes.common as pd_dtypes
 import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
@@ -1070,7 +1069,7 @@ class Session(
             )
         except pa.ArrowInvalid as e:
             raise pa.ArrowInvalid(f"Unsupported dtype: `{e}`. ")
-        except ValueError as e:  # Thrown by ibis for some unhandled types
+        except ValueError:  # Thrown by ibis for some unhandled types
             return None
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
             return None
