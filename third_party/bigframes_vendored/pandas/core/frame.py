@@ -5369,12 +5369,12 @@ class DataFrame(generic.NDFrame):
             ...                    columns=['A', 'B', 'C'])
             >>> bpd.options.display.progress_bar = None
             >>> df
-                A	B	C
-            0	0	2	3
-            1	0	4	1
-            2	10	20	30
+                A       B       C
+            0   0       2       3
+            1   0       4       1
+            2   10      20      30
             <BLANKLINE>
-            [3 rows × 3 columns]
+            [3 rows x 3 columns]
 
         Get value at specified row/column pair
 
@@ -5407,7 +5407,7 @@ class DataFrame(generic.NDFrame):
             5   0   4   1
             6  10  20  30
             <BLANKLINE>
-            [3 rows × 3 columns]
+            [3 rows x 3 columns]
 
         Get value at specified row/column pair
 
