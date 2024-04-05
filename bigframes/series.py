@@ -188,6 +188,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.shape[0]
 
     def __iter__(self) -> typing.Iterator:
+        self._optimize_query_complexity()
         return itertools.chain.from_iterable(
             map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
         )
@@ -340,6 +341,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
+        self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -363,9 +365,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         columns: Union[blocks.Label, typing.Iterable[blocks.Label]] = None,
         level: typing.Optional[LevelType] = None,
     ) -> Series:
-        if labels and index:
-            raise ValueError("Must specify exacly one of 'labels' or 'index'")
-        index = labels or index
+        if (labels is None) == (index is None):
+            raise ValueError("Must specify exactly one of 'labels' or 'index'")
+
+        if labels is not None:
+            index = labels
 
         # ignore axis, columns params
         block = self._block
@@ -2035,6 +2039,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )[0]
         )
 
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        return Series(
+            self._block.explode(
+                column_ids=[self._value_column], ignore_index=ignore_index
+            )
+        )
+
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
     ) -> Series:
@@ -2081,6 +2092,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _cached(self, *, force: bool = True) -> Series:
         self._set_block(self._block.cached(force=force))
         return self
+
+    def _optimize_query_complexity(self):
+        """Reduce query complexity by caching repeated subtrees and recursively materializing maximum-complexity subtrees.
+        May generate many queries and take substantial time to execute.
+        """
+        # TODO: Move all this to session
+        new_expr = self._block.session._simplify_with_caching(self._block.expr)
+        self._set_block(self._block.swap_array_expr(new_expr))
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
