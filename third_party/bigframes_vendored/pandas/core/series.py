@@ -3308,6 +3308,21 @@ class Series(NDFrame):  # type: ignore[misc]
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> s = bpd.Series(bpd.Series([1, 2, 3]))
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        Get value at specified row number
+
+            >>> s.iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatSeriesIndexer: Indexers object.
         """
@@ -3316,6 +3331,23 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+
+        **Examples:**
+
+            >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            A    1
+            B    2
+            C    3
+            dtype: Int64
+
+        Get value at specified row label
+
+            >>> s.iat['B']
+            2
+
 
         Returns:
             bigframes.core.indexers.AtSeriesIndexer: Indexers object.
