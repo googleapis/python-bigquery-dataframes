@@ -5398,14 +5398,14 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> df = pd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...   index=[4, 5, 6], columns=['A', 'B', 'C'])
             >>> bpd.options.display.progress_bar = None
             >>> df
-                A   B   C
-            4   0   2   3
-            5   0   4   1
-            6  10  20  30
+                A       B       C
+            0   0       2       3
+            1   0       4       1
+            2   10      20      30
             <BLANKLINE>
             [3 rows x 3 columns]
 
