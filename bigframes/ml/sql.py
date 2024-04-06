@@ -316,3 +316,8 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         """Encode ML.TRANSFORM for BQML"""
         return f"""SELECT * FROM ML.TRANSFORM(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}))"""
+
+    def coef_(self) -> bpd.DataFrame:
+        assert self._bqml_model.arima_coefficients(
+        options={}
+        )

@@ -186,6 +186,11 @@ class BqmlModel(BaseBqml):
 
         return self._session.read_gbq(sql)
 
+    def coef_(self) -> bpd.DataFrame:
+        assert self._bqml_model.arima_coefficients(
+        options={}
+        )
+
     def centroids(self) -> bpd.DataFrame:
         assert self._model.model_type == "KMEANS"
 
