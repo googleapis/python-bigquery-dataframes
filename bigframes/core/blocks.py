@@ -886,9 +886,11 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pd.Float64Dtype(),
+        dtype: Optional[
+            typing.Union[
+                bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
+            ]
+        ] = None,
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -899,7 +901,22 @@ class Block:
             index_col_ids = [
                 guid.generate_guid() for i in range(self.column_labels.nlevels)
             ]
-            result_expr = self.expr.aggregate(aggregations, dropna=dropna).unpivot(
+            aggregate_expr = self.expr.aggregate(aggregations, dropna=dropna)
+
+            # if all aggregates are of the same dtype then we should set that
+            # dtype in the result
+            if dtype is None:
+                aggregate_dtypes = set(
+                    [
+                        aggregate_expr.get_column_type(c)
+                        for c in aggregate_expr.column_ids
+                    ]
+                )
+                if len(aggregate_dtypes) == 1:
+                    dtype = aggregate_dtypes.pop()
+            if dtype is None:
+                dtype = pd.Float64Dtype()
+            result_expr = aggregate_expr.unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=index_col_ids,
                 unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
@@ -916,6 +933,8 @@ class Block:
             # TODO: Allow to promote identity/total_order columns instead for better perf
             offset_col = guid.generate_guid()
             expr_with_offsets = self.expr.promote_offsets(offset_col)
+            if dtype is None:
+                dtype = pd.Float64Dtype()
             stacked_expr = expr_with_offsets.unpivot(
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=[guid.generate_guid()],
@@ -1102,10 +1121,19 @@ class Block:
             (col_id, tuple(f"{col_id}-{stat.name}" for stat in stats))
             for col_id in column_ids
         ]
-        expr = self.expr.aggregate(aggregations).unpivot(
+        aggregate_expr = self.expr.aggregate(aggregations)
+        aggregate_dtypes = set(
+            [aggregate_expr.get_column_type(c) for c in aggregate_expr.column_ids]
+        )
+        if len(aggregate_dtypes) == 1:
+            dtype = aggregate_dtypes.pop()
+        else:
+            dtype = pd.Float64Dtype()
+        expr = aggregate_expr.unpivot(
             labels,
             unpivot_columns=tuple(columns),
             index_col_ids=tuple([label_col_id]),
+            dtype=dtype,
         )
         return Block(
             expr,
