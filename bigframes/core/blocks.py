@@ -47,6 +47,7 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
@@ -429,13 +430,15 @@ class Block:
                 for name, dtype in result_df.dtypes.items()
             )
         )
+        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+            return
         if internal_schema != actual_schema:
             raise ValueError(
-                f"BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
             )
         if ibis_schema != actual_schema:
             raise ValueError(
-                f"Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
             )
 
     def to_pandas(
