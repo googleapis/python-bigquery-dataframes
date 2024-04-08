@@ -2994,6 +2994,25 @@ def test_dataframe_aggregate_int(scalars_df_index, scalars_pandas_df_index, col,
 
 
 @pytest.mark.parametrize(
+    ("col", "op"),
+    [
+        pytest.param("bool_col", lambda x: x.min(), id="bool-min"),
+        pytest.param("bool_col", lambda x: x.max(), id="bool-max"),
+    ],
+)
+def test_dataframe_aggregate_bool(scalars_df_index, scalars_pandas_df_index, col, op):
+    bf_result = op(scalars_df_index[[col]]).to_pandas()
+    pd_result = op(scalars_pandas_df_index[[col]])
+
+    # Check dtype separately
+    assert bf_result.dtype == "boolean"
+
+    # Pandas may produce narrower numeric types
+    # Pandas has object index type
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+
+
+@pytest.mark.parametrize(
     ("ordered"),
     [
         (True),
