@@ -17,9 +17,10 @@
 from __future__ import annotations
 
 import typing
-from typing import Hashable, Optional, Sequence, Union
+from typing import Hashable, Iterable, Optional, Sequence, Union
 
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
+import bigframes_vendored.pandas.core.indexes.multi as vendored_pandas_multindex
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
@@ -42,14 +43,13 @@ if typing.TYPE_CHECKING:
 
 class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
+    _query_job = None
+    _block: blocks.Block
+    _linked_frame: Union[bigframes.dataframe.DataFrame, bigframes.series.Series]
 
-    def __init__(
-        self,
-        data=None,
-        dtype=None,
-        *,
-        name=None,
-        session=None,
+    # Overrided on __new__ to create subclasses like python does
+    def __new__(
+        self, data=None, dtype=None, *, name=None, session=None, linked_frame=None
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
@@ -73,18 +73,30 @@ class Index(vendored_pandas_index.Index):
             if dtype is not None:
                 index = index.astype(dtype)
             block = index._block
+        elif isinstance(data, pandas.Index):
+            pd_df = pandas.DataFrame(index=data)
+            block = df.DataFrame(pd_df, session=session)._block
         else:
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df, session=session)._block
-        self._query_job = None
-        self._block: blocks.Block = block
+
+        # TODO: Support more index subtypes
+        if len(block._index_columns) > 1:
+            klass = MultiIndex
+        else:
+            klass = Index
+        result = typing.cast(Index, object.__new__(klass))
+        result._query_job = None
+        result._block = block
+        result._linked_frame = linked_frame
+        return result
 
     @classmethod
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
-        return FrameIndex(frame)
+        return Index(frame, linked_frame=frame)
 
     @property
     def name(self) -> blocks.Label:
@@ -107,6 +119,10 @@ class Index(vendored_pandas_index.Index):
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
         new_block = self._block.with_index_labels(values)
+        if self._linked_frame:
+            self._linked_frame._set_block(
+                self._linked_frame._block.with_index_labels(values)
+            )
         self._block = new_block
 
     @property
@@ -454,24 +470,27 @@ class Index(vendored_pandas_index.Index):
         return self.shape[0]
 
 
-# Index that mutates the originating dataframe/series
-class FrameIndex(Index):
-    def __init__(
-        self,
-        series_or_dataframe: typing.Union[
-            bigframes.series.Series, bigframes.dataframe.DataFrame
-        ],
-    ):
-        super().__init__(series_or_dataframe._block)
-        self._whole_frame = series_or_dataframe
+class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
+    __doc__ = vendored_pandas_multindex.MultiIndex.__doc__
 
-    @property
-    def names(self) -> typing.Sequence[blocks.Label]:
-        """Returns the names of the Index."""
-        return self._block._index_labels
+    @classmethod
+    def from_tuples(
+        cls,
+        tuples: Iterable[tuple[Hashable, ...]],
+        sortorder: int | None = None,
+        names: Sequence[Hashable] | Hashable | None = None,
+    ) -> MultiIndex:
+        pd_index = pandas.MultiIndex.from_tuples(tuples, sortorder, names)
+        # Index.__new__ should detect multiple levels and properly create a multiindex
+        return Index(pd_index)
 
-    @names.setter
-    def names(self, values: typing.Sequence[blocks.Label]):
-        new_block = self._whole_frame._get_block().with_index_labels(values)
-        self._whole_frame._set_block(new_block)
-        self._block = new_block
+    @classmethod
+    def from_arrays(
+        cls,
+        arrays,
+        sortorder: int | None = None,
+        names=None,
+    ) -> MultiIndex:
+        pd_index = pandas.MultiIndex.from_arrays(arrays, sortorder, names)
+        # Index.__new__ should detect multiple levels and properly create a multiindex
+        return Index(pd_index)
