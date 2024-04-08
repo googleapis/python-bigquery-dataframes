@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Metrics functions for evaluating models. This module is styled after
-Scikit-Learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html."""
+scikit-learn's metrics module: https://scikit-learn.org/stable/modules/metrics.html."""
 
 import inspect
 import typing
@@ -161,14 +161,10 @@ def roc_auc_score(
 
     fpr, tpr, _ = roc_curve(y_true_series, y_score_series, drop_intermediate=False)
 
-    # TODO(bmil): remove this once bigframes supports the necessary operations
-    pd_fpr = fpr.to_pandas()
-    pd_tpr = tpr.to_pandas()
-
     # Use the trapezoid rule to compute the area under the ROC curve
-    width_diff = pd_fpr.diff().iloc[1:].reset_index(drop=True)
-    height_avg = (pd_tpr.iloc[:-1] + pd_tpr.iloc[1:].reset_index(drop=True)) / 2
-    return (width_diff * height_avg).sum()
+    width_diff = fpr.diff().iloc[1:].reset_index(drop=True)
+    height_avg = (tpr.iloc[:-1] + tpr.iloc[1:].reset_index(drop=True)) / 2
+    return typing.cast(float, (width_diff * height_avg).sum())
 
 
 roc_auc_score.__doc__ = inspect.getdoc(vendored_metrics_ranking.roc_auc_score)
@@ -335,3 +331,17 @@ def f1_score(
 
 
 f1_score.__doc__ = inspect.getdoc(vendored_metrics_classification.f1_score)
+
+
+def mean_squared_error(
+    y_true: Union[bpd.DataFrame, bpd.Series],
+    y_pred: Union[bpd.DataFrame, bpd.Series],
+) -> float:
+    y_true_series, y_pred_series = utils.convert_to_series(y_true, y_pred)
+
+    return (y_pred_series - y_true_series).pow(2).sum() / len(y_true_series)
+
+
+mean_squared_error.__doc__ = inspect.getdoc(
+    vendored_metrics_regression.mean_squared_error
+)
