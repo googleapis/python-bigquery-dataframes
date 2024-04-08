@@ -429,10 +429,14 @@ class Block:
                 for name, dtype in result_df.dtypes.items()
             )
         )
-        if ibis_schema != actual_schema:
-            raise ValueError("Ibis schema does not match actual schema")
         if internal_schema != actual_schema:
-            raise ValueError("BigFrames internal schema does not match actual schema")
+            raise ValueError(
+                f"BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+            )
+        if ibis_schema != actual_schema:
+            raise ValueError(
+                f"Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+            )
 
     def to_pandas(
         self,
