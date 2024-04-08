@@ -45,11 +45,19 @@ class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
     _query_job = None
     _block: blocks.Block
-    _linked_frame: Union[bigframes.dataframe.DataFrame, bigframes.series.Series]
+    _linked_frame: Union[bigframes.dataframe.DataFrame, bigframes.series.Series, None]
 
     # Overrided on __new__ to create subclasses like python does
     def __new__(
-        self, data=None, dtype=None, *, name=None, session=None, linked_frame=None
+        self,
+        data=None,
+        dtype=None,
+        *,
+        name=None,
+        session=None,
+        linked_frame: Union[
+            bigframes.dataframe.DataFrame, bigframes.series.Series, None
+        ] = None,
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
@@ -96,7 +104,7 @@ class Index(vendored_pandas_index.Index):
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
-        return Index(frame, linked_frame=frame)
+        return Index(frame._block, linked_frame=frame)
 
     @property
     def name(self) -> blocks.Label:
@@ -119,7 +127,7 @@ class Index(vendored_pandas_index.Index):
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
         new_block = self._block.with_index_labels(values)
-        if self._linked_frame:
+        if self._linked_frame is not None:
             self._linked_frame._set_block(
                 self._linked_frame._block.with_index_labels(values)
             )
