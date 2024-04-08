@@ -20,19 +20,57 @@ class StringMethods:
         For each subject string in the Series, extract groups from the
         first match of regular expression `pat`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        A pattern with two groups will return a DataFrame with two columns.
+        Non-matches will be `NaN`.
+
+            >>> s = bpd.Series(['a1', 'b2', 'c3'])
+            >>> s.str.extract(r'([ab])(\\d)')
+                  0     1
+            0     a     1
+            1     b     2
+            2  <NA>  <NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Named groups will become column names in the result.
+
+            >>> s.str.extract(r'(?P<letter>[ab])(?P<digit>\\d)')
+              letter digit
+            0      a     1
+            1      b     2
+            2   <NA>  <NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        A pattern with one group will return a DataFrame with one column.
+
+            >>> s.str.extract(r'[ab](\\d)')
+                  0
+            0     1
+            1     2
+            2  <NA>
+            <BLANKLINE>
+            [3 rows x 1 columns]
+
         Args:
-            pat:
+            pat (str):
                 Regular expression pattern with capturing groups.
-            flags:
+            flags (int, default 0 (no flags)):
                 Flags from the ``re`` module, e.g. ``re.IGNORECASE``, that
                 modify regular expression matching for things like case,
                 spaces, etc. For more details, see :mod:`re`.
 
         Returns:
-            A DataFrame with one row for each subject string, and one
-            column for each group. Any capture group names in regular
-            expression pat will be used for column names; otherwise
-            capture group numbers will be used.
+            bigframes.dataframe.DataFrame:
+                A DataFrame with one row for each subject string, and one
+                column for each group. Any capture group names in regular
+                expression pat will be used for column names; otherwise
+                capture group numbers will be used.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -43,12 +81,24 @@ class StringMethods:
         substring is fully contained between [start:end]. Return -1 on
         failure. Equivalent to standard :meth:`str.find`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(["cow_", "duck_", "do_ve"])
+            >>> ser.str.find("_")
+            0    3
+            1    4
+            2    2
+            dtype: Int64
+
         Args:
-            sub:
+            sub (str):
                 Substring being searched.
             start (int, default 0):
                 Left edge index.
-            end (None):
+            end (int, default None):
                 Right edge index.
 
         Returns:
