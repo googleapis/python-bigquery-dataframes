@@ -13,13 +13,15 @@
 # limitations under the License.
 from __future__ import annotations
 
+from typing import Optional
+
 import pandas as pd
 
 import bigframes.core.indexes as index
 import bigframes.series as series
 
 
-def to_bf_series(obj, default_index: index.Index) -> series.Series:
+def to_bf_series(obj, default_index: Optional[index.Index]) -> series.Series:
     if isinstance(obj, series.Series):
         return obj
     if isinstance(obj, pd.Series):
