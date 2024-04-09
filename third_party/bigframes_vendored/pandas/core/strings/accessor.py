@@ -112,6 +112,20 @@ class StringMethods:
         The element may be a sequence (such as a string, tuple or list) or a collection
         (such as a dictionary).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Returns the length (number of characters) in a string.
+
+            >>> s = bpd.Series(['dog', '', bpd.NA])
+            >>> s.str.len()
+            0       3
+            1       0
+            2    <NA>
+            dtype: Int64
+
         Returns:
             bigframes.series.Series: A Series or Index of integer values indicating
                 the length of each element in the Series or Index.
@@ -124,6 +138,22 @@ class StringMethods:
 
         Equivalent to :meth:`str.lower`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['lower',
+            ...                 'CAPITALS',
+            ...                 'this is a sentence',
+            ...                 'SwApCaSe'])
+            >>> s.str.lower()
+            0                 lower
+            1              capitals
+            2    this is a sentence
+            3              swapcase
+            dtype: string
+
         Returns:
             bigframes.series.Series: Series with lowercase.
         """
@@ -132,6 +162,36 @@ class StringMethods:
 
     def slice(self, start=None, stop=None):
         """Slice substrings from each element in the Series or Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["koala", "dog", "chameleon"])
+            >>> s
+            0        koala
+            1          dog
+            2    chameleon
+            dtype: string
+
+            >>> s.str.slice(start=1)
+            0        oala
+            1          og
+            2    hameleon
+            dtype: string
+
+            >>> s.str.slice(stop=2)
+            0    ko
+            1    do
+            2    ch
+            dtype: string
+
+            >>> s.str.slice(start=2, stop=5)
+            0    ala
+            1      g
+            2    ame
+            dtype: string
 
         Args:
             start (int, optional):
@@ -167,6 +227,22 @@ class StringMethods:
         """Convert strings in the Series/Index to uppercase.
 
         Equivalent to :meth:`str.upper`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['lower',
+            ...                 'CAPITALS',
+            ...                 'this is a sentence',
+            ...                 'SwApCaSe'])
+            >>> s.str.upper()
+            0                 LOWER
+            1              CAPITALS
+            2    THIS IS A SENTENCE
+            3              SWAPCASE
+            dtype: string
 
         Returns:
             bigframes.series.Series: Series with uppercase strings.
@@ -331,6 +407,22 @@ class StringMethods:
 
         Equivalent to :meth:`str.capitalize`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['lower',
+            ...                 'CAPITALS',
+            ...                 'this is a sentence',
+            ...                 'SwApCaSe'])
+            >>> s.str.capitalize()
+            0                 Lower
+            1              Capitals
+            2    This is a sentence
+            3              Swapcase
+            dtype: string
+
         Returns:
             bigframes.series.Series: Series with captitalized strings.
         """
@@ -344,13 +436,48 @@ class StringMethods:
         and elements of `others` element-wise.
 
         Args:
-            others (Series):
+            others (str or Series):
+                A string or a Series of strings.
 
             join ({'left', 'outer'}, default 'left'):
                 Determines the join-style between the calling Series and any
                 Series in `others` (objects without an index need
                 to match the length of the calling Series). To disable
                 alignment, use `.values` on any Series/Index/DataFrame in `others`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can concatenate each string in a Series to another string.
+
+            >>> s = bpd.Series(['Jane', 'John'])
+            >>> s.str.cat(" Doe")
+            0    Jane Doe
+            1    John Doe
+            dtype: string
+
+        You can concatenate another Series. By default left join is performed to
+        align the corresponding elements.
+
+            >>> s.str.cat(bpd.Series([" Doe", " Foe", " Roe"]))
+            0    Jane Doe
+            1    John Foe
+            dtype: string
+
+            >>> s.str.cat(bpd.Series([" Doe", " Foe", " Roe"], index=[2, 0, 1]))
+            0    Jane Foe
+            1    John Roe
+            dtype: string
+
+        You can enforce an outer join.
+
+            >>> s.str.cat(bpd.Series([" Doe", " Foe", " Roe"]), join="outer")
+            0    Jane Doe
+            1    John Foe
+            2        <NA>
+            dtype: string
 
         Returns:
             bigframes.series.Series: Series with concatenated strings.
@@ -364,6 +491,77 @@ class StringMethods:
 
         Return boolean Series or Index based on whether a given pattern or regex is
         contained within a string of a Series or Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Returning a Series of booleans using only a literal pattern.
+
+            >>> s1 = bpd.Series(['Mouse', 'dog', 'house and parrot', '23', None])
+            >>> s1.str.contains('og')
+            0    False
+            1     True
+            2    False
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        Specifying case sensitivity using case.
+
+            >>> s1.str.contains('oG', case=True)
+            0    False
+            1    False
+            2    False
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        Returning 'house' or 'dog' when either expression occurs in a string.
+
+            >>> s1.str.contains('house|dog', regex=True)
+            0    False
+            1     True
+            2     True
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        Ignoring case sensitivity using `flags` with regex.
+
+            >>> import re
+            >>> s1.str.contains('PARROT', flags=re.IGNORECASE, regex=True)
+            0    False
+            1    False
+            2     True
+            3    False
+            4     <NA>
+            dtype: boolean
+
+        Returning any digit using regular expression.
+
+            >>> s1.str.contains('\\d', regex=True)
+            0    False
+            1    False
+            2    False
+            3     True
+            4     <NA>
+            dtype: boolean
+
+        Ensure `pat` is a not a literal pattern when `regex` is set to True.
+        Note in the following example one might expect only *s2[1]* and *s2[3]*
+        to return `True`. However, '.0' as a regex matches any character
+        followed by a 0.
+
+            >>> s2 = bpd.Series(['40', '40.0', '41', '41.0', '35'])
+            >>> s2.str.contains('.0', regex=True)
+            0     True
+            1     True
+            2    False
+            3     True
+            4    False
+            dtype: boolean
 
         Args:
             pat (str, re.Pattern):
@@ -397,6 +595,32 @@ class StringMethods:
 
         Equivalent to :meth:`str.replace` or :func:`re.sub`, depending on
         the regex value.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        When *pat* is a string and *regex* is True, the given *pat* is compiled
+        as a regex. When *repl* is a string, it replaces matching regex patterns
+        as with `re.sub()`. NaN value(s) in the Series are left as is:
+
+            >>> s = bpd.Series(['foo', 'fuz', bpd.NA])
+            >>> s.str.replace('f.', 'ba', regex=True)
+            0     bao
+            1     baz
+            2    <NA>
+            dtype: string
+
+        When *pat* is a string and *regex* is False, every *pat* is replaced
+        with *repl* as with `str.replace()`:
+
+            >>> s = bpd.Series(['f.o', 'fuz', bpd.NA])
+            >>> s.str.replace('f.', 'ba', regex=False)
+            0     bao
+            1     fuz
+            2    <NA>
+            dtype: string
 
         Args:
             pat (str, re.Pattern):
@@ -544,6 +768,18 @@ class StringMethods:
         """
         Pad right side of strings in the Series/Index up to width.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(['dog', 'bird', 'mouse'])
+            >>> ser.str.ljust(8, fillchar='.')
+            0    dog.....
+            1    bird....
+            2    mouse...
+            dtype: string
+
         Args:
             width (int):
                 Minimum width of resulting string; additional characters will be filled
@@ -563,6 +799,18 @@ class StringMethods:
     ):
         """
         Pad left side of strings in the Series/Index up to width.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(['dog', 'bird', 'mouse'])
+            >>> ser.str.rjust(8, fillchar='.')
+            0    .....dog
+            1    ....bird
+            2    ...mouse
+            dtype: string
 
         Args:
             width (int):
@@ -607,6 +855,18 @@ class StringMethods:
         Pad left and right side of strings in the Series/Index.
 
         Equivalent to :meth:`str.center`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(['dog', 'bird', 'mouse'])
+            >>> ser.str.center(8, fillchar='.')
+            0    ..dog...
+            1    ..bird..
+            2    .mouse..
+            dtype: string
 
         Args:
             width (int):
