@@ -216,6 +216,27 @@ class StringMethods:
         Replaces any non-strings in Series with NaNs.
         Equivalent to :meth:`str.strip`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
+            >>> s
+            0       Ant
+            1      Bee
+            2       Cat
+            <BLANKLINE>
+            3      <NA>
+            dtype: string
+
+            >>> s.str.strip()
+            0     Ant
+            1     Bee
+            2     Cat
+            3    <NA>
+            dtype: string
+
         Returns:
             bigframes.series.Series: Series or Index without leading
                 and trailing characters.
@@ -257,6 +278,19 @@ class StringMethods:
         :meth:`str.isnumeric` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series(['one', 'one1', '1', ''])
+            >>> s1.str.isnumeric()
+            0    False
+            1    False
+            2     True
+            3    False
+            dtype: boolean
+
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
                 same length as the original Series/Index.
@@ -271,6 +305,19 @@ class StringMethods:
         :meth:`str.isalpha` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series(['one', 'one1', '1', ''])
+            >>> s1.str.isalpha()
+            0     True
+            1    False
+            2    False
+            3    False
+            dtype: boolean
+
         Returns:
             bigframes.series.Series: Series with the same length as the originalSeries/Index.
         """
@@ -284,6 +331,19 @@ class StringMethods:
         :meth:`str.isdigit` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['23', '1a', '1/5', ''])
+            >>> s.str.isdigit()
+            0     True
+            1    False
+            2    False
+            3    False
+            dtype: boolean
+
         Returns:
             bigframes.series.Series: Series with the same length as the originalSeries/Index.
         """
@@ -296,6 +356,30 @@ class StringMethods:
         This is equivalent to running the Python string method
         :meth:`str.isalnum` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series(['one', 'one1', '1', ''])
+            >>> s1.str.isalnum()
+            0     True
+            1     True
+            2     True
+            3    False
+            dtype: boolean
+
+        Note that checks against characters mixed with any additional
+        punctuation or whitespace will evaluate to false for an alphanumeric
+        check.
+
+            >>> s2 = bpd.Series(['A B', '1.5', '3,000'])
+            >>> s2.str.isalnum()
+            0    False
+            1    False
+            2    False
+            dtype: boolean
 
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
@@ -311,6 +395,18 @@ class StringMethods:
         :meth:`str.isspace` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([' ', '\\t\\r\\n ', ''])
+            >>> s.str.isspace()
+            0     True
+            1     True
+            2    False
+            dtype: boolean
+
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
                 same length as the original Series/Index.
@@ -324,6 +420,19 @@ class StringMethods:
         This is equivalent to running the Python string method
         :meth:`str.islower` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['leopard', 'Golden Eagle', 'SNAKE', ''])
+            >>> s.str.islower()
+            0     True
+            1    False
+            2    False
+            3    False
+            dtype: boolean
 
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
@@ -339,6 +448,19 @@ class StringMethods:
         :meth:`str.isupper` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['leopard', 'Golden Eagle', 'SNAKE', ''])
+            >>> s.str.isupper()
+            0    False
+            1    False
+            2     True
+            3    False
+            dtype: boolean
+
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
                 same length as the original Series/Index.
@@ -352,6 +474,22 @@ class StringMethods:
         This is equivalent to running the Python string method
         :meth:`str.isdecimal` for each element of the Series/Index. If a string
         has zero characters, ``False`` is returned for that check.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        The `isdecimal` method checks for characters used to form numbers in
+        base 10.
+
+            >>> s = bpd.Series(['23', '³', '⅕', ''])
+            >>> s.str.isdecimal()
+            0     True
+            1    False
+            2    False
+            3    False
+            dtype: boolean
 
         Returns:
             bigframes.series.Series: Series or Index of boolean values with the
@@ -368,6 +506,27 @@ class StringMethods:
         Replaces any non-strings in Series with NaNs.
         Equivalent to :meth:`str.rstrip`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
+            >>> s
+            0       Ant
+            1      Bee
+            2       Cat
+            <BLANKLINE>
+            3      <NA>
+            dtype: string
+
+            >>> s.str.rstrip()
+            0      Ant
+            1      Bee
+            2       Cat
+            3     <NA>
+            dtype: string
+
         Returns:
             bigframes.series.Series: Series without trailing characters.
         """
@@ -382,6 +541,28 @@ class StringMethods:
         Replaces any non-strings in Series with NaNs.
         Equivalent to :meth:`str.lstrip`.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
+            >>> s
+            0       Ant
+            1      Bee
+            2       Cat
+            <BLANKLINE>
+            3      <NA>
+            dtype: string
+
+            >>> s.str.lstrip()
+            0     Ant
+            1    Bee
+            2    Cat
+            <BLANKLINE>
+            3    <NA>
+            dtype: string
+
         Returns:
             bigframes.series.Series: Series without leading characters.
         """
@@ -390,6 +571,24 @@ class StringMethods:
 
     def repeat(self, repeats: int):
         """Duplicate each string in the Series or Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['a', 'b', 'c'])
+            >>> s
+            0    a
+            1    b
+            2    c
+            dtype: string
+
+            >>> s.str.repeat(repeats=2)
+            0    aa
+            1    bb
+            2    cc
+            dtype: string
 
         Args:
             repeats : int or sequence of int
@@ -658,6 +857,33 @@ class StringMethods:
         """
         Test if the start of each string element matches a pattern.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['bat', 'Bear', 'caT', bpd.NA])
+            >>> s
+            0     bat
+            1    Bear
+            2     caT
+            3    <NA>
+            dtype: string
+
+            >>> s.str.startswith('b')
+            0     True
+            1    False
+            2    False
+            3     <NA>
+            dtype: boolean
+
+            >>> s.str.startswith(('b', 'B'))
+            0     True
+            1     True
+            2    False
+            3     <NA>
+            dtype: boolean
+
         Args:
             pat (str, tuple[str, ...]):
                 Character sequence or tuple of strings. Regular expressions are not
@@ -676,6 +902,33 @@ class StringMethods:
         """
         Test if the end of each string element matches a pattern.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['bat', 'bear', 'caT', bpd.NA])
+            >>> s
+            0     bat
+            1    bear
+            2     caT
+            3    <NA>
+            dtype: string
+
+            >>> s.str.endswith('t')
+            0     True
+            1    False
+            2    False
+            3     <NA>
+            dtype: boolean
+
+            >>> s.str.endswith(('t', 'T'))
+            0     True
+            1    False
+            2     True
+            3     <NA>
+            dtype: boolean
+
         Args:
             pat (str, tuple[str, ...]):
                 Character sequence or tuple of strings. Regular expressions are not
@@ -690,6 +943,18 @@ class StringMethods:
     def match(self, pat: str, case: bool = True, flags: int = 0):
         """
         Determine if each string starts with a match of a regular expression.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(["horse", "eagle", "donkey"])
+            >>> ser.str.match("e")
+            0   False
+            1   True
+            2   False
+            dtype: boolean
 
         Args:
             pat (str):
@@ -707,6 +972,18 @@ class StringMethods:
     def fullmatch(self, pat: str, case: bool = True, flags: int = 0):
         """
         Determine if each string entirely matches a regular expression.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(["cat", "duck", "dove"])
+            >>> ser.str.fullmatch(r'd.+')
+            0    False
+            1     True
+            2     True
+            dtype: boolean
 
         Args:
             pat (str):
@@ -728,6 +1005,18 @@ class StringMethods:
         Extract element from lists, tuples, dict, or strings in each element in the
         Series/Index.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["apple", "banana", "fig"])
+            >>> s.str.get(3)
+            0       l
+            1       a
+            2    <NA>
+            dtype: string
+
         Args:
             i (int):
                 Position or key of element to extract.
@@ -745,6 +1034,32 @@ class StringMethods:
     ):
         """
         Pad strings in the Series/Index up to width.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["caribou", "tiger"])
+            >>> s
+            0    caribou
+            1      tiger
+            dtype: string
+
+            >>> s.str.pad(width=10)
+            0       caribou
+            1         tiger
+            dtype: string
+
+            >>> s.str.pad(width=10, side='right', fillchar='-')
+            0    caribou---
+            1    tiger-----
+            dtype: string
+
+            >>> s.str.pad(width=10, side='both', fillchar='-')
+            0    -caribou--
+            1    --tiger---
+            dtype: string
 
         Args:
             width (int):
@@ -835,6 +1150,26 @@ class StringMethods:
         left of the string to reach a total string length  `width`. Strings
         in the Series/Index with length greater or equal to `width` are
         unchanged.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['-1', '1', '1000', bpd.NA])
+            >>> s
+            0      -1
+            1       1
+            2    1000
+            3    <NA>
+            dtype: string
+
+            >>> s.str.zfill(3)
+            0     -01
+            1     001
+            2    1000
+            3    <NA>
+            dtype: string
 
         Args:
             width (int):
