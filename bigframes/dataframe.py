@@ -2143,17 +2143,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         columns: typing.Union[blocks.Label, Sequence[blocks.Label]] = None,
         aggfunc: str = "mean",
     ) -> DataFrame:
-        if isinstance(index, Iterable) and not (isinstance(index, blocks.Label) and index in self.columns):
+        if isinstance(index, Iterable) and not (
+            isinstance(index, blocks.Label) and index in self.columns
+        ):
             index = list(index)
         else:
             index = [index]
 
-        if isinstance(columns, Iterable) and not (isinstance(columns, blocks.Label) and columns in self.columns):
+        if isinstance(columns, Iterable) and not (
+            isinstance(columns, blocks.Label) and columns in self.columns
+        ):
             columns = list(columns)
         else:
             columns = [columns]
 
-        if isinstance(values, Iterable) and not (isinstance(values, blocks.Label) and values in self.columns):
+        if isinstance(values, Iterable) and not (
+            isinstance(values, blocks.Label) and values in self.columns
+        ):
             values = list(values)
         else:
             values = [values]
