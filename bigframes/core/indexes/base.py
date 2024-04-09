@@ -45,19 +45,18 @@ class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
     _query_job = None
     _block: blocks.Block
-    _linked_frame: Union[bigframes.dataframe.DataFrame, bigframes.series.Series, None]
+    _linked_frame: Union[
+        bigframes.dataframe.DataFrame, bigframes.series.Series, None
+    ] = None
 
     # Overrided on __new__ to create subclasses like python does
     def __new__(
-        self,
+        cls,
         data=None,
         dtype=None,
         *,
         name=None,
         session=None,
-        linked_frame: Union[
-            bigframes.dataframe.DataFrame, bigframes.series.Series, None
-        ] = None,
     ):
         import bigframes.dataframe as df
         import bigframes.series as series
@@ -90,18 +89,19 @@ class Index(vendored_pandas_index.Index):
             block = df.DataFrame(pd_df, session=session)._block
 
         # TODO: Support more index subtypes
-        klass = MultiIndex if len(block._index_columns) > 1 else Index
+        klass = MultiIndex if len(block._index_columns) > 1 else cls
         result = typing.cast(Index, object.__new__(klass))
         result._query_job = None
         result._block = block
-        result._linked_frame = linked_frame
         return result
 
     @classmethod
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
-        return Index(frame._block, linked_frame=frame)
+        index = Index(frame._block)
+        index._linked_frame = frame
+        return index
 
     @property
     def name(self) -> blocks.Label:
