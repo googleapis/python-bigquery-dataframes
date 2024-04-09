@@ -4732,6 +4732,7 @@ class DataFrame(generic.NDFrame):
 
             columns (str or object or a list of str):
                 Column to use to make new frame's columns.
+
             aggfunc (str, default "mean"):
                 Aggregation function name to compute summary statistics (e.g., 'sum', 'mean').
 

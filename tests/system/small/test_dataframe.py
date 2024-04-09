@@ -2557,8 +2557,8 @@ def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
 @pytest.mark.parametrize(
     ("values", "index", "columns", "aggfunc"),
     [
-        (["culmen_length_mm", "body_mass_g"], "species", "sex", "std"),
-        (["body_mass_g", "culmen_length_mm"], ["species", "island"], "sex", "sum"),
+        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std"),
+        (["body_mass_g", "culmen_length_mm"], ("species", "island"), "sex", "sum"),
         ("body_mass_g", "sex", ["island", "species"], "mean"),
         ("culmen_depth_mm", "island", "species", "max"),
     ],
