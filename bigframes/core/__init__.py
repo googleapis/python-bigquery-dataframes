@@ -106,8 +106,7 @@ class ArrayValue:
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        # TODO: switch to use self.node.schema
-        return self._compiled_schema
+        return self.node.schema
 
     @functools.cached_property
     def _compiled_schema(self) -> schemata.ArraySchema:
@@ -229,6 +228,10 @@ class ArrayValue:
         value: typing.Any,
         dtype: typing.Optional[bigframes.dtypes.Dtype],
     ) -> ArrayValue:
+        if pandas.isna(value):
+            # Need to assign a data type when value is NaN.
+            dtype = dtype or bigframes.dtypes.DEFAULT_DTYPE
+
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
@@ -396,6 +399,15 @@ class ArrayValue:
         if allow_row_identity_join:
             return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
         return ArrayValue(join_node)
+
+    def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+        assert len(column_ids) > 0
+        for column_id in column_ids:
+            assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
+
+        return ArrayValue(
+            nodes.ExplodeNode(child=self.node, column_ids=tuple(column_ids))
+        )
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
         """Sampling the table on given fraction.

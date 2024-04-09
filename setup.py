@@ -30,7 +30,7 @@ description = (
 # 'Development Status :: 3 - Alpha'
 # 'Development Status :: 4 - Beta'
 # 'Development Status :: 5 - Production/Stable'
-release_status = "Development Status :: 3 - Alpha"
+release_status = "Development Status :: 5 - Production/Stable"
 dependencies = [
     # please keep these in sync with the minimum versions in testing/constraints-3.9.txt
     "cloudpickle >= 2.0.0",
@@ -47,6 +47,7 @@ dependencies = [
     "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
     # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
     "pandas >=1.5.0",
+    "pyarrow >=8.0.0",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
     "scikit-learn >=1.2.2",

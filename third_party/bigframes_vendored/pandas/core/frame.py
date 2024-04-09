@@ -2804,6 +2804,57 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def explode(
+        self, column: Union[str, Sequence[str]], *, ignore_index: Optional[bool] = False
+    ) -> DataFrame:
+        """
+        Transform each element of an array to a row, replicating index values.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
+            ...                     'B': 1,
+            ...                     'C': [['a', 'b', 'c'], np.nan, [], ['d', 'e']]})
+            >>> df.explode('A')
+                A  B              C
+            0     0  1  ['a' 'b' 'c']
+            0     1  1  ['a' 'b' 'c']
+            0     2  1  ['a' 'b' 'c']
+            1  <NA>  1             []
+            2  <NA>  1             []
+            3     3  1      ['d' 'e']
+            3     4  1      ['d' 'e']
+            <BLANKLINE>
+            [7 rows x 3 columns]
+            >>> df.explode(list('AC'))
+                A  B     C
+            0     0  1     a
+            0     1  1     b
+            0     2  1     c
+            1  <NA>  1  <NA>
+            2  <NA>  1  <NA>
+            3     3  1     d
+            3     4  1     e
+            <BLANKLINE>
+            [7 rows x 3 columns]
+
+        Args:
+            column (str, Sequence[str]):
+                Column(s) to explode. For multiple columns, specify a non-empty list
+                with each element be str or tuple, and all specified columns their
+                list-like data on same row of the frame must have matching length.
+            ignore_index (bool, default False):
+                If True, the resulting index will be labeled 0, 1, …, n - 1.
+
+        Returns:
+            bigframes.series.DataFrame: Exploded lists to rows of the subset columns;
+                index will be duplicated for these rows.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def corr(self, method, min_periods, numeric_only) -> DataFrame:
         """
         Compute pairwise correlation of columns, excluding NA/null values.
@@ -2865,6 +2916,7 @@ class DataFrame(generic.NDFrame):
         Returns:
             DataFrame: The covariance matrix of the series of the DataFrame.
         """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def update(
         self, other, join: str = "left", overwrite: bool = True, filter_func=None
@@ -4415,10 +4467,10 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
             >>> df.cumprod()
-                A	B
-            0	3	1
-            1	3	2
-            2	6	6
+                 A    B
+            0  3.0  1.0
+            1  3.0  2.0
+            2  6.0  6.0
             <BLANKLINE>
             [3 rows x 2 columns]
 
@@ -4878,7 +4930,7 @@ class DataFrame(generic.NDFrame):
             MultiIndex([( 'Alice',  'Seattle'),
                 (   'Bob', 'New York'),
                 ('Aritra',     'Kona')],
-               name='Name')
+               names=['Name', 'Location'])
             >>> df1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -5010,6 +5062,158 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             Series: Series containing counts of unique rows in the DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def eval(self, expr: str) -> DataFrame:
+        """
+        Evaluate a string describing operations on DataFrame columns.
+
+        Operates on columns only, not specific rows or elements.  This allows
+        `eval` to run arbitrary code, which can make you vulnerable to code
+        injection if you pass user input to this function.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6), 'B': range(10, 0, -2)})
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+            >>> df.eval('A + B')
+            0    11
+            1    10
+            2     9
+            3     8
+            4     7
+            dtype: Int64
+
+            Assignment is allowed though by default the original DataFrame is not
+            modified.
+
+            >>> df.eval('C = A + B')
+            A   B   C
+            0  1  10  11
+            1  2   8  10
+            2  3   6   9
+            3  4   4   8
+            4  5   2   7
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df
+            A   B
+            0  1  10
+            1  2   8
+            2  3   6
+            3  4   4
+            4  5   2
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+            Multiple columns can be assigned to using multi-line expressions:
+
+            >>> df.eval(
+            ...     '''
+            ... C = A + B
+            ... D = A - B
+            ... '''
+            ... )
+            A   B   C  D
+            0  1  10  11 -9
+            1  2   8  10 -6
+            2  3   6   9 -3
+            3  4   4   8  0
+            4  5   2   7  3
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+
+        Args:
+            expr (str):
+                The expression string to evaluate.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def query(self, expr: str) -> DataFrame | None:
+        """
+        Query the columns of a DataFrame with a boolean expression.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'A': range(1, 6),
+            ...                    'B': range(10, 0, -2),
+            ...                    'C C': range(10, 5, -1)})
+            >>> df
+            A   B  C C
+            0  1  10   10
+            1  2   8    9
+            2  3   6    8
+            3  4   4    7
+            4  5   2    6
+            <BLANKLINE>
+            [5 rows x 3 columns]
+            >>> df.query('A > B')
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.A > df.B]
+            A  B  C C
+            4  5  2    6
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            For columns with spaces in their name, you can use backtick quoting.
+
+            >>> df.query('B == `C C`')
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+            The previous expression is equivalent to
+
+            >>> df[df.B == df['C C']]
+            A   B  C C
+            0  1  10   10
+            <BLANKLINE>
+            [1 rows x 3 columns]
+
+        Args:
+            expr (str):
+                The query string to evaluate.
+
+                You can refer to variables
+                in the environment by prefixing them with an '@' character like
+                ``@a + b``.
+
+                You can refer to column names that are not valid Python variable names
+                by surrounding them in backticks. Thus, column names containing spaces
+                or punctuations (besides underscores) or starting with digits must be
+                surrounded by backticks. (For example, a column named "Area (cm^2)" would
+                be referenced as ```Area (cm^2)```). Column names which are Python keywords
+                (like "list", "for", "import", etc) cannot be used.
+
+                For example, if one of your columns is called ``a a`` and you want
+                to sum it with ``b``, your query should be ```a a` + b``.
+
+        Returns:
+            DataFrame
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5240,6 +5444,30 @@ class DataFrame(generic.NDFrame):
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...                    columns=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> df
+                A       B       C
+            0   0       2       3
+            1   0       4       1
+            2   10      20      30
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Get value at specified row/column pair
+
+            >>> df.iat[1, 2]
+            1
+
+        Get value within a series
+
+            >>> df.loc[0].iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
         """
@@ -5248,6 +5476,30 @@ class DataFrame(generic.NDFrame):
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...   index=[4, 5, 6], columns=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> df
+                A   B   C
+            4   0   2   3
+            5   0   4   1
+            6  10  20  30
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Get value at specified row/column pair
+
+            >>> df.at[4, 'B']
+            2
+
+        Get value within a series
+
+            >>> df.loc[5].at['B']
+            4
 
         Returns:
             bigframes.core.indexers.AtDataFrameIndexer: Indexers object.

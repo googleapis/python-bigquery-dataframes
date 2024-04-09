@@ -3,7 +3,7 @@ Data structure for 1-dimensional cross-sectional and time series data
 """
 from __future__ import annotations
 
-from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
+from typing import Hashable, IO, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy as np
@@ -87,7 +87,7 @@ class Series(NDFrame):  # type: ignore[misc]
             MultiIndex([( 'Alice',  'Seattle'),
                 (   'Bob', 'New York'),
                 ('Aritra',     'Kona')],
-               name='Name')
+               names=['Name', 'Location'])
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -748,6 +748,34 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             bigframes.series.Series: Rounded values of the Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        """
+        Transform each element of a list-like to a row.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([[1, 2, 3], [], [3, 4]])
+            >>> s.explode()
+            0       1
+            0       2
+            0       3
+            1    <NA>
+            2       3
+            2       4
+            dtype: Int64
+
+        Args:
+            ignore_index (bool, default False):
+                If True, the resulting index will be labeled 0, 1, …, n - 1.
+
+        Returns:
+            bigframes.series.Series: Exploded lists to rows; index will be duplicated for these rows.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2808,7 +2836,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def argmax(self):
         """
-        Return int position of the smallest value in the Series.
+        Return int position of the smallest value in the series.
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
@@ -3280,6 +3308,22 @@ class Series(NDFrame):  # type: ignore[misc]
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series(bpd.Series([1, 2, 3]))
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        Get value at specified row number
+
+            >>> s.iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatSeriesIndexer: Indexers object.
         """
@@ -3288,6 +3332,23 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            A    1
+            B    2
+            C    3
+            dtype: Int64
+
+        Get value at specified row label
+
+            >>> s.at['B']
+            2
+
 
         Returns:
             bigframes.core.indexers.AtSeriesIndexer: Indexers object.

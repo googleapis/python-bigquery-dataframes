@@ -577,7 +577,22 @@ def read_gbq_table(
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
 
 
+@typing.overload
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+    ...
+
+
+def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
@@ -714,9 +729,13 @@ reset_session = global_session.close_session
 # which the applicable limit is now hard coded. See:
 # https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
-resource.setrlimit(
-    resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-)
+
+soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
+if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
+    try:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
+    except Exception:
+        pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [

@@ -13,29 +13,34 @@
 # limitations under the License.
 
 """Build composite transformers on heterogeneous data. This module is styled
-after Scikit-Learn's compose module:
+after scikit-Learn's compose module:
 https://scikit-learn.org/stable/modules/classes.html#module-sklearn.compose."""
 
 from __future__ import annotations
 
+import re
+import types
 import typing
-from typing import List, Optional, Tuple, Union
+from typing import cast, List, Optional, Tuple, Union
 
 import bigframes_vendored.sklearn.compose._column_transformer
+from google.cloud import bigquery
 
 from bigframes import constants
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, preprocessing, utils
 import bigframes.pandas as bpd
 
-CompilablePreprocessorType = Union[
-    preprocessing.OneHotEncoder,
-    preprocessing.StandardScaler,
-    preprocessing.MaxAbsScaler,
-    preprocessing.MinMaxScaler,
-    preprocessing.KBinsDiscretizer,
-    preprocessing.LabelEncoder,
-]
+_BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
+    {
+        "ML.STANDARD_SCALER": preprocessing.StandardScaler,
+        "ML.ONE_HOT_ENCODER": preprocessing.OneHotEncoder,
+        "ML.MAX_ABS_SCALER": preprocessing.MaxAbsScaler,
+        "ML.MIN_MAX_SCALER": preprocessing.MinMaxScaler,
+        "ML.BUCKETIZE": preprocessing.KBinsDiscretizer,
+        "ML.LABEL_ENCODER": preprocessing.LabelEncoder,
+    }
+)
 
 
 @log_adapter.class_logger
@@ -52,7 +57,7 @@ class ColumnTransformer(
         transformers: List[
             Tuple[
                 str,
-                CompilablePreprocessorType,
+                preprocessing.PreprocessingType,
                 Union[str, List[str]],
             ]
         ],
@@ -67,17 +72,16 @@ class ColumnTransformer(
     @property
     def transformers_(
         self,
-    ) -> List[Tuple[str, CompilablePreprocessorType, str,]]:
+    ) -> List[Tuple[str, preprocessing.PreprocessingType, str,]]:
         """The collection of transformers as tuples of (name, transformer, column)."""
         result: List[
             Tuple[
                 str,
-                CompilablePreprocessorType,
+                preprocessing.PreprocessingType,
                 str,
             ]
         ] = []
 
-        column_set: set[str] = set()
         for entry in self.transformers:
             name, transformer, column_or_columns = entry
             columns = (
@@ -87,13 +91,89 @@ class ColumnTransformer(
             )
 
             for column in columns:
-                if column in column_set:
-                    raise NotImplementedError(
-                        f"Chained transformers on the same column isn't supported. {constants.FEEDBACK_LINK}"
-                    )
                 result.append((name, transformer, column))
 
         return result
+
+    @classmethod
+    def _extract_from_bq_model(
+        cls,
+        bq_model: bigquery.Model,
+    ) -> ColumnTransformer:
+        """Extract transformers as ColumnTransformer obj from a BQ Model. Keep the _bqml_model field as None."""
+        assert "transformColumns" in bq_model._properties
+
+        transformers: List[
+            Tuple[
+                str,
+                preprocessing.PreprocessingType,
+                Union[str, List[str]],
+            ]
+        ] = []
+
+        def camel_to_snake(name):
+            name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+            return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
+        output_names = []
+        for transform_col in bq_model._properties["transformColumns"]:
+            transform_col_dict = cast(dict, transform_col)
+            # pass the columns that are not transformed
+            if "transformSql" not in transform_col_dict:
+                continue
+            transform_sql: str = transform_col_dict["transformSql"]
+            if not transform_sql.startswith("ML."):
+                continue
+
+            output_names.append(transform_col_dict["name"])
+            found_transformer = False
+            for prefix in _BQML_TRANSFROM_TYPE_MAPPING:
+                if transform_sql.startswith(prefix):
+                    transformer_cls = _BQML_TRANSFROM_TYPE_MAPPING[prefix]
+                    transformers.append(
+                        (
+                            camel_to_snake(transformer_cls.__name__),
+                            *transformer_cls._parse_from_sql(transform_sql),  # type: ignore
+                        )
+                    )
+
+                    found_transformer = True
+                    break
+            if not found_transformer:
+                raise NotImplementedError(
+                    f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
+                )
+
+        transformer = cls(transformers=transformers)
+        transformer._output_names = output_names
+
+        return transformer
+
+    def _merge(
+        self, bq_model: bigquery.Model
+    ) -> Union[ColumnTransformer, preprocessing.PreprocessingType,]:
+        """Try to merge the column transformer to a simple transformer. Depends on all the columns in bq_model are transformed with the same transformer."""
+        transformers = self.transformers_
+
+        assert len(transformers) > 0
+        _, transformer_0, column_0 = transformers[0]
+        columns = [column_0]
+        for _, transformer, column in transformers[1:]:
+            # all transformers are the same
+            if transformer != transformer_0:
+                return self
+            columns.append(column)
+        # all feature columns are transformed
+        if sorted(
+            [
+                cast(str, feature_column.name)
+                for feature_column in bq_model.feature_columns
+            ]
+        ) == sorted(columns):
+            transformer_0._output_names = self._output_names
+            return transformer_0
+
+        return self
 
     def _compile_to_sql(
         self,

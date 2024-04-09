@@ -47,16 +47,20 @@ Dtype = Union[
 # None represents the type of a None scalar.
 ExpressionType = typing.Optional[Dtype]
 
-# Used when storing Null expressions
-DEFAULT_DTYPE = pd.Float64Dtype()
 
 INT_DTYPE = pd.Int64Dtype()
 FLOAT_DTYPE = pd.Float64Dtype()
 BOOL_DTYPE = pd.BooleanDtype()
 STRING_DTYPE = pd.StringDtype(storage="pyarrow")
+BYTES_DTYPE = pd.ArrowDtype(pa.binary())
+DATE_DTYPE = pd.ArrowDtype(pa.date32())
+TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
+DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
+TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+GEO_DTYPE = gpd.array.GeometryDtype()
 
-# On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
+# Used when storing Null expressions
+DEFAULT_DTYPE = FLOAT_DTYPE
 
 # Type hints for dtype strings supported by BigQuery DataFrame
 DtypeString = Literal[
@@ -100,15 +104,61 @@ NUMERIC_BIGFRAMES_TYPES_PERMISSIVE = NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + [
     pd.ArrowDtype(pa.decimal256(76, 38)),
 ]
 
-# Type hints for Ibis data types that can be read to Python objects by BigQuery DataFrame
-ReadOnlyIbisDtype = Union[
-    ibis_dtypes.Binary,
-    ibis_dtypes.JSON,
-    ibis_dtypes.Decimal,
-    ibis_dtypes.GeoSpatial,
-    ibis_dtypes.Array,
-    ibis_dtypes.Struct,
-]
+
+## dtype predicates - use these to maintain consistency
+def is_datetime_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE)
+
+
+def is_date_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, DATE_DTYPE)
+
+
+def is_time_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE)
+
+
+def is_binary_like(type: ExpressionType) -> bool:
+    return type in (BOOL_DTYPE, BYTES_DTYPE, INT_DTYPE)
+
+
+def is_string_like(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE)
+
+
+def is_array_like(type: ExpressionType) -> bool:
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.ListType
+    )
+
+
+def is_struct_like(type: ExpressionType) -> bool:
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.StructType
+    )
+
+
+def is_numeric(type: ExpressionType) -> bool:
+    return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+
+
+def is_iterable(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE) or is_array_like(type)
+
+
+def is_comparable(type: ExpressionType) -> bool:
+    return (type is not None) and is_orderable(type)
+
+
+def is_orderable(type: ExpressionType) -> bool:
+    # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
+    return not is_array_like(type) and not is_struct_like(type) and (type != GEO_DTYPE)
+
+
+def is_bool_coercable(type: ExpressionType) -> bool:
+    # TODO: Implement more bool coercions
+    return (type is None) or is_numeric(type) or is_string_like(type)
+
 
 BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
@@ -303,6 +353,10 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
         raise ValueError(
             f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
         )
+
+
+def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+    return ibis_dtype_to_bigframes_dtype(arrow_dtype_to_ibis_dtype(arrow_dtype))
 
 
 def bigframes_dtype_to_ibis_dtype(
@@ -605,6 +659,7 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
 
 
 def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
+    """Get the supertype of the two types."""
     if dtype1 == dtype2:
         return dtype1
     # Implicit conversion currently only supported for numeric types
@@ -621,12 +676,26 @@ def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
     return hierarchy[lcd_index]
 
 
-def lcd_etype(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
-    if etype1 is None:
+def coerce_to_common(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
+    """Coerce types to a common type or throw a TypeError"""
+    if etype1 is not None and etype2 is not None:
+        common_supertype = lcd_type(etype1, etype2)
+        if common_supertype is not None:
+            return common_supertype
+    if can_coerce(etype1, etype2):
         return etype2
-    if etype2 is None:
+    if can_coerce(etype2, etype1):
         return etype1
-    return lcd_type_or_throw(etype1, etype2)
+    raise TypeError(f"Cannot coerce {etype1} and {etype2} to a common type.")
+
+
+def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool:
+    if source_type is None:
+        return True  # None can be coerced to any supported type
+    else:
+        return (source_type == STRING_DTYPE) and (
+            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+        )
 
 
 def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
@@ -682,6 +751,17 @@ def ibis_type_from_python_type(t: type) -> ibis_dtypes.DataType:
 
 
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> ibis_dtypes.DataType:
+    """Convert bq type to ibis. Only to be used for remote functions, does not handle all types."""
     if tk not in SUPPORTED_IO_BIGQUERY_TYPEKINDS:
         raise UnsupportedTypeError(tk, SUPPORTED_IO_BIGQUERY_TYPEKINDS)
     return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
+
+
+def bf_type_from_type_kind(bf_schema) -> Dict[str, Dtype]:
+    """Converts bigquery sql type to the default bigframes dtype."""
+    ibis_schema: ibis.Schema = third_party_ibis_bqtypes.BigQuerySchema.to_ibis(
+        bf_schema
+    )
+    return {
+        name: ibis_dtype_to_bigframes_dtype(type) for name, type in ibis_schema.items()
+    }

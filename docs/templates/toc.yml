@@ -12,6 +12,8 @@
       name: Methods
     - href: summary_property.html
       name: Properties and Attributes
+    - href: supported_pandas_apis.html
+      name: Supported pandas APIs
     name: BigQuery DataFrames API
   - items:
     - items:
@@ -40,6 +42,8 @@
       - name: SeriesGroupBy
         uid: bigframes.core.groupby.SeriesGroupBy
       name: Groupby
+    - name: Index
+      uid: bigframes.core.indexes.base.Index
     - items:
       - name: AtDataFrameIndexer
         uid: bigframes.core.indexers.AtDataFrameIndexer
@@ -60,6 +64,12 @@
       name: Indexers
     - name: pandas
       uid: bigframes.pandas
+    - items:
+      - name: Plotting
+        uid: bigframes.operations.plotting
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
+      name: Plotting
     - items:
       - name: Series
         uid: bigframes.series.Series
