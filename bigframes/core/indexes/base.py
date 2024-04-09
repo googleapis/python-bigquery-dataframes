@@ -90,10 +90,7 @@ class Index(vendored_pandas_index.Index):
             block = df.DataFrame(pd_df, session=session)._block
 
         # TODO: Support more index subtypes
-        if len(block._index_columns) > 1:
-            klass = MultiIndex
-        else:
-            klass = Index
+        klass = MultiIndex if len(block._index_columns) > 1 else Index
         result = typing.cast(Index, object.__new__(klass))
         result._query_job = None
         result._block = block
@@ -490,7 +487,7 @@ class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
     ) -> MultiIndex:
         pd_index = pandas.MultiIndex.from_tuples(tuples, sortorder, names)
         # Index.__new__ should detect multiple levels and properly create a multiindex
-        return Index(pd_index)
+        return typing.cast(MultiIndex, Index(pd_index))
 
     @classmethod
     def from_arrays(
@@ -501,4 +498,4 @@ class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
     ) -> MultiIndex:
         pd_index = pandas.MultiIndex.from_arrays(arrays, sortorder, names)
         # Index.__new__ should detect multiple levels and properly create a multiindex
-        return Index(pd_index)
+        return typing.cast(MultiIndex, Index(pd_index))
