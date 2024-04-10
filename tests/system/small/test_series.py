@@ -1261,6 +1261,7 @@ def test_binop_right_filtered(scalars_dfs):
     )
 
 
+@skip_legacy_pandas
 def test_series_combine_first(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col = scalars_df["int64_col"].head(7)
