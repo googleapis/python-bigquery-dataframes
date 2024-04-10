@@ -634,16 +634,6 @@ class StringMethods:
         If `others` is specified, this function concatenates the Series/Index
         and elements of `others` element-wise.
 
-        Args:
-            others (str or Series):
-                A string or a Series of strings.
-
-            join ({'left', 'outer'}, default 'left'):
-                Determines the join-style between the calling Series and any
-                Series in `others` (objects without an index need
-                to match the length of the calling Series). To disable
-                alignment, use `.values` on any Series/Index/DataFrame in `others`.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -678,6 +668,16 @@ class StringMethods:
             2        <NA>
             dtype: string
 
+        Args:
+            others (str or Series):
+                A string or a Series of strings.
+
+            join ({'left', 'outer'}, default 'left'):
+                Determines the join-style between the calling Series and any
+                Series in `others` (objects without an index need
+                to match the length of the calling Series). To disable
+                alignment, use `.values` on any Series/Index/DataFrame in `others`.
+
         Returns:
             bigframes.series.Series: Series with concatenated strings.
         """
@@ -707,7 +707,7 @@ class StringMethods:
             4     <NA>
             dtype: boolean
 
-        Specifying case sensitivity using case.
+        Specifying case sensitivity using `case`.
 
             >>> s1.str.contains('oG', case=True)
             0    False
