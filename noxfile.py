@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import
 
+import glob
 from multiprocessing import Process
 import os
 import pathlib
@@ -804,6 +805,31 @@ def notebook(session: nox.Session):
 
     for process in processes:
         process.join()
+
+    # when run via pytest, notebooks output a .bytesprocessed report
+    # collect those reports and print a summary
+    print("---BIGQUERY USAGE REPORT---")
+    cumulative_queries = 0
+    cumulative_bytes = 0
+    for report in glob.glob("*.bytesprocessed"):
+        with open(report, "r") as f:
+            filename = os.path.basename(report)
+            lines = f.read().splitlines()
+            query_count = len(lines)
+            total_bytes = sum([int(line) for line in lines])
+            format_string = "{filename} query count: {query_count}, bytes processed sum: {total_bytes}"
+            print(
+                format_string.format(
+                    filename=filename, query_count=query_count, total_bytes=total_bytes
+                )
+            )
+            cumulative_bytes += total_bytes
+            cumulative_queries += query_count
+    print(
+        "---total queries: {total_queries}, total bytes: {total_bytes}---".format(
+            total_queries=cumulative_queries, total_bytes=cumulative_bytes
+        )
+    )
 
 
 @nox.session(python="3.10")
