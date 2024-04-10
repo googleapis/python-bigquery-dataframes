@@ -1367,8 +1367,19 @@ def clip_op(
 
 @scalar_op_compiler.register_nary_op(ops.switch_op)
 def switch_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
+    # ibis can handle most type coercions, but we need to force bool -> int
+    # TODO: dispatch coercion depending on bigframes dtype schema
+    result_values = cases_and_outputs[1::2]
+    do_upcast_bool = any(t.type().is_numeric() for t in result_values)
+    if do_upcast_bool:
+        # Just need to upcast to int, ibis can handle further coercion
+        result_values = tuple(
+            val.cast(ibis_dtypes.int64) if val.type().is_boolean() else val
+            for val in result_values
+        )
+
     case_val = ibis.case()
-    for predicate, output in zip(cases_and_outputs[::2], cases_and_outputs[1::2]):
+    for predicate, output in zip(cases_and_outputs[::2], result_values):
         case_val = case_val.when(predicate, output)
     return case_val.end()
 
