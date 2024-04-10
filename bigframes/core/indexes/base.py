@@ -17,10 +17,9 @@
 from __future__ import annotations
 
 import typing
-from typing import Hashable, Iterable, Optional, Sequence, Union
+from typing import Hashable, Optional, Sequence, Union
 
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
-import bigframes_vendored.pandas.core.indexes.multi as vendored_pandas_multindex
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
@@ -49,7 +48,7 @@ class Index(vendored_pandas_index.Index):
         bigframes.dataframe.DataFrame, bigframes.series.Series, None
     ] = None
 
-    # Overrided on __new__ to create subclasses like python does
+    # Overrided on __new__ to create subclasses like pandas does
     def __new__(
         cls,
         data=None,
@@ -89,6 +88,8 @@ class Index(vendored_pandas_index.Index):
             block = df.DataFrame(pd_df, session=session)._block
 
         # TODO: Support more index subtypes
+        from bigframes.core.indexes.multi import MultiIndex
+
         klass = MultiIndex if len(block._index_columns) > 1 else cls
         result = typing.cast(Index, object.__new__(klass))
         result._query_job = None
@@ -473,29 +474,3 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
-
-
-class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
-    __doc__ = vendored_pandas_multindex.MultiIndex.__doc__
-
-    @classmethod
-    def from_tuples(
-        cls,
-        tuples: Iterable[tuple[Hashable, ...]],
-        sortorder: int | None = None,
-        names: Sequence[Hashable] | Hashable | None = None,
-    ) -> MultiIndex:
-        pd_index = pandas.MultiIndex.from_tuples(tuples, sortorder, names)
-        # Index.__new__ should detect multiple levels and properly create a multiindex
-        return typing.cast(MultiIndex, Index(pd_index))
-
-    @classmethod
-    def from_arrays(
-        cls,
-        arrays,
-        sortorder: int | None = None,
-        names=None,
-    ) -> MultiIndex:
-        pd_index = pandas.MultiIndex.from_arrays(arrays, sortorder, names)
-        # Index.__new__ should detect multiple levels and properly create a multiindex
-        return typing.cast(MultiIndex, Index(pd_index))

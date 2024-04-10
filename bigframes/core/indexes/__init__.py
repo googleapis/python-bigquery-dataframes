@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from bigframes.core.indexes.base import Index, MultiIndex
+from bigframes.core.indexes.base import Index
+from bigframes.core.indexes.multi import MultiIndex
 
 __all__ = [
     "Index",
