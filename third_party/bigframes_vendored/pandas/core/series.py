@@ -2409,7 +2409,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def update(self, other: Series | Sequence | Mapping) -> None:
+    def update(self, other) -> None:
         """
         Modify Series in place using values from passed Series.
 
