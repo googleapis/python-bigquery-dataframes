@@ -131,14 +131,21 @@ def cut(
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
         elif pd.api.types.is_number(list(bins)[0]):
-            if len(list(bins)) < 2:
+            bins_list = list(bins)
+            if len(bins_list) < 2:
                 raise ValueError(
                     "`bins` iterable of numeric breaks should have"
                     " at least two items"
                 )
-            as_index = pd.IntervalIndex.from_breaks(list(bins))
-            bins = list(bins)
-            bins = tuple([(bins[i], bins[i + 1]) for i in range(len(bins) - 1)])
+            as_index = pd.IntervalIndex.from_breaks(bins_list)
+            single_type = all([isinstance(n, type(bins_list[0])) for n in bins_list])
+            numeric_type = type(bins_list[0]) if single_type else float
+            bins = tuple(
+                [
+                    (numeric_type(bins_list[i]), numeric_type(bins_list[i + 1]))
+                    for i in range(len(bins_list) - 1)
+                ]
+            )
         else:
             raise ValueError("`bins` iterable should contain tuples or numerics")
 

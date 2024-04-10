@@ -424,10 +424,17 @@ def test_cut_default_labels(scalars_dfs):
     )
 
 
-def test_cut_numeric_breaks(scalars_dfs):
+@pytest.mark.parametrize(
+    ("breaks",),
+    [
+        ([0, 5, 10, 15, 20, 100, 1000],),  # ints
+        ([0.5, 10.5, 15.5, 20.5, 100.5, 1000.5],),  # floats
+        ([0, 5, 10.5, 15.5, 20, 100, 1000.5],),  # mixed
+    ],
+)
+def test_cut_numeric_breaks(scalars_dfs, breaks):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    breaks = [0, 5, 10, 15, 20, 100, 1000]
     pd_result = pd.cut(scalars_pandas_df["float64_col"], breaks)
     bf_result = bpd.cut(scalars_df["float64_col"], breaks).to_pandas()
 
