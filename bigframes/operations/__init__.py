@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import typing
+from typing import Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -32,11 +34,6 @@ if typing.TYPE_CHECKING:
 class RowOp(typing.Protocol):
     @property
     def name(self) -> str:
-        ...
-
-    @property
-    def arguments(self) -> int:
-        """The number of column argument the operation takes"""
         ...
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -141,6 +138,21 @@ class TernaryOp:
                 _convert_expr_input(input3),
             ),
         )
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
+
+
+@dataclasses.dataclass(frozen=True)
+class NaryOp:
+    @property
+    def name(self) -> str:
+        raise NotImplementedError("RowOp abstract base class has no implementation")
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        raise NotImplementedError("Abstract operation has no output type")
 
     @property
     def order_preserving(self) -> bool:
@@ -663,6 +675,46 @@ class ClipOp(TernaryOp):
 
 
 clip_op = ClipOp()
+
+
+class SwitchOp(NaryOp):
+    name: typing.ClassVar[str] = "switch"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        assert len(input_types) % 2 == 0
+        # predicate1, output1, predicate2, output2...
+        if not all(map(lambda x: x == dtypes.BOOL_DTYPE, input_types[::2])):
+            raise TypeError(f"Case inputs {input_types[::2]} must be boolean-valued")
+        output_expr_types = input_types[1::2]
+        return functools.reduce(
+            lambda t1, t2: dtypes.coerce_to_common(t1, t2),
+            output_expr_types,
+        )
+
+    def as_expr(
+        self,
+        *case_output_pairs: Tuple[
+            Union[str | bigframes.core.expression.Expression],
+            Union[str | bigframes.core.expression.Expression],
+        ],
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[bigframes.core.expression.Expression] = []
+
+        for case, output in case_output_pairs:
+            inputs.append(_convert_expr_input(case))
+            inputs.append(_convert_expr_input(output))
+
+        return bigframes.core.expression.OpExpression(
+            self,
+            tuple(inputs),
+        )
+
+
+switch_op = SwitchOp()
+
 
 # Just parameterless unary ops for now
 # TODO: Parameter mappings

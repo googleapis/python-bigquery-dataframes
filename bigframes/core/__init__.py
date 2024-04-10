@@ -372,15 +372,62 @@ class ArrayValue:
         Returns:
             ArrayValue: The unpivoted ArrayValue
         """
+        # 1. construct array_value from row_labels, with offsets
+        unpivot_offset_id = bigframes.core.guid.generate_guid("unpivot_offsets_")
+
+        rows = []
+        for row_offset in range(len(row_labels)):
+            row_label = row_labels[row_offset]
+            row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
+            row = {index_col_ids[i]: row_label[i] for i in range(len(index_col_ids))}
+            rows.append(row)
+
+        labels_array = ArrayValue.from_pyarrow(
+            pa.Table.from_pylist(rows), session=self.session
+        ).promote_offsets(unpivot_offset_id)
+
+        # 2. cross join labels_array with main table
+        table_join_side = (
+            join_def.JoinSide.LEFT if how == "left" else join_def.JoinSide.RIGHT
+        )
+        labels_join_side = table_join_side.inverse()
+        labels_mappings = tuple(
+            join_def.JoinColumnMapping(labels_join_side, id, id)
+            for id in labels_array.schema.names
+        )
+        table_mappings = tuple(
+            join_def.JoinColumnMapping(table_join_side, id, id)
+            for id in self.schema.names
+        )
+        join = join_def.JoinDefinition(
+            conditions=(), mappings=(*labels_mappings, *table_mappings), type="cross"
+        )
+        if how == "left":
+            joined_array = self.join(labels_array, join_def=join)
+        else:
+            joined_array = labels_array.join(self, join_def=join)
+
+        # 3. Build output columns by switching between input columns
+        unpivot_exprs = []
+        for col_id, input_ids in unpivot_columns:
+            cases = tuple(
+                (
+                    ops.eq_op.as_expr(unpivot_offset_id, ex.const(i)),
+                    ex.free_var(id_or_null)
+                    if (id_or_null is not None)
+                    else ex.const(None),
+                )
+                for i, id_or_null in enumerate(input_ids)
+            )
+            col_expr = ops.switch_op.as_expr(*cases)
+            unpivot_exprs.append((col_expr, col_id))
+
+        index_exprs = ((ex.free_var(id), id) for id in index_col_ids)
+        passthrough_exprs = ((ex.free_var(id), id) for id in passthrough_columns)
         return ArrayValue(
-            nodes.UnpivotNode(
-                child=self.node,
-                row_labels=tuple(row_labels),
-                unpivot_columns=tuple(unpivot_columns),
-                passthrough_columns=tuple(passthrough_columns),
-                index_col_ids=tuple(index_col_ids),
-                dtype=dtype,
-                how=how,
+            nodes.ProjectionNode(
+                child=joined_array.node,
+                assignments=(*index_exprs, *unpivot_exprs, *passthrough_exprs),
             )
         )
 
