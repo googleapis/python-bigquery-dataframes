@@ -354,9 +354,6 @@ class ArrayValue:
         *,
         passthrough_columns: typing.Sequence[str] = (),
         index_col_ids: typing.Sequence[str] = ["index"],
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pandas.Float64Dtype(),
         how: typing.Literal["left", "right"] = "left",
     ) -> ArrayValue:
         """
