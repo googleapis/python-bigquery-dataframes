@@ -438,7 +438,7 @@ def test_read_pandas_index(session):
 
 
 def test_read_pandas_w_unsupported_mixed_dtype(session):
-    with pytest.raises(pa.ArrowInvalid, match="Unsupported dtype"):
+    with pytest.raises(pa.ArrowInvalid, match="Could not convert"):
         session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
 
 
