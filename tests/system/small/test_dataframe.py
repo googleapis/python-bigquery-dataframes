@@ -524,13 +524,6 @@ def test_repr_w_all_rows(scalars_dfs):
     scalars_df = scalars_df.drop(columns=["numeric_col"])
     scalars_pandas_df = scalars_pandas_df.drop(columns=["numeric_col"])
 
-    if scalars_pandas_df.index.name is None:
-        # Note: Not quite the same as no index / default index, but hopefully
-        # simulates it well enough while being consistent enough for string
-        # comparison to work.
-        scalars_df = scalars_df.set_index("rowindex", drop=False).sort_index()
-        scalars_df.index.name = None
-
     # When there are 10 or fewer rows, the outputs should be identical.
     actual = repr(scalars_df.head(10))
 
@@ -2613,6 +2606,34 @@ def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
+@pytest.mark.parametrize(
+    ("values", "index", "columns", "aggfunc"),
+    [
+        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std"),
+        (["body_mass_g", "culmen_length_mm"], ("species", "island"), "sex", "sum"),
+        ("body_mass_g", "sex", ["island", "species"], "mean"),
+        ("culmen_depth_mm", "island", "species", "max"),
+    ],
+)
+def test_df_pivot_table(
+    penguins_df_default_index,
+    penguins_pandas_df_default_index,
+    values,
+    index,
+    columns,
+    aggfunc,
+):
+    bf_result = penguins_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    ).to_pandas()
+    pd_result = penguins_pandas_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    )
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_column_type=False
+    )
+
+
 def test_ipython_key_completions_with_drop(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = "string_col"
@@ -3956,9 +3977,6 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
         ("bottom", "dense", False, False),
     ],
 )
-@pytest.mark.skipif(
-    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
-)
 def test_df_rank_with_nulls(
     scalars_df_index,
     scalars_pandas_df_index,
@@ -4143,6 +4161,56 @@ def test_recursion_limit(scalars_df_index):
     for i in range(400):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()
+
+
+def test_query_complexity_repeated_joins(
+    scalars_df_index, scalars_pandas_df_index, with_multiquery_execution
+):
+    pd_df = scalars_pandas_df_index
+    bf_df = scalars_df_index
+    for _ in range(6):
+        # recursively join, resuling in 2^6 - 1 = 63 joins
+        pd_df = pd_df.merge(pd_df, on="int64_col").head(30)
+        pd_df = pd_df[pd_df.columns[:20]]
+        bf_df = bf_df.merge(bf_df, on="int64_col").head(30)
+        bf_df = bf_df[bf_df.columns[:20]]
+
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_query_complexity_repeated_subtrees(
+    scalars_df_index, scalars_pandas_df_index, with_multiquery_execution
+):
+    # Recursively union the data, if fully inlined has 10^5 identical root tables.
+    pd_df = scalars_pandas_df_index
+    bf_df = scalars_df_index
+    for _ in range(5):
+        pd_df = pd.concat(10 * [pd_df]).head(5)
+        bf_df = bigframes.pandas.concat(10 * [bf_df]).head(5)
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    # See: https://github.com/python/cpython/issues/112282
+    reason="setrecursionlimit has no effect on the Python C stack since Python 3.12.",
+)
+def test_query_complexity_repeated_analytic(
+    scalars_df_index, scalars_pandas_df_index, with_multiquery_execution
+):
+    bf_df = scalars_df_index[["int64_col", "int64_too"]]
+    pd_df = scalars_pandas_df_index[["int64_col", "int64_too"]]
+    # Uses LAG analytic operator, each in a new SELECT
+    for _ in range(50):
+        bf_df = bf_df.diff()
+        pd_df = pd_df.diff()
+    bf_result = bf_df.to_pandas()
+    pd_result = pd_df
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_to_pandas_downsampling_option_override(session):

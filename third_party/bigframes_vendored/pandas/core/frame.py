@@ -4711,6 +4711,88 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def pivot_table(self, values=None, index=None, columns=None, aggfunc="mean"):
+        """
+        Create a spreadsheet-style pivot table as a DataFrame.
+
+        The levels in the pivot table will be stored in MultiIndex objects (hierarchical indexes)
+        on the index and columns of the result DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'Product': ['Product A', 'Product B', 'Product A', 'Product B', 'Product A', 'Product B'],
+            ...     'Region': ['East', 'West', 'East', 'West', 'West', 'East'],
+            ...     'Sales': [100, 200, 150, 100, 200, 150],
+            ...     'Rating': [3, 5, 4, 3, 3, 5]
+            ... })
+            >>> df
+                 Product Region  Sales  Rating
+            0  Product A   East    100       3
+            1  Product B   West    200       5
+            2  Product A   East    150       4
+            3  Product B   West    100       3
+            4  Product A   West    200       3
+            5  Product B   East    150       5
+            <BLANKLINE>
+            [6 rows x 4 columns]
+
+        Using `pivot_table` with default aggfunc "mean":
+
+            >>> pivot_table = df.pivot_table(
+            ...     values=['Sales', 'Rating'],
+            ...     index='Product',
+            ...     columns='Region'
+            ... )
+            >>> pivot_table
+                      Rating       Sales
+            Region      East West   East   West
+            Product
+            Product A    3.5  3.0  125.0  200.0
+            Product B    5.0  4.0  150.0  150.0
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+        Using `pivot_table` with specified aggfunc "max":
+
+            >>> pivot_table = df.pivot_table(
+            ...     values=['Sales', 'Rating'],
+            ...     index='Product',
+            ...     columns='Region',
+            ...     aggfunc="max"
+            ... )
+            >>> pivot_table
+                      Rating      Sales
+            Region      East West  East West
+            Product
+            Product A      4    3   150  200
+            Product B      5    5   150  200
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+        Args:
+            values (str, object or a list of the previous, optional):
+                Column(s) to use for populating new frame's values. If not
+                specified, all remaining columns will be used and the result will
+                have hierarchically indexed columns.
+
+            index (str or object or a list of str, optional):
+                Column to use to make new frame's index. If not given, uses existing index.
+
+            columns (str or object or a list of str):
+                Column to use to make new frame's columns.
+
+            aggfunc (str, default "mean"):
+                Aggregation function name to compute summary statistics (e.g., 'sum', 'mean').
+
+        Returns:
+            DataFrame: An Excel style pivot table.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def stack(self, level=-1):
         """
         Stack the prescribed level(s) from columns to index.
@@ -5362,6 +5444,30 @@ class DataFrame(generic.NDFrame):
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...                    columns=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> df
+                A       B       C
+            0   0       2       3
+            1   0       4       1
+            2   10      20      30
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Get value at specified row/column pair
+
+            >>> df.iat[1, 2]
+            1
+
+        Get value within a series
+
+            >>> df.loc[0].iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
         """
@@ -5370,6 +5476,30 @@ class DataFrame(generic.NDFrame):
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...   index=[4, 5, 6], columns=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> df
+                A   B   C
+            4   0   2   3
+            5   0   4   1
+            6  10  20  30
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Get value at specified row/column pair
+
+            >>> df.at[4, 'B']
+            2
+
+        Get value within a series
+
+            >>> df.loc[5].at['B']
+            4
 
         Returns:
             bigframes.core.indexers.AtDataFrameIndexer: Indexers object.

@@ -119,13 +119,15 @@ class Series(NDFrame):  # type: ignore[misc]
     def dtype(self):
         """
         Return the dtype object of the underlying data.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    @property
-    def dtypes(self):
-        """
-        Return the dtype object of the underlying data.
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.dtype
+            Int64Dtype()
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2836,7 +2838,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def argmax(self):
         """
-        Return int position of the smallest value in the Series.
+        Return int position of the smallest value in the series.
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
@@ -3308,6 +3310,22 @@ class Series(NDFrame):  # type: ignore[misc]
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series(bpd.Series([1, 2, 3]))
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        Get value at specified row number
+
+            >>> s.iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatSeriesIndexer: Indexers object.
         """
@@ -3316,6 +3334,23 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            A    1
+            B    2
+            C    3
+            dtype: Int64
+
+        Get value at specified row label
+
+            >>> s.at['B']
+            2
+
 
         Returns:
             bigframes.core.indexers.AtSeriesIndexer: Indexers object.
