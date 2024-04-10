@@ -192,7 +192,7 @@ class LocDataFrameIndexer:
             and isinstance(key[0], bigframes.series.Series)
             and key[0].dtype == "boolean"
         ) and pd.api.types.is_scalar(value):
-            new_column = key[0].map({True: value, False: None})
+            new_column = key[0].map({True: value, False: pd.NA})
             try:
                 original_column = self._dataframe[key[1]]
             except KeyError:
