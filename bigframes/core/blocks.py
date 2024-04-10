@@ -934,14 +934,12 @@ class Block:
             # if all aggregates are of the same dtype then we should set that
             # dtype in the result
             if dtype is None:
-                aggregate_dtypes = set(
-                    [
+                dtype = bigframes.dtypes.lcd_type(
+                    *[
                         aggregate_expr.get_column_type(c)
                         for c in aggregate_expr.column_ids
                     ]
                 )
-                if len(aggregate_dtypes) == 1:
-                    dtype = aggregate_dtypes.pop()
             if dtype is None:
                 dtype = pd.Float64Dtype()
             result_expr = aggregate_expr.unpivot(
@@ -1150,12 +1148,10 @@ class Block:
             for col_id in column_ids
         ]
         aggregate_expr = self.expr.aggregate(aggregations)
-        aggregate_dtypes = set(
-            [aggregate_expr.get_column_type(c) for c in aggregate_expr.column_ids]
+        dtype = bigframes.dtypes.lcd_type(
+            *[aggregate_expr.get_column_type(c) for c in aggregate_expr.column_ids]
         )
-        if len(aggregate_dtypes) == 1:
-            dtype = aggregate_dtypes.pop()
-        else:
+        if dtype is None:
             dtype = pd.Float64Dtype()
         expr = aggregate_expr.unpivot(
             labels,
