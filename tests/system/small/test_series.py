@@ -1281,11 +1281,11 @@ def test_series_combine_first(scalars_dfs):
 def test_series_update(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col = scalars_df["int64_col"].head(7)
-    float64_col = scalars_df["float64_col"].tail(7)
+    float64_col = scalars_df["float64_col"].tail(7).copy()
     float64_col.update(int64_col)
 
     pd_int64_col = scalars_pandas_df["int64_col"].head(7)
-    pd_float64_col = scalars_pandas_df["float64_col"].tail(7)
+    pd_float64_col = scalars_pandas_df["float64_col"].tail(7).copy()
     pd_float64_col.update(pd_int64_col)
 
     assert_series_equal(
