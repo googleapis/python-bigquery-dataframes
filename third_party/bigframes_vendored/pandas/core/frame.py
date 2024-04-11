@@ -2379,7 +2379,8 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __add__(self, other) -> DataFrame:
-        """Get addition of DataFrame and other, column-wise.
+        """Get addition of DataFrame and other, column-wise, using arithmatic
+        operator `+`.
 
         Equivalent to ``DataFrame.add(other)``.
 
@@ -6448,5 +6449,76 @@ class DataFrame(generic.NDFrame):
             numpy.ndarray:
                 The rows in the DataFrame converted to a `numpy.ndarray` with
                 the specified dtype.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __getitem__(self, key):
+        """Gets the specified column(s) from the DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     "name" : ["alpha", "beta", "gamma"],
+            ...     "age": [20, 30, 40],
+            ...     "location": ["WA", "NY", "CA"]
+            ... })
+            >>> df
+                name  age location
+            0  alpha   20       WA
+            1   beta   30       NY
+            2  gamma   40       CA
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        You can specify a column label to retrieve the corresponding Series.
+
+            >>> df["name"]
+            0    alpha
+            1     beta
+            2    gamma
+            Name: name, dtype: string
+
+        You can specify a list of column labels to retrieve a Dataframe.
+
+            >>> df[["name", "age"]]
+                name  age
+            0  alpha   20
+            1   beta   30
+            2  gamma   40
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can specify a condition as a series of booleans to retrieve matching
+        rows.
+
+            >>> df[df["age"] > 25]
+                name  age location
+            1   beta   30       NY
+            2  gamma   40       CA
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        You can specify a pandas Index with desired column labels.
+
+            >>> import pandas as pd
+            >>> df[pd.Index(["age", "location"])]
+               age location
+            0   20       WA
+            1   30       NY
+            2   40       CA
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            key (index):
+                Index or list of indices. It can be a column label, a list of
+                column labels, a Series of booleans or a pandas Index of desired
+                column labels
+
+        Returns:
+            Series or Value: Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

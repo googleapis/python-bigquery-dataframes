@@ -467,7 +467,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             bigframes.series.Series,
         ],
     ):  # No return type annotations (like pandas) as type cannot always be determined statically
-        """Gets the specified column(s) from the DataFrame."""
         # NOTE: This implements the operations described in
         # https://pandas.pydata.org/docs/getting_started/intro_tutorials/03_subset_data.html
 
