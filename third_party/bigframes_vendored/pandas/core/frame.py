@@ -911,28 +911,6 @@ class DataFrame(generic.NDFrame):
     # ----------------------------------------------------------------------
     # Unsorted
 
-    def equals(self, other) -> bool:
-        """
-        Test whether two objects contain the same elements.
-
-        This function allows two Series or DataFrames to be compared against
-        each other to see if they have the same shape and elements. NaNs in
-        the same location are considered equal.
-
-        The row/column index do not need to have the same type, as long
-        as the values are considered equal. Corresponding columns must be of
-        the same dtype.
-
-        Args:
-            other (Series or DataFrame):
-                The other Series or DataFrame to be compared with the first.
-
-        Returns:
-            bool: True if all elements are the same in both objects, False
-            otherwise.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
     def assign(self, **kwargs) -> DataFrame:
         r"""
         Assign new columns to a DataFrame.
@@ -1910,6 +1888,39 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __eq__(self, other):
+        """
+        Check equality of DataFrame and other, element-wise, using logical
+        operator `==`.
+
+        Equivalent to `DataFrame.eq(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 3, 4],
+            ...         'b': [360, 0, 180]
+            ...      })
+            >>> df == 0
+                   a      b
+            0   True  False
+            1  False   True
+            2  False  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame for equality.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def ne(self, other, axis: str | int = "columns") -> DataFrame:
         """
         Get not equal to of DataFrame and other, element-wise (binary operator `ne`).
@@ -1952,6 +1963,39 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
         Returns:
             DataFrame: Result of the comparison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __ne__(self, other):
+        """
+        Check inequality of DataFrame and other, element-wise, using logical
+        operator `!=`.
+
+        Equivalent to `DataFrame.ne(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 3, 4],
+            ...         'b': [360, 0, 180]
+            ...      })
+            >>> df != 0
+                   a      b
+            0  False   True
+            1   True  False
+            2   True   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame for inequality.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2005,6 +2049,39 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __le__(self, other):
+        """
+        Check whether DataFrame is less than or equal to other, element-wise,
+        using logical operator `<=`.
+
+        Equivalent to `DataFrame.le(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df <= 0
+                   a      b
+            0   True  False
+            1   True   True
+            2  False   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def lt(self, other, axis: str | int = "columns") -> DataFrame:
         """Get 'less than' of DataFrame and other, element-wise (binary operator `<`).
 
@@ -2052,6 +2129,39 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame of bool. The result of the comparison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __lt__(self, other):
+        """
+        Check whether DataFrame is less than other, element-wise, using logical
+        operator `<`.
+
+        Equivalent to `DataFrame.lt(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df < 0
+                   a      b
+            0  False  False
+            1   True  False
+            2  False   True
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2105,6 +2215,39 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __ge__(self, other):
+        """
+        Check whether DataFrame is greater than or equal to other, element-wise,
+        using logical operator `>=`.
+
+        Equivalent to `DataFrame.ge(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df >= 0
+                   a      b
+            0   True   True
+            1  False   True
+            2   True  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def gt(self, other, axis: str | int = "columns") -> DataFrame:
         """Get 'greater than' of DataFrame and other, element-wise (binary operator `>`).
 
@@ -2150,6 +2293,88 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame of bool: The result of the comparison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __gt__(self, other):
+        """
+        Check whether DataFrame is greater than other, element-wise, using logical
+        operator `>`.
+
+        Equivalent to `DataFrame.gt(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, -1, 1],
+            ...         'b': [1, 0, -1]
+            ...      })
+            >>> df > 0
+                   a      b
+            0  False   True
+            1  False  False
+            2   True  False
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to be compared to the DataFrame.
+
+        Returns:
+            DataFrame: The result of comparing `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def add(self, other, axis: str | int = "columns") -> DataFrame:
+        """Get addition of DataFrame and other, element-wise (binary operator `+`).
+
+        Equivalent to ``dataframe + other``. With reverse version, `radd`.
+
+        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
+        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
+
+        .. note::
+            Mismatched indices will be unioned together.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'A': [1, 2, 3],
+            ...     'B': [4, 5, 6],
+            ...     })
+
+        You can use method name:
+
+            >>> df['A'].add(df['B'])
+            0    5
+            1    7
+            2    9
+            dtype: Int64
+
+        You can also use arithmetic operator ``+``:
+
+            >>> df['A'] + df['B']
+            0    5
+            1    7
+            2    9
+            dtype: Int64
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+            axis ({0 or 'index', 1 or 'columns'}):
+                Whether to compare by the index (0 or 'index') or columns.
+                (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2219,55 +2444,6 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: The result of adding `other` to DataFrame.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    def add(self, other, axis: str | int = "columns") -> DataFrame:
-        """Get addition of DataFrame and other, element-wise (binary operator `+`).
-
-        Equivalent to ``dataframe + other``. With reverse version, `radd`.
-
-        Among flexible wrappers (`add`, `sub`, `mul`, `div`, `mod`, `pow`) to
-        arithmetic operators: `+`, `-`, `*`, `/`, `//`, `%`, `**`.
-
-        .. note::
-            Mismatched indices will be unioned together.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3],
-            ...     'B': [4, 5, 6],
-            ...     })
-
-        You can use method name:
-
-            >>> df['A'].add(df['B'])
-            0    5
-            1    7
-            2    9
-            dtype: Int64
-
-        You can also use arithmetic operator ``+``:
-
-            >>> df['A'] + df['B']
-            0    5
-            1    7
-            2    9
-            dtype: Int64
-
-        Args:
-            other (float, int, or Series):
-                Any single or multiple element data structure, or list-like object.
-            axis ({0 or 'index', 1 or 'columns'}):
-                Whether to compare by the index (0 or 'index') or columns.
-                (1 or 'columns'). For Series input, axis to match Series index on.
-
-        Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2369,6 +2545,49 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __sub__(self, other):
+        """
+        Get subtraction of other from DataFrame, element-wise, using operator `-`.
+
+        Equivalent to `DataFrame.sub(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can subtract a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df - 2
+                a  b
+            0  -1  2
+            1   0  3
+            2   1  4
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also subtract another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df - df1
+                a  b
+            0  -1  1
+            1   0  2
+            2   1  3
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to subtract from the DataFrame.
+
+        Returns:
+            DataFrame: The result of the subtraction.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rsub(self, other, axis: str | int = "columns") -> DataFrame:
         """Get subtraction of DataFrame and other, element-wise (binary operator `-`).
 
@@ -2412,6 +2631,21 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rsub__(self, other):
+        """
+        Get subtraction of DataFrame from other, element-wise, using operator `-`.
+
+        Equivalent to `DataFrame.rsub(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to subtract the DataFrame from.
+
+        Returns:
+            DataFrame: The result of the subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2464,6 +2698,49 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __mul__(self, other):
+        """
+        Get multiplication of DataFrame with other, element-wise, using operator `*`.
+
+        Equivalent to `DataFrame.mul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df * 3
+               a   b
+            0  3  12
+            1  6  15
+            2  9  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df * df1
+               a   b
+            0  2  12
+            1  4  15
+            2  6  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to multiply with the DataFrame.
+
+        Returns:
+            DataFrame: The result of the multiplication.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rmul(self, other, axis: str | int = "columns") -> DataFrame:
         """Get multiplication of DataFrame and other, element-wise (binary operator `*`).
 
@@ -2510,6 +2787,49 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rmul__(self, other):
+        """
+        Get multiplication of DataFrame with other, element-wise, using operator `*`.
+
+        Equivalent to `DataFrame.rmul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df * 3
+               a   b
+            0  3  12
+            1  6  15
+            2  9  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> df1 = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df * df1
+               a   b
+            0  2  12
+            1  4  15
+            2  6  18
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to multiply the DataFrame with.
+
+        Returns:
+            DataFrame: The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2562,6 +2882,49 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __truediv__(self, other):
+        """
+        Get division of DataFrame by other, element-wise, using operator `/`.
+
+        Equivalent to `DataFrame.truediv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df / 2
+                 a    b
+            0  0.5  2.0
+            1  1.0  2.5
+            2  1.5  3.0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also multiply with another DataFrame with index and column labels
+        aligned:
+
+            >>> denominator = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df / denominator
+                a         b
+            0  0.5  1.333333
+            1  1.0  1.666667
+            2  1.5       2.0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide the DataFrame by.
+
+        Returns:
+            DataFrame: The result of the division.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rtruediv(self, other, axis: str | int = "columns") -> DataFrame:
         """Get floating division of DataFrame and other, element-wise (binary operator `/`).
 
@@ -2605,6 +2968,21 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rtruediv__(self, other):
+        """
+        Get division of other by DataFrame, element-wise, using operator `/`.
+
+        Equivalent to `DataFrame.rtruediv(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2657,6 +3035,49 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __floordiv__(self, other):
+        """
+        Get integer divison of DataFrame by other, using arithmatic operator `//`.
+
+        Equivalent to `DataFrame.floordiv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can divide by a scalar:
+
+            >>> df = bpd.DataFrame({"a": [15, 15, 15], "b": [30, 30, 30]})
+            >>> df // 2
+               a   b
+            0  7  15
+            1  7  15
+            2  7  15
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also divide by another DataFrame with index and column labels
+        aligned:
+
+            >>> divisor = bpd.DataFrame({"a": [2, 3, 4], "b": [5, 6, 7]})
+            >>> df // divisor
+               a  b
+            0  7  6
+            1  5  5
+            2  3  4
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide the DataFrame by.
+
+        Returns:
+            DataFrame: The result of the integer divison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rfloordiv(self, other, axis: str | int = "columns") -> DataFrame:
         """Get integer division of DataFrame and other, element-wise (binary operator `//`).
 
@@ -2700,6 +3121,21 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rfloordiv__(self, other):
+        """
+        Get integer divison of other by DataFrame.
+
+        Equivalent to `DataFrame.rfloordiv(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to divide by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the integer divison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2752,6 +3188,49 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __mod__(self, other):
+        """
+        Get modulo of DataFrame with other, element-wise, using operator `%`.
+
+        Equivalent to `DataFrame.mod(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can modulo with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df % 3
+               a  b
+            0  1  1
+            1  2  2
+            2  0  0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also modulo with another DataFrame with index and column labels
+        aligned:
+
+            >>> modulo = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df % modulo
+               a  b
+            0  1  1
+            1  0  2
+            2  1  0
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to modulo the DataFrame by.
+
+        Returns:
+            DataFrame: The result of the modulo.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rmod(self, other, axis: str | int = "columns") -> DataFrame:
         """Get modulo of DataFrame and other, element-wise (binary operator `%`).
 
@@ -2795,6 +3274,21 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rmod__(self, other):
+        """
+        Get integer divison of other by DataFrame.
+
+        Equivalent to `DataFrame.rmod(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to modulo by the DataFrame.
+
+        Returns:
+            DataFrame: The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2848,6 +3342,50 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __pow__(self, other):
+        """
+        Get exponentiation of DataFrame with other, element-wise, using operator
+        `**`.
+
+        Equivalent to `DataFrame.pow(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can exponentiate with a scalar:
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+            >>> df ** 2
+               a   b
+            0  1  16
+            1  4  25
+            2  9  36
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can also exponentiate with another DataFrame with index and column
+        labels aligned:
+
+            >>> exponent = bpd.DataFrame({"a": [2, 2, 2], "b": [3, 3, 3]})
+            >>> df ** exponent
+               a    b
+            0  1   64
+            1  4  125
+            2  9  216
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            other (scalar or DataFrame):
+                Object to exponentiate the DataFrame with.
+
+        Returns:
+            DataFrame: The result of the exponentiation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rpow(self, other, axis: str | int = "columns") -> DataFrame:
         """Get Exponential power of dataframe and other, element-wise (binary operator `rpow`).
 
@@ -2892,6 +3430,22 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rpow__(self, other):
+        """
+        Get exponentiation of other with DataFrame, element-wise, using operator
+        `**`.
+
+        Equivalent to `DataFrame.rpow(other)`.
+
+        Args:
+            other (scalar or DataFrame):
+                Object to exponentiate with the DataFrame.
+
+        Returns:
+            DataFrame: The result of the exponentiation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5777,6 +6331,59 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __matmul__(self, other):
+        """
+        Compute the matrix multiplication between the DataFrame and other, using
+        operator `@`.
+
+        Equivalent to `DataFrame.dot(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
+            >>> left
+               0  1   2   3
+            0  0  1  -2  -1
+            1  1  1   1   1
+            <BLANKLINE>
+            [2 rows x 4 columns]
+            >>> right = bpd.DataFrame([[0, 1], [1, 2], [-1, -1], [2, 0]])
+            >>> right
+                0   1
+            0   0   1
+            1   1   2
+            2  -1  -1
+            3   2   0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+            >>> left @ right
+               0  1
+            0  1  4
+            1  2  2
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        The operand can be a Series, in which case the result will also be a
+        Series:
+
+            >>> right = bpd.Series([1, 2, -1,0])
+            >>> left @ right
+            0    4
+            1    2
+            dtype: Int64
+
+        Args:
+            other (DataFrame or Series):
+                Object to be matrix multiplied with the DataFrame.
+
+        Returns:
+            DataFrame or Series: The result of the matrix multiplication.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     @property
     def plot(self):
         """
@@ -5785,5 +6392,61 @@ class DataFrame(generic.NDFrame):
         Returns:
             bigframes.operations.plotting.PlotAccessor:
                 An accessor making plots.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __len__(self):
+        """Returns number of rows in the DataFrame, serves `len` operator.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...         'a': [0, 1, 2],
+            ...         'b': [3, 4, 5]
+            ...      })
+            >>> len(df)
+            3
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __array__(self):
+        """
+        Returns the rows as NumPy array.
+
+        Equivalent to `DataFrame.to_numpy(dtype)`.
+
+        Users should not call this directly. Rather, it is invoked by
+        `numpy.array` and `numpy.asarray`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import numpy as np
+
+            >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [11, 22, 33]})
+
+            >>> np.array(df)
+            array([[1, 11],
+                [2, 22],
+                [3, 33]], dtype=object)
+
+            >>> np.asarray(df)
+            array([[1, 11],
+                [2, 22],
+                [3, 33]], dtype=object)
+
+        Args:
+            dtype (str or numpy.dtype, optional):
+                The dtype to use for the resulting NumPy array. By default,
+                the dtype is inferred from the data.
+
+        Returns:
+            numpy.ndarray:
+                The rows in the DataFrame converted to a `numpy.ndarray` with
+                the specified dtype.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
