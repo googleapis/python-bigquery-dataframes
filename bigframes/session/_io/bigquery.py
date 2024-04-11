@@ -262,6 +262,8 @@ def pytest_log_job(query_job: bigquery.QueryJob):
     test_name = os.path.basename(test_path).split(".")[0]
     current_directory = os.getcwd()
     bytes_processed = query_job.total_bytes_processed
+    if not isinstance(bytes_processed, int):
+        return  # filter out mocks
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")

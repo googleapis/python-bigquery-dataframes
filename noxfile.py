@@ -808,16 +808,25 @@ def notebook(session: nox.Session):
 
     # when run via pytest, notebooks output a .bytesprocessed report
     # collect those reports and print a summary
+    _print_bytes_processed_report()
+
+
+def _print_bytes_processed_report() -> None:
+    """Add an informational report about http queries and bytes
+    processed to the testlog output for purposes of measuring
+    bigquery-related performance changes.
+    """
     print("---BIGQUERY USAGE REPORT---")
     cumulative_queries = 0
     cumulative_bytes = 0
     for report in glob.glob("*.bytesprocessed"):
         with open(report, "r") as f:
             filename = os.path.basename(report)
+            filename.replace("bytesprocessed", "py")
             lines = f.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
-            format_string = "{filename} query count: {query_count}, bytes processed sum: {total_bytes}"
+            format_string = "{filename} - query count: {query_count}, bytes processed sum: {total_bytes}"
             print(
                 format_string.format(
                     filename=filename, query_count=query_count, total_bytes=total_bytes
