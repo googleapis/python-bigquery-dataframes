@@ -456,6 +456,30 @@ def test_cut_numeric_breaks(scalars_dfs, breaks):
     )
 
 
+def test_cut_errors(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        # negative integer bins argument
+        bpd.cut(scalars_df["float64_col"], -1)
+
+    with pytest.raises(ValueError):
+        # empty iterable of bins
+        bpd.cut(scalars_df["float64_col"], [])
+
+    with pytest.raises(ValueError):
+        # iterable of wrong type
+        bpd.cut(scalars_df["float64_col"], ["notabreak"])
+
+    with pytest.raises(ValueError):
+        # numeric breaks with only one numeric
+        # this is supported by pandas but not by
+        # the bigquery operation and a bigframes workaround
+        # is not yet available. Should return column
+        # of structs with all NaN values.
+        bpd.cut(scalars_df["float64_col"], [1])
+
+
 @pytest.mark.parametrize(
     ("bins",),
     [
