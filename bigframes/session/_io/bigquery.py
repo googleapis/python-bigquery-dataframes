@@ -245,7 +245,10 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
 
-    if "PYTEST_CURRENT_TEST" in os.environ:
+    if (
+        "PYTEST_CURRENT_TEST" in os.environ
+        and ".ipynb" in os.environ["PYTEST_CURRENT_TEST"]
+    ):
         # when running notebooks via pytest nbmake
         pytest_log_job(query_job)
 

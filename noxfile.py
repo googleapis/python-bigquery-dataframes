@@ -16,7 +16,6 @@
 
 from __future__ import absolute_import
 
-import glob
 from multiprocessing import Process
 import os
 import pathlib
@@ -819,10 +818,10 @@ def _print_bytes_processed_report():
     print("---BIGQUERY USAGE REPORT---")
     cumulative_queries = 0
     cumulative_bytes = 0
-    for report in glob.glob("*.bytesprocessed"):
+    for report in Path("notebooks/").glob("*/*.bytesprocessed"):
         with open(report, "r") as f:
             filename = os.path.basename(report)
-            filename = filename.replace("bytesprocessed", "py")
+            filename = filename.replace("bytesprocessed", "ipynb")
             lines = f.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
