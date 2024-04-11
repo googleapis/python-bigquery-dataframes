@@ -2395,7 +2395,9 @@ def test_dataframe_agg_single_string(scalars_dfs):
     pd_result = scalars_pandas_df[numeric_cols].agg("sum")
 
     assert bf_result.dtype == "Float64"
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
 
 
 def test_dataframe_agg_int_single_string(scalars_dfs):
@@ -2406,8 +2408,9 @@ def test_dataframe_agg_int_single_string(scalars_dfs):
     pd_result = scalars_pandas_df[numeric_cols].agg("sum")
 
     assert bf_result.dtype == "Int64"
-    # Pandas has object index type
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
 
 
 def test_dataframe_agg_multi_string(scalars_dfs):
