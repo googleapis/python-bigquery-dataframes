@@ -264,6 +264,9 @@ def pytest_log_job(query_job: bigquery.QueryJob):
     bytes_processed = query_job.total_bytes_processed
     if not isinstance(bytes_processed, int):
         return  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry runs don't process their total_bytes_processed
+        bytes_processed = 0
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
