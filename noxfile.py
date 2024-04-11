@@ -811,7 +811,7 @@ def notebook(session: nox.Session):
     _print_bytes_processed_report()
 
 
-def _print_bytes_processed_report() -> None:
+def _print_bytes_processed_report():
     """Add an informational report about http queries and bytes
     processed to the testlog output for purposes of measuring
     bigquery-related performance changes.
