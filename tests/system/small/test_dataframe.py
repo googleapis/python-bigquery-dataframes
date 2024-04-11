@@ -524,13 +524,6 @@ def test_repr_w_all_rows(scalars_dfs):
     scalars_df = scalars_df.drop(columns=["numeric_col"])
     scalars_pandas_df = scalars_pandas_df.drop(columns=["numeric_col"])
 
-    if scalars_pandas_df.index.name is None:
-        # Note: Not quite the same as no index / default index, but hopefully
-        # simulates it well enough while being consistent enough for string
-        # comparison to work.
-        scalars_df = scalars_df.set_index("rowindex", drop=False).sort_index()
-        scalars_df.index.name = None
-
     # When there are 10 or fewer rows, the outputs should be identical.
     actual = repr(scalars_df.head(10))
 
@@ -2613,6 +2606,34 @@ def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
+@pytest.mark.parametrize(
+    ("values", "index", "columns", "aggfunc"),
+    [
+        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std"),
+        (["body_mass_g", "culmen_length_mm"], ("species", "island"), "sex", "sum"),
+        ("body_mass_g", "sex", ["island", "species"], "mean"),
+        ("culmen_depth_mm", "island", "species", "max"),
+    ],
+)
+def test_df_pivot_table(
+    penguins_df_default_index,
+    penguins_pandas_df_default_index,
+    values,
+    index,
+    columns,
+    aggfunc,
+):
+    bf_result = penguins_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    ).to_pandas()
+    pd_result = penguins_pandas_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    )
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_column_type=False
+    )
+
+
 def test_ipython_key_completions_with_drop(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = "string_col"
@@ -3955,9 +3976,6 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
         ("top", "first", False, False),
         ("bottom", "dense", False, False),
     ],
-)
-@pytest.mark.skipif(
-    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
 )
 def test_df_rank_with_nulls(
     scalars_df_index,

@@ -284,6 +284,21 @@ def test_abs(scalars_dfs, col_name):
     assert_series_equal(pd_result, bf_result)
 
 
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("bool_col",),
+        ("int64_col",),
+    ),
+)
+def test_series_invert(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (~scalars_df[col_name]).to_pandas()
+    pd_result = ~scalars_pandas_df[col_name]
+
+    assert_series_equal(pd_result, bf_result)
+
+
 def test_fillna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -1246,6 +1261,39 @@ def test_binop_right_filtered(scalars_dfs):
     )
 
 
+@skip_legacy_pandas
+def test_series_combine_first(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_col = scalars_df["int64_col"].head(7)
+    float64_col = scalars_df["float64_col"].tail(7)
+    bf_result = int64_col.combine_first(float64_col).to_pandas()
+
+    pd_int64_col = scalars_pandas_df["int64_col"].head(7)
+    pd_float64_col = scalars_pandas_df["float64_col"].tail(7)
+    pd_result = pd_int64_col.combine_first(pd_float64_col)
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_update(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_col = scalars_df["int64_col"].head(7)
+    float64_col = scalars_df["float64_col"].tail(7).copy()
+    float64_col.update(int64_col)
+
+    pd_int64_col = scalars_pandas_df["int64_col"].head(7)
+    pd_float64_col = scalars_pandas_df["float64_col"].tail(7).copy()
+    pd_float64_col.update(pd_int64_col)
+
+    assert_series_equal(
+        float64_col.to_pandas(),
+        pd_float64_col,
+    )
+
+
 def test_mean(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -1276,8 +1324,6 @@ def test_numeric_literal(scalars_dfs):
 
 def test_repr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    if scalars_pandas_df.index.name != "rowindex":
-        pytest.skip("Require index & ordering for consistent repr.")
 
     col_name = "int64_col"
     bf_series = scalars_df[col_name]
@@ -1405,8 +1451,6 @@ def test_groupby_level_sum(scalars_dfs):
     # TODO(tbergeron): Use a non-unique index once that becomes possible in tests
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
-    if scalars_pandas_df.index.name != "rowindex":
-        pytest.skip("Require index for groupby level.")
 
     bf_series = scalars_df[col_name].groupby(level=0).sum()
     pd_series = scalars_pandas_df[col_name].groupby(level=0).sum()
@@ -1421,8 +1465,6 @@ def test_groupby_level_list_sum(scalars_dfs):
     # TODO(tbergeron): Use a non-unique index once that becomes possible in tests
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
-    if scalars_pandas_df.index.name != "rowindex":
-        pytest.skip("Require index for groupby level.")
 
     bf_series = scalars_df[col_name].groupby(level=["rowindex"]).sum()
     pd_series = scalars_pandas_df[col_name].groupby(level=["rowindex"]).sum()
@@ -1640,6 +1682,24 @@ def test_size(scalars_dfs):
     assert pd_result == bf_result
 
 
+def test_series_hasnans_true(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].hasnans
+    pd_result = scalars_pandas_df["string_col"].hasnans
+
+    assert pd_result == bf_result
+
+
+def test_series_hasnans_false(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].dropna().hasnans
+    pd_result = scalars_pandas_df["string_col"].dropna().hasnans
+
+    assert pd_result == bf_result
+
+
 def test_empty_false(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -1710,9 +1770,6 @@ def test_dtypes(scalars_dfs):
 def test_head(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    if scalars_df.index.name is None:
-        pytest.skip("Require explicit index for offset ops.")
-
     bf_result = scalars_df["string_col"].head(2).to_pandas()
     pd_result = scalars_pandas_df["string_col"].head(2)
 
@@ -1724,9 +1781,6 @@ def test_head(scalars_dfs):
 
 def test_tail(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-
-    if scalars_df.index.name is None:
-        pytest.skip("Require explicit index for offset ops.")
 
     bf_result = scalars_df["string_col"].tail(2).to_pandas()
     pd_result = scalars_pandas_df["string_col"].tail(2)
@@ -1740,9 +1794,6 @@ def test_tail(scalars_dfs):
 def test_head_then_scalar_operation(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    if scalars_df.index.name is None:
-        pytest.skip("Require explicit index for offset ops.")
-
     bf_result = (scalars_df["float64_col"].head(1) + 4).to_pandas()
     pd_result = scalars_pandas_df["float64_col"].head(1) + 4
 
@@ -1754,9 +1805,6 @@ def test_head_then_scalar_operation(scalars_dfs):
 
 def test_head_then_series_operation(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-
-    if scalars_df.index.name is None:
-        pytest.skip("Require explicit index for offset ops.")
 
     bf_result = (
         scalars_df["float64_col"].head(4) + scalars_df["float64_col"].head(2)
@@ -1833,44 +1881,6 @@ def test_cumsum_int_ordered(scalars_df_index, scalars_pandas_df_index):
         scalars_pandas_df_index.sort_values(by="rowindex_2")[col_name]
         .cumsum()
         .astype(pd.Int64Dtype())
-    )
-
-    pd.testing.assert_series_equal(
-        bf_result,
-        pd_result,
-    )
-
-
-@pytest.mark.parametrize(
-    ("na_option",),
-    [
-        ("keep",),
-        ("top",),
-        ("bottom",),
-    ],
-)
-@pytest.mark.parametrize(
-    ("method",),
-    [
-        ("average",),
-        ("min",),
-        ("max",),
-        ("first",),
-        ("dense",),
-    ],
-)
-@pytest.mark.skipif(
-    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
-)
-def test_rank_with_nulls(scalars_df_index, scalars_pandas_df_index, na_option, method):
-    col_name = "bool_col"
-    bf_result = (
-        scalars_df_index[col_name].rank(na_option=na_option, method=method).to_pandas()
-    )
-    pd_result = (
-        scalars_pandas_df_index[col_name]
-        .rank(na_option=na_option, method=method)
-        .astype(pd.Float64Dtype())
     )
 
     pd.testing.assert_series_equal(
