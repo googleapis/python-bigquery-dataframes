@@ -822,7 +822,7 @@ def _print_bytes_processed_report():
     for report in glob.glob("*.bytesprocessed"):
         with open(report, "r") as f:
             filename = os.path.basename(report)
-            filename.replace("bytesprocessed", "py")
+            filename = filename.replace("bytesprocessed", "py")
             lines = f.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
