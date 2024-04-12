@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import typing
+from typing import Sequence, Union
 
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 import pandas as pd
@@ -115,13 +116,25 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def median(
         self, numeric_only: bool = False, *, exact: bool = False
     ) -> df.DataFrame:
-        if exact:
-            raise NotImplementedError(
-                f"Only approximate median is supported. {constants.FEEDBACK_LINK}"
-            )
         if not numeric_only:
             self._raise_on_non_numeric("median")
+        if exact:
+            return self.quantile(0.5)
         return self._aggregate_all(agg_ops.median_op, numeric_only=True)
+
+    def quantile(self, q=0.5) -> df.DataFrame:
+        multi_q = utils.is_list_like(q)
+        result = block_ops.quantile(
+            self._block,
+            self._selected_cols,
+            qs=tuple(q) if multi_q else (q,),
+            grouping_column_ids=self._by_col_ids,
+        )
+        result_df = df.DataFrame(result)
+        if multi_q:
+            return result_df.stack()
+        else:
+            return result_df.droplevel(-1, 1)
 
     def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
         return self._aggregate_all(agg_ops.min_op, numeric_only=numeric_only)
@@ -466,8 +479,29 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def mean(self, *args) -> series.Series:
         return self._aggregate(agg_ops.mean_op)
 
-    def median(self, *args, **kwargs) -> series.Series:
-        return self._aggregate(agg_ops.mean_op)
+    def median(
+        self,
+        *args,
+        exact: bool = False,
+        **kwargs,
+    ) -> series.Series:
+        if exact:
+            return self.quantile(0.5)
+        else:
+            return self._aggregate(agg_ops.median_op)
+
+    def quantile(self, q: Union[float, Sequence[float]] = 0.5) -> series.Series:
+        multi_q = utils.is_list_like(q)
+        result = block_ops.quantile(
+            self._block,
+            (self._value_column,),
+            qs=tuple(q) if multi_q else (q,),  # type: ignore
+            grouping_column_ids=self._by_col_ids,
+        )
+        if multi_q:
+            return series.Series(result.stack())
+        else:
+            return series.Series(result.stack()).droplevel(-1)
 
     def std(self, *args, **kwargs) -> series.Series:
         return self._aggregate(agg_ops.std_op)

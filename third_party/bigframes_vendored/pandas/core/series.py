@@ -2757,6 +2757,37 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def quantile(
+        self,
+        q=0.5,
+    ) -> float | Series:
+        """
+        Return value at the given quantile.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1, 2, 3, 4])
+            >>> s.quantile(.5)
+            2.5
+            >>> s.quantile([.25, .5, .75])
+            0.25    1.75
+            0.5      2.5
+            0.75    3.25
+            dtype: Float64
+
+        Args:
+            q (float or array-like, default 0.5 (50% quantile)):
+                The quantile(s) to compute, which can lie in range: 0 <= q <= 1.
+
+        Returns:
+            float or Series:
+                If ``q`` is an array, a Series will be returned where the
+                index is ``q`` and the values are the quantiles, otherwise
+                a float will be returned.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def prod(self):
         """Return the product of the values over the requested axis.
 

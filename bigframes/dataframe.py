@@ -1920,6 +1920,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = frame._block.aggregate_all_and_stack(agg_ops.median_op)
         return bigframes.series.Series(block.select_column("values"))
 
+    def quantile(self, q):
+        multi_q = utils.is_list_like(q)
+        result = block_ops.quantile(
+            self._block, self._block.value_columns, qs=tuple(q) if multi_q else (q,)
+        )
+        if multi_q:
+            return DataFrame(result.stack()).droplevel(0)
+        else:
+            result_df = (
+                DataFrame(result)
+                .stack(list(range(0, self.columns.nlevels)))
+                .droplevel(0)
+            )
+            result = bigframes.series.Series(result_df._block)
+            result.name = q
+            return result
+
     def std(
         self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
     ) -> bigframes.series.Series:
