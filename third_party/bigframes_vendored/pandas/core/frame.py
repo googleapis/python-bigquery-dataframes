@@ -6522,3 +6522,70 @@ class DataFrame(generic.NDFrame):
             Series or Value: Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __setitem__(self, key, value):
+        """Modify or insert a column into the DataFrame.
+
+        .. note::
+            This does **not** modify the original table the DataFrame was
+            derived from.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     "name" : ["alpha", "beta", "gamma"],
+            ...     "age": [20, 30, 40],
+            ...     "location": ["WA", "NY", "CA"]
+            ... })
+            >>> df
+                name  age location
+            0  alpha   20       WA
+            1   beta   30       NY
+            2  gamma   40       CA
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        You can add assign a constant to a new column.
+
+            >>> df["country"] = "USA"
+            >>> df
+                name  age location country
+            0  alpha   20       WA     USA
+            1   beta   30       NY     USA
+            2  gamma   40       CA     USA
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        You can assign a Series to a new column.
+
+            >>> df["new_age"] = df["age"] + 5
+            >>> df
+                name  age location country  new_age
+            0  alpha   20       WA     USA       25
+            1   beta   30       NY     USA       35
+            2  gamma   40       CA     USA       45
+            <BLANKLINE>
+            [3 rows x 5 columns]
+
+        You can assign a Series to an existing column.
+
+            >>> df["new_age"] = bpd.Series([29, 39, 19], index=[1, 2, 0])
+            >>> df
+                name  age location country  new_age
+            0  alpha   20       WA     USA       19
+            1   beta   30       NY     USA       29
+            2  gamma   40       CA     USA       39
+            <BLANKLINE>
+            [3 rows x 5 columns]
+
+        Args:
+            key (column index):
+                It can be a new column to be inserted, or an existing column to
+                be modified.
+            value (scalar or Series):
+                Value to be assigned to the column
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
