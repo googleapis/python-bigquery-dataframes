@@ -28,13 +28,14 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 
 import bigframes
-from bigframes.constants import LOGGING_NAME_ENV_VAR
 from bigframes.core import log_adapter
 import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
 TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+
+LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
 
 def create_job_configs_labels(

@@ -28,8 +28,6 @@ import warnings
 import nox
 import nox.sessions
 
-from bigframes.constants import LOGGING_NAME_ENV_VAR
-
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
 
@@ -766,6 +764,8 @@ def notebook(session: nox.Session):
         "--nbmake-timeout=900",  # 15 minutes
     ]
 
+    logging_name_env_var = "BIGFRAMES_PERFORMANCE_LOG_NAME"
+
     try:
         # Populate notebook parameters and make a backup so that the notebooks
         # are runnable.
@@ -779,7 +779,7 @@ def notebook(session: nox.Session):
         # takes an environment variable for performance logging
         processes = []
         for notebook in notebooks:
-            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
+            session.env[logging_name_env_var] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
@@ -804,7 +804,7 @@ def notebook(session: nox.Session):
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
-            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
+            session.env[logging_name_env_var] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
