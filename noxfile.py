@@ -28,6 +28,8 @@ import warnings
 import nox
 import nox.sessions
 
+from bigframes.constants import LOGGING_NAME_ENV_VAR
+
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
 
@@ -773,13 +775,21 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Run self-contained notebooks in single session.run
-        # achieve parallelization via -n
-        session.run(
-            *pytest_command,
-            "-nauto",
-            *notebooks,
-        )
+        # Run notebooks in parallel session.run's, since each notebook
+        # takes an environment variable for performance logging
+        processes = []
+        for notebook in notebooks:
+            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
+            process = Process(
+                target=session.run,
+                args=(*pytest_command, notebook),
+            )
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -789,11 +799,12 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-    # Run regionalized notebooks in parallel session.run's, since each notebook
-    # takes a different region via env param.
+    # Additionally run regionalized notebooks in parallel session.run's.
+    # Each notebook takes a different region via env param.
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
+            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
@@ -821,7 +832,7 @@ def _print_bytes_processed_report():
     for report in Path("notebooks/").glob("*/*.bytesprocessed"):
         with open(report, "r") as f:
             filename = os.path.basename(report)
-            filename = filename.replace("bytesprocessed", "ipynb")
+            filename = filename.replace(".bytesprocessed", "")
             lines = f.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])

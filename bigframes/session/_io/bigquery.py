@@ -28,6 +28,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 
 import bigframes
+from bigframes.constants import LOGGING_NAME_ENV_VAR
 from bigframes.core import log_adapter
 import bigframes.formatting_helpers as formatting_helpers
 
@@ -245,10 +246,7 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
 
-    if (
-        "PYTEST_CURRENT_TEST" in os.environ
-        and ".ipynb" in os.environ["PYTEST_CURRENT_TEST"]
-    ):
+    if LOGGING_NAME_ENV_VAR in os.environ:
         # when running notebooks via pytest nbmake
         pytest_log_job(query_job)
 
@@ -259,10 +257,13 @@ def pytest_log_job(query_job: bigquery.QueryJob):
     """For pytest runs only, log information about the query job
     to a file in order to create a performance report.
     """
-    if "PYTEST_CURRENT_TEST" not in os.environ:
-        raise EnvironmentError("Only call pytest_log_job when in a pytest session.")
-    test_path = os.environ["PYTEST_CURRENT_TEST"]
-    test_name = os.path.basename(test_path).split(".")[0]
+    if LOGGING_NAME_ENV_VAR not in os.environ:
+        raise EnvironmentError(
+            "Environment variable {env_var} is not set".format(
+                env_var=LOGGING_NAME_ENV_VAR
+            )
+        )
+    test_name = os.environ[LOGGING_NAME_ENV_VAR]
     current_directory = os.getcwd()
     bytes_processed = query_job.total_bytes_processed
     if not isinstance(bytes_processed, int):
