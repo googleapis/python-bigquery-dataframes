@@ -18,8 +18,8 @@ import typing
 from typing import Tuple, Union
 
 import ibis
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.core.blocks
@@ -497,7 +497,7 @@ def _try_convert_scalar_value_dtype(value, dtype):
     # If either condition is true, return the original value without conversion.
     if dtype == bigframes.dtypes.STRING_DTYPE or isinstance(value, bool):
         return value
-    
+
     try:
         return pd.Series([value], dtype=dtype).iloc[0]
     except:
