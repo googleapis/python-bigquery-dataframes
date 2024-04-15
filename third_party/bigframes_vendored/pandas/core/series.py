@@ -3154,7 +3154,7 @@ class Series(NDFrame):  # type: ignore[misc]
     def quantile(
         self,
         q=0.5,
-    ) -> float | Series:
+    ):
         """
         Return value at the given quantile.
 

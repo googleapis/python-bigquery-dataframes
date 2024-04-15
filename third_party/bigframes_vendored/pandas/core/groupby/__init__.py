@@ -85,7 +85,7 @@ class GroupBy:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def quantile(self, q=0.5):
+    def quantile(self, q=0.5, *, numeric_only: bool = False):
         """
         Return group values at the given quantile, a la numpy.percentile.
 
@@ -107,6 +107,8 @@ class GroupBy:
         Args:
             q (float or array-like, default 0.5 (50% quantile)):
                 Value(s) between 0 and 1 providing the quantile(s) to compute.
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
 
         Returns:
             Series or DataFrame: Return type determined by caller of GroupBy object.

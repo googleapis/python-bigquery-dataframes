@@ -4516,10 +4516,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def quantile(
-        self,
-        q=0.5,
-    ):
+    def quantile(self, q=0.5, *, numeric_only: bool = False):
         """
         Return values at the given quantile over requested axis.
 
@@ -4542,9 +4539,7 @@ class DataFrame(generic.NDFrame):
         Args:
             q (float or array-like, default 0.5 (50% quantile)):
                 Value between 0 <= q <= 1, the quantile(s) to compute.
-            axis : {0 or 'index', 1 or 'columns'}, default 0
-                Equals 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
-            numeric_only : bool, default False
+            numeric_only (bool, default False):
                 Include only `float`, `int` or `boolean` data.
 
         Returns:

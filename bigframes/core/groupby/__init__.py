@@ -122,12 +122,21 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             return self.quantile(0.5)
         return self._aggregate_all(agg_ops.median_op, numeric_only=True)
 
-    def quantile(self, q=0.5) -> df.DataFrame:
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ) -> df.DataFrame:
+        if not numeric_only:
+            self._raise_on_non_numeric("quantile")
+        q_cols = tuple(
+            col
+            for col in self._selected_cols
+            if self._column_type(col) in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+        )
         multi_q = utils.is_list_like(q)
         result = block_ops.quantile(
             self._block,
-            self._selected_cols,
-            qs=tuple(q) if multi_q else (q,),
+            q_cols,
+            qs=tuple(q) if multi_q else (q,),  # type: ignore
             grouping_column_ids=self._by_col_ids,
         )
         result_df = df.DataFrame(result)
@@ -490,7 +499,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         else:
             return self._aggregate(agg_ops.median_op)
 
-    def quantile(self, q: Union[float, Sequence[float]] = 0.5) -> series.Series:
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ) -> series.Series:
         multi_q = utils.is_list_like(q)
         result = block_ops.quantile(
             self._block,
