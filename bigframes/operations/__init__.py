@@ -45,20 +45,28 @@ class RowOp(typing.Protocol):
         ...
 
 
-# These classes can be used to create simple ops that don't take local parameters
-# All is needed is a unique name, and to register an implementation in ibis_mappings.py
 @dataclasses.dataclass(frozen=True)
-class UnaryOp:
+class NaryOp:
     @property
     def name(self) -> str:
         raise NotImplementedError("RowOp abstract base class has no implementation")
 
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        raise NotImplementedError("Abstract operation has no output type")
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
+
+
+# These classes can be used to create simple ops that don't take local parameters
+# All is needed is a unique name, and to register an implementation in ibis_mappings.py
+@dataclasses.dataclass(frozen=True)
+class UnaryOp(NaryOp):
     @property
     def arguments(self) -> int:
         return 1
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self, input_id: typing.Union[str, bigframes.core.expression.Expression] = "arg"
@@ -69,24 +77,12 @@ class UnaryOp:
             self, (_convert_expr_input(input_id),)
         )
 
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
 
 @dataclasses.dataclass(frozen=True)
-class BinaryOp:
-    @property
-    def name(self) -> str:
-        raise NotImplementedError("RowOp abstract base class has no implementation")
-
+class BinaryOp(NaryOp):
     @property
     def arguments(self) -> int:
         return 2
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self,
@@ -103,24 +99,12 @@ class BinaryOp:
             ),
         )
 
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
 
 @dataclasses.dataclass(frozen=True)
-class TernaryOp:
-    @property
-    def name(self) -> str:
-        raise NotImplementedError("RowOp abstract base class has no implementation")
-
+class TernaryOp(NaryOp):
     @property
     def arguments(self) -> int:
         return 3
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self,
@@ -138,26 +122,6 @@ class TernaryOp:
                 _convert_expr_input(input3),
             ),
         )
-
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
-
-@dataclasses.dataclass(frozen=True)
-class NaryOp:
-    @property
-    def name(self) -> str:
-        raise NotImplementedError("RowOp abstract base class has no implementation")
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
-
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
 
 
 def _convert_expr_input(
@@ -677,7 +641,7 @@ class ClipOp(TernaryOp):
 clip_op = ClipOp()
 
 
-class SwitchOp(NaryOp):
+class CaseWhenOp(NaryOp):
     name: typing.ClassVar[str] = "switch"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -713,7 +677,7 @@ class SwitchOp(NaryOp):
         )
 
 
-switch_op = SwitchOp()
+switch_op = CaseWhenOp()
 
 
 # Just parameterless unary ops for now
