@@ -231,7 +231,7 @@ class LocDataFrameIndexer:
                 )
         else:
             raise NotImplementedError(
-                "Only DataFrame.loc[:, 'column'] and DataFrame.loc[bool series, 'column'] = Scalar are supported."
+                "Only DataFrame.loc[:], DataFrame.loc[:, 'column'] and DataFrame.loc[bool series, 'column'] = Scalar are supported."
                 f"{constants.FEEDBACK_LINK}"
             )
 
