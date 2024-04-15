@@ -972,7 +972,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             return typing.cast(float, self._apply_aggregation(agg_ops.median_op))
 
-    def quantile(self, q: float):
+    def quantile(self, q: float) -> Union[Series, float]:
         qs = tuple(q) if utils.is_list_like(q) else (q,)
         result = block_ops.quantile(self._block, (self._value_column,), qs=qs)
         if utils.is_list_like(q):
