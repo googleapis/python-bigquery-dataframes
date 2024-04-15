@@ -499,6 +499,6 @@ def _try_convert_scalar_value_dtype(value, dtype):
 
     try:
         return pd.Series([value], dtype=dtype).iloc[0]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, NotImplementedError):
         # If conversion fails, return the original value
         return value
