@@ -2034,9 +2034,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 .stack(list(range(0, frame.columns.nlevels)))
                 .droplevel(0)
             )
-            result = bigframes.series.Series(result_df._block)
-            result.name = q
-            return result
+            result_series = bigframes.series.Series(result_df._block)
+            result_series.name = q
+            return result_series
 
     def std(
         self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False

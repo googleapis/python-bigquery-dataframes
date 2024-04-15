@@ -118,6 +118,8 @@ def quantile(
     )
     quantile_cols = []
     labels = []
+    if len(columns) * len(qs) > constants.MAX_COLUMNS:
+        raise NotImplementedError("Too many aggregates requested.")
     for col in columns:
         for q in qs:
             label = block.col_id_to_label[col]
