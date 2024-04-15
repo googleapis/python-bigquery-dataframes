@@ -18,7 +18,6 @@ import typing
 from typing import Tuple, Union
 
 import ibis
-import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
@@ -500,6 +499,6 @@ def _try_convert_scalar_value_dtype(value, dtype):
 
     try:
         return pd.Series([value], dtype=dtype).iloc[0]
-    except:
+    except (TypeError, ValueError):
         # If conversion fails, return the original value
         return value
