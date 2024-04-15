@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import io
 import operator
 import sys
@@ -2940,6 +2941,28 @@ def test_loc_setitem_bool_series_scalar_existing_col(scalars_dfs, col, value):
         bf_df.to_pandas(),
         pd_df,
     )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        2,
+        "Hello",
+        True,
+        datetime(2023, 10, 1),
+    ],
+)
+def test_loc_setitem_bool_series_scalar(scalars_dfs, value):
+    if pd.__version__.startswith("1."):
+        pytest.skip("this loc overload not supported in pandas 1.x.")
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.loc[:] = value
+    pd_df.loc[:] = value
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df, check_dtype=False)
 
 
 def test_loc_setitem_bool_series_scalar_error(scalars_dfs):
