@@ -100,7 +100,7 @@ def test_clean_up_by_session_id():
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
 
-    tables_before = bqclient.list_tables(dataset, max_results=1000, page_size=1000)
+    tables_before = bqclient.list_tables(dataset, max_results=10000, page_size=10000)
     tables_before_count = len(list(tables_before))
     assert tables_before_count >= 2
 
@@ -108,5 +108,5 @@ def test_clean_up_by_session_id():
         session_id, location=session._location, project=session._project
     )
 
-    tables_after = bqclient.list_tables(dataset, max_results=1000, page_size=1000)
+    tables_after = bqclient.list_tables(dataset, max_results=10000, page_size=10000)
     assert len(list(tables_after)) <= tables_before_count - 2
