@@ -708,38 +708,47 @@ def get_default_session_id() -> str:
 
 
 def clean_up_by_session_id(
-    session_id: str, location: Optional[str] = None, project: Optional[str] = None
+    session_id: str,
+    location: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> None:
     """Searches through table names in Bigquery and deletes tables
     found matching the expected format.
 
-    This is a slow operation which could be useful if the session
-    object has been lost. Calling `session.close()` or
-    `bigframes.pandas.close_session()` is preferred in most cases.
+    This could be useful if the session object has been lost.
+    Calling `session.close()` or `bigframes.pandas.close_session()`
+    is preferred in most cases.
 
     Args:
         session_id (str):
-            The session id to clean up, which can be found using
+            The session id to clean up. Can be found using
             session.session_id or get_default_session_id().
 
         location (str, default None):
-            The location of the session to clean up. If none, the
-            location of the default session will be used (specifiable
-            using bigframes.pandas.options.bigquery.location).
+            The location of the session to clean up. If given, used
+            together with project kwarg to determine the dataset
+            to search through for tables to clean up.
 
         project (str, default None):
             The project id associated with the session to clean up.
-            If none, the project id of the default session will be used
-            (specifiable using bigframes.pandas.options.bigquery.project).
+            If given, used together with location kwarg to determine
+            the dataset to search through for tables to clean up.
 
     Returns:
         None
     """
     client = get_global_session().bqclient
 
-    dataset = bigframes.session._io.bigquery.create_bq_datasets(
-        client, location=location, project=project
-    )
+    if (location is None) != (project is None):
+        raise ValueError(
+            "Only one of project or location was given. Must specify both or neither."
+        )
+    elif location is None and project is None:
+        dataset = get_global_session()._anonymous_dataset
+    else:
+        dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
+            client, location=location, project=project
+        )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
         client, dataset, session_id

@@ -259,7 +259,7 @@ def delete_tables_matching_session_id(
             print("Deleting temporary table '{}'.".format(table.table_id))
 
 
-def create_bq_datasets(
+def create_bq_dataset_reference(
     bq_client: bigquery.Client, **kwargs
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.

@@ -209,8 +209,10 @@ class Session(
                 bq_kms_key_name=self._bq_kms_key_name,
             )
 
-        self._anonymous_dataset = bigframes.session._io.bigquery.create_bq_datasets(
-            self.bqclient, location=self._location
+        self._anonymous_dataset = (
+            bigframes.session._io.bigquery.create_bq_dataset_reference(
+                self.bqclient, location=self._location
+            )
         )
 
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
