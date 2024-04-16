@@ -831,17 +831,12 @@ def _print_bytes_processed_report():
     cumulative_bytes = 0
     for report in Path("notebooks/").glob("*/*.bytesprocessed"):
         with open(report, "r") as f:
-            filename = os.path.basename(report)
-            filename = filename.replace(".bytesprocessed", "")
+            filename = report.stem
             lines = f.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
-            format_string = "{filename} - query count: {query_count}, bytes processed sum: {total_bytes}"
-            print(
-                format_string.format(
-                    filename=filename, query_count=query_count, total_bytes=total_bytes
-                )
-            )
+            format_string = f"{filename} - query count: {query_count}, bytes processed sum: {total_bytes}"
+            print(format_string)
             cumulative_bytes += total_bytes
             cumulative_queries += query_count
     print(

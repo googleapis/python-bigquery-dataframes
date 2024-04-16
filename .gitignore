@@ -55,6 +55,7 @@ venv/
 # Test logs
 coverage.xml
 *sponge_log.xml
+*.bytesprocessed
 
 # System test environment variables.
 system_tests/local_test_setup
