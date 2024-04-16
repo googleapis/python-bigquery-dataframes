@@ -4516,7 +4516,9 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def quantile(self, q=0.5, *, numeric_only: bool = False):
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ):
         """
         Return values at the given quantile over requested axis.
 

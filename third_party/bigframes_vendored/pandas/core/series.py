@@ -3,7 +3,16 @@ Data structure for 1-dimensional cross-sectional and time series data
 """
 from __future__ import annotations
 
-from typing import Hashable, IO, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Hashable,
+    IO,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+    Union,
+)
 
 from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy
@@ -3153,8 +3162,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def quantile(
         self,
-        q=0.5,
-    ):
+        q: Union[float, Sequence[float]] = 0.5,
+    ) -> Union[Series, float]:
         """
         Return value at the given quantile.
 
