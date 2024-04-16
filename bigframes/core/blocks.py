@@ -1501,7 +1501,9 @@ class Block:
         if col_labels is None:
             result_index: pd.Index = pd.Index([None])
             result_col_labels: Sequence[Tuple] = list([()])
-        elif all(col_labels.isna()):
+        elif (col_labels.nlevels == 1) and all(
+            col_labels.isna()
+        ):  # isna not implemented for MultiIndex for newer pandas versions
             result_index = pd.Index([None])
             result_col_labels = utils.index_as_tuples(col_labels.drop_duplicates())
         else:
