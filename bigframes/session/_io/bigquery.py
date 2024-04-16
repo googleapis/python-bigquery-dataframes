@@ -257,3 +257,28 @@ def delete_tables_matching_session_id(
         if found_session_id == session_id:
             client.delete_table(table, not_found_ok=True)
             print("Deleting temporary table '{}'.".format(table.table_id))
+
+
+def create_bq_datasets(
+    bq_client: bigquery.Client, **kwargs
+) -> bigquery.DatasetReference:
+    """Create and identify dataset(s) for temporary BQ resources.
+
+    bq_client project and location will be used unless kwargs "project"
+    and/or "location" are given. All kwargs are passed through to bqclient.query:
+
+    https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+    """
+    query_job = bq_client.query("SELECT 1", **kwargs)
+    query_job.result()  # blocks until finished
+
+    # The anonymous dataset is used by BigQuery to write query results and
+    # session tables. BigQuery DataFrames also writes temp tables directly
+    # to the dataset, no BigQuery Session required. Note: there is a
+    # different anonymous dataset per location. See:
+    # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+    query_destination = query_job.destination
+    return bigquery.DatasetReference(
+        query_destination.project,
+        query_destination.dataset_id,
+    )

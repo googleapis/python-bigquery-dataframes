@@ -209,7 +209,9 @@ class Session(
                 bq_kms_key_name=self._bq_kms_key_name,
             )
 
-        self._create_bq_datasets()
+        self._anonymous_dataset = bigframes.session._io.bigquery.create_bq_datasets(
+            self.bqclient, location=self._location
+        )
 
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
         # has been fixed. The ibis client changes the default query job config
@@ -285,22 +287,6 @@ class Session(
     def __hash__(self):
         # Stable hash needed to use in expression tree
         return hash(str(self._anonymous_dataset))
-
-    def _create_bq_datasets(self):
-        """Create and identify dataset(s) for temporary BQ resources."""
-        query_job = self.bqclient.query("SELECT 1", location=self._location)
-        query_job.result()  # blocks until finished
-
-        # The anonymous dataset is used by BigQuery to write query results and
-        # session tables. BigQuery DataFrames also writes temp tables directly
-        # to the dataset, no BigQuery Session required. Note: there is a
-        # different anonymous dataset per location. See:
-        # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
-        query_destination = query_job.destination
-        self._anonymous_dataset = bigquery.DatasetReference(
-            query_destination.project,
-            query_destination.dataset_id,
-        )
 
     def close(self):
         """Delete tables that were created with this session's session_id."""

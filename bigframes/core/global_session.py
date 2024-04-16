@@ -45,9 +45,11 @@ def close_session() -> None:
                 _global_session.close()
             except google.auth.exceptions.RefreshError as e:
                 session_id = _global_session.session_id
+                location = _global_session._location
+                project_id = _global_session._project
                 warnings.warn(
-                    "Session cleanup failed for session with"
-                    + "id: {session_id}".format(session_id=session_id)
+                    f"Session cleanup failed for session with id: {session_id}, "
+                    f"location: {location}, project: {project_id}"
                 )
                 traceback.print_tb(e.__traceback__)
             _global_session = None

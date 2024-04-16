@@ -707,9 +707,11 @@ def get_default_session_id() -> str:
     return get_global_session().session_id
 
 
-def clean_up_by_session_id(session_id: str) -> None:
-    """Searches through datasets and table names in Bigquery and
-    deletes tables found matching the expected format.
+def clean_up_by_session_id(
+    session_id: str, location: Optional[str] = None, project: Optional[str] = None
+) -> None:
+    """Searches through table names in Bigquery and deletes tables
+    found matching the expected format.
 
     This is a slow operation which could be useful if the session
     object has been lost. Calling `session.close()` or
@@ -720,21 +722,28 @@ def clean_up_by_session_id(session_id: str) -> None:
             The session id to clean up, which can be found using
             session.session_id or get_default_session_id().
 
+        location (str, default None):
+            The location of the session to clean up. If none, the
+            location of the default session will be used (specifiable
+            using bigframes.pandas.options.bigquery.location).
+
+        project (str, default None):
+            The project id associated with the session to clean up.
+            If none, the project id of the default session will be used
+            (specifiable using bigframes.pandas.options.bigquery.project).
+
     Returns:
         None
     """
     client = get_global_session().bqclient
 
-    for dataset in client.list_datasets(include_all=True, page_size=1000):
-        if (
-            dataset.dataset_id[0] != "_"
-            or dataset.dataset_id.startswith("_project_level_cache")
-            or dataset.dataset_id.startswith("_script")
-        ):
-            continue
-        bigframes.session._io.bigquery.delete_tables_matching_session_id(
-            client, dataset, session_id
-        )
+    dataset = bigframes.session._io.bigquery.create_bq_datasets(
+        client, location=location, project=project
+    )
+
+    bigframes.session._io.bigquery.delete_tables_matching_session_id(
+        client, dataset, session_id
+    )
 
 
 # pandas dtype attributes
