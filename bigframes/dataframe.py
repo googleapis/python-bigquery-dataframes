@@ -668,7 +668,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 DataFrame(other), op, how=how, reverse=reverse
             )
         elif utils.get_axis_number(axis) == 0:
-            bf_series = bigframes.core.convert.to_bf_series(other, self.index)
+            bf_series = bigframes.core.convert.to_bf_series(
+                other, self.index, self._session
+            )
             return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
             pd_series = bigframes.core.convert.to_pd_series(other, self.columns)

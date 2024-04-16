@@ -812,9 +812,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return result
 
     def update(self, other: Union[Series, Sequence, Mapping]) -> None:
-        import bigframes.core.convert
-
-        other = bigframes.core.convert.to_bf_series(other, default_index=None)
         result = self._apply_binary_op(
             other, ops.coalesce_op, reverse=True, alignment="left"
         )

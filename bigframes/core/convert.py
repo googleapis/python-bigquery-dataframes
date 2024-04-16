@@ -21,7 +21,22 @@ import bigframes.core.indexes as index
 import bigframes.series as series
 
 
-def to_bf_series(obj, default_index: Optional[index.Index]) -> series.Series:
+def is_series_convertible(obj) -> bool:
+    if isinstance(obj, series.Series):
+        return True
+    if isinstance(obj, pd.Series):
+        return True
+    if isinstance(obj, index.Index):
+        return True
+    if isinstance(obj, pd.Index):
+        return True
+    if pd.api.types.is_list_like(obj):
+        return True
+    else:
+        return False
+
+
+def to_bf_series(obj, default_index: Optional[index.Index], session) -> series.Series:
     """
     Convert a an object to a bigframes series
 
@@ -37,13 +52,13 @@ def to_bf_series(obj, default_index: Optional[index.Index]) -> series.Series:
     if isinstance(obj, series.Series):
         return obj
     if isinstance(obj, pd.Series):
-        return series.Series(obj)
+        return series.Series(obj, session=session)
     if isinstance(obj, index.Index):
-        return series.Series(obj, default_index)
+        return series.Series(obj, default_index, session=session)
     if isinstance(obj, pd.Index):
-        return series.Series(obj, default_index)
+        return series.Series(obj, default_index, session=session)
     if pd.api.types.is_list_like(obj):
-        return series.Series(obj, default_index)
+        return series.Series(obj, default_index, session=session)
     else:
         raise TypeError(f"Cannot interpret {obj} as series.")
 
