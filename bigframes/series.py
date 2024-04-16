@@ -968,7 +968,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def median(self, *, exact: bool = False) -> float:
         if exact:
-            return self.quantile(0.5)
+            return typing.cast(float, self.quantile(0.5))
         else:
             return typing.cast(float, self._apply_aggregation(agg_ops.median_op))
 
