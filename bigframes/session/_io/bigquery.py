@@ -236,8 +236,8 @@ def start_query_with_client(
         pytest_log_job(query_job)
 
     return results_iterator, query_job
-  
-  
+
+
 def pytest_log_job(query_job: bigquery.QueryJob):
     """For pytest runs only, log information about the query job
     to a file in order to create a performance report.
@@ -259,7 +259,7 @@ def pytest_log_job(query_job: bigquery.QueryJob):
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
-  
+
 
 def delete_tables_matching_session_id(
     client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
