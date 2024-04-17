@@ -177,7 +177,6 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         parts.append(f"AS {source_sql}")
         return "\n".join(parts)
 
-    # Model create and alter
     def create_llm_remote_model(
         self,
         source_df: bpd.DataFrame,

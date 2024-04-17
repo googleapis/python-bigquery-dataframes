@@ -29,7 +29,6 @@ import bigframes.pandas as bpd
 
 _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
-    "evaluation_task": "evaluationTask",
 }
 
 _TEXT_GENERATOR_BISON_ENDPOINT = "text-bison"
@@ -75,9 +74,6 @@ class PaLM2TextGenerator(base.BaseEstimator):
             permission if the connection isn't fully setup.
         max_iterations (Optional[int], Default to 300):
             The number of steps to run when performing supervised tuning.
-        evaluation_task (Optional[str], default to "UNSPECIFIED"):
-            When performing supervised tuning, the type of task that you want to tune the model to perform. Possible values:
-            "TEXT_GENERATION", "CLASSIFICATION", "SUMMARIZATION", "QUESTION_ANSWERING", "UNSPECIFIED". Default to "UNSPECIFIED".
     """
 
     def __init__(
@@ -87,18 +83,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
         max_iterations: int = 300,
-        evaluation_task: Literal[
-            "UNSPECIFIED",
-            "TEXT_GENERATION",
-            "CLASSIFICATION",
-            "SUMMARIZATION",
-            "QUESTION_ANSWERING",
-        ] = "UNSPECIFIED",
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
         self.max_iterations = max_iterations
-        self.evaluation_task = evaluation_task
         self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
@@ -169,8 +157,6 @@ class PaLM2TextGenerator(base.BaseEstimator):
                 # Convert types
                 if bf_param in ["max_iterations"]:
                     kwargs[bf_param] = int(last_fitting[bqml_param])
-                elif bf_param in ["evaluation_task"]:
-                    kwargs[bf_param] = str(last_fitting[bqml_param])
 
         text_generator_model = cls(
             **kwargs,
@@ -187,7 +173,6 @@ class PaLM2TextGenerator(base.BaseEstimator):
         options = {
             "max_iterations": self.max_iterations,
             "data_split_method": "NO_SPLIT",
-            "evaluation_task": self.evaluation_task,
         }
         return options
 
@@ -209,7 +194,6 @@ class PaLM2TextGenerator(base.BaseEstimator):
         """
         X, y = utils.convert_to_dataframe(X, y)
 
-        # TODO(ashleyxu): options= self._bqml_options
         options = self._bqml_options
         options["endpoint"] = self.model_name + "@001"
         options["prompt_col"] = X.columns.tolist()[0]
