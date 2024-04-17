@@ -233,18 +233,6 @@ def palm2_text_generator_model(session, bq_connection) -> llm.PaLM2TextGenerator
 
 
 @pytest.fixture(scope="session")
-def palm2_text_generator_fine_tune_model(
-    session, bq_connection
-) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(
-        session=session,
-        connection_name=bq_connection,
-        max_iterations=300,
-        evaluation_task="TEXT_GENERATION",
-    )
-
-
-@pytest.fixture(scope="session")
 def palm2_text_generator_32k_model(session, bq_connection) -> llm.PaLM2TextGenerator:
     return llm.PaLM2TextGenerator(
         model_name="text-bison-32k", session=session, connection_name=bq_connection
