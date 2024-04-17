@@ -59,6 +59,7 @@ import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
+import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
@@ -577,7 +578,22 @@ def read_gbq_table(
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
 
 
+@typing.overload
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+    ...
+
+
+def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
@@ -698,6 +714,7 @@ ArrowDtype = pandas.ArrowDtype
 # checking and docstrings.
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
+MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
 
 # Other public pandas attributes
@@ -751,6 +768,7 @@ __all___ = [
     # Class aliases
     "DataFrame",
     "Index",
+    "MultiIndex",
     "Series",
     # Other public pandas attributes
     "NamedAgg",

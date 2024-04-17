@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
+import os
 import random
 import typing
 from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
@@ -41,10 +42,12 @@ import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.schema as bf_schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
@@ -411,7 +414,32 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self.session._rows_to_dataframe(result, dtypes)
+        result_dataframe = self.session._rows_to_dataframe(result, dtypes)
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._validate_result_schema(result_dataframe)
+        return result_dataframe
+
+    def _validate_result_schema(self, result_df: pd.DataFrame):
+        ibis_schema = self.expr._compiled_schema
+        internal_schema = self.expr.node.schema
+        actual_schema = bf_schema.ArraySchema(
+            tuple(
+                bf_schema.SchemaItem(name, dtype)  # type: ignore
+                for name, dtype in result_df.dtypes.items()
+            )
+        )
+        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+            return
+        if internal_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+            )
+        if ibis_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+            )
 
     def to_pandas(
         self,
@@ -1162,6 +1190,36 @@ class Block:
             index_labels=self.column_labels.names,
         )
 
+    def explode(
+        self,
+        column_ids: typing.Sequence[str],
+        ignore_index: Optional[bool],
+    ) -> Block:
+        column_ids = [
+            column_id
+            for column_id in column_ids
+            if bigframes.dtypes.is_array_like(self.expr.get_column_type(column_id))
+        ]
+        if len(column_ids) == 0:
+            expr = self.expr
+        else:
+            expr = self.expr.explode(column_ids)
+
+        if ignore_index:
+            return Block(
+                expr.drop_columns(self.index_columns),
+                column_labels=self.column_labels,
+                # Initiates default index creation using the block constructor.
+                index_columns=[],
+            )
+        else:
+            return Block(
+                expr,
+                column_labels=self.column_labels,
+                index_columns=self.index_columns,
+                index_labels=self.column_labels.names,
+            )
+
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
         Gets a standard set of stats to preemptively fetch for a column if
@@ -1174,7 +1232,7 @@ class Block:
         # TODO: annotate aggregations themself with this information
         dtype = self.expr.get_column_type(column_id)
         stats: list[agg_ops.UnaryAggregateOp] = [agg_ops.count_op]
-        if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
+        if bigframes.dtypes.is_orderable(dtype):
             stats += [agg_ops.min_op, agg_ops.max_op]
         if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             # Notable exclusions:
@@ -1440,12 +1498,17 @@ class Block:
 
         row_label_tuples = utils.index_as_tuples(row_labels)
 
-        if col_labels is not None:
+        if col_labels is None:
+            result_index: pd.Index = pd.Index([None])
+            result_col_labels: Sequence[Tuple] = list([()])
+        elif (col_labels.nlevels == 1) and all(
+            col_labels.isna()
+        ):  # isna not implemented for MultiIndex for newer pandas versions
+            result_index = pd.Index([None])
+            result_col_labels = utils.index_as_tuples(col_labels.drop_duplicates())
+        else:
             result_index = col_labels.drop_duplicates().dropna(how="all")
             result_col_labels = utils.index_as_tuples(result_index)
-        else:
-            result_index = pd.Index([None])
-            result_col_labels = list([()])
 
         # Get matching columns
         unpivot_columns: List[Tuple[str, List[str]]] = []
@@ -1843,6 +1906,10 @@ class Block:
             expr = self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
             )
+        return self.swap_array_expr(expr)
+
+    def swap_array_expr(self, expr: core.ArrayValue) -> Block:
+        # TODO: Validate schema unchanged
         return Block(
             expr,
             index_columns=self.index_columns,
