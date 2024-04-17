@@ -1345,10 +1345,9 @@ def test_numeric_literal(scalars_dfs):
     scalars_df, _ = scalars_dfs
     col_name = "numeric_col"
     assert scalars_df[col_name].dtype == pd.ArrowDtype(pa.decimal128(38, 9))
-    bf_result = scalars_df[col_name] - scalars_df[col_name].median()
+    bf_result = scalars_df[col_name] + 42
     assert bf_result.size == scalars_df[col_name].size
-    # TODO(b/323387826): The precision increased by 1 unexpectedly.
-    # assert bf_result.dtype == pd.ArrowDtype(pa.decimal128(38, 9))
+    assert bf_result.dtype == pd.ArrowDtype(pa.decimal128(38, 9))
 
 
 def test_repr(scalars_dfs):
