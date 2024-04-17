@@ -123,6 +123,40 @@ class BlobMethods(base.SeriesMethods):
         else:
             raise ValueError("Unsupported mode.")
 
+    def _text_chunk(self, uri_in, dst_folder):
+        import os
+
+        from google.cloud import storage
+        from llama_index.core import SimpleDirectoryReader
+        from llama_index.core.node_parser import SentenceSplitter
+        import parse
+
+        storage_client = storage.Client()
+        bucket_name, blob_path_in = parse.parse("gs://{0}/{1}", uri_in)
+
+        bucket = storage_client.bucket(bucket_name)
+        blob_in = bucket.blob(blob_path_in)
+
+        file_name_full = uri_in[uri_in.rfind("/") + 1 :]
+
+        tmp_file_path = f"/tmp/{file_name_full}"
+
+        blob_in.download_to_filename(tmp_file_path)
+
+        documents = SimpleDirectoryReader(input_files=[tmp_file_path]).load_data()
+
+        base_splitter = SentenceSplitter(chunk_size=512)
+
+        nodes = base_splitter.get_nodes_from_documents(documents)
+
+        file_name, file_ext = file_name_full.split(".")
+
+        blob_path_out = os.path.join(dst_folder, file_name)
+        blob_out = bucket.blob(blob_path_out)
+        blob_out.upload_from_string(nodes[0].text)
+
+        return blob_path_out
+
 
 def parse_gcs_path(path):
     result = parse.parse("gs://{0}/{1}", path)
