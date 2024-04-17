@@ -55,12 +55,6 @@ _ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
 class PaLM2TextGenerator(base.BaseEstimator):
     """PaLM2 text generator LLM model.
 
-    .. note::
-        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
-        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
-        and might have limited support. For more information, see the launch stage descriptions
-        (https://cloud.google.com/products#product-launch-stages).
-
     Args:
         model_name (str, Default to "text-bison"):
             The model for natural language tasks. “text-bison” returns model fine-tuned to follow natural language instructions
@@ -150,8 +144,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
         kwargs: dict = {}
         last_fitting = model.training_runs[-1]["trainingOptions"]
 
-        dummy_arima = cls()
-        for bf_param, _ in dummy_arima.__dict__.items():
+        dummy_text_generator = cls()
+        for bf_param, _ in dummy_text_generator.__dict__.items():
             bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
             if bqml_param in last_fitting:
                 # Convert types
@@ -182,6 +176,13 @@ class PaLM2TextGenerator(base.BaseEstimator):
         y: Union[bpd.DataFrame, bpd.Series],
     ) -> PaLM2TextGenerator:
         """Fine tune PaLM2TextGenerator model.
+
+        .. note::
+
+            This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
