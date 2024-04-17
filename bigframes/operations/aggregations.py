@@ -17,7 +17,7 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar, Hashable, Optional, Tuple
+from typing import ClassVar, Iterable, Optional
 
 import pandas as pd
 import pyarrow as pa
@@ -107,6 +107,18 @@ class MedianOp(UnaryAggregateOp):
             return dtypes.INT_DTYPE
         else:
             return input_types[0]
+
+
+@dataclasses.dataclass(frozen=True)
+class QuantileOp(UnaryAggregateOp):
+    q: float
+
+    @property
+    def name(self):
+        return f"{int(self.q*100)}%"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -213,7 +225,7 @@ class CountOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
-    bins: typing.Union[int, Tuple[Tuple[Hashable, Hashable], ...]]
+    bins: typing.Union[int, Iterable]
     labels: Optional[bool]
 
     @property
@@ -232,7 +244,7 @@ class CutOp(UnaryWindowOp):
             interval_dtype = (
                 pa.float64()
                 if isinstance(self.bins, int)
-                else dtypes.infer_literal_arrow_type(self.bins[0][0])
+                else dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
             )
             pa_type = pa.struct(
                 [

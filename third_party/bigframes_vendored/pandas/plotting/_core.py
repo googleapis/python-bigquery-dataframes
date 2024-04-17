@@ -59,6 +59,7 @@ class PlotAccessor:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(np.random.randint(1, 7, 6000), columns=['one'])
             >>> df['two'] = np.random.randint(1, 7, 6000) + np.random.randint(1, 7, 6000)
             >>> ax = df.plot.hist(bins=12, alpha=0.5)
