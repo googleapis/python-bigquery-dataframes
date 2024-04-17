@@ -25,11 +25,19 @@ class OneHotEncoder(BaseEstimator):
 
         >>> from bigframes.ml.preprocessing import OneHotEncoder
         >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
 
         >>> enc = OneHotEncoder()
         >>> X = bpd.DataFrame({"a": ["Male", "Female", "Female"], "b": ["1", "3", "2"]})
         >>> enc.fit(X)
+        OneHotEncoder()
+
         >>> print(enc.transform(bpd.DataFrame({"a": ["Female", "Male"], "b": ["1", "4"]})))
+                        onehotencoded_a               onehotencoded_b
+        0  [{'index': 1, 'value': 1.0}]  [{'index': 1, 'value': 1.0}]
+        1  [{'index': 2, 'value': 1.0}]  [{'index': 0, 'value': 1.0}]
+        <BLANKLINE>
+        [2 rows x 2 columns]
 
     Args:
         drop (Optional[Literal["most_frequent"]], default None):
