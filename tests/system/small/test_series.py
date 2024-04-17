@@ -949,17 +949,6 @@ def test_reset_index_no_drop(scalars_df_index, scalars_pandas_df_index, name):
     pd.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
 
-def test_series_add_pandas_series_not_implemented(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    with pytest.raises(NotImplementedError):
-        (
-            scalars_df["float64_col"]
-            + pd.Series(
-                [1, 1, 1, 1],
-            )
-        ).to_pandas()
-
-
 def test_copy(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     # Expect mutation on original not to effect_copy
@@ -1277,6 +1266,7 @@ def test_binop_right_filtered(scalars_dfs):
         (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
     ],
 )
+@skip_legacy_pandas
 def test_series_binop_w_other_types(scalars_dfs, other):
     scalars_df, scalars_pandas_df = scalars_dfs
 

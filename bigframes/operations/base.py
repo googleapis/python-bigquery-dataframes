@@ -82,7 +82,9 @@ class SeriesMethods:
             if data.nlevels != 1:
                 raise NotImplementedError("Cannot interpret multi-index as Series.")
             # Reset index to promote index columns to value columns, set default index
-            data_block = data._block.reset_index(drop=False)
+            data_block = data._block.reset_index(drop=False).with_column_labels(
+                data.names
+            )
             if index is not None:
                 # Align by offset
                 bf_index = indexes.Index(index, session=session)
