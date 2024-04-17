@@ -677,7 +677,7 @@ class CaseWhenOp(NaryOp):
         )
 
 
-switch_op = CaseWhenOp()
+case_when_op = CaseWhenOp()
 
 
 # Just parameterless unary ops for now
