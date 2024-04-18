@@ -152,6 +152,10 @@ class BaseSqlGenerator:
         source_sql, _, _ = source_df._to_sql_query(include_index=True)
         return f"""SELECT *, ML.DISTANCE({col_x}, {col_y}, '{type}') AS {name} FROM ({source_sql})"""
 
+    def json_extract_array(self, col: str, source_df: bpd.DataFrame, name: str) -> str:
+        source_sql, _, _ = source_df._to_sql_query(include_index=True)
+        return f"""SELECT *, JSON_EXTRACT_ARRAY({col}, '$') AS {name} FROM ({source_sql})"""
+
 
 class ModelCreationSqlGenerator(BaseSqlGenerator):
     """Sql generator for creating a model entity. Model id is the standalone id without project id and dataset id."""

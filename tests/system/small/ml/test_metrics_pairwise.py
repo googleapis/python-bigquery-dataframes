@@ -63,3 +63,16 @@ def test_paired_euclidean_distances():
     pd.testing.assert_frame_equal(
         result.to_pandas(), expected_pd_df, check_dtype=False, check_index_type=False
     )
+
+
+def test_json():
+    from bigframes.ml import json
+
+    x = bpd.DataFrame({"json": ['["a","b","c"]']})
+
+    y = json.json_extract_array(x)
+    print(y)
+
+    # pd.testing.assert_frame_equal(
+    #     result.to_pandas(), expected_pd_df, check_dtype=False, check_index_type=False
+    # )

@@ -5,7 +5,6 @@ import parse
 
 from bigframes import clients, dataframe
 from bigframes.operations import base
-import bigframes.pandas as bpd
 
 
 class BlobMethods(base.SeriesMethods):
@@ -41,6 +40,8 @@ class BlobMethods(base.SeriesMethods):
         return tuple(result)
 
     def display(self):
+        import bigframes.pandas as bpd
+
         self._gcs_manager = clients.GcsManager()
         s = bpd.Series(self._block)
         for uri in s:
@@ -109,6 +110,8 @@ class BlobMethods(base.SeriesMethods):
         return s.apply(bigframes_img_blur)
 
     def img_blur(self, ksize, dst_folder, mode="local"):
+        import bigframes.pandas as bpd
+
         s = bpd.Series(self._block)
         if mode == "local":
             self._gcs_manager = clients.GcsManager()
@@ -149,13 +152,65 @@ class BlobMethods(base.SeriesMethods):
 
         nodes = base_splitter.get_nodes_from_documents(documents)
 
-        file_name, file_ext = file_name_full.split(".")
-
-        blob_path_out = os.path.join(dst_folder, file_name)
+        blob_path_out = os.path.join(dst_folder, file_name_full)
         blob_out = bucket.blob(blob_path_out)
         blob_out.upload_from_string(nodes[0].text)
 
         return blob_path_out
+
+    def _text_chunk_remote(self):
+        import bigframes.ml.json as bf_json
+        import bigframes.pandas as bpd
+
+        session = self._block.session
+
+        @session.remote_function(
+            [str],
+            str,
+            packages=[
+                "google-cloud-storage",
+                "parse",
+                "llama-index-core",
+                "llama-index-readers-file",
+            ],
+        )
+        def bigframes_llama_index_chunk(uri_in):
+            import json
+
+            from google.cloud import storage
+            from llama_index.core import SimpleDirectoryReader
+            from llama_index.core.node_parser import SentenceSplitter
+            import parse
+
+            storage_client = storage.Client()
+            bucket_name, blob_path_in = parse.parse("gs://{0}/{1}", uri_in)
+
+            bucket = storage_client.bucket(bucket_name)
+            blob_in = bucket.blob(blob_path_in)
+
+            file_name_full = uri_in[uri_in.rfind("/") + 1 :]
+
+            tmp_file_path = f"/tmp/{file_name_full}"
+
+            blob_in.download_to_filename(tmp_file_path)
+
+            documents = SimpleDirectoryReader(input_files=[tmp_file_path]).load_data()
+
+            base_splitter = SentenceSplitter(chunk_size=512)
+
+            nodes = base_splitter.get_nodes_from_documents(documents)
+
+            texts = [node.text for node in nodes]
+            return json.dumps(texts)
+
+        s = bpd.Series(self._block)
+        json_str_s = s.apply(bigframes_llama_index_chunk)
+        text_arr_s = bf_json.json_extract_array(json_str_s)
+
+        return text_arr_s
+
+    def llama_index_chunk(self):
+        return self._text_chunk_remote()
 
 
 def parse_gcs_path(path):

@@ -83,7 +83,7 @@ class BaseBqml:
         """
         assert len(x.columns) == 1 and len(y.columns) == 1
 
-        input_data = x._cached().join(y._cached(), how="outer")
+        input_data = x._cached(force=True).join(y._cached(force=True), how="outer")
         x_column_id, y_column_id = x._block.value_columns[0], y._block.value_columns[0]
 
         return self._apply_sql(
@@ -96,6 +96,27 @@ class BaseBqml:
                 name=name,
             ),
         )
+
+    def json_extract_array(
+        self,
+        x: bpd.DataFrame,
+        name: str,
+    ) -> bpd.Series:
+        assert len(x.columns) == 1
+
+        input_data = x._cached(force=True)
+        # x_column_id = x._block.value_columns[0]
+        x_column_id = input_data.columns[0]
+
+        df = self._apply_sql(
+            input_data,
+            lambda source_df: self._base_sql_generator.json_extract_array(
+                x_column_id,
+                source_df=source_df,
+                name=name,
+            ),
+        )
+        return df[name]
 
 
 class BqmlModel(BaseBqml):
