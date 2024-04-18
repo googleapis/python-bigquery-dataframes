@@ -99,6 +99,7 @@ class DataFrame(generic.NDFrame):
         The transpose of the DataFrame.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -130,6 +131,7 @@ class DataFrame(generic.NDFrame):
         :meth:`transpose`.
 
         **Examples:**
+
             **Square DataFrame with homogeneous dtype**
 
             >>> import bigframes.pandas as bpd

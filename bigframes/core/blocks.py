@@ -35,6 +35,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
+import bigframes.constants
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
@@ -1545,9 +1546,6 @@ class Block:
         """
         Unpivot columns to produce longer, narrower dataframe.
         Arguments correspond to pandas.melt arguments.
-        id_vars: passthrough variables that will be repeated N times
-        value_vars: variables that will be melted together
-        var_names:
         """
         # TODO: Implement col_level and ignore_index
         unpivot_col_id = guid.generate_guid()
@@ -1582,8 +1580,7 @@ class Block:
         original_col_index = self.column_labels
         original_row_index = self.index.to_pandas()
         original_row_count = len(original_row_index)
-        LIMIT = 9900
-        if original_row_count > LIMIT:
+        if original_row_count > bigframes.constants.MAX_COLUMNS:
             raise NotImplementedError(
                 f"Object has {original_row_count} rows and is too large to transpose."
             )
