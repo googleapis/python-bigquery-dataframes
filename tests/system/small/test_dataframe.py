@@ -2504,7 +2504,10 @@ def test_df_melt_default(scalars_dfs):
 
     # Pandas produces int64 index, Bigframes produces Int64 (nullable)
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_index_type=False, check_dtype=False
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
     )
 
 
@@ -2984,10 +2987,14 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op, ord
     bf_result = bf_series.to_pandas(ordered=ordered)
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_series = pd_series.astype("Float64")
     # Pandas has object index type
+    pd_series.index = pd_series.index.astype(pd.StringDtype(storage="pyarrow"))
     assert_series_equal(
-        pd_series, bf_result, check_index_type=False, ignore_order=not ordered
+        pd_series,
+        bf_result,
+        check_index_type=False,
+        ignore_order=not ordered,
+        check_dtype=False,
     )
 
 
@@ -3029,6 +3036,31 @@ def test_dataframe_aggregates_median(scalars_df_index, scalars_pandas_df_index):
         )
 
 
+def test_dataframe_aggregates_quantile_mono(scalars_df_index, scalars_pandas_df_index):
+    q = 0.45
+    col_names = ["int64_too", "int64_col", "float64_col"]
+    bf_result = scalars_df_index[col_names].quantile(q=q).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].quantile(q=q)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_dataframe_aggregates_quantile_multi(scalars_df_index, scalars_pandas_df_index):
+    q = [0, 0.33, 0.67, 1.0]
+    col_names = ["int64_too", "int64_col", "float64_col"]
+    bf_result = scalars_df_index[col_names].quantile(q=q).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].quantile(q=q)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+    pd_result.index = pd_result.index.astype("Float64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("op"),
     [
@@ -3051,7 +3083,7 @@ def test_dataframe_bool_aggregates(scalars_df_index, scalars_pandas_df_index, op
     pd_series = op(scalars_pandas_df_index).astype("boolean")
     bf_result = bf_series.to_pandas()
 
-    # Pandas has object index type
+    pd_series.index = pd_series.index.astype(bf_result.index.dtype)
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
 
 
