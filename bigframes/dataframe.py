@@ -2002,7 +2002,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
         if exact:
-            return frame.quantile()
+            result = frame.quantile()
+            result.name = None
+            return result
         else:
             block = frame._block.aggregate_all_and_stack(agg_ops.median_op)
             return bigframes.series.Series(block.select_column("values"))
