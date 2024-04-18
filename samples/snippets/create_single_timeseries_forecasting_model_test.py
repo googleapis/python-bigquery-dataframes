@@ -68,7 +68,7 @@ def test_create_single_timeseries(random_model_id):
 
     # Use your model to forecast the time series
     #standardSQL
-    your_model_id.forecast()
+    your_model_id.predict()
 
     # Explain and visualize the forecasting results
     f'''
@@ -94,3 +94,10 @@ def test_create_single_timeseries(random_model_id):
     }
     )
     total_visits = df.groupby(["history_timestamp"], as_index = False).sum(numeric_only= True)
+
+
+    history_df = bpd.read_gbq(df)
+    forecast_df = bpd.read_gbq(total_visits)
+
+    # Concat DataFrame 
+    combined_df = bpd.concat([history_df, forecast_df], ignore_index=True)
