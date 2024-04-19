@@ -1323,7 +1323,7 @@ def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_ro
         bq_routine = session.bqclient.get_routine(
             square_remote.bigframes_remote_function
         )
-        bq_routine.remote_function_options.max_batching_rows == max_batching_rows
+        assert bq_routine.remote_function_options.max_batching_rows == max_batching_rows
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
