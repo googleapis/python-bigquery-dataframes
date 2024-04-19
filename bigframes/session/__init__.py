@@ -1636,7 +1636,7 @@ class Session(
                 projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
                 For more details see
                 https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
-            max_batching_rows (str, Optional):
+            max_batching_rows (int, Optional):
                 The maximum number of rows to be batched for processing in the
                 BQ remote function. Default value is 1000. A lower number can be
                 passed to avoid timeouts in case the user code is too complex to
