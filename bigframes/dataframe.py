@@ -105,6 +105,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(
                 f"DataFrame constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
+        # just ignore object dtype if provided
+        if dtype in {numpy.dtypes.ObjectDType, "object"}:
+            dtype = None
 
         # Check to see if constructing from BigQuery-backed objects before
         # falling back to pandas constructor
@@ -155,11 +158,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
-                # just ignore object dtype if provided
-                if dtype not in {numpy.dtypes.ObjectDType, "object"}:
-                    block = block.multi_apply_unary_op(
-                        block.value_columns, ops.AsTypeOp(to_type=dtype)
-                    )
+                block = block.multi_apply_unary_op(
+                    block.value_columns, ops.AsTypeOp(to_type=dtype)
+                )
             self._block = block
 
         else:

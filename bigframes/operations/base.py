@@ -48,6 +48,10 @@ class SeriesMethods:
     ):
         import bigframes.pandas
 
+        # just ignore object dtype if provided
+        if dtype in {numpy.dtypes.ObjectDType, "object"}:
+            dtype = None
+
         read_pandas_func = (
             session.read_pandas
             if (session is not None)
@@ -106,6 +110,18 @@ class SeriesMethods:
                 data_block = data_block.with_index_labels(bf_index.names)
             block = data_block
 
+        else:  # Scalar case
+            if index is not None:
+                bf_index = indexes.Index(index, session=session)
+            else:
+                bf_index = indexes.Index(
+                    [] if (data is None) else [0],
+                    session=session,
+                    dtype=bigframes.dtypes.INT_DTYPE,
+                )
+            block, _ = bf_index._block.create_constant(data, dtype)
+            block = block.with_column_labels([name])
+
         assert block is not None
         if name:
             if not isinstance(name, typing.Hashable):
@@ -114,11 +130,9 @@ class SeriesMethods:
                 )
             block = block.with_column_labels([name])
         if dtype:
-            # just ignore object dtype if provided
-            if dtype not in {numpy.dtypes.ObjectDType, "object"}:
-                block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(to_type=dtype)
-                )
+            block = block.multi_apply_unary_op(
+                block.value_columns, ops.AsTypeOp(to_type=dtype)
+            )
         self._block: blocks.Block = block
 
     @property
