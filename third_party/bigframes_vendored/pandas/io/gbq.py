@@ -28,12 +28,14 @@ class GBQIOMixin:
         """Loads a DataFrame from BigQuery.
 
         BigQuery tables are an unordered, unindexed data source. By default,
-        the DataFrame will have an arbitrary index and ordering.
+        the DataFrame will have an arbitrary index and ordering. Generating
+        the default index uses an analytic windowed operation that prevents
+        many filtering push down operations. As a best practice, set the
+        ``index_col`` argument to one or more columns, especially on large
+        tables.
 
-        Set the `index_col` argument to one or more columns to choose an
-        index. The resulting DataFrame is sorted by the index columns. For the
-        best performance, ensure the index columns don't contain duplicate
-        values.
+        Duplicate keys in an index are valid, but for the best performance,
+        ensure the index columns don't contain duplicate values.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a
