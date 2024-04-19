@@ -15,7 +15,3 @@
 
 class UnknownLocationWarning(Warning):
     """The location is set to an unknown value."""
-
-
-class NoDefaultIndexError(ValueError):
-    """Unable to create a default index."""
