@@ -181,11 +181,19 @@ class RemoteFunctionClient:
             "max_batching_rows": max_batching_rows,
         }
 
+        remote_function_options_str = ", ".join(
+            [
+                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                for key, val in remote_function_options.items()
+                if val is not None
+            ]
+        )
+
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
-            OPTIONS ({", ".join([f"{key}={val}" for key, val in remote_function_options.items() if val is not None])})"""
+            OPTIONS ({remote_function_options_str})"""
 
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
 
