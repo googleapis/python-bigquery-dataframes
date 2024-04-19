@@ -237,13 +237,7 @@ def test_read_gbq_w_primary_keys_table(
     session: bigframes.Session, usa_names_grouped_table: bigquery.Table
 ):
     table = usa_names_grouped_table
-    # TODO(b/305264153): Use public properties to fetch primary keys once
-    # added to google-cloud-bigquery.
-    primary_keys = (
-        table._properties.get("tableConstraints", {})
-        .get("primaryKey", {})
-        .get("columns")
-    )
+    primary_keys = table.table_constraints.primary_key.columns
     assert len(primary_keys) != 0
 
     df = session.read_gbq(f"{table.project}.{table.dataset_id}.{table.table_id}")
