@@ -155,9 +155,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
-                block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(to_type=dtype)
-                )
+                # just ignore object dtype if provided
+                if dtype not in {numpy.dtypes.ObjectDType, "object"}:
+                    block = block.multi_apply_unary_op(
+                        block.value_columns, ops.AsTypeOp(to_type=dtype)
+                    )
             self._block = block
 
         else:

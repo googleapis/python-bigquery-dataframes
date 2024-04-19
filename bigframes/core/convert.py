@@ -57,6 +57,8 @@ def to_bf_series(obj, default_index: Optional[index.Index], session) -> series.S
         return series.Series(obj, default_index, session=session)
     if isinstance(obj, pd.Index):
         return series.Series(obj, default_index, session=session)
+    if pd.api.types.is_dict_like(obj):
+        return series.Series(obj, session=session)
     if pd.api.types.is_list_like(obj):
         return series.Series(obj, default_index, session=session)
     else:
@@ -84,6 +86,8 @@ def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
         return pd.Series(obj.to_pandas(), default_index)
     if isinstance(obj, pd.Index):
         return pd.Series(obj, default_index)
+    if pd.api.types.is_dict_like(obj):
+        return pd.Series(obj)
     if pd.api.types.is_list_like(obj):
         return pd.Series(obj, default_index)
     else:

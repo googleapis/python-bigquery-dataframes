@@ -17,6 +17,7 @@ from __future__ import annotations
 import typing
 
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
+import numpy
 import pandas as pd
 
 import bigframes.constants as constants
@@ -64,9 +65,16 @@ class SeriesMethods:
             assert index is None
             block = data
 
-        elif isinstance(data, SeriesMethods) or isinstance(data, pd.Series):
+        # interpret these cases as both index and data
+        elif (
+            isinstance(data, SeriesMethods)
+            or isinstance(data, pd.Series)
+            or pd.api.types.is_dict_like(data)
+        ):
             if isinstance(data, pd.Series):
                 data = read_pandas_func(data)
+            elif pd.api.types.is_dict_like(data):
+                data = read_pandas_func(pd.Series(data))
             data_block = data._block
             if index is not None:
                 # reindex
@@ -77,6 +85,7 @@ class SeriesMethods:
                 data_block = block_idx.with_index_labels(bf_index.names)
             block = data_block
 
+        # list-like data that will get default index
         elif isinstance(data, indexes.Index) or pd.api.types.is_list_like(data):
             data = indexes.Index(data, session=session)
             if data.nlevels != 1:
@@ -97,29 +106,19 @@ class SeriesMethods:
                 data_block = data_block.with_index_labels(bf_index.names)
             block = data_block
 
-        if block:
-            if name:
-                if not isinstance(name, typing.Hashable):
-                    raise ValueError(
-                        f"BigQuery DataFrames only supports hashable series names. {constants.FEEDBACK_LINK}"
-                    )
-                block = block.with_column_labels([name])
-            if dtype:
+        assert block is not None
+        if name:
+            if not isinstance(name, typing.Hashable):
+                raise ValueError(
+                    f"BigQuery DataFrames only supports hashable series names. {constants.FEEDBACK_LINK}"
+                )
+            block = block.with_column_labels([name])
+        if dtype:
+            # just ignore object dtype if provided
+            if dtype not in {numpy.dtypes.ObjectDType, "object"}:
                 block = block.multi_apply_unary_op(
                     block.value_columns, ops.AsTypeOp(to_type=dtype)
                 )
-        else:
-            pd_series = pd.Series(
-                data=data, index=index, dtype=dtype, name=name  # type:ignore
-            )
-            pd_dataframe = pd_series.to_frame()
-            if pd_series.name is None:
-                # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
-                pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            block = read_pandas_func(pd_dataframe)._get_block()  # type: ignore
-            if pd_series.name is None:
-                block = block.with_column_labels([None])  # type: ignore
-        assert block is not None
         self._block: blocks.Block = block
 
     @property
