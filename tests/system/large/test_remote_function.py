@@ -1320,6 +1320,11 @@ def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_ro
             [int], int, reuse=False, max_batching_rows=max_batching_rows
         )(square)
 
+        bq_routine = session.bqclient.get_routine(
+            square_remote.bigframes_remote_function
+        )
+        bq_routine.remote_function_options.max_batching_rows == max_batching_rows
+
         scalars_df, scalars_pandas_df = scalars_dfs
 
         bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
