@@ -13,23 +13,19 @@
 # limitations under the License.
 
 
-def test_create_single_timeseries(random_model_id):
-    your_model_id = random_model_id
+def test_create_single_timeseries():
 
     # [START bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
     import bigframes.pandas as bpd
-    
-    # Start by loading the historical data from BigQuerythat you want to analyze and forecast. 
+
+    # Start by loading the historical data from BigQuerythat you want to analyze and forecast.
     # This clause indicates that you are querying the ga_sessions_* tables in the google_analytics_sample dataset.
-    
     # Read and visualize the time series you want to forecast.
-    df = bpd.read_gbq(
-        'bigquery-public-data.google_analytics_sample.ga_sessions_*'
-        )
-    parsed_date = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
+    df = bpd.read_gbq("bigquery-public-data.google_analytics_sample.ga_sessions_*")
+    parsed_date = bpd.to_datetime(df.date, format="%Y%m%d", utc=True)
     visits = df["totals"].struct.field("visits")
     total_visits = visits.groupby(parsed_date).sum()
-    
+
     # Expected output: total_visits.head()
     # date
     # 2016-08-01 00:00:00+00:00    1711
@@ -40,5 +36,5 @@ def test_create_single_timeseries(random_model_id):
     # Name: visits, dtype: Int64
 
     total_visits.plot.line()
-    
+
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
