@@ -80,6 +80,7 @@ import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
 import bigframes.core.guid as guid
+import bigframes.core.nodes as nodes
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
 import bigframes.core.tree_properties as traversals
@@ -116,9 +117,14 @@ _VALID_ENCODINGS = {
     "UTF-32LE",
 }
 
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_DF_SIZE = 5000
+# BigQuery has 1 MB query size limit. Don't want to take up more than a few % of that inlining a table.
+# Also must assume that text encoding as literals is much less efficient than in-memory representation.
+MAX_INLINE_DF_BYTES = 5000
+
+# Max complexity that should be executed as a single query
+QUERY_COMPLEXITY_LIMIT = 1e7
+# Number of times to factor out subqueries before giving up.
+MAX_SUBTREE_FACTORINGS = 5
 
 logger = logging.getLogger(__name__)
 
@@ -1044,20 +1050,29 @@ class Session(
         inline_df = self._read_pandas_inline(pandas_dataframe)
         if inline_df is not None:
             return inline_df
-        return self._read_pandas_load_job(pandas_dataframe, api_name)
+        try:
+            return self._read_pandas_load_job(pandas_dataframe, api_name)
+        except pa.ArrowInvalid as e:
+            raise pa.ArrowInvalid(
+                f"Could not convert with a BigQuery type: `{e}`. "
+            ) from e
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> Optional[dataframe.DataFrame]:
         import bigframes.dataframe as dataframe
 
-        if pandas_dataframe.size > MAX_INLINE_DF_SIZE:
+        if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
             return None
 
         try:
             inline_df = dataframe.DataFrame(
                 blocks.Block.from_local(pandas_dataframe, self)
             )
+        except pa.ArrowInvalid as e:
+            raise pa.ArrowInvalid(
+                f"Could not convert with a BigQuery type: `{e}`. "
+            ) from e
         except ValueError:  # Thrown by ibis for some unhandled types
             return None
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
@@ -1526,6 +1541,7 @@ class Session(
         cloud_function_service_account: Optional[str] = None,
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
+        max_batching_rows: Optional[int] = 1000,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1620,6 +1636,15 @@ class Session(
                 projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
                 For more details see
                 https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
+            max_batching_rows (int, Optional):
+                The maximum number of rows to be batched for processing in the
+                BQ remote function. Default value is 1000. A lower number can be
+                passed to avoid timeouts in case the user code is too complex to
+                process large number of rows fast enough. A higher number can be
+                used to increase throughput in case the user code is fast enough.
+                `None` can be passed to let BQ remote functions service apply
+                default batching. See for more details
+                https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1641,6 +1666,7 @@ class Session(
             cloud_function_service_account=cloud_function_service_account,
             cloud_function_kms_key_name=cloud_function_kms_key_name,
             cloud_function_docker_repository=cloud_function_docker_repository,
+            max_batching_rows=max_batching_rows,
         )
 
     def read_gbq_function(
@@ -1849,6 +1875,52 @@ class Session(
             columns=new_columns,
             hidden_ordering_columns=new_hidden_columns,
             ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
+        )
+
+    def _simplify_with_caching(self, array_value: core.ArrayValue) -> core.ArrayValue:
+        """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
+        if not bigframes.options.compute.enable_multi_query_execution:
+            return array_value
+        node = array_value.node
+        if node.planning_complexity < QUERY_COMPLEXITY_LIMIT:
+            return array_value
+
+        for _ in range(MAX_SUBTREE_FACTORINGS):
+            updated = self._cache_most_complex_subtree(node)
+            if updated is None:
+                return core.ArrayValue(node)
+            else:
+                node = updated
+
+        return core.ArrayValue(node)
+
+    def _cache_most_complex_subtree(
+        self, node: nodes.BigFrameNode
+    ) -> Optional[nodes.BigFrameNode]:
+        # TODO: If query fails, retry with lower complexity limit
+        valid_candidates = traversals.count_complex_nodes(
+            node,
+            min_complexity=(QUERY_COMPLEXITY_LIMIT / 500),
+            max_complexity=QUERY_COMPLEXITY_LIMIT,
+        ).items()
+        # Heuristic: subtree_compleixty * (copies of subtree)^2
+        best_candidate = max(
+            valid_candidates,
+            key=lambda i: i[0].planning_complexity + (i[1] ** 2),
+            default=None,
+        )
+
+        if best_candidate is None:
+            # No good subtrees to cache, just return original tree
+            return None
+
+        # TODO: Add clustering columns based on access patterns
+        materialized = self._cache_with_cluster_cols(
+            core.ArrayValue(best_candidate[0]), []
+        ).node
+
+        return traversals.replace_nodes(
+            node, to_replace=best_candidate[0], replacemenet=materialized
         )
 
     def _is_trivially_executable(self, array_value: core.ArrayValue):

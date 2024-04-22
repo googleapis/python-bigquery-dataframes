@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ensemble models. This module is styled after Scikit-Learn's ensemble module:
+"""Ensemble models. This module is styled after scikit-learn's ensemble module:
 https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
@@ -190,11 +190,11 @@ class XGBRegressor(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -343,12 +343,12 @@ class XGBClassifier(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            XGBClassifier: saved model."""
+            XGBClassifier: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -506,12 +506,12 @@ class RandomForestRegressor(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            RandomForestRegressor: saved model."""
+            RandomForestRegressor: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -669,12 +669,12 @@ class RandomForestClassifier(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            RandomForestClassifier: saved model."""
+            RandomForestClassifier: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
