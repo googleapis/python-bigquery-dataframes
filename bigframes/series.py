@@ -1693,12 +1693,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def cache(self):
         """
-        Materializes the DataFrame to a temporary table. Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
+        Materializes the Series to a temporary table. Useful if the series will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            Series: Self
         """
-        self._cached(force=True)
+        return self._cached(force=True)
 
     def _cached(self, *, force: bool = True) -> Series:
         self._set_block(self._block.cached(force=force))

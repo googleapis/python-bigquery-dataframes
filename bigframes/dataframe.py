@@ -3391,7 +3391,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             DataFrame: Self
         """
-        self._cached(force=True)
+        return self._cached(force=True)
 
     def _cached(self, *, force: bool = False) -> DataFrame:
         """Materialize dataframe to a temporary table.
