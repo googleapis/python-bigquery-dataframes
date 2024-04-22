@@ -108,6 +108,8 @@ def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
 
     # No exception raised because there is a primary key to use as the index.
     df = session.read_gbq("my-project.my_dataset.my_table")
+
+    # There should be no analytic operators to prevent row filtering pushdown.
     assert "OVER" not in df.sql
     assert tuple(df.index.names) == ("pk_1", "pk_2")
 

@@ -108,8 +108,8 @@ class GBQIOMixin:
             index_col (Iterable[str] or str):
                 Name of result column(s) to use for index in results DataFrame.
 
-                **New in bigframes version 1.3.0**: If not set, the primary
-                key(s) on the table are used if available.
+                **New in bigframes version 1.3.0**: If ``index_cols`` is not
+                set, the primary key(s) of the table are used as the index.
             columns (Iterable[str]):
                 List of BigQuery column names in the desired order for results
                 DataFrame.
