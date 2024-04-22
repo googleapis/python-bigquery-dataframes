@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join ArrayValue objects."""
 
-from bigframes.core.joins.merge import merge
-
-__all__ = [
-    "merge",
-]
+class UnknownLocationWarning(Warning):
+    """The location is set to an unknown value."""
