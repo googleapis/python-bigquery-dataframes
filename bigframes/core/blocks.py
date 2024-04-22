@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
+import os
 import random
 import typing
 from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
@@ -41,10 +42,12 @@ import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.schema as bf_schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
@@ -411,7 +414,32 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self.session._rows_to_dataframe(result, dtypes)
+        result_dataframe = self.session._rows_to_dataframe(result, dtypes)
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._validate_result_schema(result_dataframe)
+        return result_dataframe
+
+    def _validate_result_schema(self, result_df: pd.DataFrame):
+        ibis_schema = self.expr._compiled_schema
+        internal_schema = self.expr.node.schema
+        actual_schema = bf_schema.ArraySchema(
+            tuple(
+                bf_schema.SchemaItem(name, dtype)  # type: ignore
+                for name, dtype in result_df.dtypes.items()
+            )
+        )
+        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+            return
+        if internal_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+            )
+        if ibis_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+            )
 
     def to_pandas(
         self,
@@ -886,9 +914,6 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pd.Float64Dtype(),
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -903,7 +928,6 @@ class Block:
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=index_col_ids,
                 unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
-                dtype=dtype,
             )
             return Block(
                 result_expr,
@@ -921,7 +945,6 @@ class Block:
                 index_col_ids=[guid.generate_guid()],
                 unpivot_columns=[(value_col_id, tuple(self.value_columns))],
                 passthrough_columns=[*self.index_columns, offset_col],
-                dtype=dtype,
             )
             index_aggregations = [
                 (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
@@ -1204,7 +1227,7 @@ class Block:
         # TODO: annotate aggregations themself with this information
         dtype = self.expr.get_column_type(column_id)
         stats: list[agg_ops.UnaryAggregateOp] = [agg_ops.count_op]
-        if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
+        if bigframes.dtypes.is_orderable(dtype):
             stats += [agg_ops.min_op, agg_ops.max_op]
         if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             # Notable exclusions:
@@ -1470,22 +1493,24 @@ class Block:
 
         row_label_tuples = utils.index_as_tuples(row_labels)
 
-        if col_labels is not None:
+        if col_labels is None:
+            result_index: pd.Index = pd.Index([None])
+            result_col_labels: Sequence[Tuple] = list([()])
+        elif (col_labels.nlevels == 1) and all(
+            col_labels.isna()
+        ):  # isna not implemented for MultiIndex for newer pandas versions
+            result_index = pd.Index([None])
+            result_col_labels = utils.index_as_tuples(col_labels.drop_duplicates())
+        else:
             result_index = col_labels.drop_duplicates().dropna(how="all")
             result_col_labels = utils.index_as_tuples(result_index)
-        else:
-            result_index = pd.Index([None])
-            result_col_labels = list([()])
 
         # Get matching columns
         unpivot_columns: List[Tuple[str, List[str]]] = []
-        dtypes = []
         for val in result_col_labels:
             col_id = guid.generate_guid("unpivot_")
             input_columns, dtype = self._create_stack_column(val, row_label_tuples)
             unpivot_columns.append((col_id, input_columns))
-            if dtype:
-                dtypes.append(dtype or pd.Float64Dtype())
 
         added_index_columns = [guid.generate_guid() for _ in range(row_labels.nlevels)]
         unpivot_expr = self._expr.unpivot(
@@ -1493,8 +1518,7 @@ class Block:
             passthrough_columns=self.index_columns,
             unpivot_columns=unpivot_columns,
             index_col_ids=added_index_columns,
-            dtype=tuple(dtypes),
-            how=how,
+            join_side=how,
         )
         new_index_level_names = self.column_labels.names[-levels:]
         if how == "left":
@@ -1526,15 +1550,12 @@ class Block:
         value_labels = [self.col_id_to_label[col_id] for col_id in value_vars]
         id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
 
-        dtype = self._expr.get_column_type(value_vars[0])
-
         unpivot_expr = self._expr.unpivot(
             row_labels=value_labels,
             passthrough_columns=id_vars,
             unpivot_columns=(unpivot_col,),
             index_col_ids=var_col_ids,
-            dtype=dtype,
-            how="right",
+            join_side="right",
         )
         index_id = guid.generate_guid()
         unpivot_expr = unpivot_expr.promote_offsets(index_id)

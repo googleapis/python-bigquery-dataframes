@@ -284,6 +284,21 @@ def test_abs(scalars_dfs, col_name):
     assert_series_equal(pd_result, bf_result)
 
 
+@pytest.mark.parametrize(
+    ("col_name",),
+    (
+        ("bool_col",),
+        ("int64_col",),
+    ),
+)
+def test_series_invert(scalars_dfs, col_name):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (~scalars_df[col_name]).to_pandas()
+    pd_result = ~scalars_pandas_df[col_name]
+
+    assert_series_equal(pd_result, bf_result)
+
+
 def test_fillna(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -700,6 +715,14 @@ def test_series_corr(scalars_dfs):
         .astype("int64")
         .corr(scalars_pandas_df["int64_too"].astype("int64"))
     )
+    assert math.isclose(pd_result, bf_result)
+
+
+@skip_legacy_pandas
+def test_series_autocorr(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["float64_col"].autocorr(2)
+    pd_result = scalars_pandas_df["float64_col"].autocorr(2)
     assert math.isclose(pd_result, bf_result)
 
 
@@ -1246,6 +1269,39 @@ def test_binop_right_filtered(scalars_dfs):
     )
 
 
+@skip_legacy_pandas
+def test_series_combine_first(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_col = scalars_df["int64_col"].head(7)
+    float64_col = scalars_df["float64_col"].tail(7)
+    bf_result = int64_col.combine_first(float64_col).to_pandas()
+
+    pd_int64_col = scalars_pandas_df["int64_col"].head(7)
+    pd_float64_col = scalars_pandas_df["float64_col"].tail(7)
+    pd_result = pd_int64_col.combine_first(pd_float64_col)
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_update(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_col = scalars_df["int64_col"].head(7)
+    float64_col = scalars_df["float64_col"].tail(7).copy()
+    float64_col.update(int64_col)
+
+    pd_int64_col = scalars_pandas_df["int64_col"].head(7)
+    pd_float64_col = scalars_pandas_df["float64_col"].tail(7).copy()
+    pd_float64_col.update(pd_int64_col)
+
+    assert_series_equal(
+        float64_col.to_pandas(),
+        pd_float64_col,
+    )
+
+
 def test_mean(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -1264,14 +1320,34 @@ def test_median(scalars_dfs):
     assert pd_min < bf_result < pd_max
 
 
+def test_median_exact(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_result = scalars_df[col_name].median(exact=True)
+    pd_result = scalars_pandas_df[col_name].median()
+    assert math.isclose(pd_result, bf_result)
+
+
+def test_series_quantile(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_col"
+    bf_series = scalars_df[col_name]
+    pd_series = scalars_pandas_df[col_name]
+
+    pd_result = pd_series.quantile([0.0, 0.4, 0.6, 1.0])
+    bf_result = bf_series.quantile([0.0, 0.4, 0.6, 1.0])
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
 def test_numeric_literal(scalars_dfs):
     scalars_df, _ = scalars_dfs
     col_name = "numeric_col"
     assert scalars_df[col_name].dtype == pd.ArrowDtype(pa.decimal128(38, 9))
-    bf_result = scalars_df[col_name] - scalars_df[col_name].median()
+    bf_result = scalars_df[col_name] + 42
     assert bf_result.size == scalars_df[col_name].size
-    # TODO(b/323387826): The precision increased by 1 unexpectedly.
-    # assert bf_result.dtype == pd.ArrowDtype(pa.decimal128(38, 9))
+    assert bf_result.dtype == pd.ArrowDtype(pa.decimal128(38, 9))
 
 
 def test_repr(scalars_dfs):
@@ -1446,11 +1522,31 @@ def test_groupby_mean(scalars_dfs):
     )
 
 
-def test_groupby_median(scalars_dfs):
+def test_groupby_median_exact(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "int64_too"
+    bf_result = (
+        scalars_df[col_name].groupby(scalars_df["string_col"], dropna=False).median()
+    )
+    pd_result = (
+        scalars_pandas_df[col_name]
+        .groupby(scalars_pandas_df["string_col"], dropna=False)
+        .median()
+    )
+
+    assert_series_equal(
+        pd_result,
+        bf_result.to_pandas(),
+    )
+
+
+def test_groupby_median_inexact(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
     bf_series = (
-        scalars_df[col_name].groupby(scalars_df["string_col"], dropna=False).median()
+        scalars_df[col_name]
+        .groupby(scalars_df["string_col"], dropna=False)
+        .median(exact=False)
     )
     pd_max = (
         scalars_pandas_df[col_name]
@@ -1630,6 +1726,24 @@ def test_size(scalars_dfs):
 
     bf_result = scalars_df["string_col"].size
     pd_result = scalars_pandas_df["string_col"].size
+
+    assert pd_result == bf_result
+
+
+def test_series_hasnans_true(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].hasnans
+    pd_result = scalars_pandas_df["string_col"].hasnans
+
+    assert pd_result == bf_result
+
+
+def test_series_hasnans_false(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["string_col"].dropna().hasnans
+    pd_result = scalars_pandas_df["string_col"].dropna().hasnans
 
     assert pd_result == bf_result
 
@@ -3389,9 +3503,8 @@ def test_series_pipe(
     ],
 )
 def test_series_explode(data):
-    data = [[1, 2, 3], [], numpy.nan, [3, 4]]
     s = bigframes.pandas.Series(data)
-    pd_s = pd.Series(data)
+    pd_s = s.to_pandas()
     pd.testing.assert_series_equal(
         s.explode().to_pandas(),
         pd_s.explode(),
