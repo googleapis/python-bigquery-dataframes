@@ -1531,7 +1531,7 @@ class Session(
 
     def remote_function(
         self,
-        input_types: List[type],
+        input_types: Union[Literal["row"], type, Sequence[type]],
         output_type: type,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,

@@ -4118,7 +4118,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def apply(self, func, *, args=(), **kwargs):
+    def apply(self, func, *, axis=0, args=(), **kwargs):
         """Apply a function along an axis of the DataFrame.
 
         Objects passed to the function are Series objects whose index is

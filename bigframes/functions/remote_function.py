@@ -24,9 +24,12 @@ import string
 import sys
 import tempfile
 import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
+
+# TODO(shobs): import typing module and use its classes through namespapace.*
+from typing import List, Literal, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
 
 import ibis
+import pandas
 import requests
 
 if TYPE_CHECKING:
@@ -245,7 +248,7 @@ class RemoteFunctionClient:
 
         return udf_code_file_name, udf_bytecode_file_name
 
-    def generate_cloud_function_main_code(self, def_, dir):
+    def generate_cloud_function_main_code(self, def_, dir, is_row_processor=False):
         """Get main.py code for the cloud function for the given user defined function."""
 
         # Pickle the udf with all its dependencies
@@ -268,38 +271,78 @@ class RemoteFunctionClient:
         #   ...
         # }
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
-        code_template = textwrap.dedent(
-            """\
-        import cloudpickle
-        import functions_framework
-        from flask import jsonify
-        import json
+        code = """\
+import cloudpickle
+import functions_framework
+from flask import jsonify
+import json
+"""
+        if is_row_processor:
+            code += """\
+import pandas as pd
 
-        # original udf code is in {udf_code_file}
-        # serialized udf code is in {udf_bytecode_file}
-        with open("{udf_bytecode_file}", "rb") as f:
-          udf = cloudpickle.load(f)
+def get_pd_series(row):
+    row_json = json.loads(row)
+    col_names = row_json["names"]
+    col_types = row_json["types"]
+    col_values = row_json["values"]
 
-        def {handler_func_name}(request):
-          try:
-            request_json = request.get_json(silent=True)
-            calls = request_json["calls"]
-            replies = []
-            for call in calls:
-              reply = udf(*call)
-              replies.append(reply)
-            return_json = json.dumps({{"replies" : replies}})
-            return return_json
-          except Exception as e:
-            return jsonify( {{ "errorMessage": str(e) }} ), 400
-        """
-        )
+    value_converters = {
+        "boolean": lambda val: val == "true",
+        "Int64": int,
+        "Float64": float,
+        "string": str,
+    }
 
-        code = code_template.format(
-            udf_code_file=udf_code_file,
-            udf_bytecode_file=udf_bytecode_file,
-            handler_func_name=handler_func_name,
-        )
+    def convert_value(value, value_type):
+        if value is None:
+            return None
+        value_converter = value_converters.get(value_type)
+        if value_converter is None:
+            raise ValueError(f"Don't know how to handle type '{value_type}'")
+        return value_converter(value)
+
+    row_values = [pd.Series([convert_value(a, col_types[i])], dtype=col_types[i])[0] for i, a in enumerate(col_values)]
+    row_series = pd.Series(row_values, index=col_names)
+    return row_series
+"""
+        code += f"""\
+
+# original udf code is in {udf_code_file}
+# serialized udf code is in {udf_bytecode_file}
+with open("{udf_bytecode_file}", "rb") as f:
+    udf = cloudpickle.load(f)
+
+def {handler_func_name}(request):
+    try:
+        request_json = request.get_json(silent=True)
+        calls = request_json["calls"]
+        replies = []
+        for call in calls:
+"""
+        if is_row_processor:
+            code += """\
+            reply = udf(get_pd_series(call[0]))
+            if pd.isna(reply):
+                # Pandas N/A values are not json serializable, so use a python
+                # equivalent instead
+                reply = None
+            elif hasattr(reply, "item"):
+                # Numpy types are not json serializable, so use its Python
+                # value instead
+                reply = reply.item()
+"""
+        else:
+            code += """\
+            reply = udf(*call)
+"""
+        code += """\
+            replies.append(reply)
+        return_json = json.dumps({"replies" : replies})
+        return return_json
+    except Exception as e:
+        return jsonify( { "errorMessage": str(e) } ), 400
+"""
 
         main_py = os.path.join(dir, "main.py")
         with open(main_py, "w") as f:
@@ -308,11 +351,17 @@ class RemoteFunctionClient:
 
         return handler_func_name
 
-    def generate_cloud_function_code(self, def_, dir, package_requirements=None):
+    def generate_cloud_function_code(
+        self, def_, dir, package_requirements=None, is_row_processor=False
+    ):
         """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         requirements = ["cloudpickle >= 2.1.0"]
+        if is_row_processor:
+            # bigframes remote function will send an entire row of data as json,
+            # which would be converted to a pandas series and processed
+            requirements.append(f"pandas=={pandas.__version__}")
         if package_requirements:
             requirements.extend(package_requirements)
         requirements = sorted(requirements)
@@ -321,16 +370,20 @@ class RemoteFunctionClient:
             f.write("\n".join(requirements))
 
         # main.py
-        entry_point = self.generate_cloud_function_main_code(def_, dir)
+        entry_point = self.generate_cloud_function_main_code(
+            def_, dir, is_row_processor
+        )
         return entry_point
 
-    def create_cloud_function(self, def_, cf_name, package_requirements=None):
+    def create_cloud_function(
+        self, def_, cf_name, package_requirements=None, is_row_processor=False
+    ):
         """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as dir:
             entry_point = self.generate_cloud_function_code(
-                def_, dir, package_requirements
+                def_, dir, package_requirements, is_row_processor
             )
             archive_path = shutil.make_archive(dir, "zip", dir)
 
@@ -438,6 +491,7 @@ class RemoteFunctionClient:
         reuse,
         name,
         package_requirements,
+        is_row_processor,
     ):
         """Provision a BigQuery remote function."""
         # If reuse of any existing function with the same name (indicated by the
@@ -459,7 +513,7 @@ class RemoteFunctionClient:
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_, cloud_function_name, package_requirements
+                def_, cloud_function_name, package_requirements, is_row_processor
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -590,7 +644,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Sequence[type],
+    input_types: Union[Literal["row"], type, Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -724,6 +778,15 @@ def remote_function(
             For more details see
             https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
     """
+
+    is_row_processor = False
+    if input_types == "row":
+        input_types = [str]
+        is_row_processor = True
+    elif isinstance(input_types, type):
+        input_types = [input_types]
+
+    # Some defaults may be used from the session if not provided otherwise
     import bigframes.pandas as bpd
 
     session = session or bpd.get_global_session()
@@ -846,6 +909,7 @@ def remote_function(
             reuse,
             name,
             packages,
+            is_row_processor,
         )
 
         # TODO: Move ibis logic to compiler step

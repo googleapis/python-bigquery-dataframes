@@ -685,3 +685,20 @@ def test_read_gbq_function_enforces_explicit_types(bigquery_client, dataset_id):
         rf.read_gbq_function(
             str(neither_type_specified.reference), bigquery_client=bigquery_client
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+# https://github.com/googleapis/python-bigquery-dataframes/issues/592
+def test_df_apply_axis_1(session, scalars_dfs):
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def add_ints(row):
+        return row["int64_col"] + row["int64_too"]
+
+    add_ints_remote = session.remote_function("row", int)(add_ints)
+
+    bf_result = scalars_df[columns].apply(add_ints_remote, axis=1).to_pandas()
+    pd_result = scalars_pandas_df[columns].apply(add_ints, axis=1)
+
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)

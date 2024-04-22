@@ -26,6 +26,7 @@ import functools
 import itertools
 import os
 import random
+import textwrap
 import typing
 from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
@@ -1966,6 +1967,55 @@ class Block:
         result = block.get_stat(monotonic_result_id, agg_ops.all_op)
         self._stats_cache[column_name].update({op_name: result})
         return result
+
+    def _get_rows_as_json_values(self) -> Block:
+        compiled = self.expr._compile_unordered()
+        sql = compiled.to_sql()
+        column_names_csv = ", ".join([f'"{col}"' for col in compiled.column_ids])
+        column_types_csv = ", ".join(
+            [f'"{self.expr.get_column_type(col)}"' for col in compiled.column_ids]
+        )
+        column_references_csv = ", ".join(
+            [f"CAST({col} AS STRING)" for col in compiled.column_ids]
+        )
+        row_json_column_name = "row_json"
+        select_columns = list(self.index_columns) + [row_json_column_name]
+        select_columns_csv = ", ".join(select_columns)
+        json_sql = f"""\
+With T0 AS (
+{textwrap.indent(sql, "    ")}
+),
+T1 AS (
+    SELECT *,
+           JSON_OBJECT(
+               "names", [{column_names_csv}],
+               "types", [{column_types_csv}],
+               "values", [{column_references_csv}]
+           ) AS {row_json_column_name} FROM T0
+)
+SELECT {select_columns_csv} FROM T1
+"""
+        ibis_table = self.session.ibis_client.sql(json_sql)
+        order_for_ibis_table = ordering.ExpressionOrdering(
+            ordering_value_columns=tuple(
+                [ordering.ascending_over(column_id) for column_id in self.index_columns]
+            ),
+            total_ordering_columns=frozenset(self.index_columns),
+        )
+        expr = core.ArrayValue.from_ibis(
+            self.session,
+            ibis_table,
+            [ibis_table[col] for col in select_columns],
+            hidden_ordering_columns=[],
+            ordering=order_for_ibis_table,
+        )
+        block = Block(
+            expr,
+            index_columns=self.index_columns,
+            column_labels=[row_json_column_name],
+            index_labels=self._index_labels,
+        )
+        return block
 
 
 class BlockIndexProperties:
