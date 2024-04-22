@@ -78,7 +78,8 @@ class SeriesMethods:
             if isinstance(data, pd.Series):
                 data = read_pandas_func(data)
             elif pd.api.types.is_dict_like(data):
-                data = read_pandas_func(pd.Series(data))
+                data = read_pandas_func(pd.Series(data, dtype=dtype))  # type: ignore
+                dtype = None
             data_block = data._block
             if index is not None:
                 # reindex
@@ -91,7 +92,10 @@ class SeriesMethods:
 
         # list-like data that will get default index
         elif isinstance(data, indexes.Index) or pd.api.types.is_list_like(data):
-            data = indexes.Index(data, session=session)
+            data = indexes.Index(data, dtype=dtype, session=session)
+            dtype = (
+                None  # set to none as it has already been applied, avoid re-cast later
+            )
             if data.nlevels != 1:
                 raise NotImplementedError("Cannot interpret multi-index as Series.")
             # Reset index to promote index columns to value columns, set default index
@@ -120,6 +124,7 @@ class SeriesMethods:
                     dtype=bigframes.dtypes.INT_DTYPE,
                 )
             block, _ = bf_index._block.create_constant(data, dtype)
+            dtype = None
             block = block.with_column_labels([name])
 
         assert block is not None
