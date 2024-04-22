@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (t
 # you may not use this file except in compliance wi
@@ -19,16 +19,17 @@ def test_create_single_timeseries(random_model_id):
     # [START bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
     import bigframes.pandas as bpd
     
-    # Start by selecting the data you'll use for training. `read_gbq` accepts
-    # either a SQL query or a table ID. Since this example selects from multiple
-    # tables via a wildcard, use SQL to define this data. Watch issue
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-    # for updates to `read_gbq` to support wildcard tables.
+    # Start by selecting the data that you'll be querying from bigquery-public-data.google_analytics_sample.ga_sessions_* 
+    # The read_gbq function accepts table expressions or SQL
+    # the clause indicates that you are querying the ga_sessions_* tables in the google_analytics_sample dataset
     
     # Read and visualize the time series you want to forecast.
     df = bpd.read_gbq(
         'bigquery-public-data.google_analytics_sample.ga_sessions_*'
         )
     parsed_date = bpd.to_datetime(df.date, format= "%Y%m%d", utc = True)
-    total_visits = df.groupby(["date"])["parsed_date"].sum()
     visits = df["totals"].struct.field("visits")
+    total_visits = visits.groupby(parsed_date).sum()
+    total_visits.plot.line()
+
+    # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
