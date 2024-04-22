@@ -1478,7 +1478,10 @@ class Session(
     ) -> core.ArrayValue:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
+        # Need two hashes, as a single int64 hash value starts to risks colliding in 100M+ row tables
+        # Could maybe instead choose hash size based on row count?
         ordering_hash_part = guid.generate_guid("bigframes_ordering_")
+        ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
         ordering_rand_part = guid.generate_guid("bigframes_ordering_")
 
         # All inputs into hash must be non-null or resulting hash will be null
@@ -1491,23 +1494,30 @@ class Session(
             else str_values[0]
         )
         full_row_hash = full_row_str.hash().name(ordering_hash_part)
+        full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
         # Used to disambiguate between identical rows (which will have identical hash)
         random_value = ibis.random().name(ordering_rand_part)
 
         original_column_ids = table.columns
         table_with_ordering = table.select(
-            itertools.chain(original_column_ids, [full_row_hash, random_value])
+            itertools.chain(
+                original_column_ids, [full_row_hash, full_row_hash_p2, random_value]
+            )
         )
 
         ordering_ref1 = order.ascending_over(ordering_hash_part)
-        ordering_ref2 = order.ascending_over(ordering_rand_part)
+        ordering_ref2 = order.ascending_over(ordering_hash_part2)
+        ordering_ref3 = order.ascending_over(ordering_rand_part)
         ordering = order.ExpressionOrdering(
-            ordering_value_columns=(ordering_ref1, ordering_ref2),
-            total_ordering_columns=frozenset([ordering_hash_part, ordering_rand_part]),
+            ordering_value_columns=(ordering_ref1, ordering_ref2, ordering_ref3),
+            total_ordering_columns=frozenset(
+                [ordering_hash_part, ordering_hash_part2, ordering_rand_part]
+            ),
         )
         columns = [table_with_ordering[col] for col in original_column_ids]
         hidden_columns = [
             table_with_ordering[ordering_hash_part],
+            table_with_ordering[ordering_hash_part2],
             table_with_ordering[ordering_rand_part],
         ]
         return core.ArrayValue.from_ibis(
