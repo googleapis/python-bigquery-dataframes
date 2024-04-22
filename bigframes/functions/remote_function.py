@@ -667,7 +667,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Union[Literal["row"], type, Sequence[type]],
+    input_types: Union[Literal["row"], Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -729,8 +729,10 @@ def remote_function(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
-        input_types list(type):
-            List of input data types in the user defined function.
+        input_types (list(type) or "row"):
+            For scalar user defined function it should be a list of input.
+            For row processing user defined function, literal "row" should
+            be specified.
         output_type type:
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
@@ -816,8 +818,6 @@ def remote_function(
     if input_types == "row":
         input_types = [str]
         is_row_processor = True
-    elif isinstance(input_types, type):
-        input_types = [input_types]
 
     # Some defaults may be used from the session if not provided otherwise
     import bigframes.pandas as bpd
