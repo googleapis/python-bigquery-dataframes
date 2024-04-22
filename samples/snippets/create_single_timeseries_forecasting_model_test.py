@@ -20,8 +20,8 @@ def test_create_single_timeseries(random_model_id):
     import bigframes.pandas as bpd
     
     # Start by selecting the data that you'll be querying from bigquery-public-data.google_analytics_sample.ga_sessions_* 
-    # The read_gbq function accepts table expressions or SQL
-    # the clause indicates that you are querying the ga_sessions_* tables in the google_analytics_sample dataset
+    # The read_gbq function accepts the wildcard table expressions and this clause indicates that 
+    # you are querying the ga_sessions_* tables in the google_analytics_sample dataset
     
     # Read and visualize the time series you want to forecast.
     df = bpd.read_gbq(
