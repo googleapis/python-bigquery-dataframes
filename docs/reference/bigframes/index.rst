@@ -5,6 +5,8 @@ Core objects
 .. toctree::
     :maxdepth: 2
 
+    enums
+    exceptions
     options
 
 

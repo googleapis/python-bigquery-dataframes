@@ -76,6 +76,30 @@ def test_read_gbq_clustered_table_raises_no_default_index_error():
         session.read_gbq("my-project.my_dataset.my_table")
 
 
+def test_read_gbq_clustered_table_ok_default_index_with_force_true():
+    """Because of the windowing operation to create a default index, row
+    filters can't push down to the clustering column.
+
+    Raise an exception in this case so that the user is directed to supply a
+    unique index column or filter if possible.
+
+    See internal issue 335727141.
+    """
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.clustering_fields = ["col1", "col2"]
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    session = resources.create_bigquery_session(bqclient=bqclient)
+    table._properties["location"] = session._location
+
+    # No exception raised because we set the option allowing the default indexes.
+    with bigframes.option_context(
+        "compute.allow_default_index_on_clustered_partitioned_tables", True
+    ):
+        session.read_gbq("my-project.my_dataset.my_table")
+
+
 def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
     """If a primary key is set on the table, we use that as the index column
     by default, no error should be raised in this case.
