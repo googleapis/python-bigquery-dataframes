@@ -828,7 +828,7 @@ class Block:
             input_varname = input_varnames[0]
 
         block = self
-        for i, col_id in enumerate(columns):
+        for col_id in columns:
             label = self.col_id_to_label[col_id]
             block, result_id = block.project_expr(
                 expr.bind_all_variables({input_varname: ex.free_var(col_id)}),
@@ -960,7 +960,7 @@ class Block:
                 result_expr,
                 index_columns=[index_id],
                 column_labels=self.column_labels,
-                index_labels=self.column_labels.names,
+                index_labels=[None],
             ).transpose(original_row_index=pd.Index([None]))
         else:  # axis_n == 1
             # using offsets as identity to group on.
