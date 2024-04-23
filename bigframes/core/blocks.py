@@ -1971,7 +1971,7 @@ class Block:
         column_references_csv = ", ".join(
             [f"CAST({col} AS STRING)" for col in compiled.column_ids]
         )
-        row_json_column_name = "row_json"
+        row_json_column_name = guid.generate_guid()
         select_columns = list(self.index_columns) + [row_json_column_name]
         select_columns_csv = ", ".join(select_columns)
         json_sql = f"""\
