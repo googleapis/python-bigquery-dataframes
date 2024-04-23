@@ -2483,6 +2483,11 @@ def test_df_transpose():
     pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
 
 
+def test_df_transpose_error():
+    with pytest.raises(TypeError, match="Cannot coerce.*to a common type."):
+        dataframe.DataFrame([[1, "hello"], [2, "world"]]).transpose()
+
+
 @pytest.mark.parametrize(
     ("ordered"),
     [

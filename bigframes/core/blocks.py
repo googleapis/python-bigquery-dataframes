@@ -1576,7 +1576,7 @@ class Block:
         )
 
     def transpose(self) -> Block:
-        """Transpose the block. Will fail if dtypes incompatible or too many rows"""
+        """Transpose the block. Will fail if dtypes aren't coercible to a common type or too many rows"""
         original_col_index = self.column_labels
         original_row_index = self.index.to_pandas()
         original_row_count = len(original_row_index)

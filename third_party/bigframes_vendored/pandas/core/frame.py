@@ -98,6 +98,8 @@ class DataFrame(generic.NDFrame):
         """
         The transpose of the DataFrame.
 
+        All columns must be the same dtype (numerics can be coerced to a common supertype).
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -129,6 +131,8 @@ class DataFrame(generic.NDFrame):
         Reflect the DataFrame over its main diagonal by writing rows as columns
         and vice-versa. The property :attr:`.T` is an accessor to the method
         :meth:`transpose`.
+
+        All columns must be the same dtype (numerics can be coerced to a common supertype).
 
         **Examples:**
 
