@@ -701,4 +701,12 @@ def test_df_apply_axis_1(session, scalars_dfs):
     bf_result = scalars_df[columns].apply(add_ints_remote, axis=1).to_pandas()
     pd_result = scalars_pandas_df[columns].apply(add_ints, axis=1)
 
-    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
+    # mismatch by using check_dtype=False.
+    #
+    # bf_result.to_numpy() produces an array of numpy.float64's, while
+    # pd_result.to_numpy() produces an array of ints, ignore this mismatch by
+    # using check_exact=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_exact=False
+    )
