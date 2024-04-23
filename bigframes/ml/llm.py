@@ -313,10 +313,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
     def score(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
-        y=None,  # ignored
+        y: Union[bpd.DataFrame, bpd.Series],
         task_type: Literal[
-            "TEXT_GENERATION", "CLASSIFICATION", "SUMMARIZATION", "QUESTION_ANSWERING"
-        ] = "TEXT_GENERATION",
+            "text_generation", "classification", "summarization", "question_answering"
+        ] = "text_generation",
     ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 
@@ -337,14 +337,12 @@ class PaLM2TextGenerator(base.BaseEstimator):
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation data. X must have a column named
                 ``input_text`` that contains the prompt text to use when evaluating the model.
-                X must also have a column named ``output_text`` that contains the generated
-                text that you would expect to be returned by the model.
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                A BigQuery DataFrame as evaluation labels.
+                A BigQuery DataFrame as evaluation labels. y must also have a column named ``output_text`` that contains the generated
+                text that you would expect to be returned by the model.
             task_type (Optional[str]):
-                The type of the task for LLM model. Default to "TEXT_GENERATION".
-                Possible values: "TEXT_GENERATION", "CLASSIFICATION", "SUMMARIZATION", and
-                "QUESTION_ANSWERING".
+                The type of the task for LLM model. Default to "text_generation".
+                Possible values: "text_generation", "classification", "summarization", and "question_answering".
 
         Returns:
             bigframes.dataframe.DataFrame: The DataFrame as evaluation result.
@@ -352,21 +350,27 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        columns = X.columns.to_list()
-        if "input_text" not in columns:
+        X, y = utils.convert_to_dataframe(X, y)
+
+        X_columns = X.columns.to_list()
+        y_columns = y.columns.to_list()
+        if "input_text" not in X_columns:
             raise ValueError(
                 """Must contain a column named input_text that contains the prompt
                 text to use when evaluating the model."""
             )
-        if "output_text" not in columns:
+        if "output_text" not in y_columns:
             raise ValueError(
                 """Must contain a column named output_text that contains the generated
                 text that you would expect to be returned by the model."""
             )
-        (X,) = utils.convert_to_dataframe(X)
-        refined_X = X[["input_text", "output_text"]].copy()
 
-        return self._bqml_model.llm_evaluate(refined_X, task_type)
+        input_data = (
+            X.join(y, how="outer") if (X is not None) and (y is not None) else None
+        )
+        refined_data = input_data[["input_text", "output_text"]].copy()
+
+        return self._bqml_model.llm_evaluate(refined_data, task_type)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
         """Save the model to BigQuery.

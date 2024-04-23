@@ -76,7 +76,9 @@ def test_llm_palm_score(llm_fine_tune_df_default_index):
         columns={"prompt": "input_text", "label": "output_text"}
     )
     # Check score to ensure the model was fitted
-    score_result = model.score(eval_df).to_pandas()
+    score_result = model.score(
+        X=eval_df[["input_text"]], y=eval_df[["output_text"]]
+    ).to_pandas()
     score_result_col = score_result.columns.to_list()
     expected_col = [
         "bleu4_score",
@@ -84,5 +86,29 @@ def test_llm_palm_score(llm_fine_tune_df_default_index):
         "rouge-l_recall",
         "rouge-l_f1_score",
         "evaluation_status",
+    ]
+    assert all(col in score_result_col for col in expected_col)
+
+
+def test_llm_palm_score_params(llm_fine_tune_df_default_index):
+    model = bigframes.ml.llm.PaLM2TextGenerator(
+        model_name="text-bison", max_iterations=1
+    )
+    eval_df = llm_fine_tune_df_default_index.rename(
+        columns={"prompt": "input_text", "label": "output_text"}
+    )
+    # Check score to ensure the model was fitted
+    score_result = model.score(
+        X=eval_df["input_text"], y=eval_df["output_text"], task_type="classification"
+    ).to_pandas()
+    score_result_col = score_result.columns.to_list()
+    expected_col = [
+        "trial_id",
+        "precision",
+        "recall",
+        "accuracy",
+        "f1_score",
+        "log_loss",
+        "roc_auc",
     ]
     assert all(col in score_result_col for col in expected_col)
