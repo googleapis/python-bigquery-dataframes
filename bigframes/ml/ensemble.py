@@ -472,7 +472,7 @@ class RandomForestRegressor(
     def score(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
     ):
         """Calculate evaluation metrics of the model.
 
