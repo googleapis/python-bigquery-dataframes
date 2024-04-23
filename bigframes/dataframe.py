@@ -105,6 +105,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(
                 f"DataFrame constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
+        # just ignore object dtype if provided
+        if dtype in {numpy.dtypes.ObjectDType, "object"}:
+            dtype = None
 
         # Check to see if constructing from BigQuery-backed objects before
         # falling back to pandas constructor
@@ -310,6 +313,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
+
+    @property
+    def T(self) -> DataFrame:
+        return DataFrame(self._get_block().transpose())
+
+    def transpose(self) -> DataFrame:
+        return self.T
 
     def __len__(self):
         rows, _ = self.shape
@@ -668,7 +678,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 DataFrame(other), op, how=how, reverse=reverse
             )
         elif utils.get_axis_number(axis) == 0:
-            bf_series = bigframes.core.convert.to_bf_series(other, self.index)
+            bf_series = bigframes.core.convert.to_bf_series(
+                other, self.index, self._session
+            )
             return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
             pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
@@ -1961,9 +1973,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self._raise_on_non_boolean("any")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_stack(
-            agg_ops.any_op, dtype=pandas.BooleanDtype(), axis=axis
-        )
+        block = frame._block.aggregate_all_and_stack(agg_ops.any_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     def all(
@@ -1973,9 +1983,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame = self._raise_on_non_boolean("all")
         else:
             frame = self._drop_non_bool()
-        block = frame._block.aggregate_all_and_stack(
-            agg_ops.all_op, dtype=pandas.BooleanDtype(), axis=axis
-        )
+        block = frame._block.aggregate_all_and_stack(agg_ops.all_op, axis=axis)
         return bigframes.series.Series(block.select_column("values"))
 
     def sum(
@@ -1999,18 +2007,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block.select_column("values"))
 
     def median(
-        self, *, numeric_only: bool = False, exact: bool = False
+        self, *, numeric_only: bool = False, exact: bool = True
     ) -> bigframes.series.Series:
-        if exact:
-            raise NotImplementedError(
-                f"Only approximate median is supported. {constants.FEEDBACK_LINK}"
-            )
         if not numeric_only:
             frame = self._raise_on_non_numeric("median")
         else:
             frame = self._drop_non_numeric()
         if exact:
-            return self.quantile()
+            result = frame.quantile()
+            result.name = None
+            return result
         else:
             block = frame._block.aggregate_all_and_stack(agg_ops.median_op)
             return bigframes.series.Series(block.select_column("values"))

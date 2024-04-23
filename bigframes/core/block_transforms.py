@@ -111,6 +111,7 @@ def quantile(
     columns: Sequence[str],
     qs: Sequence[float],
     grouping_column_ids: Sequence[str] = (),
+    dropna: bool = False,
 ) -> blocks.Block:
     # TODO: handle windowing and more interpolation methods
     window = core.WindowSpec(
@@ -134,7 +135,7 @@ def quantile(
     block, results = block.aggregate(
         grouping_column_ids,
         tuple((col, agg_ops.AnyValueOp()) for col in quantile_cols),
-        dropna=True,
+        dropna=dropna,
     )
     return block.select_columns(results).with_column_labels(labels)
 
@@ -857,5 +858,5 @@ def _idx_extrema(
     # Stack the entire column axis to produce single-column result
     # Assumption: uniform dtype for stackability
     return block.aggregate_all_and_stack(
-        agg_ops.AnyValueOp(), dtype=block.dtypes[0]
+        agg_ops.AnyValueOp(),
     ).with_column_labels([original_block.index.name])

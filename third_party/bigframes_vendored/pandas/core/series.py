@@ -593,9 +593,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1
 
             >>> s.agg(['min', 'max'])
-            min    1.0
-            max    4.0
-            dtype: Float64
+            min    1
+            max    4
+            dtype: Int64
 
         Args:
             func (function):
@@ -862,6 +862,7 @@ class Series(NDFrame):  # type: ignore[misc]
         the Series and its shifted self.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
@@ -2812,6 +2813,7 @@ class Series(NDFrame):  # type: ignore[misc]
         of the two indexes.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
@@ -2852,6 +2854,7 @@ class Series(NDFrame):  # type: ignore[misc]
         on index.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> import pandas as pd
             >>> import numpy as np
@@ -3147,13 +3150,13 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def median(self, *, exact: bool = False):
+    def median(self, *, exact: bool = True):
         """Return the median of the values over the requested axis.
 
         Args:
-            exact (bool. default False):
-                Default False. Get the exact median instead of an approximate
-                one. Note: ``exact=True`` not yet supported.
+            exact (bool. default True):
+                Default True. Get the exact median instead of an approximate
+                one.
 
         Returns:
             scalar: Scalar.
@@ -3168,6 +3171,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Return value at the given quantile.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series([1, 2, 3, 4])

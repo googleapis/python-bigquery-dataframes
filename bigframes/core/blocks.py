@@ -35,6 +35,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
+import bigframes.constants
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
@@ -914,9 +915,6 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pd.Float64Dtype(),
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -931,7 +929,6 @@ class Block:
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=index_col_ids,
                 unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
-                dtype=dtype,
             )
             return Block(
                 result_expr,
@@ -949,7 +946,6 @@ class Block:
                 index_col_ids=[guid.generate_guid()],
                 unpivot_columns=[(value_col_id, tuple(self.value_columns))],
                 passthrough_columns=[*self.index_columns, offset_col],
-                dtype=dtype,
             )
             index_aggregations = [
                 (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
@@ -1512,13 +1508,10 @@ class Block:
 
         # Get matching columns
         unpivot_columns: List[Tuple[str, List[str]]] = []
-        dtypes = []
         for val in result_col_labels:
             col_id = guid.generate_guid("unpivot_")
             input_columns, dtype = self._create_stack_column(val, row_label_tuples)
             unpivot_columns.append((col_id, input_columns))
-            if dtype:
-                dtypes.append(dtype or pd.Float64Dtype())
 
         added_index_columns = [guid.generate_guid() for _ in range(row_labels.nlevels)]
         unpivot_expr = self._expr.unpivot(
@@ -1526,8 +1519,7 @@ class Block:
             passthrough_columns=self.index_columns,
             unpivot_columns=unpivot_columns,
             index_col_ids=added_index_columns,
-            dtype=tuple(dtypes),
-            how=how,
+            join_side=how,
         )
         new_index_level_names = self.column_labels.names[-levels:]
         if how == "left":
@@ -1551,6 +1543,10 @@ class Block:
         var_names=typing.Sequence[typing.Hashable],
         value_name: typing.Hashable = "value",
     ):
+        """
+        Unpivot columns to produce longer, narrower dataframe.
+        Arguments correspond to pandas.melt arguments.
+        """
         # TODO: Implement col_level and ignore_index
         unpivot_col_id = guid.generate_guid()
         var_col_ids = tuple([guid.generate_guid() for _ in var_names])
@@ -1559,15 +1555,12 @@ class Block:
         value_labels = [self.col_id_to_label[col_id] for col_id in value_vars]
         id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
 
-        dtype = self._expr.get_column_type(value_vars[0])
-
         unpivot_expr = self._expr.unpivot(
             row_labels=value_labels,
             passthrough_columns=id_vars,
             unpivot_columns=(unpivot_col,),
             index_col_ids=var_col_ids,
-            dtype=dtype,
-            how="right",
+            join_side="right",
         )
         index_id = guid.generate_guid()
         unpivot_expr = unpivot_expr.promote_offsets(index_id)
@@ -1580,6 +1573,52 @@ class Block:
             unpivot_expr,
             column_labels=[*id_labels, *var_names, value_name],
             index_columns=[index_id],
+        )
+
+    def transpose(self) -> Block:
+        """Transpose the block. Will fail if dtypes aren't coercible to a common type or too many rows"""
+        original_col_index = self.column_labels
+        original_row_index = self.index.to_pandas()
+        original_row_count = len(original_row_index)
+        if original_row_count > bigframes.constants.MAX_COLUMNS:
+            raise NotImplementedError(
+                f"Object has {original_row_count} rows and is too large to transpose."
+            )
+
+        # Add row numbers to both axes to disambiguate, clean them up later
+        block = self
+        numbered_block = block.with_column_labels(
+            utils.combine_indices(
+                block.column_labels, pd.Index(range(len(block.column_labels)))
+            )
+        )
+        numbered_block, offsets = numbered_block.promote_offsets()
+
+        stacked_block = numbered_block.melt(
+            id_vars=(offsets,),
+            var_names=(
+                *[name for name in original_col_index.names],
+                "col_offset",
+            ),
+            value_vars=block.value_columns,
+        )
+        col_labels = stacked_block.value_columns[-2 - original_col_index.nlevels : -2]
+        col_offset = stacked_block.value_columns[-2]  # disambiguator we created earlier
+        cell_values = stacked_block.value_columns[-1]
+        # Groupby source column
+        stacked_block = stacked_block.set_index(
+            [*col_labels, col_offset]
+        )  # col index is now row index
+        result = stacked_block.pivot(
+            columns=[offsets],
+            values=[cell_values],
+            columns_unique_values=tuple(range(original_row_count)),
+        )
+        # Drop the offsets from both axes before returning
+        return (
+            result.with_column_labels(original_row_index)
+            .order_by([ordering.ascending_over(result.index_columns[-1])])
+            .drop_levels([result.index_columns[-1]])
         )
 
     def _create_stack_column(

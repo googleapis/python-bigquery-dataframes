@@ -2465,6 +2465,29 @@ def test_df_describe(scalars_dfs):
     ).all()
 
 
+def test_df_transpose():
+    # Include some floats to ensure type coercion
+    values = [[0, 3.5, True], [1, 4.5, False], [2, 6.5, None]]
+    # Test complex case of both axes being multi-indices with non-unique elements
+    columns = pd.Index(["A", "B", "A"], dtype=pd.StringDtype(storage="pyarrow"))
+    columns_multi = pd.MultiIndex.from_arrays([columns, columns], names=["c1", "c2"])
+    index = pd.Index(["b", "a", "a"], dtype=pd.StringDtype(storage="pyarrow"))
+    rows_multi = pd.MultiIndex.from_arrays([index, index], names=["r1", "r2"])
+
+    pd_df = pandas.DataFrame(values, index=rows_multi, columns=columns_multi)
+    bf_df = dataframe.DataFrame(values, index=rows_multi, columns=columns_multi)
+
+    pd_result = pd_df.T
+    bf_result = bf_df.T.to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_df_transpose_error():
+    with pytest.raises(TypeError, match="Cannot coerce.*to a common type."):
+        dataframe.DataFrame([[1, "hello"], [2, "world"]]).transpose()
+
+
 @pytest.mark.parametrize(
     ("ordered"),
     [
@@ -2987,10 +3010,14 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op, ord
     bf_result = bf_series.to_pandas(ordered=ordered)
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_series = pd_series.astype("Float64")
     # Pandas has object index type
+    pd_series.index = pd_series.index.astype(pd.StringDtype(storage="pyarrow"))
     assert_series_equal(
-        pd_series, bf_result, check_index_type=False, ignore_order=not ordered
+        pd_series,
+        bf_result,
+        check_index_type=False,
+        ignore_order=not ordered,
+        check_dtype=False,
     )
 
 
@@ -3079,7 +3106,7 @@ def test_dataframe_bool_aggregates(scalars_df_index, scalars_pandas_df_index, op
     pd_series = op(scalars_pandas_df_index).astype("boolean")
     bf_result = bf_series.to_pandas()
 
-    # Pandas has object index type
+    pd_series.index = pd_series.index.astype(bf_result.index.dtype)
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
 
 
