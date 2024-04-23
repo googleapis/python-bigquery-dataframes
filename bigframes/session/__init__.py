@@ -54,6 +54,7 @@ import google.api_core.exceptions
 import google.api_core.gapic_v1.client_info
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.table
 import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
@@ -687,7 +688,7 @@ class Session(
 
     def _get_snapshot_sql_and_primary_key(
         self,
-        table_ref: bigquery.table.TableReference,
+        table: google.cloud.bigquery.table.Table,
         *,
         api_name: str,
         use_cache: bool = True,
@@ -701,8 +702,6 @@ class Session(
         # If there are primary keys defined, the query engine assumes these
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
-        table = self.bqclient.get_table(table_ref)
-
         if table.location.casefold() != self._location.casefold():
             raise ValueError(
                 f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
@@ -720,8 +719,8 @@ class Session(
 
         job_config = bigquery.QueryJobConfig()
         job_config.labels["bigframes-api"] = api_name
-        if use_cache and table_ref in self._df_snapshot.keys():
-            snapshot_timestamp = self._df_snapshot[table_ref]
+        if use_cache and table.reference in self._df_snapshot.keys():
+            snapshot_timestamp = self._df_snapshot[table.reference]
 
             # Cache hit could be unexpected. See internal issue 329545805.
             # Raise a warning with more information about how to avoid the
@@ -747,11 +746,11 @@ class Session(
                     job_config=job_config,
                 ).result()
             )[0][0]
-            self._df_snapshot[table_ref] = snapshot_timestamp
+            self._df_snapshot[table.reference] = snapshot_timestamp
 
         try:
             table_expression = self.ibis_client.sql(
-                bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
+                bigframes_io.create_snapshot_sql(table.reference, snapshot_timestamp)
             )
         except google.api_core.exceptions.Forbidden as ex:
             if "Drive credentials" in ex.message:
@@ -779,8 +778,9 @@ class Session(
             query, default_project=self.bqclient.project
         )
 
+        table = self.bqclient.get_table(table_ref)
         (table_expression, primary_keys,) = self._get_snapshot_sql_and_primary_key(
-            table_ref, api_name=api_name, use_cache=use_cache
+            table, api_name=api_name, use_cache=use_cache
         )
         total_ordering_cols = primary_keys
 
@@ -852,9 +852,13 @@ class Session(
                     ordering=ordering,
                 )
             else:
-                array_value = self._create_total_ordering(table_expression)
+                array_value = self._create_total_ordering(
+                    table_expression, table_size=table.num_rows
+                )
         else:
-            array_value = self._create_total_ordering(table_expression)
+            array_value = self._create_total_ordering(
+                table_expression, table_size=table.num_rows
+            )
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(
@@ -1475,11 +1479,16 @@ class Session(
     def _create_total_ordering(
         self,
         table: ibis_types.Table,
+        table_size: int,
     ) -> core.ArrayValue:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
         # Need two hashes, as a single int64 hash value starts to risks colliding in 100M+ row tables
         # Could maybe instead choose hash size based on row count?
+
+        # For small tables, 64 bits is enough to avoid collisions, 128 bits will never ever collide no matter what
+        use_double_hash = table_size > 100000
+
         ordering_hash_part = guid.generate_guid("bigframes_ordering_")
         ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
         ordering_rand_part = guid.generate_guid("bigframes_ordering_")
@@ -1494,32 +1503,30 @@ class Session(
             else str_values[0]
         )
         full_row_hash = full_row_str.hash().name(ordering_hash_part)
+        # By modifying value slightly, we get another hash uncorrelated with the first
         full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
         # Used to disambiguate between identical rows (which will have identical hash)
         random_value = ibis.random().name(ordering_rand_part)
 
-        original_column_ids = table.columns
-        table_with_ordering = table.select(
-            itertools.chain(
-                original_column_ids, [full_row_hash, full_row_hash_p2, random_value]
-            )
+        order_values = (
+            [full_row_hash, full_row_hash_p2, random_value]
+            if use_double_hash
+            else [full_row_hash, random_value]
         )
 
-        ordering_ref1 = order.ascending_over(ordering_hash_part)
-        ordering_ref2 = order.ascending_over(ordering_hash_part2)
-        ordering_ref3 = order.ascending_over(ordering_rand_part)
+        original_column_ids = table.columns
+        table_with_ordering = table.select(
+            itertools.chain(original_column_ids, order_values)
+        )
+
         ordering = order.ExpressionOrdering(
-            ordering_value_columns=(ordering_ref1, ordering_ref2, ordering_ref3),
-            total_ordering_columns=frozenset(
-                [ordering_hash_part, ordering_hash_part2, ordering_rand_part]
+            ordering_value_columns=tuple(
+                order.ascending_over(col.get_name()) for col in order_values
             ),
+            total_ordering_columns=frozenset(col.get_name() for col in order_values),
         )
         columns = [table_with_ordering[col] for col in original_column_ids]
-        hidden_columns = [
-            table_with_ordering[ordering_hash_part],
-            table_with_ordering[ordering_hash_part2],
-            table_with_ordering[ordering_rand_part],
-        ]
+        hidden_columns = [table_with_ordering[col.get_name()] for col in order_values]
         return core.ArrayValue.from_ibis(
             self,
             table_with_ordering,
