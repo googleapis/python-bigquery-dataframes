@@ -820,7 +820,7 @@ class Block:
     ) -> Block:
         if isinstance(op, ops.UnaryOp):
             input_varname = guid.generate_guid()
-            expr = op.as_expr("arg")
+            expr = op.as_expr(input_varname)
         else:
             input_varnames = op.unbound_variables
             assert len(input_varnames) == 1
