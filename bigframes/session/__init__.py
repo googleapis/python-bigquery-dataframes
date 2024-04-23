@@ -2035,8 +2035,7 @@ class Session(
     def from_glob_path(self, path) -> dataframe.DataFrame:
         table = self._create_object_table(path)
 
-        # Update the hard-coded
-        self._master_object_table = self._create_object_table("gs://garrettwu_bucket/*")
+        self._master_object_table = table
         return self.read_gbq(table)["uri"].to_frame()
 
 

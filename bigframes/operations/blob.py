@@ -78,6 +78,7 @@ class BlobMethods(base.SeriesMethods):
             [str],
             str,
             packages=["numpy", "google-cloud-storage", "parse", "opencv-python"],
+            max_batching_rows=50,
         )
         def bigframes_img_blur(uri_in):
             import os
@@ -99,9 +100,13 @@ class BlobMethods(base.SeriesMethods):
             img_blurred = cv.blur(img, ksize)
             bts = cv.imencode(".jpeg", img_blurred)[1].tobytes()
 
-            file_name = uri_in[uri_in.rfind("/") + 1 :]
+            file_name_full = uri_in[uri_in.rfind("/") + 1 :]
 
-            blob_path_out = os.path.join(dst_folder, file_name)
+            # import uuid
+            # file_name, ext = os.path.splitext(file_name_full)
+            # file_name_full = file_name + uuid.uuid4().hex + ext
+
+            blob_path_out = os.path.join(dst_folder, file_name_full)
             blob_out = bucket.blob(blob_path_out)
             blob_out.upload_from_string(bts)
 
@@ -126,8 +131,8 @@ class BlobMethods(base.SeriesMethods):
         else:
             raise ValueError("Unsupported mode.")
 
-    def _text_chunk(self, uri_in, dst_folder):
-        import os
+    def _text_chunk_local(self, uri_in):
+        import json
 
         from google.cloud import storage
         from llama_index.core import SimpleDirectoryReader
@@ -152,11 +157,9 @@ class BlobMethods(base.SeriesMethods):
 
         nodes = base_splitter.get_nodes_from_documents(documents)
 
-        blob_path_out = os.path.join(dst_folder, file_name_full)
-        blob_out = bucket.blob(blob_path_out)
-        blob_out.upload_from_string(nodes[0].text)
+        texts = [node.text for node in nodes]
 
-        return blob_path_out
+        return json.dumps(texts)
 
     def _text_chunk_remote(self):
         import bigframes.ml.json as bf_json
@@ -173,6 +176,7 @@ class BlobMethods(base.SeriesMethods):
                 "llama-index-core",
                 "llama-index-readers-file",
             ],
+            max_batching_rows=10,
         )
         def bigframes_llama_index_chunk(uri_in):
             import json
@@ -209,8 +213,26 @@ class BlobMethods(base.SeriesMethods):
 
         return text_arr_s
 
-    def llama_index_chunk(self):
-        return self._text_chunk_remote()
+    def llama_index_chunk(self, mode="local"):
+        import bigframes.ml.json as bf_json
+        import bigframes.pandas as bpd
+
+        s = bpd.Series(self._block)
+        if mode == "local":
+            self._gcs_manager = clients.GcsManager()
+            new_json_chunks = []
+            for uri in s:
+                json_chunks = self._text_chunk_local(uri_in=uri)
+                new_json_chunks.append(json_chunks)
+
+            json_str_df = bpd.DataFrame({"json": new_json_chunks})
+            text_arr_s = bf_json.json_extract_array(json_str_df)
+
+            return text_arr_s
+        elif mode == "remote":
+            return self._text_chunk_remote()
+        else:
+            raise ValueError("Unsupported mode.")
 
 
 def parse_gcs_path(path):

@@ -68,8 +68,10 @@ def test_paired_euclidean_distances():
 def test_json():
     from bigframes.ml import json
 
-    x = bpd.DataFrame({"json": ['["a","b","c"]']})
+    # x = bpd.DataFrame({"json": ['["a","b","c"]']})
+    x = bpd.from_glob_path("gs://garrettwu_bucket/pdfs/*").head()
 
+    x["chunked_local"] = x["uri"].blob.llama_index_chunk(mode="local")
     y = json.json_extract_array(x)
     print(y)
 
