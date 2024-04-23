@@ -68,7 +68,7 @@ class GroupBy:
         self,
         numeric_only: bool = False,
         *,
-        exact: bool = False,
+        exact: bool = True,
     ):
         """
         Compute median of groups, excluding missing values.
@@ -76,9 +76,8 @@ class GroupBy:
         Args:
             numeric_only (bool, default False):
                 Include only float, int, boolean columns.
-            exact (bool, default False):
-                Calculate the exact median instead of an approximation. Note:
-                    ``exact=True`` is not supported.
+            exact (bool, default True):
+                Calculate the exact median instead of an approximation.
 
         Returns:
             pandas.Series or pandas.DataFrame: Median of groups.
@@ -90,6 +89,7 @@ class GroupBy:
         Return group values at the given quantile, a la numpy.percentile.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([
