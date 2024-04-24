@@ -15,7 +15,7 @@
 """Options for displaying objects."""
 
 import dataclasses
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 @dataclasses.dataclass
@@ -44,7 +44,22 @@ class ComputeOptions:
             If enabled, large queries may be factored into multiple smaller queries
             in order to avoid generating queries that are too complex for the query
             engine to handle. However this comes at the cost of increase cost and latency.
+        extra_query_labels (Dict[str, Any]):
+            Stores additional custom labels for query configuration.
     """
 
     maximum_bytes_billed: Optional[int] = None
     enable_multi_query_execution: bool = False
+    extra_query_labels: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def assign_extra_query_labels(self, **kwargs):
+        reserved_keys = {"maximum_bytes_billed", "enable_multi_query_execution"}
+        for key in kwargs:
+            if key in reserved_keys:
+                raise ValueError(
+                    f"'{key}' is a reserved attribute name. Please use "
+                    "a different key for your custom labels to avoid "
+                    "conflicts with built-in settings."
+                )
+
+        self.extra_query_labels.update(kwargs)
