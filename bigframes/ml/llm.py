@@ -340,7 +340,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
                 that you would expect to be returned by the model.
-            task_type (Optional[str]):
+            task_type (str):
                 The type of the task for LLM model. Default to "text_generation".
                 Possible values: "text_generation", "classification", "summarization", and "question_answering".
 
