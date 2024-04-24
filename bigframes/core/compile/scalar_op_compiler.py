@@ -814,25 +814,7 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        if op.utc:
-            x = x.to_timestamp(op.format) if op.format else timestamp(x)
-        else:
-            return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
-
-    elif isinstance(x.type(), ibis_dtypes.Timestamp):
-        if op.format:
-            raise NotImplementedError(
-                f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
-            )
-        if x.type() == ibis_dtypes.Timestamp(timezone="UTC") or (
-            not op.utc and x.type() == ibis_dtypes.Timestamp(timezone=None)
-        ):
-            return x
-        elif not op.utc:
-            raise NotImplementedError(
-                f"Non-UTC timezones are not supported for Timestamp input types when utc=False. Please set utc=True if possible. {constants.FEEDBACK_LINK}"
-            )
-
+        return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
     else:
         # Numerical inputs.
         if op.format:
@@ -843,7 +825,28 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             unit = op.unit or "ns"
             x = numeric_to_datatime(x, unit)
 
-    return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
+    return x.cast(ibis_dtypes.Timestamp(None))
+
+
+@scalar_op_compiler.register_unary_op(ops.ToTimestampOp, pass_op=True)
+def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
+    if x.type() == ibis_dtypes.str:
+        x = (
+            typing.cast(ibis_types.StringValue, x).to_timestamp(op.format)
+            if op.format
+            else timestamp(x)
+        )
+    else:
+        # Numerical inputs.
+        if op.format:
+            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
+        else:
+            # The default unit is set to "ns" (nanoseconds) for consistency
+            # with pandas, where "ns" is the default unit for datetime operations.
+            unit = op.unit or "ns"
+            x = numeric_to_datatime(x, unit)
+
+    return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)

@@ -21,6 +21,7 @@ import pandas as pd
 
 import bigframes.constants as constants
 import bigframes.dataframe
+import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series
 
@@ -51,46 +52,48 @@ def to_datetime(
             f"to datetime is not implemented. {constants.FEEDBACK_LINK}"
         )
 
-    arg = bigframes.series.Series(arg)
+    arg = bigframes.series.Series(arg)._cached()
 
-    if format and unit and arg.dtype in ("Int64", "Float64"):  # type: ignore
+    if format and unit and arg.dtype in (bigframes.dtypes.INT_DTYPE, bigframes.dtypes.FLOAT_DTYPE):  # type: ignore
         raise ValueError("cannot specify both format and unit")
 
-    if unit and arg.dtype not in ("Int64", "Float64"):  # type: ignore
+    if unit and arg.dtype not in (bigframes.dtypes.INT_DTYPE, bigframes.dtypes.FLOAT_DTYPE):  # type: ignore
         raise NotImplementedError(
             f"Unit parameter is not supported for non-numerical input types. {constants.FEEDBACK_LINK}"
         )
 
-    if not utc and arg.dtype in ("string", "string[pyarrow]"):
+    if arg.dtype in (bigframes.dtypes.TIMESTAMP_DTYPE, bigframes.dtypes.DATETIME_DTYPE):
+        to_type = (
+            bigframes.dtypes.TIMESTAMP_DTYPE if utc else bigframes.dtypes.DATETIME_DTYPE
+        )
+        return arg._apply_unary_op(ops.AsTypeOp(to_type=to_type))  # type: ignore
+    if (not utc) and arg.dtype == bigframes.dtypes.STRING_DTYPE:
         if format:
             raise NotImplementedError(
                 f"Customized formats are not supported for string inputs when utc=False. Please set utc=True if possible. {constants.FEEDBACK_LINK}"
             )
 
-        assert not utc
-        assert format is None
         assert unit is None
-        result = arg._apply_unary_op(  # type: ignore
+        as_datetime = arg._apply_unary_op(  # type: ignore
             ops.ToDatetimeOp(
-                utc=utc,
                 format=format,
                 unit=unit,
             )
         )
-        # Cast to DATETIME shall succeed if all inputs are tz-naive.
-        if not result.isnull().any():
-            return result
-
-        # Verify if all the inputs are in UTC.
-        all_utc = arg._apply_unary_op(
+        failed_datetime_cast = arg.notnull() & as_datetime.isnull()
+        is_utc = arg._apply_unary_op(
             ops.EndsWithOp(
                 pat=("Z", "-00:00", "+00:00", "-0000", "+0000", "-00", "+00")
             )
-        ).all()
-        if all_utc:
+        )
+
+        # Cast to DATETIME shall succeed if all inputs are tz-naive.
+        if not failed_datetime_cast.any():
+            return as_datetime
+
+        if is_utc.all():
             return arg._apply_unary_op(  # type: ignore
-                ops.ToDatetimeOp(
-                    utc=True,
+                ops.ToTimestampOp(
                     format=format,
                     unit=unit,
                 )
@@ -99,11 +102,18 @@ def to_datetime(
         raise NotImplementedError(
             f"Non-UTC string inputs are not supported when utc=False. Please set utc=True if possible. {constants.FEEDBACK_LINK}"
         )
-
-    return arg._apply_unary_op(  # type: ignore
-        ops.ToDatetimeOp(
-            utc=utc,
-            format=format,
-            unit=unit,
+    # If utc:
+    elif utc:
+        return arg._apply_unary_op(  # type: ignore
+            ops.ToTimestampOp(
+                format=format,
+                unit=unit,
+            )
         )
-    )
+    else:
+        return arg._apply_unary_op(  # type: ignore
+            ops.ToDatetimeOp(
+                format=format,
+                unit=unit,
+            )
+        )
