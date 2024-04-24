@@ -72,12 +72,11 @@ def test_llm_palm_configure_fit(llm_fine_tune_df_default_index, llm_remote_text_
 
 def test_llm_palm_score(llm_fine_tune_df_default_index):
     model = bigframes.ml.llm.PaLM2TextGenerator(model_name="text-bison")
-    eval_df = llm_fine_tune_df_default_index.rename(
-        columns={"prompt": "input_text", "label": "output_text"}
-    )
+
     # Check score to ensure the model was fitted
     score_result = model.score(
-        X=eval_df[["input_text"]], y=eval_df[["output_text"]]
+        X=llm_fine_tune_df_default_index[["prompt"]],
+        y=llm_fine_tune_df_default_index[["label"]],
     ).to_pandas()
     score_result_col = score_result.columns.to_list()
     expected_col = [
@@ -94,12 +93,12 @@ def test_llm_palm_score_params(llm_fine_tune_df_default_index):
     model = bigframes.ml.llm.PaLM2TextGenerator(
         model_name="text-bison", max_iterations=1
     )
-    eval_df = llm_fine_tune_df_default_index.rename(
-        columns={"prompt": "input_text", "label": "output_text"}
-    )
+
     # Check score to ensure the model was fitted
     score_result = model.score(
-        X=eval_df["input_text"], y=eval_df["output_text"], task_type="classification"
+        X=llm_fine_tune_df_default_index["prompt"],
+        y=llm_fine_tune_df_default_index["label"],
+        task_type="classification",
     ).to_pandas()
     score_result_col = score_result.columns.to_list()
     expected_col = [

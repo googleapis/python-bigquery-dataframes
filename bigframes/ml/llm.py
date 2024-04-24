@@ -220,7 +220,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, which needs to contain a column with name "prompt". Only the column will be used as input.
+                Input DataFrame or Series, which contains only one column of prompts.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.0):
@@ -335,11 +335,11 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                A BigQuery DataFrame as evaluation data. X must have a column named
-                ``input_text`` that contains the prompt text to use when evaluating the model.
+                A BigQuery DataFrame as evaluation data, which contains only one column of input_text
+                that contains the prompt text to use when evaluating the model.
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                A BigQuery DataFrame as evaluation labels. y must also have a column named ``output_text`` that contains the generated
-                text that you would expect to be returned by the model.
+                A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
+                that you would expect to be returned by the model.
             task_type (Optional[str]):
                 The type of the task for LLM model. Default to "text_generation".
                 Possible values: "text_generation", "classification", "summarization", and "question_answering".
@@ -352,25 +352,20 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         X, y = utils.convert_to_dataframe(X, y)
 
-        X_columns = X.columns.to_list()
-        y_columns = y.columns.to_list()
-        if "input_text" not in X_columns:
+        if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
-                """Must contain a column named input_text that contains the prompt
-                text to use when evaluating the model."""
-            )
-        if "output_text" not in y_columns:
-            raise ValueError(
-                """Must contain a column named output_text that contains the generated
-                text that you would expect to be returned by the model."""
+                f"Only support one column as input for X and y. {constants.FEEDBACK_LINK}"
             )
 
-        input_data = (
-            X.join(y, how="outer") if (X is not None) and (y is not None) else None
-        )
-        refined_data = input_data[["input_text", "output_text"]].copy()
+        # BQML identified the column by name
+        X_col_label = cast(blocks.Label, X.columns[0])
+        y_col_label = cast(blocks.Label, y.columns[0])
+        X = X.rename(columns={X_col_label: "input_text"})
+        y = y.rename(columns={y_col_label: "output_text"})
 
-        return self._bqml_model.llm_evaluate(refined_data, task_type)
+        input_data = X.join(y, how="outer")
+
+        return self._bqml_model.llm_evaluate(input_data, task_type)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
         """Save the model to BigQuery.

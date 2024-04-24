@@ -189,7 +189,7 @@ class BqmlModel(BaseBqml):
 
     def llm_evaluate(
         self,
-        input_data: Optional[bpd.DataFrame] = None,
+        input_data: bpd.DataFrame,
         task_type: Optional[str] = None,
     ):
         sql = self._model_manipulation_sql_generator.ml_llm_evaluate(

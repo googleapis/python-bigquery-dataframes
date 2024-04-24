@@ -320,15 +320,11 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
 
     # ML evaluation TVFs
     def ml_llm_evaluate(
-        self, source_df: Optional[bpd.DataFrame] = None, task_type: Optional[str] = None
+        self, source_df: bpd.DataFrame, task_type: Optional[str] = None
     ) -> str:
         """Encode ML.EVALUATE for BQML"""
-        if source_df is None:
-            source_sql = None
-        else:
-            # Note: don't need index as evaluate returns a new table
-            source_sql, _, _ = source_df._to_sql_query(include_index=False)
-
+        # Note: don't need index as evaluate returns a new table
+        source_sql, _, _ = source_df._to_sql_query(include_index=False)
         return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
             ({source_sql}), STRUCT("{task_type}" AS task_type))"""
 
