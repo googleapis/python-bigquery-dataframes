@@ -688,7 +688,6 @@ def test_read_gbq_function_enforces_explicit_types(bigquery_client, dataset_id):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-# https://github.com/googleapis/python-bigquery-dataframes/issues/592
 def test_df_apply_axis_1(session, scalars_dfs):
     columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -704,9 +703,36 @@ def test_df_apply_axis_1(session, scalars_dfs):
     # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
     # mismatch by using check_dtype=False.
     #
-    # bf_result.to_numpy() produces an array of numpy.float64's, while
-    # pd_result.to_numpy() produces an array of ints, ignore this mismatch by
-    # using check_exact=False.
+    # bf_result.to_numpy() produces an array of numpy.float64's
+    # (in system_prerelease tests), while pd_result.to_numpy() produces an
+    # array of ints, ignore this mismatch by using check_exact=False.
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_exact=False
+    )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_multiindex(session):
+    pd_df = pd.DataFrame(
+        {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
+        index=pd.MultiIndex.from_tuples([("a", 100), ("a", 200), ("b", 300)]),
+    )
+    bf_df = session.read_pandas(pd_df)
+
+    def add_numbers(row):
+        return row["x"] + row["y"]
+
+    add_numbers_remote = session.remote_function("row", float)(add_numbers)
+
+    bf_result = bf_df.apply(add_numbers_remote, axis=1).to_pandas()
+    pd_result = pd_df.apply(add_numbers, axis=1)
+
+    # bf_result.dtype is 'Float64' while pd_result.dtype is 'float64', ignore this
+    # mismatch by using check_dtype=False.
+    #
+    # bf_result.index[0].dtype is 'string[pyarrow]' while
+    # pd_result.index[0].dtype is 'object', ignore this mismatch by using
+    # check_index_type=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
     )

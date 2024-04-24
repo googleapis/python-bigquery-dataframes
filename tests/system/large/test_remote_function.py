@@ -1336,3 +1336,77 @@ def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_ro
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, square_remote
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1(session, scalars_dfs):
+    try:
+        columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        def serialize_row(row):
+            row_dict = {
+                "name": row.name,
+                "index": [idx for idx in row.index],
+                "values": [
+                    val.item() if hasattr(val, "item") else val for val in row.values
+                ],
+            }
+
+            return str(row_dict)
+
+        serialize_row_remote = session.remote_function("row", str)(serialize_row)
+
+        bf_result = scalars_df[columns].apply(serialize_row_remote, axis=1).to_pandas()
+        pd_result = scalars_pandas_df[columns].apply(serialize_row, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_multiindex(session):
+    pd_df = pandas.DataFrame(
+        {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
+        index=pandas.MultiIndex.from_tuples([("a", 100), ("a", 200), ("b", 300)]),
+    )
+    bf_df = session.read_pandas(pd_df)
+
+    try:
+
+        def serialize_row(row):
+            row_dict = {
+                "name": row.name,
+                "index": [idx for idx in row.index],
+                "values": [
+                    val.item() if hasattr(val, "item") else val for val in row.values
+                ],
+            }
+
+            return str(row_dict)
+
+        serialize_row_remote = session.remote_function("row", str)(serialize_row)
+
+        bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
+        pd_result = pd_df.apply(serialize_row, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        #
+        # bf_result.index[0].dtype is 'string[pyarrow]' while
+        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
+        # check_index_type=False.
+        pandas.testing.assert_series_equal(
+            pd_result, bf_result, check_dtype=False, check_index_type=False
+        )
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )

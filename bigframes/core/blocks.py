@@ -2013,17 +2013,22 @@ class Block:
         return result
 
     def _get_rows_as_json_values(self) -> Block:
-        compiled = self.expr._compile_unordered()
-        sql = compiled.to_sql()
-        column_names_csv = ", ".join([f'"{col}"' for col in compiled.column_ids])
-        column_types_csv = ", ".join(
-            [f'"{self.expr.get_column_type(col)}"' for col in compiled.column_ids]
-        )
+        sql, index_column_ids, _ = self.to_sql_query(include_index=True)
+
+        # all column names, types and values
+        all_column_names = index_column_ids + [col for col in self.column_labels]
+        column_names_csv = ", ".join([f'"{col}"' for col in all_column_names])
         column_references_csv = ", ".join(
-            [f"CAST({col} AS STRING)" for col in compiled.column_ids]
+            [f"CAST({col} AS STRING)" for col in all_column_names]
         )
+        all_column_types = list(self.index.dtypes) + list(self.dtypes)
+        column_types_csv = ", ".join([f'"{col}"' for col in all_column_types])
+
+        # index column names
+        index_column_names_csv = ", ".join([f'"{col}"' for col in index_column_ids])
+
         row_json_column_name = guid.generate_guid()
-        select_columns = list(self.index_columns) + [row_json_column_name]
+        select_columns = index_column_ids + [row_json_column_name]
         select_columns_csv = ", ".join(select_columns)
         json_sql = f"""\
 With T0 AS (
@@ -2034,7 +2039,8 @@ T1 AS (
            JSON_OBJECT(
                "names", [{column_names_csv}],
                "types", [{column_types_csv}],
-               "values", [{column_references_csv}]
+               "values", [{column_references_csv}],
+               "index", [{index_column_names_csv}]
            ) AS {row_json_column_name} FROM T0
 )
 SELECT {select_columns_csv} FROM T1
@@ -2042,9 +2048,9 @@ SELECT {select_columns_csv} FROM T1
         ibis_table = self.session.ibis_client.sql(json_sql)
         order_for_ibis_table = ordering.ExpressionOrdering(
             ordering_value_columns=tuple(
-                [ordering.ascending_over(column_id) for column_id in self.index_columns]
+                [ordering.ascending_over(column_id) for column_id in index_column_ids]
             ),
-            total_ordering_columns=frozenset(self.index_columns),
+            total_ordering_columns=frozenset(index_column_ids),
         )
         expr = core.ArrayValue.from_ibis(
             self.session,
@@ -2055,7 +2061,7 @@ SELECT {select_columns_csv} FROM T1
         )
         block = Block(
             expr,
-            index_columns=self.index_columns,
+            index_columns=index_column_ids,
             column_labels=[row_json_column_name],
             index_labels=self._index_labels,
         )

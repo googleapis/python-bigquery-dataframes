@@ -303,6 +303,7 @@ def get_pd_series(row):
     col_names = row_json["names"]
     col_types = row_json["types"]
     col_values = row_json["values"]
+    index_names = row_json["index"]
 
     value_converters = {
         "boolean": lambda val: val == "true",
@@ -319,8 +320,27 @@ def get_pd_series(row):
             raise ValueError(f"Don't know how to handle type '{value_type}'")
         return value_converter(value)
 
-    row_values = [pd.Series([convert_value(a, col_types[i])], dtype=col_types[i])[0] for i, a in enumerate(col_values)]
-    row_series = pd.Series(row_values, index=col_names)
+    index_positions = [col_names.index(col) for col in index_names]
+
+    index_values = [
+        pd.Series([convert_value(col_values[i], col_types[i])], dtype=col_types[i])[0]
+        for i in index_positions
+    ]
+
+    col_names = [
+        col_names[i]
+        for i, a in enumerate(col_names)
+        if i not in index_positions
+    ]
+
+    row_values = [
+        pd.Series([convert_value(a, col_types[i])], dtype=col_types[i])[0]
+        for i, a in enumerate(col_values)
+        if i not in index_positions
+    ]
+
+    row_index = index_values[0] if len(index_values) == 1 else tuple(index_values)
+    row_series = pd.Series(row_values, index=col_names, name=row_index)
     return row_series
 """
         code += f"""\
