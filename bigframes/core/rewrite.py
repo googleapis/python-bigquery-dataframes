@@ -38,14 +38,16 @@ class SquashedSelect:
     reverse_root: bool = False
 
     @classmethod
-    def from_node(cls, node: nodes.BigFrameNode) -> SquashedSelect:
+    def from_node(
+        cls, node: nodes.BigFrameNode, projections_only: bool = False
+    ) -> SquashedSelect:
         if isinstance(node, nodes.ProjectionNode):
             return cls.from_node(node.child).project(node.assignments)
-        elif isinstance(node, nodes.FilterNode):
+        elif not projections_only and isinstance(node, nodes.FilterNode):
             return cls.from_node(node.child).filter(node.predicate)
-        elif isinstance(node, nodes.ReversedNode):
+        elif not projections_only and isinstance(node, nodes.ReversedNode):
             return cls.from_node(node.child).reverse()
-        elif isinstance(node, nodes.OrderByNode):
+        elif not projections_only and isinstance(node, nodes.OrderByNode):
             return cls.from_node(node.child).order_with(node.by)
         else:
             selection = tuple(
@@ -185,21 +187,12 @@ class SquashedSelect:
         return nodes.ProjectionNode(child=root, assignments=self.columns)
 
 
-def is_squashable(node: nodes.BigFrameNode) -> bool:
-    squashable_classes = (
-        nodes.ProjectionNode,
-        nodes.FilterNode,
-        nodes.ReversedNode,
-        nodes.OrderByNode,
-    )
-    return isinstance(node, squashable_classes) and isinstance(
-        node.child, squashable_classes
-    )
-
-
 def maybe_squash_projection(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-    if is_squashable(node):
-        return SquashedSelect.from_node(node).expand()
+    if isinstance(node, nodes.ProjectionNode) and isinstance(
+        node.child, nodes.ProjectionNode
+    ):
+        # Conservative approach, only squash consecutive projections, even though could also squash filters, reorderings
+        return SquashedSelect.from_node(node, projections_only=True).expand()
     return node
 
 

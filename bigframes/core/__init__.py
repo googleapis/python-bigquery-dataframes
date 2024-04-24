@@ -468,5 +468,6 @@ class ArrayValue:
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
 
     def rewrite_projection(self) -> ArrayValue:
+        # Relatively conservative approach, logic can also handle filter/reordering nodes, but will leave those out.
         rewritten = bigframes.core.rewrite.maybe_squash_projection(self.node)
         return ArrayValue(rewritten)
