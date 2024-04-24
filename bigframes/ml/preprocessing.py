@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Transformers that prepare data for other estimators. This module is styled after
-Scikit-Learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html."""
+scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html."""
 
 from __future__ import annotations
 
@@ -639,3 +639,13 @@ class LabelEncoder(
             bpd.DataFrame,
             df[self._output_names],
         )
+
+
+PreprocessingType = Union[
+    OneHotEncoder,
+    StandardScaler,
+    MaxAbsScaler,
+    MinMaxScaler,
+    KBinsDiscretizer,
+    LabelEncoder,
+]

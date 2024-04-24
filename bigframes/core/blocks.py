@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
+import os
 import random
 import typing
 from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
@@ -34,6 +35,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
+import bigframes.constants
 import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.expression as ex
@@ -41,9 +43,12 @@ import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.schema as bf_schema
+import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas
@@ -410,7 +415,32 @@ class Block:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
-        return self.session._rows_to_dataframe(result, dtypes)
+        result_dataframe = self.session._rows_to_dataframe(result, dtypes)
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            self._validate_result_schema(result_dataframe)
+        return result_dataframe
+
+    def _validate_result_schema(self, result_df: pd.DataFrame):
+        ibis_schema = self.expr._compiled_schema
+        internal_schema = self.expr.node.schema
+        actual_schema = bf_schema.ArraySchema(
+            tuple(
+                bf_schema.SchemaItem(name, dtype)  # type: ignore
+                for name, dtype in result_df.dtypes.items()
+            )
+        )
+        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+            return
+        if internal_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+            )
+        if ibis_schema != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+            )
 
     def to_pandas(
         self,
@@ -443,8 +473,10 @@ class Block:
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
 
-    def try_peek(self, n: int = 20) -> typing.Optional[pd.DataFrame]:
-        if self.expr.node.peekable:
+    def try_peek(
+        self, n: int = 20, force: bool = False
+    ) -> typing.Optional[pd.DataFrame]:
+        if force or tree_properties.peekable(self.expr.node):
             iterator, _ = self.session._peek(self.expr, n)
             df = self._to_dataframe(iterator)
             self._copy_index_to_pandas(df)
@@ -883,9 +915,6 @@ class Block:
         axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pd.Float64Dtype(),
     ) -> Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
@@ -900,7 +929,6 @@ class Block:
                 row_labels=self.column_labels.to_list(),
                 index_col_ids=index_col_ids,
                 unpivot_columns=tuple([(value_col_id, tuple(self.value_columns))]),
-                dtype=dtype,
             )
             return Block(
                 result_expr,
@@ -918,7 +946,6 @@ class Block:
                 index_col_ids=[guid.generate_guid()],
                 unpivot_columns=[(value_col_id, tuple(self.value_columns))],
                 passthrough_columns=[*self.index_columns, offset_col],
-                dtype=dtype,
             )
             index_aggregations = [
                 (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
@@ -1159,6 +1186,36 @@ class Block:
             index_labels=self.column_labels.names,
         )
 
+    def explode(
+        self,
+        column_ids: typing.Sequence[str],
+        ignore_index: Optional[bool],
+    ) -> Block:
+        column_ids = [
+            column_id
+            for column_id in column_ids
+            if bigframes.dtypes.is_array_like(self.expr.get_column_type(column_id))
+        ]
+        if len(column_ids) == 0:
+            expr = self.expr
+        else:
+            expr = self.expr.explode(column_ids)
+
+        if ignore_index:
+            return Block(
+                expr.drop_columns(self.index_columns),
+                column_labels=self.column_labels,
+                # Initiates default index creation using the block constructor.
+                index_columns=[],
+            )
+        else:
+            return Block(
+                expr,
+                column_labels=self.column_labels,
+                index_columns=self.index_columns,
+                index_labels=self.column_labels.names,
+            )
+
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
         """
         Gets a standard set of stats to preemptively fetch for a column if
@@ -1171,7 +1228,7 @@ class Block:
         # TODO: annotate aggregations themself with this information
         dtype = self.expr.get_column_type(column_id)
         stats: list[agg_ops.UnaryAggregateOp] = [agg_ops.count_op]
-        if dtype not in bigframes.dtypes.UNORDERED_DTYPES:
+        if bigframes.dtypes.is_orderable(dtype):
             stats += [agg_ops.min_op, agg_ops.max_op]
         if dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             # Notable exclusions:
@@ -1311,8 +1368,8 @@ class Block:
             head_block = self
         computed_df, query_job = head_block.to_pandas()
         formatted_df = computed_df.set_axis(self.column_labels, axis=1)
-        # we reset the axis and substitute the bf index name for the default
-        formatted_df.index.name = self.index.name
+        # we reset the axis and substitute the bf index name(s) for the default
+        formatted_df.index.names = self.index.names  # type: ignore
         return formatted_df, count, query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
@@ -1437,22 +1494,24 @@ class Block:
 
         row_label_tuples = utils.index_as_tuples(row_labels)
 
-        if col_labels is not None:
+        if col_labels is None:
+            result_index: pd.Index = pd.Index([None])
+            result_col_labels: Sequence[Tuple] = list([()])
+        elif (col_labels.nlevels == 1) and all(
+            col_labels.isna()
+        ):  # isna not implemented for MultiIndex for newer pandas versions
+            result_index = pd.Index([None])
+            result_col_labels = utils.index_as_tuples(col_labels.drop_duplicates())
+        else:
             result_index = col_labels.drop_duplicates().dropna(how="all")
             result_col_labels = utils.index_as_tuples(result_index)
-        else:
-            result_index = pd.Index([None])
-            result_col_labels = list([()])
 
         # Get matching columns
         unpivot_columns: List[Tuple[str, List[str]]] = []
-        dtypes = []
         for val in result_col_labels:
             col_id = guid.generate_guid("unpivot_")
             input_columns, dtype = self._create_stack_column(val, row_label_tuples)
             unpivot_columns.append((col_id, input_columns))
-            if dtype:
-                dtypes.append(dtype or pd.Float64Dtype())
 
         added_index_columns = [guid.generate_guid() for _ in range(row_labels.nlevels)]
         unpivot_expr = self._expr.unpivot(
@@ -1460,8 +1519,7 @@ class Block:
             passthrough_columns=self.index_columns,
             unpivot_columns=unpivot_columns,
             index_col_ids=added_index_columns,
-            dtype=tuple(dtypes),
-            how=how,
+            join_side=how,
         )
         new_index_level_names = self.column_labels.names[-levels:]
         if how == "left":
@@ -1485,6 +1543,10 @@ class Block:
         var_names=typing.Sequence[typing.Hashable],
         value_name: typing.Hashable = "value",
     ):
+        """
+        Unpivot columns to produce longer, narrower dataframe.
+        Arguments correspond to pandas.melt arguments.
+        """
         # TODO: Implement col_level and ignore_index
         unpivot_col_id = guid.generate_guid()
         var_col_ids = tuple([guid.generate_guid() for _ in var_names])
@@ -1493,15 +1555,12 @@ class Block:
         value_labels = [self.col_id_to_label[col_id] for col_id in value_vars]
         id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
 
-        dtype = self._expr.get_column_type(value_vars[0])
-
         unpivot_expr = self._expr.unpivot(
             row_labels=value_labels,
             passthrough_columns=id_vars,
             unpivot_columns=(unpivot_col,),
             index_col_ids=var_col_ids,
-            dtype=dtype,
-            how="right",
+            join_side="right",
         )
         index_id = guid.generate_guid()
         unpivot_expr = unpivot_expr.promote_offsets(index_id)
@@ -1514,6 +1573,52 @@ class Block:
             unpivot_expr,
             column_labels=[*id_labels, *var_names, value_name],
             index_columns=[index_id],
+        )
+
+    def transpose(self) -> Block:
+        """Transpose the block. Will fail if dtypes aren't coercible to a common type or too many rows"""
+        original_col_index = self.column_labels
+        original_row_index = self.index.to_pandas()
+        original_row_count = len(original_row_index)
+        if original_row_count > bigframes.constants.MAX_COLUMNS:
+            raise NotImplementedError(
+                f"Object has {original_row_count} rows and is too large to transpose."
+            )
+
+        # Add row numbers to both axes to disambiguate, clean them up later
+        block = self
+        numbered_block = block.with_column_labels(
+            utils.combine_indices(
+                block.column_labels, pd.Index(range(len(block.column_labels)))
+            )
+        )
+        numbered_block, offsets = numbered_block.promote_offsets()
+
+        stacked_block = numbered_block.melt(
+            id_vars=(offsets,),
+            var_names=(
+                *[name for name in original_col_index.names],
+                "col_offset",
+            ),
+            value_vars=block.value_columns,
+        )
+        col_labels = stacked_block.value_columns[-2 - original_col_index.nlevels : -2]
+        col_offset = stacked_block.value_columns[-2]  # disambiguator we created earlier
+        cell_values = stacked_block.value_columns[-1]
+        # Groupby source column
+        stacked_block = stacked_block.set_index(
+            [*col_labels, col_offset]
+        )  # col index is now row index
+        result = stacked_block.pivot(
+            columns=[offsets],
+            values=[cell_values],
+            columns_unique_values=tuple(range(original_row_count)),
+        )
+        # Drop the offsets from both axes before returning
+        return (
+            result.with_column_labels(original_row_index)
+            .order_by([ordering.ascending_over(result.index_columns[-1])])
+            .drop_levels([result.index_columns[-1]])
         )
 
     def _create_stack_column(
@@ -1840,6 +1945,10 @@ class Block:
             expr = self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
             )
+        return self.swap_array_expr(expr)
+
+    def swap_array_expr(self, expr: core.ArrayValue) -> Block:
+        # TODO: Validate schema unchanged
         return Block(
             expr,
             index_columns=self.index_columns,

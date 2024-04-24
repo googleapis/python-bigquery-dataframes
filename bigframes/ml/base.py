@@ -77,7 +77,7 @@ class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
 
     def __repr__(self):
-        """Print the estimator's constructor with all non-default parameter values"""
+        """Print the estimator's constructor with all non-default parameter values."""
 
         # Estimator pretty printer adapted from Sklearn's, which is in turn an adaption of
         # the inbuilt pretty-printer in CPython
@@ -106,13 +106,13 @@ class Predictor(BaseEstimator):
     def register(self: _T, vertex_ai_model_id: Optional[str] = None) -> _T:
         """Register the model to Vertex AI.
 
-        After register, go to Google Cloud Console (https://console.cloud.google.com/vertex-ai/models)
+        After register, go to the Google Cloud console (https://console.cloud.google.com/vertex-ai/models)
         to manage the model registries.
         Refer to https://cloud.google.com/vertex-ai/docs/model-registry/introduction for more options.
 
         Args:
             vertex_ai_model_id (Optional[str], default None):
-                optional string id as model id in Vertex. If not set, will by default to 'bigframes_{bq_model_id}'.
+                Optional string id as model id in Vertex. If not set, will default to 'bigframes_{bq_model_id}'.
                 Vertex Ai model id will be truncated to 63 characters due to its limitation.
 
         Returns:
@@ -178,7 +178,33 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
         return self._fit(X, y)
 
 
-class Transformer(BaseEstimator):
+class BaseTransformer(BaseEstimator):
+    """Transformer base class."""
+
+    def __init__(self):
+        self._bqml_model: Optional[core.BqmlModel] = None
+
+    _T = TypeVar("_T", bound="BaseTransformer")
+
+    def to_gbq(self: _T, model_name: str, replace: bool = False) -> _T:
+        """Save the transformer as a BigQuery model.
+
+        Args:
+            model_name (str):
+                The name of the model.
+            replace (bool, default False):
+                Determine whether to replace if the model already exists. Default to False.
+
+        Returns:
+            Saved transformer."""
+        if not self._bqml_model:
+            raise RuntimeError("A transformer must be fitted before it can be saved")
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
+
+class Transformer(BaseTransformer):
     """A BigQuery DataFrames Transformer base class that transforms data.
 
     Also the transformers can be attached to a pipeline with a predictor."""
@@ -199,7 +225,7 @@ class Transformer(BaseEstimator):
         return self.fit(X, y).transform(X)
 
 
-class LabelTransformer(BaseEstimator):
+class LabelTransformer(BaseTransformer):
     """A BigQuery DataFrames Label Transformer base class that transforms data.
 
     Also the transformers can be attached to a pipeline with a predictor."""

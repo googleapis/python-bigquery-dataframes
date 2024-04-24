@@ -59,6 +59,7 @@ import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
+import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
@@ -577,7 +578,22 @@ def read_gbq_table(
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
 
 
+@typing.overload
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+    ...
+
+
+def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
@@ -627,6 +643,7 @@ def remote_function(
     cloud_function_service_account: Optional[str] = None,
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
+    max_batching_rows: Optional[int] = 1000,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -640,6 +657,7 @@ def remote_function(
         cloud_function_service_account=cloud_function_service_account,
         cloud_function_kms_key_name=cloud_function_kms_key_name,
         cloud_function_docker_repository=cloud_function_docker_repository,
+        max_batching_rows=max_batching_rows,
     )
 
 
@@ -692,6 +710,7 @@ ArrowDtype = pandas.ArrowDtype
 # checking and docstrings.
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
+MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
 
 # Other public pandas attributes
@@ -714,9 +733,13 @@ reset_session = global_session.close_session
 # which the applicable limit is now hard coded. See:
 # https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
-resource.setrlimit(
-    resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-)
+
+soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
+if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
+    try:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
+    except Exception:
+        pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
@@ -741,6 +764,7 @@ __all___ = [
     # Class aliases
     "DataFrame",
     "Index",
+    "MultiIndex",
     "Series",
     # Other public pandas attributes
     "NamedAgg",

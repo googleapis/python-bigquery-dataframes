@@ -177,6 +177,23 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         parts.append(f"AS {source_sql}")
         return "\n".join(parts)
 
+    def create_llm_remote_model(
+        self,
+        source_df: bpd.DataFrame,
+        connection_name: str,
+        model_ref: google.cloud.bigquery.ModelReference,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML"""
+        source_sql = source_df.sql
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        parts.append(self.connection(connection_name))
+        if options:
+            parts.append(self.options(**options))
+        parts.append(f"AS {source_sql}")
+        return "\n".join(parts)
+
     def create_remote_model(
         self,
         connection_name: str,
@@ -270,12 +287,12 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
 
-    def ml_generate_text_embedding(
+    def ml_generate_embedding(
         self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
-        """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
+        """Encode ML.GENERATE_EMBEDDING for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
-        return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{self._model_name}`,
+        return f"""SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
 
     def ml_detect_anomalies(

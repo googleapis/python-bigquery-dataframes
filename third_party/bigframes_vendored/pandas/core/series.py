@@ -3,9 +3,19 @@ Data structure for 1-dimensional cross-sectional and time series data
 """
 from __future__ import annotations
 
-from typing import Hashable, IO, Literal, Mapping, Sequence, TYPE_CHECKING
+from typing import (
+    Hashable,
+    IO,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+    Union,
+)
 
 from bigframes_vendored.pandas.core.generic import NDFrame
+import numpy
 import numpy as np
 from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
@@ -87,7 +97,7 @@ class Series(NDFrame):  # type: ignore[misc]
             MultiIndex([( 'Alice',  'Seattle'),
                 (   'Bob', 'New York'),
                 ('Aritra',     'Kona')],
-               name='Name')
+               names=['Name', 'Location'])
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
                 dtype=object)
@@ -119,13 +129,15 @@ class Series(NDFrame):  # type: ignore[misc]
     def dtype(self):
         """
         Return the dtype object of the underlying data.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    @property
-    def dtypes(self):
-        """
-        Return the dtype object of the underlying data.
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.dtype
+            Int64Dtype()
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -170,6 +182,31 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             hashable object: The name of the Series, also the column name
                 if part of a DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def hasnans(self) -> bool:
+        """
+        Return True if there are any NaNs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, None])
+            >>> s
+            0     1.0
+            1     2.0
+            2     3.0
+            3    <NA>
+            dtype: Float64
+            >>> s.hasnans
+            True
+
+        Returns:
+            bool
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -556,9 +593,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1
 
             >>> s.agg(['min', 'max'])
-            min    1.0
-            max    4.0
-            dtype: Float64
+            min    1
+            max    4
+            dtype: Int64
 
         Args:
             func (function):
@@ -751,6 +788,34 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
+        """
+        Transform each element of a list-like to a row.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([[1, 2, 3], [], [3, 4]])
+            >>> s.explode()
+            0       1
+            0       2
+            0       3
+            1    <NA>
+            2       3
+            2       4
+            dtype: Int64
+
+        Args:
+            ignore_index (bool, default False):
+                If True, the resulting index will be labeled 0, 1, …, n - 1.
+
+        Returns:
+            bigframes.series.Series: Exploded lists to rows; index will be duplicated for these rows.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def corr(self, other, method="pearson", min_periods=None) -> float:
         """
         Compute the correlation with the other Series.  Non-number values are ignored in the
@@ -786,6 +851,39 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             float:  Will return NaN if there are fewer than two numeric pairs, either series has a
                 variance or covariance of zero, or any input value is infinite.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def autocorr(self, lag: int = 1) -> float:
+        """
+        Compute the lag-N autocorrelation.
+
+        This method computes the Pearson correlation between
+        the Series and its shifted self.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
+            >>> s.autocorr()  # doctest: +ELLIPSIS
+            0.10355...
+            >>> s.autocorr(lag=2)
+            -1.0
+
+            If the Pearson correlation is not well defined, then 'NaN' is returned.
+
+            >>> s = bpd.Series([1, 0, 0, 0])
+            >>> s.autocorr()
+            nan
+
+        Args:
+            lag (int, default 1):
+                Number of lags to apply before performing autocorrelation.
+
+        Returns:
+            float: The Pearson correlation between self and self.shift(lag).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -874,13 +972,13 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def __matmul__(self, other):
         """
-        Matrix multiplication using binary `@` operator in Python>=3.5.
+        Matrix multiplication using binary `@` operator.
         """
         return NotImplemented
 
     def __rmatmul__(self, other):
         """
-        Matrix multiplication using binary `@` operator in Python>=3.5.
+        Matrix multiplication using binary `@` operator.
         """
         return NotImplemented
 
@@ -2086,6 +2184,55 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __add__(self, other):
+        """Get addition of Series and other, element-wise, using operator `+`.
+
+        Equivalent to `Series.add(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s
+            elk      1.5
+            moose    2.6
+            dtype: Float64
+
+        You can add a scalar.
+
+            >>> s + 1.5
+            elk      3.0
+            moose    4.1
+            dtype: Float64
+
+        You can add another Series with index aligned.
+
+            >>> delta = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s + delta
+            elk      3.0
+            moose    5.2
+            dtype: Float64
+
+        Adding any mis-aligned index will result in invalid values.
+
+            >>> delta = bpd.Series([1.5, 2.6], index=['moose', 'bison'])
+            >>> s + delta
+            elk      <NA>
+            moose     4.1
+            bison    <NA>
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to be added to the Series.
+
+        Returns:
+            Series: The result of adding `other` to Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def radd(self, other) -> Series:
         """Return addition of Series and other, element-wise (binary operator radd).
 
@@ -2098,6 +2245,20 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __radd__(self, other):
+        """Get addition of Series and other, element-wise, using operator `+`.
+
+        Equivalent to `Series.radd(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to which Series should be added.
+
+        Returns:
+            Series: The result of adding Series to `other`.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2119,6 +2280,55 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __sub__(self, other):
+        """Get subtraction of other from Series, element-wise, using operator `-`.
+
+        Equivalent to `Series.sub(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
+            >>> s
+            elk      1.5
+            moose    2.6
+            dtype: Float64
+
+        You can subtract a scalar.
+
+            >>> s - 1.5
+            elk      0.0
+            moose    1.1
+            dtype: Float64
+
+        You can subtract another Series with index aligned.
+
+            >>> delta = bpd.Series([0.5, 1.0], index=['elk', 'moose'])
+            >>> s - delta
+            elk      1.0
+            moose    1.6
+            dtype: Float64
+
+        Adding any mis-aligned index will result in invalid values.
+
+            >>> delta = bpd.Series([0.5, 1.0], index=['moose', 'bison'])
+            >>> s - delta
+            elk      <NA>
+            moose     2.1
+            bison    <NA>
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to subtract from the Series.
+
+        Returns:
+            Series: The result of subtraction.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rsub(self, other) -> Series:
         """Return subtraction of Series and other, element-wise (binary operator rsub).
 
@@ -2131,6 +2341,20 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rsub__(self, other):
+        """Get subtraction of Series from other, element-wise, using operator `-`.
+
+        Equivalent to `Series.rsub(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to subtract the Series from.
+
+        Returns:
+            Series: The result of subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2149,6 +2373,44 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __mul__(self, other):
+        """
+        Get multiplication of Series with other, element-wise, using operator `*`.
+
+        Equivalent to `Series.mul(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s * 3
+            0    3
+            1    6
+            2    9
+            dtype: Int64
+
+        You can also multiply with another Series:
+
+            >>> s1 = bpd.Series([2, 3, 4])
+            >>> s * s1
+            0     2
+            1     6
+            2    12
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to multiply with the Series.
+
+        Returns:
+            Series: The result of the multiplication.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rmul(self, other) -> Series:
         """Return multiplication of Series and other, element-wise (binary operator mul).
 
@@ -2160,6 +2422,21 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             Series: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rmul__(self, other):
+        """
+        Get multiplication of other with Series, element-wise, using operator `*`.
+
+        Equivalent to `Series.rmul(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to multiply the Series with.
+
+        Returns:
+            Series: The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2178,6 +2455,44 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __truediv__(self, other):
+        """
+        Get division of Series by other, element-wise, using operator `/`.
+
+        Equivalent to `Series.truediv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can multiply with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s / 2
+            0    0.5
+            1    1.0
+            2    1.5
+            dtype: Float64
+
+        You can also multiply with another Series:
+
+            >>> denominator = bpd.Series([2, 3, 4])
+            >>> s / denominator
+            0         0.5
+            1    0.666667
+            2        0.75
+            dtype: Float64
+
+        Args:
+            other (scalar or Series):
+                Object to divide the Series by.
+
+        Returns:
+            Series: The result of the division.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rtruediv(self, other) -> Series:
         """Return floating division of Series and other, element-wise (binary operator rtruediv).
 
@@ -2190,6 +2505,21 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rtruediv__(self, other):
+        """
+        Get division of other by Series, element-wise, using operator `/`.
+
+        Equivalent to `Series.rtruediv(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to divide by the Series.
+
+        Returns:
+            Series: The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2208,6 +2538,44 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __floordiv__(self, other):
+        """
+        Get integer divison of Series by other, using arithmatic operator `//`.
+
+        Equivalent to `Series.floordiv(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can divide by a scalar:
+
+            >>> s = bpd.Series([15, 30, 45])
+            >>> s // 2
+            0     7
+            1    15
+            2    22
+            dtype: Int64
+
+        You can also divide by another DataFrame:
+
+            >>> divisor = bpd.Series([3, 4, 4])
+            >>> s // divisor
+            0     5
+            1     7
+            2    11
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to divide the Series by.
+
+        Returns:
+            Series: The result of the integer divison.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rfloordiv(self, other) -> Series:
         """Return integer division of Series and other, element-wise (binary operator rfloordiv).
 
@@ -2220,6 +2588,21 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rfloordiv__(self, other):
+        """
+        Get integer divison of other by Series, using arithmatic operator `//`.
+
+        Equivalent to `Series.rfloordiv(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to divide by the Series.
+
+        Returns:
+            Series: The result of the integer divison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2238,6 +2621,44 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __mod__(self, other):
+        """
+        Get modulo of Series with other, element-wise, using operator `%`.
+
+        Equivalent to `Series.mod(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can modulo with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s % 3
+            0    1
+            1    2
+            2    0
+            dtype: Int64
+
+        You can also modulo with another Series:
+
+            >>> modulo = bpd.Series([3, 3, 3])
+            >>> s % modulo
+            0    1
+            1    2
+            2    0
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to modulo the Series by.
+
+        Returns:
+            Series: The result of the modulo.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rmod(self, other) -> Series:
         """Return modulo of Series and other, element-wise (binary operator mod).
 
@@ -2250,6 +2671,21 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rmod__(self, other):
+        """
+        Get modulo of other with Series, element-wise, using operator `%`.
+
+        Equivalent to `Series.rmod(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to modulo by the Series.
+
+        Returns:
+            Series: The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2268,6 +2704,45 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __pow__(self, other):
+        """
+        Get exponentiation of Series with other, element-wise, using operator
+        `**`.
+
+        Equivalent to `Series.pow(other)`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        You can exponentiate with a scalar:
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s ** 2
+            0    1
+            1    4
+            2    9
+            dtype: Int64
+
+        You can also exponentiate with another Series:
+
+            >>> exponent = bpd.Series([3, 2, 1])
+            >>> s ** exponent
+            0    1
+            1    4
+            2    3
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to exponentiate the Series with.
+
+        Returns:
+            Series: The result of the exponentiation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def rpow(self, other) -> Series:
         """Return Exponential power of series and other, element-wise (binary operator `rpow`).
 
@@ -2280,6 +2755,22 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             bigframes.series.Series: The result of the operation.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __rpow__(self, other):
+        """
+        Get exponentiation of other with Series, element-wise, using operator
+        `**`.
+
+        Equivalent to `Series.rpow(other)`.
+
+        Args:
+            other (scalar or Series):
+                Object to exponentiate with the Series.
+
+        Returns:
+            Series: The result of the exponentiation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2310,6 +2801,121 @@ class Series(NDFrame):  # type: ignore[misc]
             2-Tuple of Series: The result of the operation. The result is always
             consistent with (rfloordiv, rmod) (though pandas may not).
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def combine_first(self, other) -> Series:
+        """
+        Update null elements with value in the same location in 'other'.
+
+        Combine two Series objects by filling null values in one Series with
+        non-null values from the other Series. Result index will be the union
+        of the two indexes.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series([1, np.nan])
+            >>> s2 = bpd.Series([3, 4, 5])
+            >>> s1.combine_first(s2)
+            0    1.0
+            1    4.0
+            2    5.0
+            dtype: Float64
+
+            Null values still persist if the location of that null value
+            does not exist in `other`
+
+            >>> s1 = bpd.Series({'falcon': np.nan, 'eagle': 160.0})
+            >>> s2 = bpd.Series({'eagle': 200.0, 'duck': 30.0})
+            >>> s1.combine_first(s2)
+            falcon     <NA>
+            eagle     160.0
+            duck       30.0
+            dtype: Float64
+
+        Args:
+            other (Series):
+                The value(s) to be used for filling null values.
+
+        Returns:
+            Series: The result of combining the provided Series with the other object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def update(self, other) -> None:
+        """
+        Modify Series in place using values from passed Series.
+
+        Uses non-NA values from passed Series to make updates. Aligns
+        on index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.update(bpd.Series([4, 5, 6]))
+            >>> s
+            0    4
+            1    5
+            2    6
+            dtype: Int64
+
+            >>> s = bpd.Series(['a', 'b', 'c'])
+            >>> s.update(bpd.Series(['d', 'e'], index=[0, 2]))
+            >>> s
+            0    d
+            1    b
+            2    e
+            dtype: string
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.update(bpd.Series([4, 5, 6, 7, 8]))
+            >>> s
+            0    4
+            1    5
+            2    6
+            dtype: Int64
+
+            If ``other`` contains NaNs the corresponding values are not updated
+            in the original Series.
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.update(bpd.Series([4, np.nan, 6], dtype=pd.Int64Dtype()))
+            >>> s
+            0    4
+            1    2
+            2    6
+            dtype: Int64
+
+            ``other`` can also be a non-Series object type
+            that is coercible into a Series
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.update([4, np.nan, 6])
+            >>> s
+            0    4.0
+            1    2.0
+            2    6.0
+            dtype: Float64
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.update({1: 9})
+            >>> s
+            0    1
+            1    9
+            2    3
+            dtype: Int64
+
+        Args:
+            other (Series, or object coercible into Series)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2544,16 +3150,48 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def median(self, *, exact: bool = False):
+    def median(self, *, exact: bool = True):
         """Return the median of the values over the requested axis.
 
         Args:
-            exact (bool. default False):
-                Default False. Get the exact median instead of an approximate
-                one. Note: ``exact=True`` not yet supported.
+            exact (bool. default True):
+                Default True. Get the exact median instead of an approximate
+                one.
 
         Returns:
             scalar: Scalar.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def quantile(
+        self,
+        q: Union[float, Sequence[float]] = 0.5,
+    ) -> Union[Series, float]:
+        """
+        Return value at the given quantile.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1, 2, 3, 4])
+            >>> s.quantile(.5)
+            2.5
+            >>> s.quantile([.25, .5, .75])
+            0.25    1.75
+            0.5      2.5
+            0.75    3.25
+            dtype: Float64
+
+        Args:
+            q (float or array-like, default 0.5 (50% quantile)):
+                The quantile(s) to compute, which can lie in range: 0 <= q <= 1.
+
+        Returns:
+            float or Series:
+                If ``q`` is an array, a Series will be returned where the
+                index is ``q`` and the values are the quantiles, otherwise
+                a float will be returned.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2808,7 +3446,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def argmax(self):
         """
-        Return int position of the smallest value in the Series.
+        Return int position of the smallest value in the series.
 
         If the minimum is achieved in multiple locations, the first row position is returned.
 
@@ -3280,6 +3918,22 @@ class Series(NDFrame):  # type: ignore[misc]
     def iat(self):
         """Access a single value for a row/column pair by integer position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series(bpd.Series([1, 2, 3]))
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
+        Get value at specified row number
+
+            >>> s.iat[1]
+            2
+
         Returns:
             bigframes.core.indexers.IatSeriesIndexer: Indexers object.
         """
@@ -3288,6 +3942,23 @@ class Series(NDFrame):  # type: ignore[misc]
     @property
     def at(self):
         """Access a single value for a row/column label pair.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
+            >>> bpd.options.display.progress_bar = None
+            >>> s
+            A    1
+            B    2
+            C    3
+            dtype: Int64
+
+        Get value at specified row label
+
+            >>> s.at['B']
+            2
+
 
         Returns:
             bigframes.core.indexers.AtSeriesIndexer: Indexers object.
@@ -3339,5 +4010,174 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             int: Return the number of elements in the underlying data.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __array__(self, dtype=None) -> numpy.ndarray:
+        """
+        Returns the values as NumPy array.
+
+        Equivalent to `Series.to_numpy(dtype)`.
+
+        Users should not call this directly. Rather, it is invoked by
+        `numpy.array` and `numpy.asarray`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import numpy as np
+
+            >>> ser = bpd.Series([1, 2, 3])
+
+            >>> np.asarray(ser)
+            array([1, 2, 3])
+
+        Args:
+            dtype (str or numpy.dtype, optional):
+                The dtype to use for the resulting NumPy array. By default,
+                the dtype is inferred from the data.
+
+        Returns:
+            numpy.ndarray:
+                The values in the series converted to a `numpy.ndarray` with the
+                specified dtype.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __len__(self):
+        """Returns number of values in the Series, serves `len` operator.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> len(s)
+            3
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __invert__(self):
+        """
+        Returns the logical inversion (binary NOT) of the Series, element-wise
+        using operator `~`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series([True, False, True])
+            >>> ~ser
+            0    False
+            1     True
+            2    False
+            dtype: boolean
+
+        Returns:
+            Series: The inverted values in the series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __and__(self, other):
+        """Get bitwise AND of Series and other, element-wise, using operator `&`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+
+        You can operate with a scalar.
+
+            >>> s & 6
+            0    0
+            1    0
+            2    2
+            3    2
+            dtype: Int64
+
+        You can operate with another Series.
+
+            >>> s1 = bpd.Series([5, 6, 7, 8])
+            >>> s & s1
+            0    0
+            1    0
+            2    2
+            3    0
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to bitwise AND with the Series.
+
+        Returns:
+            Series: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __or__(self, other):
+        """Get bitwise OR of Series and other, element-wise, using operator `|`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+
+        You can operate with a scalar.
+
+            >>> s | 6
+            0    6
+            1    7
+            2    6
+            3    7
+            dtype: Int64
+
+        You can operate with another Series.
+
+            >>> s1 = bpd.Series([5, 6, 7, 8])
+            >>> s | s1
+            0     5
+            1     7
+            2     7
+            3    11
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to bitwise OR with the Series.
+
+        Returns:
+            Series: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __getitem__(self, indexer):
+        """Gets the specified index from the Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([15, 30, 45])
+            >>> s[1]
+            30
+            >>> s[0:2]
+            0    15
+            1    30
+            dtype: Int64
+
+        Args:
+            indexer (int or slice):
+                Index or slice of indices.
+
+        Returns:
+            Series or Value: Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
