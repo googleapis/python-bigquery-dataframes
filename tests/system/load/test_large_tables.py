@@ -97,7 +97,6 @@ def test_to_pandas_large_table():
     # df will be downloaded locally
     expected_row_count, expected_column_count = df.shape
 
-    row_count = 0
     df = df.to_pandas()
     row_count, column_count = df.shape
     assert column_count == expected_column_count
