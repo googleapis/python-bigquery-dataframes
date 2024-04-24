@@ -32,7 +32,6 @@ import bigframes.core.indexes.base
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
-import bigframes.pandas
 from tests.system import utils
 
 
@@ -416,6 +415,12 @@ def test_read_gbq_with_custom_global_labels(
     expected_labels = {"test1": "1", "test2": "abc", "test3": "false"}
 
     assert all(job_labels.get(key) == value for key, value in expected_labels.items())
+
+    del bigframes.options.compute.extra_query_labels["test1"]
+    del bigframes.options.compute.extra_query_labels["test2"]
+    del bigframes.options.compute.extra_query_labels["test3"]
+
+    assert len(bigframes.options.compute.extra_query_labels) == 0
 
 
 def test_read_gbq_model(session, penguins_linear_model_name):
