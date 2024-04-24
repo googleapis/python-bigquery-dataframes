@@ -524,13 +524,6 @@ def test_repr_w_all_rows(scalars_dfs):
     scalars_df = scalars_df.drop(columns=["numeric_col"])
     scalars_pandas_df = scalars_pandas_df.drop(columns=["numeric_col"])
 
-    if scalars_pandas_df.index.name is None:
-        # Note: Not quite the same as no index / default index, but hopefully
-        # simulates it well enough while being consistent enough for string
-        # comparison to work.
-        scalars_df = scalars_df.set_index("rowindex", drop=False).sort_index()
-        scalars_df.index.name = None
-
     # When there are 10 or fewer rows, the outputs should be identical.
     actual = repr(scalars_df.head(10))
 
@@ -2472,6 +2465,29 @@ def test_df_describe(scalars_dfs):
     ).all()
 
 
+def test_df_transpose():
+    # Include some floats to ensure type coercion
+    values = [[0, 3.5, True], [1, 4.5, False], [2, 6.5, None]]
+    # Test complex case of both axes being multi-indices with non-unique elements
+    columns = pd.Index(["A", "B", "A"], dtype=pd.StringDtype(storage="pyarrow"))
+    columns_multi = pd.MultiIndex.from_arrays([columns, columns], names=["c1", "c2"])
+    index = pd.Index(["b", "a", "a"], dtype=pd.StringDtype(storage="pyarrow"))
+    rows_multi = pd.MultiIndex.from_arrays([index, index], names=["r1", "r2"])
+
+    pd_df = pandas.DataFrame(values, index=rows_multi, columns=columns_multi)
+    bf_df = dataframe.DataFrame(values, index=rows_multi, columns=columns_multi)
+
+    pd_result = pd_df.T
+    bf_result = bf_df.T.to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_df_transpose_error():
+    with pytest.raises(TypeError, match="Cannot coerce.*to a common type."):
+        dataframe.DataFrame([[1, "hello"], [2, "world"]]).transpose()
+
+
 @pytest.mark.parametrize(
     ("ordered"),
     [
@@ -2511,7 +2527,10 @@ def test_df_melt_default(scalars_dfs):
 
     # Pandas produces int64 index, Bigframes produces Int64 (nullable)
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_index_type=False, check_dtype=False
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
     )
 
 
@@ -2611,6 +2630,34 @@ def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("values", "index", "columns", "aggfunc"),
+    [
+        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std"),
+        (["body_mass_g", "culmen_length_mm"], ("species", "island"), "sex", "sum"),
+        ("body_mass_g", "sex", ["island", "species"], "mean"),
+        ("culmen_depth_mm", "island", "species", "max"),
+    ],
+)
+def test_df_pivot_table(
+    penguins_df_default_index,
+    penguins_pandas_df_default_index,
+    values,
+    index,
+    columns,
+    aggfunc,
+):
+    bf_result = penguins_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    ).to_pandas()
+    pd_result = penguins_pandas_df_default_index.pivot_table(
+        values=values, index=index, columns=columns, aggfunc=aggfunc
+    )
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_column_type=False
+    )
 
 
 def test_ipython_key_completions_with_drop(scalars_dfs):
@@ -2897,15 +2944,23 @@ def test_loc_setitem_bool_series_scalar_new_col(scalars_dfs):
     )
 
 
-def test_loc_setitem_bool_series_scalar_existing_col(scalars_dfs):
+@pytest.mark.parametrize(
+    ("col", "value"),
+    [
+        ("string_col", "hello"),
+        ("int64_col", 3),
+        ("float64_col", 3.5),
+    ],
+)
+def test_loc_setitem_bool_series_scalar_existing_col(scalars_dfs, col, value):
     if pd.__version__.startswith("1."):
         pytest.skip("this loc overload not supported in pandas 1.x.")
 
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_df = scalars_df.copy()
     pd_df = scalars_pandas_df.copy()
-    bf_df.loc[bf_df["int64_too"] == 1, "string_col"] = "hello"
-    pd_df.loc[pd_df["int64_too"] == 1, "string_col"] = "hello"
+    bf_df.loc[bf_df["int64_too"] == 1, col] = value
+    pd_df.loc[pd_df["int64_too"] == 1, col] = value
 
     pd.testing.assert_frame_equal(
         bf_df.to_pandas(),
@@ -2955,10 +3010,14 @@ def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op, ord
     bf_result = bf_series.to_pandas(ordered=ordered)
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_series = pd_series.astype("Float64")
     # Pandas has object index type
+    pd_series.index = pd_series.index.astype(pd.StringDtype(storage="pyarrow"))
     assert_series_equal(
-        pd_series, bf_result, check_index_type=False, ignore_order=not ordered
+        pd_series,
+        bf_result,
+        check_index_type=False,
+        ignore_order=not ordered,
+        check_dtype=False,
     )
 
 
@@ -3000,6 +3059,31 @@ def test_dataframe_aggregates_median(scalars_df_index, scalars_pandas_df_index):
         )
 
 
+def test_dataframe_aggregates_quantile_mono(scalars_df_index, scalars_pandas_df_index):
+    q = 0.45
+    col_names = ["int64_too", "int64_col", "float64_col"]
+    bf_result = scalars_df_index[col_names].quantile(q=q).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].quantile(q=q)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_dataframe_aggregates_quantile_multi(scalars_df_index, scalars_pandas_df_index):
+    q = [0, 0.33, 0.67, 1.0]
+    col_names = ["int64_too", "int64_col", "float64_col"]
+    bf_result = scalars_df_index[col_names].quantile(q=q).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].quantile(q=q)
+
+    # Pandas may produce narrower numeric types, but bigframes always produces Float64
+    pd_result = pd_result.astype("Float64")
+    pd_result.index = pd_result.index.astype("Float64")
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ("op"),
     [
@@ -3022,7 +3106,7 @@ def test_dataframe_bool_aggregates(scalars_df_index, scalars_pandas_df_index, op
     pd_series = op(scalars_pandas_df_index).astype("boolean")
     bf_result = bf_series.to_pandas()
 
-    # Pandas has object index type
+    pd_series.index = pd_series.index.astype(bf_result.index.dtype)
     pd.testing.assert_series_equal(pd_series, bf_result, check_index_type=False)
 
 
@@ -3955,9 +4039,6 @@ def test_df_value_counts(scalars_dfs, subset, normalize, ascending, dropna):
         ("top", "first", False, False),
         ("bottom", "dense", False, False),
     ],
-)
-@pytest.mark.skipif(
-    True, reason="Blocked by possible pandas rank() regression (b/283278923)"
 )
 def test_df_rank_with_nulls(
     scalars_df_index,

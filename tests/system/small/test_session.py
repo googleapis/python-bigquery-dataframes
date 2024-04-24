@@ -24,6 +24,7 @@ import google
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 import bigframes
@@ -235,14 +236,13 @@ def test_read_gbq_w_anonymous_query_results_table(session: bigframes.Session):
 def test_read_gbq_w_primary_keys_table(
     session: bigframes.Session, usa_names_grouped_table: bigquery.Table
 ):
+    # Validate that the table we're querying has a primary key.
     table = usa_names_grouped_table
-    # TODO(b/305264153): Use public properties to fetch primary keys once
-    # added to google-cloud-bigquery.
-    primary_keys = (
-        table._properties.get("tableConstraints", {})
-        .get("primaryKey", {})
-        .get("columns")
-    )
+    table_constraints = table.table_constraints
+    assert table_constraints is not None
+    primary_key = table_constraints.primary_key
+    assert primary_key is not None
+    primary_keys = primary_key.columns
     assert len(primary_keys) != 0
 
     df = session.read_gbq(f"{table.project}.{table.dataset_id}.{table.table_id}")
@@ -436,6 +436,11 @@ def test_read_pandas_index(session):
     pd.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
+def test_read_pandas_w_unsupported_mixed_dtype(session):
+    with pytest.raises(pa.ArrowInvalid, match="Could not convert"):
+        session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
+
+
 def test_read_pandas_inline_respects_location():
     options = bigframes.BigQueryOptions(location="europe-west1")
     session = bigframes.Session(options)
@@ -493,10 +498,7 @@ def test_read_pandas_tokyo(
 @utils.skip_legacy_pandas
 def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
-    if scalars_df.index.name is not None:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
-    else:
-        path = gcs_folder + "test_read_csv_gcs_default_engine_wo_index*.csv"
+    path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     read_path = utils.get_first_file_from_wildcard(path)
     scalars_df.to_csv(path, index=False)
     dtype = scalars_df.dtypes.to_dict()
@@ -520,10 +522,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
 def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
     scalars_df, _ = scalars_dfs
-    if scalars_df.index.name is not None:
-        path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index*.csv"
-    else:
-        path = gcs_folder + "test_read_csv_gcs_bq_engine_wo_index*.csv"
+    path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index*.csv"
     scalars_df.to_csv(path, index=False)
     df = session.read_csv(path, engine="bigquery")
 

@@ -3,6 +3,7 @@
 
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 from ibis.backends.bigquery.registry import OPERATION_REGISTRY
+import ibis.expr.operations.reductions as ibis_reductions
 
 
 def _approx_quantiles(translator, op: vendored_ibis_ops.ApproximateMultiQuantile):
@@ -36,6 +37,12 @@ def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime)
     return f"SAFE_CAST({arg} AS DATETIME)"
 
 
+def _quantile(translator, op: ibis_reductions.Quantile):
+    arg = translator.translate(op.arg)
+    quantile = translator.translate(op.quantile)
+    return f"PERCENTILE_CONT({arg}, {quantile})"
+
+
 patched_ops = {
     vendored_ibis_ops.ApproximateMultiQuantile: _approx_quantiles,  # type:ignore
     vendored_ibis_ops.FirstNonNullValue: _first_non_null_value,  # type:ignore
@@ -43,6 +50,7 @@ patched_ops = {
     vendored_ibis_ops.ToJsonString: _to_json_string,  # type:ignore
     vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
     vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
+    ibis_reductions.Quantile: _quantile,  # type:ignore
 }
 
 OPERATION_REGISTRY.update(patched_ops)

@@ -20,6 +20,31 @@ import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
 
+def test_multi_index_from_arrays():
+    bf_idx = bpd.MultiIndex.from_arrays(
+        [
+            pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Hello, World!", "_some_new_string"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1index 1", "_1index 2"],
+    )
+    pd_idx = pandas.MultiIndex.from_arrays(
+        [
+            pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
+            pandas.Index(
+                [" Hello, World!", "_some_new_string"],
+                dtype=pandas.StringDtype(storage="pyarrow"),
+            ),
+        ],
+        names=[" 1index 1", "_1index 2"],
+    )
+    assert bf_idx.names == pd_idx.names
+    pandas.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
+
+
 @skip_legacy_pandas
 def test_read_pandas_multi_index_axes():
     index = pandas.MultiIndex.from_arrays(
@@ -880,25 +905,6 @@ def test_column_multi_index_unstack(scalars_df_index, scalars_pandas_df_index):
     # Pandas produces NaN, where bq dataframes produces pd.NA
     # Column ordering seems to depend on pandas version
     pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-
-
-@pytest.mark.skip(reason="Pandas fails in newer versions.")
-def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index):
-    columns = ["int64_too", "int64_col", "rowindex_2"]
-    level1 = pandas.Index(["b", pandas.NA, pandas.NA])
-    # Need resulting column to be pyarrow string rather than object dtype
-    level2 = pandas.Index([pandas.NA, "b", "b"], dtype="string[pyarrow]")
-    multi_columns = pandas.MultiIndex.from_arrays([level1, level2])
-    bf_df = scalars_df_index[columns].copy()
-    bf_df.columns = multi_columns
-    pd_df = scalars_pandas_df_index[columns].copy()
-    pd_df.columns = multi_columns
-
-    bf_result = bf_df.stack().to_pandas()
-    pd_result = pd_df.stack()
-
-    # Pandas produces NaN, where bq dataframes produces pd.NA
-    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_corr_w_multi_index(scalars_df_index, scalars_pandas_df_index):

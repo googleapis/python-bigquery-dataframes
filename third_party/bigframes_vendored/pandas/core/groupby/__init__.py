@@ -24,7 +24,7 @@ class GroupBy:
         Returns:
             Series or DataFrame: DataFrame or Series of boolean values,
                 where a value is True if any element is True within its
-                respective group, False otherwise.
+                respective group; otherwise False.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -35,7 +35,7 @@ class GroupBy:
         Returns:
             Series or DataFrame: DataFrame or Series of boolean values,
                 where a value is True if all elements are True within its
-                respective group, False otherwise.
+                respective group; otherwise False.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -68,7 +68,7 @@ class GroupBy:
         self,
         numeric_only: bool = False,
         *,
-        exact: bool = False,
+        exact: bool = True,
     ):
         """
         Compute median of groups, excluding missing values.
@@ -76,12 +76,42 @@ class GroupBy:
         Args:
             numeric_only (bool, default False):
                 Include only float, int, boolean columns.
-            exact (bool, default False):
-                Calculate the exact median instead of an approximation. Note:
-                    ``exact=True`` is not supported.
+            exact (bool, default True):
+                Calculate the exact median instead of an approximation.
 
         Returns:
             pandas.Series or pandas.DataFrame: Median of groups.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def quantile(self, q=0.5, *, numeric_only: bool = False):
+        """
+        Return group values at the given quantile, a la numpy.percentile.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame([
+            ...     ['a', 1], ['a', 2], ['a', 3],
+            ...     ['b', 1], ['b', 3], ['b', 5]
+            ... ], columns=['key', 'val'])
+            >>> df.groupby('key').quantile()
+                 val
+            key
+            a    2.0
+            b    3.0
+            <BLANKLINE>
+            [2 rows x 1 columns]
+
+        Args:
+            q (float or array-like, default 0.5 (50% quantile)):
+                Value(s) between 0 and 1 providing the quantile(s) to compute.
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            Series or DataFrame: Return type determined by caller of GroupBy object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -339,7 +369,7 @@ class GroupBy:
         Provides expanding functionality.
 
         Returns:
-            Series or DataFrame: A expanding grouper, providing expanding functionality per group.
+            Series or DataFrame: An expanding grouper, providing expanding functionality per group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
