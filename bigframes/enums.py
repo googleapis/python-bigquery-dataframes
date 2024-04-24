@@ -20,7 +20,7 @@ This module should not depend on any others in the package.
 import enum
 
 
-class IndexKind(enum.Enum):
+class DefaultIndexKind(enum.Enum):
     """Sentinel values used to override default indexing behavior."""
 
     #: Use consecutive integers as the index. This is ``0``, ``1``, ``2``, ...,

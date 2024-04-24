@@ -18,7 +18,7 @@ class GBQIOMixin:
         self,
         query_or_table: str,
         *,
-        index_col: Union[Iterable[str], str, bigframes.enums.IndexKind] = (),
+        index_col: Union[Iterable[str], str, bigframes.enums.DefaultIndexKind] = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -38,15 +38,16 @@ class GBQIOMixin:
 
           If a table has primary key(s), those are used as the index,
           otherwise a sequential index is generated.
-        * (:attr:`bigframes.enums.IndexKind.SEQUENTIAL_INT64`) Add an arbitrary
-          sequential index and ordering. **Warning** This uses an an analytic
-          windowed operation that prevents filtering push down. Do not use on
-          large clustered or partitioned tables.
+        * (:attr:`bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64`) Add an
+          arbitrary sequential index and ordering. **Warning** This uses an
+          analytic windowed operation that prevents filtering push down. Avoid
+          using on large clustered or partitioned tables.
         * (Recommended) Set the ``index_col`` argument to one or more columns.
           Unique values for the row labels are recommended. Duplicate labels
           are possible, but note that joins on a non-unique index can duplicate
-          rows and operations like ``cumsum()`` that window across a non-unique
-          index can have some non-deternimism.
+          rows via pandas-like outer join behavior. Operations like
+          ``cumsum()`` that window across a non-unique index can have some
+          unpredictability due to ambiguous ordering.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a

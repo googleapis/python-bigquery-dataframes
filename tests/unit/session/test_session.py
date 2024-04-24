@@ -23,6 +23,7 @@ import google.cloud.bigquery.table
 import pytest
 
 import bigframes
+import bigframes.enums
 import bigframes.exceptions
 
 from .. import resources
@@ -94,10 +95,15 @@ def test_read_gbq_clustered_table_ok_default_index_with_force_true():
     table._properties["location"] = session._location
 
     # No exception raised because we set the option allowing the default indexes.
-    with bigframes.option_context(
-        "compute.allow_default_index_on_clustered_partitioned_tables", True
-    ):
-        session.read_gbq("my-project.my_dataset.my_table")
+    df = session.read_gbq(
+        "my-project.my_dataset.my_table",
+        index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
+    )
+
+    # We expect a window operation because we specificaly requested a sequential index.
+    generated_sql = df.sql.casefold()
+    assert "OVER".casefold() in generated_sql
+    assert "ROW_NUMBER()".casefold() in generated_sql
 
 
 def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
@@ -134,7 +140,7 @@ def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
     df = session.read_gbq("my-project.my_dataset.my_table")
 
     # There should be no analytic operators to prevent row filtering pushdown.
-    assert "OVER" not in df.sql
+    assert "OVER".casefold() not in df.sql.casefold()
     assert tuple(df.index.names) == ("pk_1", "pk_2")
 
 

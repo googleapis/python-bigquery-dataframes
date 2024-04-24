@@ -294,7 +294,7 @@ class Session(
         self,
         query_or_table: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -484,7 +484,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -562,7 +562,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -594,7 +594,9 @@ class Session(
                 True if use_cache is None else use_cache
             )
 
-        if isinstance(index_col, str):
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            index_cols = []
+        elif isinstance(index_col, str):
             index_cols = [index_col]
         else:
             index_cols = list(index_col)
@@ -624,7 +626,7 @@ class Session(
 
         return self.read_gbq_table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
-            index_col=index_cols,
+            index_col=index_col,
             columns=columns,
             max_results=max_results,
             use_cache=configuration["query"]["useQueryCache"],
@@ -634,7 +636,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         max_results: Optional[int] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
@@ -764,7 +766,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         max_results: Optional[int] = None,
         api_name: str,
@@ -793,8 +795,10 @@ class Session(
                     f"Column '{key}' of `columns` not found in this table."
                 )
 
-        if isinstance(index_col, str):
-            index_cols: List[str] = [index_col]
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            index_cols: List[str] = []
+        elif isinstance(index_col, str):
+            index_cols = [index_col]
         else:
             index_cols = list(index_col)
 
@@ -899,10 +903,12 @@ class Session(
         table: Union[bigquery.Table, bigquery.TableReference],
         *,
         job_config: bigquery.LoadJobConfig,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
     ) -> dataframe.DataFrame:
-        if isinstance(index_col, str):
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            index_cols = []
+        elif isinstance(index_col, str):
             index_cols = [index_col]
         else:
             index_cols = list(index_col)
@@ -1191,7 +1197,13 @@ class Session(
             Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
         ] = None,
         index_col: Optional[
-            Union[int, str, Sequence[Union[str, int]], Literal[False]]
+            Union[
+                int,
+                str,
+                Sequence[Union[str, int]],
+                bigframes.enums.DefaultIndexKind,
+                Literal[False],
+            ]
         ] = None,
         usecols: Optional[
             Union[
@@ -1277,6 +1289,11 @@ class Session(
                 columns=columns,
             )
         else:
+            if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+                raise NotImplementedError(
+                    f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
+                    f"{constants.FEEDBACK_LINK}"
+                )
             if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
                     "'chunksize' and 'iterator' arguments are not supported. "
