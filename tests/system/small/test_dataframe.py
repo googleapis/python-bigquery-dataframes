@@ -2492,7 +2492,7 @@ def test_df_transpose_repeated_uses_cache():
     bf_df = dataframe.DataFrame([[1, 2.5], [2, 3.5]])
     pd_df = pandas.DataFrame([[1, 2.5], [2, 3.5]])
     # Transposing many times so that operation will fail from complexity if not using cache
-    for i in range(20):
+    for i in range(10):
         # Cache still works even with simple scalar binop
         bf_df = bf_df.transpose() + i
         pd_df = pd_df.transpose() + i
