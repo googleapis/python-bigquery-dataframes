@@ -2390,12 +2390,27 @@ def test_dataframe_pct_change(scalars_df_index, scalars_pandas_df_index, periods
 def test_dataframe_agg_single_string(scalars_dfs):
     numeric_cols = ["int64_col", "int64_too", "float64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
+
     bf_result = scalars_df[numeric_cols].agg("sum").to_pandas()
     pd_result = scalars_pandas_df[numeric_cols].agg("sum")
 
-    # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_result = pd_result.astype("Float64")
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    assert bf_result.dtype == "Float64"
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_dataframe_agg_int_single_string(scalars_dfs):
+    numeric_cols = ["int64_col", "int64_too", "bool_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df[numeric_cols].agg("sum").to_pandas()
+    pd_result = scalars_pandas_df[numeric_cols].agg("sum")
+
+    assert bf_result.dtype == "Int64"
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
 
 
 def test_dataframe_agg_multi_string(scalars_dfs):
@@ -2431,6 +2446,27 @@ def test_dataframe_agg_multi_string(scalars_dfs):
     ).all()
 
 
+def test_dataframe_agg_int_multi_string(scalars_dfs):
+    numeric_cols = ["int64_col", "int64_too", "bool_col"]
+    aggregations = [
+        "sum",
+        "nunique",
+        "count",
+    ]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[numeric_cols].agg(aggregations).to_pandas()
+    pd_result = scalars_pandas_df[numeric_cols].agg(aggregations)
+
+    for dtype in bf_result.dtypes:
+        assert dtype == "Int64"
+
+    # Pandas may produce narrower numeric types
+    # Pandas has object index type
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
 @skip_legacy_pandas
 def test_df_describe(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -2463,6 +2499,43 @@ def test_df_describe(scalars_dfs):
         & (bf_p50 <= bf_p50)
         & (bf_p75 <= bf_max)
     ).all()
+
+
+def test_df_transpose():
+    # Include some floats to ensure type coercion
+    values = [[0, 3.5, True], [1, 4.5, False], [2, 6.5, None]]
+    # Test complex case of both axes being multi-indices with non-unique elements
+    columns = pd.Index(["A", "B", "A"], dtype=pd.StringDtype(storage="pyarrow"))
+    columns_multi = pd.MultiIndex.from_arrays([columns, columns], names=["c1", "c2"])
+    index = pd.Index(["b", "a", "a"], dtype=pd.StringDtype(storage="pyarrow"))
+    rows_multi = pd.MultiIndex.from_arrays([index, index], names=["r1", "r2"])
+
+    pd_df = pandas.DataFrame(values, index=rows_multi, columns=columns_multi)
+    bf_df = dataframe.DataFrame(values, index=rows_multi, columns=columns_multi)
+
+    pd_result = pd_df.T
+    bf_result = bf_df.T.to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_df_transpose_error():
+    with pytest.raises(TypeError, match="Cannot coerce.*to a common type."):
+        dataframe.DataFrame([[1, "hello"], [2, "world"]]).transpose()
+
+
+def test_df_transpose_repeated_uses_cache():
+    bf_df = dataframe.DataFrame([[1, 2.5], [2, 3.5]])
+    pd_df = pandas.DataFrame([[1, 2.5], [2, 3.5]])
+    # Transposing many times so that operation will fail from complexity if not using cache
+    for i in range(10):
+        # Cache still works even with simple scalar binop
+        bf_df = bf_df.transpose() + i
+        pd_df = pd_df.transpose() + i
+
+    pd.testing.assert_frame_equal(
+        pd_df, bf_df.to_pandas(), check_dtype=False, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -2960,6 +3033,58 @@ def test_loc_setitem_bool_series_scalar_error(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("col", "op"),
+    [
+        # Int aggregates
+        pytest.param("int64_col", lambda x: x.sum(), id="int-sum"),
+        pytest.param("int64_col", lambda x: x.min(), id="int-min"),
+        pytest.param("int64_col", lambda x: x.max(), id="int-max"),
+        pytest.param("int64_col", lambda x: x.count(), id="int-count"),
+        pytest.param("int64_col", lambda x: x.nunique(), id="int-nunique"),
+        # Float aggregates
+        pytest.param("float64_col", lambda x: x.count(), id="float-count"),
+        pytest.param("float64_col", lambda x: x.nunique(), id="float-nunique"),
+        # Bool aggregates
+        pytest.param("bool_col", lambda x: x.sum(), id="bool-sum"),
+        pytest.param("bool_col", lambda x: x.count(), id="bool-count"),
+        pytest.param("bool_col", lambda x: x.nunique(), id="bool-nunique"),
+        # String aggregates
+        pytest.param("string_col", lambda x: x.count(), id="string-count"),
+        pytest.param("string_col", lambda x: x.nunique(), id="string-nunique"),
+    ],
+)
+def test_dataframe_aggregate_int(scalars_df_index, scalars_pandas_df_index, col, op):
+    bf_result = op(scalars_df_index[[col]]).to_pandas()
+    pd_result = op(scalars_pandas_df_index[[col]])
+
+    # Check dtype separately
+    assert bf_result.dtype == "Int64"
+
+    # Pandas may produce narrower numeric types
+    # Pandas has object index type
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+
+
+@pytest.mark.parametrize(
+    ("col", "op"),
+    [
+        pytest.param("bool_col", lambda x: x.min(), id="bool-min"),
+        pytest.param("bool_col", lambda x: x.max(), id="bool-max"),
+    ],
+)
+def test_dataframe_aggregate_bool(scalars_df_index, scalars_pandas_df_index, col, op):
+    bf_result = op(scalars_df_index[[col]]).to_pandas()
+    pd_result = op(scalars_pandas_df_index[[col]])
+
+    # Check dtype separately
+    assert bf_result.dtype == "boolean"
+
+    # Pandas may produce narrower numeric types
+    # Pandas has object index type
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+
+
+@pytest.mark.parametrize(
     ("ordered"),
     [
         (True),
@@ -2967,34 +3092,38 @@ def test_loc_setitem_bool_series_scalar_error(scalars_dfs):
     ],
 )
 @pytest.mark.parametrize(
-    ("op"),
+    ("op", "bf_dtype"),
     [
-        (lambda x: x.sum(numeric_only=True)),
-        (lambda x: x.mean(numeric_only=True)),
-        (lambda x: x.min(numeric_only=True)),
-        (lambda x: x.max(numeric_only=True)),
-        (lambda x: x.std(numeric_only=True)),
-        (lambda x: x.var(numeric_only=True)),
-        (lambda x: x.count(numeric_only=False)),
-        (lambda x: x.nunique()),
+        (lambda x: x.sum(numeric_only=True), "Float64"),
+        (lambda x: x.mean(numeric_only=True), "Float64"),
+        (lambda x: x.min(numeric_only=True), "Float64"),
+        (lambda x: x.max(numeric_only=True), "Float64"),
+        (lambda x: x.std(numeric_only=True), "Float64"),
+        (lambda x: x.var(numeric_only=True), "Float64"),
+        (lambda x: x.count(numeric_only=False), "Int64"),
+        (lambda x: x.nunique(), "Int64"),
     ],
     ids=["sum", "mean", "min", "max", "std", "var", "count", "nunique"],
 )
-def test_dataframe_aggregates(scalars_df_index, scalars_pandas_df_index, op, ordered):
+def test_dataframe_aggregates(
+    scalars_df_index, scalars_pandas_df_index, op, bf_dtype, ordered
+):
     col_names = ["int64_too", "float64_col", "string_col", "int64_col", "bool_col"]
     bf_series = op(scalars_df_index[col_names])
-    pd_series = op(scalars_pandas_df_index[col_names])
     bf_result = bf_series.to_pandas(ordered=ordered)
+    pd_result = op(scalars_pandas_df_index[col_names])
+
+    # Check dtype separately
+    assert bf_result.dtype == bf_dtype
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
     # Pandas has object index type
-    pd_series.index = pd_series.index.astype(pd.StringDtype(storage="pyarrow"))
     assert_series_equal(
-        pd_series,
+        pd_result,
         bf_result,
+        check_dtype=False,
         check_index_type=False,
         ignore_order=not ordered,
-        check_dtype=False,
     )
 
 
