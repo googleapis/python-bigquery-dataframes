@@ -75,7 +75,12 @@ class ArrayValue:
             hidden_ordering_columns=tuple(hidden_ordering_columns),
             ordering=ordering,
         )
-        return cls(node)
+        # Relatively conservative approach, logic can also handle filter/reordering nodes, but will leave those out.
+        # Squash rewrites here to make sure tree doesn't get too deep, wasting memory and exceeding recursion limits.
+        # Avoid deep rewrites here though, as can invalidate caching strategies, instead do comprehensive rewrites at
+        # compile time.
+        rewritten = bigframes.core.rewrite.maybe_squash_projection(node)
+        return cls(rewritten)
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
@@ -183,7 +188,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).rewrite_projection()
+        )
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
@@ -208,7 +213,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).rewrite_projection()
+        )
 
     def assign_constant(
         self,
@@ -242,7 +247,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).rewrite_projection()
+        )
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         selections = ((ex.free_var(col_id), col_id) for col_id in column_ids)
@@ -251,7 +256,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(selections),
             )
-        ).rewrite_projection()
+        )
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         new_projection = (
@@ -264,7 +269,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(new_projection),
             )
-        ).rewrite_projection()
+        )
 
     def aggregate(
         self,
@@ -466,8 +471,3 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
-
-    def rewrite_projection(self) -> ArrayValue:
-        # Relatively conservative approach, logic can also handle filter/reordering nodes, but will leave those out.
-        rewritten = bigframes.core.rewrite.maybe_squash_projection(self.node)
-        return ArrayValue(rewritten)
