@@ -1345,7 +1345,8 @@ def test_df_apply_axis_1(session, scalars_dfs):
         scalars_df, scalars_pandas_df = scalars_dfs
 
         def serialize_row(row):
-            row_dict = {
+
+            custom = {
                 "name": row.name,
                 "index": [idx for idx in row.index],
                 "values": [
@@ -1353,7 +1354,16 @@ def test_df_apply_axis_1(session, scalars_dfs):
                 ],
             }
 
-            return str(row_dict)
+            return str(
+                {
+                    "default": row.to_json(),
+                    "split": row.to_json(orient="split"),
+                    "records": row.to_json(orient="records"),
+                    "index": row.to_json(orient="index"),
+                    "table": row.to_json(orient="table"),
+                    "custom": custom,
+                }
+            )
 
         serialize_row_remote = session.remote_function("row", str)(serialize_row)
 
