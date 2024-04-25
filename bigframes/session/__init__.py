@@ -1222,8 +1222,8 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            # TODO(tswast): Looks like we can relax this 1 column restriction,
-            # but leaving it for now because I'm not sure why we have it.
+            # TODO(tswast): Looks like we can relax this 1 column restriction if
+            # we check the contents of an iterable are strings not integers.
             if (
                 # Empty tuples and None are both allowed and falsey
                 index_col
@@ -1234,6 +1234,15 @@ class Session(
                     "BigQuery engine only supports a single column name for `index_col`, "
                     f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
                 )
+            index_col = typing.cast(
+                Union[
+                    None,
+                    Sequence[str],  # Falsey values
+                    bigframes.enums.DefaultIndexKind,
+                    str,
+                ],
+                index_col,
+            )
 
             # None value for index_col cannot be passed to read_gbq
             if index_col is None:
