@@ -79,8 +79,8 @@ class ArrayValue:
         # Squash rewrites here to make sure tree doesn't get too deep, wasting memory and exceeding recursion limits.
         # Avoid deep rewrites here though, as can invalidate caching strategies, instead do comprehensive rewrites at
         # compile time.
-        rewritten = bigframes.core.rewrite.maybe_squash_projection(node)
-        return cls(rewritten)
+        # node = bigframes.core.rewrite.maybe_squash_projection(node)
+        return cls(node)
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
