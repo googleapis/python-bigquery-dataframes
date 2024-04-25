@@ -29,6 +29,25 @@ import bigframes.exceptions
 from .. import resources
 
 
+@pytest.mark.parametrize(
+    ("engine",),
+    (
+        ("c",),
+        ("python",),
+        ("pyarrow",),
+    ),
+)
+def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine):
+    session = resources.create_bigquery_session()
+
+    with pytest.raises(NotImplementedError, match="index_col"):
+        session.read_csv(
+            "path/to/csv.csv",
+            engine=engine,
+            index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
+        )
+
+
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
 def test_read_gbq_missing_parts(missing_parts_table_id):
     session = resources.create_bigquery_session()
@@ -56,10 +75,7 @@ def test_read_gbq_cached_table():
     assert "1999-01-02T03:04:05.678901" in df.sql
 
 
-# START: Tests for NoDefaultIndexError on clustered/partitioned tables
-
-
-def test_read_gbq_clustered_table_raises_no_default_index_error():
+def test_no_default_index_error_raised_by_read_gbq_clustered_table():
     """Because of the windowing operation to create a default index, row
     filters can't push down to the clustering column.
 
@@ -80,12 +96,55 @@ def test_read_gbq_clustered_table_raises_no_default_index_error():
         session.read_gbq("my-project.my_dataset.my_table")
 
 
-def test_read_gbq_clustered_table_ok_default_index_with_force_true():
+def test_no_default_index_error_raised_by_read_gbq_range_partitioned_table():
     """Because of the windowing operation to create a default index, row
     filters can't push down to the clustering column.
 
     Raise an exception in this case so that the user is directed to supply a
     unique index column or filter if possible.
+
+    See internal issue 335727141.
+    """
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.time_partitioning = google.cloud.bigquery.table.RangePartitioning(
+        field="col1"
+    )
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    session = resources.create_bigquery_session(bqclient=bqclient)
+    table._properties["location"] = session._location
+
+    with pytest.raises(bigframes.exceptions.NoDefaultIndexError):
+        session.read_gbq("my-project.my_dataset.my_table")
+
+
+def test_no_default_index_error_raised_by_read_gbq_time_partitioned_table():
+    """Because of the windowing operation to create a default index, row
+    filters can't push down to the clustering column.
+
+    Raise an exception in this case so that the user is directed to supply a
+    unique index column or filter if possible.
+
+    See internal issue 335727141.
+    """
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.time_partitioning = google.cloud.bigquery.table.TimePartitioning(field="col1")
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    session = resources.create_bigquery_session(bqclient=bqclient)
+    table._properties["location"] = session._location
+
+    with pytest.raises(bigframes.exceptions.NoDefaultIndexError):
+        session.read_gbq("my-project.my_dataset.my_table")
+
+
+def test_no_default_index_error_not_raised_by_read_gbq_clustered_table_sequential_int64():
+    """Because of the windowing operation to create a default index, row
+    filters can't push down to the clustering column.
+
+    Allow people to use the default index only if they explicitly request it.
 
     See internal issue 335727141.
     """
@@ -109,7 +168,50 @@ def test_read_gbq_clustered_table_ok_default_index_with_force_true():
     assert "ROW_NUMBER()".casefold() in generated_sql
 
 
-def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
+@pytest.mark.parametrize(
+    ("total_count", "distinct_count"),
+    (
+        (0, 0),
+        (123, 123),
+        # Should still have a positive effect, even if the index is not unique.
+        (123, 111),
+    ),
+)
+def test_no_default_index_error_not_raised_by_read_gbq_clustered_table_index_col(
+    total_count,
+    distinct_count,
+):
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.clustering_fields = ["col1", "col2"]
+    table.schema = (
+        google.cloud.bigquery.SchemaField("idx_1", "INT64"),
+        google.cloud.bigquery.SchemaField("idx_2", "INT64"),
+        google.cloud.bigquery.SchemaField("col_1", "INT64"),
+        google.cloud.bigquery.SchemaField("col_2", "INT64"),
+    )
+
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    bqclient.query_and_wait.return_value = (
+        {"total_count": total_count, "distinct_count": distinct_count},
+    )
+    session = resources.create_bigquery_session(
+        bqclient=bqclient, table_schema=table.schema
+    )
+    table._properties["location"] = session._location
+
+    # No exception raised because there are columns to use as the index.
+    df = session.read_gbq(
+        "my-project.my_dataset.my_table", index_col=("idx_1", "idx_2")
+    )
+
+    # There should be no analytic operators to prevent row filtering pushdown.
+    assert "OVER" not in df.sql
+    assert tuple(df.index.names) == ("idx_1", "idx_2")
+
+
+def test_no_default_index_error_not_raised_by_read_gbq_clustered_table_primary_key():
     """If a primary key is set on the table, we use that as the index column
     by default, no error should be raised in this case.
 
@@ -147,40 +249,25 @@ def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
     assert tuple(df.index.names) == ("pk_1", "pk_2")
 
 
-# def test_read_gbq_clustered_table_ok_default_index_with_filters():
-#     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-#     bqclient.project = "test-project"
-#     bqclient.get_table.side_effect = google.api_core.exceptions.NotFound(
-#         "table not found"
-#     )
-#     session = resources.create_bigquery_session(bqclient=bqclient)
-#
-#     with pytest.raises(google.api_core.exceptions.NotFound):
-#         session.read_gbq(not_found_table_id)
-#
-#
-# def test_read_gbq_clustered_table_ok_default_index_with_force_true():
-#     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-#     bqclient.project = "test-project"
-#     bqclient.get_table.side_effect = google.api_core.exceptions.NotFound(
-#         "table not found"
-#     )
-#     session = resources.create_bigquery_session(bqclient=bqclient)
-#
-#     with pytest.raises(google.api_core.exceptions.NotFound):
-#         session.read_gbq(not_found_table_id)
+def test_no_default_index_error_not_raised_by_read_gbq_clustered_table_filters():
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.clustering_fields = ["col1", "col2"]
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    session = resources.create_bigquery_session(bqclient=bqclient)
+    table._properties["location"] = session._location
 
+    # No exception raised because we set the option allowing the default indexes.
+    df = session.read_gbq(
+        "my-project.my_dataset.my_table",
+        filters=[("col2", "<", 123)],
+    )
 
-# def test_read_gbq_partitioned_table_raises_no_default_index():
-#     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-#     bqclient.project = "test-project"
-#     bqclient.get_table.side_effect = google.api_core.exceptions.NotFound(
-#         "table not found"
-#     )
-#     session = resources.create_bigquery_session(bqclient=bqclient)
-#
-#     with pytest.raises(google.api_core.exceptions.NotFound):
-#         session.read_gbq(not_found_table_id)
+    # We expect a window operation because we specificaly requested a sequential index.
+    generated_sql = df.sql.casefold()
+    assert "OVER".casefold() in generated_sql
+    assert "ROW_NUMBER()".casefold() in generated_sql
 
 
 @pytest.mark.parametrize(

@@ -766,6 +766,10 @@ class Session(
         )
         total_ordering_cols = primary_keys
 
+        # TODO: warn if partitioned and/or clustered except if:
+        # primary_keys, index_col, or filters
+        # Except it looks like filters goes through the query path?
+
         if not index_col and primary_keys is not None:
             index_col = primary_keys
 
@@ -870,7 +874,12 @@ class Session(
         SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
         (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
         """
-        results, _ = self._start_query(is_unique_sql)
+        # We just need the results, not any job stats, so use query_and_wait,
+        # which should also be faster for queries with small results such as
+        # this.
+        #
+        # It also happens to be easier to mock out in unit tests.
+        results = self._start_query_and_wait(is_unique_sql)
         row = next(iter(results))
 
         total_count = row["total_count"]
@@ -1213,12 +1222,17 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            if index_col is not None and (
-                not index_col or not isinstance(index_col, str)
+            # TODO(tswast): Looks like we can relax this 1 column restriction,
+            # but leaving it for now because I'm not sure why we have it.
+            if (
+                # Empty tuples and None are both allowed and falsey
+                index_col
+                and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
+                and not isinstance(index_col, str)
             ):
                 raise NotImplementedError(
-                    "BigQuery engine only supports a single column name for `index_col`. "
-                    f"{constants.FEEDBACK_LINK}"
+                    "BigQuery engine only supports a single column name for `index_col`, "
+                    f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
                 )
 
             # None value for index_col cannot be passed to read_gbq
@@ -1781,6 +1795,22 @@ class Session(
             )
 
         return job_config
+
+    def _start_query_and_wait(
+        self,
+        sql: str,
+        job_config: Optional[bigquery.job.QueryJobConfig] = None,
+        max_results: Optional[int] = None,
+    ) -> bigquery.table.RowIterator:
+        """
+        Starts BigQuery query with query_and_wait and waits for results.
+        """
+        job_config = self._prepare_query_job_config(job_config)
+        return self.bqclient.query_and_wait(
+            sql,
+            job_config=job_config,
+            max_results=max_results,
+        )
 
     def _start_query(
         self,

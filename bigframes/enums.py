@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public enums used across BigQuery DataFrames.
+"""Public enums used across BigQuery DataFrames."""
 
-This module should not depend on any others in the package.
-"""
+# NOTE: This module should not depend on any others in the package.
+
 
 import enum
 
