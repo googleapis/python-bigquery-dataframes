@@ -3386,7 +3386,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cache(self):
         """
-        Materializes the DataFrame to a temporary table. Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
+        Materializes the DataFrame to a temporary table.
+        
+        Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
             DataFrame: Self
