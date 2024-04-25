@@ -835,11 +835,11 @@ class Session(
                 )
             else:
                 array_value = self._create_total_ordering(
-                    table_expression, table_size=table.num_rows
+                    table_expression, table_rows=table.num_rows
                 )
         else:
             array_value = self._create_total_ordering(
-                table_expression, table_size=table.num_rows
+                table_expression, table_rows=table.num_rows
             )
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
@@ -1461,15 +1461,16 @@ class Session(
     def _create_total_ordering(
         self,
         table: ibis_types.Table,
-        table_size: int,
+        table_rows: Optional[int],
     ) -> core.ArrayValue:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
-        # Need two hashes, as a single int64 hash value starts to risks colliding in 100M+ row tables
-        # Could maybe instead choose hash size based on row count?
 
         # For small tables, 64 bits is enough to avoid collisions, 128 bits will never ever collide no matter what
-        use_double_hash = table_size > 100000
+        # Assume table is large if table row count is unknown
+        use_double_hash = (
+            (table_rows is None) or (table_rows == 0) or (table_rows > 100000)
+        )
 
         ordering_hash_part = guid.generate_guid("bigframes_ordering_")
         ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
