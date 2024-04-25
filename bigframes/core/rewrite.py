@@ -42,7 +42,9 @@ class SquashedSelect:
         cls, node: nodes.BigFrameNode, projections_only: bool = False
     ) -> SquashedSelect:
         if isinstance(node, nodes.ProjectionNode):
-            return cls.from_node(node.child).project(node.assignments)
+            return cls.from_node(node.child, projections_only=projections_only).project(
+                node.assignments
+            )
         elif not projections_only and isinstance(node, nodes.FilterNode):
             return cls.from_node(node.child).filter(node.predicate)
         elif not projections_only and isinstance(node, nodes.ReversedNode):
