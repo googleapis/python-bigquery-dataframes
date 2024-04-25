@@ -411,7 +411,7 @@ def test_read_gbq_with_custom_global_labels(
     bigframes.options.compute.assign_extra_query_labels(test1=1, test2="abc")
     bigframes.options.compute.extra_query_labels["test3"] = False
 
-    job_labels = session.read_gbq(scalars_table_id).query_job.labels
+    job_labels = session.read_gbq(scalars_table_id).query_job.labels # type:ignore
     expected_labels = {"test1": "1", "test2": "abc", "test3": "false"}
 
     assert all(job_labels.get(key) == value for key, value in expected_labels.items())
