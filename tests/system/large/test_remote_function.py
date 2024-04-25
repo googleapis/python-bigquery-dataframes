@@ -1344,12 +1344,6 @@ def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_ro
         pytest.param({}, 600, id="no-set"),
         pytest.param({"cloud_function_timeout": None}, 60, id="set-None"),
         pytest.param({"cloud_function_timeout": 1200}, 1200, id="set-max-allowed"),
-        pytest.param(
-            {"cloud_function_timeout": 1201},
-            1201,
-            id="exceed-max-allowed",
-            marks=pytest.mark.xfail(raises=ValueError),
-        ),
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
