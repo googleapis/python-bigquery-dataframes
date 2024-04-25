@@ -34,6 +34,26 @@ class ComputeOptions:
 
         >>> bpd.options.compute.maximum_bytes_billed = None  # reset option
 
+    To add multiple extra labels to a query configuration, use the `assign_extra_query_labels`
+    method with keyword arguments:
+
+        >>> bpd.options.compute.assign_extra_query_labels(test1=1, test2="abc")
+        >>> bpd.options.compute.extra_query_labels
+        {'test1': 1, 'test2': 'abc'}
+
+    Alternatively, you can add labels individually by directly accessing the `extra_query_labels`
+    dictionary:
+
+        >>> bpd.options.compute.extra_query_labels["test3"] = False
+        >>> bpd.options.compute.extra_query_labels
+        {'test1': 1, 'test2': 'abc', 'test3': False}
+
+    To remove a label from the configuration, use the `del` keyword on the desired label key:
+
+        >>> del bpd.options.compute.extra_query_labels["test1"]
+        >>> bpd.options.compute.extra_query_labels
+        {'test2': 'abc', 'test3': False}
+
     Attributes:
         maximum_bytes_billed (int, Options):
             Limits the bytes billed for query jobs. Queries that will have
@@ -50,7 +70,9 @@ class ComputeOptions:
 
     maximum_bytes_billed: Optional[int] = None
     enable_multi_query_execution: bool = False
-    extra_query_labels: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    extra_query_labels: Dict[str, Any] = dataclasses.field(
+        default_factory=dict, init=False
+    )
 
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """
