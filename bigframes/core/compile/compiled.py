@@ -1066,8 +1066,12 @@ class OrderedIR(BaseIbisIR):
                 )
                 new_exprs.append(new_expr)
             elif isinstance(expr.scalar_expression, ex.UnboundVariableExpression):
+                order_col = expr.scalar_expression.id
                 new_exprs.append(expr)
-                new_baked_cols.append(self._ibis_bindings[expr.scalar_expression.id])
+                if order_col not in self.columns:
+                    new_baked_cols.append(
+                        self._ibis_bindings[expr.scalar_expression.id]
+                    )
 
         new_ordering = ExpressionOrdering(
             tuple(new_exprs),
