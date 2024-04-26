@@ -1572,8 +1572,9 @@ class Session(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (type or list(type)):
-                Input data type, or list of input data types in the user defined function.
+            input_types (type or sequence(type)):
+                Input data type, or sequence of input data types in the user
+                defined function.
             output_type (type):
                 Data type of the output in the user defined function.
             dataset (str, Optional):
