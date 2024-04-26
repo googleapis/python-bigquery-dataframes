@@ -689,7 +689,7 @@ def remote_function(
         input_types (type or sequence(type)):
             Input data type, or sequence of input data types in the user
             defined function.
-        output_type type:
+        output_type (type):
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
             BigQuery DataFrames session to use for getting default project,
