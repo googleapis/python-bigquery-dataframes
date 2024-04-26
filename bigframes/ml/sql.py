@@ -291,6 +291,10 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
 
+    def ml_arima_coefficients(self) -> str:
+        """Encode ML.ARIMA_COEFFICIENTS for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `{self._model_name}`)"""
+
     # ML evaluation TVFs
     def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:
         """Encode ML.ARMIA_EVALUATE for BQML"""
@@ -316,8 +320,3 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         """Encode ML.TRANSFORM for BQML"""
         return f"""SELECT * FROM ML.TRANSFORM(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}))"""
-
-    def coef_(self) -> bpd.DataFrame:
-        assert self._bqml_model.arima_coefficients(
-        options={}
-        )

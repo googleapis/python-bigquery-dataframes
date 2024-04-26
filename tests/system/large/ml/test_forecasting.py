@@ -31,6 +31,7 @@ ARIMA_EVALUATE_OUTPUT_COL = [
     "error_message",
 ]
 
+
 @pytest.fixture(scope="module")
 def arima_model(time_series_df_default_index):
     model = forecasting.ARIMAPlus()
@@ -39,8 +40,11 @@ def arima_model(time_series_df_default_index):
     model.fit(X_train, y_train)
     return model
 
+
 def test_arima_plus_model_fit_score(
-dataset_id, new_time_series_df, arima_model,
+    dataset_id,
+    new_time_series_df,
+    arima_model,
 ):
 
     result = arima_model.score(
@@ -60,7 +64,9 @@ dataset_id, new_time_series_df, arima_model,
     pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
 
     # save, load to ensure configuration was kept
-    reloaded_model = arima_model.to_gbq(f"{dataset_id}.temp_arima_plus_model", replace=True)
+    reloaded_model = arima_model.to_gbq(
+        f"{dataset_id}.temp_arima_plus_model", replace=True
+    )
     assert (
         f"{dataset_id}.temp_arima_plus_model" in reloaded_model._bqml_model.model_name
     )
@@ -73,7 +79,9 @@ def test_arima_plus_model_fit_summary(dataset_id, arima_model):
     assert all(column in result.columns for column in ARIMA_EVALUATE_OUTPUT_COL)
 
     # save, load to ensure configuration was kept
-    reloaded_model = arima_model.to_gbq(f"{dataset_id}.temp_arima_plus_model", replace=True)
+    reloaded_model = arima_model.to_gbq(
+        f"{dataset_id}.temp_arima_plus_model", replace=True
+    )
     assert (
         f"{dataset_id}.temp_arima_plus_model" in reloaded_model._bqml_model.model_name
     )
@@ -82,13 +90,8 @@ def test_arima_plus_model_fit_summary(dataset_id, arima_model):
 def test_arima_coefficients(arima_model):
     got = arima_model.coef_
     expected_columns = {
-        "time_series_id_col",
         "ar_coefficients",
         "ma_coefficients",
         "intercept_or_drift",
-        "processed_input",
-        "weight",
-        "category_weights.category",
-        "category_weights.weight",
     }
     assert set(got.columns) == expected_columns
