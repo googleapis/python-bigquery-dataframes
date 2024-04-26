@@ -3,7 +3,7 @@ from IPython.display import display, Image
 import numpy as np
 import parse
 
-from bigframes import clients, dataframe
+from bigframes import clients
 from bigframes.operations import base
 
 
@@ -12,11 +12,13 @@ class BlobMethods(base.SeriesMethods):
     #     self._gcs_manager = clients.GcsManager()
 
     def _get_merged_df(self):
+        import bigframes.pandas as bpd
+
         session = self._block.session
         master_object_table = session._master_object_table
 
         master_df = session.read_gbq(master_object_table)
-        df = dataframe.DataFrame(self._block)
+        df = bpd.DataFrame(self._block)
         return df.merge(master_df, how="left", left_on=df.columns[0], right_on="uri")
 
     def version(self):
