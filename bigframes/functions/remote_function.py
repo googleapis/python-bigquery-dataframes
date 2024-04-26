@@ -24,7 +24,7 @@ import string
 import sys
 import tempfile
 import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
+from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
 
 import ibis
 import requests
@@ -623,7 +623,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Sequence[type],
+    input_types: Union[type, Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -687,7 +687,7 @@ def remote_function(
 
     Args:
         input_types list(type):
-            List of input data types in the user defined function.
+            Input data type, or list of input data types in the user defined function.
         output_type type:
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
@@ -778,6 +778,9 @@ def remote_function(
             By default BigQuery DataFrames uses a 10 minute timeout. `None`
             can be passed to let the cloud functions default timeout take effect.
     """
+    if isinstance(input_types, type):
+        input_types = [input_types]
+
     import bigframes.pandas as bpd
 
     session = session or bpd.get_global_session()
