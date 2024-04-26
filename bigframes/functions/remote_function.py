@@ -51,6 +51,7 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 from bigframes import clients
 import bigframes.constants as constants
 import bigframes.dtypes
+import bigframes.pandas
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +414,12 @@ def {handler_func_name}(request):
         return entry_point
 
     def create_cloud_function(
-        self, def_, cf_name, package_requirements=None, is_row_processor=False
+        self,
+        def_,
+        cf_name,
+        package_requirements=None,
+        cloud_function_timeout=600,
+        is_row_processor=False,
     ):
         """Create a cloud function from the given user defined function."""
 
@@ -482,7 +488,14 @@ def {handler_func_name}(request):
             )
             function.service_config = functions_v2.ServiceConfig()
             function.service_config.available_memory = "1024M"
-            function.service_config.timeout_seconds = 600
+            if cloud_function_timeout is not None:
+                if cloud_function_timeout > 1200:
+                    raise ValueError(
+                        "BigQuery remote function can wait only up to 20 minutes"
+                        ", see for more details "
+                        "https://cloud.google.com/bigquery/quotas#remote_function_limits."
+                    )
+                function.service_config.timeout_seconds = cloud_function_timeout
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
@@ -529,6 +542,7 @@ def {handler_func_name}(request):
         name,
         package_requirements,
         max_batching_rows,
+        cloud_function_timeout,
         is_row_processor,
     ):
         """Provision a BigQuery remote function."""
@@ -551,7 +565,11 @@ def {handler_func_name}(request):
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_, cloud_function_name, package_requirements, is_row_processor
+                def_,
+                cloud_function_name,
+                package_requirements,
+                cloud_function_timeout,
+                is_row_processor,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -705,6 +723,7 @@ def remote_function(
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
     max_batching_rows: Optional[int] = 1000,
+    cloud_function_timeout: Optional[int] = 600,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -832,6 +851,16 @@ def remote_function(
             `None` can be passed to let BQ remote functions service apply
             default batching. See for more details
             https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
+        cloud_function_timeout (int, Optional):
+            The maximum amount of time (in seconds) BigQuery should wait for
+            the cloud function to return a response. See for more details
+            https://cloud.google.com/functions/docs/configuring/timeout.
+            Please note that even though the cloud function (2nd gen) itself
+            allows seeting up to 60 minutes of timeout, BigQuery remote
+            function can wait only up to 20 minutes, see for more details
+            https://cloud.google.com/bigquery/quotas#remote_function_limits.
+            By default BigQuery DataFrames uses a 10 minute timeout. `None`
+            can be passed to let the cloud functions default timeout take effect.
     """
 
     is_row_processor = False
@@ -840,9 +869,7 @@ def remote_function(
         is_row_processor = True
 
     # Some defaults may be used from the session if not provided otherwise
-    import bigframes.pandas as bpd
-
-    session = session or bpd.get_global_session()
+    session = session or bigframes.pandas.get_global_session()
 
     # A BigQuery client is required to perform BQ operations
     if not bigquery_client:
@@ -963,6 +990,7 @@ def remote_function(
             name,
             packages,
             max_batching_rows,
+            cloud_function_timeout,
             is_row_processor,
         )
 
