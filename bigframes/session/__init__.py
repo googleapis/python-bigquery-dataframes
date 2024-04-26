@@ -692,59 +692,6 @@ class Session(
             use_cache=use_cache,
         )
 
-    def _get_snapshot_sql_and_primary_key(
-        self,
-        table: google.cloud.bigquery.table.Table,
-        *,
-        api_name: str,
-        use_cache: bool = True,
-    ) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
-        """Create a read-only Ibis table expression representing a table.
-
-        If we can get a total ordering from the table, such as via primary key
-        column(s), then return those too so that ordering generation can be
-        avoided.
-        """
-        (
-            snapshot_timestamp,
-            table,
-        ) = bigframes_io.get_snapshot_datetime_and_table_metadata(
-            self.bqclient,
-            table_ref=table.reference,
-            api_name=api_name,
-            cache=self._df_snapshot,
-            use_cache=use_cache,
-        )
-
-        if table.location.casefold() != self._location.casefold():
-            raise ValueError(
-                f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
-            )
-
-        # If there are primary keys defined, the query engine assumes these
-        # columns are unique, even if the constraint is not enforced. We make
-        # the same assumption and use these columns as the total ordering keys.
-        primary_keys = None
-        if (
-            (table_constraints := getattr(table, "table_constraints", None)) is not None
-            and (primary_key := table_constraints.primary_key) is not None
-            # This will be False for either None or empty list.
-            # We want primary_keys = None if no primary keys are set.
-            and (columns := primary_key.columns)
-        ):
-            primary_keys = columns
-
-        try:
-            table_expression = self.ibis_client.sql(
-                bigframes_io.create_snapshot_sql(table.reference, snapshot_timestamp)
-            )
-        except google.api_core.exceptions.Forbidden as ex:
-            if "Drive credentials" in ex.message:
-                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-            raise
-
-        return table_expression, primary_keys
-
     def _read_gbq_table(
         self,
         query: str,
@@ -757,16 +704,39 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
+        # TODO TODO TODO
+        # *  Validations on types / value ranges
+        # 0. Transform input types, e.g. index_col -> index_cols
+        # 1. Get table metadata (possibly cached)
+        # 2. Create ibis Table with time travel.
+        # *  Validations based on value columns.
+        # *  Validations based on index columns.
+        # 4. Create index.
+        # 5. Create ordering.
+        # TODO TODO TODO
+
         if max_results and max_results <= 0:
             raise ValueError("`max_results` should be a positive number.")
 
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
+<<<<<<< HEAD
+        (
+            snapshot_timestamp,
+            table,
+        ) = bigframes_io.get_snapshot_datetime_and_table_metadata(
+            self.bqclient,
+            table_ref=table_ref,
+            api_name=api_name,
+            cache=self._df_snapshot,
+            use_cache=use_cache,
+=======
 
         table = self.bqclient.get_table(table_ref)
         (table_expression, primary_keys,) = self._get_snapshot_sql_and_primary_key(
             table, api_name=api_name, use_cache=use_cache
+>>>>>>> 729cf0a7 (add todos)
         )
         total_ordering_cols = primary_keys
 
@@ -861,27 +831,6 @@ class Session(
         if len(index_cols) > 0:
             df.sort_index()
         return df
-
-    def _check_index_uniqueness(
-        self, table: ibis_types.Table, index_cols: List[str]
-    ) -> bool:
-        distinct_table = table.select(*index_cols).distinct()
-        is_unique_sql = f"""WITH full_table AS (
-            {self.ibis_client.compile(table)}
-        ),
-        distinct_table AS (
-            {self.ibis_client.compile(distinct_table)}
-        )
-
-        SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
-        (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
-        """
-        results, _ = self._start_query(is_unique_sql)
-        row = next(iter(results))
-
-        total_count = row["total_count"]
-        distinct_count = row["distinct_count"]
-        return total_count == distinct_count
 
     def _read_bigquery_load_job(
         self,
