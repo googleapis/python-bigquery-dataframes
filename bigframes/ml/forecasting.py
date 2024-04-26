@@ -124,21 +124,16 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         self,
     ) -> bpd.DataFrame:
         """Inspect the coefficients of the model.
-            ..note::
+
+        ..note::
 
             Output matches that of the ML.ARIMA_COEFFICIENTS function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-arima-coefficients
             for the outputs relevant to this model type.
 
         Returns:
-        time_series_id_col or time_series_id_cols: a value that contains the identifiers of a time series.
-        ar_coefficients: an ARRAY<FLOAT64> value that contains the autoregressive coefficients, which corresponds to non-seasonal p.
-        ma_coefficients: an ARRAY<FLOAT64> value that contains the moving-average coefficients, which corresponds to non-seasonal q.
-        intercept_or_drift: a FLOAT64 value that contains the constant term of the ARIMA model.
-        processed_input: a STRING value that contains the name of the model feature input column.
-        weight: when the processed_input value is numerical, weight contains a FLOAT64 value and the category_weights column contains NULL values. When the processed_input value is non-numerical and has been converted to dummy encoding, the weight column is NULL and the category_weights column contains the category names and weights for each category.
-        category_weights.category: a STRING value that contains the category name if the processed_input value is non-numeric.
-        category_weights.weight: a FLOAT64 that contains the category's weight if the processed_input value is non-numeric.
+            bigframes.dataframe.DataFrame:
+                A DataFrame with the coefficients for the model.
         """
 
         if not self._bqml_model:
