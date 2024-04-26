@@ -27,6 +27,10 @@ from bigframes.core import blocks, log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
+_BQML_PARAMS_MAPPING = {
+    "max_iterations": "maxIterations",
+}
+
 _TEXT_GENERATOR_BISON_ENDPOINT = "text-bison"
 _TEXT_GENERATOR_BISON_32K_ENDPOINT = "text-bison-32k"
 _TEXT_GENERATOR_ENDPOINTS = (
@@ -48,7 +52,7 @@ _ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
 
 
 @log_adapter.class_logger
-class PaLM2TextGenerator(base.Predictor):
+class PaLM2TextGenerator(base.BaseEstimator):
     """PaLM2 text generator LLM model.
 
     Args:
@@ -60,8 +64,10 @@ class PaLM2TextGenerator(base.Predictor):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
+        max_iterations (Optional[int], Default to 300):
+            The number of steps to run when performing supervised tuning.
     """
 
     def __init__(
@@ -70,15 +76,15 @@ class PaLM2TextGenerator(base.Predictor):
         model_name: Literal["text-bison", "text-bison-32k"] = "text-bison",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
+        max_iterations: int = 300,
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self.max_iterations = max_iterations
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -93,17 +99,19 @@ class PaLM2TextGenerator(base.Predictor):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         if self.model_name not in _TEXT_GENERATOR_ENDPOINTS:
             raise ValueError(
@@ -132,11 +140,72 @@ class PaLM2TextGenerator(base.Predictor):
         model_connection = model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
+        # Get the optional params
+        kwargs: dict = {}
+        last_fitting = model.training_runs[-1]["trainingOptions"]
+
+        dummy_text_generator = cls()
+        for bf_param, _ in dummy_text_generator.__dict__.items():
+            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
+            if bqml_param in last_fitting:
+                # Convert types
+                if bf_param in ["max_iterations"]:
+                    kwargs[bf_param] = int(last_fitting[bqml_param])
+
         text_generator_model = cls(
-            session=session, model_name=model_endpoint, connection_name=model_connection
+            **kwargs,
+            session=session,
+            model_name=model_endpoint,
+            connection_name=model_connection,
         )
         text_generator_model._bqml_model = core.BqmlModel(session, model)
         return text_generator_model
+
+    @property
+    def _bqml_options(self) -> dict:
+        """The model options as they will be set for BQML"""
+        options = {
+            "max_iterations": self.max_iterations,
+            "data_split_method": "NO_SPLIT",
+        }
+        return options
+
+    def fit(
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
+    ) -> PaLM2TextGenerator:
+        """Fine tune PaLM2TextGenerator model.
+
+        .. note::
+
+            This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                DataFrame of shape (n_samples, n_features). Training data.
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series:
+                Training labels.
+
+        Returns:
+            PaLM2TextGenerator: Fitted estimator.
+        """
+        X, y = utils.convert_to_dataframe(X, y)
+
+        options = self._bqml_options
+        options["endpoint"] = self.model_name + "@001"
+        options["prompt_col"] = X.columns.tolist()[0]
+
+        self._bqml_model = self._bqml_model_factory.create_llm_remote_model(
+            X,
+            y,
+            options=options,
+            connection_name=self.connection_name,
+        )
+        return self
 
     def predict(
         self,
@@ -151,7 +220,7 @@ class PaLM2TextGenerator(base.Predictor):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, which needs to contain a column with name "prompt". Only the column will be used as input.
+                Input DataFrame or Series, which contains only one column of prompts.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.0):
@@ -241,30 +310,87 @@ class PaLM2TextGenerator(base.Predictor):
 
         return df
 
+    def score(
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
+        task_type: Literal[
+            "text_generation", "classification", "summarization", "question_answering"
+        ] = "text_generation",
+    ) -> bpd.DataFrame:
+        """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
+
+        .. note::
+
+            Output matches that of the BigQuery ML.EVALUTE function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#remote-model-llm
+            for the outputs relevant to this model type.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A BigQuery DataFrame as evaluation data, which contains only one column of input_text
+                that contains the prompt text to use when evaluating the model.
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
+                that you would expect to be returned by the model.
+            task_type (str):
+                The type of the task for LLM model. Default to "text_generation".
+                Possible values: "text_generation", "classification", "summarization", and "question_answering".
+
+        Returns:
+            bigframes.dataframe.DataFrame: The DataFrame as evaluation result.
+        """
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        X, y = utils.convert_to_dataframe(X, y)
+
+        if len(X.columns) != 1 or len(y.columns) != 1:
+            raise ValueError(
+                f"Only support one column as input for X and y. {constants.FEEDBACK_LINK}"
+            )
+
+        # BQML identified the column by name
+        X_col_label = cast(blocks.Label, X.columns[0])
+        y_col_label = cast(blocks.Label, y.columns[0])
+        X = X.rename(columns={X_col_label: "input_text"})
+        y = y.rename(columns={y_col_label: "output_text"})
+
+        input_data = X.join(y, how="outer")
+
+        return self._bqml_model.llm_evaluate(input_data, task_type)
+
     def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
         """Save the model to BigQuery.
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextGenerator: saved model."""
+            PaLM2TextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
 
 
 @log_adapter.class_logger
-class PaLM2TextEmbeddingGenerator(base.Predictor):
+class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
     """PaLM2 text embedding generator LLM model.
 
     Args:
         model_name (str, Default to "textembedding-gecko"):
             The model for text embedding. “textembedding-gecko” returns model embeddings for text inputs.
-            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages
+            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages.
             Default to "textembedding-gecko".
         version (str or None):
             Model version. Accepted values are "001", "002", "003", "latest" etc. Will use the default version if unset.
@@ -272,8 +398,8 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context.
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            If None, use default connection in session context.
     """
 
     def __init__(
@@ -289,12 +415,10 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
         self.model_name = model_name
         self.version = version
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -309,17 +433,19 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         if self.model_name not in _EMBEDDING_GENERATOR_ENDPOINTS:
             raise ValueError(
@@ -389,7 +515,14 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
             "flatten_json_output": True,
         }
 
-        df = self._bqml_model.generate_text_embedding(X, options)
+        df = self._bqml_model.generate_embedding(X, options)
+        df = df.rename(
+            columns={
+                "ml_generate_embedding_result": "text_embedding",
+                "ml_generate_embedding_statistics": "statistics",
+                "ml_generate_embedding_status": _ML_EMBED_TEXT_STATUS,
+            }
+        )
 
         if (df[_ML_EMBED_TEXT_STATUS] != "").any():
             warnings.warn(
@@ -406,28 +539,34 @@ class PaLM2TextEmbeddingGenerator(base.Predictor):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextEmbeddingGenerator: saved model."""
+            PaLM2TextEmbeddingGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
 
 
 @log_adapter.class_logger
-class GeminiTextGenerator(base.Predictor):
+class GeminiTextGenerator(base.BaseEstimator):
     """Gemini text generator LLM model.
+
+    .. note::
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
     """
 
     def __init__(
@@ -437,12 +576,10 @@ class GeminiTextGenerator(base.Predictor):
         connection_name: Optional[str] = None,
     ):
         self.session = session or bpd.get_global_session()
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -457,17 +594,19 @@ class GeminiTextGenerator(base.Predictor):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         options = {"endpoint": _GEMINI_PRO_ENDPOINT}
 
@@ -580,12 +719,12 @@ class GeminiTextGenerator(base.Predictor):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            GeminiTextGenerator: saved model."""
+            GeminiTextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)

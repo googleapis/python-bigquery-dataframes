@@ -15,6 +15,7 @@ import functools
 import typing
 from typing import cast, Optional
 
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
@@ -26,7 +27,6 @@ import bigframes.core.expression as ex
 import bigframes.core.window_spec as window_spec
 import bigframes.dtypes as dtypes
 import bigframes.operations.aggregations as agg_ops
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 scalar_compiler = scalar_compilers.scalar_op_compiler
 
@@ -151,6 +151,14 @@ def _(
 @compile_unary_agg.register
 @numeric_op
 def _(
+    op: agg_ops.QuantileOp, column: ibis_types.NumericColumn, window=None
+) -> ibis_types.NumericValue:
+    return _apply_window_if_present(column.quantile(op.q), window)
+
+
+@compile_unary_agg.register
+@numeric_op
+def _(
     op: agg_ops.MeanOp, column: ibis_types.NumericColumn, window=None
 ) -> ibis_types.NumericValue:
     return _apply_window_if_present(column.mean(), window)
@@ -190,7 +198,7 @@ def _(
         .else_(magnitude * pow(-1, negative_count_parity))
         .end()
     )
-    return float_result.cast(column.type())  # type: ignore
+    return float_result
 
 
 @compile_unary_agg.register
@@ -414,7 +422,7 @@ def _(
     result = _is_true(column).any()
     return cast(
         ibis_types.BooleanScalar,
-        _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
+        _apply_window_if_present(result, window).fillna(ibis_types.literal(False)),
     )
 
 

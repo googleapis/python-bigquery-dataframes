@@ -18,16 +18,25 @@ from __future__ import annotations
 
 import datetime
 import itertools
+import os
 import textwrap
 import types
-from typing import Dict, Iterable, Optional, Sequence, Union
+from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
 import uuid
+import warnings
 
+import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
+
+import bigframes
+from bigframes.core import log_adapter
+import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
 TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+
+LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
 
 def create_job_configs_labels(
@@ -111,6 +120,59 @@ def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
+
+
+def get_snapshot_datetime_and_table_metadata(
+    bqclient: bigquery.Client,
+    table_ref: bigquery.TableReference,
+    *,
+    api_name: str,
+    cache: Dict[bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]],
+    use_cache: bool = True,
+) -> Tuple[datetime.datetime, bigquery.Table]:
+    cached_table = cache.get(table_ref)
+    if use_cache and cached_table is not None:
+        snapshot_timestamp, _ = cached_table
+
+        # Cache hit could be unexpected. See internal issue 329545805.
+        # Raise a warning with more information about how to avoid the
+        # problems with the cache.
+        warnings.warn(
+            f"Reading cached table from {snapshot_timestamp} to avoid "
+            "incompatibilies with previous reads of this table. To read "
+            "the latest version, set `use_cache=False` or close the "
+            "current session with Session.close() or "
+            "bigframes.pandas.close_session().",
+            # There are many layers before we get to (possibly) the user's code:
+            # pandas.read_gbq_table
+            # -> with_default_session
+            # -> Session.read_gbq_table
+            # -> _read_gbq_table
+            # -> _get_snapshot_sql_and_primary_key
+            # -> get_snapshot_datetime_and_table_metadata
+            stacklevel=7,
+        )
+        return cached_table
+
+    # TODO(swast): It's possible that the table metadata is changed between now
+    # and when we run the CURRENT_TIMESTAMP() query to see when we can time
+    # travel to. Find a way to fetch the table metadata and BQ's current time
+    # atomically.
+    table = bqclient.get_table(table_ref)
+
+    # TODO(b/336521938): Refactor to make sure we set the "bigframes-api"
+    # whereever we execute a query.
+    job_config = bigquery.QueryJobConfig()
+    job_config.labels["bigframes-api"] = api_name
+    snapshot_timestamp = list(
+        bqclient.query(
+            "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+            job_config=job_config,
+        ).result()
+    )[0][0]
+    cached_table = (snapshot_timestamp, table)
+    cache[table_ref] = cached_table
+    return cached_table
 
 
 def create_snapshot_sql(
@@ -207,3 +269,63 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     if isinstance(value, bool):
         return f"{key}=true" if value else f"{key}=false"
     return f"{key}={repr(value)}"
+
+
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    job_config: bigquery.job.QueryJobConfig,
+    max_results: Optional[int] = None,
+    timeout: Optional[float] = None,
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    """
+    Starts query job and waits for results.
+    """
+    api_methods = log_adapter.get_and_reset_api_methods()
+    job_config.labels = create_job_configs_labels(
+        job_configs_labels=job_config.labels, api_methods=api_methods
+    )
+
+    try:
+        query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
+    except google.api_core.exceptions.Forbidden as ex:
+        if "Drive credentials" in ex.message:
+            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+        raise
+
+    opts = bigframes.options.display
+    if opts.progress_bar is not None and not query_job.configuration.dry_run:
+        results_iterator = formatting_helpers.wait_for_query_job(
+            query_job, max_results, opts.progress_bar
+        )
+    else:
+        results_iterator = query_job.result(max_results=max_results)
+
+    if LOGGING_NAME_ENV_VAR in os.environ:
+        # when running notebooks via pytest nbmake
+        pytest_log_job(query_job)
+
+    return results_iterator, query_job
+
+
+def pytest_log_job(query_job: bigquery.QueryJob):
+    """For pytest runs only, log information about the query job
+    to a file in order to create a performance report.
+    """
+    if LOGGING_NAME_ENV_VAR not in os.environ:
+        raise EnvironmentError(
+            "Environment variable {env_var} is not set".format(
+                env_var=LOGGING_NAME_ENV_VAR
+            )
+        )
+    test_name = os.environ[LOGGING_NAME_ENV_VAR]
+    current_directory = os.getcwd()
+    bytes_processed = query_job.total_bytes_processed
+    if not isinstance(bytes_processed, int):
+        return  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry runs don't process their total_bytes_processed
+        bytes_processed = 0
+    bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
+    with open(bytes_file, "a") as f:
+        f.write(str(bytes_processed) + "\n")

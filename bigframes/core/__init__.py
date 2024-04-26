@@ -14,20 +14,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import functools
 import io
 import typing
 from typing import Iterable, Sequence
 
 import ibis.expr.types as ibis_types
 import pandas
+import pyarrow as pa
+import pyarrow.feather as pa_feather
 
 import bigframes.core.compile as compiling
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.join_def as join_def
+import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
-from bigframes.core.ordering import OrderingColumnReference
+from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
+import bigframes.core.rewrite
+import bigframes.core.schema as schemata
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -62,28 +68,32 @@ class ArrayValue:
         node = nodes.ReadGbqNode(
             table=table,
             table_session=session,
-            columns=tuple(columns),
+            columns=tuple(
+                bigframes.dtypes.ibis_value_to_canonical_type(column)
+                for column in columns
+            ),
             hidden_ordering_columns=tuple(hidden_ordering_columns),
             ordering=ordering,
         )
         return cls(node)
 
     @classmethod
-    def from_pandas(cls, pd_df: pandas.DataFrame):
+    def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
+        adapted_table = local_data.adapt_pa_table(arrow_table)
+        schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
+
         iobytes = io.BytesIO()
-        # Use alphanumeric identifiers, to avoid downstream problems with escaping.
-        as_ids = [
-            bigframes.core.utils.label_to_identifier(label, strict=True)
-            for label in pd_df.columns
-        ]
-        unique_ids = tuple(bigframes.core.utils.disambiguate_ids(as_ids))
-        pd_df.reset_index(drop=True).set_axis(unique_ids, axis=1).to_feather(iobytes)
-        node = nodes.ReadLocalNode(iobytes.getvalue())
+        pa_feather.write_feather(adapted_table, iobytes)
+        node = nodes.ReadLocalNode(
+            iobytes.getvalue(),
+            data_schema=schema,
+            session=session,
+        )
         return cls(node)
 
     @property
     def column_ids(self) -> typing.Sequence[str]:
-        return self._compile_ordered().column_ids
+        return self.schema.names
 
     @property
     def session(self) -> Session:
@@ -94,6 +104,19 @@ class ArrayValue:
             required_session if (required_session is not None) else get_global_session()
         )
 
+    @functools.cached_property
+    def schema(self) -> schemata.ArraySchema:
+        return self.node.schema
+
+    @functools.cached_property
+    def _compiled_schema(self) -> schemata.ArraySchema:
+        compiled = self._compile_unordered()
+        items = tuple(
+            schemata.SchemaItem(id, compiled.get_column_type(id))
+            for id in compiled.column_ids
+        )
+        return schemata.ArraySchema(items)
+
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
         import ibis
@@ -103,7 +126,7 @@ class ArrayValue:
         )
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        return self._compile_ordered().get_column_type(key)
+        return self.schema.get_type(key)
 
     def _compile_ordered(self) -> compiling.OrderedIR:
         return compiling.compile_ordered_ir(self.node)
@@ -126,7 +149,7 @@ class ArrayValue:
     def filter(self, predicate: ex.Expression):
         return ArrayValue(nodes.FilterNode(child=self.node, predicate=predicate))
 
-    def order_by(self, by: Sequence[OrderingColumnReference]) -> ArrayValue:
+    def order_by(self, by: Sequence[OrderingExpression]) -> ArrayValue:
         return ArrayValue(nodes.OrderByNode(child=self.node, by=tuple(by)))
 
     def reversed(self) -> ArrayValue:
@@ -193,6 +216,10 @@ class ArrayValue:
         value: typing.Any,
         dtype: typing.Optional[bigframes.dtypes.Dtype],
     ) -> ArrayValue:
+        if pandas.isna(value):
+            # Need to assign a data type when value is NaN.
+            dtype = dtype or bigframes.dtypes.DEFAULT_DTYPE
+
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
@@ -315,10 +342,7 @@ class ArrayValue:
         *,
         passthrough_columns: typing.Sequence[str] = (),
         index_col_ids: typing.Sequence[str] = ["index"],
-        dtype: typing.Union[
-            bigframes.dtypes.Dtype, typing.Tuple[bigframes.dtypes.Dtype, ...]
-        ] = pandas.Float64Dtype(),
-        how: typing.Literal["left", "right"] = "left",
+        join_side: typing.Literal["left", "right"] = "left",
     ) -> ArrayValue:
         """
         Unpivot ArrayValue columns.
@@ -328,36 +352,111 @@ class ArrayValue:
             unpivot_columns: Mapping of column id to list of input column ids. Lists of input columns may use None.
             passthrough_columns: Columns that will not be unpivoted. Column id will be preserved.
             index_col_id (str): The column id to be used for the row labels.
-            dtype (dtype or list of dtype): Dtype to use for the unpivot columns. If list, must be equal in number to unpivot_columns.
 
         Returns:
             ArrayValue: The unpivoted ArrayValue
         """
+        # There will be N labels, used to disambiguate which of N source columns produced each output row
+        explode_offsets_id = bigframes.core.guid.generate_guid("unpivot_offsets_")
+        labels_array = self._create_unpivot_labels_array(row_labels, index_col_ids)
+        labels_array = labels_array.promote_offsets(explode_offsets_id)
+
+        # Unpivot creates N output rows for each input row, labels disambiguate these N rows
+        joined_array = self._cross_join_w_labels(labels_array, join_side)
+
+        # Build the output rows as a case statment that selects between the N input columns
+        unpivot_exprs = []
+        # Supports producing multiple stacked ouput columns for stacking only part of hierarchical index
+        for col_id, input_ids in unpivot_columns:
+            # row explode offset used to choose the input column
+            # we use offset instead of label as labels are not necessarily unique
+            cases = tuple(
+                (
+                    ops.eq_op.as_expr(explode_offsets_id, ex.const(i)),
+                    ex.free_var(id_or_null)
+                    if (id_or_null is not None)
+                    else ex.const(None),
+                )
+                for i, id_or_null in enumerate(input_ids)
+            )
+            col_expr = ops.case_when_op.as_expr(*cases)
+            unpivot_exprs.append((col_expr, col_id))
+
+        label_exprs = ((ex.free_var(id), id) for id in index_col_ids)
+        # passthrough columns are unchanged, just repeated N times each
+        passthrough_exprs = ((ex.free_var(id), id) for id in passthrough_columns)
         return ArrayValue(
-            nodes.UnpivotNode(
-                child=self.node,
-                row_labels=tuple(row_labels),
-                unpivot_columns=tuple(unpivot_columns),
-                passthrough_columns=tuple(passthrough_columns),
-                index_col_ids=tuple(index_col_ids),
-                dtype=dtype,
-                how=how,
+            nodes.ProjectionNode(
+                child=joined_array.node,
+                assignments=(*label_exprs, *unpivot_exprs, *passthrough_exprs),
             )
         )
+
+    def _cross_join_w_labels(
+        self, labels_array: ArrayValue, join_side: typing.Literal["left", "right"]
+    ) -> ArrayValue:
+        """
+        Convert each row in self to N rows, one for each label in labels array.
+        """
+        table_join_side = (
+            join_def.JoinSide.LEFT if join_side == "left" else join_def.JoinSide.RIGHT
+        )
+        labels_join_side = table_join_side.inverse()
+        labels_mappings = tuple(
+            join_def.JoinColumnMapping(labels_join_side, id, id)
+            for id in labels_array.schema.names
+        )
+        table_mappings = tuple(
+            join_def.JoinColumnMapping(table_join_side, id, id)
+            for id in self.schema.names
+        )
+        join = join_def.JoinDefinition(
+            conditions=(), mappings=(*labels_mappings, *table_mappings), type="cross"
+        )
+        if join_side == "left":
+            joined_array = self.join(labels_array, join_def=join)
+        else:
+            joined_array = labels_array.join(self, join_def=join)
+        return joined_array
+
+    def _create_unpivot_labels_array(
+        self,
+        former_column_labels: typing.Sequence[typing.Hashable],
+        col_ids: typing.Sequence[str],
+    ) -> ArrayValue:
+        """Create an ArrayValue from a list of label tuples."""
+        rows = []
+        for row_offset in range(len(former_column_labels)):
+            row_label = former_column_labels[row_offset]
+            row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
+            row = {col_ids[i]: row_label[i] for i in range(len(col_ids))}
+            rows.append(row)
+
+        return ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=self.session)
 
     def join(
         self,
         other: ArrayValue,
         join_def: join_def.JoinDefinition,
-        allow_row_identity_join: bool = True,
+        allow_row_identity_join: bool = False,
     ):
+        join_node = nodes.JoinNode(
+            left_child=self.node,
+            right_child=other.node,
+            join=join_def,
+            allow_row_identity_join=allow_row_identity_join,
+        )
+        if allow_row_identity_join:
+            return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
+        return ArrayValue(join_node)
+
+    def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+        assert len(column_ids) > 0
+        for column_id in column_ids:
+            assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
+
         return ArrayValue(
-            nodes.JoinNode(
-                left_child=self.node,
-                right_child=other.node,
-                join=join_def,
-                allow_row_identity_join=allow_row_identity_join,
-            )
+            nodes.ExplodeNode(child=self.node, column_ids=tuple(column_ids))
         )
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:

@@ -66,6 +66,24 @@ def test_dataframe_groupby_median(scalars_df_index, scalars_pandas_df_index):
 
 
 @pytest.mark.parametrize(
+    ("q"),
+    [
+        ([0.2, 0.4, 0.6, 0.8]),
+        (0.11),
+    ],
+)
+def test_dataframe_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
+    col_names = ["int64_too", "float64_col", "int64_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names].groupby("string_col").quantile(q)
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].groupby("string_col").quantile(q)
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     ("operator"),
     [
         (lambda x: x.count()),
@@ -228,7 +246,8 @@ def test_dataframe_groupby_multi_sum(
         (lambda x: x.cumsum(numeric_only=True)),
         (lambda x: x.cummax(numeric_only=True)),
         (lambda x: x.cummin(numeric_only=True)),
-        (lambda x: x.cumprod()),
+        # Pre-pandas 2.2 doesn't always proeduce float.
+        (lambda x: x.cumprod().astype("Float64")),
         (lambda x: x.shift(periods=2)),
     ],
     ids=[
@@ -370,4 +389,38 @@ def test_series_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
 
     pd.testing.assert_frame_equal(
         pd_result, bf_result_computed, check_dtype=False, check_names=False
+    )
+
+
+def test_dataframe_groupby_nonnumeric_with_mean():
+    df = pd.DataFrame(
+        {
+            "key1": ["a", "a", "a", "b"],
+            "key2": ["a", "a", "c", "c"],
+            "key3": [1, 2, 3, 4],
+            "key4": [1.6, 2, 3, 4],
+        }
+    )
+    pd_result = df.groupby(["key1", "key2"]).mean()
+    bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
+
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_index_type=False, check_dtype=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("q"),
+    [
+        ([0.2, 0.4, 0.6, 0.8]),
+        (0.11),
+    ],
+)
+def test_series_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
+    bf_result = (
+        scalars_df_index.groupby("string_col")["int64_col"].quantile(q)
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.groupby("string_col")["int64_col"].quantile(q)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
     )

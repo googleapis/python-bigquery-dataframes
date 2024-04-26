@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import os
+import re
 from unittest import mock
 
 import google.api_core.exceptions
+import google.cloud.bigquery
+import google.cloud.bigquery.table
 import pytest
 
 import bigframes
+import bigframes.exceptions
 
 from .. import resources
 
@@ -29,6 +34,72 @@ def test_read_gbq_missing_parts(missing_parts_table_id):
 
     with pytest.raises(ValueError):
         session.read_gbq(missing_parts_table_id)
+
+
+def test_read_gbq_cached_table():
+    session = resources.create_bigquery_session()
+    table_ref = google.cloud.bigquery.TableReference(
+        google.cloud.bigquery.DatasetReference("my-project", "my_dataset"),
+        "my_table",
+    )
+    table = google.cloud.bigquery.Table(table_ref)
+    table._properties["location"] = session._location
+    session._df_snapshot[table_ref] = (
+        datetime.datetime(1999, 1, 2, 3, 4, 5, 678901, tzinfo=datetime.timezone.utc),
+        table,
+    )
+
+    def get_table_mock(table_ref):
+        table = google.cloud.bigquery.Table(
+            table_ref, (google.cloud.bigquery.SchemaField("col", "INTEGER"),)
+        )
+        table._properties["numRows"] = "1000000000"
+        table._properties["location"] = session._location
+        return table
+
+    session.bqclient.get_table = get_table_mock
+
+    with pytest.warns(UserWarning, match=re.escape("use_cache=False")):
+        df = session.read_gbq("my-project.my_dataset.my_table")
+
+    assert "1999-01-02T03:04:05.678901" in df.sql
+
+
+def test_read_gbq_clustered_table_ok_default_index_with_primary_key():
+    """If a primary key is set on the table, we use that as the index column
+    by default, no error should be raised in this case.
+
+    See internal issue 335727141.
+    """
+    table = google.cloud.bigquery.Table("my-project.my_dataset.my_table")
+    table.clustering_fields = ["col1", "col2"]
+    table.schema = (
+        google.cloud.bigquery.SchemaField("pk_1", "INT64"),
+        google.cloud.bigquery.SchemaField("pk_2", "INT64"),
+        google.cloud.bigquery.SchemaField("col_1", "INT64"),
+        google.cloud.bigquery.SchemaField("col_2", "INT64"),
+    )
+
+    # TODO(b/305264153): use setter for table_constraints in client library
+    # when available.
+    table._properties["tableConstraints"] = {
+        "primaryKey": {
+            "columns": ["pk_1", "pk_2"],
+        },
+    }
+    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
+    bqclient.project = "test-project"
+    bqclient.get_table.return_value = table
+    session = resources.create_bigquery_session(
+        bqclient=bqclient, table_schema=table.schema
+    )
+    table._properties["location"] = session._location
+
+    df = session.read_gbq("my-project.my_dataset.my_table")
+
+    # There should be no analytic operators to prevent row filtering pushdown.
+    assert "OVER" not in df.sql
+    assert tuple(df.index.names) == ("pk_1", "pk_2")
 
 
 @pytest.mark.parametrize(
@@ -76,10 +147,13 @@ def test_read_gbq_external_table_no_drive_access(api_name, query_or_table):
 
     session.bqclient.query = query_mock
 
-    def get_table_mock(dataset_ref):
-        dataset = google.cloud.bigquery.Dataset(dataset_ref)
-        dataset.location = session._location
-        return dataset
+    def get_table_mock(table_ref):
+        table = google.cloud.bigquery.Table(
+            table_ref, (google.cloud.bigquery.SchemaField("col", "INTEGER"),)
+        )
+        table._properties["numRows"] = 1000000000
+        table._properties["location"] = session._location
+        return table
 
     session.bqclient.get_table = get_table_mock
 

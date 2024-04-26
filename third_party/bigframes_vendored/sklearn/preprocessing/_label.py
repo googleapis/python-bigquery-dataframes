@@ -6,8 +6,9 @@
 #          Hamzeh Alsalhi <ha258@cornell.edu>
 # License: BSD 3 clause
 
+from bigframes_vendored.sklearn.base import BaseEstimator
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class LabelEncoder(BaseEstimator):
@@ -25,7 +26,7 @@ class LabelEncoder(BaseEstimator):
             Specifies an upper limit to the number of output features for each input feature
             when considering infrequent categories. If there are infrequent categories,
             max_categories includes the category representing the infrequent categories along with the frequent categories.
-            Default None, set limit to 1,000,000.
+            Default None. Set limit to 1,000,000.
     """
 
     def fit(self, y):

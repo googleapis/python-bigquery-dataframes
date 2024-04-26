@@ -12,28 +12,21 @@
 
 from abc import ABCMeta
 
+from bigframes_vendored.sklearn.base import BaseEstimator
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class PCA(BaseEstimator, metaclass=ABCMeta):
     """Principal component analysis (PCA).
 
-    Linear dimensionality reduction using Singular Value Decomposition of the
-    data to project it to a lower dimensional space. The input data is centered
-    but not scaled for each feature before applying the SVD.
-
-    It uses the LAPACK implementation of the full SVD or a randomized truncated
-    SVD by the method of Halko et al. 2009, depending on the shape of the input
-    data and the number of components to extract.
-
-    It can also use the scipy.sparse.linalg ARPACK implementation of the
-    truncated SVD.
-
     Args:
-         n_components (Optional[int], default 3):
-            Number of components to keep. if n_components is not set all components
-            are kept.
+        n_components (int, float or None, default None):
+            Number of components to keep. If n_components is not set, all
+            components are kept, n_components = min(n_samples, n_features).
+            If 0 < n_components < 1, select the number of components such that the amount of variance that needs to be explained is greater than the percentage specified by n_components.
+        svd_solver ("full", "randomized" or "auto", default "auto"):
+            The solver to use to calculate the principal components. Details: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-pca#pca_solver.
 
     """
 
@@ -82,7 +75,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
                 Series or a DataFrame to predict.
 
         Returns:
-            bigframes.dataframe.DataFrame: predicted DataFrames."""
+            bigframes.dataframe.DataFrame: Predicted DataFrames."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
@@ -97,7 +90,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
 
                 numerical_value: If feature is numeric, the value of feature for the principal component that principal_component_id identifies. If feature isn't numeric, the value is NULL.
 
-                categorical_value: An list of mappings containing information about categorical features. Each mapping contains the following fields:
+                categorical_value: A list of mappings containing information about categorical features. Each mapping contains the following fields:
                     categorical_value.category: The name of each category.
 
                     categorical_value.value: The value of categorical_value.category for the centroid that centroid_id identifies.

@@ -181,6 +181,29 @@ AS input_X_y_sql"""
     )
 
 
+def test_create_llm_remote_model_correct(
+    model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_creation_sql_generator.create_llm_remote_model(
+        source_df=mock_df,
+        connection_name="my_project.us.my_connection",
+        model_ref=bigquery.ModelReference.from_string(
+            "test-proj._anonXYZ.create_remote_model"
+        ),
+        options={"option_key1": "option_value1", "option_key2": 2},
+    )
+    assert (
+        sql
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_remote_model`
+REMOTE WITH CONNECTION `my_project.us.my_connection`
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)
+AS input_X_y_sql"""
+    )
+
+
 def test_create_remote_model_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
@@ -296,6 +319,20 @@ def test_ml_predict_correct(
     )
 
 
+def test_ml_llm_evaluate_correct(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ml_llm_evaluate(
+        source_df=mock_df, task_type="CLASSIFICATION"
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
+            (input_X_sql), STRUCT("CLASSIFICATION" AS task_type))"""
+    )
+
+
 def test_ml_evaluate_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
@@ -341,9 +378,8 @@ def test_ml_centroids_correct(
     )
 
 
-def test_forecast_correct_sql(
+def test_ml_forecast_correct_sql(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
-    mock_df: bpd.DataFrame,
 ):
     sql = model_manipulation_sql_generator.ml_forecast(
         struct_options={"option_key1": 1, "option_key2": 2.2},
@@ -374,20 +410,37 @@ def test_ml_generate_text_correct(
     )
 
 
-def test_ml_generate_text_embedding_correct(
+def test_ml_generate_embedding_correct(
     model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
     mock_df: bpd.DataFrame,
 ):
-    sql = model_manipulation_sql_generator.ml_generate_text_embedding(
+    sql = model_manipulation_sql_generator.ml_generate_embedding(
         source_df=mock_df,
         struct_options={"option_key1": 1, "option_key2": 2.2},
     )
     assert (
         sql
-        == """SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `my_project_id.my_dataset_id.my_model_id`,
+        == """SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `my_project_id.my_dataset_id.my_model_id`,
   (input_X_sql), STRUCT(
   1 AS option_key1,
   2.2 AS option_key2))"""
+    )
+
+
+def test_ml_detect_anomalies_correct_sql(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ml_detect_anomalies(
+        source_df=mock_df,
+        struct_options={"option_key1": 1, "option_key2": 2.2},
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.DETECT_ANOMALIES(MODEL `my_project_id.my_dataset_id.my_model_id`,
+  STRUCT(
+  1 AS option_key1,
+  2.2 AS option_key2), (input_X_sql))"""
     )
 
 

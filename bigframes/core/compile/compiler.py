@@ -41,7 +41,8 @@ def compile_peak_sql(node: nodes.BigFrameNode, n_rows: int) -> typing.Optional[s
     return compile_unordered_ir(node).peek_sql(n_rows)
 
 
-@functools.cache
+# TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
+@functools.lru_cache(maxsize=5000)
 def compile_node(
     node: nodes.BigFrameNode, ordered: bool = True
 ) -> compiled.UnorderedIR | compiled.OrderedIR:
@@ -66,7 +67,6 @@ def compile_join(node: nodes.JoinNode, ordered: bool = True):
             left=left_ordered,
             right=right_ordered,
             join=node.join,
-            allow_row_identity_join=node.allow_row_identity_join,
         )
     else:
         left_unordered = compile_unordered_ir(node.left_child)
@@ -75,14 +75,13 @@ def compile_join(node: nodes.JoinNode, ordered: bool = True):
             left=left_unordered,
             right=right_unordered,
             join=node.join,
-            allow_row_identity_join=node.allow_row_identity_join,
         )
 
 
 @_compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
     array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
-    ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd)
+    ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd, node.schema)
     if ordered:
         return ordered_ir
     else:
@@ -181,15 +180,8 @@ def compile_reproject(node: nodes.ReprojectOpNode, ordered: bool = True):
 
 
 @_compile_node.register
-def compile_unpivot(node: nodes.UnpivotNode, ordered: bool = True):
-    return compile_node(node.child, ordered).unpivot(
-        node.row_labels,
-        node.unpivot_columns,
-        passthrough_columns=node.passthrough_columns,
-        index_col_ids=node.index_col_ids,
-        dtype=node.dtype,
-        how=node.how,
-    )
+def compiler_explode(node: nodes.ExplodeNode, ordered: bool = True):
+    return compile_node(node.child, ordered).explode(node.column_ids)
 
 
 @_compile_node.register

@@ -16,6 +16,7 @@
 
 import pathlib
 import re
+import textwrap
 
 from synthtool import gcp
 import synthtool as s
@@ -29,8 +30,8 @@ common = gcp.CommonTemplates()
 # Add templated files
 # ----------------------------------------------------------------------------
 templated_files = common.py_library(
-    unit_test_python_versions=["3.9", "3.10", "3.11"],
-    system_test_python_versions=["3.9", "3.11"],
+    unit_test_python_versions=["3.9", "3.10", "3.11", "3.12"],
+    system_test_python_versions=["3.9", "3.11", "3.12"],
     cov_level=35,
     intersphinx_dependencies={
         "pandas": "https://pandas.pydata.org/pandas-docs/stable/",
@@ -59,11 +60,40 @@ s.move(
 # Fixup files
 # ----------------------------------------------------------------------------
 
+# Encourage sharring all relevant versions in bug reports.
+s.replace(
+    [".github/ISSUE_TEMPLATE/bug_report.md"],
+    re.escape("#### Steps to reproduce\n"),
+    textwrap.dedent(
+        """
+        ```python
+        import sys
+        import bigframes
+        import google.cloud.bigquery
+        import ibis
+        import pandas
+        import pyarrow
+        import sqlglot
+        
+        print(f"Python: {sys.version}")
+        print(f"bigframes=={bigframes.__version__}")
+        print(f"google-cloud-bigquery=={google.cloud.bigquery.__version__}")
+        print(f"ibis=={ibis.__version__}")
+        print(f"pandas=={pandas.__version__}")
+        print(f"pyarrow=={pyarrow.__version__}")
+        print(f"sqlglot=={sqlglot.__version__}")
+        ```
+        
+        #### Steps to reproduce
+        """,
+    ),
+)
+
 # Make sure build includes all necessary files.
 s.replace(
     ["MANIFEST.in"],
     re.escape("recursive-include google"),
-    "recursive-include third_party *\nrecursive-include bigframes",
+    "recursive-include third_party/bigframes_vendored *\nrecursive-include bigframes",
 )
 
 # Even though BigQuery DataFrames isn't technically a client library, we are

@@ -23,7 +23,6 @@ import bigframes
 from bigframes import clients
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
-from bigframes.ml.globals import _SUPPORTED_DTYPES
 import bigframes.pandas as bpd
 
 _REMOTE_MODEL_STATUS = "remote_model_status"
@@ -31,12 +30,12 @@ _REMOTE_MODEL_STATUS = "remote_model_status"
 
 @log_adapter.class_logger
 class VertexAIModel(base.BaseEstimator):
-    """Remote model from a Vertex AI https endpoint. User must specify https endpoint, input schema and output schema.
-    How to deploy a model in Vertex AI https://cloud.google.com/bigquery/docs/bigquery-ml-remote-model-tutorial#Deploy-Model-on-Vertex-AI.
+    """Remote model from a Vertex AI HTTPS endpoint. User must specify HTTPS endpoint, input schema and output schema.
+    For more information, see Deploy model on Vertex AI: https://cloud.google.com/bigquery/docs/bigquery-ml-remote-model-tutorial#Deploy-Model-on-Vertex-AI.
 
     Args:
         endpoint (str):
-            Vertex AI https endpoint.
+            Vertex AI HTTPS endpoint.
         input (Mapping):
             Input schema: `{column_name: column_type}`. Supported types are "bool", "string", "int64", "float64", "array<bool>", "array<string>", "array<int64>", "array<float64>".
         output (Mapping):
@@ -45,8 +44,8 @@ class VertexAIModel(base.BaseEstimator):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
     """
 
     def __init__(
@@ -63,11 +62,9 @@ class VertexAIModel(base.BaseEstimator):
         self.output = output
         self.session = session or bpd.get_global_session()
 
-        self._bq_connection_manager = clients.BqConnectionManager(
-            self.session.bqconnectionclient, self.session.resourcemanagerclient
-        )
+        self._bq_connection_manager = self.session.bqconnectionmanager
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = self._bq_connection_manager.resolve_full_connection_name(
+        self.connection_name = clients.resolve_full_bq_connection_name(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -82,17 +79,19 @@ class VertexAIModel(base.BaseEstimator):
             raise ValueError(
                 "Must provide connection_name, either in constructor or through session options."
             )
-        connection_name_parts = self.connection_name.split(".")
-        if len(connection_name_parts) != 3:
-            raise ValueError(
-                f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+
+        if self._bq_connection_manager:
+            connection_name_parts = self.connection_name.split(".")
+            if len(connection_name_parts) != 3:
+                raise ValueError(
+                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
+                )
+            self._bq_connection_manager.create_bq_connection(
+                project_id=connection_name_parts[0],
+                location=connection_name_parts[1],
+                connection_id=connection_name_parts[2],
+                iam_role="aiplatform.user",
             )
-        self._bq_connection_manager.create_bq_connection(
-            project_id=connection_name_parts[0],
-            location=connection_name_parts[1],
-            connection_id=connection_name_parts[2],
-            iam_role="aiplatform.user",
-        )
 
         options = {
             "endpoint": self.endpoint,
@@ -102,9 +101,9 @@ class VertexAIModel(base.BaseEstimator):
             v = v.lower()
             v = v.replace("boolean", "bool")
 
-            if v not in _SUPPORTED_DTYPES:
+            if v not in globals._SUPPORTED_DTYPES:
                 raise ValueError(
-                    f"Data type {v} is not supported. We only support {', '.join(_SUPPORTED_DTYPES)}."
+                    f"Data type {v} is not supported. We only support {', '.join(globals._SUPPORTED_DTYPES)}."
                 )
 
             return v

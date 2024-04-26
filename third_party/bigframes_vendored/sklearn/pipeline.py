@@ -11,21 +11,22 @@ estimator, as a chain of transforms and estimators.
 
 from abc import ABCMeta
 
+from bigframes_vendored.sklearn.base import BaseEstimator
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class Pipeline(BaseEstimator, metaclass=ABCMeta):
     """Pipeline of transforms with a final estimator.
 
     Sequentially apply a list of transforms and a final estimator.
-    Intermediate steps of the pipeline must be `transforms`, that is, they
+    Intermediate steps of the pipeline must be `transforms`. That is, they
     must implement `fit` and `transform` methods.
     The final estimator only needs to implement `fit`.
 
     The purpose of the pipeline is to assemble several steps that can be
-    cross-validated together while setting different parameters. This simplifies code, and allows deploying an estimator
-    and peprocessing together, e.g. with `Pipeline.to_gbq(...).`
+    cross-validated together while setting different parameters. This simplifies code and allows for
+    deploying an estimator and preprocessing together, e.g. with `Pipeline.to_gbq(...).`
     """
 
     def fit(

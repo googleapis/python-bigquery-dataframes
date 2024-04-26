@@ -17,13 +17,14 @@ from __future__ import annotations
 import re
 from typing import cast, Literal, Optional, Union
 
+import bigframes_vendored.pandas.core.strings.accessor as vendorstr
+
 import bigframes.constants as constants
 from bigframes.core import log_adapter
 import bigframes.dataframe as df
 import bigframes.operations as ops
 import bigframes.operations.base
 import bigframes.series as series
-import third_party.bigframes_vendored.pandas.core.strings.accessor as vendorstr
 
 # Maps from python to re2
 REGEXP_FLAGS = {
@@ -52,7 +53,25 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         return self._apply_unary_op(ops.lower_op)
 
     def reverse(self) -> series.Series:
-        """Reverse strings in the Series."""
+        """Reverse strings in the Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
+            >>> s.str.reverse()
+            0     elppa
+            1    ananab
+            2
+            3      <NA>
+            dtype: string
+
+        Returns:
+            bigframes.series.Series: A Series of booleans indicating whether the given
+                pattern matches the start of each string element.
+        """
         # reverse method is in ibis, not pandas.
         return self._apply_unary_op(ops.reverse_op)
 

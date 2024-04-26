@@ -38,7 +38,9 @@ class BaseSqlGenerator:
             inner = ", ".join([self.encode_value(x) for x in v])
             return f"[{inner}]"
         else:
-            raise ValueError(f"Unexpected value type. {constants.FEEDBACK_LINK}")
+            raise ValueError(
+                f"Unexpected value type {type(v)}. {constants.FEEDBACK_LINK}"
+            )
 
     def build_parameters(self, **kwargs: Union[str, int, float, Iterable[str]]) -> str:
         """Encode a dict of values into a formatted Iterable of key-value pairs for SQL"""
@@ -175,6 +177,23 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         parts.append(f"AS {source_sql}")
         return "\n".join(parts)
 
+    def create_llm_remote_model(
+        self,
+        source_df: bpd.DataFrame,
+        connection_name: str,
+        model_ref: google.cloud.bigquery.ModelReference,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML"""
+        source_sql = source_df.sql
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        parts.append(self.connection(connection_name))
+        if options:
+            parts.append(self.options(**options))
+        parts.append(f"AS {source_sql}")
+        return "\n".join(parts)
+
     def create_remote_model(
         self,
         connection_name: str,
@@ -268,13 +287,21 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
 
-    def ml_generate_text_embedding(
+    def ml_generate_embedding(
         self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
-        """Encode ML.GENERATE_TEXT_EMBEDDING for BQML"""
+        """Encode ML.GENERATE_EMBEDDING for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
-        return f"""SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(MODEL `{self._model_name}`,
+        return f"""SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `{self._model_name}`,
   ({self._source_sql(source_df)}), {struct_options_sql})"""
+
+    def ml_detect_anomalies(
+        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+    ) -> str:
+        """Encode ML.DETECT_ANOMALIES for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.DETECT_ANOMALIES(MODEL `{self._model_name}`,
+  {struct_options_sql}, ({self._source_sql(source_df)}))"""
 
     # ML evaluation TVFs
     def ml_evaluate(self, source_df: Optional[bpd.DataFrame] = None) -> str:
@@ -294,6 +321,16 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
     def ml_arima_coefficients(self) -> str:
         """Encode ML.ARIMA_COEFFICIENTS for BQML"""
         return f"""SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `{self._model_name}`)"""
+
+    # ML evaluation TVFs
+    def ml_llm_evaluate(
+        self, source_df: bpd.DataFrame, task_type: Optional[str] = None
+    ) -> str:
+        """Encode ML.EVALUATE for BQML"""
+        # Note: don't need index as evaluate returns a new table
+        source_sql, _, _ = source_df._to_sql_query(include_index=False)
+        return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
+            ({source_sql}), STRUCT("{task_type}" AS task_type))"""
 
     # ML evaluation TVFs
     def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:

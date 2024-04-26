@@ -29,7 +29,7 @@ def to_datetime(
     .. note::
         The format strings for specifying datetime representations in BigQuery and pandas
         are not completely identical. Ensure that the format string provided is compatible
-        with BigQuery.
+        with BigQuery (https://cloud.google.com/bigquery/docs/reference/standard-sql/format-elements#format_elements_date_time).
 
     **Examples:**
 
@@ -48,7 +48,7 @@ def to_datetime(
         >>> bpd.to_datetime(list_str, format="%m-%d-%Y %H:%M", utc=True)
         0    2021-01-31 14:30:00+00:00
         1    2021-02-28 15:45:00+00:00
-        Name: 0, dtype: timestamp[us, tz=UTC][pyarrow]
+        dtype: timestamp[us, tz=UTC][pyarrow]
 
     Converting a Series of Strings with Timezone Information:
 

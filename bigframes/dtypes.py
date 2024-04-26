@@ -20,6 +20,8 @@ import textwrap
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
@@ -31,9 +33,6 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
-import third_party.bigframes_vendored.google_cloud_bigquery._pandas_helpers as gcb3p_pandas_helpers
-import third_party.bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import third_party.bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -48,19 +47,27 @@ Dtype = Union[
 # None represents the type of a None scalar.
 ExpressionType = typing.Optional[Dtype]
 
+
 INT_DTYPE = pd.Int64Dtype()
 FLOAT_DTYPE = pd.Float64Dtype()
 BOOL_DTYPE = pd.BooleanDtype()
 STRING_DTYPE = pd.StringDtype(storage="pyarrow")
+BYTES_DTYPE = pd.ArrowDtype(pa.binary())
+DATE_DTYPE = pd.ArrowDtype(pa.date32())
+TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
+DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
+TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+GEO_DTYPE = gpd.array.GeometryDtype()
 
-# On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
+# Used when storing Null expressions
+DEFAULT_DTYPE = FLOAT_DTYPE
 
 # Type hints for dtype strings supported by BigQuery DataFrame
 DtypeString = Literal[
     "boolean",
     "Float64",
     "Int64",
+    "int64[pyarrow]",
     "string",
     "string[pyarrow]",
     "timestamp[us, tz=UTC][pyarrow]",
@@ -68,7 +75,7 @@ DtypeString = Literal[
     "date32[day][pyarrow]",
     "time64[us][pyarrow]",
     "decimal128(38, 9)[pyarrow]",
-    "decimal256(38, 9)[pyarrow]",
+    "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
 ]
 
@@ -97,15 +104,61 @@ NUMERIC_BIGFRAMES_TYPES_PERMISSIVE = NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + [
     pd.ArrowDtype(pa.decimal256(76, 38)),
 ]
 
-# Type hints for Ibis data types that can be read to Python objects by BigQuery DataFrame
-ReadOnlyIbisDtype = Union[
-    ibis_dtypes.Binary,
-    ibis_dtypes.JSON,
-    ibis_dtypes.Decimal,
-    ibis_dtypes.GeoSpatial,
-    ibis_dtypes.Array,
-    ibis_dtypes.Struct,
-]
+
+## dtype predicates - use these to maintain consistency
+def is_datetime_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE)
+
+
+def is_date_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, DATE_DTYPE)
+
+
+def is_time_like(type: ExpressionType) -> bool:
+    return type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE)
+
+
+def is_binary_like(type: ExpressionType) -> bool:
+    return type in (BOOL_DTYPE, BYTES_DTYPE, INT_DTYPE)
+
+
+def is_string_like(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE)
+
+
+def is_array_like(type: ExpressionType) -> bool:
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.ListType
+    )
+
+
+def is_struct_like(type: ExpressionType) -> bool:
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.StructType
+    )
+
+
+def is_numeric(type: ExpressionType) -> bool:
+    return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+
+
+def is_iterable(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE) or is_array_like(type)
+
+
+def is_comparable(type: ExpressionType) -> bool:
+    return (type is not None) and is_orderable(type)
+
+
+def is_orderable(type: ExpressionType) -> bool:
+    # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
+    return not is_array_like(type) and not is_struct_like(type) and (type != GEO_DTYPE)
+
+
+def is_bool_coercable(type: ExpressionType) -> bool:
+    # TODO: Implement more bool coercions
+    return (type is None) or is_numeric(type) or is_string_like(type)
+
 
 BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
@@ -171,8 +224,11 @@ BIGFRAMES_STRING_TO_BIGFRAMES: Dict[DtypeString, Dtype] = {
 }
 
 # special case - string[pyarrow] doesn't include the storage in its name, and both
-# "string" and "string[pyarrow] are accepted"
+# "string" and "string[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarrow")
+
+# special case - both "Int64" and "int64[pyarrow]" are accepted
+BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = pd.Int64Dtype()
 
 # For the purposes of dataframe.memory_usage
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#data_type_sizes
@@ -186,6 +242,13 @@ DTYPE_BYTE_SIZES = {
     pd.ArrowDtype(pa.timestamp("us", tz="UTC")): 8,
     pd.ArrowDtype(pa.date32()): 8,
 }
+
+
+def dtype_for_etype(etype: ExpressionType) -> Dtype:
+    if etype is None:
+        return DEFAULT_DTYPE
+    else:
+        return etype
 
 
 def ibis_dtype_to_bigframes_dtype(
@@ -219,6 +282,12 @@ def ibis_dtype_to_bigframes_dtype(
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
+    elif isinstance(ibis_dtype, ibis_dtypes.Decimal):
+        # Temporary workaround for ibis decimal issue (b/323387826)
+        if ibis_dtype.precision >= 76:
+            return pd.ArrowDtype(pa.decimal256(76, 38))
+        else:
+            return pd.ArrowDtype(pa.decimal128(38, 9))
     elif isinstance(ibis_dtype, ibis_dtypes.Null):
         # Fallback to STRING for NULL values for most flexibility in SQL.
         return IBIS_TO_BIGFRAMES[ibis_dtypes.string]
@@ -277,10 +346,17 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
 
     if arrow_dtype in ARROW_TO_IBIS:
         return ARROW_TO_IBIS[arrow_dtype]
+    if arrow_dtype == pa.null():
+        # Used for empty local dataframes where pyarrow has null type
+        return ibis_dtypes.float64
     else:
         raise ValueError(
             f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
         )
+
+
+def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+    return ibis_dtype_to_bigframes_dtype(arrow_dtype_to_ibis_dtype(arrow_dtype))
 
 
 def bigframes_dtype_to_ibis_dtype(
@@ -311,11 +387,12 @@ def bigframes_dtype_to_ibis_dtype(
             textwrap.dedent(
                 f"""
                 Unexpected data type {bigframes_dtype}. The following
-                        str dtypes are supppted: 'boolean','Float64','Int64', 'string',
-                        'string[pyarrow]','timestamp[us, tz=UTC][pyarrow]',
-                        'timestamp[us][pyarrow]','date32[day][pyarrow]',
-                        'time64[us][pyarrow]'. The following pandas.ExtensionDtype are
-                        supported: pandas.BooleanDtype(), pandas.Float64Dtype(),
+                        str dtypes are supppted: 'boolean','Float64','Int64',
+                        'int64[pyarrow]','string','string[pyarrow]',
+                        'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
+                        'date32[day][pyarrow]','time64[us][pyarrow]'.
+                        The following pandas.ExtensionDtype are supported:
+                        pandas.BooleanDtype(), pandas.Float64Dtype(),
                         pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
                         pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
                         pd.ArrowDtype(pa.timestamp("us")),
@@ -435,6 +512,9 @@ def cast_ibis_value(
             ibis_dtypes.string,
             ibis_dtypes.Decimal(precision=38, scale=9),
             ibis_dtypes.Decimal(precision=76, scale=38),
+            ibis_dtypes.time,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
         ),
         ibis_dtypes.float64: (
             ibis_dtypes.string,
@@ -448,8 +528,15 @@ def cast_ibis_value(
             ibis_dtypes.Decimal(precision=38, scale=9),
             ibis_dtypes.Decimal(precision=76, scale=38),
             ibis_dtypes.binary,
+            ibis_dtypes.date,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
         ),
-        ibis_dtypes.date: (ibis_dtypes.string,),
+        ibis_dtypes.date: (
+            ibis_dtypes.string,
+            ibis_dtypes.timestamp,
+            ibis_dtypes.Timestamp(timezone="UTC"),
+        ),
         ibis_dtypes.Decimal(precision=38, scale=9): (
             ibis_dtypes.float64,
             ibis_dtypes.Decimal(precision=76, scale=38),
@@ -458,9 +545,24 @@ def cast_ibis_value(
             ibis_dtypes.float64,
             ibis_dtypes.Decimal(precision=38, scale=9),
         ),
-        ibis_dtypes.time: (),
-        ibis_dtypes.timestamp: (ibis_dtypes.Timestamp(timezone="UTC"),),
-        ibis_dtypes.Timestamp(timezone="UTC"): (ibis_dtypes.timestamp,),
+        ibis_dtypes.time: (
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+        ),
+        ibis_dtypes.timestamp: (
+            ibis_dtypes.date,
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+            ibis_dtypes.time,
+            ibis_dtypes.Timestamp(timezone="UTC"),
+        ),
+        ibis_dtypes.Timestamp(timezone="UTC"): (
+            ibis_dtypes.date,
+            ibis_dtypes.int64,
+            ibis_dtypes.string,
+            ibis_dtypes.time,
+            ibis_dtypes.timestamp,
+        ),
         ibis_dtypes.binary: (ibis_dtypes.string,),
     }
 
@@ -490,21 +592,6 @@ def cast_ibis_value(
     raise TypeError(
         f"Unsupported cast {value.type()} to {to_type}. {constants.FEEDBACK_LINK}"
     )
-
-
-def to_pandas_dtypes_overrides(schema: Iterable[bigquery.SchemaField]) -> Dict:
-    """For each STRUCT field, make sure we specify the full type to use."""
-    # TODO(swast): Also override ARRAY fields.
-    dtypes = {}
-    for field in schema:
-        if field.field_type == "RECORD" and field.mode != "REPEATED":
-            # TODO(swast): We're using a private API here. Would likely be
-            # better if we called `to_arrow()` and converted to a pandas
-            # DataFrame ourselves from that.
-            dtypes[field.name] = pd.ArrowDtype(
-                gcb3p_pandas_helpers.bq_to_arrow_data_type(field)
-            )
-    return dtypes
 
 
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
@@ -571,9 +658,14 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
     return None
 
 
-def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
-    if dtype1 == dtype2:
-        return dtype1
+def lcd_type(*dtypes: Dtype) -> Dtype:
+    if len(dtypes) < 1:
+        raise ValueError("at least one dypes should be provided")
+    if len(dtypes) == 1:
+        return dtypes[0]
+    unique_dtypes = set(dtypes)
+    if len(unique_dtypes) == 1:
+        return unique_dtypes.pop()
     # Implicit conversion currently only supported for numeric types
     hierarchy: list[Dtype] = [
         pd.BooleanDtype(),
@@ -582,18 +674,32 @@ def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
         pd.ArrowDtype(pa.decimal256(76, 38)),
         pd.Float64Dtype(),
     ]
-    if (dtype1 not in hierarchy) or (dtype2 not in hierarchy):
+    if any([dtype not in hierarchy for dtype in dtypes]):
         return None
-    lcd_index = max(hierarchy.index(dtype1), hierarchy.index(dtype2))
+    lcd_index = max([hierarchy.index(dtype) for dtype in dtypes])
     return hierarchy[lcd_index]
 
 
-def lcd_etype(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
-    if etype1 is None:
+def coerce_to_common(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
+    """Coerce types to a common type or throw a TypeError"""
+    if etype1 is not None and etype2 is not None:
+        common_supertype = lcd_type(etype1, etype2)
+        if common_supertype is not None:
+            return common_supertype
+    if can_coerce(etype1, etype2):
         return etype2
-    if etype2 is None:
+    if can_coerce(etype2, etype1):
         return etype1
-    return lcd_type_or_throw(etype1, etype2)
+    raise TypeError(f"Cannot coerce {etype1} and {etype2} to a common type.")
+
+
+def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool:
+    if source_type is None:
+        return True  # None can be coerced to any supported type
+    else:
+        return (source_type == STRING_DTYPE) and (
+            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+        )
 
 
 def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
@@ -611,6 +717,14 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
     # Temporary logic, use ibis inferred type
     ibis_literal = literal_to_ibis_scalar(literal)
     return ibis_dtype_to_bigframes_dtype(ibis_literal.type())
+
+
+def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
+    if pd.isna(literal):
+        return None  # Null value without a definite type
+    # Temporary logic, use ibis inferred type
+    ibis_literal = literal_to_ibis_scalar(literal)
+    return ibis_dtype_to_arrow_dtype(ibis_literal.type())
 
 
 # Input and output types supported by BigQuery DataFrames remote functions.
@@ -641,6 +755,17 @@ def ibis_type_from_python_type(t: type) -> ibis_dtypes.DataType:
 
 
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> ibis_dtypes.DataType:
+    """Convert bq type to ibis. Only to be used for remote functions, does not handle all types."""
     if tk not in SUPPORTED_IO_BIGQUERY_TYPEKINDS:
         raise UnsupportedTypeError(tk, SUPPORTED_IO_BIGQUERY_TYPEKINDS)
     return third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
+
+
+def bf_type_from_type_kind(bf_schema) -> Dict[str, Dtype]:
+    """Converts bigquery sql type to the default bigframes dtype."""
+    ibis_schema: ibis.Schema = third_party_ibis_bqtypes.BigQuerySchema.to_ibis(
+        bf_schema
+    )
+    return {
+        name: ibis_dtype_to_bigframes_dtype(type) for name, type in ibis_schema.items()
+    }

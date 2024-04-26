@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import google.api_core.exceptions
 from google.cloud import bigquery
 import pandas as pd
 import pytest
@@ -104,7 +105,8 @@ def test_remote_function_direct_no_session_param(
         reuse=True,
     )
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     assert square.bigframes_remote_function
     assert square.bigframes_cloud_function
@@ -156,7 +158,8 @@ def test_remote_function_direct_no_session_param_location_specified(
         reuse=True,
     )
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -206,7 +209,8 @@ def test_remote_function_direct_no_session_param_location_mismatched(
             reuse=True,
         )
         def square(x):
-            return x * x
+            # This executes on a remote function, where coverage isn't tracked.
+            return x * x  # pragma: NO COVER
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -232,7 +236,8 @@ def test_remote_function_direct_no_session_param_location_project_specified(
         reuse=True,
     )
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -282,7 +287,8 @@ def test_remote_function_direct_no_session_param_project_mismatched(
             reuse=True,
         )
         def square(x):
-            return x * x
+            # This executes on a remote function, where coverage isn't tracked.
+            return x * x  # pragma: NO COVER
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -293,7 +299,8 @@ def test_remote_function_direct_session_param(session_with_bq_connection, scalar
         session=session_with_bq_connection,
     )
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -330,7 +337,8 @@ def test_remote_function_via_session_default(session_with_bq_connection, scalars
     # cloud function would be common and quickly reused.
     @session_with_bq_connection.remote_function([int], int)
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -369,7 +377,8 @@ def test_remote_function_via_session_with_overrides(
         reuse=True,
     )
     def square(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -466,6 +475,40 @@ def test_series_map(session_with_bq_connection, scalars_dfs):
     )
 
 
+def test_skip_bq_connection_check(dataset_id_permanent):
+    connection_name = "connection_does_not_exist"
+    session = bigframes.Session(
+        context=bigframes.BigQueryOptions(
+            bq_connection=connection_name, skip_bq_connection_check=True
+        )
+    )
+
+    # Make sure that the connection does not exist
+    with pytest.raises(google.api_core.exceptions.NotFound):
+        session.bqconnectionclient.get_connection(
+            name=session.bqconnectionclient.connection_path(
+                session._project, session._location, connection_name
+            )
+        )
+
+    # Make sure that an attempt to create a remote function routine with
+    # non-existent connection would result in an exception thrown by the BQ
+    # service.
+    # This is different from the exception throw by the BQ Connection service
+    # if it was not able to create the connection because of lack of permission
+    # when skip_bq_connection_check was not set to True:
+    # google.api_core.exceptions.PermissionDenied: 403 Permission 'resourcemanager.projects.setIamPolicy' denied on resource
+    with pytest.raises(
+        google.api_core.exceptions.NotFound,
+        match=f"Not found: Connection {connection_name}",
+    ):
+
+        @session.remote_function([int], int, dataset=dataset_id_permanent)
+        def add_one(x):
+            # This executes on a remote function, where coverage isn't tracked.
+            return x + 1  # pragma: NO COVER
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_detects_invalid_function(bigquery_client, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
@@ -500,7 +543,8 @@ def test_read_gbq_function_like_original(
         reuse=True,
     )
     def square1(x):
-        return x * x
+        # This executes on a remote function, where coverage isn't tracked.
+        return x * x  # pragma: NO COVER
 
     square2 = rf.read_gbq_function(
         function_name=square1.bigframes_remote_function,

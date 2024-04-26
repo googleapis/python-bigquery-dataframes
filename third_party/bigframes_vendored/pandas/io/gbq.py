@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union
 
 from bigframes import constants
 
-FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">"]
+FilterOps = Literal["in", "not in", "<", "<=", "==", "!=", ">=", ">", "LIKE"]
 FilterType = Tuple[str, FilterOps, Any]
 FiltersType = Union[Iterable[FilterType], Iterable[Iterable[FilterType]]]
 
@@ -19,20 +19,25 @@ class GBQIOMixin:
         *,
         index_col: Iterable[str] | str = (),
         columns: Iterable[str] = (),
+        configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
         filters: FiltersType = (),
-        use_cache: bool = True,
+        use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
     ):
         """Loads a DataFrame from BigQuery.
 
-        BigQuery tables are an unordered, unindexed data source. By default,
-        the DataFrame will have an arbitrary index and ordering.
+        BigQuery tables are an unordered, unindexed data source. To add support
+        pandas-compatibility, the following indexing options are supported:
 
-        Set the `index_col` argument to one or more columns to choose an
-        index. The resulting DataFrame is sorted by the index columns. For the
-        best performance, ensure the index columns don't contain duplicate
-        values.
+        * (Default behavior) Add an arbitrary sequential index and ordering
+          using an an analytic windowed operation that prevents filtering
+          push down.
+        * (Recommended) Set the ``index_col`` argument to one or more columns.
+          Unique values for the row labels are recommended. Duplicate labels
+          are possible, but note that joins on a non-unique index can duplicate
+          rows and operations like ``cumsum()`` that window across a non-unique
+          index can have some non-deternimism.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a
@@ -104,15 +109,23 @@ class GBQIOMixin:
                 In tha case, will read all the matched table as one DataFrame.
             index_col (Iterable[str] or str):
                 Name of result column(s) to use for index in results DataFrame.
+
+                **New in bigframes version 1.3.0**: If ``index_cols`` is not
+                set, the primary key(s) of the table are used as the index.
             columns (Iterable[str]):
                 List of BigQuery column names in the desired order for results
                 DataFrame.
+            configuration (dict, optional):
+                Query config parameters for job processing.
+                For example: configuration = {'query': {'useQueryCache': False}}.
+                For more information see `BigQuery REST API Reference
+                <https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs#configuration.query>`__.
             max_results (Optional[int], default None):
                 If set, limit the maximum number of rows to fetch from the
                 query results.
             filters (Union[Iterable[FilterType], Iterable[Iterable[FilterType]]], default ()): To
                 filter out data. Filter syntax: [[(column, op, val), …],…] where
-                op is [==, >, >=, <, <=, !=, in, not in]. The innermost tuples
+                op is [==, >, >=, <, <=, !=, in, not in, LIKE]. The innermost tuples
                 are transposed into a set of filters applied through an AND
                 operation. The outer Iterable combines these sets of filters
                 through an OR operation. A single Iterable of tuples can also
@@ -121,8 +134,10 @@ class GBQIOMixin:
                 If using wildcard table suffix in query_or_table, can specify
                 '_table_suffix' pseudo column to filter the tables to be read
                 into the DataFrame.
-            use_cache (bool, default True):
-                Whether to cache the query inputs. Default to True.
+            use_cache (Optional[bool], default None):
+                Caches query results if set to `True`. When `None`, it behaves
+                as `True`, but should not be combined with `useQueryCache` in
+                `configuration` to avoid conflicts.
             col_order (Iterable[str]):
                 Alias for columns, retained for backwards compatibility.
 

@@ -136,7 +136,7 @@ def test_get_dummies_series(scalars_dfs):
 
     # adjust for expected dtype differences
     for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
-        if type_name == "bool":
+        if type_name == "bool":  # pragma: NO COVER
             pd_result[column_name] = pd_result[column_name].astype("boolean")
     pd_result.columns = pd_result.columns.astype(object)
 
@@ -157,7 +157,7 @@ def test_get_dummies_series_nameless(scalars_dfs):
 
     # adjust for expected dtype differences
     for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
-        if type_name == "bool":
+        if type_name == "bool":  # pragma: NO COVER
             pd_result[column_name] = pd_result[column_name].astype("boolean")
     pd_result.columns = pd_result.columns.astype(object)
 
@@ -425,6 +425,58 @@ def test_cut_default_labels(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("breaks",),
+    [
+        ([0, 5, 10, 15, 20, 100, 1000],),  # ints
+        ([0.5, 10.5, 15.5, 20.5, 100.5, 1000.5],),  # floats
+        ([0, 5, 10.5, 15.5, 20, 100, 1000.5],),  # mixed
+    ],
+)
+def test_cut_numeric_breaks(scalars_dfs, breaks):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], breaks)
+    bf_result = bpd.cut(scalars_df["float64_col"], breaks).to_pandas()
+
+    # Convert to match data format
+    pd_result_converted = pd.Series(
+        [
+            {"left_exclusive": interval.left, "right_inclusive": interval.right}
+            if pd.notna(val)
+            else pd.NA
+            for val, interval in zip(
+                pd_result, pd_result.cat.categories[pd_result.cat.codes]
+            )
+        ],
+        name=pd_result.name,
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result, pd_result_converted, check_index=False, check_dtype=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("bins",),
+    [
+        (-1,),  # negative integer bins argument
+        ([],),  # empty iterable of bins
+        (["notabreak"],),  # iterable of wrong type
+        ([1],),  # numeric breaks with only one numeric
+        # this is supported by pandas but not by
+        # the bigquery operation and a bigframes workaround
+        # is not yet available. Should return column
+        # of structs with all NaN values.
+    ],
+)
+def test_cut_errors(scalars_dfs, bins):
+    scalars_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        bpd.cut(scalars_df["float64_col"], bins)
+
+
+@pytest.mark.parametrize(
     ("bins",),
     [
         ([(-5, 2), (2, 3), (-3000, -10)],),
@@ -536,6 +588,49 @@ def test_to_datetime_series(scalars_dfs):
         bpd.to_datetime(scalars_df[col], unit="s").to_pandas().astype("datetime64[s]")
     )
     pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s"))
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("arg", "unit"),
+    [
+        ([1, 2, 3], "W"),
+        ([1, 2, 3], "d"),
+        ([1, 2, 3], "D"),
+        ([1, 2, 3], "h"),
+        ([1, 2, 3], "m"),
+        ([20242330, 25244685, 34324234], "s"),
+        ([20242330000, 25244685000, 34324234000], "ms"),
+        ([20242330000000, 25244685000000, 34324234000000], "us"),
+        ([20242330000000000, 25244685000000000, 34324234000000000], "ns"),
+    ],
+)
+def test_to_datetime_unit_param(arg, unit):
+    bf_result = bpd.to_datetime(arg, unit=unit).to_pandas().astype("datetime64[ns]")
+    pd_result = pd.Series(pd.to_datetime(arg, unit=unit)).dt.floor("us")
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "format"),
+    [
+        ([20230110, 20230101, 20230101], False, "%Y%m%d"),
+        ([201301.01], False, "%Y%m.%d"),
+        (["2023-01-10", "2023-01-20", "2023-01-01"], True, "%Y-%m-%d"),
+        (["2014-08-15 07:19"], True, "%Y-%m-%d %H:%M"),
+    ],
+)
+def test_to_datetime_format_param(arg, utc, format):
+    bf_result = (
+        bpd.to_datetime(arg, utc=utc, format=format)
+        .to_pandas()
+        .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
+    )
+    pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
