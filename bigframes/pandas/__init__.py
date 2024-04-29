@@ -633,7 +633,7 @@ read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
 def remote_function(
-    input_types: Union[Literal["row"], Sequence[type]],
+    input_types: Union[type, Sequence[type], Literal["row"]],
     output_type: type,
     dataset: Optional[str] = None,
     bigquery_connection: Optional[str] = None,

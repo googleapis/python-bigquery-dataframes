@@ -1538,7 +1538,7 @@ class Session(
 
     def remote_function(
         self,
-        input_types: Union[Literal["row"], Sequence[type]],
+        input_types: Union[type, Sequence[type], Literal["row"]],
         output_type: type,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
@@ -1592,10 +1592,10 @@ class Session(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (list(type) or "row"):
-                For scalar user defined function it should be a list of input.
-                For row processing user defined function, literal "row" should
-                be specified.
+            input_types (type, sequence(type) or "row"):
+                For scalar user defined function it should be the input type or
+                sequence of input types. For row processing user defined function,
+                literal "row" should be specified.
             output_type (type):
                 Data type of the output in the user defined function.
             dataset (str, Optional):
