@@ -20,47 +20,55 @@ from __future__ import annotations
 
 import datetime
 import itertools
-import os
 import textwrap
-import types
 import typing
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
-import uuid
+from typing import Dict, Iterable, List, Optional, Tuple
 import warnings
 
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import ibis
 import ibis.backends
+import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes
-import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.constants as constants
-from bigframes.core import log_adapter
 import bigframes.core as core
-import bigframes.core.blocks as blocks
 import bigframes.core.compile
 import bigframes.core.guid as guid
-import bigframes.core.nodes as nodes
-from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
-import bigframes.core.tree_properties as traversals
-import bigframes.core.tree_properties as tree_properties
-import bigframes.core.utils as utils
 import bigframes.dtypes
-import bigframes.formatting_helpers as formatting_helpers
-from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
-from bigframes.functions.remote_function import remote_function as bigframes_rf
-import bigframes.session._io.bigquery as bigframes_io
 import bigframes.session._io.bigquery.read_gbq_table
 import bigframes.session.clients
 import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
+    import bigframes.session
+
+
+def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringValue:
+    col_type = column.type()
+    if (
+        col_type.is_numeric()
+        or col_type.is_boolean()
+        or col_type.is_binary()
+        or col_type.is_temporal()
+    ):
+        result = column.cast(ibis_dtypes.String(nullable=True))
+    elif col_type.is_geospatial():
+        result = typing.cast(ibis_types.GeoSpatialColumn, column).as_text()
+    elif col_type.is_string():
+        result = column
+    else:
+        # TO_JSON_STRING works with all data types, but isn't the most efficient
+        # Needed for JSON, STRUCT and ARRAY datatypes
+        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
+    # Escape backslashes and use backslash as delineator
+    escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace("\\", "\\\\")  # type: ignore
+    return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
 
 
 def get_table_metadata(
@@ -153,20 +161,26 @@ def get_ibis_time_travel_table(
 
 
 def _check_index_uniqueness(
-    self, table: ibis_types.Table, index_cols: List[str]
+    bqclient: bigquery.Client,
+    ibis_client: ibis.BaseBackend,
+    table: ibis_types.Table,
+    index_cols: List[str],
+    api_name: str,
 ) -> bool:
     distinct_table = table.select(*index_cols).distinct()
     is_unique_sql = f"""WITH full_table AS (
-        {self.ibis_client.compile(table)}
+        {ibis_client.compile(table)}
     ),
     distinct_table AS (
-        {self.ibis_client.compile(distinct_table)}
+        {ibis_client.compile(distinct_table)}
     )
 
     SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
     (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
     """
-    results, _ = self._start_query(is_unique_sql)
+    job_config = bigquery.QueryJobConfig()
+    job_config.labels["bigframes-api"] = api_name
+    results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
     total_count = row["total_count"]
@@ -193,8 +207,12 @@ def _get_primary_keys(
 
 
 def get_index_cols_and_uniqueness(
+    bqclient: bigquery.Client,
+    ibis_client: ibis.BaseBackend,
     table: bigquery.table.Table,
-    index_col: Iterable[str] | str = (),
+    table_expression: ibis_types.Table,
+    index_col: Iterable[str] | str,
+    api_name: str,
 ) -> Tuple[List[str], bool]:
     """
     If we can get a total ordering from the table, such as via primary key
@@ -214,30 +232,25 @@ def get_index_cols_and_uniqueness(
     if len(index_cols) == 0:
         index_cols = _get_primary_keys(table)
 
+        # TODO(b/335727141): If table has clustering/partitioning, fail if
+        # index_cols is empty.
+
         # If there are primary keys defined, the query engine assumes these
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
-        is_index_unique = True
+        is_index_unique = len(index_cols) != 0
     else:
-        is_index_unique = _check_index_uniqueness(table, index_cols, api_name)
+        is_index_unique = _check_index_uniqueness(
+            bqclient=bqclient,
+            ibis_client=ibis_client,
+            # TODO(b/337925142): Avoid a "SELECT *" subquery here by using
+            # _create_time_travel_sql with just index_cols.
+            table=table_expression,
+            index_cols=index_cols,
+            api_name=api_name,
+        )
 
     return index_cols, is_index_unique
-
-    total_ordering_cols = primary_keys
-
-    # TODO: warn if partitioned and/or clustered except if:
-    # primary_keys, index_col, or filters
-    # Except it looks like filters goes through the query path?
-
-    if not index_col and primary_keys is not None:
-        index_col = primary_keys
-
-    if isinstance(index_col, str):
-        index_cols = [index_col]
-    else:
-        index_cols = list(index_col)
-
-    return index_cols, total_ordering_cols
 
 
 def get_time_travel_datetime_and_table_metadata(
@@ -293,31 +306,43 @@ def get_time_travel_datetime_and_table_metadata(
     return cached_table
 
 
-def to_ibis_table_with_time_travel(
-    ibis_client: ibis.Backend,
-    table_ref: bigquery.table.TableReference,
-    snapshot_timestamp: datetime.datetime,
-) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
-    """Create a read-only Ibis table expression representing a table."""
-    try:
-        table_expression = ibis_client.sql(
-            create_snapshot_sql(table_ref, snapshot_timestamp)
-        )
-    except google.api_core.exceptions.Forbidden as ex:
-        if "Drive credentials" in ex.message:
-            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-        raise
-
-    return table_expression
-
-
 def to_array_value_with_total_ordering(
-    self,
-    table: ibis_types.Table,
+    session: bigframes.session.Session,
+    table_expression: ibis_types.Table,
+    total_ordering_cols: List[str],
 ) -> core.ArrayValue:
+    """Create an ArrayValue, assuming we already have a total ordering."""
+    ordering = order.ExpressionOrdering(
+        ordering_value_columns=tuple(
+            order.ascending_over(column_id) for column_id in total_ordering_cols
+        ),
+        total_ordering_columns=frozenset(total_ordering_cols),
+    )
+    column_values = [table_expression[col] for col in table_expression.columns]
+    return core.ArrayValue.from_ibis(
+        session,
+        table_expression,
+        columns=column_values,
+        hidden_ordering_columns=[],
+        ordering=ordering,
+    )
+
+
+def to_array_value_with_default_ordering(
+    session: bigframes.session.Session,
+    table: ibis_types.Table,
+    table_rows: Optional[int],
+) -> core.ArrayValue:
+    """Create an ArrayValue with a deterministic default ordering."""
     # Since this might also be used as the index, don't use the default
     # "ordering ID" name.
+
+    # For small tables, 64 bits is enough to avoid collisions, 128 bits will never ever collide no matter what
+    # Assume table is large if table row count is unknown
+    use_double_hash = (table_rows is None) or (table_rows == 0) or (table_rows > 100000)
+
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
+    ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
     ordering_rand_part = guid.generate_guid("bigframes_ordering_")
 
     # All inputs into hash must be non-null or resulting hash will be null
@@ -328,27 +353,32 @@ def to_array_value_with_total_ordering(
         str_values[0].concat(*str_values[1:]) if len(str_values) > 1 else str_values[0]
     )
     full_row_hash = full_row_str.hash().name(ordering_hash_part)
+    # By modifying value slightly, we get another hash uncorrelated with the first
+    full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
     # Used to disambiguate between identical rows (which will have identical hash)
     random_value = ibis.random().name(ordering_rand_part)
 
-    original_column_ids = table.columns
-    table_with_ordering = table.select(
-        itertools.chain(original_column_ids, [full_row_hash, random_value])
+    order_values = (
+        [full_row_hash, full_row_hash_p2, random_value]
+        if use_double_hash
+        else [full_row_hash, random_value]
     )
 
-    ordering_ref1 = order.ascending_over(ordering_hash_part)
-    ordering_ref2 = order.ascending_over(ordering_rand_part)
+    original_column_ids = table.columns
+    table_with_ordering = table.select(
+        itertools.chain(original_column_ids, order_values)
+    )
+
     ordering = order.ExpressionOrdering(
-        ordering_value_columns=(ordering_ref1, ordering_ref2),
-        total_ordering_columns=frozenset([ordering_hash_part, ordering_rand_part]),
+        ordering_value_columns=tuple(
+            order.ascending_over(col.get_name()) for col in order_values
+        ),
+        total_ordering_columns=frozenset(col.get_name() for col in order_values),
     )
     columns = [table_with_ordering[col] for col in original_column_ids]
-    hidden_columns = [
-        table_with_ordering[ordering_hash_part],
-        table_with_ordering[ordering_rand_part],
-    ]
+    hidden_columns = [table_with_ordering[col.get_name()] for col in order_values]
     return core.ArrayValue.from_ibis(
-        self,
+        session,
         table_with_ordering,
         columns,
         hidden_ordering_columns=hidden_columns,
