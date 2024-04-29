@@ -44,6 +44,14 @@ def array_length(series: series.Series) -> series.Series:
         2    2
         dtype: Int64
 
+    You can also apply this function directly to Series.
+
+        >>> s.apply(bbq.array_length, by_row=False)
+        0    4
+        1    0
+        2    2
+        dtype: Int64
+
     Returns:
         bigframes.series.Series: A Series of integer values indicating
             the length of each element in the Series.
