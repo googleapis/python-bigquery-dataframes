@@ -54,6 +54,7 @@ import google.api_core.exceptions
 import google.api_core.gapic_v1.client_info
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.table
 import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
@@ -693,7 +694,7 @@ class Session(
 
     def _get_snapshot_sql_and_primary_key(
         self,
-        table_ref: bigquery.table.TableReference,
+        table: google.cloud.bigquery.table.Table,
         *,
         api_name: str,
         use_cache: bool = True,
@@ -709,7 +710,7 @@ class Session(
             table,
         ) = bigframes_io.get_snapshot_datetime_and_table_metadata(
             self.bqclient,
-            table_ref=table_ref,
+            table_ref=table.reference,
             api_name=api_name,
             cache=self._df_snapshot,
             use_cache=use_cache,
@@ -735,7 +736,7 @@ class Session(
 
         try:
             table_expression = self.ibis_client.sql(
-                bigframes_io.create_snapshot_sql(table_ref, snapshot_timestamp)
+                bigframes_io.create_snapshot_sql(table.reference, snapshot_timestamp)
             )
         except google.api_core.exceptions.Forbidden as ex:
             if "Drive credentials" in ex.message:
@@ -763,8 +764,9 @@ class Session(
             query, default_project=self.bqclient.project
         )
 
+        table = self.bqclient.get_table(table_ref)
         (table_expression, primary_keys,) = self._get_snapshot_sql_and_primary_key(
-            table_ref, api_name=api_name, use_cache=use_cache
+            table, api_name=api_name, use_cache=use_cache
         )
         total_ordering_cols = primary_keys
 
@@ -836,9 +838,13 @@ class Session(
                     ordering=ordering,
                 )
             else:
-                array_value = self._create_total_ordering(table_expression)
+                array_value = self._create_total_ordering(
+                    table_expression, table_rows=table.num_rows
+                )
         else:
-            array_value = self._create_total_ordering(table_expression)
+            array_value = self._create_total_ordering(
+                table_expression, table_rows=table.num_rows
+            )
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(
@@ -1459,10 +1465,19 @@ class Session(
     def _create_total_ordering(
         self,
         table: ibis_types.Table,
+        table_rows: Optional[int],
     ) -> core.ArrayValue:
         # Since this might also be used as the index, don't use the default
         # "ordering ID" name.
+
+        # For small tables, 64 bits is enough to avoid collisions, 128 bits will never ever collide no matter what
+        # Assume table is large if table row count is unknown
+        use_double_hash = (
+            (table_rows is None) or (table_rows == 0) or (table_rows > 100000)
+        )
+
         ordering_hash_part = guid.generate_guid("bigframes_ordering_")
+        ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
         ordering_rand_part = guid.generate_guid("bigframes_ordering_")
 
         # All inputs into hash must be non-null or resulting hash will be null
@@ -1475,25 +1490,30 @@ class Session(
             else str_values[0]
         )
         full_row_hash = full_row_str.hash().name(ordering_hash_part)
+        # By modifying value slightly, we get another hash uncorrelated with the first
+        full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
         # Used to disambiguate between identical rows (which will have identical hash)
         random_value = ibis.random().name(ordering_rand_part)
 
-        original_column_ids = table.columns
-        table_with_ordering = table.select(
-            itertools.chain(original_column_ids, [full_row_hash, random_value])
+        order_values = (
+            [full_row_hash, full_row_hash_p2, random_value]
+            if use_double_hash
+            else [full_row_hash, random_value]
         )
 
-        ordering_ref1 = order.ascending_over(ordering_hash_part)
-        ordering_ref2 = order.ascending_over(ordering_rand_part)
+        original_column_ids = table.columns
+        table_with_ordering = table.select(
+            itertools.chain(original_column_ids, order_values)
+        )
+
         ordering = order.ExpressionOrdering(
-            ordering_value_columns=(ordering_ref1, ordering_ref2),
-            total_ordering_columns=frozenset([ordering_hash_part, ordering_rand_part]),
+            ordering_value_columns=tuple(
+                order.ascending_over(col.get_name()) for col in order_values
+            ),
+            total_ordering_columns=frozenset(col.get_name() for col in order_values),
         )
         columns = [table_with_ordering[col] for col in original_column_ids]
-        hidden_columns = [
-            table_with_ordering[ordering_hash_part],
-            table_with_ordering[ordering_rand_part],
-        ]
+        hidden_columns = [table_with_ordering[col.get_name()] for col in order_values]
         return core.ArrayValue.from_ibis(
             self,
             table_with_ordering,
@@ -1529,6 +1549,7 @@ class Session(
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
         max_batching_rows: Optional[int] = 1000,
+        cloud_function_timeout: Optional[int] = 600,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1632,6 +1653,16 @@ class Session(
                 `None` can be passed to let BQ remote functions service apply
                 default batching. See for more details
                 https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
+            cloud_function_timeout (int, Optional):
+                The maximum amount of time (in seconds) BigQuery should wait for
+                the cloud function to return a response. See for more details
+                https://cloud.google.com/functions/docs/configuring/timeout.
+                Please note that even though the cloud function (2nd gen) itself
+                allows seeting up to 60 minutes of timeout, BigQuery remote
+                function can wait only up to 20 minutes, see for more details
+                https://cloud.google.com/bigquery/quotas#remote_function_limits.
+                By default BigQuery DataFrames uses a 10 minute timeout. `None`
+                can be passed to let the cloud functions default timeout take effect.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1654,6 +1685,7 @@ class Session(
             cloud_function_kms_key_name=cloud_function_kms_key_name,
             cloud_function_docker_repository=cloud_function_docker_repository,
             max_batching_rows=max_batching_rows,
+            cloud_function_timeout=cloud_function_timeout,
         )
 
     def read_gbq_function(
