@@ -873,7 +873,9 @@ def remote_function(
         is_row_processor = True
 
     # Some defaults may be used from the session if not provided otherwise
-    session = session or bigframes.pandas.get_global_session()
+    import bigframes.pandas as bpd
+
+    session = session or bpd.get_global_session()
 
     # A BigQuery client is required to perform BQ operations
     if not bigquery_client:
