@@ -51,7 +51,6 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 from bigframes import clients
 import bigframes.constants as constants
 import bigframes.dtypes
-import bigframes.pandas
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +305,11 @@ def get_pd_series(row):
     col_values = row_json["values"]
     index_names = row_json["index"]
 
+    # index and column names are not necessarily strings
+    # they are serialized as repr(repr(name)) at source
+    col_names = [eval(name) for name in col_names]
+    index_names = [eval(name) for name in index_names]
+
     value_converters = {
         "boolean": lambda val: val == "true",
         "Int64": int,
@@ -314,11 +318,11 @@ def get_pd_series(row):
     }
 
     def convert_value(value, value_type):
-        if value is None:
-            return None
         value_converter = value_converters.get(value_type)
         if value_converter is None:
             raise ValueError(f"Don't know how to handle type '{value_type}'")
+        if value is None:
+            return None
         return value_converter(value)
 
     index_positions = [col_names.index(col) for col in index_names]

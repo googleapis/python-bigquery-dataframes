@@ -2056,17 +2056,25 @@ class Block:
     def _get_rows_as_json_values(self) -> Block:
         sql, index_column_ids, _ = self.to_sql_query(include_index=True)
 
-        # all column names, types and values
+        # all column names
         all_column_names = index_column_ids + [col for col in self.column_labels]
-        column_names_csv = ", ".join([f'"{col}"' for col in all_column_names])
-        column_references_csv = ", ".join(
-            [f"CAST({col} AS STRING)" for col in all_column_names]
-        )
-        all_column_types = list(self.index.dtypes) + list(self.dtypes)
-        column_types_csv = ", ".join([f'"{col}"' for col in all_column_types])
+        column_names_csv = ", ".join([repr(repr(col)) for col in all_column_names])
 
         # index column names
-        index_column_names_csv = ", ".join([f'"{col}"' for col in index_column_ids])
+        index_column_names_csv = ", ".join(
+            [repr(repr(col)) for col in index_column_ids]
+        )
+
+        # column names produced by the block sql, which may be different from
+        # the column labels due to internal normalization
+        sql_output_column_names = self.session.ibis_client.sql(sql).columns
+        column_references_csv = ", ".join(
+            [f"CAST(`{col}` AS STRING)" for col in sql_output_column_names]
+        )
+
+        # all column types
+        all_column_types = list(self.index.dtypes) + list(self.dtypes)
+        column_types_csv = ", ".join([f'"{col}"' for col in all_column_types])
 
         row_json_column_name = guid.generate_guid()
         select_columns = index_column_ids + [row_json_column_name]

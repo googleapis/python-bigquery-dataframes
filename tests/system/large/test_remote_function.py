@@ -1389,12 +1389,11 @@ def test_remote_function_gcf_timeout_max_supported_exceeded(session):
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs):
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
     try:
-        columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
-        scalars_df, scalars_pandas_df = scalars_dfs
 
         def serialize_row(row):
-
             custom = {
                 "name": row.name,
                 "index": [idx for idx in row.index],
@@ -1414,7 +1413,9 @@ def test_df_apply_axis_1(session, scalars_dfs):
                 }
             )
 
-        serialize_row_remote = session.remote_function("row", str)(serialize_row)
+        serialize_row_remote = session.remote_function("row", str, reuse=False)(
+            serialize_row
+        )
 
         bf_result = scalars_df[columns].apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = scalars_pandas_df[columns].apply(serialize_row, axis=1)
@@ -1422,6 +1423,58 @@ def test_df_apply_axis_1(session, scalars_dfs):
         # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
         # , ignore this mismatch by using check_dtype=False.
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_non_string_column_names(session):
+    pd_df = pandas.DataFrame(
+        {"one": [1, 2, 3], 2: [1.5, 3.75, 5], (3, 4): ["pq", "rs", "tu"]}
+    )
+    bf_df = session.read_pandas(pd_df)
+
+    try:
+
+        def serialize_row(row):
+            custom = {
+                "name": row.name,
+                "index": [idx for idx in row.index],
+                "values": [
+                    val.item() if hasattr(val, "item") else val for val in row.values
+                ],
+            }
+
+            return str(
+                {
+                    "default": row.to_json(),
+                    "split": row.to_json(orient="split"),
+                    "records": row.to_json(orient="records"),
+                    "index": row.to_json(orient="index"),
+                    "table": row.to_json(orient="table"),
+                    "custom": custom,
+                }
+            )
+
+        serialize_row_remote = session.remote_function("row", str, reuse=False)(
+            serialize_row
+        )
+
+        bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
+        pd_result = pd_df.apply(serialize_row, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        #
+        # bf_result.index[0].dtype is 'string[pyarrow]' while
+        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
+        # check_index_type=False.
+        pandas.testing.assert_series_equal(
+            pd_result, bf_result, check_dtype=False, check_index_type=False
+        )
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -1440,7 +1493,7 @@ def test_df_apply_axis_1_multiindex(session):
     try:
 
         def serialize_row(row):
-            row_dict = {
+            custom = {
                 "name": row.name,
                 "index": [idx for idx in row.index],
                 "values": [
@@ -1448,9 +1501,19 @@ def test_df_apply_axis_1_multiindex(session):
                 ],
             }
 
-            return str(row_dict)
+            return str(
+                {
+                    "default": row.to_json(),
+                    "split": row.to_json(orient="split"),
+                    "records": row.to_json(orient="records"),
+                    "index": row.to_json(orient="index"),
+                    "custom": custom,
+                }
+            )
 
-        serialize_row_remote = session.remote_function("row", str)(serialize_row)
+        serialize_row_remote = session.remote_function("row", str, reuse=False)(
+            serialize_row
+        )
 
         bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = pd_df.apply(serialize_row, axis=1)
@@ -1468,4 +1531,32 @@ def test_df_apply_axis_1_multiindex(session):
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )
+
+
+@pytest.mark.parametrize(
+    ("column"),
+    [
+        pytest.param("date_col"),
+        pytest.param("datetime_col"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, column):
+    scalars_df, _ = scalars_dfs
+
+    try:
+
+        @session.remote_function("row", str, reuse=False)
+        def echo(row):
+            return row[column]
+
+        with pytest.raises(
+            BadRequest, match="400.*errorMessage.*Don't know how to handle type"
+        ):
+            scalars_df[[column]].apply(echo, axis=1).to_pandas()
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, echo
         )
