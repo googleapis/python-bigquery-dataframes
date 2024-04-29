@@ -3313,7 +3313,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ops.RemoteFunctionOp(func=func, apply_on_null=True)
             )
             result_series.name = None
-            return result_series
+
+            # return Series with materialized result so that any error in the remote
+            # function is caught early
+            materialized_series = result_series._cached()
+            return materialized_series
 
         # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}

@@ -1583,7 +1583,7 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, column):
         with pytest.raises(
             BadRequest, match="400.*errorMessage.*Don't know how to handle type"
         ):
-            scalars_df[[column]].apply(echo, axis=1).to_pandas()
+            scalars_df[[column]].apply(echo, axis=1)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
