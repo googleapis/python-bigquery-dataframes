@@ -1460,6 +1460,42 @@ def test_df_apply_axis_1(session, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_aggregates(session, scalars_dfs):
+    columns = ["int64_col", "int64_too", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        def analyze(row):
+            return str(
+                {
+                    "count": row.count(),
+                    "min": row.max(),
+                    "max": row.max(),
+                    "mean": row.mean(),
+                    "std": row.std(),
+                    "var": row.var(),
+                }
+            )
+
+        analyze_remote = session.remote_function("row", str)(analyze)
+
+        bf_result = (
+            scalars_df[columns].dropna().apply(analyze_remote, axis=1).to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].dropna().apply(analyze, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, analyze_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_non_string_column_names(session):
     pd_df = pandas.DataFrame(
         {"one": [1, 2, 3], 2: [1.5, 3.75, 5], (3, 4): ["pq", "rs", "tu"]}
