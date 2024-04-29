@@ -23,6 +23,7 @@ import itertools
 import os
 import textwrap
 import types
+import typing
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 import uuid
 import warnings
@@ -30,6 +31,7 @@ import warnings
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import ibis
+import ibis.backends
 import ibis.expr.types as ibis_types
 
 import bigframes
@@ -61,6 +63,95 @@ if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
 
 
+def get_table_metadata(
+    bqclient: bigquery.Client,
+    table_ref: google.cloud.bigquery.table.TableReference,
+    *,
+    api_name: str,
+    cache: Dict[bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]],
+    use_cache: bool = True,
+) -> Tuple[datetime.datetime, google.cloud.bigquery.table.Table]:
+    """Get the table metadata, either from cache or via REST API."""
+
+    cached_table = cache.get(table_ref)
+    if use_cache and cached_table is not None:
+        snapshot_timestamp, _ = cached_table
+
+        # Cache hit could be unexpected. See internal issue 329545805.
+        # Raise a warning with more information about how to avoid the
+        # problems with the cache.
+        warnings.warn(
+            f"Reading cached table from {snapshot_timestamp} to avoid "
+            "incompatibilies with previous reads of this table. To read "
+            "the latest version, set `use_cache=False` or close the "
+            "current session with Session.close() or "
+            "bigframes.pandas.close_session().",
+            # There are many layers before we get to (possibly) the user's code:
+            # pandas.read_gbq_table
+            # -> with_default_session
+            # -> Session.read_gbq_table
+            # -> _read_gbq_table
+            # -> _get_snapshot_sql_and_primary_key
+            # -> get_snapshot_datetime_and_table_metadata
+            stacklevel=7,
+        )
+        return cached_table
+
+    # TODO(swast): It's possible that the table metadata is changed between now
+    # and when we run the CURRENT_TIMESTAMP() query to see when we can time
+    # travel to. Find a way to fetch the table metadata and BQ's current time
+    # atomically.
+    table = bqclient.get_table(table_ref)
+
+    # TODO(b/336521938): Refactor to make sure we set the "bigframes-api"
+    # whereever we execute a query.
+    job_config = bigquery.QueryJobConfig()
+    job_config.labels["bigframes-api"] = api_name
+    snapshot_timestamp = list(
+        bqclient.query(
+            "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
+            job_config=job_config,
+        ).result()
+    )[0][0]
+    cached_table = (snapshot_timestamp, table)
+    cache[table_ref] = cached_table
+    return cached_table
+
+
+def _create_time_travel_sql(
+    table_ref: bigquery.TableReference, time_travel_timestamp: datetime.datetime
+) -> str:
+    """Query a table via 'time travel' for consistent reads."""
+    # If we have an anonymous query results table, it can't be modified and
+    # there isn't any BigQuery time travel.
+    if table_ref.dataset_id.startswith("_"):
+        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
+
+    return textwrap.dedent(
+        f"""
+        SELECT *
+        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
+        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(time_travel_timestamp.isoformat())})
+        """
+    )
+
+
+def get_ibis_time_travel_table(
+    ibis_client: ibis.BaseBackend,
+    table_ref: bigquery.TableReference,
+    time_travel_timestamp: datetime.datetime,
+) -> ibis_types.Table:
+    try:
+        return ibis_client.sql(
+            bigframes_io.create_snapshot_sql(table_ref, time_travel_timestamp)
+        )
+    except google.api_core.exceptions.Forbidden as ex:
+        # Ibis does a dry run to get the types of the columns from the SQL.
+        if "Drive credentials" in ex.message:
+            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+        raise
+
+
 def _check_index_uniqueness(
     self, table: ibis_types.Table, index_cols: List[str]
 ) -> bool:
@@ -81,78 +172,6 @@ def _check_index_uniqueness(
     total_count = row["total_count"]
     distinct_count = row["distinct_count"]
     return total_count == distinct_count
-
-
-def create_snapshot_sql(
-    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
-) -> str:
-    """Query a table via 'time travel' for consistent reads."""
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
-
-    return textwrap.dedent(
-        f"""
-        SELECT *
-        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
-        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
-        """
-    )
-
-
-def _get_snapshot_sql_and_primary_key(
-    self,
-    table: google.cloud.bigquery.table.Table,
-    *,
-    api_name: str,
-    use_cache: bool = True,
-) -> Tuple[ibis_types.Table, Optional[Sequence[str]]]:
-    """Create a read-only Ibis table expression representing a table.
-
-    If we can get a total ordering from the table, such as via primary key
-    column(s), then return those too so that ordering generation can be
-    avoided.
-    """
-    (
-        snapshot_timestamp,
-        table,
-    ) = bigframes_io.get_snapshot_datetime_and_table_metadata(
-        self.bqclient,
-        table_ref=table.reference,
-        api_name=api_name,
-        cache=self._df_snapshot,
-        use_cache=use_cache,
-    )
-
-    if table.location.casefold() != self._location.casefold():
-        raise ValueError(
-            f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
-        )
-
-    # If there are primary keys defined, the query engine assumes these
-    # columns are unique, even if the constraint is not enforced. We make
-    # the same assumption and use these columns as the total ordering keys.
-    primary_keys = None
-    if (
-        (table_constraints := getattr(table, "table_constraints", None)) is not None
-        and (primary_key := table_constraints.primary_key) is not None
-        # This will be False for either None or empty list.
-        # We want primary_keys = None if no primary keys are set.
-        and (columns := primary_key.columns)
-    ):
-        primary_keys = columns
-
-    try:
-        table_expression = self.ibis_client.sql(
-            bigframes_io.create_snapshot_sql(table.reference, snapshot_timestamp)
-        )
-    except google.api_core.exceptions.Forbidden as ex:
-        if "Drive credentials" in ex.message:
-            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-        raise
-
-    return table_expression, primary_keys
 
 
 def get_index_and_maybe_total_ordering(

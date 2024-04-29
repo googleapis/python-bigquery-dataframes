@@ -92,6 +92,7 @@ import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bigframes_io
+import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
 import bigframes.version
 
@@ -704,44 +705,60 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
+        # -----------------------------
+        # Validate and transform inputs
+        # -----------------------------
+
+        if max_results and max_results <= 0:
+            raise ValueError(
+                f"`max_results` should be a positive number, got {max_results}."
+            )
+
+        # Transform index_col -> index_cols so we have a variable that is
+        # always a list of column names (possibly empty).
+        if isinstance(index_col, str):
+            index_cols: List[str] = [index_col]
+        else:
+            index_cols = list(index_col)
+
+        table_ref = bigquery.table.TableReference.from_string(
+            query, default_project=self.bqclient.project
+        )
+
+        # ---------------------------------
+        # Fetch table metadata and validate
+        # ---------------------------------
+
         # TODO TODO TODO
-        # *  Validations on types / value ranges
-        # 0. Transform input types, e.g. index_col -> index_cols
-        # 1. Get table metadata (possibly cached)
-        # 2. Create ibis Table with time travel.
-        # *  Validations based on value columns.
         # *  Validations based on index columns.
         # 4. Create index.
         # 5. Create ordering.
         # TODO TODO TODO
 
-        if max_results and max_results <= 0:
-            raise ValueError("`max_results` should be a positive number.")
-
-        table_ref = bigquery.table.TableReference.from_string(
-            query, default_project=self.bqclient.project
-        )
-<<<<<<< HEAD
-        (
-            snapshot_timestamp,
-            table,
-        ) = bigframes_io.get_snapshot_datetime_and_table_metadata(
+        (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
             api_name=api_name,
             cache=self._df_snapshot,
             use_cache=use_cache,
-=======
-
-        table = self.bqclient.get_table(table_ref)
-        (table_expression, primary_keys,) = self._get_snapshot_sql_and_primary_key(
-            table, api_name=api_name, use_cache=use_cache
->>>>>>> 729cf0a7 (add todos)
         )
-        total_ordering_cols = primary_keys
 
-        if not index_col and primary_keys is not None:
-            index_col = primary_keys
+        if table.location.casefold() != self._location.casefold():
+            raise ValueError(
+                f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+            )
+
+        # -----------------------------------------
+        # Create Ibis table expression and validate
+        # -----------------------------------------
+
+        # Use a time travel to make sure the DataFrame is deterministic, even
+        # if the underlying table changes.
+        table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
+            self.ibis_client,
+            table_ref,
+            time_travel_timestamp,
+        )
 
         for key in columns:
             if key not in table_expression.columns:
@@ -749,16 +766,22 @@ class Session(
                     f"Column '{key}' of `columns` not found in this table."
                 )
 
-        if isinstance(index_col, str):
-            index_cols: List[str] = [index_col]
-        else:
-            index_cols = list(index_col)
+        # -------------------------
+        # Create index and validate
+        # -------------------------
+
+        # TODO: Get primary keys from the table.
 
         for key in index_cols:
             if key not in table_expression.columns:
                 raise ValueError(
                     f"Column `{key}` of `index_col` not found in this table."
                 )
+
+        total_ordering_cols = primary_keys
+
+        if not index_col and primary_keys is not None:
+            index_col = primary_keys
 
         if columns:
             table_expression = table_expression.select([*index_cols, *columns])
