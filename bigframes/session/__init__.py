@@ -714,13 +714,6 @@ class Session(
                 f"`max_results` should be a positive number, got {max_results}."
             )
 
-        # Transform index_col -> index_cols so we have a variable that is
-        # always a list of column names (possibly empty).
-        if isinstance(index_col, str):
-            index_cols: List[str] = [index_col]
-        else:
-            index_cols = list(index_col)
-
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
@@ -770,6 +763,11 @@ class Session(
         # Create index and validate
         # -------------------------
 
+        index_cols, is_index_unique = bf_read_gbq_table.get_index_cols_and_uniqueness(
+            table,
+            index_col,
+            api_name=api_name,
+        )
         # TODO: Get primary keys from the table.
 
         for key in index_cols:

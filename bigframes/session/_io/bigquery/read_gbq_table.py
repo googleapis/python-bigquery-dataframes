@@ -143,7 +143,7 @@ def get_ibis_time_travel_table(
 ) -> ibis_types.Table:
     try:
         return ibis_client.sql(
-            bigframes_io.create_snapshot_sql(table_ref, time_travel_timestamp)
+            _create_time_travel_sql(table_ref, time_travel_timestamp)
         )
     except google.api_core.exceptions.Forbidden as ex:
         # Ibis does a dry run to get the types of the columns from the SQL.
@@ -174,18 +174,12 @@ def _check_index_uniqueness(
     return total_count == distinct_count
 
 
-def get_index_and_maybe_total_ordering(
+def _get_primary_keys(
     table: bigquery.table.Table,
-):
-    """
-    If we can get a total ordering from the table, such as via primary key
-    column(s), then return those too so that ordering generation can be
-    avoided.
-    """
-    # If there are primary keys defined, the query engine assumes these
-    # columns are unique, even if the constraint is not enforced. We make
-    # the same assumption and use these columns as the total ordering keys.
-    primary_keys = None
+) -> List[str]:
+    """Get primary keys from table if they are set."""
+
+    primary_keys: List[str] = []
     if (
         (table_constraints := getattr(table, "table_constraints", None)) is not None
         and (primary_key := table_constraints.primary_key) is not None
@@ -193,7 +187,41 @@ def get_index_and_maybe_total_ordering(
         # We want primary_keys = None if no primary keys are set.
         and (columns := primary_key.columns)
     ):
-        primary_keys = columns
+        primary_keys = columns if columns is not None else []
+
+    return primary_keys
+
+
+def get_index_cols_and_uniqueness(
+    table: bigquery.table.Table,
+    index_col: Iterable[str] | str = (),
+) -> Tuple[List[str], bool]:
+    """
+    If we can get a total ordering from the table, such as via primary key
+    column(s), then return those too so that ordering generation can be
+    avoided.
+    """
+
+    # Transform index_col -> index_cols so we have a variable that is
+    # always a list of column names (possibly empty).
+    if isinstance(index_col, str):
+        index_cols: List[str] = [index_col]
+    else:
+        index_cols = list(index_col)
+
+    # If the isn't an index selected, use the primary keys of the table as the
+    # index. If there are no primary keys, we'll return an empty list.
+    if len(index_cols) == 0:
+        index_cols = _get_primary_keys(table)
+
+        # If there are primary keys defined, the query engine assumes these
+        # columns are unique, even if the constraint is not enforced. We make
+        # the same assumption and use these columns as the total ordering keys.
+        is_index_unique = True
+    else:
+        is_index_unique = _check_index_uniqueness(table, index_cols, api_name)
+
+    return index_cols, is_index_unique
 
     total_ordering_cols = primary_keys
 
