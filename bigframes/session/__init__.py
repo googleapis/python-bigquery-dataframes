@@ -718,12 +718,6 @@ class Session(
         # Fetch table metadata and validate
         # ---------------------------------
 
-        # TODO TODO TODO
-        # *  Validations based on index columns.
-        # 4. Create index.
-        # 5. Create ordering.
-        # TODO TODO TODO
-
         (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
