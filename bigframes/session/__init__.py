@@ -313,6 +313,9 @@ class Session(
 
         filters = list(filters)
         if len(filters) != 0 or _is_table_with_wildcard_suffix(query_or_table):
+            # TODO(b/338111344): This appears to be missing index_cols, which
+            # are necessary to be selected.
+            # TODO(b/338039517): Also, need to account for primary keys.
             query_or_table = self._to_query(query_or_table, columns, filters)
 
         if _is_query(query_or_table):
@@ -326,9 +329,6 @@ class Session(
                 use_cache=use_cache,
             )
         else:
-            # TODO(swast): Query the snapshot table but mark it as a
-            # deterministic query so we can avoid serializing if we have a
-            # unique index.
             if configuration is not None:
                 raise ValueError(
                     "The 'configuration' argument is not allowed when "
@@ -359,6 +359,8 @@ class Session(
             else f"`{query_or_table}`"
         )
 
+        # TODO(b/338111344): Generate an index based on DefaultIndexKind if we
+        # don't have index columns specified.
         select_clause = "SELECT " + (
             ", ".join(f"`{column}`" for column in columns) if columns else "*"
         )

@@ -207,6 +207,29 @@ def _get_primary_keys(
     return primary_keys
 
 
+def _is_table_clustered_or_partitioned(
+    table: bigquery.table.Table,
+) -> bool:
+    """Returns True if the table is clustered or partitioned."""
+
+    # Could be None or an empty tuple if it's not clustered, both of which are
+    # falsey.
+    if table.clustering_fields:
+        return True
+
+    if (
+        time_partitioning := table.time_partitioning
+    ) is not None and time_partitioning.type_ is not None:
+        return True
+
+    if (
+        range_partitioning := table.range_partitioning
+    ) is not None and range_partitioning.field is not None:
+        return True
+
+    return False
+
+
 def get_index_cols_and_uniqueness(
     bqclient: bigquery.Client,
     ibis_client: ibis.BaseBackend,
@@ -247,14 +270,26 @@ def get_index_cols_and_uniqueness(
     # If the isn't an index selected, use the primary keys of the table as the
     # index. If there are no primary keys, we'll return an empty list.
     if len(index_cols) == 0:
-        index_cols = _get_primary_keys(table)
+        primary_keys = _get_primary_keys(table)
 
-        # TODO(b/335727141): If table has clustering/partitioning, fail if
-        # index_cols is empty.
+        # If table has clustering/partitioning, fail if we haven't been able to
+        # find index_cols to use. This is to avoid unexpected performance and
+        # resource utilization because of the default sequential index. See
+        # internal issue 335727141.
+        if _is_table_clustered_or_partitioned(table) and not primary_keys:
+            raise bigframes.exceptions.NoDefaultIndexError(
+                f"Table '{str(table.reference)}' is clustered and/or "
+                "partitioned, but BigQuery DataFrames was not able to find a "
+                "suitable index. To avoid this error, set at least one of: "
+                # TODO(b/338037499): Allow max_results to override this too,
+                # once we make it more efficient.
+                "`index_col` or `filters`."
+            )
 
         # If there are primary keys defined, the query engine assumes these
         # columns are unique, even if the constraint is not enforced. We make
         # the same assumption and use these columns as the total ordering keys.
+        index_cols = primary_keys
         is_index_unique = len(index_cols) != 0
     else:
         is_index_unique = _check_index_uniqueness(
