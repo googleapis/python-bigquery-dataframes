@@ -2075,6 +2075,7 @@ class Block:
         # all column types
         all_column_types = list(self.index.dtypes) + list(self.dtypes)
         column_types_csv = ", ".join([f'"{col}"' for col in all_column_types])
+        row_dtype = f'"{bigframes.dtypes.lcd_type(*all_column_types)}"'
 
         row_json_column_name = guid.generate_guid()
         select_columns = index_column_ids + [row_json_column_name]
@@ -2089,7 +2090,8 @@ T1 AS (
                "names", [{column_names_csv}],
                "types", [{column_types_csv}],
                "values", [{column_references_csv}],
-               "index", [{index_column_names_csv}]
+               "index", [{index_column_names_csv}],
+               "dtype", {row_dtype}
            ) AS {row_json_column_name} FROM T0
 )
 SELECT {select_columns_csv} FROM T1

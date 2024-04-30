@@ -1469,6 +1469,7 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
         def analyze(row):
             return str(
                 {
+                    "dtype": row.dtype,
                     "count": row.count(),
                     "min": row.max(),
                     "max": row.max(),
