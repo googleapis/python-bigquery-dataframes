@@ -21,6 +21,8 @@ import bigframes.pandas as bpd
 
 def test_array_length():
     series = bpd.Series([["A", "AA", "AAA"], ["BB", "B"], np.nan, [], ["C"]])
+    # TODO(b/336880368): Allow for NULL values to be input for ARRAY columns.
+    # Once we actually store NULL values, this will be NULL where the input is NULL.
     expected = pd.Series([3, 2, 0, 0, 1])
     pd.testing.assert_series_equal(
         bbq.array_length(series).to_pandas(),
