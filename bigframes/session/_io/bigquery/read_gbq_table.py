@@ -227,9 +227,15 @@ def get_index_cols_and_uniqueness(
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
             # User has explicity asked for a default, sequential index.
             # Use that, even if there are primary keys on the table.
+            #
+            # Note: This relies on the default behavior of the Block
+            # constructor to create a default sequential index. If that ever
+            # changes, this logic will need to be revisited.
             return [], False
         else:
-            # TODO: Can we test this with a mock?
+            # Note: It's actually quite difficult to mock this out to unit
+            # test, as it's not possible to subclass enums in Python. See:
+            # https://stackoverflow.com/a/33680021/101923
             raise NotImplementedError(
                 f"Got unexpected index_col {repr(index_col)}. {bigframes.constants.FEEDBACK_LINK}"
             )

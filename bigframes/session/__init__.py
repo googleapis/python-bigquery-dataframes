@@ -1153,8 +1153,9 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            # TODO(tswast): Looks like we can relax this 1 column restriction if
-            # we check the contents of an iterable are strings not integers.
+            # TODO(b/338089659): Looks like we can relax this 1 column
+            # restriction if we check the contents of an iterable are strings
+            # not integers.
             if (
                 # Empty tuples and None are both allowed and falsey
                 index_col
@@ -1702,22 +1703,6 @@ class Session(
             )
 
         return job_config
-
-    def _start_query_and_wait(
-        self,
-        sql: str,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
-    ) -> bigquery.table.RowIterator:
-        """
-        Starts BigQuery query with query_and_wait and waits for results.
-        """
-        job_config = self._prepare_query_job_config(job_config)
-        return self.bqclient.query_and_wait(
-            sql,
-            job_config=job_config,
-            max_results=max_results,
-        )
 
     def _start_query(
         self,
