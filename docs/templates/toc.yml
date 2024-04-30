@@ -190,7 +190,7 @@
       name: remote
     name: bigframes.ml
   - items:
-    - name: Bigquery Built-in Functions
+    - name: BigQuery built-in functions
       uid: bigframes.bigquery
     name: bigframes.bigquery
   name: BigQuery DataFrames
