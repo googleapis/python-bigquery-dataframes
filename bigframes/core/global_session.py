@@ -49,7 +49,8 @@ def close_session() -> None:
                 project_id = _global_session._project
                 warnings.warn(
                     f"Session cleanup failed for session with id: {session_id}, "
-                    f"location: {location}, project: {project_id}"
+                    f"location: {location}, project: {project_id}",
+                    category=bigframes.exceptions.CleanupFailedWarning,
                 )
                 traceback.print_tb(e.__traceback__)
             _global_session = None

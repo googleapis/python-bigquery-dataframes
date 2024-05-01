@@ -289,10 +289,12 @@ def test_credentials_need_reauthentication(monkeypatch):
         with pytest.raises(google.auth.exceptions.RefreshError):
             bpd.read_gbq(test_query)
 
-        # Now verify that closing the session works
+        # Now verify that closing the session works and we throw
+        # the expected warning
         with warnings.catch_warnings(record=True) as warned:
-            bpd.close_session()  # warning: can't clean up
+            bpd.close_session()  # CleanupFailedWarning: can't clean up
         assert len(warned) == 1
+        assert warned[0].category == bigframes.exceptions.CleanupFailedWarning
         assert bigframes.core.global_session._global_session is None
 
     # Now verify that use is able to start over
