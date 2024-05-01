@@ -296,7 +296,11 @@ def test_no_default_index_error_not_raised_by_read_gbq_filters(table):
         filters=[("col2", "<", 123)],
     )
 
-    # We expect a window operation because we specificaly requested a sequential index.
+    # We expect a window operation because we specificaly requested a
+    # sequential index.
+    # TODO(b/338111344): Since this should be falling back to a query for
+    # filters, we really should be generating ROW_NUMBER() in that query, not
+    # the query for the DataFrame pointing to the temp table from that query.
     generated_sql = df.sql.casefold()
     assert "OVER".casefold() in generated_sql
     assert "ROW_NUMBER()".casefold() in generated_sql
