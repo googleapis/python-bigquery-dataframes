@@ -85,17 +85,15 @@ def test_close(session):
 
 
 def test_clean_up_by_session_id():
-    original_location = bigframes.options.bigquery.location
-    bpd.close_session()  # close the session to change regions
-    bigframes.options.bigquery.location = "europe-west10"
     # we do this test in a different region in order to avoid
     # overly large amounts of temp tables slowing the test down
-
-    session = bpd.get_global_session()
+    option_context = bigframes.BigQueryOptions()
+    option_context.location = "europe-west10"
+    session = bigframes.Session(context=option_context)
     session_id = session.session_id
 
     # we will create two tables and confirm that they are deleted
-    # when the session is closed
+    # when the session is closed by id
 
     bqclient = session.bqclient
     dataset = session._anonymous_dataset
@@ -129,6 +127,3 @@ def test_clean_up_by_session_id():
     assert not any(
         [(session.session_id in table.full_table_id) for table in list(tables_after)]
     )
-
-    bpd.close_session()  # close the session to change regions
-    bigframes.options.bigquery.location = original_location
