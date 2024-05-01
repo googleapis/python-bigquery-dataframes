@@ -45,9 +45,7 @@ class GBQIOMixin:
         * (Recommended) Set the ``index_col`` argument to one or more columns.
           Unique values for the row labels are recommended. Duplicate labels
           are possible, but note that joins on a non-unique index can duplicate
-          rows via pandas-like outer join behavior. Operations like
-          ``cumsum()`` that window across a non-unique index can have some
-          unpredictability due to ambiguous ordering.
+          rows via pandas-like outer join behavior.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a
@@ -117,7 +115,7 @@ class GBQIOMixin:
                 `project.dataset.tablename` or `dataset.tablename`.
                 Can also take wildcard table name, such as `project.dataset.table_prefix*`.
                 In tha case, will read all the matched table as one DataFrame.
-            index_col (Iterable[str], str, bigframes.enums.IndexKind):
+            index_col (Iterable[str], str, bigframes.enums.DefaultIndexKind):
                 Name of result column(s) to use for index in results DataFrame.
 
                 If an empty iterable, such as ``()``, a default index is
@@ -127,7 +125,7 @@ class GBQIOMixin:
                 set, the primary key(s) of the table are used as the index.
 
                 **New in bigframes version 1.4.0**: Support
-                :class:`bigframes.enums.TypeKind` to override default index
+                :class:`bigframes.enums.DefaultIndexKind` to override default index
                 behavior.
             columns (Iterable[str]):
                 List of BigQuery column names in the desired order for results
