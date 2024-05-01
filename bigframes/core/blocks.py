@@ -2054,31 +2054,45 @@ class Block:
         return result
 
     def _get_rows_as_json_values(self) -> Block:
-        sql, index_column_ids, _ = self.to_sql_query(include_index=True)
+        # We want to preserve any ordering currently present before turning to
+        # direct SQL manipulation. We will restore the ordering when we rebuild
+        # expression.
+        # TODO(shobs): Replace direct SQL manipulation by structured expression
+        # manipulation
+        ordering_column_name = guid.generate_guid()
+        expr = self.session._cache_with_offsets(self.expr)
+        expr = expr.promote_offsets(ordering_column_name)
+        sql = self.session._to_sql(expr)
 
-        # all column names
-        all_column_names = index_column_ids + [col for col in self.column_labels]
-        column_names_csv = ", ".join([repr(repr(col)) for col in all_column_names])
+        # names of the columns to serialize for the row
+        column_names = list(self.index_columns) + [col for col in self.column_labels]
+        column_names_csv = ", ".join([repr(repr(col)) for col in column_names])
 
         # index column names
         index_column_names_csv = ", ".join(
-            [repr(repr(col)) for col in index_column_ids]
+            [repr(repr(col)) for col in self.index_columns]
         )
 
-        # column names produced by the block sql, which may be different from
-        # the column labels due to internal normalization
-        sql_output_column_names = self.session.ibis_client.sql(sql).columns
+        # column references to form the array of values for the row
         column_references_csv = ", ".join(
-            [f"CAST(`{col}` AS STRING)" for col in sql_output_column_names]
+            [f"CAST(`{col}` AS STRING)" for col in self.expr.column_ids]
         )
 
-        # all column types
-        all_column_types = list(self.index.dtypes) + list(self.dtypes)
-        column_types_csv = ", ".join([f'"{col}"' for col in all_column_types])
-        row_dtype = f'"{bigframes.dtypes.lcd_type(*all_column_types)}"'
+        # types of the columns to serialize for the row
+        column_types = list(self.index.dtypes) + list(self.dtypes)
+        column_types_csv = ", ".join([f'"{col}"' for col in column_types])
 
+        # row dtype to use for deserializing the row as pandas series
+        pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
+        if pandas_row_dtype is None:
+            pandas_row_dtype = "object"
+        pandas_row_dtype = f'"{pandas_row_dtype}"'
+
+        # create a json column representing row through SQL manipulation
         row_json_column_name = guid.generate_guid()
-        select_columns = index_column_ids + [row_json_column_name]
+        select_columns = (
+            [ordering_column_name] + list(self.index_columns) + [row_json_column_name]
+        )
         select_columns_csv = ", ".join(select_columns)
         json_sql = f"""\
 With T0 AS (
@@ -2091,7 +2105,7 @@ T1 AS (
                "types", [{column_types_csv}],
                "values", [{column_references_csv}],
                "index", [{index_column_names_csv}],
-               "dtype", {row_dtype}
+               "dtype", {pandas_row_dtype}
            ) AS {row_json_column_name} FROM T0
 )
 SELECT {select_columns_csv} FROM T1
@@ -2099,20 +2113,20 @@ SELECT {select_columns_csv} FROM T1
         ibis_table = self.session.ibis_client.sql(json_sql)
         order_for_ibis_table = ordering.ExpressionOrdering(
             ordering_value_columns=tuple(
-                [ordering.ascending_over(column_id) for column_id in index_column_ids]
+                [ordering.ascending_over(ordering_column_name)]
             ),
-            total_ordering_columns=frozenset(index_column_ids),
+            total_ordering_columns=frozenset([ordering_column_name]),
         )
         expr = core.ArrayValue.from_ibis(
             self.session,
             ibis_table,
-            [ibis_table[col] for col in select_columns],
-            hidden_ordering_columns=[],
+            [ibis_table[col] for col in select_columns if col != ordering_column_name],
+            hidden_ordering_columns=[ibis_table[ordering_column_name]],
             ordering=order_for_ibis_table,
         )
         block = Block(
             expr,
-            index_columns=index_column_ids,
+            index_columns=self.index_columns,
             column_labels=[row_json_column_name],
             index_labels=self._index_labels,
         )

@@ -3307,7 +3307,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError("For axis=1 a remote function must be used.")
             block = self._get_block()
             rows_as_json_series = bigframes.series.Series(
-                block._get_rows_as_json_values()._force_reproject()
+                block._get_rows_as_json_values()
             )
             result_series = rows_as_json_series._apply_unary_op(
                 ops.RemoteFunctionOp(func=func, apply_on_null=True)
@@ -3316,7 +3316,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # return Series with materialized result so that any error in the remote
             # function is caught early
-            materialized_series = result_series._cached()
+            materialized_series = result_series.cache()
             return materialized_series
 
         # Per-column apply

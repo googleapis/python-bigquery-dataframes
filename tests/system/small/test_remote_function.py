@@ -712,6 +712,32 @@ def test_df_apply_axis_1(session, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_ordering(session, scalars_dfs):
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+    ordering_columns = ["bool_col", "int64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def add_ints(row):
+        return row["int64_col"] + row["int64_too"]
+
+    add_ints_remote = session.remote_function("row", int)(add_ints)
+
+    bf_result = (
+        scalars_df[columns]
+        .sort_values(ordering_columns)
+        .apply(add_ints_remote, axis=1)
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df[columns].sort_values(ordering_columns).apply(add_ints, axis=1)
+    )
+
+    # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
+    # mismatch by using check_dtype=False.
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_multiindex(session):
     pd_df = pd.DataFrame(
         {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
