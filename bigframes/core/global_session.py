@@ -22,6 +22,8 @@ import bigframes.session
 
 _global_session: Optional[bigframes.session.Session] = None
 _global_session_lock = threading.Lock()
+_global_session_state = threading.local()
+_global_session_state.thread_local_session = None
 
 
 def close_session() -> None:
@@ -32,13 +34,29 @@ def close_session() -> None:
     Returns:
         None
     """
-    global _global_session
+    global _global_session, _global_session_lock, _global_session_state
+
+    if bigframes._config.options.is_bigquery_thread_local:
+        if _global_session_state.thread_local_session is not None:
+            _global_session_state.thread_local_session.close()
+            _global_session_state.thread_local_session = None
+
+        # Currently using thread-local options, so no global lock needed.
+        # Don't reset is_bigquery_thread_local, as that's the responsibility
+        # of the context manager that started it in the first place. The user
+        # might have explicitly closed the session in the context manager.
+        bigframes._config.options.bigquery._session_started = False
+
+        # Don't close the non-thread-local session.
+        return
 
     with _global_session_lock:
         if _global_session is not None:
             _global_session.close()
             _global_session = None
 
+        # This should be global, not thread-local because of the if clause
+        # above.
         bigframes._config.options.bigquery._session_started = False
 
 
@@ -47,7 +65,15 @@ def get_global_session():
 
     Creates the global session if it does not exist.
     """
-    global _global_session, _global_session_lock
+    global _global_session, _global_session_lock, _global_session_state
+
+    if bigframes._config.options.is_bigquery_thread_local:
+        if _global_session_state.thread_local_session is None:
+            _global_session_state.thread_local_session = bigframes.session.connect(
+                bigframes._config.options.bigquery
+            )
+
+        return _global_session_state.thread_local_session
 
     with _global_session_lock:
         if _global_session is None:

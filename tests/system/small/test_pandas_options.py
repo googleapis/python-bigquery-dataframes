@@ -26,8 +26,11 @@ import bigframes.pandas as bpd
 
 @pytest.fixture(autouse=True)
 def reset_default_session_and_location():
-    bpd.close_session()
-    bpd.options.bigquery.location = None
+    # Note: This starts a thread-local session and closes it once the test
+    # finishes.
+    with bpd.option_context("bigquery.location", None):
+        bpd.options.bigquery.location = None
+        yield
 
 
 @pytest.mark.parametrize(
@@ -79,7 +82,9 @@ def test_read_gbq_start_sets_session_location(
     ):
         read_method(query)
 
-    # Close global session to start over
+    # Close the global session to start over.
+    # Note: This is a thread-local operation because of the
+    # reset_default_session_and_location fixture above.
     bpd.close_session()
 
     # There should still be the previous location set in the bigquery options

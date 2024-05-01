@@ -28,28 +28,31 @@ job_load_message_regex = r"\w+ job [\w-]+ is \w+\."
 def test_progress_bar_dataframe(
     penguins_df_default_index: bf.dataframe.DataFrame, capsys
 ):
-    bf.options.display.progress_bar = "terminal"
     capsys.readouterr()  # clear output
-    penguins_df_default_index.to_pandas()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_pandas()
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert penguins_df_default_index.query_job is not None
 
 
 def test_progress_bar_series(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
-    bf.options.display.progress_bar = "terminal"
     series = penguins_df_default_index["body_mass_g"].head(10)
     capsys.readouterr()  # clear output
-    series.to_pandas()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        series.to_pandas()
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert series.query_job is not None
 
 
 def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
-    bf.options.display.progress_bar = "terminal"
     capsys.readouterr()  # clear output
-    penguins_df_default_index["body_mass_g"].head(10).mean()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index["body_mass_g"].head(10).mean()
 
     assert_loading_msg_exist(capsys.readouterr().out)
 
@@ -57,10 +60,11 @@ def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, 
 def test_progress_bar_extract_jobs(
     penguins_df_default_index: bf.dataframe.DataFrame, gcs_folder, capsys
 ):
-    bf.options.display.progress_bar = "terminal"
     path = gcs_folder + "test_read_csv_progress_bar*.csv"
     capsys.readouterr()  # clear output
-    penguins_df_default_index.to_csv(path)
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_csv(path)
 
     assert_loading_msg_exist(capsys.readouterr().out)
 
@@ -73,8 +77,9 @@ def test_progress_bar_load_jobs(
     while len(df) < MAX_INLINE_DF_BYTES:
         df = pd.DataFrame(np.repeat(df.values, 2, axis=0))
 
-    bf.options.display.progress_bar = "terminal"
-    with tempfile.TemporaryDirectory() as dir:
+    with bf.option_context(
+        "display.progress_bar", "terminal"
+    ), tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_progress_bar*.csv"
         df.to_csv(path, index=False)
         capsys.readouterr()  # clear output
@@ -96,11 +101,12 @@ def assert_loading_msg_exist(capystOut: str, pattern=job_load_message_regex):
 
 
 def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
-    bf.options.display.progress_bar = "terminal"
-    penguins_df_default_index.to_pandas()
-    query_job_repr = formatting_helpers.repr_query_job_html(
-        penguins_df_default_index.query_job
-    ).value
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_pandas()
+        query_job_repr = formatting_helpers.repr_query_job_html(
+            penguins_df_default_index.query_job
+        ).value
+
     string_checks = [
         "Job Id",
         "Destination Table",
@@ -126,3 +132,13 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
     ]
     for string in string_checks:
         assert string in query_job_repr
+
+
+def test_query_job_dry_run(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
+    with bf.option_context("display.repr_mode", "deferred"):
+        repr(penguins_df_default_index)
+        repr(penguins_df_default_index["body_mass_g"])
+        lines = capsys.readouterr().out.split("\n")
+        lines = filter(None, lines)
+        for line in lines:
+            assert "Computation deferred. Computation will process" in line
