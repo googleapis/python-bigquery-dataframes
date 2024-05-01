@@ -32,6 +32,8 @@ import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
+_LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
+# will be limited to this many tables
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
@@ -261,7 +263,9 @@ def delete_tables_matching_session_id(
         None
     """
 
-    tables = client.list_tables(dataset, max_results=10000, page_size=10000)
+    tables = client.list_tables(
+        dataset, max_results=_LIST_TABLES_LIMIT, page_size=_LIST_TABLES_LIMIT
+    )
     for table in tables:
         split_id = table.table_id.split("_")
         if not split_id[0].startswith("bqdf") or len(split_id) < 2:
@@ -273,16 +277,25 @@ def delete_tables_matching_session_id(
 
 
 def create_bq_dataset_reference(
-    bq_client: bigquery.Client, **kwargs
+    bq_client: bigquery.Client, location=None, project=None
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.
 
     bq_client project and location will be used unless kwargs "project"
-    and/or "location" are given. All kwargs are passed through to bqclient.query:
-
+    and/or "location" are given.  If given, location and project
+    will be passed through to
     https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+
+    Args:
+        location (str, default None):
+            The location of the project to create the dataset in.
+        project (str, default None):
+            The project id of the project to create the dataset in.
+
+    Returns:
+        bigquery.DatasetReference: The constructed reference to the anonymous dataset.
     """
-    query_job = bq_client.query("SELECT 1", **kwargs)
+    query_job = bq_client.query("SELECT 1", location=location, project=project)
     query_job.result()  # blocks until finished
 
     # The anonymous dataset is used by BigQuery to write query results and

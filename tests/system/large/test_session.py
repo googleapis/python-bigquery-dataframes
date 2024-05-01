@@ -71,13 +71,13 @@ def test_close(session):
     full_id_1 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
     full_id_2 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
 
-    with pytest.raises(google.cloud.exceptions.Conflict):
-        bqclient.create_table(full_id_1)
-    with pytest.raises(google.cloud.exceptions.Conflict):
-        bqclient.create_table(full_id_2)
+    # check that the tables were actually created
+    assert bqclient.get_table(full_id_1).created is not None
+    assert bqclient.get_table(full_id_2).created is not None
 
     session.close()
 
+    # check that the tables are already deleted
     with pytest.raises(google.cloud.exceptions.NotFound):
         bqclient.delete_table(full_id_1)
     with pytest.raises(google.cloud.exceptions.NotFound):
@@ -106,16 +106,29 @@ def test_clean_up_by_session_id():
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
     bigframes.session._io.bigquery.create_temp_table(session, expiration)
 
-    tables_before = bqclient.list_tables(dataset, max_results=10000, page_size=10000)
-    tables_before_count = len(list(tables_before))
-    assert tables_before_count >= 2
+    # check that some table exists with the expected session_id
+    tables_before = bqclient.list_tables(
+        dataset,
+        max_results=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
+        page_size=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
+    )
+    assert any(
+        [(session.session_id in table.full_table_id) for table in list(tables_before)]
+    )
 
     bpd.clean_up_by_session_id(
         session_id, location=session._location, project=session._project
     )
 
-    tables_after = bqclient.list_tables(dataset, max_results=10000, page_size=10000)
-    assert len(list(tables_after)) <= tables_before_count - 2
+    # check that no tables with the session_id are left after cleanup
+    tables_after = bqclient.list_tables(
+        dataset,
+        max_results=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
+        page_size=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
+    )
+    assert not any(
+        [(session.session_id in table.full_table_id) for table in list(tables_after)]
+    )
 
     bpd.close_session()  # close the session to change regions
     bigframes.options.bigquery.location = original_location
