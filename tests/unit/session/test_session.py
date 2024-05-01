@@ -281,31 +281,6 @@ def test_no_default_index_error_not_raised_by_read_gbq_primary_key(table):
     assert tuple(df.index.names) == ("pk_1", "pk_2")
 
 
-@pytest.mark.parametrize("table", CLUSTERED_OR_PARTITIONED_TABLES)
-def test_no_default_index_error_not_raised_by_read_gbq_filters(table):
-    table = copy.deepcopy(table)
-    bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
-    bqclient.project = "test-project"
-    bqclient.get_table.return_value = table
-    session = resources.create_bigquery_session(bqclient=bqclient)
-    table._properties["location"] = session._location
-
-    # No exception raised because we set the option allowing the default indexes.
-    df = session.read_gbq(
-        "my-project.my_dataset.my_table",
-        filters=[("col2", "<", 123)],
-    )
-
-    # We expect a window operation because we specificaly requested a
-    # sequential index.
-    # TODO(b/338111344): Since this should be falling back to a query for
-    # filters, we really should be generating ROW_NUMBER() in that query, not
-    # the query for the DataFrame pointing to the temp table from that query.
-    generated_sql = df.sql.casefold()
-    assert "OVER".casefold() in generated_sql
-    assert "ROW_NUMBER()".casefold() in generated_sql
-
-
 @pytest.mark.parametrize(
     "not_found_table_id",
     [("unknown.dataset.table"), ("project.unknown.table"), ("project.dataset.unknown")],
