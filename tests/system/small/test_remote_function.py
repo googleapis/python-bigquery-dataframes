@@ -734,7 +734,13 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs):
 
     # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
     # mismatch by using check_dtype=False.
-    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    #
+    # bf_result.to_numpy() produces an array of numpy.float64's
+    # (in system_prerelease tests), while pd_result.to_numpy() produces an
+    # array of ints, ignore this mismatch by using check_exact=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
