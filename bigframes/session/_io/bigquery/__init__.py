@@ -282,11 +282,14 @@ def create_bq_dataset_reference(
     """Create and identify dataset(s) for temporary BQ resources.
 
     bq_client project and location will be used unless kwargs "project"
-    and/or "location" are given.  If given, location and project
+    and/or "location" are given. If given, location and project
     will be passed through to
     https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
 
     Args:
+        bq_client (bigquery.Client):
+            The bigquery.Client to use for the http request to
+            create the dataset reference.
         location (str, default None):
             The location of the project to create the dataset in.
         project (str, default None):
