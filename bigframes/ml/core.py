@@ -83,7 +83,7 @@ class BaseBqml:
         """
         assert len(x.columns) == 1 and len(y.columns) == 1
 
-        input_data = x._cached().join(y._cached(), how="outer")
+        input_data = x.cache().join(y.cache(), how="outer")
         x_column_id, y_column_id = x._block.value_columns[0], y._block.value_columns[0]
 
         return self._apply_sql(
@@ -184,6 +184,17 @@ class BqmlModel(BaseBqml):
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         sql = self._model_manipulation_sql_generator.ml_evaluate(input_data)
+
+        return self._session.read_gbq(sql)
+
+    def llm_evaluate(
+        self,
+        input_data: bpd.DataFrame,
+        task_type: Optional[str] = None,
+    ):
+        sql = self._model_manipulation_sql_generator.ml_llm_evaluate(
+            input_data, task_type
+        )
 
         return self._session.read_gbq(sql)
 
@@ -299,11 +310,9 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train._cached(force=True)
+            input_data = X_train.cache()
         else:
-            input_data = X_train._cached(force=True).join(
-                y_train._cached(force=True), how="outer"
-            )
+            input_data = X_train.cache().join(y_train.cache(), how="outer")
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -343,9 +352,7 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train._cached(force=True).join(
-            y_train._cached(force=True), how="outer"
-        )
+        input_data = X_train.cache().join(y_train.cache(), how="outer")
         options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -378,9 +385,7 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train._cached(force=True).join(
-            y_train._cached(force=True), how="outer"
-        )
+        input_data = X_train.cache().join(y_train.cache(), how="outer")
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 

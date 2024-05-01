@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Private module: Helpers for I/O operations."""
+"""Private module: Helpers for BigQuery I/O operations."""
 
 from __future__ import annotations
 
@@ -99,24 +99,6 @@ def create_export_data_statement(
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
-
-
-def create_snapshot_sql(
-    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
-) -> str:
-    """Query a table via 'time travel' for consistent reads."""
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
-
-    return textwrap.dedent(
-        f"""
-        SELECT *
-        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
-        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
-        """
-    )
 
 
 def create_temp_table(

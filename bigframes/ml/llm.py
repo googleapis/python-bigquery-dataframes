@@ -64,8 +64,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
         max_iterations (Optional[int], Default to 300):
             The number of steps to run when performing supervised tuning.
     """
@@ -191,7 +191,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
                 Training labels.
 
         Returns:
-            PaLM2TextGenerator: Fitted Estimator.
+            PaLM2TextGenerator: Fitted estimator.
         """
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -220,7 +220,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, which needs to contain a column with name "prompt". Only the column will be used as input.
+                Input DataFrame or Series, which contains only one column of prompts.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.0):
@@ -310,17 +310,74 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         return df
 
+    def score(
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
+        task_type: Literal[
+            "text_generation", "classification", "summarization", "question_answering"
+        ] = "text_generation",
+    ) -> bpd.DataFrame:
+        """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
+
+        .. note::
+
+            Output matches that of the BigQuery ML.EVALUTE function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#remote-model-llm
+            for the outputs relevant to this model type.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A BigQuery DataFrame as evaluation data, which contains only one column of input_text
+                that contains the prompt text to use when evaluating the model.
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
+                that you would expect to be returned by the model.
+            task_type (str):
+                The type of the task for LLM model. Default to "text_generation".
+                Possible values: "text_generation", "classification", "summarization", and "question_answering".
+
+        Returns:
+            bigframes.dataframe.DataFrame: The DataFrame as evaluation result.
+        """
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        X, y = utils.convert_to_dataframe(X, y)
+
+        if len(X.columns) != 1 or len(y.columns) != 1:
+            raise ValueError(
+                f"Only support one column as input for X and y. {constants.FEEDBACK_LINK}"
+            )
+
+        # BQML identified the column by name
+        X_col_label = cast(blocks.Label, X.columns[0])
+        y_col_label = cast(blocks.Label, y.columns[0])
+        X = X.rename(columns={X_col_label: "input_text"})
+        y = y.rename(columns={y_col_label: "output_text"})
+
+        input_data = X.join(y, how="outer")
+
+        return self._bqml_model.llm_evaluate(input_data, task_type)
+
     def to_gbq(self, model_name: str, replace: bool = False) -> PaLM2TextGenerator:
         """Save the model to BigQuery.
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextGenerator: saved model."""
+            PaLM2TextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -333,7 +390,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
     Args:
         model_name (str, Default to "textembedding-gecko"):
             The model for text embedding. “textembedding-gecko” returns model embeddings for text inputs.
-            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages
+            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages.
             Default to "textembedding-gecko".
         version (str or None):
             Model version. Accepted values are "001", "002", "003", "latest" etc. Will use the default version if unset.
@@ -341,8 +398,8 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context.
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            If None, use default connection in session context.
     """
 
     def __init__(
@@ -482,12 +539,12 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextEmbeddingGenerator: saved model."""
+            PaLM2TextEmbeddingGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -508,8 +565,8 @@ class GeminiTextGenerator(base.BaseEstimator):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
     """
 
     def __init__(
@@ -662,12 +719,12 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            GeminiTextGenerator: saved model."""
+            GeminiTextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
