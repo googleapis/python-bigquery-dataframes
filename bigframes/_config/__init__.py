@@ -44,7 +44,7 @@ class Options:
         self._bigquery_options = bigquery_options.BigQueryOptions()
         self._local.bigquery_options = None
 
-    def _init_biquery_thread_local(self):
+    def _init_bigquery_thread_local(self):
         """Initialize thread-local options, based on current global options."""
 
         # Already thread-local, so don't reset any options that have been set

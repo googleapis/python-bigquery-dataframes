@@ -63,7 +63,7 @@ class option_context(contextlib.ContextDecorator):
 
         # We are now using a thread-specific session.
         if root == "bigquery":
-            bigframes.options._init_biquery_thread_local()
+            bigframes.options._init_bigquery_thread_local()
 
         parent = operator.attrgetter(root)(bigframes.options)
         setattr(parent, attr, val)
