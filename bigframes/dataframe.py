@@ -34,6 +34,7 @@ from typing import (
     Tuple,
     Union,
 )
+import warnings
 
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -60,6 +61,7 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -3303,6 +3305,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
         if utils.get_axis_number(axis) == 1:
+            warnings.warn(
+                "axis=1 scenario is in preview.",
+                category=bigframes.exceptions.PreviewWarning,
+            )
+
             if not hasattr(func, "bigframes_remote_function"):
                 raise ValueError("For axis=1 a remote function must be used.")
             block = self._get_block()

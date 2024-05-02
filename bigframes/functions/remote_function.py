@@ -27,6 +27,7 @@ import textwrap
 
 # TODO(shobs): import typing module and use its classes through namespapace.*
 from typing import List, Literal, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
+import warnings
 
 import ibis
 import pandas
@@ -870,6 +871,11 @@ def remote_function(
 
     is_row_processor = False
     if input_types == "row":
+        warnings.warn(
+            'input_types="row" scenario is in preview.',
+            stacklevel=1,
+            category=bigframes.exceptions.PreviewWarning,
+        )
         input_types = [str]
         is_row_processor = True
     elif isinstance(input_types, type):

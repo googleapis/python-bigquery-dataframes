@@ -15,3 +15,7 @@
 
 class UnknownLocationWarning(Warning):
     """The location is set to an unknown value."""
+
+
+class PreviewWarning(Warning):
+    """The feature is in preview."""

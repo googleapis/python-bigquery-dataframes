@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 
 import bigframes
+import bigframes.exceptions
 from bigframes.functions import remote_function as rf
 from tests.system.utils import assert_pandas_df_equal
 
@@ -695,9 +696,17 @@ def test_df_apply_axis_1(session, scalars_dfs):
     def add_ints(row):
         return row["int64_col"] + row["int64_too"]
 
-    add_ints_remote = session.remote_function("row", int)(add_ints)
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match='input_types="row" scenario is in preview.',
+    ):
+        add_ints_remote = session.remote_function("row", int)(add_ints)
 
-    bf_result = scalars_df[columns].apply(add_ints_remote, axis=1).to_pandas()
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
+    ):
+        bf_result = scalars_df[columns].apply(add_ints_remote, axis=1).to_pandas()
+
     pd_result = scalars_pandas_df[columns].apply(add_ints, axis=1)
 
     # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
