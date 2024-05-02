@@ -1437,7 +1437,7 @@ def test_remote_function_max_instances(
             [int], int, reuse=False, **max_instances_args
         )(square)
 
-        # Assert that the GCF is created with the intended maximum timeout
+        # Assert that the GCF is created with the intended max instance count
         gcf = session.cloudfunctionsclient.get_function(
             name=square_remote.bigframes_cloud_function
         )
