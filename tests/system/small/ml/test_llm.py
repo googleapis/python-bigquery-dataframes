@@ -20,10 +20,6 @@ from bigframes.ml import llm
 def test_create_text_generator_model(
     palm2_text_generator_model, dataset_id, bq_connection
 ):
-    import bigframes.pandas as bpd
-
-    bpd.options.bigquery.location = "asia-northeast1"
-
     # Model creation doesn't return error
     assert palm2_text_generator_model is not None
     assert palm2_text_generator_model._bqml_model is not None
