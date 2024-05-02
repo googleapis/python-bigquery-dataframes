@@ -293,9 +293,19 @@ def test_close_session_after_credentials_need_reauthentication(monkeypatch):
         with pytest.raises(google.auth.exceptions.RefreshError):
             bpd.read_gbq(test_query)
 
-        # Now verify that closing the session works
+        # Now verify that closing the session works. We look at the
+        # thread-local session because of the
+        # reset_default_session_and_location fixture and that this test mutates
+        # state that might otherwise be used by tests running in parallel.
+        assert (
+            bigframes.core.global_session._global_session_state.thread_local_session
+            is not None
+        )
         bpd.close_session()
-        assert bigframes.core.global_session._global_session is None
+        assert (
+            bigframes.core.global_session._global_session_state.thread_local_session
+            is None
+        )
 
     # Now verify that use is able to start over
     df = bpd.read_gbq(test_query)

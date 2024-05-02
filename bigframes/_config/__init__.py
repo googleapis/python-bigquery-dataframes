@@ -48,7 +48,8 @@ class Options:
         """Initialize thread-local options, based on current global options."""
 
         # Already thread-local, so don't reset any options that have been set
-        # already.
+        # already. No locks needed since this only modifies thread-local
+        # variables.
         if self._local.is_bigquery_thread_local:
             return
 
