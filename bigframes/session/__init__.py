@@ -304,7 +304,7 @@ class Session(
         self,
         query_or_table: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -323,6 +323,9 @@ class Session(
 
         filters = list(filters)
         if len(filters) != 0 or _is_table_with_wildcard_suffix(query_or_table):
+            # TODO(b/338111344): This appears to be missing index_cols, which
+            # are necessary to be selected.
+            # TODO(b/338039517): Also, need to account for primary keys.
             query_or_table = self._to_query(query_or_table, columns, filters)
 
         if _is_query(query_or_table):
@@ -336,9 +339,6 @@ class Session(
                 use_cache=use_cache,
             )
         else:
-            # TODO(swast): Query the snapshot table but mark it as a
-            # deterministic query so we can avoid serializing if we have a
-            # unique index.
             if configuration is not None:
                 raise ValueError(
                     "The 'configuration' argument is not allowed when "
@@ -369,6 +369,8 @@ class Session(
             else f"`{query_or_table}`"
         )
 
+        # TODO(b/338111344): Generate an index based on DefaultIndexKind if we
+        # don't have index columns specified.
         select_clause = "SELECT " + (
             ", ".join(f"`{column}`" for column in columns) if columns else "*"
         )
@@ -498,7 +500,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -576,7 +578,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         configuration: Optional[Dict] = None,
         max_results: Optional[int] = None,
@@ -608,7 +610,9 @@ class Session(
                 True if use_cache is None else use_cache
             )
 
-        if isinstance(index_col, str):
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            index_cols = []
+        elif isinstance(index_col, str):
             index_cols = [index_col]
         else:
             index_cols = list(index_col)
@@ -638,7 +642,7 @@ class Session(
 
         return self.read_gbq_table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
-            index_col=index_cols,
+            index_col=index_col,
             columns=columns,
             max_results=max_results,
             use_cache=configuration["query"]["useQueryCache"],
@@ -648,7 +652,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         max_results: Optional[int] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
@@ -703,7 +707,7 @@ class Session(
         self,
         query: str,
         *,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
         max_results: Optional[int] = None,
         api_name: str,
@@ -831,10 +835,12 @@ class Session(
         table: Union[bigquery.Table, bigquery.TableReference],
         *,
         job_config: bigquery.LoadJobConfig,
-        index_col: Iterable[str] | str = (),
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
     ) -> dataframe.DataFrame:
-        if isinstance(index_col, str):
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            index_cols = []
+        elif isinstance(index_col, str):
             index_cols = [index_col]
         else:
             index_cols = list(index_col)
@@ -1123,7 +1129,13 @@ class Session(
             Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
         ] = None,
         index_col: Optional[
-            Union[int, str, Sequence[Union[str, int]], Literal[False]]
+            Union[
+                int,
+                str,
+                Sequence[Union[str, int]],
+                bigframes.enums.DefaultIndexKind,
+                Literal[False],
+            ]
         ] = None,
         usecols: Optional[
             Union[
@@ -1153,17 +1165,36 @@ class Session(
                     f"{constants.FEEDBACK_LINK}"
                 )
 
-            if index_col is not None and (
-                not index_col or not isinstance(index_col, str)
+            # TODO(b/338089659): Looks like we can relax this 1 column
+            # restriction if we check the contents of an iterable are strings
+            # not integers.
+            if (
+                # Empty tuples, None, and False are allowed and falsey.
+                index_col
+                and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
+                and not isinstance(index_col, str)
             ):
                 raise NotImplementedError(
-                    "BigQuery engine only supports a single column name for `index_col`. "
-                    f"{constants.FEEDBACK_LINK}"
+                    "BigQuery engine only supports a single column name for `index_col`, "
+                    f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
                 )
 
-            # None value for index_col cannot be passed to read_gbq
-            if index_col is None:
+            # None and False cannot be passed to read_gbq.
+            # TODO(b/338400133): When index_col is None, we should be using the
+            # first column of the CSV as the index to be compatible with the
+            # pandas engine. According to the pandas docs, only "False"
+            # indicates a default sequential index.
+            if not index_col:
                 index_col = ()
+
+            index_col = typing.cast(
+                Union[
+                    Sequence[str],  # Falsey values
+                    bigframes.enums.DefaultIndexKind,
+                    str,
+                ],
+                index_col,
+            )
 
             # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
             columns: Tuple[Any, ...] = tuple()
@@ -1209,6 +1240,11 @@ class Session(
                 columns=columns,
             )
         else:
+            if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+                raise NotImplementedError(
+                    f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
+                    f"{constants.FEEDBACK_LINK}"
+                )
             if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
                     "'chunksize' and 'iterator' arguments are not supported. "
