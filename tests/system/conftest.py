@@ -128,7 +128,10 @@ def resourcemanager_client(
 
 @pytest.fixture(scope="session")
 def session() -> Generator[bigframes.Session, None, None]:
-    session = bigframes.Session()
+    context = bigframes.BigQueryOptions(
+        location="US",
+    )
+    session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup time
 
