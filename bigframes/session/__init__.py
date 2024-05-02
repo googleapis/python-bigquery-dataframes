@@ -1427,6 +1427,9 @@ class Session(
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
 
         .. note::
+            ``input_types="row"`` scenario is in preview.
+
+        .. note::
             Please make sure following is setup before using this API:
 
         1. Have the below APIs enabled for your project:
