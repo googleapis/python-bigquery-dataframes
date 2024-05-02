@@ -253,6 +253,10 @@ def test_read_gbq_must_comply_with_set_location_non_US(
     df = read_method(query_tokyo)
     assert df is not None
 
+    # Reset the location to default
+    bpd.options.bigquery.location = "us"
+    bpd.reset_session()
+
 
 def test_close_session_after_credentials_need_reauthentication(monkeypatch):
     # Use a simple test query to verify that default session works to interact

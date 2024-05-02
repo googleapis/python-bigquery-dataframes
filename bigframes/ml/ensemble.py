@@ -99,24 +99,17 @@ class XGBRegressor(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> XGBRegressor:
-        assert model.model_type == "BOOSTED_TREE_REGRESSOR"
+        assert bq_model.model_type == "BOOSTED_TREE_REGRESSOR"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_regressor = cls()
-        for bf_param, bf_value in dummy_regressor.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_xgb_regressor = cls(**kwargs)
-        new_xgb_regressor._bqml_model = core.BqmlModel(session, model)
-        return new_xgb_regressor
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
@@ -255,24 +248,17 @@ class XGBClassifier(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> XGBClassifier:
-        assert model.model_type == "BOOSTED_TREE_CLASSIFIER"
+        assert bq_model.model_type == "BOOSTED_TREE_CLASSIFIER"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_classifier = XGBClassifier()
-        for bf_param, bf_value in dummy_classifier.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param is not None:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_xgb_classifier = cls(**kwargs)
-        new_xgb_classifier._bqml_model = core.BqmlModel(session, model)
-        return new_xgb_classifier
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
@@ -401,24 +387,17 @@ class RandomForestRegressor(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> RandomForestRegressor:
-        assert model.model_type == "RANDOM_FOREST_REGRESSOR"
+        assert bq_model.model_type == "RANDOM_FOREST_REGRESSOR"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_model = cls()
-        for bf_param, bf_value in dummy_model.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_random_forest_regressor = cls(**kwargs)
-        new_random_forest_regressor._bqml_model = core.BqmlModel(session, model)
-        return new_random_forest_regressor
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
@@ -564,24 +543,17 @@ class RandomForestClassifier(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> RandomForestClassifier:
-        assert model.model_type == "RANDOM_FOREST_CLASSIFIER"
+        assert bq_model.model_type == "RANDOM_FOREST_CLASSIFIER"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_model = RandomForestClassifier()
-        for bf_param, bf_value in dummy_model.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param is not None:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_random_forest_classifier = cls(**kwargs)
-        new_random_forest_classifier._bqml_model = core.BqmlModel(session, model)
-        return new_random_forest_classifier
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:

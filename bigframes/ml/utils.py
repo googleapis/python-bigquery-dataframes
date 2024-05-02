@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import NoneType
 import typing
-from typing import Iterable, Optional, Union
+from typing import Any, Iterable, Literal, Mapping, Optional, Union
+
+from google.cloud import bigquery
 
 import bigframes.constants as constants
 from bigframes.core import blocks
@@ -69,3 +72,37 @@ def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:
         model_name = model_endpoint[:at_idx]
 
     return model_name, version
+
+
+def _resolve_param_type(t):
+    def is_optional(t):
+        return typing.get_origin(t) is Union and NoneType in typing.get_args(t)
+
+    # Optional[type] to type
+    if is_optional(t):
+        union_set = set(typing.get_args(t))
+        union_set.remove(NoneType)
+        t = Union[tuple(union_set)]
+
+    # Literal[value0, value1...] to type(value0)
+    if typing.get_origin(t) is Literal:
+        return type(typing.get_args(t)[0])
+
+    return t
+
+
+def retrieve_params_from_bq_model(
+    cls, bq_model: bigquery.Model, params_mapping: Mapping[str, str]
+) -> dict[str, Any]:
+    kwargs = {}
+
+    # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
+    last_fitting = bq_model.training_runs[-1]["trainingOptions"]
+
+    for bf_param, bf_param_type in typing.get_type_hints(cls.__init__).items():
+        bqml_param = params_mapping.get(bf_param)
+        if bqml_param in last_fitting:
+            bf_param_type = _resolve_param_type(bf_param_type)
+            kwargs[bf_param] = bf_param_type(last_fitting[bqml_param])
+
+    return kwargs
