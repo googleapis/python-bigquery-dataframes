@@ -1424,7 +1424,7 @@ def test_remote_function_gcf_timeout_max_supported_exceeded(session):
         pytest.param({"cloud_function_max_instances": 1000}, 1000, id="set-explicit"),
     ],
 )
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_max_instances(
     session, scalars_dfs, max_instances_args, expected_max_instances
 ):
