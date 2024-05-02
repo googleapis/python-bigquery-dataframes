@@ -742,14 +742,15 @@ def clean_up_by_session_id(
     Returns:
         None
     """
-    client = get_global_session().bqclient
+    session = get_global_session()
+    client = session.bqclient
 
     if (location is None) != (project is None):
         raise ValueError(
             "Only one of project or location was given. Must specify both or neither."
         )
     elif location is None and project is None:
-        dataset = get_global_session()._anonymous_dataset
+        dataset = session._anonymous_dataset
     else:
         dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
             client, location=location, project=project
