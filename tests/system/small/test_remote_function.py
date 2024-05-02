@@ -786,7 +786,9 @@ def test_df_apply_axis_1_unsupported_callable(scalars_df_index):
         return row["in64_col"] + row["in64_too"]
 
     with pytest.raises(ValueError, match="For axis=1 a remote function must be used."):
-        scalars_df_index.apply(add_ints, axis=1)
+        scalars_df_index[
+            ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+        ].apply(add_ints, axis=1)
 
 
 @pytest.mark.parametrize(
