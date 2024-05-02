@@ -768,3 +768,11 @@ def test_df_apply_axis_1_multiindex(session):
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
+
+
+def test_df_apply_axis_1_unsupported_callable(scalars_df_index):
+    def add_ints(row):
+        return row["in64_col"] + row["in64_too"]
+
+    with pytest.raises(ValueError, match="For axis=1 a remote function must be used."):
+        scalars_df_index.apply(add_ints, axis=1)

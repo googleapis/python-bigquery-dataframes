@@ -1496,64 +1496,57 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
         )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_non_string_column_names(session):
-    pd_df = pandas.DataFrame(
-        {"one": [1, 2, 3], 2: [1.5, 3.75, 5], (3, 4): ["pq", "rs", "tu"]}
-    )
-    bf_df = session.read_pandas(pd_df)
-
-    try:
-
-        def serialize_row(row):
-            custom = {
-                "name": row.name,
-                "index": [idx for idx in row.index],
-                "values": [
-                    val.item() if hasattr(val, "item") else val for val in row.values
-                ],
-            }
-
-            return str(
+@pytest.mark.parametrize(
+    ("pd_df"),
+    [
+        pytest.param(
+            pandas.DataFrame(
                 {
-                    "default": row.to_json(),
-                    "split": row.to_json(orient="split"),
-                    "records": row.to_json(orient="records"),
-                    "index": row.to_json(orient="index"),
-                    "table": row.to_json(orient="table"),
-                    "custom": custom,
+                    "one": [1, 2, 3],
+                    2: [1.5, 3.75, 5],
+                    (3, 4): ["pq", "rs", "tu"],
+                    (5.0, "six", 7): [8, 9, 10],
                 }
-            )
-
-        serialize_row_remote = session.remote_function("row", str, reuse=False)(
-            serialize_row
-        )
-
-        bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
-        pd_result = pd_df.apply(serialize_row, axis=1)
-
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        #
-        # bf_result.index[0].dtype is 'string[pyarrow]' while
-        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
-        # check_index_type=False.
-        pandas.testing.assert_series_equal(
-            pd_result, bf_result, check_dtype=False, check_index_type=False
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(
-            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
-        )
-
-
+            ),
+            id="non-string-column-names",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "x": [1, 2, 3],
+                    "y": [1.5, 3.75, 5],
+                    "z": ["pq", "rs", "tu"],
+                },
+                index=pandas.MultiIndex.from_tuples(
+                    [
+                        ("a", 100),
+                        ("a", 200),
+                        ("b", 300),
+                    ]
+                ),
+            ),
+            id="multiindex",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                [
+                    [10, 1.5, "pq"],
+                    [20, 3.75, "rs"],
+                    [30, 8.0, "tu"],
+                ],
+                columns=pandas.MultiIndex.from_arrays(
+                    [
+                        ["first", "last_two", "last_two"],
+                        [1, 2, 3],
+                    ]
+                ),
+            ),
+            id="column-multiindex",
+        ),
+    ],
+)
 @pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_multiindex(session):
-    pd_df = pandas.DataFrame(
-        {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
-        index=pandas.MultiIndex.from_tuples([("a", 100), ("a", 200), ("b", 300)]),
-    )
+def test_df_apply_axis_1_complex(session, pd_df):
     bf_df = session.read_pandas(pd_df)
 
     try:
@@ -1566,7 +1559,6 @@ def test_df_apply_axis_1_multiindex(session):
                     val.item() if hasattr(val, "item") else val for val in row.values
                 ],
             }
-
             return str(
                 {
                     "default": row.to_json(),
