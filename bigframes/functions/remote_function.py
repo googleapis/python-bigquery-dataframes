@@ -876,6 +876,9 @@ def remote_function(
             stacklevel=1,
             category=bigframes.exceptions.PreviewWarning,
         )
+
+        # we will model the row as a json serialized string containing the data
+        # and the metadata representing the row
         input_types = [str]
         is_row_processor = True
     elif isinstance(input_types, type):

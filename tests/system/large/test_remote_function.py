@@ -1590,31 +1590,3 @@ def test_df_apply_axis_1_complex(session, pd_df):
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, serialize_row_remote
         )
-
-
-@pytest.mark.parametrize(
-    ("column"),
-    [
-        pytest.param("date_col"),
-        pytest.param("datetime_col"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, column):
-    scalars_df, _ = scalars_dfs
-
-    try:
-
-        @session.remote_function("row", str, reuse=False)
-        def echo(row):
-            return row[column]
-
-        with pytest.raises(
-            BadRequest, match="400.*errorMessage.*Don't know how to handle type"
-        ):
-            scalars_df[[column]].apply(echo, axis=1)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_remote_function_assets(
-            session.bqclient, session.cloudfunctionsclient, echo
-        )

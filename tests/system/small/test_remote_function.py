@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import google.api_core.exceptions
 from google.cloud import bigquery
 import pandas as pd
@@ -785,3 +787,32 @@ def test_df_apply_axis_1_unsupported_callable(scalars_df_index):
 
     with pytest.raises(ValueError, match="For axis=1 a remote function must be used."):
         scalars_df_index.apply(add_ints, axis=1)
+
+
+@pytest.mark.parametrize(
+    ("column"),
+    [
+        pytest.param("bytes_col"),
+        pytest.param("date_col"),
+        pytest.param("datetime_col"),
+        pytest.param("geography_col"),
+        pytest.param("numeric_col"),
+        pytest.param("time_col"),
+        pytest.param("timestamp_col"),
+    ],
+)
+def test_df_apply_axis_1_unsupported_dtype(session, scalars_df_index, column):
+    # It doesn't matter if it is a remote function or not, the dtype check
+    # is done even before the function type check with axis=1
+    def echo(row):
+        return row[column]
+
+    dtype = scalars_df_index[column].dtype
+
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1. Supported dtypes are ('Int64', 'Float64', 'boolean', 'string')."
+        ),
+    ):
+        scalars_df_index[[column]].apply(echo, axis=1)
