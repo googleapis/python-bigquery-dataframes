@@ -717,7 +717,7 @@ def clean_up_by_session_id(
     location: Optional[str] = None,
     project: Optional[str] = None,
 ) -> None:
-    """Searches through table names in Bigquery and deletes tables
+    """Searches through table names in BigQuery and deletes tables
     found matching the expected format.
 
     This could be useful if the session object has been lost.
