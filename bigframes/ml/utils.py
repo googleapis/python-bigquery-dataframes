@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from types import NoneType
 import typing
 from typing import Any, Iterable, Literal, Mapping, Optional, Union
 
@@ -76,12 +75,12 @@ def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:
 
 def _resolve_param_type(t):
     def is_optional(t):
-        return typing.get_origin(t) is Union and NoneType in typing.get_args(t)
+        return typing.get_origin(t) is Union and type(None) in typing.get_args(t)
 
     # Optional[type] to type
     if is_optional(t):
         union_set = set(typing.get_args(t))
-        union_set.remove(NoneType)
+        union_set.remove(type(None))
         t = Union[tuple(union_set)]
 
     # Literal[value0, value1...] to type(value0)
