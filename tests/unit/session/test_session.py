@@ -93,6 +93,43 @@ CLUSTERED_OR_PARTITIONED_TABLES = [
 
 
 @pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        pytest.param(
+            {"engine": "bigquery", "names": []},
+            "BigQuery engine does not support these arguments",
+            id="with_names",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "dtype": {}},
+            "BigQuery engine does not support these arguments",
+            id="with_dtype",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "index_col": 5},
+            "BigQuery engine only supports a single column name for `index_col`.",
+            id="with_index_col_not_str",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "usecols": [1, 2]},
+            "BigQuery engine only supports an iterable of strings for `usecols`.",
+            id="with_usecols_invalid",
+        ),
+        pytest.param(
+            {"engine": "bigquery", "encoding": "ASCII"},
+            "BigQuery engine only supports the following encodings",
+            id="with_encoding_invalid",
+        ),
+    ],
+)
+def test_read_csv_bq_engine_throws_not_implemented_error(kwargs, match):
+    session = resources.create_bigquery_session()
+
+    with pytest.raises(NotImplementedError, match=match):
+        session.read_csv("", **kwargs)
+
+
+@pytest.mark.parametrize(
     ("engine",),
     (
         ("c",),
