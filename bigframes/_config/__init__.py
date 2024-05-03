@@ -44,7 +44,6 @@ class Options:
         # BigQuery options are special because they can only be set once per
         # session, so we need an indicator as to whether we are using the
         # thread-local session or the global session.
-        self._local.is_bigquery_thread_local = False
         self._bigquery_options = bigquery_options.BigQueryOptions()
 
     def _init_bigquery_thread_local(self):
@@ -53,20 +52,18 @@ class Options:
         # Already thread-local, so don't reset any options that have been set
         # already. No locks needed since this only modifies thread-local
         # variables.
-        if self._local.is_bigquery_thread_local:
+        if self._local.bigquery_options is not None:
             return
 
-        self._local.is_bigquery_thread_local = True
         self._local.bigquery_options = copy.deepcopy(self._bigquery_options)
         self._local.bigquery_options._session_started = False
 
     @property
     def bigquery(self) -> bigquery_options.BigQueryOptions:
         """Options to use with the BigQuery engine."""
-        if self._local.is_bigquery_thread_local:
+        if self._local.bigquery_options is not None:
             # The only way we can get here is if someone called
-            # _init_bigquery_thread_local, which initializes
-            # self._local.bigquery_options.
+            # _init_bigquery_thread_local.
             return self._local.bigquery_options
 
         return self._bigquery_options
@@ -106,9 +103,10 @@ class Options:
     def is_bigquery_thread_local(self) -> bool:
         """Indicator that we're using a thread-local session.
 
-        This is set to True by using `option_context` with a "bigquery" option.
+        A thread-local session can be started by using
+        `with bigframes.option_context("bigquery.some_option", "some-value"):`.
         """
-        return self._local.is_bigquery_thread_local
+        return self._local.bigquery_options is not None
 
 
 options = Options()

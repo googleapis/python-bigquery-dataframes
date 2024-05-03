@@ -63,9 +63,10 @@ def close_session() -> None:
             _global_session_state.thread_local_session = None
 
         # Currently using thread-local options, so no global lock needed.
-        # Don't reset is_bigquery_thread_local, as that's the responsibility
+        # Don't reset options.bigquery, as that's the responsibility
         # of the context manager that started it in the first place. The user
-        # might have explicitly closed the session in the context manager.
+        # might have explicitly closed the session in the context manager and
+        # the thread-locality property needs to be retained.
         bigframes._config.options.bigquery._session_started = False
 
         # Don't close the non-thread-local session.

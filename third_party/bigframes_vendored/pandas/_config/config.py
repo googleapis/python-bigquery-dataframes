@@ -56,7 +56,9 @@ class option_context(contextlib.ContextDecorator):
         # sessions if we allow that.
         if bigframes.options.is_bigquery_thread_local:
             bigframes.close_session()
-            bigframes.options._local.is_bigquery_thread_local = False
+
+            # Reset bigquery_options so that we're no longer thread-local.
+            bigframes.options._local.bigquery_options = None
 
     def _set_option(self, pat, val):
         root, attr = pat.rsplit(".", 1)
