@@ -468,16 +468,16 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         model_connection = bq_model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
-        kwargs = utils.retrieve_params_from_bq_model(
-            cls, bq_model, _BQML_PARAMS_MAPPING
-        )
+        model_name, version = utils.parse_model_endpoint(model_endpoint)
 
         model = cls(
-            **kwargs,
             session=session,
-            model_name=model_endpoint,
+            # str to literals
+            model_name=model_name,  # type: ignore
+            version=version,
             connection_name=model_connection,
         )
+
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
