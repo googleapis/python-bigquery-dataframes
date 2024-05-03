@@ -15,7 +15,11 @@
 """Utilities for managing a default, globally available Session object."""
 
 import threading
+import traceback
 from typing import Callable, Optional, TypeVar
+import warnings
+
+import google.auth.exceptions
 
 import bigframes._config
 import bigframes.session
@@ -29,7 +33,8 @@ _global_session_state.thread_local_session = None
 def close_session() -> None:
     """Start a fresh session the next time a function requires a session.
 
-    Closes the current session if it was already started.
+    Closes the current session if it was already started, deleting any
+    temporary tables that were created.
 
     Returns:
         None
@@ -52,7 +57,18 @@ def close_session() -> None:
 
     with _global_session_lock:
         if _global_session is not None:
-            _global_session.close()
+            try:
+                _global_session.close()
+            except google.auth.exceptions.RefreshError as e:
+                session_id = _global_session.session_id
+                location = _global_session._location
+                project_id = _global_session._project
+                warnings.warn(
+                    f"Session cleanup failed for session with id: {session_id}, "
+                    f"location: {location}, project: {project_id}",
+                    category=bigframes.exceptions.CleanupFailedWarning,
+                )
+                traceback.print_tb(e.__traceback__)
             _global_session = None
 
         # This should be global, not thread-local because of the if clause

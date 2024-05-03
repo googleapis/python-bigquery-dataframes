@@ -14,6 +14,7 @@
 
 import datetime
 from unittest import mock
+import warnings
 
 import google.api_core.exceptions
 import google.auth
@@ -259,7 +260,7 @@ def test_read_gbq_must_comply_with_set_location_non_US(
     assert df is not None
 
 
-def test_close_session_after_credentials_need_reauthentication(monkeypatch):
+def test_credentials_need_reauthentication(monkeypatch):
     # Use a simple test query to verify that default session works to interact
     # with BQ
     test_query = "SELECT 1"
@@ -293,7 +294,7 @@ def test_close_session_after_credentials_need_reauthentication(monkeypatch):
         with pytest.raises(google.auth.exceptions.RefreshError):
             bpd.read_gbq(test_query)
 
-        # Now verify that closing the session works. We look at the
+        # Now verify that closing the session works We look at the
         # thread-local session because of the
         # reset_default_session_and_location fixture and that this test mutates
         # state that might otherwise be used by tests running in parallel.
@@ -301,7 +302,13 @@ def test_close_session_after_credentials_need_reauthentication(monkeypatch):
             bigframes.core.global_session._global_session_state.thread_local_session
             is not None
         )
-        bpd.close_session()
+
+        with warnings.catch_warnings(record=True) as warned:
+            bpd.close_session()  # CleanupFailedWarning: can't clean up
+
+        assert len(warned) == 1
+        assert warned[0].category == bigframes.exceptions.CleanupFailedWarning
+
         assert (
             bigframes.core.global_session._global_session_state.thread_local_session
             is None
