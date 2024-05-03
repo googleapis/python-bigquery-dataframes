@@ -429,7 +429,11 @@ class ArrayValue:
         for row_offset in range(len(former_column_labels)):
             row_label = former_column_labels[row_offset]
             row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
-            row = {col_ids[i]: row_label[i] for i in range(len(col_ids))}
+            row = {
+                col_ids[i]: row_label[i]
+                for i in range(len(col_ids))
+                if pandas.notnull(row_label[i])
+            }
             rows.append(row)
 
         return ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=self.session)
