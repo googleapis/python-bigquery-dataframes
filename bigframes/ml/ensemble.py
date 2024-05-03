@@ -30,6 +30,7 @@ import bigframes.pandas as bpd
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
+    "dart_normalized_type": "dartNormalizeType",
     "tree_method": "treeMethod",
     "colsample_bytree": "colsampleBytree",
     "colsample_bylevel": "colsampleBylevel",
@@ -44,6 +45,8 @@ _BQML_PARAMS_MAPPING = {
     "min_tree_child_weight": "minTreeChildWeight",
     "max_depth": "maxTreeDepth",
     "max_iterations": "maxIterations",
+    "enable_global_explain": "enableGlobalExplain",
+    "xgboost_version": "xgboostVersion",
 }
 
 

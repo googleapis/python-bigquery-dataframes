@@ -59,7 +59,7 @@ class PCA(
         last_fitting = bq_model.training_runs[-1]["trainingOptions"]
         if "numPrincipalComponents" in last_fitting:
             kwargs["n_components"] = int(last_fitting["numPrincipalComponents"])
-        if "pcaExplainedVarianceRatio" in last_fitting:
+        elif "pcaExplainedVarianceRatio" in last_fitting:
             kwargs["n_components"] = float(last_fitting["pcaExplainedVarianceRatio"])
 
         model = cls(**kwargs)

@@ -32,6 +32,7 @@ _BQML_PARAMS_MAPPING = {
     "auto_arima_min_order": "autoArimaMinOrder",
     "order": "nonSeasonalOrder",
     "data_frequency": "dataFrequency",
+    "include_drift": "includeDrift",
     "holiday_region": "holidayRegion",
     "clean_spikes_and_dips": "cleanSpikesAndDips",
     "adjust_step_changes": "adjustStepChanges",

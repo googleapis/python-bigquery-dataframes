@@ -34,6 +34,7 @@ _BQML_PARAMS_MAPPING = {
     "distance_type": "distanceType",
     "max_iter": "maxIterations",
     "tol": "minRelativeProgress",
+    "warm_start": "warmStart",
 }
 
 

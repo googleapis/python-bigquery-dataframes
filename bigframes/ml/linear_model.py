@@ -42,7 +42,6 @@ _BQML_PARAMS_MAPPING = {
     "warm_start": "warmStart",
     "calculate_p_values": "calculatePValues",
     "enable_global_explain": "enableGlobalExplain",
-    "category_encoding_method": "categoryEncodingMethod",
 }
 
 
@@ -51,7 +50,6 @@ class LinearRegression(
     base.SupervisedTrainablePredictor,
     bigframes_vendored.sklearn.linear_model._base.LinearRegression,
 ):
-    name: str
     __doc__ = bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
 
     def __init__(

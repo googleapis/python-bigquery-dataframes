@@ -64,7 +64,7 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     )
 
 
-@pytest.mark.flaky(retries=2)
+# @pytest.mark.flaky(retries=2)
 def test_xgbregressor_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
