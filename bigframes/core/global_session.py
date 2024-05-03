@@ -30,6 +30,22 @@ _global_session_state = threading.local()
 _global_session_state.thread_local_session = None
 
 
+def _try_close_session(session):
+    """Try to close the session and warn if couldn't."""
+    try:
+        session.close()
+    except google.auth.exceptions.RefreshError as e:
+        session_id = session.session_id
+        location = session._location
+        project_id = session._project
+        warnings.warn(
+            f"Session cleanup failed for session with id: {session_id}, "
+            f"location: {location}, project: {project_id}",
+            category=bigframes.exceptions.CleanupFailedWarning,
+        )
+        traceback.print_tb(e.__traceback__)
+
+
 def close_session() -> None:
     """Start a fresh session the next time a function requires a session.
 
@@ -43,7 +59,7 @@ def close_session() -> None:
 
     if bigframes._config.options.is_bigquery_thread_local:
         if _global_session_state.thread_local_session is not None:
-            _global_session_state.thread_local_session.close()
+            _try_close_session(_global_session_state.thread_local_session)
             _global_session_state.thread_local_session = None
 
         # Currently using thread-local options, so no global lock needed.
@@ -57,18 +73,7 @@ def close_session() -> None:
 
     with _global_session_lock:
         if _global_session is not None:
-            try:
-                _global_session.close()
-            except google.auth.exceptions.RefreshError as e:
-                session_id = _global_session.session_id
-                location = _global_session._location
-                project_id = _global_session._project
-                warnings.warn(
-                    f"Session cleanup failed for session with id: {session_id}, "
-                    f"location: {location}, project: {project_id}",
-                    category=bigframes.exceptions.CleanupFailedWarning,
-                )
-                traceback.print_tb(e.__traceback__)
+            _try_close_session(_global_session)
             _global_session = None
 
         # This should be global, not thread-local because of the if clause
