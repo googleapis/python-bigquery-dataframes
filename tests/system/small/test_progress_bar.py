@@ -23,6 +23,7 @@ import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import MAX_INLINE_DF_BYTES
 
 job_load_message_regex = r"\w+ job [\w-]+ is \w+\."
+EXPECTED_DRY_RUN_MESSAGE = "Computation deferred. Computation will process"
 
 
 def test_progress_bar_dataframe(
@@ -134,13 +135,19 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
         assert string in query_job_repr
 
 
-def test_query_job_dry_run(penguins_df_default_index: bf.dataframe.DataFrame):
-    expected = "Computation deferred. Computation will process"
-
+def test_query_job_dry_run_dataframe(penguins_df_default_index: bf.dataframe.DataFrame):
     with bf.option_context("display.repr_mode", "deferred"):
         df_result = repr(penguins_df_default_index)
-        assert expected in df_result
+        assert EXPECTED_DRY_RUN_MESSAGE in df_result
 
+
+def test_query_job_dry_run_index(penguins_df_default_index: bf.dataframe.DataFrame):
+    with bf.option_context("display.repr_mode", "deferred"):
+        index_result = repr(penguins_df_default_index.index)
+        assert EXPECTED_DRY_RUN_MESSAGE in index_result
+
+
+def test_query_job_dry_run_series(penguins_df_default_index: bf.dataframe.DataFrame):
     with bf.option_context("display.repr_mode", "deferred"):
         series_result = repr(penguins_df_default_index["body_mass_g"])
-        assert expected in series_result
+        assert EXPECTED_DRY_RUN_MESSAGE in series_result
