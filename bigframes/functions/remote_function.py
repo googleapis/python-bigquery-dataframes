@@ -319,7 +319,7 @@ def get_pd_series(row):
         try:
             col_name = ast.literal_eval(col_name)
         except Exception as ex:
-            raise RuntimeError(f"Failed to evaluate column name from '{col_name}': {ex}")
+            raise NameError(f"Failed to evaluate column name from '{col_name}': {ex}")
         evaluated_col_names.append(col_name)
     col_names = evaluated_col_names
 
