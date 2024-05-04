@@ -1502,13 +1502,14 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
         pytest.param(
             pandas.DataFrame(
                 {
-                    "one": [1, 2, 3],
+                    "2": [1, 2, 3],
                     2: [1.5, 3.75, 5],
                     (3, 4): ["pq", "rs", "tu"],
                     (5.0, "six", 7): [8, 9, 10],
+                    'raise Exception("hacked!")': [11, 12, 13],
                 }
             ),
-            id="non-string-column-names",
+            id="mixed-type-column-names",
         ),
         pytest.param(
             pandas.DataFrame(

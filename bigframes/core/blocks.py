@@ -45,8 +45,8 @@ import bigframes.core.guid as guid
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
 import bigframes.core.schema as bf_schema
+import bigframes.core.sql as sql
 import bigframes.core.tree_properties as tree_properties
-import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.features
@@ -1418,9 +1418,7 @@ class Block:
         )
 
     def add_prefix(self, prefix: str, axis: str | int | None = None) -> Block:
-        axis_number = bigframes.core.utils.get_axis_number(
-            "rows" if (axis is None) else axis
-        )
+        axis_number = utils.get_axis_number("rows" if (axis is None) else axis)
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
@@ -1441,9 +1439,7 @@ class Block:
             return self.rename(columns=lambda label: f"{prefix}{label}")
 
     def add_suffix(self, suffix: str, axis: str | int | None = None) -> Block:
-        axis_number = bigframes.core.utils.get_axis_number(
-            "rows" if (axis is None) else axis
-        )
+        axis_number = utils.get_axis_number("rows" if (axis is None) else axis)
         if axis_number == 0:
             expr = self._expr
             for index_col in self._index_columns:
@@ -2062,31 +2058,29 @@ class Block:
         ordering_column_name = guid.generate_guid()
         expr = self.session._cache_with_offsets(self.expr)
         expr = expr.promote_offsets(ordering_column_name)
-        sql = self.session._to_sql(expr)
+        expr_sql = self.session._to_sql(expr)
 
         # names of the columns to serialize for the row
         column_names = list(self.index_columns) + [col for col in self.column_labels]
         column_names_csv = ", ".join([repr(repr(col)) for col in column_names])
 
-        # index column names
-        index_column_names_csv = ", ".join(
-            [repr(repr(col)) for col in self.index_columns]
-        )
+        # index columns count
+        index_columns_count = len(self.index_columns)
 
         # column references to form the array of values for the row
         column_references_csv = ", ".join(
-            [f"CAST(`{col}` AS STRING)" for col in self.expr.column_ids]
+            [sql.cast_as_string(col) for col in self.expr.column_ids]
         )
 
         # types of the columns to serialize for the row
         column_types = list(self.index.dtypes) + list(self.dtypes)
-        column_types_csv = ", ".join([f'"{col}"' for col in column_types])
+        column_types_csv = ", ".join([sql.quote(typ) for typ in column_types])
 
         # row dtype to use for deserializing the row as pandas series
         pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
         if pandas_row_dtype is None:
             pandas_row_dtype = "object"
-        pandas_row_dtype = f'"{pandas_row_dtype}"'
+        pandas_row_dtype = sql.quote(pandas_row_dtype)
 
         # create a json column representing row through SQL manipulation
         row_json_column_name = guid.generate_guid()
@@ -2096,7 +2090,7 @@ class Block:
         select_columns_csv = ", ".join(select_columns)
         json_sql = f"""\
 With T0 AS (
-{textwrap.indent(sql, "    ")}
+{textwrap.indent(expr_sql, "    ")}
 ),
 T1 AS (
     SELECT *,
@@ -2104,18 +2098,15 @@ T1 AS (
                "names", [{column_names_csv}],
                "types", [{column_types_csv}],
                "values", [{column_references_csv}],
-               "index", [{index_column_names_csv}],
+               "indexlength", {index_columns_count},
                "dtype", {pandas_row_dtype}
            ) AS {row_json_column_name} FROM T0
 )
 SELECT {select_columns_csv} FROM T1
 """
         ibis_table = self.session.ibis_client.sql(json_sql)
-        order_for_ibis_table = ordering.ExpressionOrdering(
-            ordering_value_columns=tuple(
-                [ordering.ascending_over(ordering_column_name)]
-            ),
-            total_ordering_columns=frozenset([ordering_column_name]),
+        order_for_ibis_table = ordering.ExpressionOrdering.from_offset_col(
+            ordering_column_name
         )
         expr = core.ArrayValue.from_ibis(
             self.session,

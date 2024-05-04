@@ -3329,7 +3329,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             for dtype in self.dtypes:
                 if not isinstance(dtype, supported_dtypes_types):
-                    raise TypeError(
+                    raise NotImplementedError(
                         f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
                         f" Supported dtypes are {supported_dtypes_hints}."
                     )

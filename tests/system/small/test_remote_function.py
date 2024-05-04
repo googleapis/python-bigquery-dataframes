@@ -812,7 +812,7 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_df_index, column):
     dtype = scalars_df_index[column].dtype
 
     with pytest.raises(
-        TypeError,
+        NotImplementedError,
         match=re.escape(
             f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1. Supported dtypes are ('Int64', 'Float64', 'boolean', 'string')."
         ),

@@ -297,6 +297,7 @@ import json
 """
         if is_row_processor:
             code += """\
+import ast
 import pandas as pd
 
 def get_pd_series(row):
@@ -304,14 +305,25 @@ def get_pd_series(row):
     col_names = row_json["names"]
     col_types = row_json["types"]
     col_values = row_json["values"]
-    index_names = row_json["index"]
+    index_length = row_json["indexlength"]
     dtype = row_json["dtype"]
 
-    # index and column names are not necessarily strings
-    # they are serialized as repr(repr(name)) at source
-    col_names = [eval(name) for name in col_names]
-    index_names = [eval(name) for name in index_names]
+    # At this point we are assuming that col_names, col_types and col_values are
+    # arrays of the same length, representing column names, types and values for
+    # one row of data
 
+    # column names are not necessarily strings
+    # they are serialized as repr(name) at source
+    evaluated_col_names = []
+    for col_name in col_names:
+        try:
+            col_name = ast.literal_eval(col_name)
+        except Exception as ex:
+            raise RuntimeError(f"Failed to evaluate column name from '{col_name}': {ex}")
+        evaluated_col_names.append(col_name)
+    col_names = evaluated_col_names
+
+    # Supported converters for pandas to python types
     value_converters = {
         "boolean": lambda val: val == "true",
         "Int64": int,
@@ -327,27 +339,21 @@ def get_pd_series(row):
             return None
         return value_converter(value)
 
-    index_positions = [col_names.index(col) for col in index_names]
-
     index_values = [
         pd.Series([convert_value(col_values[i], col_types[i])], dtype=col_types[i])[0]
-        for i in index_positions
+        for i in range(index_length)
     ]
 
-    col_names = [
-        col_names[i]
-        for i, a in enumerate(col_names)
-        if i not in index_positions
-    ]
-
-    row_values = [
-        pd.Series([convert_value(a, col_types[i])], dtype=col_types[i])[0]
-        for i, a in enumerate(col_values)
-        if i not in index_positions
+    data_col_names = col_names[index_length:]
+    data_col_types = col_types[index_length:]
+    data_col_values = col_values[index_length:]
+    data_col_values = [
+        pd.Series([convert_value(a, data_col_types[i])], dtype=data_col_types[i])[0]
+        for i, a in enumerate(data_col_values)
     ]
 
     row_index = index_values[0] if len(index_values) == 1 else tuple(index_values)
-    row_series = pd.Series(row_values, index=col_names, name=row_index, dtype=dtype)
+    row_series = pd.Series(data_col_values, index=data_col_names, name=row_index, dtype=dtype)
     return row_series
 """
         code += f"""\
