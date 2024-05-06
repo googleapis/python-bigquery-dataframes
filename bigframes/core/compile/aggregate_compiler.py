@@ -34,13 +34,11 @@ scalar_compiler = scalar_compilers.scalar_op_compiler
 def compile_aggregate(
     aggregate: ex.Aggregation,
     bindings: typing.Dict[str, ibis_types.Value],
+    agg_order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.Value:
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        return compile_unary_agg(
-            aggregate.op,
-            input,
-        )
+        return compile_unary_agg(aggregate.op, input, agg_order_by=agg_order_by)
     elif isinstance(aggregate, ex.BinaryAggregation):
         left = scalar_compiler.compile_expression(aggregate.left, bindings=bindings)
         right = scalar_compiler.compile_expression(aggregate.right, bindings=bindings)
@@ -77,6 +75,7 @@ def compile_unary_agg(
     op: agg_ops.WindowOp,
     input: ibis_types.Column,
     window: Optional[window_spec.WindowSpec] = None,
+    agg_order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.Value:
     raise ValueError(f"Can't compile unrecognized operation: {op}")
 
@@ -236,6 +235,27 @@ def _(
     op: agg_ops.CountOp, column: ibis_types.Column, window=None
 ) -> ibis_types.IntegerValue:
     return _apply_window_if_present(column.count(), window)
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.ArrayAggOp,
+    column: ibis_types.Column,
+    window=None,
+    agg_order_by: typing.Sequence[ibis_types.Value] = [],
+) -> ibis_types.ArrayValue:
+    # Dev notes:
+    # (1). ibis .collect() generates SQL: ARRAY_AGG(t3.`column_0` IGNORE NULLS)
+    # But `IGNORE NULLS` is not valid grammar for BigQuery.
+    # return _apply_window_if_present(column.collect()
+    if window is not None:
+        raise NotImplementedError(
+            f"Window operations in ArrayAggOp is not implemented. {constants.FEEDBACK_LINK}"
+        )
+    return vendored_ibis_ops.ArrayAggregate(
+        column, order_by_columns=agg_order_by
+    ).to_expr()
+    # return column.collect()
 
 
 @compile_unary_agg.register

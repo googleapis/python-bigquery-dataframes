@@ -115,7 +115,7 @@ class QuantileOp(UnaryAggregateOp):
 
     @property
     def name(self):
-        return f"{int(self.q*100)}%"
+        return f"{int(self.q * 100)}%"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
@@ -127,7 +127,7 @@ class ApproxQuartilesOp(UnaryAggregateOp):
 
     @property
     def name(self):
-        return f"{self.quartile*25}%"
+        return f"{self.quartile * 25}%"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if not dtypes.is_orderable(input_types[0]):
@@ -220,6 +220,20 @@ class CountOp(UnaryAggregateOp):
         return signatures.FixedOutputType(
             lambda x: True, dtypes.INT_DTYPE, ""
         ).output_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
+class ArrayAggOp(UnaryAggregateOp):
+    name: ClassVar[str] = "arrayagg"
+
+    @property
+    def skips_nulls(self):
+        return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_types[0]))
+        )
 
 
 @dataclasses.dataclass(frozen=True)

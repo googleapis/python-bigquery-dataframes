@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import typing
 
+import bigframes.core.groupby as groupby
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
     import bigframes.series as series
@@ -50,3 +52,13 @@ def array_length(series: series.Series) -> series.Series:
 
     """
     return series._apply_unary_op(ops.len_op)
+
+
+def array_agg(groupby_series: groupby.SeriesGroupBy) -> series.Series:
+    # TODO:
+    # 1). DISTINCT
+    # 2). LIMIT N
+    # 3). HAVING MIN/MAX
+    # 4). WINDOW FUNCTIONS
+    # 5). ORDER BY
+    return groupby_series._aggregate(agg_ops.ArrayAggOp())
