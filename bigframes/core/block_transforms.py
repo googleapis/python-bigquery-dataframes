@@ -823,7 +823,8 @@ def idxmax(block: blocks.Block) -> blocks.Block:
 def _idx_extrema(
     block: blocks.Block, min_or_max: typing.Literal["min", "max"]
 ) -> blocks.Block:
-    if len(block.index_columns) != 1:
+    block._null_index_guard()
+    if len(block.index_columns) > 1:
         # TODO: Need support for tuple dtype
         raise NotImplementedError(
             f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"

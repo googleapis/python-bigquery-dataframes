@@ -117,19 +117,6 @@ class Block:
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
 
-        # If no index columns are set, create one.
-        #
-        # Note: get_index_cols_and_uniqueness in
-        # bigframes/session/_io/bigquery/read_gbq_table.py depends on this
-        # being as sequential integer index column. If this default behavior
-        # ever changes, please also update get_index_cols_and_uniqueness so
-        # that users who explicitly request a sequential integer index can
-        # still get one.
-        if len(index_columns) == 0:
-            new_index_col_id = guid.generate_guid()
-            expr = expr.promote_offsets(new_index_col_id)
-            index_columns = [new_index_col_id]
-
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
         self._index_labels = (
@@ -514,7 +501,8 @@ class Block:
 
         Warning: This method modifies ``df`` inplace.
         """
-        if self.index_columns:
+        # Note: If BigQuery DataFrame has empty index, a default one will be created for the local materialization.
+        if len(self.index_columns) > 0:
             df.set_index(list(self.index_columns), inplace=True)
             # Pandas names is annotated as list[str] rather than the more
             # general Sequence[Label] that BigQuery DataFrames has.
@@ -1410,7 +1398,8 @@ class Block:
         computed_df, query_job = head_block.to_pandas()
         formatted_df = computed_df.set_axis(self.column_labels, axis=1)
         # we reset the axis and substitute the bf index name(s) for the default
-        formatted_df.index.names = self.index.names  # type: ignore
+        if len(self.index.names) > 0:
+            formatted_df.index.names = self.index.names  # type: ignore
         return formatted_df, count, query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
@@ -1901,6 +1890,7 @@ class Block:
         sort=False,
         block_identity_join: bool = False,
     ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+
         if not isinstance(other, Block):
             # TODO(swast): We need to improve this error message to be more
             # actionable for the user. For example, it's possible they
@@ -1914,6 +1904,16 @@ class Block:
             raise NotImplementedError(
                 f"Only how='outer','left','right','inner' currently supported. {constants.FEEDBACK_LINK}"
             )
+        # Special case for null index,
+        if (
+            (self.index.nlevels == other.index.nlevels == 0)
+            and (sort is False)
+            and (block_identity_join is False)
+        ):
+            return join_indexless(self, other, how=how)
+
+        self._null_index_guard()
+        other._null_index_guard()
         if self.index.nlevels == other.index.nlevels == 1:
             return join_mono_indexed(
                 self, other, how=how, sort=sort, block_identity_join=block_identity_join
@@ -2062,6 +2062,12 @@ class Block:
         self._stats_cache[column_name].update({op_name: result})
         return result
 
+    def _null_index_guard(self):
+        if len(self.index_columns) == 0:
+            raise bigframes.exceptions.NullIndexError(
+                "Cannot perform this operation without an index. Set an index using set_index."
+            )
+
 
 class BlockIndexProperties:
     """Accessor for the index-related block properties."""
@@ -2113,6 +2119,10 @@ class BlockIndexProperties:
 
     def to_pandas(self) -> pd.Index:
         """Executes deferred operations and downloads the results."""
+        if len(self.column_ids) == 0:
+            raise bigframes.exceptions.NullIndexError(
+                "Cannot perform this operation without an index. Set an index using set_index."
+            )
         # Project down to only the index column. So the query can be cached to visualize other data.
         index_columns = list(self._block.index_columns)
         dtypes = dict(zip(index_columns, self.dtypes))
@@ -2152,6 +2162,53 @@ class BlockIndexProperties:
 
     def is_uniquely_named(self: BlockIndexProperties):
         return len(set(self.names)) == len(self.names)
+
+
+def join_indexless(
+    left: Block,
+    right: Block,
+    *,
+    how="left",
+) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+    """Joins two blocks"""
+    left_expr = left.expr
+    right_expr = right.expr
+    left_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.LEFT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in left_expr.column_ids
+    ]
+    right_mappings = [
+        join_defs.JoinColumnMapping(
+            source_table=join_defs.JoinSide.RIGHT,
+            source_id=id,
+            destination_id=guid.generate_guid(),
+        )
+        for id in right_expr.column_ids
+    ]
+    combined_expr = left_expr.try_align_as_projection(
+        right_expr,
+        join_type=how,
+        mappings=(*left_mappings, *right_mappings),
+    )
+    if combined_expr is None:
+        raise bigframes.exceptions.NullIndexError(
+            "Cannot implicitly align objects. Set an explicit index using set_index."
+        )
+    get_column_left = {m.source_id: m.destination_id for m in left_mappings}
+    get_column_right = {m.source_id: m.destination_id for m in right_mappings}
+    block = Block(
+        combined_expr,
+        column_labels=[*left.column_labels, *right.column_labels],
+        index_columns=(),
+    )
+    return (
+        block,
+        (get_column_left, get_column_right),
+    )
 
 
 def join_mono_indexed(

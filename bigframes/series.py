@@ -31,6 +31,7 @@ import pandas
 import pandas.core.dtypes.common
 import typing_extensions
 
+import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
@@ -288,7 +289,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._set_internal_query_job(query_job)
 
-        return repr(pandas_df.iloc[:, 0])
+        pd_series = pandas_df.iloc[:, 0]
+
+        with display_options.pandas_repr(opts):
+            import pandas.io.formats
+
+            options = pandas.io.formats.format.get_series_repr_params()  # type: ignore
+            if len(self._block.index_columns) == 0:
+                options.update({"index": False})
+            repr_string = pd_series.to_string(**options)
+
+        return repr_string
 
     def astype(
         self,

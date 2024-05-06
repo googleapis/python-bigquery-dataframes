@@ -79,6 +79,7 @@ import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
+import bigframes.core.guid
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
@@ -812,6 +813,11 @@ class Session(
         # ----------------------------------------------------
         # Create Block & default index if len(index_cols) == 0
         # ----------------------------------------------------
+
+        if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
+            sequential_index_col = bigframes.core.guid.generate_guid("index_")
+            array_value = array_value.promote_offsets(sequential_index_col)
+            index_cols = [sequential_index_col]
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(

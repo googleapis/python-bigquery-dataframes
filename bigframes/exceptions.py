@@ -27,3 +27,7 @@ class CleanupFailedWarning(Warning):
 
 class NoDefaultIndexError(ValueError):
     """Unable to create a default index."""
+
+
+class NullIndexError(ValueError):
+    """Object has no index."""

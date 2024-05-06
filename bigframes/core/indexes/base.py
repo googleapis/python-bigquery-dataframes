@@ -100,6 +100,7 @@ class Index(vendored_pandas_index.Index):
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
+        frame._block._null_index_guard()
         index = Index(frame._block)
         index._linked_frame = frame
         return index

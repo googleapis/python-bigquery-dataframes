@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import functools
 import inspect
 import re
 import sys
@@ -41,6 +42,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+import pandas.io.formats.format
 import tabulate
 
 import bigframes
@@ -60,6 +62,7 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -82,6 +85,15 @@ ERROR_IO_REQUIRES_WILDCARD = (
     "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
     f"{constants.FEEDBACK_LINK}"
 )
+
+
+def requires_index(meth):
+    @functools.wraps(meth)
+    def guarded_meth(df: DataFrame, *args, **kwargs):
+        df._null_index_guard()
+        return meth(df, *args, **kwargs)
+
+    return guarded_meth
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -256,6 +268,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self.index.name = value.name if hasattr(value, "name") else None
 
     @property
+    @requires_index
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
 
@@ -268,6 +281,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.IatDataFrameIndexer(self)
 
     @property
+    @requires_index
     def at(self) -> indexers.AtDataFrameIndexer:
         return indexers.AtDataFrameIndexer(self)
 
@@ -315,9 +329,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._get_block().expr.session
 
     @property
+    def _has_index(self) -> bool:
+        return len(self._block.index_columns) > 0
+
+    @property
     def T(self) -> DataFrame:
         return DataFrame(self._get_block().transpose())
 
+    @requires_index
     def transpose(self) -> DataFrame:
         return self.T
 
@@ -610,7 +629,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
-            repr_string = repr(pandas_df)
+            import pandas.io.formats
+
+            options = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not self._has_index:
+                options.update({"index": False})
+            repr_string = pandas_df.to_string(**options)
 
         # Modify the end of the string to reflect count.
         lines = repr_string.split("\n")
@@ -806,15 +832,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         # join columns schema
         # indexers will be none for exact match
-        columns, lcol_indexer, rcol_indexer = self.columns.join(
-            other.columns, how=how, return_indexers=True
-        )
+        if self.columns.equals(other.columns):
+            columns, lcol_indexer, rcol_indexer = self.columns, None, None
+        else:
+            columns, lcol_indexer, rcol_indexer = self.columns.join(
+                other.columns, how=how, return_indexers=True
+            )
 
         binop_result_ids = []
 
         column_indices = zip(
             lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
         )
 
         for left_index, right_index in column_indices:
@@ -3518,3 +3547,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.dot(other)
 
     __matmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__matmul__)
+
+    def _null_index_guard(self):
+        if not self._has_index:
+            raise bigframes.exceptions.NullIndexError(
+                "DataFrame cannot perform this operation as it has no index. Set an index using set_index."
+            )
