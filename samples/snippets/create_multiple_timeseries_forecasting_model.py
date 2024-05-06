@@ -1,21 +1,27 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 def test_multiple_timeseries_forecasting_model(random_model_id):
-    # [START bigquery_dataframes_bqml_create_data__set]
     your_model_id = random_model_id
 
-    from bigframes.ml import forecasting
+    # [START bigquery_dataframes_bqml_arima_multiple_step_2_visualize]
+
     import bigframes.pandas as bpd
 
-    # Start by selecting the data you'll use for training. `read_gbq_table` accepts
-    # either a SQL query or a table ID. Since this example selects from multiple
-    # tables via a wildcard, use SQL to define this data. Watch issue
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/169
-    # for updates to `read_gbq_table` to support wildcard tables.
+    df = bpd.read_gbq("bigquery-public-data.new_york.citibike_trips")
 
-    df = bpd.read_gbq_table("bigquery-public-data.new_york.citibike_trips", filters=[])
-
-    # [END bigquery_dataframes_bqml_create_data__set(1)]
-
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
     features = bpd.DataFrame(
         {
             "num_trips": df.starttime,
@@ -56,19 +62,19 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
     # 2013-07-24      35271
     # 2013-07-25      31084
 
-    # LINE GRAPH GOES HERE
-    # EXPLAIN WHY WER
     num_trips.plot.line(
+        # Rotate the x labels so they are more visible.
         rot=45,
     )
 
-    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
+    # [END bigquery_dataframes_bqml_arima_multiple_step_2_visualize]
 
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
+    # [START bigquery_dataframes_bqml_arima_multiple_step_3_fit]
+    from bigframes.ml import forecasting
+    import bigframes.pandas as bpd
 
-    date = df["starttime"].dt.date
-    df.groupby([date])
-    # EXPLAIN AS INDEX
+    df = bpd.read_gbq("bigquery-public-data.new_york.citibike_trips")
+
     features = bpd.DataFrame(
         {
             "num_trips": df.starttime,
@@ -86,21 +92,7 @@ def test_multiple_timeseries_forecasting_model(random_model_id):
     # Use the to_gbq() method to write to a permanent location.
 
     model.to_gbq(
-        your_model_id,  # For example: "bqml_tutorial.sample_model",
+        your_model_id,  # For example: "bqml_tutorial.nyc_citibike_arima_model",
         replace=True,
     )
-    # ARIMAPlus(auto_arima_max_order=5, data_frequency='AUTO_FREQUENCY',
-    # max_time_series_length=3, min_time_series_length=20,
-    # time_series_length_fraction=1.0, trend_smoothing_window_size=-1)
-
-    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
-
-    # [START bigquery_dataframes_bqml_visualize_time_series_to_forecast]
-
-
-#  model.summary()
-# non_seasonal_p	non_seasonal_d	non_seasonal_q	has_drift	log_likelihood	AIC	variance	seasonal_periods	has_holiday_effect	has_spikes_and_dips	has_step_changes	error_message
-#  0	0	1	5	False	-11291.255555	22594.51111	10665799.388004	['WEEKLY' 'YEARLY']	False	True	True
-#  1 rows × 12 columns
-
-# [1 rows x 12 columns in total]    # [END bigquery_dataframes_bqml_visualize_time_series_to_forecast]
+    # [END bigquery_dataframes_bqml_arima_multiple_step_3_fit]

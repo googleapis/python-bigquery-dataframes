@@ -713,10 +713,16 @@ reset_session = global_session.close_session
 # Note: This limit does not have the desired effect on Python 3.12 in
 # which the applicable limit is now hard coded. See:
 # https://github.com/python/cpython/issues/112282
-sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
-resource.setrlimit(
-    resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-)
+try:
+    sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
+    resource.setrlimit(
+        resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+    )
+except Exception:
+    # On some systems we get:
+    # "ValueError: not allowed to raise maximum limit"
+    # Ignore this error since it's not required for correctness.
+    pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
