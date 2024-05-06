@@ -1207,6 +1207,6 @@ def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index
     pd_result = pd_df.stack()
     bf_result = bf_df.stack().to_pandas()
 
-    # Pandas produces NaN, where bq dataframes produces pd.NA
+    # Pandas produces pd.NA, where bq dataframes produces NaN
     pd_result["c"] = pd_result["c"].replace(pandas.NA, np.nan)
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
