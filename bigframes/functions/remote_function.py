@@ -24,7 +24,7 @@ import string
 import sys
 import tempfile
 import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
+from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
 
 import ibis
 import requests
@@ -145,7 +145,13 @@ class RemoteFunctionClient:
         self._cloud_function_docker_repository = cloud_function_docker_repository
 
     def create_bq_remote_function(
-        self, input_args, input_types, output_type, endpoint, bq_function_name
+        self,
+        input_args,
+        input_types,
+        output_type,
+        endpoint,
+        bq_function_name,
+        max_batching_rows,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
@@ -169,14 +175,25 @@ class RemoteFunctionClient:
             bq_function_args.append(
                 f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
             )
+
+        remote_function_options = {
+            "endpoint": endpoint,
+            "max_batching_rows": max_batching_rows,
+        }
+
+        remote_function_options_str = ", ".join(
+            [
+                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                for key, val in remote_function_options.items()
+                if val is not None
+            ]
+        )
+
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
-            OPTIONS (
-              endpoint = "{endpoint}",
-              max_batching_rows = 1000
-            )"""
+            OPTIONS ({remote_function_options_str})"""
 
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
 
@@ -324,7 +341,14 @@ class RemoteFunctionClient:
         entry_point = self.generate_cloud_function_main_code(def_, dir)
         return entry_point
 
-    def create_cloud_function(self, def_, cf_name, package_requirements=None):
+    def create_cloud_function(
+        self,
+        def_,
+        cf_name,
+        package_requirements=None,
+        timeout_seconds=600,
+        max_instance_count=None,
+    ):
         """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
@@ -392,7 +416,16 @@ class RemoteFunctionClient:
             )
             function.service_config = functions_v2.ServiceConfig()
             function.service_config.available_memory = "1024M"
-            function.service_config.timeout_seconds = 600
+            if timeout_seconds is not None:
+                if timeout_seconds > 1200:
+                    raise ValueError(
+                        "BigQuery remote function can wait only up to 20 minutes"
+                        ", see for more details "
+                        "https://cloud.google.com/bigquery/quotas#remote_function_limits."
+                    )
+                function.service_config.timeout_seconds = timeout_seconds
+            if max_instance_count is not None:
+                function.service_config.max_instance_count = max_instance_count
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
@@ -438,6 +471,9 @@ class RemoteFunctionClient:
         reuse,
         name,
         package_requirements,
+        max_batching_rows,
+        cloud_function_timeout,
+        cloud_function_max_instance_count,
     ):
         """Provision a BigQuery remote function."""
         # If reuse of any existing function with the same name (indicated by the
@@ -459,7 +495,11 @@ class RemoteFunctionClient:
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_, cloud_function_name, package_requirements
+                def_,
+                cloud_function_name,
+                package_requirements,
+                cloud_function_timeout,
+                cloud_function_max_instance_count,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -485,7 +525,12 @@ class RemoteFunctionClient:
                     "Exactly one type should be provided for every input arg."
                 )
             self.create_bq_remote_function(
-                input_args, input_types, output_type, cf_endpoint, remote_function_name
+                input_args,
+                input_types,
+                output_type,
+                cf_endpoint,
+                remote_function_name,
+                max_batching_rows,
             )
         else:
             logger.info(f"Remote function {remote_function_name} already exists.")
@@ -590,7 +635,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Sequence[type],
+    input_types: Union[type, Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -607,6 +652,9 @@ def remote_function(
     cloud_function_service_account: Optional[str] = None,
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
+    max_batching_rows: Optional[int] = 1000,
+    cloud_function_timeout: Optional[int] = 600,
+    cloud_function_max_instances: Optional[int] = None,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -651,9 +699,10 @@ def remote_function(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
-        input_types list(type):
-            List of input data types in the user defined function.
-        output_type type:
+        input_types (type or sequence(type)):
+            Input data type, or sequence of input data types in the user
+            defined function.
+        output_type (type):
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
             BigQuery DataFrames session to use for getting default project,
@@ -723,7 +772,37 @@ def remote_function(
             projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
             For more details see
             https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
+        max_batching_rows (int, Optional):
+            The maximum number of rows to be batched for processing in the
+            BQ remote function. Default value is 1000. A lower number can be
+            passed to avoid timeouts in case the user code is too complex to
+            process large number of rows fast enough. A higher number can be
+            used to increase throughput in case the user code is fast enough.
+            `None` can be passed to let BQ remote functions service apply
+            default batching. See for more details
+            https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
+        cloud_function_timeout (int, Optional):
+            The maximum amount of time (in seconds) BigQuery should wait for
+            the cloud function to return a response. See for more details
+            https://cloud.google.com/functions/docs/configuring/timeout.
+            Please note that even though the cloud function (2nd gen) itself
+            allows seeting up to 60 minutes of timeout, BigQuery remote
+            function can wait only up to 20 minutes, see for more details
+            https://cloud.google.com/bigquery/quotas#remote_function_limits.
+            By default BigQuery DataFrames uses a 10 minute timeout. `None`
+            can be passed to let the cloud functions default timeout take effect.
+        cloud_function_max_instances (int, Optional):
+            The maximumm instance count for the cloud function created. This
+            can be used to control how many cloud function instances can be
+            active at max at any given point of time. Lower setting can help
+            control the spike in the billing. Higher setting can help
+            support processing larger scale data. When not specified, cloud
+            function's default setting applies. For more details see
+            https://cloud.google.com/functions/docs/configuring/max-instances
     """
+    if isinstance(input_types, type):
+        input_types = [input_types]
+
     import bigframes.pandas as bpd
 
     session = session or bpd.get_global_session()
@@ -846,6 +925,9 @@ def remote_function(
             reuse,
             name,
             packages,
+            max_batching_rows,
+            cloud_function_timeout,
+            cloud_function_max_instances,
         )
 
         # TODO: Move ibis logic to compiler step

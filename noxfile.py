@@ -112,8 +112,7 @@ def lint(session):
         "--check",
         *LINT_PATHS,
     )
-    # TODO(tswast): lint all LINT_PATHS
-    session.run("flake8", "bigframes", "tests")
+    session.run("flake8", *LINT_PATHS)
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -411,8 +410,8 @@ def samples(session):
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
 
-    # TODO(swast): Use `requirements.txt` files from the samples directories to
-    # test samples.
+    # TODO(b/332735129): Remove this session and use python_samples templates
+    # where each samples directory has its own noxfile.py file, instead.
     install_test_extra = True
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
@@ -434,12 +433,12 @@ def cover(session):
     session.run("coverage", "report", "--show-missing", "--fail-under=90")
 
     # Make sure there is no dead code in our test directories.
-    # TODO(swast): Cleanup dead code in the system tests directory.
     session.run(
         "coverage",
         "report",
         "--show-missing",
         "--include=tests/unit/*",
+        "--include=tests/system/small/*",
         "--fail-under=100",
     )
 
@@ -505,7 +504,7 @@ def docfx(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
-        "gcp-sphinx-docfx-yaml",
+        "gcp-sphinx-docfx-yaml==3.0.1",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -714,7 +713,7 @@ def notebook(session: nox.Session):
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
         "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
-        # TODO(swast): investigate why we get 404 errors, even though
+        # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
@@ -724,6 +723,10 @@ def notebook(session: nox.Session):
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",
+        # The notebooks that are added for more use cases, such as backing a
+        # blog post, which may take longer to execute and need not be
+        # continuously tested.
+        "notebooks/apps/synthetic_data_generation.ipynb",
     ]
 
     # Convert each Path notebook object to a string using a list comprehension.
@@ -765,6 +768,8 @@ def notebook(session: nox.Session):
         "--nbmake-timeout=900",  # 15 minutes
     ]
 
+    logging_name_env_var = "BIGFRAMES_PERFORMANCE_LOG_NAME"
+
     try:
         # Populate notebook parameters and make a backup so that the notebooks
         # are runnable.
@@ -774,13 +779,21 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Run self-contained notebooks in single session.run
-        # achieve parallelization via -n
-        session.run(
-            *pytest_command,
-            "-nauto",
-            *notebooks,
-        )
+        # Run notebooks in parallel session.run's, since each notebook
+        # takes an environment variable for performance logging
+        processes = []
+        for notebook in notebooks:
+            session.env[logging_name_env_var] = os.path.basename(notebook)
+            process = Process(
+                target=session.run,
+                args=(*pytest_command, notebook),
+            )
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -790,11 +803,12 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-    # Run regionalized notebooks in parallel session.run's, since each notebook
-    # takes a different region via env param.
+    # Additionally run regionalized notebooks in parallel session.run's.
+    # Each notebook takes a different region via env param.
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
+            session.env[logging_name_env_var] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
@@ -805,6 +819,35 @@ def notebook(session: nox.Session):
 
     for process in processes:
         process.join()
+
+    # when run via pytest, notebooks output a .bytesprocessed report
+    # collect those reports and print a summary
+    _print_bytes_processed_report()
+
+
+def _print_bytes_processed_report():
+    """Add an informational report about http queries and bytes
+    processed to the testlog output for purposes of measuring
+    bigquery-related performance changes.
+    """
+    print("---BIGQUERY USAGE REPORT---")
+    cumulative_queries = 0
+    cumulative_bytes = 0
+    for report in Path("notebooks/").glob("*/*.bytesprocessed"):
+        with open(report, "r") as f:
+            filename = report.stem
+            lines = f.read().splitlines()
+            query_count = len(lines)
+            total_bytes = sum([int(line) for line in lines])
+            format_string = f"{filename} - query count: {query_count}, bytes processed sum: {total_bytes}"
+            print(format_string)
+            cumulative_bytes += total_bytes
+            cumulative_queries += query_count
+    print(
+        "---total queries: {total_queries}, total bytes: {total_bytes}---".format(
+            total_queries=cumulative_queries, total_bytes=cumulative_bytes
+        )
+    )
 
 
 @nox.session(python="3.10")

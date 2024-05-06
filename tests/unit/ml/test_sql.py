@@ -47,6 +47,16 @@ def mock_df():
     return mock_df
 
 
+def test_ml_arima_coefficients(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+):
+    sql = model_manipulation_sql_generator.ml_arima_coefficients()
+    assert (
+        sql
+        == """SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `my_project_id.my_dataset_id.my_model_id`)"""
+    )
+
+
 def test_options_correct(base_sql_generator: ml_sql.BaseSqlGenerator):
     sql = base_sql_generator.options(
         model_type="lin_reg", input_label_cols=["col_a"], l1_reg=0.6
@@ -181,6 +191,29 @@ AS input_X_y_sql"""
     )
 
 
+def test_create_llm_remote_model_correct(
+    model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_creation_sql_generator.create_llm_remote_model(
+        source_df=mock_df,
+        connection_name="my_project.us.my_connection",
+        model_ref=bigquery.ModelReference.from_string(
+            "test-proj._anonXYZ.create_remote_model"
+        ),
+        options={"option_key1": "option_value1", "option_key2": 2},
+    )
+    assert (
+        sql
+        == """CREATE OR REPLACE MODEL `test-proj`.`_anonXYZ`.`create_remote_model`
+REMOTE WITH CONNECTION `my_project.us.my_connection`
+OPTIONS(
+  option_key1="option_value1",
+  option_key2=2)
+AS input_X_y_sql"""
+    )
+
+
 def test_create_remote_model_correct(
     model_creation_sql_generator: ml_sql.ModelCreationSqlGenerator,
 ):
@@ -293,6 +326,20 @@ def test_ml_predict_correct(
         sql
         == """SELECT * FROM ML.PREDICT(MODEL `my_project_id.my_dataset_id.my_model_id`,
   (input_X_sql))"""
+    )
+
+
+def test_ml_llm_evaluate_correct(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ml_llm_evaluate(
+        source_df=mock_df, task_type="CLASSIFICATION"
+    )
+    assert (
+        sql
+        == """SELECT * FROM ML.EVALUATE(MODEL `my_project_id.my_dataset_id.my_model_id`,
+            (input_X_sql), STRUCT("CLASSIFICATION" AS task_type))"""
     )
 
 

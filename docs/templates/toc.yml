@@ -12,6 +12,8 @@
       name: Methods
     - href: summary_property.html
       name: Properties and Attributes
+    - href: supported_pandas_apis.html
+      name: Supported pandas APIs
     name: BigQuery DataFrames API
   - items:
     - items:
@@ -30,6 +32,10 @@
       - name: Session
         uid: bigframes.session.Session
       name: Session
+    - name: Enumerations
+      uid: bigframes.enums
+    - name: Exceptions and warnings
+      uid: bigframes.exceptions
     name: Core Objects
   - items:
     - name: DataFrame
@@ -40,6 +46,8 @@
       - name: SeriesGroupBy
         uid: bigframes.core.groupby.SeriesGroupBy
       name: Groupby
+    - name: Index
+      uid: bigframes.core.indexes.base.Index
     - items:
       - name: AtDataFrameIndexer
         uid: bigframes.core.indexers.AtDataFrameIndexer
@@ -61,6 +69,12 @@
     - name: pandas
       uid: bigframes.pandas
     - items:
+      - name: Plotting
+        uid: bigframes.operations.plotting
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
+      name: Plotting
+    - items:
       - name: Series
         uid: bigframes.series.Series
       - name: DatetimeMethods
@@ -72,8 +86,6 @@
       name: Series
     - name: Window
       uid: bigframes.core.window.Window
-    - href: supported_pandas_apis.html
-      name: Supported pandas APIs
     name: bigframes.pandas
   - items:
     - items:
@@ -181,5 +193,9 @@
         uid: bigframes.ml.remote.VertexAIModel
       name: remote
     name: bigframes.ml
+  - items:
+    - name: BigQuery built-in functions
+      uid: bigframes.bigquery
+    name: bigframes.bigquery
   name: BigQuery DataFrames
   status: beta

@@ -59,9 +59,11 @@ import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
+import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
+import bigframes.enums
 import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
@@ -422,7 +424,13 @@ def read_csv(
         Union[MutableSequence[Any], numpy.ndarray[Any, Any], Tuple[Any, ...], range]
     ] = None,
     index_col: Optional[
-        Union[int, str, Sequence[Union[str, int]], Literal[False]]
+        Union[
+            int,
+            str,
+            Sequence[Union[str, int]],
+            bigframes.enums.DefaultIndexKind,
+            Literal[False],
+        ]
     ] = None,
     usecols: Optional[
         Union[
@@ -490,7 +498,7 @@ read_json.__doc__ = inspect.getdoc(bigframes.session.Session.read_json)
 def read_gbq(
     query_or_table: str,
     *,
-    index_col: Iterable[str] | str = (),
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
     columns: Iterable[str] = (),
     configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
@@ -528,7 +536,7 @@ read_gbq_model.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_model
 def read_gbq_query(
     query: str,
     *,
-    index_col: Iterable[str] | str = (),
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
     columns: Iterable[str] = (),
     configuration: Optional[Dict] = None,
     max_results: Optional[int] = None,
@@ -554,7 +562,7 @@ read_gbq_query.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_query
 def read_gbq_table(
     query: str,
     *,
-    index_col: Iterable[str] | str = (),
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
     columns: Iterable[str] = (),
     max_results: Optional[int] = None,
     filters: vendored_pandas_gbq.FiltersType = (),
@@ -577,7 +585,22 @@ def read_gbq_table(
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
 
 
+@typing.overload
 def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+    ...
+
+
+def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
@@ -617,7 +640,7 @@ read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
 def remote_function(
-    input_types: List[type],
+    input_types: Union[type, Sequence[type]],
     output_type: type,
     dataset: Optional[str] = None,
     bigquery_connection: Optional[str] = None,
@@ -627,6 +650,9 @@ def remote_function(
     cloud_function_service_account: Optional[str] = None,
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
+    max_batching_rows: Optional[int] = 1000,
+    cloud_function_timeout: Optional[int] = 600,
+    cloud_function_max_instances: Optional[int] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -640,6 +666,9 @@ def remote_function(
         cloud_function_service_account=cloud_function_service_account,
         cloud_function_kms_key_name=cloud_function_kms_key_name,
         cloud_function_docker_repository=cloud_function_docker_repository,
+        max_batching_rows=max_batching_rows,
+        cloud_function_timeout=cloud_function_timeout,
+        cloud_function_max_instances=cloud_function_max_instances,
     )
 
 
@@ -679,6 +708,68 @@ def to_datetime(
 to_datetime.__doc__ = vendored_pandas_datetimes.to_datetime.__doc__
 
 
+def get_default_session_id() -> str:
+    """Gets the session id that is used whenever a custom session
+    has not been provided.
+
+    It is the session id of the default global session. It is prefixed to
+    the table id of all temporary tables created in the global session.
+
+    Returns:
+        str, the default global session id, ex. 'sessiona1b2c'
+    """
+    return get_global_session().session_id
+
+
+def clean_up_by_session_id(
+    session_id: str,
+    location: Optional[str] = None,
+    project: Optional[str] = None,
+) -> None:
+    """Searches through table names in BigQuery and deletes tables
+    found matching the expected format.
+
+    This could be useful if the session object has been lost.
+    Calling `session.close()` or `bigframes.pandas.close_session()`
+    is preferred in most cases.
+
+    Args:
+        session_id (str):
+            The session id to clean up. Can be found using
+            session.session_id or get_default_session_id().
+
+        location (str, default None):
+            The location of the session to clean up. If given, used
+            together with project kwarg to determine the dataset
+            to search through for tables to clean up.
+
+        project (str, default None):
+            The project id associated with the session to clean up.
+            If given, used together with location kwarg to determine
+            the dataset to search through for tables to clean up.
+
+    Returns:
+        None
+    """
+    session = get_global_session()
+    client = session.bqclient
+
+    if (location is None) != (project is None):
+        raise ValueError(
+            "Only one of project or location was given. Must specify both or neither."
+        )
+    elif location is None and project is None:
+        dataset = session._anonymous_dataset
+    else:
+        dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
+            client, location=location, project=project
+        )
+
+    bigframes.session._io.bigquery.delete_tables_matching_session_id(
+        client, dataset, session_id
+    )
+
+
 # pandas dtype attributes
 NA = pandas.NA
 BooleanDtype = pandas.BooleanDtype
@@ -692,6 +783,7 @@ ArrowDtype = pandas.ArrowDtype
 # checking and docstrings.
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
+MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
 
 # Other public pandas attributes
@@ -713,16 +805,14 @@ reset_session = global_session.close_session
 # Note: This limit does not have the desired effect on Python 3.12 in
 # which the applicable limit is now hard coded. See:
 # https://github.com/python/cpython/issues/112282
-try:
-    sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
-    resource.setrlimit(
-        resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-    )
-except Exception:
-    # On some systems we get:
-    # "ValueError: not allowed to raise maximum limit"
-    # Ignore this error since it's not required for correctness.
-    pass
+sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
+
+soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
+if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
+    try:
+        resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
+    except Exception:
+        pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
@@ -747,6 +837,7 @@ __all___ = [
     # Class aliases
     "DataFrame",
     "Index",
+    "MultiIndex",
     "Series",
     # Other public pandas attributes
     "NamedAgg",

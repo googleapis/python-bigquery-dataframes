@@ -83,7 +83,7 @@ class BaseBqml:
         """
         assert len(x.columns) == 1 and len(y.columns) == 1
 
-        input_data = x._cached().join(y._cached(), how="outer")
+        input_data = x.cache().join(y.cache(), how="outer")
         x_column_id, y_column_id = x._block.value_columns[0], y._block.value_columns[0]
 
         return self._apply_sql(
@@ -187,10 +187,26 @@ class BqmlModel(BaseBqml):
 
         return self._session.read_gbq(sql)
 
+    def llm_evaluate(
+        self,
+        input_data: bpd.DataFrame,
+        task_type: Optional[str] = None,
+    ):
+        sql = self._model_manipulation_sql_generator.ml_llm_evaluate(
+            input_data, task_type
+        )
+
+        return self._session.read_gbq(sql)
+
     def arima_evaluate(self, show_all_candidate_models: bool = False):
         sql = self._model_manipulation_sql_generator.ml_arima_evaluate(
             show_all_candidate_models
         )
+
+        return self._session.read_gbq(sql)
+
+    def arima_coefficients(self) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_arima_coefficients()
 
         return self._session.read_gbq(sql)
 
@@ -299,11 +315,9 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train._cached(force=True)
+            input_data = X_train.cache()
         else:
-            input_data = X_train._cached(force=True).join(
-                y_train._cached(force=True), how="outer"
-            )
+            input_data = X_train.cache().join(y_train.cache(), how="outer")
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -317,6 +331,44 @@ class BqmlModelFactory:
             model_ref=model_ref,
             transforms=transforms,
             options=options,
+        )
+
+        return self._create_model_with_sql(session=session, sql=sql)
+
+    def create_llm_remote_model(
+        self,
+        X_train: bpd.DataFrame,
+        y_train: bpd.DataFrame,
+        connection_name: str,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> BqmlModel:
+        """Create a session-temporary BQML model with the CREATE OR REPLACE MODEL statement
+
+        Args:
+            X_train: features columns for training
+            y_train: labels columns for training
+            options: a dict of options to configure the model. Generates a BQML OPTIONS
+                clause
+            connection_name:
+                a BQ connection to talk with Vertex AI, of the format <PROJECT_NUMBER>.<REGION>.<CONNECTION_NAME>. https://cloud.google.com/bigquery/docs/create-cloud-resource-connection
+
+        Returns: a BqmlModel, wrapping a trained model in BigQuery
+        """
+        options = dict(options)
+        # Cache dataframes to make sure base table is not a snapshot
+        # cached dataframe creates a full copy, never uses snapshot
+        input_data = X_train.cache().join(y_train.cache(), how="outer")
+        options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
+
+        session = X_train._session
+
+        model_ref = self._create_model_ref(session._anonymous_dataset)
+
+        sql = self._model_creation_sql_generator.create_llm_remote_model(
+            source_df=input_data,
+            model_ref=model_ref,
+            options=options,
+            connection_name=connection_name,
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
@@ -338,9 +390,7 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train._cached(force=True).join(
-            y_train._cached(force=True), how="outer"
-        )
+        input_data = X_train.cache().join(y_train.cache(), how="outer")
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 

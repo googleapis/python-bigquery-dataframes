@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Private module: Helpers for I/O operations."""
+"""Private module: Helpers for BigQuery I/O operations."""
 
 from __future__ import annotations
 
 import datetime
 import itertools
+import os
 import textwrap
 import types
 from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
-import uuid
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -32,7 +32,10 @@ import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
-TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+_LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
+# will be limited to this many tables
+
+LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
 
 def create_job_configs_labels(
@@ -95,57 +98,25 @@ def create_export_data_statement(
     )
 
 
-def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
-    """Generate a random table ID with BigQuery DataFrames prefix.
-    Args:
-        dataset (google.cloud.bigquery.DatasetReference):
-            The dataset to make the table reference in. Usually the anonymous
-            dataset for the session.
-    Returns:
-        google.cloud.bigquery.TableReference:
-            Fully qualified table ID of a table that doesn't exist.
-    """
-    now = datetime.datetime.now(datetime.timezone.utc)
-    random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_PREFIX.format(
-        date=now.strftime("%Y%m%d"), random_id=random_id
-    )
-    return dataset.table(table_id)
-
-
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
-def create_snapshot_sql(
-    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
-) -> str:
-    """Query a table via 'time travel' for consistent reads."""
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
-
-    return textwrap.dedent(
-        f"""
-        SELECT *
-        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
-        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
-        """
-    )
-
-
 def create_temp_table(
-    bqclient: bigquery.Client,
-    dataset: bigquery.DatasetReference,
+    session: bigframes.session.Session,
     expiration: datetime.datetime,
     *,
     schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
 ) -> str:
-    """Create an empty table with an expiration in the desired dataset."""
-    table_ref = random_table(dataset)
+    """Create an empty table with an expiration in the desired session.
+
+    The table will be deleted when the session is closed or the expiration
+    is reached.
+    """
+    bqclient: bigquery.Client = session.bqclient
+    table_ref = session._random_table()
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
     destination.schema = schema
@@ -243,4 +214,100 @@ def start_query_with_client(
         )
     else:
         results_iterator = query_job.result(max_results=max_results)
+
+    if LOGGING_NAME_ENV_VAR in os.environ:
+        # when running notebooks via pytest nbmake
+        pytest_log_job(query_job)
+
     return results_iterator, query_job
+
+
+def pytest_log_job(query_job: bigquery.QueryJob):
+    """For pytest runs only, log information about the query job
+    to a file in order to create a performance report.
+    """
+    if LOGGING_NAME_ENV_VAR not in os.environ:
+        raise EnvironmentError(
+            "Environment variable {env_var} is not set".format(
+                env_var=LOGGING_NAME_ENV_VAR
+            )
+        )
+    test_name = os.environ[LOGGING_NAME_ENV_VAR]
+    current_directory = os.getcwd()
+    bytes_processed = query_job.total_bytes_processed
+    if not isinstance(bytes_processed, int):
+        return  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry runs don't process their total_bytes_processed
+        bytes_processed = 0
+    bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
+    with open(bytes_file, "a") as f:
+        f.write(str(bytes_processed) + "\n")
+
+
+def delete_tables_matching_session_id(
+    client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
+) -> None:
+    """Searches within the dataset for tables conforming to the
+    expected session_id form, and instructs bigquery to delete them.
+
+    Args:
+        client (bigquery.Client):
+            The client to use to list tables
+        dataset (bigquery.DatasetReference):
+            The dataset to search in
+        session_id (str):
+            The session id to match on in the table name
+
+    Returns:
+        None
+    """
+
+    tables = client.list_tables(
+        dataset, max_results=_LIST_TABLES_LIMIT, page_size=_LIST_TABLES_LIMIT
+    )
+    for table in tables:
+        split_id = table.table_id.split("_")
+        if not split_id[0].startswith("bqdf") or len(split_id) < 2:
+            continue
+        found_session_id = split_id[1]
+        if found_session_id == session_id:
+            client.delete_table(table, not_found_ok=True)
+            print("Deleting temporary table '{}'.".format(table.table_id))
+
+
+def create_bq_dataset_reference(
+    bq_client: bigquery.Client, location=None, project=None
+) -> bigquery.DatasetReference:
+    """Create and identify dataset(s) for temporary BQ resources.
+
+    bq_client project and location will be used unless kwargs "project"
+    and/or "location" are given. If given, location and project
+    will be passed through to
+    https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+
+    Args:
+        bq_client (bigquery.Client):
+            The bigquery.Client to use for the http request to
+            create the dataset reference.
+        location (str, default None):
+            The location of the project to create the dataset in.
+        project (str, default None):
+            The project id of the project to create the dataset in.
+
+    Returns:
+        bigquery.DatasetReference: The constructed reference to the anonymous dataset.
+    """
+    query_job = bq_client.query("SELECT 1", location=location, project=project)
+    query_job.result()  # blocks until finished
+
+    # The anonymous dataset is used by BigQuery to write query results and
+    # session tables. BigQuery DataFrames also writes temp tables directly
+    # to the dataset, no BigQuery Session required. Note: there is a
+    # different anonymous dataset per location. See:
+    # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+    query_destination = query_job.destination
+    return bigquery.DatasetReference(
+        query_destination.project,
+        query_destination.dataset_id,
+    )

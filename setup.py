@@ -30,7 +30,7 @@ description = (
 # 'Development Status :: 3 - Alpha'
 # 'Development Status :: 4 - Beta'
 # 'Development Status :: 5 - Production/Stable'
-release_status = "Development Status :: 3 - Alpha"
+release_status = "Development Status :: 5 - Production/Stable"
 dependencies = [
     # please keep these in sync with the minimum versions in testing/constraints-3.9.txt
     "cloudpickle >= 2.0.0",
@@ -38,7 +38,7 @@ dependencies = [
     "gcsfs >=2023.3.0",
     "geopandas >=0.12.2",
     "google-auth >=2.15.0,<3.0dev",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.10.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.16.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",

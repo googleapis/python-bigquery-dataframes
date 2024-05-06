@@ -19,7 +19,7 @@ import math
 import pathlib
 import textwrap
 import typing
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -127,16 +127,23 @@ def resourcemanager_client(
 
 
 @pytest.fixture(scope="session")
-def session() -> bigframes.Session:
-    return bigframes.Session()
+def session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        location="US",
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup time
 
 
 @pytest.fixture(scope="session")
-def session_tokyo(tokyo_location: str) -> bigframes.Session:
+def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(
         location=tokyo_location,
     )
-    return bigframes.Session(context=context)
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -951,6 +958,14 @@ def restore_sampling_settings():
     yield
     bigframes.options.sampling.enable_downsampling = enable_downsampling
     bigframes.options.sampling.max_download_size = max_download_size
+
+
+@pytest.fixture()
+def with_multiquery_execution():
+    original_setting = bigframes.options.compute.enable_multi_query_execution
+    bigframes.options.compute.enable_multi_query_execution = True
+    yield
+    bigframes.options.compute.enable_multi_query_execution = original_setting
 
 
 @pytest.fixture()
