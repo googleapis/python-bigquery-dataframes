@@ -343,7 +343,7 @@ class KBinsDiscretizer(
                 for column in columns
             ]
 
-        if self.strategy == "quantile":
+        elif self.strategy == "quantile":
 
             return [
                 (
@@ -355,12 +355,18 @@ class KBinsDiscretizer(
                 for column in columns
             ]
 
+        else:
+            raise ValueError(
+                f"strategy should be set 'quantile' or 'uniform', but your input is {self.strategy}."
+            )
+
     @classmethod
     def _parse_from_sql(cls, sql: str) -> tuple[KBinsDiscretizer, str]:
         """Parse SQL to tuple(KBinsDiscretizer, column_label).
 
         Args:
-            sql: SQL string of format "ML.BUCKETIZE({col_label}, array_split_points, FALSE) OVER()"
+            sql: SQL string of format "ML.BUCKETIZE({col_label}, array_split_points, FALSE)"
+                or ML.QUANTILE_BUCKETIZE({col_label}, num_bucket) OVER()"
 
         Returns:
             tuple(KBinsDiscretizer, column_label)"""
