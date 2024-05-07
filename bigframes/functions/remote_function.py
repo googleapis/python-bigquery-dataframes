@@ -298,6 +298,7 @@ import json
         if is_row_processor:
             code += """\
 import ast
+import math
 import pandas as pd
 
 def get_pd_series(row):
@@ -370,10 +371,14 @@ def {handler_func_name}(request):
         replies = []
         for call in calls:
 """
+        # TODO(shobs): Make GCF return 'nan' and 'inf' as is after internal
+        # issue 339134338 is resolved
         if is_row_processor:
             code += """\
             reply = udf(get_pd_series(call[0]))
-            if pd.isna(reply):
+            if isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
+                reply = None
+            elif pd.isna(reply):
                 # Pandas N/A values are not json serializable, so use a python
                 # equivalent instead
                 reply = None

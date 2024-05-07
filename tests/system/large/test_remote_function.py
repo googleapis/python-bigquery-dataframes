@@ -1631,3 +1631,35 @@ def test_df_apply_axis_1_complex(session, pd_df):
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, serialize_row_remote
         )
+
+
+# @pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_na_nan_inf(session):
+    pd_df = pandas.DataFrame(
+        {"text": ["1", "2.5", "pandas na", "numpy nan", "nan", "inf"]}
+    )
+    bf_df = session.read_pandas(pd_df)
+
+    try:
+
+        def float_parser(row):
+            import numpy as mynp
+            import pandas as mypd
+
+            if row["text"] == "pandas na":
+                return mypd.NA
+            if row["text"] == "numpy nan":
+                return mynp.nan
+            return float(row["text"])
+
+        float_parser_remote = session.remote_function("row", float, reuse=False)(
+            float_parser
+        )
+
+        # We just want to test that the expression is valid and can execute in BQ
+        bf_df.apply(float_parser_remote, axis=1).to_pandas()
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, float_parser_remote
+        )
