@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import google.api_core.exceptions
+import google.cloud.bigquery_connection_v1
 import pytest
 
 import bigframes.pandas
@@ -19,10 +21,12 @@ import bigframes.pandas
 from . import remote_function
 
 
+# TODO(tswast): Once the connections are cleaned up in the sample test project
+# and https://github.com/GoogleCloudPlatform/python-docs-samples/issues/11720
+# is closed, we shouldn't need this because AFAIK we only use one BQ connection
+# in this sample.
 @pytest.fixture(autouse=True)
-def cleanup_connections():
-    import google.cloud.bigquery_connection_v1
-
+def cleanup_connections() -> None:
     client = google.cloud.bigquery_connection_v1.ConnectionServiceClient()
 
     for conn in client.list_connections(
@@ -34,12 +38,16 @@ def cleanup_connections():
             print(f"Couldn't parse {conn.name}")
             continue
 
-        print(f"removing {conn.name}")
-        client.delete_connection(
-            google.cloud.bigquery_connection_v1.DeleteConnectionRequest(
-                {"name": conn.name},
+        try:
+            print(f"removing {conn.name}")
+            client.delete_connection(
+                google.cloud.bigquery_connection_v1.DeleteConnectionRequest(
+                    {"name": conn.name},
+                )
             )
-        )
+        except google.api_core.exceptions.ResourceExhausted:
+            # We did as much clean up as we can.
+            break
 
 
 def test_remote_function_and_read_gbq_function(
