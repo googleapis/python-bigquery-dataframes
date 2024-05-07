@@ -28,6 +28,7 @@ import test_utils.prefixer
 
 import bigframes
 from bigframes.functions.remote_function import get_cloud_function_name
+import bigframes.series
 from tests.system.utils import (
     assert_pandas_df_equal,
     delete_cloud_function,
@@ -1482,9 +1483,9 @@ def test_df_apply_axis_1(session, scalars_dfs):
                 }
             )
 
-        serialize_row_remote = session.remote_function("row", str, reuse=False)(
-            serialize_row
-        )
+        serialize_row_remote = session.remote_function(
+            bigframes.series.Series, str, reuse=False
+        )(serialize_row)
 
         bf_result = scalars_df[columns].apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = scalars_pandas_df[columns].apply(serialize_row, axis=1)
@@ -1519,7 +1520,7 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                 }
             )
 
-        analyze_remote = session.remote_function("row", str)(analyze)
+        analyze_remote = session.remote_function(bigframes.series.Series, str)(analyze)
 
         bf_result = (
             scalars_df[columns].dropna().apply(analyze_remote, axis=1).to_pandas()

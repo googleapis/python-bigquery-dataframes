@@ -1454,7 +1454,7 @@ class Session(
 
     def remote_function(
         self,
-        input_types: Union[type, Sequence[type], Literal["row"]],
+        input_types: Union[type, Sequence[type]],
         output_type: type,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
@@ -1472,7 +1472,7 @@ class Session(
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
 
         .. note::
-            ``input_types="row"`` scenario is in preview.
+            ``input_types=Series`` scenario is in preview.
 
         .. note::
             Please make sure following is setup before using this API:

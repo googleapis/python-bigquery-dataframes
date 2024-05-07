@@ -26,7 +26,7 @@ import tempfile
 import textwrap
 
 # TODO(shobs): import typing module and use its classes through namespapace.*
-from typing import List, Literal, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
+from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
 import warnings
 
 import ibis
@@ -732,7 +732,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Union[type, Sequence[type], Literal["row"]],
+    input_types: Union[type, Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -796,10 +796,10 @@ def remote_function(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
-        input_types (type, sequence(type) or "row"):
+        input_types (type, sequence(type)):
             For scalar user defined function it should be the input type or
             sequence of input types. For row processing user defined function,
-            literal "row" should be specified.
+            type `Series` should be specified.
         output_type (type):
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
@@ -899,9 +899,12 @@ def remote_function(
             https://cloud.google.com/functions/docs/configuring/max-instances
     """
     is_row_processor = False
-    if input_types == "row":
+
+    import bigframes.series
+
+    if input_types == bigframes.series.Series:
         warnings.warn(
-            'input_types="row" scenario is in preview.',
+            "input_types=Series scenario is in preview.",
             stacklevel=1,
             category=bigframes.exceptions.PreviewWarning,
         )

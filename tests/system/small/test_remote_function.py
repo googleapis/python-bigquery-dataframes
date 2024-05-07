@@ -700,9 +700,11 @@ def test_df_apply_axis_1(session, scalars_dfs):
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning,
-        match='input_types="row" scenario is in preview.',
+        match="input_types=Series scenario is in preview.",
     ):
-        add_ints_remote = session.remote_function("row", int)(add_ints)
+        add_ints_remote = session.remote_function(bigframes.series.Series, int)(
+            add_ints
+        )
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
@@ -731,7 +733,7 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs):
     def add_ints(row):
         return row["int64_col"] + row["int64_too"]
 
-    add_ints_remote = session.remote_function("row", int)(add_ints)
+    add_ints_remote = session.remote_function(bigframes.series.Series, int)(add_ints)
 
     bf_result = (
         scalars_df[columns]
@@ -765,7 +767,9 @@ def test_df_apply_axis_1_multiindex(session):
     def add_numbers(row):
         return row["x"] + row["y"]
 
-    add_numbers_remote = session.remote_function("row", float)(add_numbers)
+    add_numbers_remote = session.remote_function(bigframes.series.Series, float)(
+        add_numbers
+    )
 
     bf_result = bf_df.apply(add_numbers_remote, axis=1).to_pandas()
     pd_result = pd_df.apply(add_numbers, axis=1)

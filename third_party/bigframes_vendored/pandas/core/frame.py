@@ -4237,7 +4237,7 @@ class DataFrame(generic.NDFrame):
         You could apply a user defined function to every row of the DataFrame by
         creating a remote function out of it, and using it with `axis=1`.
 
-            >>> @bpd.remote_function("row", int, reuse=False)
+            >>> @bpd.remote_function(bpd.Series, int, reuse=False)
             ... def foo(row):
             ...     result = 1
             ...     result += row["col1"]
