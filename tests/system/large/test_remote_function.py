@@ -1611,9 +1611,9 @@ def test_df_apply_axis_1_complex(session, pd_df):
                 }
             )
 
-        serialize_row_remote = session.remote_function("row", str, reuse=False)(
-            serialize_row
-        )
+        serialize_row_remote = session.remote_function(
+            bigframes.series.Series, str, reuse=False
+        )(serialize_row)
 
         bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = pd_df.apply(serialize_row, axis=1)
@@ -1636,6 +1636,9 @@ def test_df_apply_axis_1_complex(session, pd_df):
 
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_na_nan_inf(session):
+    """This test is for special cases of float values, to make sure any (nan,
+    inf, -inf) produced by user code is honored.
+    """
     bf_df = session.read_gbq(
         """\
 SELECT "1" AS text, 1 AS num
@@ -1668,9 +1671,9 @@ SELECT "pandas na" AS text, NULL AS num
                 return mynp.nan
             return float(row["text"])
 
-        float_parser_remote = session.remote_function("row", float, reuse=False)(
-            float_parser
-        )
+        float_parser_remote = session.remote_function(
+            bigframes.series.Series, float, reuse=False
+        )(float_parser)
 
         pd_result = pd_df.apply(float_parser, axis=1)
         bf_result = bf_df.apply(float_parser_remote, axis=1).to_pandas()
@@ -1680,9 +1683,10 @@ SELECT "pandas na" AS text, NULL AS num
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
         # Let's also assert that the data is consistent in this round trip
-        # BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames
+        # (BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames) w.r.t. their
+        # expected values in BQ
         bq_result = bf_df["num"].to_pandas()
-        pandas.testing.assert_series_equal(pd_result, bq_result)
+        pandas.testing.assert_series_equal(bq_result, bf_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
