@@ -371,13 +371,18 @@ def {handler_func_name}(request):
         replies = []
         for call in calls:
 """
-        # TODO(shobs): Make GCF return 'nan' and 'inf' as is after internal
-        # issue 339134338 is resolved
+
         if is_row_processor:
             code += """\
             reply = udf(get_pd_series(call[0]))
             if isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
-                reply = None
+                # json serialization of the special float values (nan, inf, -inf)
+                # is not in strict compliance of the JSON specification
+                # https://docs.python.org/3/library/json.html#basic-usage.
+                # Let's convert them to a quoted string representation ("NaN",
+                # "Infinity", "-Infinity" respectively) which is handled by
+                # BigQuery
+                reply = json.dumps(reply)
             elif pd.isna(reply):
                 # Pandas N/A values are not json serializable, so use a python
                 # equivalent instead

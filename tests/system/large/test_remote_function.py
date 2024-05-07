@@ -1633,12 +1633,27 @@ def test_df_apply_axis_1_complex(session, pd_df):
         )
 
 
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_na_nan_inf(session):
-    pd_df = pandas.DataFrame(
-        {"text": ["1", "2.5", "pandas na", "numpy nan", "nan", "inf"]}
+    bf_df = session.read_gbq(
+        """\
+SELECT "1" AS text, 1 AS num
+UNION ALL
+SELECT "2.5" AS text, 2.5 AS num
+UNION ALL
+SELECT "nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "inf" AS text, IEEE_DIVIDE(1, 0) AS num
+UNION ALL
+SELECT "-inf" AS text, IEEE_DIVIDE(-1, 0) AS num
+UNION ALL
+SELECT "numpy nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "pandas na" AS text, NULL AS num
+                             """
     )
-    bf_df = session.read_pandas(pd_df)
+
+    pd_df = bf_df.to_pandas()
 
     try:
 
@@ -1656,8 +1671,17 @@ def test_df_apply_axis_1_na_nan_inf(session):
             float_parser
         )
 
-        # We just want to test that the expression is valid and can execute in BQ
-        bf_df.apply(float_parser_remote, axis=1).to_pandas()
+        pd_result = pd_df.apply(float_parser, axis=1)
+        bf_result = bf_df.apply(float_parser_remote, axis=1).to_pandas()
+
+        # bf_result.dtype is 'Float64' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's also assert that the data is consistent in this round trip
+        # BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames
+        bq_result = bf_df["num"].to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bq_result)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
