@@ -344,10 +344,6 @@ class KBinsDiscretizer(
             ]
 
         if self.strategy == "quantile":
-            # quantile_size = 1 / self.n_bins
-            # quantile_df = X.quantile([quantile_size + i * quantile_size for i in range(self.n_bins - 1)])
-            # for column in columns:
-            #     array_split_points[column] = quantile_df[column].to_list()
 
             return [
                 (
@@ -368,14 +364,14 @@ class KBinsDiscretizer(
 
         Returns:
             tuple(KBinsDiscretizer, column_label)"""
+        s = sql[sql.find("(") + 1 : sql.find(")")]
+        col_label = s[: s.find(",")]
+
         if sql.startswith("ML.QUANTILE_BUCKETIZE"):
-            s = sql[sql.find("(") + 1 : sql.find(")")]
-            col_label, num_bins = s.split(", ")
+            num_bins = s.split(",")[1]
             return cls(int(num_bins), "quantile"), col_label
         else:
-            s = sql[sql.find("(") + 1 : sql.find(")")]
             array_split_points = s[s.find("[") + 1 : s.find("]")]
-            col_label = s[: s.find(",")]
             n_bins = array_split_points.count(",") + 2
             return cls(n_bins, "uniform"), col_label
 
