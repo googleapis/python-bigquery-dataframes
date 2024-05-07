@@ -19,6 +19,29 @@ import bigframes.pandas
 from . import remote_function
 
 
+@pytest.fixture(autouse=True)
+def cleanup_connections():
+    import google.cloud.bigquery_connection_v1
+
+    client = google.cloud.bigquery_connection_v1.ConnectionServiceClient()
+
+    for conn in client.list_connections(
+        parent="projects/python-docs-samples-tests/locations/us"
+    ):
+        try:
+            int(conn.name.split("/")[-1].split("-")[0], base=16)
+        except ValueError:
+            print(f"Couldn't parse {conn.name}")
+            continue
+
+        print(f"removing {conn.name}")
+        client.delete_connection(
+            google.cloud.bigquery_connection_v1.DeleteConnectionRequest(
+                {"name": conn.name},
+            )
+        )
+
+
 def test_remote_function_and_read_gbq_function(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
