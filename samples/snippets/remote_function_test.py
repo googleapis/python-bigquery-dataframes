@@ -45,7 +45,7 @@ def cleanup_connections() -> None:
                     {"name": conn.name},
                 )
             )
-        except google.api_core.exceptions.ResourceExhausted:
+        except google.api_core.exceptions.GoogleAPIError:
             # We did as much clean up as we can.
             break
 
