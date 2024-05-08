@@ -346,7 +346,7 @@ class UnorderedIR(BaseIbisIR):
                 ordering_value_columns=tuple([]),
                 total_ordering_columns=frozenset([]),
             )
-            return UnorderedIR(
+            return OrderedIR(
                 result,
                 columns=[result[col_id] for col_id in [*stats.keys()]],
                 hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
