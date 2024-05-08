@@ -85,6 +85,7 @@ import bigframes.core.tree_properties as traversals
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
 from bigframes.functions.remote_function import remote_function as bigframes_rf
@@ -184,12 +185,26 @@ class Session(
         if context is None:
             context = bigquery_options.BigQueryOptions()
 
-        # TODO(swast): Get location from the environment.
         if context.location is None:
             self._location = "US"
             warnings.warn(
                 f"No explicit location is set, so using location {self._location} for the session.",
-                stacklevel=2,
+                # User's code
+                # -> get_global_session()
+                # -> connect()
+                # -> Session()
+                #
+                # Note: We could also have:
+                # User's code
+                # -> read_gbq()
+                # -> with_default_session()
+                # -> get_global_session()
+                # -> connect()
+                # -> Session()
+                # but we currently have no way to disambiguate these
+                # situations.
+                stacklevel=4,
+                category=bigframes.exceptions.DefaultLocationWarning,
             )
         else:
             self._location = context.location
