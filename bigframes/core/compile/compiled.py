@@ -312,7 +312,8 @@ class UnorderedIR(BaseIbisIR):
             aggregations: input_column_id, operation, output_column_id tuples
             by_column_id: column id of the aggregation key, this is preserved through the transform
             dropna: whether null keys should be dropped
-        TODO: test UnorderedIR
+        Returns:
+            UnorderedIR
         """
         table = self._to_ibis_expr()
         bindings = {col: table[col] for col in self.column_ids}

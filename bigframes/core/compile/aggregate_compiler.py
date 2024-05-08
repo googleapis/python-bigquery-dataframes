@@ -52,7 +52,6 @@ def compile_analytic(
     window: window_spec.WindowSpec,
     bindings: typing.Dict[str, ibis_types.Value],
 ) -> ibis_types.Value:
-    # TODO: check how to trigger here!
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         return compile_unary_agg(aggregate.op, input, window)
