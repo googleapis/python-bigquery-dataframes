@@ -21,7 +21,7 @@ def test_empty_index_series_repr(
     pd_result = (
         scalars_pandas_df_default_index["int64_too"]
         .head(5)
-        .to_string(dtype=True, index=False, name=True, length=True)
+        .to_string(dtype=True, index=False, name=True)
     )
     assert bf_result == pd_result
 

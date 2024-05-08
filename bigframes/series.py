@@ -978,9 +978,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         qs = tuple(q) if utils.is_list_like(q) else (q,)
         result = block_ops.quantile(self._block, (self._value_column,), qs=qs)
         if utils.is_list_like(q):
-            result = result.stack()
-            result = result.drop_levels([result.index_columns[0]])
-            return Series(result)
+            # Drop the first level, since only one column
+            result = result.with_column_labels(result.column_labels.droplevel(0))
+            result, index_col = result.create_constant(self.name, None)
+            result = result.set_index([index_col])
+            return Series(
+                result.transpose(original_row_index=pandas.Index([self.name]))
+            )
         else:
             return cast(float, Series(result).to_pandas().squeeze())
 

@@ -1429,13 +1429,13 @@ def test_numeric_literal(scalars_dfs):
     assert bf_result.dtype == pd.ArrowDtype(pa.decimal128(38, 9))
 
 
-def test_repr(scalars_dfs):
+def test_series_small_repr(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     col_name = "int64_col"
     bf_series = scalars_df[col_name]
     pd_series = scalars_pandas_df[col_name]
-    assert repr(bf_series) == repr(pd_series)
+    assert repr(bf_series) == pd_series.to_string(length=True, dtype=True, name=True)
 
 
 def test_sum(scalars_dfs):
