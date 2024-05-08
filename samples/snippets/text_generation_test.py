@@ -40,9 +40,7 @@ def test_llm_text_generation() -> None:
     df_prompt = df_prompt_prefix + df["review"]
 
     # Predict using the model
-    df_pred = model.predict(
-        df_prompt.to_frame(), temperature=0.2, max_output_tokens=100
-    )
+    df_pred = model.predict(df_prompt, temperature=0.2, max_output_tokens=100)
     df_pred.peek(5)
     # [END bigquery_dataframes_perform_keyword_extraction]
     assert df_pred["ml_generate_text_llm_result"] is not None
@@ -56,9 +54,7 @@ def test_llm_text_generation() -> None:
     df_prompt = df_prompt_prefix + df["review"]
 
     # Predict using the model
-    df_pred = model.predict(
-        df_prompt.to_frame(), temperature=0.2, max_output_tokens=100
-    )
+    df_pred = model.predict(df_prompt, temperature=0.2, max_output_tokens=100)
     df_pred.peek(5)
     # [END bigquery_dataframes_perform_sentiment_analysis]
     assert df_pred["ml_generate_text_llm_result"] is not None
