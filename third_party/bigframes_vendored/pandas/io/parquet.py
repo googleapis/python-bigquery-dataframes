@@ -21,8 +21,8 @@ class ParquetIOMixin:
 
         .. note::
             For non-"bigquery" engine, data is inlined in the query SQL if it is
-            small enough (roughly 5MB or less). Larger size data is loaded to a
-            BigQuery table instead.
+            small enough (roughly 5MB or less in memory). Larger size data is
+            loaded to a BigQuery table instead.
 
         **Examples:**
 
