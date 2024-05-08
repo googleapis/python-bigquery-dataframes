@@ -934,6 +934,10 @@ class Session(
         The pandas DataFrame will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
 
+        .. note::
+            Data is inlined in the query SQL if it is small enough (roughly 5MB
+            or less). Larger size data is loaded to a BigQuery table instead.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
