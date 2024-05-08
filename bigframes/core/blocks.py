@@ -2072,32 +2072,34 @@ class Block:
 
         # names of the columns to serialize for the row
         column_names = list(self.index_columns) + [col for col in self.column_labels]
-        column_names_csv = ", ".join([repr(repr(col)) for col in column_names])
+        column_names_csv = sql.csv([repr(col) for col in column_names], quoted=True)
 
         # index columns count
         index_columns_count = len(self.index_columns)
 
         # column references to form the array of values for the row
-        column_references_csv = ", ".join(
+        column_references_csv = sql.csv(
             [sql.cast_as_string(col) for col in self.expr.column_ids]
         )
 
         # types of the columns to serialize for the row
         column_types = list(self.index.dtypes) + list(self.dtypes)
-        column_types_csv = ", ".join([sql.quote(typ) for typ in column_types])
+        column_types_csv = sql.csv([str(typ) for typ in column_types], quoted=True)
 
         # row dtype to use for deserializing the row as pandas series
         pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
         if pandas_row_dtype is None:
             pandas_row_dtype = "object"
-        pandas_row_dtype = sql.quote(pandas_row_dtype)
+        pandas_row_dtype = sql.quote(str(pandas_row_dtype))
 
         # create a json column representing row through SQL manipulation
         row_json_column_name = guid.generate_guid()
         select_columns = (
             [ordering_column_name] + list(self.index_columns) + [row_json_column_name]
         )
-        select_columns_csv = ", ".join(select_columns)
+        select_columns_csv = sql.csv(
+            [sql.column_reference(col) for col in select_columns]
+        )
         json_sql = f"""\
 With T0 AS (
 {textwrap.indent(expr_sql, "    ")}

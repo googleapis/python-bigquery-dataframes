@@ -16,14 +16,44 @@
 Utility functions for SQL construction.
 """
 
-
-def quote(value):
-    """Return a quoted string of the input."""
-
-    return f'"{value}"'
+from typing import Iterable
 
 
-def cast_as_string(column_name):
+def quote(value: str):
+    """Return quoted input string."""
+
+    # Let's use repr which also escapes any special characters
+    #
+    # >>> for val in [
+    # ...     "123",
+    # ...     "str with no special chars",
+    # ...     "str with special chars.,'\"/\\"
+    # ... ]:
+    # ...     print(f"{val} -> {repr(val)}")
+    # ...
+    # 123 -> '123'
+    # str with no special chars -> 'str with no special chars'
+    # str with special chars.,'"/\ -> 'str with special chars.,\'"/\\'
+
+    return repr(value)
+
+
+def column_reference(column_name: str):
+    """Return a string representing column reference in a SQL."""
+
+    return f"`{column_name}`"
+
+
+def cast_as_string(column_name: str):
     """Return a string representing string casting of a column."""
 
-    return f"CAST(`{column_name}` AS STRING)"
+    return f"CAST({column_reference(column_name)} AS STRING)"
+
+
+def csv(values: Iterable[str], quoted=False):
+    """Return a string of comma separated values."""
+
+    if quoted:
+        values = [quote(val) for val in values]
+
+    return ", ".join(values)

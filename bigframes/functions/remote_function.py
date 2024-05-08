@@ -24,8 +24,6 @@ import string
 import sys
 import tempfile
 import textwrap
-
-# TODO(shobs): import typing module and use its classes through namespapace.*
 from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
 import warnings
 
