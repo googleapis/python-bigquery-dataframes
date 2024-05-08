@@ -1512,10 +1512,10 @@ class Session(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (type, sequence(type) or "row"):
+            input_types (type, sequence(type)):
                 For scalar user defined function it should be the input type or
                 sequence of input types. For row processing user defined function,
-                literal "row" should be specified.
+                type `Series` should be specified.
             output_type (type):
                 Data type of the output in the user defined function.
             dataset (str, Optional):

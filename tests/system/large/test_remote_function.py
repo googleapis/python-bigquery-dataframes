@@ -1686,6 +1686,7 @@ SELECT "pandas na" AS text, NULL AS num
         # (BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames) w.r.t. their
         # expected values in BQ
         bq_result = bf_df["num"].to_pandas()
+        bq_result.name = None
         pandas.testing.assert_series_equal(bq_result, bf_result)
     finally:
         # clean up the gcp assets created for the remote function
