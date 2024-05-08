@@ -52,6 +52,10 @@ class UnaryWindowOp(WindowOp):
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return input_types[0]
 
+    @property
+    def can_order_by(self):
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class AggregateOp(WindowOp):
@@ -225,6 +229,10 @@ class CountOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class ArrayAggOp(UnaryAggregateOp):
     name: ClassVar[str] = "arrayagg"
+
+    @property
+    def can_order_by(self):
+        return True
 
     @property
     def skips_nulls(self):

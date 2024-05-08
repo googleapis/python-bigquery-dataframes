@@ -38,7 +38,9 @@ def compile_aggregate(
 ) -> ibis_types.Value:
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        return compile_unary_agg(aggregate.op, input, order_by=order_by)
+        return compile_unary_agg(
+            aggregate.op, input, order_by=order_by if aggregate.op.can_order_by else []
+        )
     elif isinstance(aggregate, ex.BinaryAggregation):
         left = scalar_compiler.compile_expression(aggregate.left, bindings=bindings)
         right = scalar_compiler.compile_expression(aggregate.right, bindings=bindings)

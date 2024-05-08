@@ -305,15 +305,17 @@ class UnorderedIR(BaseIbisIR):
         aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
-    ) -> UnorderedIR:
+    ) -> OrderedIR:
         """
         Apply aggregations to the expression.
         Arguments:
             aggregations: input_column_id, operation, output_column_id tuples
-            by_column_id: column id of the aggregation key, this is preserved through the transform
+            by_column_id: column id of the aggregation key, this is preserved through
+              the transform
             dropna: whether null keys should be dropped
         Returns:
-            UnorderedIR
+            OrderedIR: the grouping key is a unique-valued column and has ordering
+              information.
         """
         table = self._to_ibis_expr()
         bindings = {col: table[col] for col in self.column_ids}
@@ -323,8 +325,13 @@ class UnorderedIR(BaseIbisIR):
         }
         if by_column_ids:
             result = table.group_by(by_column_ids).aggregate(**stats)
+            # Must have deterministic ordering, so order by the unique "by" column
+            ordering = ExpressionOrdering(
+                tuple([ascending_over(column_id) for column_id in by_column_ids]),
+                total_ordering_columns=frozenset(by_column_ids),
+            )
             columns = tuple(result[key] for key in result.columns)
-            expr = UnorderedIR(result, columns=columns)
+            expr = OrderedIR(result, columns=columns, ordering=ordering)
             if dropna:
                 for column_id in by_column_ids:
                     expr = expr._filter(expr._get_ibis_column(column_id).notnull())
@@ -332,9 +339,18 @@ class UnorderedIR(BaseIbisIR):
         else:
             aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
             result = table.aggregate(**aggregates)
+            # Ordering is irrelevant for single-row output, but set ordering id regardless
+            # as other ops(join etc.) expect it.
+            # TODO: Maybe can make completely empty
+            ordering = ExpressionOrdering(
+                ordering_value_columns=tuple([]),
+                total_ordering_columns=frozenset([]),
+            )
             return UnorderedIR(
                 result,
                 columns=[result[col_id] for col_id in [*stats.keys()]],
+                hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
+                ordering=ordering,
             )
 
     def _uniform_sampling(self, fraction: float) -> UnorderedIR:
@@ -523,7 +539,8 @@ class OrderedIR(BaseIbisIR):
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
 
-        Assumed that the dataframe has unique string column names and bigframes-suppported dtypes.
+        Assumed that the dataframe has unique string column names and bigframes-suppported
+        dtypes.
         """
 
         # ibis memtable cannot handle NA, must convert to None
@@ -560,7 +577,8 @@ class OrderedIR(BaseIbisIR):
 
     @property
     def _ibis_order(self) -> Sequence[ibis_types.Value]:
-        """Returns a sequence of ibis values which can be directly used to order a table expression. Has direction modifiers applied."""
+        """Returns a sequence of ibis values which can be directly used to order a
+        table expression. Has direction modifiers applied."""
         return _convert_ordering_to_table_values(
             {**self._column_names, **self._hidden_ordering_column_names},
             self._ordering.all_ordering_columns,
@@ -602,7 +620,8 @@ class OrderedIR(BaseIbisIR):
         Apply aggregations to the expression.
         Arguments:
             aggregations: input_column_id, operation, output_column_id tuples
-            by_column_id: column id of the aggregation key, this is preserved through the transform
+            by_column_id: column id of the aggregation key, this is preserved through
+              the transform
             dropna: whether null keys should be dropped
         Returns:
             OrderedIR
