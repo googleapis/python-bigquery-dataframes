@@ -155,14 +155,18 @@ def compile_rowcount(node: nodes.RowCountNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_aggregate(node: nodes.AggregateNode, ordered: bool = True):
-    if ordered:
+    has_orderred_aggregation_ops = any(
+        aggregate.op.can_order_by for aggregate, _ in node.aggregations
+    )
+    if ordered and has_orderred_aggregation_ops:
         return compile_ordered_ir(node.child).aggregate(
             node.aggregations, node.by_column_ids, node.dropna
         )
     else:
-        return compile_unordered_ir(node.child).aggregate(
+        result = compile_unordered_ir(node.child).aggregate(
             node.aggregations, node.by_column_ids, node.dropna
-        ).to_unordered()
+        )
+        return result if ordered else result.to_unordered()
 
 
 @_compile_node.register

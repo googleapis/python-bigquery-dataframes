@@ -38,6 +38,10 @@ class WindowOp:
         """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
         return False
 
+    @property
+    def can_order_by(self):
+        return False
+
     @abc.abstractmethod
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
@@ -51,10 +55,6 @@ class UnaryWindowOp(WindowOp):
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return input_types[0]
-
-    @property
-    def can_order_by(self):
-        return False
 
 
 @dataclasses.dataclass(frozen=True)
