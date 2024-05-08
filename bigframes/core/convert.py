@@ -79,7 +79,7 @@ def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
         pandas.Series
     """
     if isinstance(obj, series.Series):
-        return obj.to_pandas()
+        return obj._to_pandas_internal()
     if isinstance(obj, pd.Series):
         return obj
     if isinstance(obj, index.Index):

@@ -34,6 +34,7 @@ from typing import (
     Tuple,
     Union,
 )
+import warnings
 
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -261,10 +262,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def iloc(self) -> indexers.ILocDataFrameIndexer:
+        warnings.warn(
+            "DataFrame.iloc generates full table sorts. Consider using label-based indexing with DataFrame.loc instead",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         return indexers.ILocDataFrameIndexer(self)
 
     @property
     def iat(self) -> indexers.IatDataFrameIndexer:
+        warnings.warn(
+            "DataFrame.iat generates full table sorts. Consider using label-based indexing with DataFrame.at instead",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         return indexers.IatDataFrameIndexer(self)
 
     @property
@@ -420,7 +429,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             too_many_rows = n_rows > max_rows if max_rows is not None else False
 
             if show_counts if show_counts is not None else (not too_many_rows):
-                non_null_counts = self.count().to_pandas()
+                non_null_counts = self.count()._to_pandas_internal()
                 column_info["Non-Null Count"] = non_null_counts.map(
                     lambda x: f"{int(x)} non-null"
                 )
@@ -1222,6 +1231,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        if ordered is True:
+            warnings.warn(
+                "DataFrame.to_pandas() sorts the entire data. Consider to_pandas(ordered=False) if ordering is not needed.",
+                category=bigframes.exceptions.UnboundSortWarning,
+            )
         self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
@@ -1229,6 +1243,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             random_state=random_state,
             ordered=ordered,
         )
+        self._set_internal_query_job(query_job)
+        return df.set_axis(self._block.column_labels, axis=1, copy=False)
+
+    def _to_pandas_internal(
+        self,
+    ) -> pandas.DataFrame:
+        self._optimize_query_complexity()
+        df, query_job = self._block.to_pandas()
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
@@ -1244,6 +1266,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(self._block)
 
     def head(self, n: int = 5) -> DataFrame:
+        warnings.warn(
+            "DataFrame.head() fully sorts the data. Consider using DataFrame.peek() to preview data.",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         return typing.cast(DataFrame, self.iloc[:n])
 
     def tail(self, n: int = 5) -> DataFrame:
@@ -1954,9 +1980,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 self._block.value_columns, ops.isnull_op
             )
             if how == "any":
-                null_locations = DataFrame(isnull_block).any().to_pandas()
+                null_locations = DataFrame(isnull_block).any()._to_pandas_internal()
             else:  # 'all'
-                null_locations = DataFrame(isnull_block).all().to_pandas()
+                null_locations = DataFrame(isnull_block).all()._to_pandas_internal()
             keep_columns = [
                 col
                 for col, to_drop in zip(self._block.value_columns, null_locations)
@@ -2738,6 +2764,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         op: agg_ops.WindowOp,
         window_spec: bigframes.core.WindowSpec,
     ):
+        warnings.warn(
+            "Applying window operation without grouping. This performs an expensive full sort.",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         block, result_ids = self._block.multi_apply_window_op(
             self._block.value_columns,
             op,
@@ -2990,7 +3020,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self._to_pandas_internal().to_numpy(dtype, copy, na_value, **kwargs)
 
     def __array__(self, dtype=None) -> numpy.ndarray:
         return self.to_numpy(dtype=dtype)
@@ -3042,10 +3072,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         into: type[dict] = dict,
         **kwargs,
     ) -> dict | list[dict]:
-        return self.to_pandas().to_dict(orient, into, **kwargs)  # type: ignore
+        return self._to_pandas_internal().to_dict(orient, into, **kwargs)  # type: ignore
 
     def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+        return self._to_pandas_internal().to_excel(excel_writer, sheet_name, **kwargs)
 
     def to_latex(
         self,
@@ -3055,14 +3085,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: bool = True,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_latex(
+        return self._to_pandas_internal().to_latex(
             buf, columns=columns, header=header, index=index, **kwargs  # type: ignore
         )
 
     def to_records(
         self, index: bool = True, column_dtypes=None, index_dtypes=None
     ) -> numpy.recarray:
-        return self.to_pandas().to_records(index, column_dtypes, index_dtypes)
+        return self._to_pandas_internal().to_records(index, column_dtypes, index_dtypes)
 
     def to_string(
         self,
@@ -3086,7 +3116,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_colwidth: int | None = None,
         encoding: str | None = None,
     ) -> str | None:
-        return self.to_pandas().to_string(
+        return self._to_pandas_internal().to_string(
             buf,
             columns,  # type: ignore
             col_space,
@@ -3134,7 +3164,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         render_links: bool = False,
         encoding: str | None = None,
     ) -> str:
-        return self.to_pandas().to_html(
+        return self._to_pandas_internal().to_html(
             buf,
             columns,  # type: ignore
             col_space,
@@ -3167,13 +3197,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: bool = True,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_markdown(buf, mode, index, **kwargs)  # type: ignore
+        return self._to_pandas_internal().to_markdown(buf, mode, index, **kwargs)  # type: ignore
 
     def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+        return self._to_pandas_internal().to_pickle(path, **kwargs)
 
     def to_orc(self, path=None, **kwargs) -> bytes | None:
-        as_pandas = self.to_pandas()
+        as_pandas = self._to_pandas_internal()
         # to_orc only works with default index
         as_pandas_default_index = as_pandas.reset_index()
         return as_pandas_default_index.to_orc(path, **kwargs)

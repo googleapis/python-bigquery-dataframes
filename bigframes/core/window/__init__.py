@@ -15,12 +15,14 @@
 from __future__ import annotations
 
 import typing
+import warnings
 
 import bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
 
 from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.exceptions
 import bigframes.operations.aggregations as agg_ops
 
 
@@ -67,6 +69,11 @@ class Window(vendored_pandas_rolling.Window):
         self,
         op: agg_ops.UnaryAggregateOp,
     ):
+        if len(self._window_spec.grouping_keys) == 0:
+            warnings.warn(
+                "Applying window operation without grouping. This performs an expensive full sort.",
+                category=bigframes.exceptions.UnboundSortWarning,
+            )
         block = self._block
         labels = [block.col_id_to_label[col] for col in self._value_column_ids]
         block, result_ids = block.multi_apply_window_op(

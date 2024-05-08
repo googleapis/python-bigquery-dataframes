@@ -48,6 +48,7 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils
 import bigframes.core.utils as utils
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -812,6 +813,11 @@ class Block:
         skip_null_groups: bool = False,
         never_skip_nulls: bool = False,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
+        if len(window_spec.grouping_keys) == 0:
+            warnings.warn(
+                "Applying window operation without grouping. This performs an expensive full-dataset sort.",
+                category=bigframes.exceptions.UnboundSortWarning,
+            )
         block = self
         result_ids = []
         for i, col_id in enumerate(columns):
@@ -873,6 +879,11 @@ class Block:
         skip_reproject_unsafe: bool = False,
         never_skip_nulls: bool = False,
     ) -> typing.Tuple[Block, str]:
+        if len(window_spec.grouping_keys) == 0:
+            warnings.warn(
+                "Applying window operation without grouping. This performs an expensive full-dataset sort.",
+                category=bigframes.exceptions.UnboundSortWarning,
+            )
         block = self
         if skip_null_groups:
             for key in window_spec.grouping_keys:

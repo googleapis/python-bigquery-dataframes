@@ -23,6 +23,7 @@ import numbers
 import textwrap
 import typing
 from typing import Any, cast, Literal, Mapping, Optional, Sequence, Tuple, Union
+import warnings
 
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
@@ -90,10 +91,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @property
     def iloc(self) -> bigframes.core.indexers.IlocSeriesIndexer:
+        warnings.warn(
+            "Series.iloc generates full table sorts. Consider using label-based indexing with Series.loc instead",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         return bigframes.core.indexers.IlocSeriesIndexer(self)
 
     @property
     def iat(self) -> bigframes.core.indexers.IatSeriesIndexer:
+        warnings.warn(
+            "Series.iat generates full table sorts. Consider using label-based indexing with Series.at instead",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         return bigframes.core.indexers.IatSeriesIndexer(self)
 
     @property
@@ -331,6 +340,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
+        if ordered is True:
+            warnings.warn(
+                "DataFrame.to_pandas() sorts the entire data. Consider to_pandas(ordered=False) if ordering is not needed.",
+                category=bigframes.exceptions.UnboundSortWarning,
+            )
         self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
@@ -338,6 +352,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             random_state=random_state,
             ordered=ordered,
         )
+        self._set_internal_query_job(query_job)
+        series = df.squeeze(axis=1)
+        series.name = self._name
+        return series
+
+    def _to_pandas_internal(self):
+        self._optimize_query_complexity()
+        df, query_job = self._block.to_pandas()
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
         series.name = self._name
@@ -1153,6 +1175,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _apply_window_op(
         self, op: agg_ops.WindowOp, window_spec: bigframes.core.window_spec.WindowSpec
     ):
+        warnings.warn(
+            "Applying window operation without grouping. This performs an expensive full sort.",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
         block = self._block
         block, result_id = block.apply_window_op(
             self._value_column, op, window_spec=window_spec, result_label=self.name
@@ -1486,10 +1512,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_frame().to_csv(path_or_buf, sep=sep, header=header, index=index)
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
+        return typing.cast(dict, self._to_pandas_internal().to_dict(into))  # type: ignore
 
     def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+        return self._to_pandas_internal().to_excel(excel_writer, sheet_name, **kwargs)
 
     def to_json(
         self,
@@ -1508,12 +1534,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_latex(
+        return self._to_pandas_internal().to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
     def tolist(self) -> list:
-        return self.to_pandas().to_list()
+        return self._to_pandas_internal().to_list()
 
     to_list = tolist
     to_list.__doc__ = inspect.getdoc(vendored_pandas_series.Series.tolist)
@@ -1525,12 +1551,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         index: bool = True,
         **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
+        return self._to_pandas_internal().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
         self, dtype=None, copy=False, na_value=None, **kwargs
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self._to_pandas_internal().to_numpy(dtype, copy, na_value, **kwargs)
 
     def __array__(self, dtype=None) -> numpy.ndarray:
         return self.to_numpy(dtype=dtype)
@@ -1538,7 +1564,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
 
     def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+        return self._to_pandas_internal().to_pickle(path, **kwargs)
 
     def to_string(
         self,
@@ -1553,7 +1579,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         max_rows=None,
         min_rows=None,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_string(
+        return self._to_pandas_internal().to_string(
             buf,
             na_rep,
             float_format,
@@ -1567,7 +1593,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def to_xarray(self):
-        return self.to_pandas().to_xarray()
+        return self._to_pandas_internal().to_xarray()
 
     def _throw_if_index_contains_duplicates(
         self, error_message: typing.Optional[str] = None

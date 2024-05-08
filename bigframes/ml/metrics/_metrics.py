@@ -177,7 +177,9 @@ def auc(
     x_series, y_series = utils.convert_to_series(x, y)
 
     # TODO(b/286410053) Support ML exceptions and error handling.
-    auc = sklearn_metrics.auc(x_series.to_pandas(), y_series.to_pandas())
+    auc = sklearn_metrics.auc(
+        x_series._to_pandas_internal(), y_series._to_pandas_internal()
+    )
     return auc
 
 
@@ -197,7 +199,7 @@ def confusion_matrix(
     groupby_count = (
         confusion_df.groupby(by=["y_true", "y_pred"], as_index=False)
         .count()
-        .to_pandas()
+        ._to_pandas_internal()
     )
 
     unique_values = sorted(

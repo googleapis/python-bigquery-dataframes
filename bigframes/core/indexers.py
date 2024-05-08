@@ -320,7 +320,7 @@ def _loc_getitem_series_or_dataframe(
         result = _perform_loc_list_join(series_or_dataframe, index, drop_levels=True)
 
         if index.nlevels == series_or_dataframe.index.nlevels:
-            pandas_result = result.to_pandas()
+            pandas_result = result._to_pandas_internal()
             # although loc[scalar_key] returns multiple results when scalar_key
             # is not unique, we download the results here and return the computed
             # individual result (as a scalar or pandas series) when the key is unique,
@@ -412,7 +412,7 @@ def _iloc_getitem_series_or_dataframe(
     if isinstance(key, int):
         stop_key = key + 1 if key != -1 else None
         internal_slice_result = series_or_dataframe._slice(key, stop_key, 1)
-        result_pd_df = internal_slice_result.to_pandas()
+        result_pd_df = internal_slice_result._to_pandas_internal()
         if result_pd_df.empty:
             raise IndexError("single positional indexer is out-of-bounds")
         return result_pd_df.iloc[0]
