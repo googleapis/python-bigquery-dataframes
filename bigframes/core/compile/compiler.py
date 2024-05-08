@@ -162,7 +162,7 @@ def compile_aggregate(node: nodes.AggregateNode, ordered: bool = True):
     else:
         return compile_unordered_ir(node.child).aggregate(
             node.aggregations, node.by_column_ids, node.dropna
-        )
+        ).to_unordered()
 
 
 @_compile_node.register
