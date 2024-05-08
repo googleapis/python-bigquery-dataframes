@@ -600,9 +600,11 @@ def skew(
 
     block = block.select_columns(skew_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 
@@ -640,9 +642,11 @@ def kurt(
 
     block = block.select_columns(kurt_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 

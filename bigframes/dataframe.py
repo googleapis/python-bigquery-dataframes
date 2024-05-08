@@ -2063,16 +2063,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame._block, frame._block.value_columns, qs=tuple(q) if multi_q else (q,)  # type: ignore
         )
         if multi_q:
-            return DataFrame(result.stack()).droplevel(0)
+            return DataFrame(result.stack())  # .droplevel(0)
         else:
-            result_df = (
-                DataFrame(result)
-                .stack(list(range(0, frame.columns.nlevels)))
-                .droplevel(0)
+            # Drop the last level, which contains q, unnecessary since only one q
+            result = result.with_column_labels(result.column_labels.droplevel(-1))
+            result, index_col = result.create_constant(q, None)
+            result = result.set_index([index_col])
+            return bigframes.series.Series(
+                result.transpose(original_row_index=pandas.Index([q]))
             )
-            result_series = bigframes.series.Series(result_df._block)
-            result_series.name = q
-            return result_series
 
     def std(
         self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False

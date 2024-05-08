@@ -322,6 +322,9 @@ class Session(
         elif col_order:
             columns = col_order
 
+        if index_col == ():
+            index_col = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
+
         filters = list(filters)
         if len(filters) != 0 or _is_table_with_wildcard_suffix(query_or_table):
             # TODO(b/338111344): This appears to be missing index_cols, which
@@ -824,7 +827,7 @@ class Session(
             array_value,
             index_columns=index_cols,
             column_labels=value_columns,
-            index_labels=index_cols,
+            index_labels=index_cols if index_cols else pandas.Index([None]),
         )
         if max_results:
             block = block.slice(stop=max_results)
