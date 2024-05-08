@@ -27,6 +27,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Hashable,
     IO,
     Iterable,
     List,
@@ -321,9 +322,6 @@ class Session(
             )
         elif col_order:
             columns = col_order
-
-        if index_col == ():
-            index_col = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
 
         filters = list(filters)
         if len(filters) != 0 or _is_table_with_wildcard_suffix(query_or_table):
@@ -817,17 +815,19 @@ class Session(
         # Create Block & default index if len(index_cols) == 0
         # ----------------------------------------------------
 
+        index_names: Sequence[Hashable] = index_cols
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
             sequential_index_col = bigframes.core.guid.generate_guid("index_")
             array_value = array_value.promote_offsets(sequential_index_col)
             index_cols = [sequential_index_col]
+            index_names = [None]
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         block = blocks.Block(
             array_value,
             index_columns=index_cols,
             column_labels=value_columns,
-            index_labels=index_cols if index_cols else pandas.Index([None]),
+            index_labels=index_names,
         )
         if max_results:
             block = block.slice(stop=max_results)
