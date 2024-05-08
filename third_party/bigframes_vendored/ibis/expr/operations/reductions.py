@@ -27,7 +27,7 @@ class ArrayAggregate(Filterable, Reduction):
     """
 
     arg: ibis_ops_core.Column
-    order_by_columns: VarTuple[ibis_ops_core.Value] = ()
+    order_by: VarTuple[ibis_ops_core.Value] = ()
 
     @ibis_annotations.attribute
     def dtype(self):

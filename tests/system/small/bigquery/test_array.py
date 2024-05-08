@@ -83,6 +83,40 @@ def test_array_agg_w_dataframe():
         expected.to_pandas(),
     )
 
+
+@pytest.mark.parametrize(
+    ("ascending", "expected_b", "expected_c"),
+    [
+        pytest.param(
+            True, [["a", "b"], ["e", "d", "c"]], [[4, 5], [1, 2, 3]], id="asc"
+        ),
+        pytest.param(
+            False, [["b", "a"], ["c", "d", "e"]], [[5, 4], [3, 2, 1]], id="des"
+        ),
+    ],
+)
+def test_array_agg_reserve_order(ascending, expected_b, expected_c):
+    data = {
+        "a": [1, 1, 2, 2, 2],
+        "b": ["a", "b", "c", "d", "e"],
+        "c": [4, 5, 3, 2, 1],
+    }
+    df = bpd.DataFrame(data)
+
+    result = bbq.array_agg(df.sort_values("c", ascending=ascending).groupby(by=["a"]))
+    expected_data = {
+        "a": [1, 2],
+        "b": expected_b,
+        "c": expected_c,
+    }
+    expected = bpd.DataFrame(expected_data).set_index("a")
+
+    pd.testing.assert_frame_equal(
+        result.to_pandas(),
+        expected.to_pandas(),
+    )
+
+
 def assert_array_agg_matches_after_explode():
     data = {
         "index": np.arange(10),

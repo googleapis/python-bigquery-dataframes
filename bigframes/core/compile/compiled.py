@@ -608,10 +608,9 @@ class OrderedIR(BaseIbisIR):
         """
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
         bindings = {col: table[col] for col in self.column_ids}
-        agg_order_by = [table[col] for col in self._hidden_ordering_column_names]
         stats = {
             col_out: agg_compiler.compile_aggregate(
-                aggregate, bindings, agg_order_by=agg_order_by
+                aggregate, bindings, order_by=self._ibis_order
             )
             for aggregate, col_out in aggregations
         }

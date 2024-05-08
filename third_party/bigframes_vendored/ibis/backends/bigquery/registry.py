@@ -47,11 +47,9 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
     arg = translator.translate(op.arg)
 
     order_by_sql = ""
-    if len(op.order_by_columns) > 0:
-        order_by_columns = ", ".join(
-            [translator.translate(column) for column in op.order_by_columns]
-        )
-        order_by_sql = f"ORDER BY {order_by_columns}"
+    if len(op.order_by) > 0:
+        order_by = ", ".join([translator.translate(column) for column in op.order_by])
+        order_by_sql = f"ORDER BY {order_by}"
 
     return f"ARRAY_AGG({arg} IGNORE NULLS {order_by_sql})"
 
