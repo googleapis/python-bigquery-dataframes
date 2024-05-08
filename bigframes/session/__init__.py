@@ -812,10 +812,10 @@ class Session(
             )
 
         # ----------------------------------------------------
-        # Create Default Index if DefaultIndexKind provided, or no index provided
+        # Create Default Sequential Index if still have no index
         # ----------------------------------------------------
 
-        if not index_col:
+        if not index_col and len(index_cols) == 0:
             index_col = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
 
         index_names: Sequence[Hashable] = index_cols
