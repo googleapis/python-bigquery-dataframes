@@ -250,7 +250,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     def split(
         self,
         pat: str = " ",
-        regex: bool | None = None,
+        regex: Union[bool, None] = None,
     ) -> series.Series:
         if regex is True or (regex is None and len(pat) > 1):
             raise NotImplementedError(

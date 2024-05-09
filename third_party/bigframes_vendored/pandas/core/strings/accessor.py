@@ -943,7 +943,7 @@ class StringMethods:
     def split(
         self,
         pat: str = " ",
-        regex: bool | None = None,
+        regex: typing.Union[bool, None] = None,
     ):
         """
         Split strings around given separator/delimiter.
