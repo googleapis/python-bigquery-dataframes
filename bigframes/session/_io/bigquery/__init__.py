@@ -43,7 +43,7 @@ LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
 def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
-    api_methods: Sequence[str],
+    api_methods: typing.List[str],
 ) -> Dict[str, str]:
     if job_configs_labels is None:
         job_configs_labels = {}
@@ -59,7 +59,6 @@ def create_job_configs_labels(
         )
     )
     values = list(itertools.chain(job_configs_labels.values(), api_methods))
-    print(dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT])))
     return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
 
 

@@ -22,7 +22,7 @@ _api_methods: List = []
 _excluded_methods = ["__setattr__", "__getattr__"]
 
 # Stack to track method calls
-_call_stack = []
+_call_stack: List = []
 
 
 def class_logger(decorated_cls):
