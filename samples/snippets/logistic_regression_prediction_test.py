@@ -17,7 +17,7 @@ https://cloud.google.com/bigquery/docs/logistic-regression-prediction.
 """
 
 
-def test_logistic_regression_prediction(random_model_id):
+def test_logistic_regression_prediction(random_model_id: str) -> None:
     your_model_id = random_model_id
 
     # [START bigquery_dataframes_logistic_regression_prediction_examine]
