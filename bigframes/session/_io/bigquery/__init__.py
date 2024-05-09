@@ -23,7 +23,7 @@ import re
 import textwrap
 import types
 import typing
-from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
