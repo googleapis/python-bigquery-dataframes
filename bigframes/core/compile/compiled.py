@@ -1190,7 +1190,7 @@ class OrderedIR(BaseIbisIR):
                 window_spec.ordering,
             )
             if require_total_order or isinstance(window_spec.bounds, RowsWindowBounds):
-                # Most operator need an unambiguous ordering, so the table's total ordering is appended
+                # Some operators need an unambiguous ordering, so the table's total ordering is appended
                 order_by = tuple([*order_by, *self._ibis_order])
         elif isinstance(window_spec.bounds, RowsWindowBounds):
             # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.

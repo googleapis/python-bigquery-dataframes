@@ -428,23 +428,22 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = windows.unbound(
-            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
-            ordering=(
-                ordering.OrderingExpression(
-                    ex.free_var(col),
-                    ordering.OrderingDirection.ASC
-                    if ascending
-                    else ordering.OrderingDirection.DESC,
-                    na_last=(na_option in ["bottom", "keep"]),
-                ),
+        window_ordering = (
+            ordering.OrderingExpression(
+                ex.free_var(col),
+                ordering.OrderingDirection.ASC
+                if ascending
+                else ordering.OrderingDirection.DESC,
+                na_last=(na_option in ["bottom", "keep"]),
             ),
         )
         # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
         block, rownum_id = block.apply_window_op(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=window,
+            window_spec=windows.unbound(ordering=window_ordering)
+            if method == "dense"
+            else windows.rows(following=0, ordering=window_ordering),
             skip_reproject_unsafe=(col != columns[-1]),
         )
         rownum_col_ids.append(rownum_id)
@@ -843,7 +842,7 @@ def _idx_extrema(
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = windows.rows(ordering=tuple(order_refs))
+        window_spec = windows.unbound(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec
