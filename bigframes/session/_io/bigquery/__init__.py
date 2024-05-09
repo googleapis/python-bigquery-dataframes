@@ -48,6 +48,10 @@ def create_job_configs_labels(
     if job_configs_labels is None:
         job_configs_labels = {}
 
+    if api_methods:
+        job_configs_labels["bigframes-api"] = api_methods[0]
+        del api_methods[0]
+
     labels = list(
         itertools.chain(
             job_configs_labels.keys(),
@@ -55,6 +59,7 @@ def create_job_configs_labels(
         )
     )
     values = list(itertools.chain(job_configs_labels.values(), api_methods))
+    print(dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT])))
     return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
 
 
@@ -198,10 +203,11 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
-    api_methods = log_adapter.get_and_reset_api_methods()
-    job_config.labels = create_job_configs_labels(
-        job_configs_labels=job_config.labels, api_methods=api_methods
-    )
+    if not job_config.dry_run:
+        api_methods = log_adapter.get_and_reset_api_methods()
+        job_config.labels = create_job_configs_labels(
+            job_configs_labels=job_config.labels, api_methods=api_methods
+        )
 
     try:
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
