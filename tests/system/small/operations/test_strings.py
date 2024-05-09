@@ -533,12 +533,30 @@ def test_str_rjust(scalars_dfs):
     )
 
 
-def test_str_split(scalars_dfs):
+@pytest.mark.parametrize(
+    ("pat", "regex"),
+    [
+        pytest.param(" ", None, id="one_char"),
+        pytest.param("ll", False, id="two_chars"),
+        pytest.param(
+            " ",
+            True,
+            id="one_char_reg",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
+        pytest.param(
+            "ll",
+            None,
+            id="two_chars_reg",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
+    ],
+)
+def test_str_split_raise_errors(scalars_dfs, pat, regex):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
-    bf_result = bf_series.str.split(" ").to_pandas()
-    pd_result = scalars_pandas_df[col_name].str.split(" ")
+    bf_result = scalars_df[col_name].str.split(pat=pat, regex=regex).to_pandas()
+    pd_result = scalars_pandas_df[col_name].str.split(pat=pat, regex=regex)
 
     # TODO(b/336880368): Allow for NULL values for ARRAY columns in BigQuery.
     pd_result = pd_result.apply(lambda x: [] if pd.isnull(x) is True else x)
