@@ -526,7 +526,7 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.range_over(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)
@@ -556,7 +556,7 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.range_over(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)

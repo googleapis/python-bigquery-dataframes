@@ -189,7 +189,7 @@ def qcut(
     block, result = block.apply_window_op(
         x._value_column,
         agg_ops.QcutOp(q),  # type: ignore
-        window_spec=window_specs.range_over(
+        window_spec=window_specs.unbound(
             grouping_keys=(nullity_id,),
             ordering=(order.ascending_over(x._value_column),),
         ),

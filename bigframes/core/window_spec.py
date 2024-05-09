@@ -29,14 +29,6 @@ def unbound(
     )
 
 
-### Range-based Windows
-def range_over(
-    ordering: Tuple[orderings.OrderingExpression, ...],
-    grouping_keys: Tuple[str, ...] = (),
-):
-    return WindowSpec(grouping_keys=grouping_keys, ordering=ordering)
-
-
 ### Rows-based Windows
 def rows(
     grouping_keys: Tuple[str, ...] = (),
