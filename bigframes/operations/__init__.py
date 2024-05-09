@@ -64,15 +64,15 @@ class ScalarOp:
 class NaryOp(ScalarOp):
     def as_expr(
         self,
-        *case_output_pairs: Union[str | bigframes.core.expression.Expression],
+        *exprs: Union[str | bigframes.core.expression.Expression],
     ) -> bigframes.core.expression.Expression:
         import bigframes.core.expression
 
         # Keep this in sync with output_type and compilers
         inputs: list[bigframes.core.expression.Expression] = []
 
-        for case_or_output in case_output_pairs:
-            inputs.append(_convert_expr_input(case_or_output))
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
 
         return bigframes.core.expression.OpExpression(
             self,
