@@ -2566,6 +2566,12 @@ def test_between(scalars_df_index, scalars_pandas_df_index, left, right, inclusi
 
 
 def test_case_when(scalars_df_index, scalars_pandas_df_index):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.2.0",
+        reason="case_when added in pandas 2.2.0",
+    )
+
     bf_series = scalars_df_index["int64_col"]
     pd_series = scalars_pandas_df_index["int64_col"]
 

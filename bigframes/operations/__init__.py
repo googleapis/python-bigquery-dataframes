@@ -46,7 +46,7 @@ class RowOp(typing.Protocol):
 
 
 @dataclasses.dataclass(frozen=True)
-class AlignedOp:
+class ScalarOp:
     @property
     def name(self) -> str:
         raise NotImplementedError("RowOp abstract base class has no implementation")
@@ -61,7 +61,7 @@ class AlignedOp:
 
 
 @dataclasses.dataclass(frozen=True)
-class NaryOp(AlignedOp):
+class NaryOp(ScalarOp):
     def as_expr(
         self,
         *case_output_pairs: Union[str | bigframes.core.expression.Expression],
@@ -83,7 +83,7 @@ class NaryOp(AlignedOp):
 # These classes can be used to create simple ops that don't take local parameters
 # All is needed is a unique name, and to register an implementation in ibis_mappings.py
 @dataclasses.dataclass(frozen=True)
-class UnaryOp(AlignedOp):
+class UnaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 1
@@ -99,7 +99,7 @@ class UnaryOp(AlignedOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class BinaryOp(AlignedOp):
+class BinaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 2
@@ -121,7 +121,7 @@ class BinaryOp(AlignedOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class TernaryOp(AlignedOp):
+class TernaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 3
