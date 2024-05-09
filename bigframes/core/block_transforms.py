@@ -71,21 +71,19 @@ def indicate_duplicates(
     if keep == "first":
         # Count how many copies occur up to current copy of value
         # Discard this value if there are copies BEFORE
-        window_spec = windows.WindowSpec(
+        window_spec = windows.cumulative_rows(
             grouping_keys=tuple(columns),
-            following=0,
         )
     elif keep == "last":
         # Count how many copies occur up to current copy of values
         # Discard this value if there are copies AFTER
-        window_spec = windows.WindowSpec(
+        window_spec = windows.inverse_cumulative_rows(
             grouping_keys=tuple(columns),
-            preceding=0,
         )
     else:  # keep == False
         # Count how many copies of the value occur in entire series.
         # Discard this value if there are copies ANYWHERE
-        window_spec = windows.WindowSpec(grouping_keys=tuple(columns))
+        window_spec = windows.grouping(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
     block, val_count_col_id = block.apply_window_op(
         dummy,
@@ -114,7 +112,7 @@ def quantile(
     dropna: bool = False,
 ) -> blocks.Block:
     # TODO: handle windowing and more interpolation methods
-    window = core.WindowSpec(
+    window = windows.grouping(
         grouping_keys=tuple(grouping_column_ids),
     )
     quantile_cols = []
@@ -212,8 +210,8 @@ def _interpolate_column(
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
     window_ordering = (ordering.OrderingExpression(ex.free_var(x_values)),)
-    backwards_window = windows.WindowSpec(following=0, ordering=window_ordering)
-    forwards_window = windows.WindowSpec(preceding=0, ordering=window_ordering)
+    backwards_window = windows.rows(following=0, ordering=window_ordering)
+    forwards_window = windows.rows(preceding=0, ordering=window_ordering)
 
     # Note, this method may
     block, notnull = block.apply_unary_op(column, ops.notnull_op)
@@ -364,7 +362,7 @@ def value_counts(
     )
     count_id = agg_ids[0]
     if normalize:
-        unbound_window = windows.WindowSpec()
+        unbound_window = windows.unbound()
         block, total_count_id = block.apply_window_op(
             count_id, agg_ops.sum_op, unbound_window
         )
@@ -388,7 +386,7 @@ def value_counts(
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = windows.WindowSpec(
+    window_spec = windows.rows(
         preceding=periods if periods > 0 else None,
         following=-periods if periods < 0 else None,
     )
@@ -430,7 +428,7 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = windows.WindowSpec(
+        window = windows.rows(
             # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
             ordering=(
                 ordering.OrderingExpression(
@@ -464,7 +462,7 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.WindowSpec(grouping_keys=(columns[i],)),
+                window_spec=windows.grouping(grouping_keys=(columns[i],)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
@@ -528,7 +526,7 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.range_over(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)
@@ -558,7 +556,7 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.range_over(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)
@@ -653,7 +651,7 @@ def _mean_delta_to_power(
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
+    window = windows.grouping(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
     for val_id, mean_val_id in zip(column_ids, mean_ids):
@@ -845,7 +843,7 @@ def _idx_extrema(
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = windows.WindowSpec(ordering=tuple(order_refs))
+        window_spec = windows.rows(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec
