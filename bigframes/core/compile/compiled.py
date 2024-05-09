@@ -1200,16 +1200,19 @@ class OrderedIR(BaseIbisIR):
             order_by = None
 
         bounds = window_spec.bounds
-        return ibis.window(
-            order_by=order_by,
-            group_by=group_by,
-            range=(bounds.preceding, bounds.following)
-            if isinstance(bounds, RangeWindowBounds)
-            else None,
-            rows=(bounds.preceding, bounds.following)
-            if isinstance(bounds, RowsWindowBounds)
-            else None,
-        )
+        window = ibis.window(order_by=order_by, group_by=group_by)
+        if bounds is not None:
+            if isinstance(bounds, RangeWindowBounds):
+                window = window.preceding_following(
+                    bounds.preceding, bounds.following, how="range"
+                )
+            if isinstance(bounds, RowsWindowBounds):
+                window = window.preceding_following(
+                    bounds.preceding, bounds.following, how="rows"
+                )
+            else:
+                raise ValueError(f"unrecognized window bounds {bounds}")
+        return window
 
     class Builder:
         def __init__(

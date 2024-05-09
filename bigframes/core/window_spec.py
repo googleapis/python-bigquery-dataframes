@@ -19,12 +19,14 @@ import bigframes.core.ordering as orderings
 
 
 # Unbound Windows
-def grouping(grouping_keys: Tuple[str, ...] = ()):
-    return WindowSpec(grouping_keys=grouping_keys)
-
-
-def unbound(grouping_keys: Tuple[str, ...] = (), min_periods: int = 0):
-    return WindowSpec(grouping_keys=grouping_keys, min_periods=min_periods)
+def unbound(
+    grouping_keys: Tuple[str, ...] = (),
+    min_periods: int = 0,
+    ordering: Tuple[orderings.OrderingExpression, ...] = (),
+):
+    return WindowSpec(
+        grouping_keys=grouping_keys, min_periods=min_periods, ordering=ordering
+    )
 
 
 ### Range-based Windows
@@ -32,8 +34,7 @@ def range_over(
     ordering: Tuple[orderings.OrderingExpression, ...],
     grouping_keys: Tuple[str, ...] = (),
 ):
-    bounds = RangeWindowBounds()
-    return WindowSpec(grouping_keys=grouping_keys, bounds=bounds, ordering=ordering)
+    return WindowSpec(grouping_keys=grouping_keys, ordering=ordering)
 
 
 ### Rows-based Windows
@@ -44,6 +45,7 @@ def rows(
     min_periods: int = 0,
     ordering: Tuple[orderings.OrderingExpression, ...] = (),
 ):
+    assert (preceding is not None) or (following is not None)
     bounds = RowsWindowBounds(preceding=preceding, following=following)
     return WindowSpec(
         grouping_keys=grouping_keys,

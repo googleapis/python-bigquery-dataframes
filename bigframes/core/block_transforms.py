@@ -83,7 +83,7 @@ def indicate_duplicates(
     else:  # keep == False
         # Count how many copies of the value occur in entire series.
         # Discard this value if there are copies ANYWHERE
-        window_spec = windows.grouping(grouping_keys=tuple(columns))
+        window_spec = windows.unbound(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
     block, val_count_col_id = block.apply_window_op(
         dummy,
@@ -112,7 +112,7 @@ def quantile(
     dropna: bool = False,
 ) -> blocks.Block:
     # TODO: handle windowing and more interpolation methods
-    window = windows.grouping(
+    window = windows.unbound(
         grouping_keys=tuple(grouping_column_ids),
     )
     quantile_cols = []
@@ -428,7 +428,7 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = windows.rows(
+        window = windows.unbound(
             # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
             ordering=(
                 ordering.OrderingExpression(
@@ -462,7 +462,7 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.grouping(grouping_keys=(columns[i],)),
+                window_spec=windows.unbound(grouping_keys=(columns[i],)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
@@ -651,7 +651,7 @@ def _mean_delta_to_power(
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = windows.grouping(grouping_keys=tuple(grouping_column_ids))
+    window = windows.unbound(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
     for val_id, mean_val_id in zip(column_ids, mean_ids):
