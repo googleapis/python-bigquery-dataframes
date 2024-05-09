@@ -42,11 +42,8 @@ def method_logger(method, decorated_cls):
         api_method_name = str(method.__name__)
         full_method_name = f"{class_name.lower()}-{api_method_name}"
 
-        is_direct_call = False
-
-        # Track regular and "dunder" methods
+        # Track directly called methods
         if len(_call_stack) == 0:
-            is_direct_call = True
             add_api_method(full_method_name)
 
         _call_stack.append(full_method_name)
