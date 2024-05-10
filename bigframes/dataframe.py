@@ -59,6 +59,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
+import bigframes.core.window_spec as window_spec
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
@@ -654,6 +655,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
+
+    def __delitem__(self, key: str):
+        df = self.drop(columns=[key])
+        self._set_block(df._get_block())
 
     def __setitem__(self, key: str, value: SingleItemValue):
         df = self._assign_single_item(key, value)
@@ -1870,11 +1875,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = bigframes.core.WindowSpec(preceding=limit, following=0)
+        window = window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = bigframes.core.WindowSpec(preceding=0, following=limit)
+        window = window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -2570,17 +2575,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = bigframes.core.WindowSpec(
+        window_def = window_spec.rows(
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns
+            self._block, window_def, self._block.value_columns
         )
 
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        window_spec = bigframes.core.WindowSpec(following=0, min_periods=min_periods)
+        window = window_spec.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns
+            self._block, window, self._block.value_columns
         )
 
     def groupby(
@@ -2687,7 +2692,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.sum_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cumprod(self) -> DataFrame:
@@ -2699,30 +2704,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.product_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cummin(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.min_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cummax(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.max_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def shift(self, periods: int = 1) -> DataFrame:
-        window = bigframes.core.WindowSpec(
+        window = window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self, periods: int = 1) -> DataFrame:
-        window = bigframes.core.WindowSpec(
+        window = window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
@@ -2736,7 +2741,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _apply_window_op(
         self,
         op: agg_ops.WindowOp,
-        window_spec: bigframes.core.WindowSpec,
+        window_spec: window_spec.WindowSpec,
     ):
         block, result_ids = self._block.multi_apply_window_op(
             self._block.value_columns,
