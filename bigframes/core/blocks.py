@@ -21,6 +21,7 @@ circular dependencies.
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import functools
 import itertools
@@ -2077,11 +2078,11 @@ class Block:
         for col in list(self.index_columns) + [col for col in self.column_labels]:
             serialized_column_name = repr(col)
             try:
-                eval(serialized_column_name)
+                ast.literal_eval(serialized_column_name)
             except Exception:
                 raise NameError(
                     f"Column name type '{type(col).__name__}' is not supported for row serialization."
-                    " Please consider using a name for which eval(repr(name)) works."
+                    " Please consider using a name for which literal_eval(repr(name)) works."
                 )
 
             column_names.append(serialized_column_name)
