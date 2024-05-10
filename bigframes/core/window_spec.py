@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
@@ -23,7 +24,21 @@ def unbound(
     grouping_keys: Tuple[str, ...] = (),
     min_periods: int = 0,
     ordering: Tuple[orderings.OrderingExpression, ...] = (),
-):
+) -> WindowSpec:
+    """
+    Create an unbound window.
+
+    Args:
+        grouping_keys:
+            Columns ids of grouping keys
+        min_periods (int, default 0):
+            Minimum number of input rows to generate output.
+        ordering:
+            Orders the rows within the window.
+
+    Returns:
+        WindowSpec
+    """
     return WindowSpec(
         grouping_keys=grouping_keys, min_periods=min_periods, ordering=ordering
     )
@@ -36,7 +51,24 @@ def rows(
     following: Optional[int] = None,
     min_periods: int = 0,
     ordering: Tuple[orderings.OrderingExpression, ...] = (),
-):
+) -> WindowSpec:
+    """
+    Create a row-bounded window.
+
+    Args:
+        grouping_keys:
+            Columns ids of grouping keys
+        preceding:
+            number of preceding rows to include. If None, include all preceding rows
+        following:
+            number of following rows to include. If None, include all following rows
+        min_periods (int, default 0):
+            Minimum number of input rows to generate output.
+        ordering:
+            Ordering to apply on top of based dataframe ordering
+    Returns:
+        WindowSpec
+    """
     assert (preceding is not None) or (following is not None)
     bounds = RowsWindowBounds(preceding=preceding, following=following)
     return WindowSpec(
@@ -47,18 +79,47 @@ def rows(
     )
 
 
-def cumulative_rows(grouping_keys: Tuple[str, ...] = (), min_periods: int = 0):
+def cumulative_rows(
+    grouping_keys: Tuple[str, ...] = (), min_periods: int = 0
+) -> WindowSpec:
+    """
+    Create a expanding window that includes all preceding rows
+
+    Args:
+        grouping_keys:
+            Columns ids of grouping keys
+        min_periods (int, default 0):
+            Minimum number of input rows to generate output.
+    Returns:
+        WindowSpec
+    """
     bounds = RowsWindowBounds(following=0)
     return WindowSpec(
         grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
     )
 
 
-def inverse_cumulative_rows(grouping_keys: Tuple[str, ...] = (), min_periods: int = 0):
+def inverse_cumulative_rows(
+    grouping_keys: Tuple[str, ...] = (), min_periods: int = 0
+) -> WindowSpec:
+    """
+    Create a shrinking window that includes all following rows
+
+    Args:
+        grouping_keys:
+            Columns ids of grouping keys
+        min_periods (int, default 0):
+            Minimum number of input rows to generate output.
+    Returns:
+        WindowSpec
+    """
     bounds = RowsWindowBounds(preceding=0)
     return WindowSpec(
         grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
     )
+
+
+### Struct Classes
 
 
 @dataclass(frozen=True)
