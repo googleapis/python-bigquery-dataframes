@@ -49,6 +49,7 @@ import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
+import bigframes.core.window_spec as window_specs
 import bigframes.dtypes
 import bigframes.features
 import bigframes.operations as ops
@@ -805,11 +806,20 @@ class Block:
         expr = op.as_expr(col_id_1, col_id_2, col_id_3)
         return self.project_expr(expr, result_label)
 
+    def apply_nary_op(
+        self,
+        columns: Iterable[str],
+        op: ops.NaryOp,
+        result_label: Label = None,
+    ) -> typing.Tuple[Block, str]:
+        expr = op.as_expr(*columns)
+        return self.project_expr(expr, result_label)
+
     def multi_apply_window_op(
         self,
         columns: typing.Sequence[str],
         op: agg_ops.WindowOp,
-        window_spec: core.WindowSpec,
+        window_spec: window_specs.WindowSpec,
         *,
         skip_null_groups: bool = False,
         never_skip_nulls: bool = False,
@@ -868,7 +878,7 @@ class Block:
         self,
         column: str,
         op: agg_ops.WindowOp,
-        window_spec: core.WindowSpec,
+        window_spec: window_specs.WindowSpec,
         *,
         result_label: Label = None,
         skip_null_groups: bool = False,
@@ -2018,7 +2028,7 @@ class Block:
             return self._stats_cache[column_name][op_name]
 
         period = 1
-        window = bigframes.core.WindowSpec(
+        window = window_specs.rows(
             preceding=period,
             following=None,
         )
