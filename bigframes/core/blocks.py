@@ -2070,9 +2070,22 @@ class Block:
         expr = expr.promote_offsets(ordering_column_name)
         expr_sql = self.session._to_sql(expr)
 
-        # names of the columns to serialize for the row
-        column_names = list(self.index_columns) + [col for col in self.column_labels]
-        column_names_csv = sql.csv([repr(col) for col in column_names], quoted=True)
+        # Names of the columns to serialize for the row.
+        # We will use the repr-eval pattern to serialize a value here and
+        # deserialize in the cloud function. Let's make sure that would work.
+        column_names = []
+        for col in list(self.index_columns) + [col for col in self.column_labels]:
+            serialized_column_name = repr(col)
+            try:
+                eval(serialized_column_name)
+            except Exception:
+                raise NameError(
+                    f"Column name type '{type(col).__name__}' is not supported for row serialization."
+                    " Please consider using a name for which eval(repr(name)) works."
+                )
+
+            column_names.append(serialized_column_name)
+        column_names_csv = sql.csv(column_names, quoted=True)
 
         # index columns count
         index_columns_count = len(self.index_columns)

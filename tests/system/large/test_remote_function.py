@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import importlib.util
 import inspect
 import math  # must keep this at top level to test udf referring global import
@@ -1585,6 +1586,15 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                 ),
             ),
             id="column-multiindex",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    datetime.now(): [1, 2, 3],
+                }
+            ),
+            id="column-name-not-supported",
+            marks=pytest.mark.xfail(raises=NameError),
         ),
     ],
 )
