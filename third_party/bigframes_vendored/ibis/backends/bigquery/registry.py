@@ -44,6 +44,10 @@ def _quantile(translator, op: ibis_reductions.Quantile):
 
 
 def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
+    """This method provides the same functionality as the collect() method in Ibis, with
+    the added capability of ordering the results using order_by.
+    https://github.com/ibis-project/ibis/issues/9170
+    """
     arg = translator.translate(op.arg)
 
     order_by_sql = ""
