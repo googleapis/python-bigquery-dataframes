@@ -16,6 +16,7 @@ from __future__ import annotations
 import functools
 import typing
 from typing import Sequence
+import warnings
 
 import pandas as pd
 
@@ -26,6 +27,7 @@ import bigframes.core.expression as ex
 import bigframes.core.ordering as ordering
 import bigframes.core.window_spec as windows
 import bigframes.dtypes as dtypes
+import bigframes.exceptions
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -111,6 +113,11 @@ def quantile(
     grouping_column_ids: Sequence[str] = (),
     dropna: bool = False,
 ) -> blocks.Block:
+    if len(grouping_column_ids) == 0:
+        warnings.warn(
+            "Applying window operation without grouping. This performs an expensive full sort.",
+            category=bigframes.exceptions.UnboundSortWarning,
+        )
     # TODO: handle windowing and more interpolation methods
     window = windows.unbound(
         grouping_keys=tuple(grouping_column_ids),
@@ -139,6 +146,10 @@ def quantile(
 
 
 def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
+    warnings.warn(
+        "Applying window operation without grouping. This performs an expensive full sort.",
+        category=bigframes.exceptions.UnboundSortWarning,
+    )
     supported_methods = [
         "linear",
         "values",
@@ -409,6 +420,10 @@ def rank(
     na_option: str = "keep",
     ascending: bool = True,
 ):
+    warnings.warn(
+        "Applying window operation without grouping. This performs an expensive full sort.",
+        category=bigframes.exceptions.UnboundSortWarning,
+    )
     if method not in ["average", "min", "max", "first", "dense"]:
         raise ValueError(
             "method must be one of 'average', 'min', 'max', 'first', or 'dense'"
@@ -508,6 +523,10 @@ def nsmallest(
     column_ids: typing.Sequence[str],
     keep: str,
 ) -> blocks.Block:
+    warnings.warn(
+        "Applying window operation without grouping. This performs an expensive full sort.",
+        category=bigframes.exceptions.UnboundSortWarning,
+    )
     if keep not in ("first", "last", "all"):
         raise ValueError("'keep must be one of 'first', 'last', or 'all'")
     if keep == "last":
@@ -538,6 +557,10 @@ def nlargest(
     column_ids: typing.Sequence[str],
     keep: str,
 ) -> blocks.Block:
+    warnings.warn(
+        "Applying window operation without grouping. This performs an expensive full sort.",
+        category=bigframes.exceptions.UnboundSortWarning,
+    )
     if keep not in ("first", "last", "all"):
         raise ValueError("'keep must be one of 'first', 'last', or 'all'")
     if keep == "last":

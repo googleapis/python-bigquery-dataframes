@@ -146,7 +146,7 @@ class HistPlot(bfplt.MPLPlot):
             hist_bar[col] = (
                 cutted_data.struct.explode()
                 .value_counts()
-                .to_pandas()
+                ._to_pandas_internal()
                 .sort_index(level="left_exclusive")
             )
         return hist_bar

@@ -33,3 +33,7 @@ class CleanupFailedWarning(Warning):
 
 class DefaultIndexWarning(Warning):
     """Default index may cause unexpected costs."""
+
+
+class UnboundSortWarning(Warning):
+    """Operation sorts over entire dataset, may be slow and expensive."""

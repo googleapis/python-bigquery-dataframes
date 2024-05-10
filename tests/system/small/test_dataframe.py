@@ -189,7 +189,10 @@ def test_head_with_custom_column_labels(
         "int64_col": "Integer Column",
         "string_col": "言語列",
     }
-    bf_df = scalars_df_index.rename(columns=rename_mapping).head(3)
+    with pytest.warns(
+        bigframes.exceptions.UnboundSortWarning, match="DataFrame.peek()"
+    ):
+        bf_df = scalars_df_index.rename(columns=rename_mapping).head(3)
     bf_result = bf_df.to_pandas(ordered=ordered)
     pd_result = scalars_pandas_df_index.rename(columns=rename_mapping).head(3)
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
@@ -2312,7 +2315,8 @@ def test_dataframe_numeric_analytic_op(
     scalars_df_index, scalars_pandas_df_index, operator, columns
 ):
     # TODO: Add nullable ints (pandas 1.x has poor behavior on these)
-    bf_series = operator(scalars_df_index[columns])
+    with pytest.warns(bigframes.exceptions.UnboundSortWarning):
+        bf_series = operator(scalars_df_index[columns])
     pd_series = operator(scalars_pandas_df_index[columns])
     bf_result = bf_series.to_pandas()
     pd.testing.assert_frame_equal(pd_series, bf_result, check_dtype=False)
@@ -2793,7 +2797,8 @@ def test__dir__with_rename(scalars_dfs):
     ],
 )
 def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
-    bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
+    with pytest.warns(bigframes.exceptions.UnboundSortWarning):
+        bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
     pd.testing.assert_frame_equal(
         bf_result,
