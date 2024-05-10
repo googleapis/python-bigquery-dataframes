@@ -2114,16 +2114,14 @@ class Block:
         pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
         if pandas_row_dtype is None:
             pandas_row_dtype = "object"
-        pandas_row_dtype = sql.quote(str(pandas_row_dtype))
+        pandas_row_dtype = sql.simple_literal(str(pandas_row_dtype))
 
         # create a json column representing row through SQL manipulation
         row_json_column_name = guid.generate_guid()
         select_columns = (
             [ordering_column_name] + list(self.index_columns) + [row_json_column_name]
         )
-        select_columns_csv = sql.csv(
-            [sql.column_reference(col) for col in select_columns]
-        )
+        select_columns_csv = sql.csv([sql.identifier(col) for col in select_columns])
         json_sql = f"""\
 With T0 AS (
 {textwrap.indent(expr_sql, "    ")}
@@ -2136,7 +2134,7 @@ T1 AS (
                "values", [{column_references_csv}],
                "indexlength", {index_columns_count},
                "dtype", {pandas_row_dtype}
-           ) AS {row_json_column_name} FROM T0
+           ) AS {sql.identifier(row_json_column_name)} FROM T0
 )
 SELECT {select_columns_csv} FROM T1
 """

@@ -31,6 +31,7 @@ import google.cloud.bigquery as bigquery
 
 import bigframes
 from bigframes.core import log_adapter
+import bigframes.core.sql
 import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
@@ -348,7 +349,6 @@ def to_query(
     else:
         select_clause = "SELECT *"
 
-    where_clause = ""
     if filters:
         valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
             "in": "IN",
@@ -368,12 +368,12 @@ def to_query(
         ):
             filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
 
-        or_expressions = []
+        or_expression = ""
         for group in filters:
             if not isinstance(group, Iterable):
                 group = [group]
 
-            and_expressions = []
+            and_expression = ""
             for filter_item in group:
                 if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
                     raise ValueError(
@@ -392,17 +392,32 @@ def to_query(
 
                 operator_str = valid_operators[operator]
 
+                column_ref = bigframes.core.sql.identifier(column)
                 if operator_str in ["IN", "NOT IN"]:
-                    value_list = ", ".join([repr(v) for v in value])
-                    expression = f"`{column}` {operator_str} ({value_list})"
+                    value_literal = bigframes.core.sql.multi_literal(value)
                 else:
-                    expression = f"`{column}` {operator_str} {repr(value)}"
-                and_expressions.append(expression)
+                    value_literal = bigframes.core.sql.simple_literal(value)
+                expression = bigframes.core.sql.infix_op(
+                    operator_str, column_ref, value_literal
+                )
+                if and_expression:
+                    and_expression = bigframes.core.sql.infix_op(
+                        "AND", and_expression, expression
+                    )
+                else:
+                    and_expression = expression
 
-            or_expressions.append(" AND ".join(and_expressions))
+            if or_expression:
+                or_expression = bigframes.core.sql.infix_op(
+                    "OR", or_expression, and_expression
+                )
+            else:
+                or_expression = and_expression
 
-        if or_expressions:
-            where_clause = " WHERE " + " OR ".join(or_expressions)
+        if or_expression:
+            where_clause = f" WHERE {or_expression}"
+        else:
+            where_clause = ""
 
     full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
     return full_query
