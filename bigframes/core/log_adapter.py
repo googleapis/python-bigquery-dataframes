@@ -63,7 +63,7 @@ def method_logger(method, decorated_cls):
 def property_logger(prop, decorated_cls):
     """Decorator that adds logging functionality to a property."""
 
-    def log_if_external(f):
+    def shared_wrapper(f):
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
             class_name = decorated_cls.__name__
@@ -81,11 +81,11 @@ def property_logger(prop, decorated_cls):
 
         return wrapped
 
-    # Apply the logging wrapper to the getter, setter, and deleter
+    # Apply the wrapper to the getter, setter, and deleter
     return property(
-        log_if_external(prop.fget),
-        log_if_external(prop.fset) if prop.fset else None,
-        log_if_external(prop.fdel) if prop.fdel else None,
+        shared_wrapper(prop.fget),
+        shared_wrapper(prop.fset) if prop.fset else None,
+        shared_wrapper(prop.fdel) if prop.fdel else None,
     )
 
 
