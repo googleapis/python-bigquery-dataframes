@@ -134,9 +134,7 @@ def _create_time_travel_sql(
     """Query a table via 'time travel' for consistent reads."""
     # If we have an anonymous query results table, it can't be modified and
     # there isn't any BigQuery time travel.
-    selection = bigframes.core.sql.select_star(
-        bigframes.core.sql.table_reference(table_ref)
-    )
+    selection = bigframes.core.sql.select_table(table_ref)
     if table_ref.dataset_id.startswith("_"):
         return selection
 
@@ -154,9 +152,9 @@ def get_ibis_time_travel_table(
     time_travel_timestamp: datetime.datetime,
 ) -> ibis_types.Table:
     try:
-        return ibis_client.sql(
-            _create_time_travel_sql(table_ref, time_travel_timestamp)
-        )
+        sql = _create_time_travel_sql(table_ref, time_travel_timestamp)
+        print(sql)
+        return ibis_client.sql(sql)
     except google.api_core.exceptions.Forbidden as ex:
         # Ibis does a dry run to get the types of the columns from the SQL.
         if "Drive credentials" in ex.message:
@@ -178,7 +176,7 @@ def _check_index_uniqueness(
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
-    return row["is_unique"]
+    return row["total_count"] == row["distinct_count"]
 
 
 def _get_primary_keys(

@@ -32,59 +32,6 @@ if TYPE_CHECKING:
     import bigframes.core.ordering
 
 
-### Writing SELECT expressions
-def select_from(columns: Iterable[str], from_sql: str, distinct: bool = False):
-    selection = ", ".join(map(identifier, columns))
-    distinct_clause = "DISTINCT " if distinct else ""
-
-    return textwrap.dedent(
-        f"SELECT {distinct_clause}{selection}\nFROM (\n" f"{from_sql}\n" ")\n"
-    )
-
-
-def select_star(from_sql):
-    return textwrap.dedent(f"SELECT * FROM (\n" f"{from_sql}\n" ")\n")
-
-
-def is_distinct_sql(columns: Iterable[str], table_sql: str) -> str:
-    is_unique_sql = f"""WITH full_table AS (
-        {select_from(columns, table_sql)}
-    ),
-    distinct_table AS (
-        {select_from(columns, table_sql, distinct=True)}
-    )
-
-    SELECT (SELECT COUNT(*) FROM full_table) == (SELECT COUNT(*) FROM distinct_table) AS `is_unique`
-    """
-    return is_unique_sql
-
-
-def ordering_clause(
-    ordering: Iterable[bigframes.core.ordering.OrderingExpression],
-) -> str:
-    import bigframes.core.expression
-
-    parts = []
-    for col_ref in ordering:
-        asc_desc = "ASC" if col_ref.direction.is_ascending else "DESC"
-        null_clause = "NULLS LAST" if col_ref.na_last else "NULLS FIRST"
-        ordering_expr = col_ref.scalar_expression
-        # We don't know how to compile scalar expressions in isolation
-        if ordering_expr.is_const:
-            # Probably shouldn't have constants in ordering definition, but best to ignore if somehow they end up here.
-            continue
-        assert isinstance(
-            ordering_expr, bigframes.core.expression.UnboundVariableExpression
-        )
-        part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
-        parts.append(part)
-    return f"ORDER BY {' ,'.join(parts)}"
-
-
-def snapshot_clause(time_travel_timestamp: datetime.datetime):
-    return f"FOR SYSTEM_TIME AS OF TIMESTAMP({repr(time_travel_timestamp.isoformat())})"
-
-
 ### Writing SQL Values (literals, column references, table references, etc.)
 def simple_literal(value: str | int | bool | float):
     """Return quoted input string."""
@@ -162,3 +109,57 @@ def table_reference(table_ref: bigquery.TableReference) -> str:
 def infix_op(opname: str, left_arg: str, right_arg: str):
     # Maybe should add parentheses??
     return f"{left_arg} {opname} {right_arg}"
+
+
+### Writing SELECT expressions
+def select_from(columns: Iterable[str], subquery: str, distinct: bool = False):
+    selection = ", ".join(map(identifier, columns))
+    distinct_clause = "DISTINCT " if distinct else ""
+
+    return textwrap.dedent(
+        f"SELECT {distinct_clause}{selection}\nFROM (\n" f"{subquery}\n" ")\n"
+    )
+
+
+def select_table(table_ref: bigquery.TableReference):
+    return textwrap.dedent(f"SELECT * FROM {table_reference(table_ref)}")
+
+
+def is_distinct_sql(columns: Iterable[str], table_sql: str) -> str:
+    is_unique_sql = f"""WITH full_table AS (
+        {select_from(columns, table_sql)}
+    ),
+    distinct_table AS (
+        {select_from(columns, table_sql, distinct=True)}
+    )
+
+    SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
+    (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
+    """
+    return is_unique_sql
+
+
+def ordering_clause(
+    ordering: Iterable[bigframes.core.ordering.OrderingExpression],
+) -> str:
+    import bigframes.core.expression
+
+    parts = []
+    for col_ref in ordering:
+        asc_desc = "ASC" if col_ref.direction.is_ascending else "DESC"
+        null_clause = "NULLS LAST" if col_ref.na_last else "NULLS FIRST"
+        ordering_expr = col_ref.scalar_expression
+        # We don't know how to compile scalar expressions in isolation
+        if ordering_expr.is_const:
+            # Probably shouldn't have constants in ordering definition, but best to ignore if somehow they end up here.
+            continue
+        assert isinstance(
+            ordering_expr, bigframes.core.expression.UnboundVariableExpression
+        )
+        part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
+        parts.append(part)
+    return f"ORDER BY {' ,'.join(parts)}"
+
+
+def snapshot_clause(time_travel_timestamp: datetime.datetime):
+    return f"FOR SYSTEM_TIME AS OF TIMESTAMP({repr(time_travel_timestamp.isoformat())})"
