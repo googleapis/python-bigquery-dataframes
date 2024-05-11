@@ -33,6 +33,12 @@ from tests.system.utils import (
 )
 
 
+def test_series_unicode_name():
+    pd_series = pd.Series([1, 1, 2, 3, 5, 8, 13], name="fibonacci\"`'")
+    bf_result = series.Series(pd_series).to_pandas()
+    pd.testing.assert_series_equal(bf_result, pd_series)
+
+
 def test_series_construct_copy(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = series.Series(

@@ -236,8 +236,8 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             ],
             (
                 "SELECT `row_index`, `string_col` FROM `test_table` AS sub WHERE "
-                "`rowindex` NOT IN (0, 6) OR `string_col` IN ('Hello, World!', "
-                "'こんにちは')"
+                '`rowindex` NOT IN (0, 6) OR `string_col` IN ("Hello, World!", '
+                '"こんにちは")'
             ),
             id="table-all_params-filter_or_operation",
         ),
@@ -257,7 +257,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
                 rowindex,
                 string_col,
             FROM `test_table` AS t
-            ) AS sub WHERE `rowindex` < 4 AND `string_col` = 'Hello, World!'""",
+            ) AS sub WHERE `rowindex` < 4 AND `string_col` = \"Hello, World!\"""",
             id="subquery-all_params-filter_and_operation",
         ),
         pytest.param(
@@ -273,7 +273,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [],
             [],
             [("date_col", ">", "2022-10-20")],
-            "SELECT * FROM `test_table` AS sub WHERE `date_col` > '2022-10-20'",
+            'SELECT * FROM `test_table` AS sub WHERE `date_col` > "2022-10-20"',
             id="table-filter",
         ),
         pytest.param(
@@ -289,7 +289,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [],
             [],
             [("_TABLE_SUFFIX", ">", "2022-10-20")],
-            "SELECT * FROM `test_table*` AS sub WHERE `_TABLE_SUFFIX` > '2022-10-20'",
+            'SELECT * FROM `test_table*` AS sub WHERE `_TABLE_SUFFIX` > "2022-10-20"',
             id="wildcard-filter",
         ),
     ],

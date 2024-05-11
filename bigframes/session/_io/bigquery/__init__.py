@@ -349,6 +349,7 @@ def to_query(
     else:
         select_clause = "SELECT *"
 
+    filter_string = ""
     if filters:
         valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
             "in": "IN",
@@ -368,7 +369,6 @@ def to_query(
         ):
             filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
 
-        or_expression = ""
         for group in filters:
             if not isinstance(group, Iterable):
                 group = [group]
@@ -394,7 +394,7 @@ def to_query(
 
                 column_ref = bigframes.core.sql.identifier(column)
                 if operator_str in ["IN", "NOT IN"]:
-                    value_literal = bigframes.core.sql.multi_literal(value)
+                    value_literal = bigframes.core.sql.multi_literal(*value)
                 else:
                     value_literal = bigframes.core.sql.simple_literal(value)
                 expression = bigframes.core.sql.infix_op(
@@ -407,17 +407,14 @@ def to_query(
                 else:
                     and_expression = expression
 
-            if or_expression:
-                or_expression = bigframes.core.sql.infix_op(
-                    "OR", or_expression, and_expression
+            if filter_string:
+                filter_string = bigframes.core.sql.infix_op(
+                    "OR", filter_string, and_expression
                 )
             else:
-                or_expression = and_expression
+                filter_string = and_expression
 
-        if or_expression:
-            where_clause = f" WHERE {or_expression}"
-        else:
-            where_clause = ""
-
-    full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
-    return full_query
+    if filter_string:
+        return f"{select_clause} FROM {sub_query} AS sub WHERE {filter_string}"
+    else:
+        return f"{select_clause} FROM {sub_query} AS sub"
