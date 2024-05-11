@@ -68,7 +68,7 @@ def property_logger(prop, decorated_cls):
         def wrapped(*args, **kwargs):
             class_name = decorated_cls.__name__
             property_name = f.__name__
-            full_property_name = f"{class_name.lower()}-{property_name}"
+            full_property_name = f"{class_name.lower()}-{property_name.lower()}"
 
             if len(_call_stack) == 0:
                 add_api_method(full_property_name)
