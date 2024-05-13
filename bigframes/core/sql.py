@@ -37,7 +37,8 @@ def simple_literal(value: str | int | bool | float):
     """Return quoted input string."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
     if isinstance(value, str):
-        return f'"{escape_special_characters(value)}"'
+        # Single quoting seems to work nicer with ibis than double quoting
+        return f"'{escape_special_characters(value)}'"
     elif isinstance(value, (bool, int)):
         return str(value)
     elif isinstance(value, float):

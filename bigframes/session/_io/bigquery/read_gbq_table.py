@@ -153,7 +153,6 @@ def get_ibis_time_travel_table(
 ) -> ibis_types.Table:
     try:
         sql = _create_time_travel_sql(table_ref, time_travel_timestamp)
-        print(sql)
         return ibis_client.sql(sql)
     except google.api_core.exceptions.Forbidden as ex:
         # Ibis does a dry run to get the types of the columns from the SQL.
