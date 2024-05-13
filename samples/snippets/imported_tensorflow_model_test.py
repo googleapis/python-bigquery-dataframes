@@ -19,7 +19,6 @@ def test_imported_tensorflow_model() -> None:
     import os
 
     PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bigframes-dev")
-    LOCATION = "US"
     MODEL_PATH = "gs://cloud-training-demos/txtclass/export/exporter/1549825580/*"
 
     # [START bigquery_dataframes_imported_tensorflow_tutorial_import_tensorflow_models]
@@ -27,9 +26,13 @@ def test_imported_tensorflow_model() -> None:
     from bigframes.ml.imported import TensorFlowModel
 
     bigframes.options.bigquery.project = PROJECT_ID
-    bigframes.options.bigquery.location = LOCATION
+    # You can change the location to one of the valid locations: https://cloud.google.com/bigquery/docs/locations#supported_locations
+    bigframes.options.bigquery.location = "US"
 
-    imported_tensorflow_model = TensorFlowModel(model_path=MODEL_PATH)
+    imported_tensorflow_model = TensorFlowModel(
+        # e.g. "gs://bucket/path/to/saved_model/*"
+        model_path=MODEL_PATH
+    )
     # [END bigquery_dataframes_imported_tensorflow_tutorial_import_tensorflow_models]
     assert imported_tensorflow_model is not None
 
