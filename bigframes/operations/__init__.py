@@ -387,6 +387,19 @@ class StartsWithOp(UnaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class StringSplitOp(UnaryOp):
+    name: typing.ClassVar[str] = "str_split"
+    pat: typing.Sequence[str]
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not isinstance(input_type, pd.StringDtype):
+            raise TypeError("field accessor input must be a string type")
+        arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_type)
+        return pd.ArrowDtype(pa.list_(arrow_type))
+
+
+@dataclasses.dataclass(frozen=True)
 class EndsWithOp(UnaryOp):
     name: typing.ClassVar[str] = "str_endswith"
     pat: typing.Sequence[str]
@@ -463,9 +476,7 @@ class StructFieldOp(UnaryOp):
             raise TypeError("field accessor input must be a struct type")
 
         pa_result_type = pa_type[self.name_or_index].type
-        # TODO: Directly convert from arrow to pandas type
-        ibis_result_type = dtypes.arrow_dtype_to_ibis_dtype(pa_result_type)
-        return dtypes.ibis_dtype_to_bigframes_dtype(ibis_result_type)
+        return dtypes.arrow_dtype_to_bigframes_dtype(pa_result_type)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -545,8 +556,8 @@ class FloorDtOp(UnaryOp):
 
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
-cliplower_op = create_binary_op(name="clip_lower", type_signature=op_typing.COERCE)
-clipupper_op = create_binary_op(name="clip_upper", type_signature=op_typing.COERCE)
+maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
+minimum_op = create_binary_op(name="minimum", type_signature=op_typing.COERCE)
 coalesce_op = create_binary_op(name="coalesce", type_signature=op_typing.COERCE)
 
 
@@ -585,6 +596,16 @@ class SubOp(BinaryOp):
             return dtypes.coerce_to_common(left_type, right_type)
         # TODO: Add temporal addition once delta types supported
         raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
+
+
+@dataclasses.dataclass(frozen=True)
+class BinaryRemoteFunctionOp(BinaryOp):
+    name: typing.ClassVar[str] = "binary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        return self.func.output_dtype
 
 
 add_op = AddOp()
@@ -713,4 +734,6 @@ NUMPY_TO_BINOP: typing.Final = {
     np.divide: div_op,
     np.power: pow_op,
     np.arctan2: arctan2_op,
+    np.maximum: maximum_op,
+    np.minimum: minimum_op,
 }

@@ -588,6 +588,11 @@ def endswith_op_impl(x: ibis_types.Value, op: ops.EndsWithOp):
     return any_match if any_match is not None else ibis_types.literal(False)
 
 
+@scalar_op_compiler.register_unary_op(ops.StringSplitOp, pass_op=True)
+def stringsplit_op_impl(x: ibis_types.Value, op: ops.StringSplitOp):
+    return typing.cast(ibis_types.StringValue, x).split(op.pat)
+
+
 @scalar_op_compiler.register_unary_op(ops.ZfillOp, pass_op=True)
 def zfill_op_impl(x: ibis_types.Value, op: ops.ZfillOp):
     str_value = typing.cast(ibis_types.StringValue, x)
@@ -1298,20 +1303,34 @@ def coalesce_impl(
         return ibis.coalesce(x, y)
 
 
-@scalar_op_compiler.register_binary_op(ops.cliplower_op)
-def clip_lower(
+@scalar_op_compiler.register_binary_op(ops.maximum_op)
+def maximum_impl(
     value: ibis_types.Value,
     lower: ibis_types.Value,
 ):
+    # Note: propagates nulls
     return ibis.case().when(lower.isnull() | (value < lower), lower).else_(value).end()
 
 
-@scalar_op_compiler.register_binary_op(ops.clipupper_op)
-def clip_upper(
+@scalar_op_compiler.register_binary_op(ops.minimum_op)
+def minimum_impl(
     value: ibis_types.Value,
     upper: ibis_types.Value,
 ):
+    # Note: propagates nulls
     return ibis.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
+
+
+@scalar_op_compiler.register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
+def binary_remote_function_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
+):
+    if not hasattr(op.func, "bigframes_remote_function"):
+        raise TypeError(
+            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
+        )
+    x_transformed = op.func(x, y)
+    return x_transformed
 
 
 # Ternary Operations
