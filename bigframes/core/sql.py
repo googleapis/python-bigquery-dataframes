@@ -103,7 +103,7 @@ def csv(values: Iterable[str], quoted=False) -> str:
 
 
 def table_reference(table_ref: bigquery.TableReference) -> str:
-    return f"`{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}`"
+    return f"`{escape_special_characters(table_ref.project)}`.`{escape_special_characters(table_ref.dataset_id)}`.`{escape_special_characters(table_ref.table_id)}`"
 
 
 def infix_op(opname: str, left_arg: str, right_arg: str):
