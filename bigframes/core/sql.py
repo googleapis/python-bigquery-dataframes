@@ -93,12 +93,8 @@ def cast_as_string(column_name: str) -> str:
     return f"CAST({identifier(column_name)} AS STRING)"
 
 
-def csv(values: Iterable[str], quoted=False) -> str:
+def csv(values: Iterable[str]) -> str:
     """Return a string of comma separated values."""
-
-    if quoted:
-        values = [simple_literal(val) for val in values]
-
     return ", ".join(values)
 
 

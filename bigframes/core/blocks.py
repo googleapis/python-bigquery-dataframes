@@ -2096,7 +2096,7 @@ class Block:
                 )
 
             column_names.append(serialized_column_name)
-        column_names_csv = sql.csv(column_names, quoted=True)
+        column_names_csv = sql.csv(map(sql.simple_literal, column_names))
 
         # index columns count
         index_columns_count = len(self.index_columns)
@@ -2108,7 +2108,9 @@ class Block:
 
         # types of the columns to serialize for the row
         column_types = list(self.index.dtypes) + list(self.dtypes)
-        column_types_csv = sql.csv([str(typ) for typ in column_types], quoted=True)
+        column_types_csv = sql.csv(
+            [sql.simple_literal(str(typ)) for typ in column_types]
+        )
 
         # row dtype to use for deserializing the row as pandas series
         pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
