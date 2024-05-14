@@ -50,7 +50,7 @@ def test_array_length():
         ),
     ],
 )
-def test_array_agg_w_series(input_data, output_data):
+def test_array_agg_w_series_groupby(input_data, output_data):
     input_index = ["a", "a", "b", "b", "c"]
     series = bpd.Series(input_data, index=input_index)
     result = bbq.array_agg(series.groupby(level=0))
@@ -62,7 +62,7 @@ def test_array_agg_w_series(input_data, output_data):
     )
 
 
-def test_array_agg_w_dataframe():
+def test_array_agg_w_dataframe_groupby():
     data = {
         "a": [1, 1, 2, 1],
         "b": [2, None, 1, 2],
@@ -82,6 +82,12 @@ def test_array_agg_w_dataframe():
         result.to_pandas(),
         expected.to_pandas(),
     )
+
+
+def test_array_agg_w_series():
+    series = bpd.Series([1, 2, 3, 4, 5], index=["a", "a", "b", "b", "c"])
+    with pytest.raises(ValueError):
+        bbq.array_agg(series)
 
 
 @pytest.mark.parametrize(
