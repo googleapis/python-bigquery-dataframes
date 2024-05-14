@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import io
+import itertools
 import typing
 from typing import Iterable, Sequence
 
@@ -183,7 +184,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).merge_projections()
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
@@ -208,7 +209,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).merge_projections()
 
     def assign_constant(
         self,
@@ -242,7 +243,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        )
+        ).merge_projections()
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         selections = ((ex.free_var(col_id), col_id) for col_id in column_ids)
@@ -251,7 +252,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(selections),
             )
-        )
+        ).merge_projections()
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         new_projection = (
@@ -264,7 +265,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(new_projection),
             )
-        )
+        ).merge_projections()
 
     def aggregate(
         self,
@@ -370,14 +371,16 @@ class ArrayValue:
         for col_id, input_ids in unpivot_columns:
             # row explode offset used to choose the input column
             # we use offset instead of label as labels are not necessarily unique
-            cases = tuple(
-                (
-                    ops.eq_op.as_expr(explode_offsets_id, ex.const(i)),
-                    ex.free_var(id_or_null)
-                    if (id_or_null is not None)
-                    else ex.const(None),
+            cases = itertools.chain(
+                *(
+                    (
+                        ops.eq_op.as_expr(explode_offsets_id, ex.const(i)),
+                        ex.free_var(id_or_null)
+                        if (id_or_null is not None)
+                        else ex.const(None),
+                    )
+                    for i, id_or_null in enumerate(input_ids)
                 )
-                for i, id_or_null in enumerate(input_ids)
             )
             col_expr = ops.case_when_op.as_expr(*cases)
             unpivot_exprs.append((col_expr, col_id))
@@ -429,7 +432,10 @@ class ArrayValue:
         for row_offset in range(len(former_column_labels)):
             row_label = former_column_labels[row_offset]
             row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
-            row = {col_ids[i]: row_label[i] for i in range(len(col_ids))}
+            row = {
+                col_ids[i]: (row_label[i] if pandas.notnull(row_label[i]) else None)
+                for i in range(len(col_ids))
+            }
             rows.append(row)
 
         return ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=self.session)
@@ -466,3 +472,7 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
+
+    def merge_projections(self) -> ArrayValue:
+        new_node = bigframes.core.rewrite.maybe_squash_projection(self.node)
+        return ArrayValue(new_node)

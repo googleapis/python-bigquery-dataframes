@@ -34,6 +34,7 @@ from typing import (
     Tuple,
     Union,
 )
+import warnings
 
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -59,7 +60,9 @@ import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window
+import bigframes.core.window_spec as window_spec
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -595,7 +598,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         opts = bigframes.options.display
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self.query_job)
+            return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -632,9 +635,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         many notebooks are not configured for large tables.
         """
         opts = bigframes.options.display
-        max_results = bigframes.options.display.max_rows
+        max_results = opts.max_rows
         if opts.repr_mode == "deferred":
-            return formatter.repr_query_job_html(self.query_job)
+            return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -654,6 +657,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
+
+    def __delitem__(self, key: str):
+        df = self.drop(columns=[key])
+        self._set_block(df._get_block())
 
     def __setitem__(self, key: str, value: SingleItemValue):
         df = self._assign_single_item(key, value)
@@ -1870,11 +1877,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = bigframes.core.WindowSpec(preceding=limit, following=0)
+        window = window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = bigframes.core.WindowSpec(preceding=0, following=limit)
+        window = window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -2570,17 +2577,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = bigframes.core.WindowSpec(
+        window_def = window_spec.rows(
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns
+            self._block, window_def, self._block.value_columns
         )
 
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        window_spec = bigframes.core.WindowSpec(following=0, min_periods=min_periods)
+        window = window_spec.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns
+            self._block, window, self._block.value_columns
         )
 
     def groupby(
@@ -2687,7 +2694,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.sum_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cumprod(self) -> DataFrame:
@@ -2699,30 +2706,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.product_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cummin(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.min_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def cummax(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.max_op,
-            bigframes.core.WindowSpec(following=0),
+            window_spec.cumulative_rows(),
         )
 
     def shift(self, periods: int = 1) -> DataFrame:
-        window = bigframes.core.WindowSpec(
+        window = window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self, periods: int = 1) -> DataFrame:
-        window = bigframes.core.WindowSpec(
+        window = window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
@@ -2736,7 +2743,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _apply_window_op(
         self,
         op: agg_ops.WindowOp,
-        window_spec: bigframes.core.WindowSpec,
+        window_spec: window_spec.WindowSpec,
     ):
         block, result_ids = self._block.multi_apply_window_op(
             self._block.value_columns,
@@ -2928,8 +2935,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-            temp_table_ref = bigframes.session._io.bigquery.random_table(
-                self._session._anonymous_dataset
+            temp_table_ref = self._session._random_table(
+                # The client code owns this table reference now, so skip_cleanup=True
+                #  to not clean it up when we close the session.
+                skip_cleanup=True,
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 
@@ -3301,7 +3310,59 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
-    def apply(self, func, *, args: typing.Tuple = (), **kwargs):
+    def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
+        if utils.get_axis_number(axis) == 1:
+            warnings.warn(
+                "axis=1 scenario is in preview.",
+                category=bigframes.exceptions.PreviewWarning,
+            )
+
+            # Early check whether the dataframe dtypes are currently supported
+            # in the remote function
+            # NOTE: Keep in sync with the value converters used in the gcf code
+            # generated in generate_cloud_function_main_code in remote_function.py
+            remote_function_supported_dtypes = (
+                bigframes.dtypes.INT_DTYPE,
+                bigframes.dtypes.FLOAT_DTYPE,
+                bigframes.dtypes.BOOL_DTYPE,
+                bigframes.dtypes.STRING_DTYPE,
+            )
+            supported_dtypes_types = tuple(
+                type(dtype) for dtype in remote_function_supported_dtypes
+            )
+            supported_dtypes_hints = tuple(
+                str(dtype) for dtype in remote_function_supported_dtypes
+            )
+
+            for dtype in self.dtypes:
+                if not isinstance(dtype, supported_dtypes_types):
+                    raise NotImplementedError(
+                        f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
+                        f" Supported dtypes are {supported_dtypes_hints}."
+                    )
+
+            # Check if the function is a remote function
+            if not hasattr(func, "bigframes_remote_function"):
+                raise ValueError("For axis=1 a remote function must be used.")
+
+            # Serialize the rows as json values
+            block = self._get_block()
+            rows_as_json_series = bigframes.series.Series(
+                block._get_rows_as_json_values()
+            )
+
+            # Apply the function
+            result_series = rows_as_json_series._apply_unary_op(
+                ops.RemoteFunctionOp(func=func, apply_on_null=True)
+            )
+            result_series.name = None
+
+            # Return Series with materialized result so that any error in the remote
+            # function is caught early
+            materialized_series = result_series.cache()
+            return materialized_series
+
+        # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}
         if all(
             [
@@ -3396,6 +3457,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _get_block(self) -> blocks.Block:
         return self._block
+
+    def cache(self):
+        """
+        Materializes the DataFrame to a temporary table.
+
+        Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
+
+        Returns:
+            DataFrame: Self
+        """
+        return self._cached(force=True)
 
     def _cached(self, *, force: bool = False) -> DataFrame:
         """Materialize dataframe to a temporary table.

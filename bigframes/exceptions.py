@@ -12,6 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Public exceptions and warnings used across BigQuery DataFrames."""
+
+# NOTE: This module should not depend on any others in the package.
+
+
+# Uses UserWarning for backwards compatibility with warning without a category
+# set.
+class DefaultLocationWarning(UserWarning):
+    """No location was specified, so using a default one."""
+
 
 class UnknownLocationWarning(Warning):
     """The location is set to an unknown value."""
+
+
+class CleanupFailedWarning(Warning):
+    """Bigframes failed to clean up a table resource."""
+
+
+class DefaultIndexWarning(Warning):
+    """Default index may cause unexpected costs."""
+
+
+class PreviewWarning(Warning):
+    """The feature is in preview."""

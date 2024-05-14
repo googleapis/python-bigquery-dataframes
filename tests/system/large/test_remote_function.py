@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 import importlib.util
 import inspect
 import math  # must keep this at top level to test udf referring global import
@@ -20,7 +21,7 @@ import shutil
 import tempfile
 import textwrap
 
-from google.api_core.exceptions import BadRequest, NotFound
+from google.api_core.exceptions import BadRequest, InvalidArgument, NotFound
 from google.cloud import bigquery, storage
 import pandas
 import pytest
@@ -28,6 +29,7 @@ import test_utils.prefixer
 
 import bigframes
 from bigframes.functions.remote_function import get_cloud_function_name
+import bigframes.series
 from tests.system.utils import (
     assert_pandas_df_equal,
     delete_cloud_function,
@@ -219,6 +221,41 @@ def test_remote_function_stringify_with_ibis(
         )
 
 
+# @pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_binop(session, scalars_dfs, dataset_id, bq_cf_connection):
+    try:
+
+        def func(x, y):
+            return x * abs(y % 4)
+
+        remote_func = session.remote_function(
+            [str, int],
+            str,
+            dataset_id,
+            bq_cf_connection,
+            reuse=False,
+        )(func)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        scalars_df = scalars_df.dropna()
+        scalars_pandas_df = scalars_pandas_df.dropna()
+        bf_result = (
+            scalars_df["string_col"]
+            .combine(scalars_df["int64_col"], remote_func)
+            .to_pandas()
+        )
+        pd_result = scalars_pandas_df["string_col"].combine(
+            scalars_pandas_df["int64_col"], func
+        )
+        pandas.testing.assert_series_equal(bf_result, pd_result)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, remote_func
+        )
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_decorator_with_bigframes_series(
     session, scalars_dfs, dataset_id, bq_cf_connection
@@ -303,6 +340,35 @@ def test_remote_function_explicit_with_bigframes_series(
         pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
         assert_pandas_df_equal(bf_result, pd_result)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, remote_add_one
+        )
+
+
+@pytest.mark.parametrize(
+    ("input_types"),
+    [
+        pytest.param([int], id="list-of-int"),
+        pytest.param(int, id="int"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_input_types(session, scalars_dfs, input_types):
+    try:
+
+        def add_one(x):
+            return x + 1
+
+        remote_add_one = session.remote_function(input_types, int)(add_one)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result = scalars_df.int64_too.map(remote_add_one).to_pandas()
+        pd_result = scalars_pandas_df.int64_too.map(add_one)
+
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -1302,6 +1368,79 @@ def test_remote_function_with_gcf_cmek():
         )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_via_session_vpc(scalars_dfs):
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Create a vpc connector as per
+    #    https://cloud.google.com/vpc/docs/configure-serverless-vpc-access#gcloud
+    #
+    #    $ gcloud compute networks vpc-access connectors create bigframes-vpc --project=bigframes-dev-perf --region=us-central1 --range 10.8.0.0/28
+    #    Create request issued for: [bigframes-vpc]
+    #    Waiting for operation [projects/bigframes-dev-perf/locations/us-central1/operations/f9f90df6-7cf4-4420-8c2f-b3952775dcfb] to complete...done.
+    #    Created connector [bigframes-vpc].
+    #
+    #    $ gcloud compute networks vpc-access connectors list --project=bigframes-dev-perf --region=us-central1
+    #    CONNECTOR_ID   REGION       NETWORK  IP_CIDR_RANGE  SUBNET  SUBNET_PROJECT  MACHINE_TYPE  MIN_INSTANCES  MAX_INSTANCES  MIN_THROUGHPUT  MAX_THROUGHPUT  STATE
+    #    bigframes-vpc  us-central1  default  10.8.0.0/28                            e2-micro      2              10             200             1000            READY
+
+    project = "bigframes-dev-perf"
+    gcf_vpc_connector = "bigframes-vpc"
+
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+
+    try:
+
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+        square_num_remote = rf_session.remote_function(
+            [int], int, reuse=False, cloud_function_vpc_connector=gcf_vpc_connector
+        )(square_num)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_col"]
+        bf_result_col = bf_int64_col.apply(square_num_remote)
+        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
+
+        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_result_col = pd_int64_col.apply(square_num)
+        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+        assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+        # Assert that the GCF is created with the intended vpc connector
+        gcf = rf_session.cloudfunctionsclient.get_function(
+            name=square_num_remote.bigframes_cloud_function
+        )
+        assert gcf.service_config.vpc_connector == gcf_vpc_connector
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            rf_session.bqclient, rf_session.cloudfunctionsclient, square_num_remote
+        )
+
+
+def test_remote_function_via_session_vpc_invalid(session):
+    with pytest.raises(
+        InvalidArgument, match="400.*Serverless VPC Access connector is not found"
+    ):
+
+        @session.remote_function(
+            [int], int, reuse=False, cloud_function_vpc_connector="does-not-exist"
+        )
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+
 @pytest.mark.parametrize(
     ("max_batching_rows"),
     [
@@ -1385,3 +1524,291 @@ def test_remote_function_gcf_timeout_max_supported_exceeded(session):
         @session.remote_function([int], int, reuse=False, cloud_function_timeout=1201)
         def square(x):
             return x * x
+
+
+@pytest.mark.parametrize(
+    ("max_instances_args", "expected_max_instances"),
+    [
+        pytest.param({}, 100, id="no-set"),
+        pytest.param({"cloud_function_max_instances": None}, 100, id="set-None"),
+        pytest.param({"cloud_function_max_instances": 1000}, 1000, id="set-explicit"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_max_instances(
+    session, scalars_dfs, max_instances_args, expected_max_instances
+):
+    try:
+
+        def square(x):
+            return x * x
+
+        square_remote = session.remote_function(
+            [int], int, reuse=False, **max_instances_args
+        )(square)
+
+        # Assert that the GCF is created with the intended max instance count
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_remote.bigframes_cloud_function
+        )
+        assert gcf.service_config.max_instance_count == expected_max_instances
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(square)
+
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1(session, scalars_dfs):
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    try:
+
+        def serialize_row(row):
+            custom = {
+                "name": row.name,
+                "index": [idx for idx in row.index],
+                "values": [
+                    val.item() if hasattr(val, "item") else val for val in row.values
+                ],
+            }
+
+            return str(
+                {
+                    "default": row.to_json(),
+                    "split": row.to_json(orient="split"),
+                    "records": row.to_json(orient="records"),
+                    "index": row.to_json(orient="index"),
+                    "table": row.to_json(orient="table"),
+                    "custom": custom,
+                }
+            )
+
+        serialize_row_remote = session.remote_function(
+            bigframes.series.Series, str, reuse=False
+        )(serialize_row)
+
+        bf_result = scalars_df[columns].apply(serialize_row_remote, axis=1).to_pandas()
+        pd_result = scalars_pandas_df[columns].apply(serialize_row, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_aggregates(session, scalars_dfs):
+    columns = ["int64_col", "int64_too", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        def analyze(row):
+            return str(
+                {
+                    "dtype": row.dtype,
+                    "count": row.count(),
+                    "min": row.max(),
+                    "max": row.max(),
+                    "mean": row.mean(),
+                    "std": row.std(),
+                    "var": row.var(),
+                }
+            )
+
+        analyze_remote = session.remote_function(bigframes.series.Series, str)(analyze)
+
+        bf_result = (
+            scalars_df[columns].dropna().apply(analyze_remote, axis=1).to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].dropna().apply(analyze, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, analyze_remote
+        )
+
+
+@pytest.mark.parametrize(
+    ("pd_df"),
+    [
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "2": [1, 2, 3],
+                    2: [1.5, 3.75, 5],
+                    "name, [with. special'- chars\")/\\": [10, 20, 30],
+                    (3, 4): ["pq", "rs", "tu"],
+                    (5.0, "six", 7): [8, 9, 10],
+                    'raise Exception("hacked!")': [11, 12, 13],
+                }
+            ),
+            id="all-kinds-of-column-names",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "x": [1, 2, 3],
+                    "y": [1.5, 3.75, 5],
+                    "z": ["pq", "rs", "tu"],
+                },
+                index=pandas.MultiIndex.from_tuples(
+                    [
+                        ("a", 100),
+                        ("a", 200),
+                        ("b", 300),
+                    ]
+                ),
+            ),
+            id="multiindex",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                [
+                    [10, 1.5, "pq"],
+                    [20, 3.75, "rs"],
+                    [30, 8.0, "tu"],
+                ],
+                columns=pandas.MultiIndex.from_arrays(
+                    [
+                        ["first", "last_two", "last_two"],
+                        [1, 2, 3],
+                    ]
+                ),
+            ),
+            id="column-multiindex",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    datetime.now(): [1, 2, 3],
+                }
+            ),
+            id="column-name-not-supported",
+            marks=pytest.mark.xfail(raises=NameError),
+        ),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_complex(session, pd_df):
+    bf_df = session.read_pandas(pd_df)
+
+    try:
+
+        def serialize_row(row):
+            custom = {
+                "name": row.name,
+                "index": [idx for idx in row.index],
+                "values": [
+                    val.item() if hasattr(val, "item") else val for val in row.values
+                ],
+            }
+            return str(
+                {
+                    "default": row.to_json(),
+                    "split": row.to_json(orient="split"),
+                    "records": row.to_json(orient="records"),
+                    "index": row.to_json(orient="index"),
+                    "custom": custom,
+                }
+            )
+
+        serialize_row_remote = session.remote_function(
+            bigframes.series.Series, str, reuse=False
+        )(serialize_row)
+
+        bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
+        pd_result = pd_df.apply(serialize_row, axis=1)
+
+        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        #
+        # bf_result.index[0].dtype is 'string[pyarrow]' while
+        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
+        # check_index_type=False.
+        pandas.testing.assert_series_equal(
+            pd_result, bf_result, check_dtype=False, check_index_type=False
+        )
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, serialize_row_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_na_nan_inf(session):
+    """This test is for special cases of float values, to make sure any (nan,
+    inf, -inf) produced by user code is honored.
+    """
+    bf_df = session.read_gbq(
+        """\
+SELECT "1" AS text, 1 AS num
+UNION ALL
+SELECT "2.5" AS text, 2.5 AS num
+UNION ALL
+SELECT "nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "inf" AS text, IEEE_DIVIDE(1, 0) AS num
+UNION ALL
+SELECT "-inf" AS text, IEEE_DIVIDE(-1, 0) AS num
+UNION ALL
+SELECT "numpy nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "pandas na" AS text, NULL AS num
+                             """
+    )
+
+    pd_df = bf_df.to_pandas()
+
+    try:
+
+        def float_parser(row):
+            import numpy as mynp
+            import pandas as mypd
+
+            if row["text"] == "pandas na":
+                return mypd.NA
+            if row["text"] == "numpy nan":
+                return mynp.nan
+            return float(row["text"])
+
+        float_parser_remote = session.remote_function(
+            bigframes.series.Series, float, reuse=False
+        )(float_parser)
+
+        pd_result = pd_df.apply(float_parser, axis=1)
+        bf_result = bf_df.apply(float_parser_remote, axis=1).to_pandas()
+
+        # bf_result.dtype is 'Float64' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's also assert that the data is consistent in this round trip
+        # (BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames) w.r.t. their
+        # expected values in BQ
+        bq_result = bf_df["num"].to_pandas()
+        bq_result.name = None
+        pandas.testing.assert_series_equal(bq_result, bf_result)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, float_parser_remote
+        )

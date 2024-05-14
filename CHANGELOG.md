@@ -4,6 +4,100 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.6.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.5.0...v1.6.0) (2024-05-13)
+
+
+### Features
+
+* Add `DataFrame.__delitem__` ([#673](https://github.com/googleapis/python-bigquery-dataframes/issues/673)) ([2218c21](https://github.com/googleapis/python-bigquery-dataframes/commit/2218c21b5bb0f9e54a365ba1ada0203cbc4c9efc))
+* Add `Series.case_when()` ([#673](https://github.com/googleapis/python-bigquery-dataframes/issues/673)) ([2218c21](https://github.com/googleapis/python-bigquery-dataframes/commit/2218c21b5bb0f9e54a365ba1ada0203cbc4c9efc))
+* Add `strategy="quantile"` in KBinsDiscretizer ([#654](https://github.com/googleapis/python-bigquery-dataframes/issues/654)) ([c6c487f](https://github.com/googleapis/python-bigquery-dataframes/commit/c6c487fb3e39a980a05ff2dab5fb2b528d44016a))
+* Add Series.combine ([#680](https://github.com/googleapis/python-bigquery-dataframes/issues/680)) ([2fd1b81](https://github.com/googleapis/python-bigquery-dataframes/commit/2fd1b8117bda0dee5d8fc0924c80ce257fa9e3f1))
+* Series.str.split ([#675](https://github.com/googleapis/python-bigquery-dataframes/issues/675)) ([6eb19a7](https://github.com/googleapis/python-bigquery-dataframes/commit/6eb19a7288155b093aa7cc9bcbc710b31e7dc87a))
+* Suggest correct options in bpd.options.bigquery.location ([#666](https://github.com/googleapis/python-bigquery-dataframes/issues/666)) ([57ccabc](https://github.com/googleapis/python-bigquery-dataframes/commit/57ccabcd1402b7938e2c7068e5b4880ef018f39c))
+* Support `axis=1` in `df.apply` for scalar outputs ([#629](https://github.com/googleapis/python-bigquery-dataframes/issues/629)) ([f6bdc4a](https://github.com/googleapis/python-bigquery-dataframes/commit/f6bdc4aeb3f81a1e0b955521c04ac0dd22981c76))
+* Support gcf vpc connector in `remote_function` ([#677](https://github.com/googleapis/python-bigquery-dataframes/issues/677)) ([9ca92d0](https://github.com/googleapis/python-bigquery-dataframes/commit/9ca92d09e9c56db408350b35ec698152c13954ed))
+* Warn with a more specific `DefaultLocationWarning` category when no location can be detected ([#648](https://github.com/googleapis/python-bigquery-dataframes/issues/648)) ([e084e54](https://github.com/googleapis/python-bigquery-dataframes/commit/e084e54557addff78522bbd710637ecb4b46d23e))
+
+
+### Bug Fixes
+
+* Include `index_col` when selecting `columns` and `filters` in `read_gbq_table` ([#648](https://github.com/googleapis/python-bigquery-dataframes/issues/648)) ([e084e54](https://github.com/googleapis/python-bigquery-dataframes/commit/e084e54557addff78522bbd710637ecb4b46d23e))
+
+
+### Dependencies
+
+* Add jellyfish as a dependency for spelling correction ([57ccabc](https://github.com/googleapis/python-bigquery-dataframes/commit/57ccabcd1402b7938e2c7068e5b4880ef018f39c))
+
+
+### Documentation
+
+* Add code snippets for llm text generatiion ([#669](https://github.com/googleapis/python-bigquery-dataframes/issues/669)) ([93416ed](https://github.com/googleapis/python-bigquery-dataframes/commit/93416ed2f8353c12eb162e21e9bf155312b0ed8c))
+* Add logistic regression samples ([#673](https://github.com/googleapis/python-bigquery-dataframes/issues/673)) ([2218c21](https://github.com/googleapis/python-bigquery-dataframes/commit/2218c21b5bb0f9e54a365ba1ada0203cbc4c9efc))
+* Address lint errors in code samples ([#665](https://github.com/googleapis/python-bigquery-dataframes/issues/665)) ([4fc8964](https://github.com/googleapis/python-bigquery-dataframes/commit/4fc89644e47a6da9367b54826b25c6abbe97327b))
+* Document inlining of small data in `read_*` APIs ([#670](https://github.com/googleapis/python-bigquery-dataframes/issues/670)) ([306953a](https://github.com/googleapis/python-bigquery-dataframes/commit/306953aaae69e57c7c2f5eefb88d55a35bdcca9d))
+
+## [1.5.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.4.0...v1.5.0) (2024-05-07)
+
+
+### Features
+
+* `bigframes.options` and  `bigframes.option_context` now uses thread-local variables to prevent context managers in separate threads from affecting each other ([#652](https://github.com/googleapis/python-bigquery-dataframes/issues/652)) ([651fd7d](https://github.com/googleapis/python-bigquery-dataframes/commit/651fd7daf14273f172c6c55e5d6c374eb590a22d))
+* Add `ARIMAPlus.coef_` property exposing `ML.ARIMA_COEFFICIENTS` functionality ([#585](https://github.com/googleapis/python-bigquery-dataframes/issues/585)) ([81d1262](https://github.com/googleapis/python-bigquery-dataframes/commit/81d1262a40c133017c6debe89506d66aab7bb0c5))
+* Add a unique session_id to Session and allow cleaning up sessions ([#553](https://github.com/googleapis/python-bigquery-dataframes/issues/553)) ([c8d4e23](https://github.com/googleapis/python-bigquery-dataframes/commit/c8d4e231fe8263f5b10fae9b879ff82df58da534))
+* Add the `bigframes.bigquery` sub-package with a `bigframes.bigquery.array_length` function ([#630](https://github.com/googleapis/python-bigquery-dataframes/issues/630)) ([9963f85](https://github.com/googleapis/python-bigquery-dataframes/commit/9963f85b84c3b3c681447ab79e22ac93ac48349c))
+* Always do a query dry run when `option.repr_mode == "deferred"` ([#652](https://github.com/googleapis/python-bigquery-dataframes/issues/652)) ([651fd7d](https://github.com/googleapis/python-bigquery-dataframes/commit/651fd7daf14273f172c6c55e5d6c374eb590a22d))
+* Custom query labels for compute options ([#638](https://github.com/googleapis/python-bigquery-dataframes/issues/638)) ([f561799](https://github.com/googleapis/python-bigquery-dataframes/commit/f5617994bc136de5caa72719b8c3c297c512cb36))
+* Warn with `DefaultIndexWarning` from `read_gbq` on clustered/partitioned tables with no `index_col` or `filters` set ([#631](https://github.com/googleapis/python-bigquery-dataframes/issues/631), [#658](https://github.com/googleapis/python-bigquery-dataframes/issues/658)) ([2715d2b](https://github.com/googleapis/python-bigquery-dataframes/commit/2715d2b4a353710175a66a4f6149356f583f2c45), [73064dd](https://github.com/googleapis/python-bigquery-dataframes/commit/73064dd2aa1ece5de8f5849a0fd337d0ba677404))
+* Support `index_col=False` in `read_csv` and `engine="bigquery"` ([73064dd](https://github.com/googleapis/python-bigquery-dataframes/commit/73064dd2aa1ece5de8f5849a0fd337d0ba677404))
+* Support gcf max instance count in `remote_function` ([#657](https://github.com/googleapis/python-bigquery-dataframes/issues/657)) ([36578ab](https://github.com/googleapis/python-bigquery-dataframes/commit/36578ab431119f71dda746de415d0c6417bb4de2))
+
+
+### Bug Fixes
+
+* Don't raise UnknownLocationWarning for US or EU multi-regions ([#653](https://github.com/googleapis/python-bigquery-dataframes/issues/653)) ([8e4616b](https://github.com/googleapis/python-bigquery-dataframes/commit/8e4616b896f4e0d13d8bb0424c89335d3a1fe697))
+* Fix bug with na in the column labels in stack ([#659](https://github.com/googleapis/python-bigquery-dataframes/issues/659)) ([4a34293](https://github.com/googleapis/python-bigquery-dataframes/commit/4a342933559fba417fe42e2bd386838defdb2778))
+* Use explicit session in `PaLM2TextGenerator` ([#651](https://github.com/googleapis/python-bigquery-dataframes/issues/651)) ([e4f13c3](https://github.com/googleapis/python-bigquery-dataframes/commit/e4f13c3633b90e32d3171976d8b27ed10049882f))
+
+
+### Documentation
+
+* Add python code sample for multiple forecasting time series ([#531](https://github.com/googleapis/python-bigquery-dataframes/issues/531)) ([16866d2](https://github.com/googleapis/python-bigquery-dataframes/commit/16866d2bbd4901b1bf57f7e8cfbdb444d63fee6c))
+* Fix the Palm2TextGenerator output token size ([#649](https://github.com/googleapis/python-bigquery-dataframes/issues/649)) ([c67e501](https://github.com/googleapis/python-bigquery-dataframes/commit/c67e501a4958ac097216cc1c0a9d5c1530c87ae5))
+
+## [1.4.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.3.0...v1.4.0) (2024-04-29)
+
+
+### Features
+
+* Add .cache() method to persist intermediate dataframe ([#626](https://github.com/googleapis/python-bigquery-dataframes/issues/626)) ([a5c94ec](https://github.com/googleapis/python-bigquery-dataframes/commit/a5c94ec90dcf2c541d7d4b9558a629f935649dd2))
+* Add transpose support for small homogeneously typed DataFrames. ([#621](https://github.com/googleapis/python-bigquery-dataframes/issues/621)) ([054075d](https://github.com/googleapis/python-bigquery-dataframes/commit/054075d448f7de1b3bc1a4631b4e2340643de4ef))
+* Allow single input type in `remote_function` ([#641](https://github.com/googleapis/python-bigquery-dataframes/issues/641)) ([3aa643f](https://github.com/googleapis/python-bigquery-dataframes/commit/3aa643f7ab6dd0ff826ca2aafbeef29035d7c912))
+* Expose gcf max timeout in `remote_function` ([#639](https://github.com/googleapis/python-bigquery-dataframes/issues/639)) ([dfeaad0](https://github.com/googleapis/python-bigquery-dataframes/commit/dfeaad0ae3b3557a9e8ccb21ddbdc55cfd611e0f))
+* Series binary ops compatible with more types ([#618](https://github.com/googleapis/python-bigquery-dataframes/issues/618)) ([518d315](https://github.com/googleapis/python-bigquery-dataframes/commit/518d315487f351c227070c0127382d11381c5e88))
+* Support the `score` method for `PaLM2TextGenerator` ([#634](https://github.com/googleapis/python-bigquery-dataframes/issues/634)) ([3ffc1d2](https://github.com/googleapis/python-bigquery-dataframes/commit/3ffc1d275ae110bffea2f08e63ef75b053764a0c))
+
+
+### Bug Fixes
+
+* Allow to_pandas to download more than 10GB ([#637](https://github.com/googleapis/python-bigquery-dataframes/issues/637)) ([ce56495](https://github.com/googleapis/python-bigquery-dataframes/commit/ce5649513b66c5191a56fc1fd29240b5dbe02394))
+* Extend row hash to 128 bits to guarantee unique row id ([#632](https://github.com/googleapis/python-bigquery-dataframes/issues/632)) ([9005c6e](https://github.com/googleapis/python-bigquery-dataframes/commit/9005c6e79297d7130e93a0e632eb3936aa145efe))
+* Llm fine tuning tests ([#627](https://github.com/googleapis/python-bigquery-dataframes/issues/627)) ([4724a1a](https://github.com/googleapis/python-bigquery-dataframes/commit/4724a1a456076d003613d2e964a8dd2d80a09ad9))
+* Llm palm score tests ([#643](https://github.com/googleapis/python-bigquery-dataframes/issues/643)) ([cf4ec3a](https://github.com/googleapis/python-bigquery-dataframes/commit/cf4ec3af96c28d42e76868c6230a38511052c44e))
+
+
+### Performance Improvements
+
+* Automatically condense internal expression representation ([#516](https://github.com/googleapis/python-bigquery-dataframes/issues/516)) ([03c1b0d](https://github.com/googleapis/python-bigquery-dataframes/commit/03c1b0d8122afe9e56b480100d6207d1228ca576))
+* Cache transpose to allow performant retranspose ([#635](https://github.com/googleapis/python-bigquery-dataframes/issues/635)) ([44b738d](https://github.com/googleapis/python-bigquery-dataframes/commit/44b738df07d0ee9d9ae2ced339a123f31139f887))
+
+
+### Documentation
+
+* Add supported pandas apis on the main page ([#628](https://github.com/googleapis/python-bigquery-dataframes/issues/628)) ([8d2a51c](https://github.com/googleapis/python-bigquery-dataframes/commit/8d2a51c4079844daba20f414b6c0c0ca030ba1f9))
+* Add the first sample for the Single time-series forecasting from Google Analytics data tutorial ([#623](https://github.com/googleapis/python-bigquery-dataframes/issues/623)) ([2b84c4f](https://github.com/googleapis/python-bigquery-dataframes/commit/2b84c4f173e956ba2c7fcc0ad92785ae95161d8e))
+* Address more technical writers' feedback ([#640](https://github.com/googleapis/python-bigquery-dataframes/issues/640)) ([1e7793c](https://github.com/googleapis/python-bigquery-dataframes/commit/1e7793cdcb56b8c0bcccc1c1ab356bac44454592))
+
 ## [1.3.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.2.0...v1.3.0) (2024-04-22)
 
 

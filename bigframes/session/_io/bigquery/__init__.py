@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Private module: Helpers for I/O operations."""
+"""Private module: Helpers for BigQuery I/O operations."""
 
 from __future__ import annotations
 
 import datetime
 import itertools
 import os
+import re
 import textwrap
 import types
-from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
-import uuid
-import warnings
+import typing
+from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 
+import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 
@@ -34,17 +35,22 @@ import bigframes.formatting_helpers as formatting_helpers
 
 IO_ORDERING_ID = "bqdf_row_nums"
 MAX_LABELS_COUNT = 64
-TEMP_TABLE_PREFIX = "bqdf{date}_{random_id}"
+_LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
+# will be limited to this many tables
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
 
 def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
-    api_methods: Sequence[str],
+    api_methods: typing.List[str],
 ) -> Dict[str, str]:
     if job_configs_labels is None:
         job_configs_labels = {}
+
+    if api_methods:
+        job_configs_labels["bigframes-api"] = api_methods[0]
+        del api_methods[0]
 
     labels = list(
         itertools.chain(
@@ -99,110 +105,25 @@ def create_export_data_statement(
     )
 
 
-def random_table(dataset: bigquery.DatasetReference) -> bigquery.TableReference:
-    """Generate a random table ID with BigQuery DataFrames prefix.
-    Args:
-        dataset (google.cloud.bigquery.DatasetReference):
-            The dataset to make the table reference in. Usually the anonymous
-            dataset for the session.
-    Returns:
-        google.cloud.bigquery.TableReference:
-            Fully qualified table ID of a table that doesn't exist.
-    """
-    now = datetime.datetime.now(datetime.timezone.utc)
-    random_id = uuid.uuid4().hex
-    table_id = TEMP_TABLE_PREFIX.format(
-        date=now.strftime("%Y%m%d"), random_id=random_id
-    )
-    return dataset.table(table_id)
-
-
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
-def get_snapshot_datetime_and_table_metadata(
-    bqclient: bigquery.Client,
-    table_ref: bigquery.TableReference,
-    *,
-    api_name: str,
-    cache: Dict[bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]],
-    use_cache: bool = True,
-) -> Tuple[datetime.datetime, bigquery.Table]:
-    cached_table = cache.get(table_ref)
-    if use_cache and cached_table is not None:
-        snapshot_timestamp, _ = cached_table
-
-        # Cache hit could be unexpected. See internal issue 329545805.
-        # Raise a warning with more information about how to avoid the
-        # problems with the cache.
-        warnings.warn(
-            f"Reading cached table from {snapshot_timestamp} to avoid "
-            "incompatibilies with previous reads of this table. To read "
-            "the latest version, set `use_cache=False` or close the "
-            "current session with Session.close() or "
-            "bigframes.pandas.close_session().",
-            # There are many layers before we get to (possibly) the user's code:
-            # pandas.read_gbq_table
-            # -> with_default_session
-            # -> Session.read_gbq_table
-            # -> _read_gbq_table
-            # -> _get_snapshot_sql_and_primary_key
-            # -> get_snapshot_datetime_and_table_metadata
-            stacklevel=7,
-        )
-        return cached_table
-
-    # TODO(swast): It's possible that the table metadata is changed between now
-    # and when we run the CURRENT_TIMESTAMP() query to see when we can time
-    # travel to. Find a way to fetch the table metadata and BQ's current time
-    # atomically.
-    table = bqclient.get_table(table_ref)
-
-    # TODO(b/336521938): Refactor to make sure we set the "bigframes-api"
-    # whereever we execute a query.
-    job_config = bigquery.QueryJobConfig()
-    job_config.labels["bigframes-api"] = api_name
-    snapshot_timestamp = list(
-        bqclient.query(
-            "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
-            job_config=job_config,
-        ).result()
-    )[0][0]
-    cached_table = (snapshot_timestamp, table)
-    cache[table_ref] = cached_table
-    return cached_table
-
-
-def create_snapshot_sql(
-    table_ref: bigquery.TableReference, current_timestamp: datetime.datetime
-) -> str:
-    """Query a table via 'time travel' for consistent reads."""
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        return f"SELECT * FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`"
-
-    return textwrap.dedent(
-        f"""
-        SELECT *
-        FROM `{table_ref.project}`.`{table_ref.dataset_id}`.`{table_ref.table_id}`
-        FOR SYSTEM_TIME AS OF TIMESTAMP({repr(current_timestamp.isoformat())})
-        """
-    )
-
-
 def create_temp_table(
-    bqclient: bigquery.Client,
-    dataset: bigquery.DatasetReference,
+    session: bigframes.session.Session,
     expiration: datetime.datetime,
     *,
     schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
 ) -> str:
-    """Create an empty table with an expiration in the desired dataset."""
-    table_ref = random_table(dataset)
+    """Create an empty table with an expiration in the desired session.
+
+    The table will be deleted when the session is closed or the expiration
+    is reached.
+    """
+    bqclient: bigquery.Client = session.bqclient
+    table_ref = session._random_table()
     destination = bigquery.Table(table_ref)
     destination.expires = expiration
     destination.schema = schema
@@ -281,10 +202,11 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
-    api_methods = log_adapter.get_and_reset_api_methods()
-    job_config.labels = create_job_configs_labels(
-        job_configs_labels=job_config.labels, api_methods=api_methods
-    )
+    if not job_config.dry_run:
+        api_methods = log_adapter.get_and_reset_api_methods()
+        job_config.labels = create_job_configs_labels(
+            job_configs_labels=job_config.labels, api_methods=api_methods
+        )
 
     try:
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
@@ -329,3 +251,163 @@ def pytest_log_job(query_job: bigquery.QueryJob):
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
+
+
+def delete_tables_matching_session_id(
+    client: bigquery.Client, dataset: bigquery.DatasetReference, session_id: str
+) -> None:
+    """Searches within the dataset for tables conforming to the
+    expected session_id form, and instructs bigquery to delete them.
+
+    Args:
+        client (bigquery.Client):
+            The client to use to list tables
+        dataset (bigquery.DatasetReference):
+            The dataset to search in
+        session_id (str):
+            The session id to match on in the table name
+
+    Returns:
+        None
+    """
+
+    tables = client.list_tables(
+        dataset, max_results=_LIST_TABLES_LIMIT, page_size=_LIST_TABLES_LIMIT
+    )
+    for table in tables:
+        split_id = table.table_id.split("_")
+        if not split_id[0].startswith("bqdf") or len(split_id) < 2:
+            continue
+        found_session_id = split_id[1]
+        if found_session_id == session_id:
+            client.delete_table(table, not_found_ok=True)
+            print("Deleting temporary table '{}'.".format(table.table_id))
+
+
+def create_bq_dataset_reference(
+    bq_client: bigquery.Client, location=None, project=None
+) -> bigquery.DatasetReference:
+    """Create and identify dataset(s) for temporary BQ resources.
+
+    bq_client project and location will be used unless kwargs "project"
+    and/or "location" are given. If given, location and project
+    will be passed through to
+    https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+
+    Args:
+        bq_client (bigquery.Client):
+            The bigquery.Client to use for the http request to
+            create the dataset reference.
+        location (str, default None):
+            The location of the project to create the dataset in.
+        project (str, default None):
+            The project id of the project to create the dataset in.
+
+    Returns:
+        bigquery.DatasetReference: The constructed reference to the anonymous dataset.
+    """
+    query_job = bq_client.query("SELECT 1", location=location, project=project)
+    query_job.result()  # blocks until finished
+
+    # The anonymous dataset is used by BigQuery to write query results and
+    # session tables. BigQuery DataFrames also writes temp tables directly
+    # to the dataset, no BigQuery Session required. Note: there is a
+    # different anonymous dataset per location. See:
+    # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+    query_destination = query_job.destination
+    return bigquery.DatasetReference(
+        query_destination.project,
+        query_destination.dataset_id,
+    )
+
+
+def is_query(query_or_table: str) -> bool:
+    """Determine if `query_or_table` is a table ID or a SQL string"""
+    return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
+
+
+def is_table_with_wildcard_suffix(query_or_table: str) -> bool:
+    """Determine if `query_or_table` is a table and contains a wildcard suffix."""
+    return not is_query(query_or_table) and query_or_table.endswith("*")
+
+
+def to_query(
+    query_or_table: str,
+    index_cols: Iterable[str],
+    columns: Iterable[str],
+    filters: third_party_pandas_gbq.FiltersType,
+) -> str:
+    """Compile query_or_table with conditions(filters, wildcards) to query."""
+    filters = list(filters)
+    sub_query = (
+        f"({query_or_table})" if is_query(query_or_table) else f"`{query_or_table}`"
+    )
+
+    # TODO(b/338111344): Generate an index based on DefaultIndexKind if we
+    # don't have index columns specified.
+    if columns:
+        # We only reduce the selection if columns is set, but we always
+        # want to make sure index_cols is also included.
+        all_columns = itertools.chain(index_cols, columns)
+        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in all_columns)
+    else:
+        select_clause = "SELECT *"
+
+    where_clause = ""
+    if filters:
+        valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
+            "in": "IN",
+            "not in": "NOT IN",
+            "LIKE": "LIKE",
+            "==": "=",
+            ">": ">",
+            "<": "<",
+            ">=": ">=",
+            "<=": "<=",
+            "!=": "!=",
+        }
+
+        # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
+        if isinstance(filters[0], tuple) and (
+            len(filters[0]) == 0 or not isinstance(list(filters[0])[0], tuple)
+        ):
+            filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
+
+        or_expressions = []
+        for group in filters:
+            if not isinstance(group, Iterable):
+                group = [group]
+
+            and_expressions = []
+            for filter_item in group:
+                if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
+                    raise ValueError(
+                        f"Filter condition should be a tuple of length 3, {filter_item} is not valid."
+                    )
+
+                column, operator, value = filter_item
+
+                if not isinstance(column, str):
+                    raise ValueError(
+                        f"Column name should be a string, but received '{column}' of type {type(column).__name__}."
+                    )
+
+                if operator not in valid_operators:
+                    raise ValueError(f"Operator {operator} is not valid.")
+
+                operator_str = valid_operators[operator]
+
+                if operator_str in ["IN", "NOT IN"]:
+                    value_list = ", ".join([repr(v) for v in value])
+                    expression = f"`{column}` {operator_str} ({value_list})"
+                else:
+                    expression = f"`{column}` {operator_str} {repr(value)}"
+                and_expressions.append(expression)
+
+            or_expressions.append(" AND ".join(and_expressions))
+
+        if or_expressions:
+            where_clause = " WHERE " + " OR ".join(or_expressions)
+
+    full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
+    return full_query

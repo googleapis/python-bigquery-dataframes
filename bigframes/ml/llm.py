@@ -64,8 +64,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
         max_iterations (Optional[int], Default to 300):
             The number of steps to run when performing supervised tuning.
     """
@@ -128,38 +128,30 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> PaLM2TextGenerator:
-        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        assert "remoteModelInfo" in model._properties
-        assert "endpoint" in model._properties["remoteModelInfo"]
-        assert "connection" in model._properties["remoteModelInfo"]
+        assert bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in bq_model._properties
+        assert "endpoint" in bq_model._properties["remoteModelInfo"]
+        assert "connection" in bq_model._properties["remoteModelInfo"]
 
         # Parse the remote model endpoint
-        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
-        model_connection = model._properties["remoteModelInfo"]["connection"]
+        bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = bq_model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
-        # Get the optional params
-        kwargs: dict = {}
-        last_fitting = model.training_runs[-1]["trainingOptions"]
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        dummy_text_generator = cls()
-        for bf_param, _ in dummy_text_generator.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                # Convert types
-                if bf_param in ["max_iterations"]:
-                    kwargs[bf_param] = int(last_fitting[bqml_param])
-
-        text_generator_model = cls(
+        model = cls(
             **kwargs,
             session=session,
             model_name=model_endpoint,
             connection_name=model_connection,
         )
-        text_generator_model._bqml_model = core.BqmlModel(session, model)
-        return text_generator_model
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> dict:
@@ -191,7 +183,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
                 Training labels.
 
         Returns:
-            PaLM2TextGenerator: Fitted Estimator.
+            PaLM2TextGenerator: Fitted estimator.
         """
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -233,7 +225,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
             max_output_tokens (int, default 128):
                 Maximum number of tokens that can be generated in the response. Specify a lower value for shorter responses and a higher value for longer responses.
                 A token may be smaller than a word. A token is approximately four characters. 100 tokens correspond to roughly 60-80 words.
-                Default 128. For the 'text-bison' model, possible values are in the range [1, 1024]. For the 'text-bison-32k' model, possible values are in the range [1, 8196].
+                Default 128. For the 'text-bison' model, possible values are in the range [1, 1024]. For the 'text-bison-32k' model, possible values are in the range [1, 8192].
                 Please ensure that the specified value for max_output_tokens is within the appropriate range for the model being used.
 
             top_k (int, default 40):
@@ -269,10 +261,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         if (
             self.model_name == _TEXT_GENERATOR_BISON_32K_ENDPOINT
-            and max_output_tokens not in range(1, 8197)
+            and max_output_tokens not in range(1, 8193)
         ):
             raise ValueError(
-                f"max_output_token must be [1, 8196] for TextBison 32k model, but is {max_output_tokens}."
+                f"max_output_token must be [1, 8192] for TextBison 32k model, but is {max_output_tokens}."
             )
 
         if top_k not in range(1, 41):
@@ -372,12 +364,12 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextGenerator: saved model."""
+            PaLM2TextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -390,7 +382,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
     Args:
         model_name (str, Default to "textembedding-gecko"):
             The model for text embedding. “textembedding-gecko” returns model embeddings for text inputs.
-            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages
+            "textembedding-gecko-multilingual" returns model embeddings for text inputs which support over 100 languages.
             Default to "textembedding-gecko".
         version (str or None):
             Model version. Accepted values are "001", "002", "003", "latest" etc. Will use the default version if unset.
@@ -398,8 +390,8 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
-            connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context.
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            If None, use default connection in session context.
     """
 
     def __init__(
@@ -464,29 +456,30 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> PaLM2TextEmbeddingGenerator:
-        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        assert "remoteModelInfo" in model._properties
-        assert "endpoint" in model._properties["remoteModelInfo"]
-        assert "connection" in model._properties["remoteModelInfo"]
+        assert bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in bq_model._properties
+        assert "endpoint" in bq_model._properties["remoteModelInfo"]
+        assert "connection" in bq_model._properties["remoteModelInfo"]
 
         # Parse the remote model endpoint
-        bqml_endpoint = model._properties["remoteModelInfo"]["endpoint"]
-        model_connection = model._properties["remoteModelInfo"]["connection"]
+        bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = bq_model._properties["remoteModelInfo"]["connection"]
         model_endpoint = bqml_endpoint.split("/")[-1]
 
         model_name, version = utils.parse_model_endpoint(model_endpoint)
 
-        embedding_generator_model = cls(
+        model = cls(
             session=session,
             # str to literals
             model_name=model_name,  # type: ignore
             version=version,
             connection_name=model_connection,
         )
-        embedding_generator_model._bqml_model = core.BqmlModel(session, model)
-        return embedding_generator_model
+
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
@@ -539,12 +532,12 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextEmbeddingGenerator: saved model."""
+            PaLM2TextEmbeddingGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -565,8 +558,8 @@ class GeminiTextGenerator(base.BaseEstimator):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-            if None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
-            permission if the connection isn't fully setup.
+            If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+            permission if the connection isn't fully set up.
     """
 
     def __init__(
@@ -616,18 +609,18 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.Session, bq_model: bigquery.Model
     ) -> GeminiTextGenerator:
-        assert model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        assert "remoteModelInfo" in model._properties
-        assert "connection" in model._properties["remoteModelInfo"]
+        assert bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in bq_model._properties
+        assert "connection" in bq_model._properties["remoteModelInfo"]
 
         # Parse the remote model endpoint
-        model_connection = model._properties["remoteModelInfo"]["connection"]
+        model_connection = bq_model._properties["remoteModelInfo"]["connection"]
 
-        text_generator_model = cls(session=session, connection_name=model_connection)
-        text_generator_model._bqml_model = core.BqmlModel(session, model)
-        return text_generator_model
+        model = cls(session=session, connection_name=model_connection)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     def predict(
         self,
@@ -719,12 +712,12 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            GeminiTextGenerator: saved model."""
+            GeminiTextGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)

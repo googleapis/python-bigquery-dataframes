@@ -47,6 +47,16 @@ def mock_df():
     return mock_df
 
 
+def test_ml_arima_coefficients(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+):
+    sql = model_manipulation_sql_generator.ml_arima_coefficients()
+    assert (
+        sql
+        == """SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `my_project_id.my_dataset_id.my_model_id`)"""
+    )
+
+
 def test_options_correct(base_sql_generator: ml_sql.BaseSqlGenerator):
     sql = base_sql_generator.options(
         model_type="lin_reg", input_label_cols=["col_a"], l1_reg=0.6
@@ -101,6 +111,13 @@ def test_k_bins_discretizer_correct(
 ):
     sql = base_sql_generator.ml_bucketize("col_a", [1, 2, 3, 4], "scaled_col_a")
     assert sql == "ML.BUCKETIZE(col_a, [1, 2, 3, 4], FALSE) AS scaled_col_a"
+
+
+def test_k_bins_discretizer_quantile_correct(
+    base_sql_generator: ml_sql.BaseSqlGenerator,
+):
+    sql = base_sql_generator.ml_quantile_bucketize("col_a", 5, "scaled_col_a")
+    assert sql == "ML.QUANTILE_BUCKETIZE(col_a, 5) OVER() AS scaled_col_a"
 
 
 def test_one_hot_encoder_correct(

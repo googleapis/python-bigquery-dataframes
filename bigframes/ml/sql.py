@@ -109,8 +109,17 @@ class BaseSqlGenerator:
         array_split_points: Iterable[Union[int, float]],
         name: str,
     ) -> str:
-        """Encode ML.MIN_MAX_SCALER for BQML"""
+        """Encode ML.BUCKETIZE for BQML"""
         return f"""ML.BUCKETIZE({numeric_expr_sql}, {array_split_points}, FALSE) AS {name}"""
+
+    def ml_quantile_bucketize(
+        self,
+        numeric_expr_sql: str,
+        num_bucket: int,
+        name: str,
+    ) -> str:
+        """Encode ML.QUANTILE_BUCKETIZE for BQML"""
+        return f"""ML.QUANTILE_BUCKETIZE({numeric_expr_sql}, {num_bucket}) OVER() AS {name}"""
 
     def ml_one_hot_encoder(
         self,
@@ -317,6 +326,10 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         else:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
+
+    def ml_arima_coefficients(self) -> str:
+        """Encode ML.ARIMA_COEFFICIENTS for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `{self._model_name}`)"""
 
     # ML evaluation TVFs
     def ml_llm_evaluate(

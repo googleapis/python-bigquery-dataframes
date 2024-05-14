@@ -6,10 +6,12 @@ from __future__ import annotations
 from typing import (
     Hashable,
     IO,
+    List,
     Literal,
     Mapping,
     Optional,
     Sequence,
+    Tuple,
     TYPE_CHECKING,
     Union,
 )
@@ -1181,7 +1183,7 @@ class Series(NDFrame):  # type: ignore[misc]
         to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
-            >>> @bpd.remote_function([int], float, reuse=False)
+            >>> @bpd.remote_function(int, float, reuse=False)
             ... def minutes_to_hours(x):
             ...     return x/60
 
@@ -1208,7 +1210,7 @@ class Series(NDFrame):  # type: ignore[misc]
         `packages` param.
 
             >>> @bpd.remote_function(
-            ...     [str],
+            ...     str,
             ...     str,
             ...     reuse=False,
             ...     packages=["cryptography"],
@@ -1274,6 +1276,62 @@ class Series(NDFrame):  # type: ignore[misc]
             bigframes.series.Series: A new Series with values representing the
             return value of the ``func`` applied to each element of the original
             Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def combine(
+        self,
+        other: Series | Hashable,
+        func,
+    ) -> Series:
+        """
+        Combine the Series with a Series or scalar according to `func`.
+
+        Combine the Series and `other` using `func` to perform elementwise
+        selection for combined Series.
+        `fill_value` is assumed when value is missing at some index
+        from one of the two objects being combined.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            Consider 2 Datasets ``s1`` and ``s2`` containing
+            highest clocked speeds of different birds.
+
+            >>> s1 = bpd.Series({'falcon': 330.0, 'eagle': 160.0})
+            >>> s1
+            falcon    330.0
+            eagle     160.0
+            dtype: Float64
+            >>> s2 = bpd.Series({'falcon': 345.0, 'eagle': 200.0, 'duck': 30.0})
+            >>> s2
+            falcon    345.0
+            eagle     200.0
+            duck       30.0
+            dtype: Float64
+
+            Now, to combine the two datasets and view the highest speeds
+            of the birds across the two datasets
+
+            >>> s1.combine(s2, np.maximum)
+            falcon    345.0
+            eagle     200.0
+            duck       <NA>
+            dtype: Float64
+
+        Args:
+            other (Series or scalar):
+                The value(s) to be combined with the `Series`.
+            func (function):
+                BigFrames DataFrames ``remote_function`` to apply.
+                Takes two scalars as inputs and returns an element.
+                Also accepts some numpy binary functions.
+
+        Returns:
+            Series: The result of combining the Series with the other object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1934,6 +1992,59 @@ class Series(NDFrame):  # type: ignore[misc]
             Series: Series representing whether each element is between left and
             right (inclusive).
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def case_when(
+        self,
+        caselist: List[Tuple[Series, Series]],
+    ) -> Series:
+        """Replace values where the conditions are True.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> c = bpd.Series([6, 7, 8, 9], name="c")
+            >>> a = bpd.Series([0, 0, 1, 2])
+            >>> b = bpd.Series([0, 3, 4, 5])
+
+            >>> c.case_when(
+            ...     caselist=[
+            ...         (a.gt(0), a),  # condition, replacement
+            ...         (b.gt(0), b),
+            ...     ]
+            ... )
+            0    6
+            1    3
+            2    1
+            3    2
+            Name: c, dtype: Int64
+
+        **See also:**
+
+        - :func:`bigframes.series.Series.mask` : Replace values where the condition is True.
+
+        Args:
+            caselist:
+                A list of tuples of conditions and expected replacements
+                Takes the form:  ``(condition0, replacement0)``,
+                ``(condition1, replacement1)``, ... .
+                ``condition`` should be a 1-D boolean array-like object
+                or a callable. If ``condition`` is a callable,
+                it is computed on the Series
+                and should return a boolean Series or array.
+                The callable must not change the input Series
+                (though pandas doesn`t check it). ``replacement`` should be a
+                1-D array-like object, a scalar or a callable.
+                If ``replacement`` is a callable, it is computed on the Series
+                and should return a scalar or Series. The callable
+                must not change the input Series
+                (though pandas doesn`t check it).
+
+        Returns:
+            bigframes.series.Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3341,7 +3452,7 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function([str], bool, reuse=False)
+            >>> @bpd.remote_function(str, bool, reuse=False)
             ... def should_mask(name):
             ...     hash = 0
             ...     for char_ in name:
@@ -3860,7 +3971,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function([str], str)
+            >>> @bpd.remote_function(str, str)
             ... def my_mapper(val):
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:
