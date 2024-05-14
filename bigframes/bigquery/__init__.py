@@ -96,7 +96,7 @@ def array_agg(
         >>> df = bpd.DataFrame(l, columns=["a", "b", "c"])
         >>> bbq.array_agg(df.groupby(by=["b"]))
                  a      c
-        b                
+        b
         1.0    [2]    [3]
         2.0  [1 1]  [3 2]
         <BLANKLINE>
