@@ -733,7 +733,7 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
     return struct_value[name].name(name)
 
 
-def numeric_to_datatime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
+def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
     if not isinstance(x, ibis_types.IntegerValue) and not isinstance(
         x, ibis_types.FloatingValue
     ):
@@ -775,7 +775,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
         # with pandas converting int64[pyarrow] to timestamp[us][pyarrow],
         # timestamp[us, tz=UTC][pyarrow], and time64[us][pyarrow].
         unit = "us"
-        x_converted = numeric_to_datatime(x, unit)
+        x_converted = numeric_to_datetime(x, unit)
         if to_type == ibis_dtypes.timestamp:
             return x_converted.cast(ibis_dtypes.Timestamp())
         elif to_type == ibis_dtypes.Timestamp(timezone="UTC"):
@@ -823,7 +823,7 @@ def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
             # The default unit is set to "ns" (nanoseconds) for consistency
             # with pandas, where "ns" is the default unit for datetime operations.
             unit = op.unit or "ns"
-            x = numeric_to_datatime(x, unit)
+            x = numeric_to_datetime(x, unit)
 
     return x.cast(ibis_dtypes.Timestamp(None))
 
@@ -844,7 +844,7 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
             # The default unit is set to "ns" (nanoseconds) for consistency
             # with pandas, where "ns" is the default unit for datetime operations.
             unit = op.unit or "ns"
-            x = numeric_to_datatime(x, unit)
+            x = numeric_to_datetime(x, unit)
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
