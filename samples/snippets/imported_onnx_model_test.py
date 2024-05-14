@@ -39,5 +39,5 @@ def test_imported_sklearn_onnx_model() -> None:
 
     df = bpd.read_gbq("bigquery-public-data.ml_datasets.iris")
     predictions = imported_onnx_model.predict(df)
-    predictions.head(5)
+    predictions.peek(5)
     # [END bigquery_dataframes_imported_sklearn_onnx_tutorial_make_predictions]
