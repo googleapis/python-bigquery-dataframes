@@ -907,7 +907,7 @@ class Session(
         # Try to handle non-dataframe pandas objects as well
         if isinstance(pandas_dataframe, pandas.Series):
             bf_df = self._read_pandas(pandas.DataFrame(pandas_dataframe), "read_pandas")
-            bf_series = typing.cast(series.Series, bf_df[bf_df.columns[0]])
+            bf_series = series.Series(bf_df._block)
             # wrapping into df can set name to 0 so reset to original object name
             bf_series.name = pandas_dataframe.name
             return bf_series
@@ -952,9 +952,11 @@ class Session(
             return None
 
         try:
-            inline_df = dataframe.DataFrame(
-                blocks.Block.from_local(pandas_dataframe, self)
-            )
+            local_block = blocks.Block.from_local(pandas_dataframe, self)
+            assert local_block._transpose_cache is not None
+            inline_df = dataframe.DataFrame(local_block)
+            ### REMOVE BEFORE SUBMIT!!!!!
+            assert inline_df._block._transpose_cache is not None
         except pa.ArrowInvalid as e:
             raise pa.ArrowInvalid(
                 f"Could not convert with a BigQuery type: `{e}`. "

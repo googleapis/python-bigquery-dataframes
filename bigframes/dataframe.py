@@ -690,6 +690,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
             return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
+            # If we already know the row schema (from transpose cache), we don't need any materialization
+            if isinstance(other, bigframes.series.Series) and (
+                other._block._transpose_cache is not None
+            ):
+                return self._apply_dataframe_binop(
+                    DataFrame(other._block.transpose()),
+                    op,
+                    how="cross",
+                    reverse=reverse,
+                )
             pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
             return self._apply_series_binop_axis_1(pd_series, op, how, reverse)
         raise NotImplementedError(
@@ -750,6 +760,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
+        """Align dataframe with pandas series by inlining series values as literals."""
         # Somewhat different alignment than df-df so separate codepath for now.
         if self.columns.equals(other.index):
             columns, lcol_indexer, rcol_indexer = self.columns, None, None
@@ -813,15 +824,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         # join columns schema
         # indexers will be none for exact match
-        columns, lcol_indexer, rcol_indexer = self.columns.join(
-            other.columns, how=how, return_indexers=True
-        )
+        if self.columns.equals(other.index):
+            columns, lcol_indexer, rcol_indexer = self.columns, None, None
+        else:
+            columns, lcol_indexer, rcol_indexer = self.columns.join(
+                other.columns, how="outer", return_indexers=True
+            )
 
         binop_result_ids = []
 
         column_indices = zip(
             lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
         )
 
         for left_index, right_index in column_indices:

@@ -2080,14 +2080,12 @@ def test_series_binop_axis_index(
         (pd.Index([1000, 2000, 3000])),
         (bf_indexes.Index([1000, 2000, 3000])),
         (pd.Series((1000, 2000), index=["int64_too", "float64_col"])),
-        (series.Series((1000, 2000), index=["int64_too", "float64_col"])),
     ],
     ids=[
         "tuple",
         "pd_index",
         "bf_index",
         "pd_series",
-        "bf_series",
     ],
 )
 def test_listlike_binop_axis_1(scalars_dfs, input):
@@ -2099,6 +2097,20 @@ def test_listlike_binop_axis_1(scalars_dfs, input):
     if hasattr(input, "to_pandas"):
         input = input.to_pandas()
     pd_result = scalars_pandas_df[df_columns].add(input, axis=1)
+
+    assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_binop_with_self_aggregate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    bf_df = scalars_df[df_columns]
+    bf_result = (bf_df - bf_df.mean()).to_pandas()
+
+    pd_df = scalars_pandas_df[df_columns]
+    pd_result = pd_df - pd_df.mean()
 
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 

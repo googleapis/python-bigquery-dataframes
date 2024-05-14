@@ -162,7 +162,13 @@ class Block:
         self._transpose_cache: Optional[Block] = transpose_cache
 
     @classmethod
-    def from_local(cls, data: pd.DataFrame, session: bigframes.Session) -> Block:
+    def from_local(
+        cls,
+        data: pd.DataFrame,
+        session: bigframes.Session,
+        *,
+        cache_transpose: bool = True,
+    ) -> Block:
         # Assumes caller has already converted datatypes to bigframes ones.
         pd_data = data
         column_labels = pd_data.columns
@@ -176,12 +182,22 @@ class Block:
         pd_data = pd_data.reset_index(names=index_ids)
         as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
         array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
-        return cls(
+        block = cls(
             array_value,
             column_labels=column_labels,
             index_columns=index_ids,
             index_labels=index_labels,
         )
+        if cache_transpose:
+            try:
+                # this cache will help when aligning on axis=1
+                block = block.with_transpose_cache(
+                    cls.from_local(data.T, session, cache_transpose=False)
+                )
+            except Exception:
+                # DO NOT SUBMIT TURN THIS INTO pass before submitting
+                raise ValueError()
+        return block
 
     @property
     def index(self) -> BlockIndexProperties:
@@ -730,12 +746,18 @@ class Block:
                 f"The column labels size `{len(label_list)} ` should equal to the value"
                 + f"columns size: {len(self.value_columns)}."
             )
-        return Block(
+        block = Block(
             self._expr,
             index_columns=self.index_columns,
             column_labels=label_list,
             index_labels=self.index.names,
         )
+        singleton_label = len(list(value)) == 1 and list(value)[0]
+        if singleton_label is not None and self._transpose_cache is not None:
+            new_cache, label_id = self._transpose_cache.create_constant(singleton_label)
+            new_cache = new_cache.set_index([label_id])
+            block = block.with_transpose_cache(new_cache)
+        return block
 
     def with_transpose_cache(self, transposed: Block):
         return Block(
@@ -2199,15 +2221,6 @@ class BlockIndexProperties:
         """Column(s) to use as row labels."""
         return self._block._index_columns
 
-    def __repr__(self) -> str:
-        """Converts an Index to a string."""
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        # TODO(swast): Avoid downloading the whole index by using job
-        # metadata, like we do with DataFrame.
-        preview = self.to_pandas()
-        return repr(preview)
-
     def to_pandas(self) -> pd.Index:
         """Executes deferred operations and downloads the results."""
         # Project down to only the index column. So the query can be cached to visualize other data.
@@ -2438,7 +2451,7 @@ def coalesce_columns(
 ) -> Tuple[core.ArrayValue, Sequence[str]]:
     result_ids = []
     for left_id, right_id in zip(left_ids, right_ids):
-        if how == "left" or how == "inner":
+        if how == "left" or how == "inner" or how == "cross":
             result_ids.append(left_id)
             expr = expr.drop_columns([right_id])
         elif how == "right":
