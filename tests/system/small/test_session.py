@@ -18,7 +18,7 @@ import tempfile
 import textwrap
 import time
 import typing
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 import google
 import google.cloud.bigquery as bigquery
@@ -248,12 +248,48 @@ def test_read_gbq_w_primary_keys_table(
     df = session.read_gbq(f"{table.project}.{table.dataset_id}.{table.table_id}")
     result = df.head(100).to_pandas()
 
+    # Verify that primary keys are used as the index.
+    assert list(result.index.names) == list(primary_keys)
+
     # Verify that the DataFrame is already sorted by primary keys.
     sorted_result = result.sort_values(primary_keys)
     pd.testing.assert_frame_equal(result, sorted_result)
 
     # Verify that we're working from a snapshot rather than a copy of the table.
     assert "FOR SYSTEM_TIME AS OF TIMESTAMP" in df.sql
+
+
+def test_read_gbq_w_primary_keys_table_and_filters(
+    session: bigframes.Session, usa_names_grouped_table: bigquery.Table
+):
+    """
+    Verify fix for internal issue 338039517, where using filters didn't use the
+    primary keys for indexing / ordering.
+    """
+    # Validate that the table we're querying has a primary key.
+    table = usa_names_grouped_table
+    table_constraints = table.table_constraints
+    assert table_constraints is not None
+    primary_key = table_constraints.primary_key
+    assert primary_key is not None
+    primary_keys = primary_key.columns
+    assert len(primary_keys) != 0
+
+    df = session.read_gbq(
+        f"{table.project}.{table.dataset_id}.{table.table_id}",
+        filters=[
+            ("name", "LIKE", "W%"),
+            ("total_people", ">", 100),
+        ],  # type: ignore
+    )
+    result = df.to_pandas()
+
+    # Verify that primary keys are used as the index.
+    assert list(result.index.names) == list(primary_keys)
+
+    # Verify that the DataFrame is already sorted by primary keys.
+    sorted_result = result.sort_values(primary_keys)
+    pd.testing.assert_frame_equal(result, sorted_result)
 
 
 @pytest.mark.parametrize(
@@ -350,13 +386,14 @@ _GSOD_1930S = "bigquery-public-data.noaa_gsod.gsod193*"
     ["read_gbq", "read_gbq_table"],
 )
 @pytest.mark.parametrize(
-    ("filters", "table_id", "index_col", "columns"),
+    ("filters", "table_id", "index_col", "columns", "max_results"),
     [
         pytest.param(
             [("_table_suffix", ">=", "1930"), ("_table_suffix", "<=", "1939")],
             _GSOD_ALL_TABLES,
             ["stn", "wban", "year", "mo", "da"],
             ["temp", "max", "min"],
+            100,
             id="all",
         ),
         pytest.param(
@@ -364,6 +401,7 @@ _GSOD_1930S = "bigquery-public-data.noaa_gsod.gsod193*"
             _GSOD_1930S,
             (),  # index_col
             ["temp", "max", "min"],
+            None,  # max_results
             id="columns",
         ),
         pytest.param(
@@ -371,6 +409,7 @@ _GSOD_1930S = "bigquery-public-data.noaa_gsod.gsod193*"
             _GSOD_ALL_TABLES,
             (),  # index_col,
             (),  # columns
+            None,  # max_results
             id="filters",
         ),
         pytest.param(
@@ -378,7 +417,16 @@ _GSOD_1930S = "bigquery-public-data.noaa_gsod.gsod193*"
             _GSOD_1930S,
             ["stn", "wban", "year", "mo", "da"],
             (),  # columns
+            None,  # max_results
             id="index_col",
+        ),
+        pytest.param(
+            (),  # filters
+            _GSOD_1930S,
+            (),  # index_col
+            (),  # columns
+            100,  # max_results
+            id="max_results",
         ),
     ],
 )
@@ -389,10 +437,17 @@ def test_read_gbq_wildcard(
     table_id: str,
     index_col: Sequence[str],
     columns: Sequence[str],
+    max_results: Optional[int],
 ):
     table_metadata = session.bqclient.get_table(table_id)
     method = getattr(session, api_method)
-    df = method(table_id, filters=filters, index_col=index_col, columns=columns)
+    df = method(
+        table_id,
+        filters=filters,
+        index_col=index_col,
+        columns=columns,
+        max_results=max_results,
+    )
     num_rows, num_columns = df.shape
 
     if index_col:

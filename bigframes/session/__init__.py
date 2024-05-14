@@ -339,19 +339,6 @@ class Session(
         elif col_order:
             columns = col_order
 
-        filters = list(filters)
-        if len(filters) != 0 or bf_io_bigquery.is_table_with_wildcard_suffix(
-            query_or_table
-        ):
-            # TODO(b/338111344): This appears to be missing index_cols, which
-            # are necessary to be selected.
-            # TODO(b/338039517): Refactor this to be called inside both
-            # _read_gbq_query and _read_gbq_table (after detecting primary keys)
-            # so we can make sure index_col/index_cols reflects primary keys.
-            query_or_table = bf_io_bigquery.to_query(
-                query_or_table, _to_index_cols(index_col), columns, filters
-            )
-
         if bf_io_bigquery.is_query(query_or_table):
             return self._read_gbq_query(
                 query_or_table,
@@ -361,6 +348,7 @@ class Session(
                 max_results=max_results,
                 api_name="read_gbq",
                 use_cache=use_cache,
+                filters=filters,
             )
         else:
             if configuration is not None:
@@ -377,6 +365,7 @@ class Session(
                 max_results=max_results,
                 api_name="read_gbq",
                 use_cache=use_cache if use_cache is not None else True,
+                filters=filters,
             )
 
     def _query_to_destination(
@@ -451,6 +440,7 @@ class Session(
         max_results: Optional[int] = None,
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
+        filters: third_party_pandas_gbq.FiltersType = (),
     ) -> dataframe.DataFrame:
         """Turn a SQL query into a DataFrame.
 
@@ -517,6 +507,7 @@ class Session(
             max_results=max_results,
             api_name="read_gbq_query",
             use_cache=use_cache,
+            filters=filters,
         )
 
     def _read_gbq_query(
@@ -529,6 +520,7 @@ class Session(
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_query",
         use_cache: Optional[bool] = None,
+        filters: third_party_pandas_gbq.FiltersType = (),
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -557,6 +549,21 @@ class Session(
 
         index_cols = _to_index_cols(index_col)
 
+        filters = list(filters)
+        if len(filters) != 0 or max_results is not None:
+            # TODO(b/338111344): If we are running a query anyway, we might as
+            # well generate ROW_NUMBER() at the same time.
+            query = bf_io_bigquery.to_query(
+                query,
+                index_cols,
+                columns,
+                filters,
+                max_results=max_results,
+                # We're executing the query, so we don't need time travel for
+                # determinism.
+                time_travel_timestamp=None,
+            )
+
         destination, query_job = self._query_to_destination(
             query,
             index_cols,
@@ -580,12 +587,14 @@ class Session(
                 session=self,
             )
 
-        return self.read_gbq_table(
+        return self._read_gbq_table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
             index_col=index_col,
             columns=columns,
-            max_results=max_results,
             use_cache=configuration["query"]["useQueryCache"],
+            api_name=api_name,
+            # max_results and filters are omitted because they are already
+            # handled by to_query(), above.
         )
 
     def read_gbq_table(
@@ -621,24 +630,6 @@ class Session(
         elif col_order:
             columns = col_order
 
-        filters = list(filters)
-        if len(filters) != 0 or bf_io_bigquery.is_table_with_wildcard_suffix(query):
-            # TODO(b/338039517): Refactor this to be called inside both
-            # _read_gbq_query and _read_gbq_table (after detecting primary keys)
-            # so we can make sure index_col/index_cols reflects primary keys.
-            query = bf_io_bigquery.to_query(
-                query, _to_index_cols(index_col), columns, filters
-            )
-
-            return self._read_gbq_query(
-                query,
-                index_col=index_col,
-                columns=columns,
-                max_results=max_results,
-                api_name="read_gbq_table",
-                use_cache=use_cache,
-            )
-
         return self._read_gbq_table(
             query=query,
             index_col=index_col,
@@ -646,6 +637,7 @@ class Session(
             max_results=max_results,
             api_name="read_gbq_table",
             use_cache=use_cache,
+            filters=filters,
         )
 
     def _read_gbq_table(
@@ -657,6 +649,7 @@ class Session(
         max_results: Optional[int] = None,
         api_name: str,
         use_cache: bool = True,
+        filters: third_party_pandas_gbq.FiltersType = (),
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -672,6 +665,9 @@ class Session(
         table_ref = bigquery.table.TableReference.from_string(
             query, default_project=self.bqclient.project
         )
+
+        columns = list(columns)
+        filters = list(filters)
 
         # ---------------------------------
         # Fetch table metadata and validate
@@ -690,16 +686,67 @@ class Session(
                 f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
+        # ----------------------------------------
+        # Convert index_col into a list of columns
+        # ----------------------------------------
+
+        # This requires the table metadata because we might use the primary
+        # keys when constructing the index.
+        index_cols = bf_read_gbq_table.get_index_cols(
+            table=table,
+            index_col=index_col,
+        )
+
+        # -----------------------------
+        # Optionally, execute the query
+        # -----------------------------
+
+        # max_results introduces non-determinism and limits the cost on
+        # clustered tables, so fallback to a query. We do this here so that
+        # the index is consistent with tables that have primary keys, even
+        # when max_results is set.
+        # TODO(b/338419730): We don't need to fallback to a query for wildcard
+        # tables if we allow some non-determinism when time travel isn't supported.
+        if max_results is not None or bf_io_bigquery.is_table_with_wildcard_suffix(
+            query
+        ):
+            # TODO(b/338111344): If we are running a query anyway, we might as
+            # well generate ROW_NUMBER() at the same time.
+            query = bf_io_bigquery.to_query(
+                query,
+                index_cols=index_cols,
+                columns=columns,
+                filters=filters,
+                max_results=max_results,
+                # We're executing the query, so we don't need time travel for
+                # determinism.
+                time_travel_timestamp=None,
+            )
+
+            return self._read_gbq_query(
+                query,
+                index_col=index_cols,
+                columns=columns,
+                api_name="read_gbq_table",
+                use_cache=use_cache,
+            )
+
         # -----------------------------------------
         # Create Ibis table expression and validate
         # -----------------------------------------
 
         # Use a time travel to make sure the DataFrame is deterministic, even
         # if the underlying table changes.
+        # TODO(b/340540991): If a dry run query fails with time travel but
+        # succeeds without it, omit the time travel clause and raise a warning
+        # about potential non-determinism if the underlying tables are modified.
         table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
-            self.ibis_client,
-            table_ref,
-            time_travel_timestamp,
+            ibis_client=self.ibis_client,
+            table_ref=table_ref,
+            index_cols=index_cols,
+            columns=columns,
+            filters=filters,
+            time_travel_timestamp=time_travel_timestamp,
         )
 
         for key in columns:
@@ -708,37 +755,29 @@ class Session(
                     f"Column '{key}' of `columns` not found in this table."
                 )
 
-        # ---------------------------------------
-        # Create a non-default index and validate
-        # ---------------------------------------
-
-        # TODO(b/337925142): Move index_cols creation to before we create the
-        # Ibis table expression so we don't have a "SELECT *" subquery in the
-        # query that checks for index uniqueness.
-
-        index_cols, is_index_unique = bf_read_gbq_table.get_index_cols_and_uniqueness(
-            bqclient=self.bqclient,
-            ibis_client=self.ibis_client,
-            table=table,
-            table_expression=table_expression,
-            index_col=index_col,
-            api_name=api_name,
-        )
-
         for key in index_cols:
             if key not in table_expression.columns:
                 raise ValueError(
                     f"Column `{key}` of `index_col` not found in this table."
                 )
 
-        # TODO(b/337925142): We should push down column filters when we get the time
-        # travel table to avoid "SELECT *" subqueries.
-        if columns:
-            table_expression = table_expression.select([*index_cols, *columns])
-
         # ----------------------------
         # Create ordering and validate
         # ----------------------------
+
+        # TODO(b/337925142): Generate a new subquery with just the index_cols
+        # in the Ibis table expression so we don't have a "SELECT *" subquery
+        # in the query that checks for index uniqueness.
+        # TODO(b/338065601): Provide a way to assume uniqueness and avoid this
+        # check.
+        is_index_unique = bf_read_gbq_table.are_index_cols_unique(
+            bqclient=self.bqclient,
+            ibis_client=self.ibis_client,
+            table=table,
+            table_expression=table_expression,
+            index_cols=index_cols,
+            api_name=api_name,
+        )
 
         if is_index_unique:
             array_value = bf_read_gbq_table.to_array_value_with_total_ordering(

@@ -543,6 +543,7 @@ def read_gbq_query(
     max_results: Optional[int] = None,
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
+    filters: vendored_pandas_gbq.FiltersType = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -554,6 +555,7 @@ def read_gbq_query(
         max_results=max_results,
         use_cache=use_cache,
         col_order=col_order,
+        filters=filters,
     )
 
 

@@ -336,6 +336,8 @@ def to_query(
     index_cols: Iterable[str],
     columns: Iterable[str],
     filters: third_party_pandas_gbq.FiltersType,
+    max_results: Optional[int],
+    time_travel_timestamp: Optional[datetime.datetime],
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
     filters = list(filters)
@@ -352,6 +354,14 @@ def to_query(
         select_clause = "SELECT " + ", ".join(f"`{column}`" for column in all_columns)
     else:
         select_clause = "SELECT *"
+
+    time_travel_clause = ""
+    if time_travel_timestamp is not None:
+        time_travel_clause = f" FOR SYSTEM_TIME AS OF TIMESTAMP({repr(time_travel_timestamp.isoformat())})"
+
+    limit_clause = ""
+    if max_results is not None:
+        limit_clause = f" LIMIT {max_results}"
 
     where_clause = ""
     if filters:
@@ -382,7 +392,7 @@ def to_query(
             for filter_item in group:
                 if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
                     raise ValueError(
-                        f"Filter condition should be a tuple of length 3, {filter_item} is not valid."
+                        f"Elements of filters must be tuples of length 3, but got {repr(filter_item)}.",
                     )
 
                 column, operator, value = filter_item
@@ -409,5 +419,9 @@ def to_query(
         if or_expressions:
             where_clause = " WHERE " + " OR ".join(or_expressions)
 
-    full_query = f"{select_clause} FROM {sub_query} AS sub{where_clause}"
+    full_query = (
+        f"{select_clause} "
+        "FROM "
+        f"{sub_query}{time_travel_clause}{where_clause}{limit_clause}"
+    )
     return full_query
