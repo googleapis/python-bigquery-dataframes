@@ -169,7 +169,7 @@ class BaseIbisIR(abc.ABC):
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_type),
         )
 
-    def _aggregate_helper(
+    def _aggregate_base(
         self,
         table: ibis_types.Table,
         order_by: typing.Sequence[ibis_types.Value] = [],
@@ -376,7 +376,7 @@ class UnorderedIR(BaseIbisIR):
               information.
         """
         table = self._to_ibis_expr()
-        return self._aggregate_helper(
+        return self._aggregate_base(
             table, aggregations=aggregations, by_column_ids=by_column_ids, dropna=dropna
         )
 
@@ -659,7 +659,7 @@ class OrderedIR(BaseIbisIR):
         """
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
         order_by = self._ibis_order
-        return self._aggregate_helper(
+        return self._aggregate_base(
             table,
             order_by=order_by,
             aggregations=aggregations,
