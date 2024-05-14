@@ -78,6 +78,7 @@ def array_agg(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> import numpy as np
         >>> bpd.options.display.progress_bar = None
 
     For a SeriesGroupBy object:
@@ -94,12 +95,12 @@ def array_agg(
         >>> l = [[1, 2, 3], [1, None, 4], [2, 1, 3], [1, 2, 2]]
         >>> df = bpd.DataFrame(l, columns=["a", "b", "c"])
         >>> bbq.array_agg(df.groupby(by=["b"]))
-        b		a	c
-        1.0	[2]	[3]
-        2.0	[1 1]	[3 2]
-        2 rows × 2 columns
-
-        [2 rows x 2 columns in total]
+                 a      c
+        b                
+        1.0    [2]    [3]
+        2.0  [1 1]  [3 2]
+        <BLANKLINE>
+        [2 rows x 2 columns]
 
     Args:
         obj (groupby.SeriesGroupBy | groupby.DataFrameGroupBy):
