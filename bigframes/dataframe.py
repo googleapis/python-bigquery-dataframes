@@ -92,7 +92,7 @@ ERROR_IO_REQUIRES_WILDCARD = (
 def requires_index(meth):
     @functools.wraps(meth)
     def guarded_meth(df: DataFrame, *args, **kwargs):
-        df._null_index_guard()
+        df._throw_if_null_index(meth.__name__)
         return meth(df, *args, **kwargs)
 
     return guarded_meth
@@ -255,6 +255,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return results
 
     @property
+    @requires_index
     def index(
         self,
     ) -> indexes.Index:
@@ -633,12 +634,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         with display_options.pandas_repr(opts):
             import pandas.io.formats
 
-            options = (
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = (
                 pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
             )
             if not self._has_index:
-                options.update({"index": False})
-            repr_string = pandas_df.to_string(**options)
+                to_string_kwargs.update({"index": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
 
         # Modify the end of the string to reflect count.
         lines = repr_string.split("\n")
@@ -1631,6 +1633,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
+    @requires_index
     def sort_index(
         self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
     ) -> DataFrame:
@@ -1831,6 +1834,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if columns is not None:
             return self._reindex_columns(columns)
 
+    @requires_index
     def _reindex_rows(
         self,
         index,
@@ -1877,9 +1881,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result_df.columns = new_column_index
         return result_df
 
+    @requires_index
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
+    @requires_index
     def interpolate(self, method: str = "linear") -> DataFrame:
         if method == "pad":
             return self.ffill()
@@ -2069,7 +2075,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame._block, frame._block.value_columns, qs=tuple(q) if multi_q else (q,)  # type: ignore
         )
         if multi_q:
-            return DataFrame(result.stack())  # .droplevel(0)
+            return DataFrame(result.stack())
         else:
             # Drop the last level, which contains q, unnecessary since only one q
             result = result.with_column_labels(result.column_labels.droplevel(-1))
@@ -2172,9 +2178,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     aggregate = agg
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
+    @requires_index
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
 
+    @requires_index
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
 
@@ -2281,6 +2289,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
+    @requires_index
     def pivot(
         self,
         *,
@@ -2294,6 +2303,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
+    @requires_index
     def pivot_table(
         self,
         values: typing.Optional[
@@ -2639,6 +2649,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             raise TypeError("You have to supply one of 'by' and 'level'")
 
+    @requires_index
     def _groupby_level(
         self,
         level: LevelsType,
@@ -3605,8 +3616,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __matmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__matmul__)
 
-    def _null_index_guard(self):
+    def _throw_if_null_index(self, opname: str):
         if not self._has_index:
             raise bigframes.exceptions.NullIndexError(
-                "DataFrame cannot perform this operation as it has no index. Set an index using set_index."
+                f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )

@@ -51,6 +51,7 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
 import bigframes.core.window_spec as window_specs
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -119,6 +120,10 @@ class Block:
                 raise ValueError(
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
+        if len(index_columns) == 0:
+            raise bigframes.exceptions.PreviewWarning(
+                "Creating object with Null Index. This feature is in preview."
+            )
 
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
@@ -504,7 +509,7 @@ class Block:
 
         Warning: This method modifies ``df`` inplace.
         """
-        # Note: If BigQuery DataFrame has empty index, a default one will be created for the local materialization.
+        # Note: If BigQuery DataFrame has null index, a default one will be created for the local materialization.
         if len(self.index_columns) > 0:
             df.set_index(list(self.index_columns), inplace=True)
             # Pandas names is annotated as list[str] rather than the more
@@ -1920,8 +1925,8 @@ class Block:
         ):
             return join_indexless(self, other, how=how)
 
-        self._null_index_guard()
-        other._null_index_guard()
+        self._throw_if_null_index("join")
+        other._throw_if_null_index("join")
         if self.index.nlevels == other.index.nlevels == 1:
             return join_mono_indexed(
                 self, other, how=how, sort=sort, block_identity_join=block_identity_join
@@ -2070,10 +2075,10 @@ class Block:
         self._stats_cache[column_name].update({op_name: result})
         return result
 
-    def _null_index_guard(self):
+    def _throw_if_null_index(self, opname: str):
         if len(self.index_columns) == 0:
             raise bigframes.exceptions.NullIndexError(
-                "Cannot perform this operation without an index. Set an index using set_index."
+                f"Cannot do {opname} without an index. Set an index using set_index."
             )
 
     def _get_rows_as_json_values(self) -> Block:
@@ -2218,7 +2223,7 @@ class BlockIndexProperties:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
-                "Cannot perform this operation without an index. Set an index using set_index."
+                "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         # Project down to only the index column. So the query can be cached to visualize other data.
         index_columns = list(self._block.index_columns)

@@ -52,6 +52,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+from bigframes.operations.base import requires_index
 import bigframes.operations.datetimes as dt
 import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
@@ -86,6 +87,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._dtype
 
     @property
+    @requires_index
     def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
         return bigframes.core.indexers.LocSeriesIndexer(self)
 
@@ -98,6 +100,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return bigframes.core.indexers.IatSeriesIndexer(self)
 
     @property
+    @requires_index
     def at(self) -> bigframes.core.indexers.AtSeriesIndexer:
         return bigframes.core.indexers.AtSeriesIndexer(self)
 
@@ -136,6 +139,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_numpy()
 
     @property
+    @requires_index
     def index(self) -> indexes.Index:
         return indexes.Index.from_frame(self)
 
@@ -237,6 +241,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         raise ValueError(f"Unsupported type of parameter index: {type(index)}")
 
+    @requires_index
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
@@ -294,10 +299,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         with display_options.pandas_repr(opts):
             import pandas.io.formats
 
-            options = pandas.io.formats.format.get_series_repr_params()  # type: ignore
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = pandas.io.formats.format.get_series_repr_params()  # type: ignore
             if len(self._block.index_columns) == 0:
-                options.update({"index": False})
-            repr_string = pd_series.to_string(**options)
+                to_string_kwargs.update({"index": False})
+            repr_string = pd_series.to_string(**to_string_kwargs)
 
         return repr_string
 
@@ -390,10 +396,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 
+    @requires_index
     def droplevel(self, level: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(level)
         return Series(self._block.drop_levels(resolved_level_ids))
 
+    @requires_index
     def swaplevel(self, i: int = -2, j: int = -1):
         level_i = self._block.index_columns[i]
         level_j = self._block.index_columns[j]
@@ -403,6 +411,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ]
         return Series(self._block.reorder_levels(reordering))
 
+    @requires_index
     def reorder_levels(self, order: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(order)
         return Series(self._block.reorder_levels(resolved_level_ids))
@@ -581,6 +590,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block.select_column(result))
 
+    @requires_index
     def interpolate(self, method: str = "linear") -> Series:
         if method == "pad":
             return self.ffill()
@@ -1102,6 +1112,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return bigframes.dataframe.DataFrame(pivot_block)
 
+    @requires_index
     def idxmax(self) -> blocks.Label:
         block = self._block.order_by(
             [
@@ -1115,6 +1126,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.slice(0, 1)
         return indexes.Index(block).to_pandas()[0]
 
+    @requires_index
     def idxmin(self) -> blocks.Label:
         block = self._block.order_by(
             [
@@ -1224,6 +1236,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block)
 
+    @requires_index
     def sort_index(self, *, axis=0, ascending=True, na_position="last") -> Series:
         # TODO(tbergeron): Support level parameter once multi-index introduced.
         if na_position not in ["first", "last"]:
@@ -1284,6 +1297,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise TypeError("You have to supply one of 'by' and 'level'")
 
+    @requires_index
     def _groupby_level(
         self,
         level: int | str | typing.Sequence[int] | typing.Sequence[str],
@@ -1421,9 +1435,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         materialized_series = result_series._cached()
         return materialized_series
 
+    @requires_index
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))
 
+    @requires_index
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
 
@@ -1475,6 +1491,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise ValueError("Need to provide 'items', 'like', or 'regex'")
 
+    @requires_index
     def reindex(self, index=None, *, validate: typing.Optional[bool] = None):
         if validate and not self.index.is_unique:
             raise ValueError("Original index must be unique to reindex")
@@ -1503,6 +1520,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )._block
         return Series(result_block)
 
+    @requires_index
     def reindex_like(self, other: Series, *, validate: typing.Optional[bool] = None):
         return self.reindex(other.index, validate=validate)
 

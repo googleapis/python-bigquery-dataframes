@@ -760,7 +760,10 @@ class Session(
         # Create Default Sequential Index if still have no index
         # ----------------------------------------------------
 
-        if not index_col and len(index_cols) == 0:
+        # If no idnex columns provided or found, fall back to sequential index
+        if (index_col != bigframes.enums.DefaultIndexKind.NULL) and len(
+            index_cols
+        ) == 0:
             index_col = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
 
         index_names: Sequence[Hashable] = index_cols

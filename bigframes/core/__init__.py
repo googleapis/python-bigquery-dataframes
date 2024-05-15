@@ -464,7 +464,7 @@ class ArrayValue:
     ) -> typing.Optional[ArrayValue]:
         left_side = bigframes.core.rewrite.SquashedSelect.from_node(self.node)
         right_side = bigframes.core.rewrite.SquashedSelect.from_node(other.node)
-        result = left_side.merge(right_side, join_type, mappings)
+        result = left_side.maybe_merge(right_side, join_type, mappings)
         if result is not None:
             return ArrayValue(result.expand())
         return None

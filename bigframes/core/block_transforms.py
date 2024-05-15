@@ -824,7 +824,7 @@ def idxmax(block: blocks.Block) -> blocks.Block:
 def _idx_extrema(
     block: blocks.Block, min_or_max: typing.Literal["min", "max"]
 ) -> blocks.Block:
-    block._null_index_guard()
+    block._throw_if_null_index("idx")
     if len(block.index_columns) > 1:
         # TODO: Need support for tuple dtype
         raise NotImplementedError(

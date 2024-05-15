@@ -397,7 +397,7 @@ def scalars_df_empty_index(
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(
-        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.EMPTY
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
     ).sort_values("rowindex")
 
 

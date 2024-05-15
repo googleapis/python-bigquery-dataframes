@@ -114,7 +114,7 @@ class SquashedSelect:
             return False
         return True
 
-    def merge(
+    def maybe_merge(
         self,
         right: SquashedSelect,
         join_type: join_defs.JoinType,
@@ -207,7 +207,7 @@ def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
     left_side = SquashedSelect.from_node(join_node.left_child)
     right_side = SquashedSelect.from_node(join_node.right_child)
     if left_side.can_join(right_side, join_node.join):
-        merged = left_side.merge(
+        merged = left_side.maybe_merge(
             right_side, join_node.join.type, join_node.join.mappings
         )
         assert merged is not None

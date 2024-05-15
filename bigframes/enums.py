@@ -28,4 +28,4 @@ class DefaultIndexKind(enum.Enum):
     #: the index.
     SEQUENTIAL_INT64 = enum.auto()
     # A completely null index incapable of indexing or alignment.
-    EMPTY = enum.auto()
+    NULL = enum.auto()

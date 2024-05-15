@@ -249,7 +249,7 @@ def get_index_cols_and_uniqueness(
             # User has explicity asked for a default, sequential index.
             # Use that, even if there are primary keys on the table.
             return [], False
-        if index_col == bigframes.enums.DefaultIndexKind.EMPTY:
+        if index_col == bigframes.enums.DefaultIndexKind.NULL:
             return [], False
         else:
             # Note: It's actually quite difficult to mock this out to unit
