@@ -1701,7 +1701,6 @@ class Session(
         Starts BigQuery query job and waits for results.
         """
         job_config = self._prepare_query_job_config(job_config)
-        print(sql)
         return bigframes.session._io.bigquery.start_query_with_client(
             self.bqclient, sql, job_config, max_results, timeout
         )

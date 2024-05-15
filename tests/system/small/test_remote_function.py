@@ -724,7 +724,7 @@ def test_df_apply_axis_1(session, scalars_dfs):
     )
 
 
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_ordering(session, scalars_dfs):
     columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
     ordering_columns = ["bool_col", "int64_col"]
