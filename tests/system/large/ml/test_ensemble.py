@@ -46,9 +46,10 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_xgbregressor_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_xgbregressor_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
 
 
@@ -97,9 +98,10 @@ def test_xgbregressor_dart_booster_multiple_params(
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_xgbregressor_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_xgbregressor_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
     assert reloaded_model.booster == "DART"
     assert reloaded_model.dart_normalized_type == "TREE"
@@ -146,9 +148,10 @@ def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_xgbclassifier_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_xgbclassifier_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
 
 
@@ -196,9 +199,10 @@ def test_xgbclassifier_dart_booster_multiple_params(
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_xgbclassifier_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_xgbclassifier_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
     assert reloaded_model.booster == "DART"
     assert reloaded_model.dart_normalized_type == "TREE"
@@ -246,9 +250,10 @@ def test_randomforestregressor_default_params(penguins_df_default_index, dataset
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_randomforestregressor_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_randomforestregressor_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
 
 
@@ -292,9 +297,10 @@ def test_randomforestregressor_multiple_params(penguins_df_default_index, datase
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_randomforestregressor_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_randomforestregressor_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
     assert reloaded_model.tree_method == "AUTO"
     assert reloaded_model.colsample_bytree == 0.95
@@ -338,16 +344,18 @@ def test_randomforestclassifier_default_params(penguins_df_default_index, datase
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_randomforestclassifier_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_randomforestclassifier_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
 
 
 @pytest.mark.flaky(retries=2)
 def test_randomforestclassifier_multiple_params(penguins_df_default_index, dataset_id):
+    # TODO(b/340888645): fix type error
     model = bigframes.ml.ensemble.RandomForestClassifier(
-        tree_method="AUTO",
+        tree_method="AUTO",  # type: ignore
         min_tree_child_weight=2,
         colsample_bytree=0.95,
         colsample_bylevel=0.95,
@@ -383,9 +391,10 @@ def test_randomforestclassifier_multiple_params(penguins_df_default_index, datas
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_randomforestclassifier_model", replace=True
     )
+    # TODO(b/340888645): fix type error
     assert (
         f"{dataset_id}.temp_configured_randomforestclassifier_model"
-        in reloaded_model._bqml_model.model_name
+        in reloaded_model._bqml_model.model_name  # type: ignore
     )
     assert reloaded_model.tree_method == "AUTO"
     assert reloaded_model.colsample_bytree == 0.95
