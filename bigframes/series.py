@@ -421,46 +421,65 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._apply_binary_op(right, right_op)
         )
 
+    def case_when(self, caselist) -> Series:
+        return self._apply_nary_op(
+            ops.case_when_op,
+            tuple(
+                itertools.chain(
+                    itertools.chain(*caselist),
+                    # Fallback to current value if no other matches.
+                    (
+                        # We make a Series with a constant value to avoid casts to
+                        # types other than boolean.
+                        Series(True, index=self.index, dtype=pandas.BooleanDtype()),
+                        self,
+                    ),
+                ),
+            ),
+            # Self is already included in "others".
+            ignore_self=True,
+        )
+
     def cumsum(self) -> Series:
         return self._apply_window_op(
-            agg_ops.sum_op, bigframes.core.window_spec.WindowSpec(following=0)
+            agg_ops.sum_op, bigframes.core.window_spec.cumulative_rows()
         )
 
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = bigframes.core.window_spec.WindowSpec(preceding=limit, following=0)
+        window = bigframes.core.window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     pad = ffill
     pad.__doc__ = inspect.getdoc(vendored_pandas_series.Series.ffill)
 
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = bigframes.core.window_spec.WindowSpec(preceding=0, following=limit)
+        window = bigframes.core.window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def cummax(self) -> Series:
         return self._apply_window_op(
-            agg_ops.max_op, bigframes.core.window_spec.WindowSpec(following=0)
+            agg_ops.max_op, bigframes.core.window_spec.cumulative_rows()
         )
 
     def cummin(self) -> Series:
         return self._apply_window_op(
-            agg_ops.min_op, bigframes.core.window_spec.WindowSpec(following=0)
+            agg_ops.min_op, bigframes.core.window_spec.cumulative_rows()
         )
 
     def cumprod(self) -> Series:
         return self._apply_window_op(
-            agg_ops.product_op, bigframes.core.window_spec.WindowSpec(following=0)
+            agg_ops.product_op, bigframes.core.window_spec.cumulative_rows()
         )
 
     def shift(self, periods: int = 1) -> Series:
-        window = bigframes.core.window_spec.WindowSpec(
+        window = bigframes.core.window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
     def diff(self, periods: int = 1) -> Series:
-        window = bigframes.core.window_spec.WindowSpec(
+        window = bigframes.core.window_spec.rows(
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
         )
@@ -947,7 +966,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
-            window_spec=bigframes.core.window_spec.WindowSpec(),
+            window_spec=bigframes.core.window_spec.unbound(),
         )
         block, is_mode_col_id = block.apply_binary_op(
             value_count_col_id,
@@ -1027,9 +1046,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if lower is None and upper is None:
             return self
         if lower is None:
-            return self._apply_binary_op(upper, ops.clipupper_op, alignment="left")
+            return self._apply_binary_op(upper, ops.minimum_op, alignment="left")
         if upper is None:
-            return self._apply_binary_op(lower, ops.cliplower_op, alignment="left")
+            return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
         value_id, lower_id, upper_id, block = self._align3(lower, upper)
         block, result_id = block.apply_ternary_op(
             value_id, lower_id, upper_id, ops.clip_op
@@ -1222,7 +1241,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = bigframes.core.window_spec.WindowSpec(
+        window_spec = bigframes.core.window_spec.rows(
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
@@ -1230,8 +1249,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        window_spec = bigframes.core.window_spec.WindowSpec(
-            following=0, min_periods=min_periods
+        window_spec = bigframes.core.window_spec.cumulative_rows(
+            min_periods=min_periods
         )
         return bigframes.core.window.Window(
             self._block, window_spec, self._block.value_columns, is_series=True
@@ -1363,6 +1382,38 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         reprojected_series = Series(self._block._force_reproject())
         result_series = reprojected_series._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
+        )
+
+        # return Series with materialized result so that any error in the remote
+        # function is caught early
+        materialized_series = result_series._cached()
+        return materialized_series
+
+    def combine(
+        self,
+        other,
+        func,
+    ) -> Series:
+        if not callable(func):
+            raise ValueError(
+                "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
+            )
+
+        if not hasattr(func, "bigframes_remote_function"):
+            # Keep this in sync with .apply
+            try:
+                return func(self, other)
+            except Exception as ex:
+                # This could happen if any of the operators in func is not
+                # supported on a Series. Let's guide the customer to use a
+                # remote function instead
+                if hasattr(ex, "message"):
+                    ex.message += f"\n{_remote_function_recommendation_message}"
+                raise
+
+        reprojected_series = Series(self._block._force_reproject())
+        result_series = reprojected_series._apply_binary_op(
+            other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
         # return Series with materialized result so that any error in the remote

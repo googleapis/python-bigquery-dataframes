@@ -17,12 +17,13 @@ from __future__ import annotations
 import dataclasses
 import functools
 import typing
-from typing import Tuple, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -46,7 +47,7 @@ class RowOp(typing.Protocol):
 
 
 @dataclasses.dataclass(frozen=True)
-class NaryOp:
+class ScalarOp:
     @property
     def name(self) -> str:
         raise NotImplementedError("RowOp abstract base class has no implementation")
@@ -60,10 +61,30 @@ class NaryOp:
         return False
 
 
+@dataclasses.dataclass(frozen=True)
+class NaryOp(ScalarOp):
+    def as_expr(
+        self,
+        *exprs: Union[str | bigframes.core.expression.Expression],
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[bigframes.core.expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+
+        return bigframes.core.expression.OpExpression(
+            self,
+            tuple(inputs),
+        )
+
+
 # These classes can be used to create simple ops that don't take local parameters
 # All is needed is a unique name, and to register an implementation in ibis_mappings.py
 @dataclasses.dataclass(frozen=True)
-class UnaryOp(NaryOp):
+class UnaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 1
@@ -79,7 +100,7 @@ class UnaryOp(NaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class BinaryOp(NaryOp):
+class BinaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 2
@@ -101,7 +122,7 @@ class BinaryOp(NaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class TernaryOp(NaryOp):
+class TernaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 3
@@ -367,6 +388,19 @@ class StartsWithOp(UnaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class StringSplitOp(UnaryOp):
+    name: typing.ClassVar[str] = "str_split"
+    pat: typing.Sequence[str]
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not isinstance(input_type, pd.StringDtype):
+            raise TypeError("field accessor input must be a string type")
+        arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_type)
+        return pd.ArrowDtype(pa.list_(arrow_type))
+
+
+@dataclasses.dataclass(frozen=True)
 class EndsWithOp(UnaryOp):
     name: typing.ClassVar[str] = "str_endswith"
     pat: typing.Sequence[str]
@@ -443,9 +477,7 @@ class StructFieldOp(UnaryOp):
             raise TypeError("field accessor input must be a struct type")
 
         pa_result_type = pa_type[self.name_or_index].type
-        # TODO: Directly convert from arrow to pandas type
-        ibis_result_type = dtypes.arrow_dtype_to_ibis_dtype(pa_result_type)
-        return dtypes.ibis_dtype_to_bigframes_dtype(ibis_result_type)
+        return dtypes.arrow_dtype_to_bigframes_dtype(pa_result_type)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -496,13 +528,34 @@ class MapOp(UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class ToDatetimeOp(UnaryOp):
     name: typing.ClassVar[str] = "to_datetime"
-    utc: bool = False
     format: typing.Optional[str] = None
     unit: typing.Optional[str] = None
 
     def output_type(self, *input_types):
-        timezone = "UTC" if self.utc else None
-        return pd.ArrowDtype(pa.timestamp("us", tz=timezone))
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz=None))
+
+
+@dataclasses.dataclass(frozen=True)
+class ToTimestampOp(UnaryOp):
+    name: typing.ClassVar[str] = "to_timestamp"
+    format: typing.Optional[str] = None
+    unit: typing.Optional[str] = None
+
+    def output_type(self, *input_types):
+        # Must be numeric or string
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -525,8 +578,8 @@ class FloorDtOp(UnaryOp):
 
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
-cliplower_op = create_binary_op(name="clip_lower", type_signature=op_typing.COERCE)
-clipupper_op = create_binary_op(name="clip_upper", type_signature=op_typing.COERCE)
+maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
+minimum_op = create_binary_op(name="minimum", type_signature=op_typing.COERCE)
 coalesce_op = create_binary_op(name="coalesce", type_signature=op_typing.COERCE)
 
 
@@ -565,6 +618,16 @@ class SubOp(BinaryOp):
             return dtypes.coerce_to_common(left_type, right_type)
         # TODO: Add temporal addition once delta types supported
         raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
+
+
+@dataclasses.dataclass(frozen=True)
+class BinaryRemoteFunctionOp(BinaryOp):
+    name: typing.ClassVar[str] = "binary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        return self.func.output_dtype
 
 
 add_op = AddOp()
@@ -655,27 +718,6 @@ class CaseWhenOp(NaryOp):
             output_expr_types,
         )
 
-    def as_expr(
-        self,
-        *case_output_pairs: Tuple[
-            Union[str | bigframes.core.expression.Expression],
-            Union[str | bigframes.core.expression.Expression],
-        ],
-    ) -> bigframes.core.expression.Expression:
-        import bigframes.core.expression
-
-        # Keep this in sync with output_type and compilers
-        inputs: list[bigframes.core.expression.Expression] = []
-
-        for case, output in case_output_pairs:
-            inputs.append(_convert_expr_input(case))
-            inputs.append(_convert_expr_input(output))
-
-        return bigframes.core.expression.OpExpression(
-            self,
-            tuple(inputs),
-        )
-
 
 case_when_op = CaseWhenOp()
 
@@ -714,4 +756,6 @@ NUMPY_TO_BINOP: typing.Final = {
     np.divide: div_op,
     np.power: pow_op,
     np.arctan2: arctan2_op,
+    np.maximum: maximum_op,
+    np.minimum: minimum_op,
 }

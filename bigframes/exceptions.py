@@ -35,5 +35,9 @@ class DefaultIndexWarning(Warning):
     """Default index may cause unexpected costs."""
 
 
+class PreviewWarning(Warning):
+    """The feature is in preview."""
+
+
 class NullIndexError(ValueError):
     """Object has no index."""

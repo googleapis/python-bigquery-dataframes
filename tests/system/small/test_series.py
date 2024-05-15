@@ -2565,6 +2565,36 @@ def test_between(scalars_df_index, scalars_pandas_df_index, left, right, inclusi
     )
 
 
+def test_case_when(scalars_df_index, scalars_pandas_df_index):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.2.0",
+        reason="case_when added in pandas 2.2.0",
+    )
+
+    bf_series = scalars_df_index["int64_col"]
+    pd_series = scalars_pandas_df_index["int64_col"]
+
+    # TODO(tswast): pandas case_when appears to assume True when a value is
+    # null. I suspect this should be considered a bug in pandas.
+    bf_result = bf_series.case_when(
+        [
+            ((bf_series > 100).fillna(True), 1000),
+            ((bf_series < -100).fillna(True), -1000),
+        ]
+    ).to_pandas()
+    pd_result = pd_series.case_when(
+        [
+            (pd_series > 100, 1000),
+            (pd_series < -100, -1000),
+        ]
+    )
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result.astype(pd.Int64Dtype()),
+    )
+
+
 def test_to_frame(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -3477,6 +3507,41 @@ def test_apply_numpy_ufunc(scalars_dfs, ufunc):
     pd_result = pd_col.apply(ufunc)
 
     assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("ufunc",),
+    [
+        pytest.param(numpy.add),
+        pytest.param(numpy.divide),
+    ],
+    ids=[
+        "add",
+        "divide",
+    ],
+)
+def test_combine_series_ufunc(scalars_dfs, ufunc):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"].dropna()
+    bf_result = bf_col.combine(bf_col, ufunc).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"].dropna()
+    pd_result = pd_col.combine(pd_col, ufunc)
+
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_combine_scalar_ufunc(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"].dropna()
+    bf_result = bf_col.combine(2.5, numpy.add).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"].dropna()
+    pd_result = pd_col.combine(2.5, numpy.add)
+
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_apply_simple_udf(scalars_dfs):
