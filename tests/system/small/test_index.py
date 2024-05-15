@@ -30,11 +30,12 @@ def test_index_construct_from_list():
 
 
 def test_index_construct_from_series():
+    # TODO(b/340878489): fix type error
     bf_result = bpd.Index(
         bpd.Series([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"),
         name="index_name",
         dtype=pd.Int64Dtype(),
-    ).to_pandas()
+    ).to_pandas()  # type: ignore
     # TODO(b/340878489): fix type error
     pd_result = pd.Index(  # type: ignore
         pd.Series([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"),
@@ -48,8 +49,9 @@ def test_index_construct_from_index():
     bf_index_input = bpd.Index(
         [3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"
     )
+    # TODO(b/340878489): fix type error
     bf_result = bpd.Index(
-        bf_index_input, dtype=pd.Int64Dtype(), name="index_name"
+        bf_index_input, dtype=pd.Int64Dtype(), name="index_name"  # type: ignore
     ).to_pandas()
     # TODO(b/340878489): fix type error
     pd_index_input = pd.Index([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name")  # type: ignore
