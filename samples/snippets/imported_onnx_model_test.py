@@ -13,32 +13,31 @@
 # limitations under the License.
 
 
-def test_imported_tensorflow_model() -> None:
+def test_imported_sklearn_onnx_model() -> None:
     # Determine project id, in this case prefer the one set in the environment
     # variable GOOGLE_CLOUD_PROJECT (if any)
     import os
 
     PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bigframes-dev")
 
-    # [START bigquery_dataframes_imported_tensorflow_tutorial_import_tensorflow_models]
+    # [START bigquery_dataframes_imported_sklearn_onnx_tutorial_import_onnx_models]
     import bigframes
-    from bigframes.ml.imported import TensorFlowModel
+    from bigframes.ml.imported import ONNXModel
 
     bigframes.options.bigquery.project = PROJECT_ID
     # You can change the location to one of the valid locations: https://cloud.google.com/bigquery/docs/locations#supported_locations
     bigframes.options.bigquery.location = "US"
 
-    imported_tensorflow_model = TensorFlowModel(
-        model_path="gs://cloud-training-demos/txtclass/export/exporter/1549825580/*"
+    imported_onnx_model = ONNXModel(
+        model_path="gs://cloud-samples-data/bigquery/ml/onnx/pipeline_rf.onnx"
     )
-    # [END bigquery_dataframes_imported_tensorflow_tutorial_import_tensorflow_models]
-    assert imported_tensorflow_model is not None
+    # [END bigquery_dataframes_imported_sklearn_onnx_tutorial_import_onnx_models]
+    assert imported_onnx_model is not None
 
-    # [START bigquery_dataframes_imported_tensorflow_tutorial_make_predictions]
+    # [START bigquery_dataframes_imported_sklearn_onnx_tutorial_make_predictions]
     import bigframes.pandas as bpd
 
-    df = bpd.read_gbq("bigquery-public-data.hacker_news.full")
-    df_pred = df.rename(columns={"title": "input"})
-    predictions = imported_tensorflow_model.predict(df_pred)
-    predictions.head(5)
-    # [END bigquery_dataframes_imported_tensorflow_tutorial_make_predictions]
+    df = bpd.read_gbq("bigquery-public-data.ml_datasets.iris")
+    predictions = imported_onnx_model.predict(df)
+    predictions.peek(5)
+    # [END bigquery_dataframes_imported_sklearn_onnx_tutorial_make_predictions]
