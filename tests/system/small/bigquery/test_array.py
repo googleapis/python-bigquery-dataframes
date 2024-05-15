@@ -123,7 +123,7 @@ def test_array_agg_reserve_order(ascending, expected_b, expected_c):
     )
 
 
-def assert_array_agg_matches_after_explode():
+def test_array_agg_matches_after_explode():
     data = {
         "index": np.arange(10),
         "a": [np.random.randint(0, 10, 10) for _ in range(10)],

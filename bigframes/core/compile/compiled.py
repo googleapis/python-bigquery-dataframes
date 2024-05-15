@@ -177,8 +177,7 @@ class BaseIbisIR(abc.ABC):
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> OrderedIR:
-        if not self.is_ordered_ir and len(order_by) > 0:
-            raise ValueError("Cannot apply 'order_by' to an UnorderedIR instance.")
+        assert not self.is_ordered_ir or len(order_by) > 0
 
         bindings = {col: table[col] for col in self.column_ids}
         stats = {
@@ -658,7 +657,19 @@ class OrderedIR(BaseIbisIR):
             OrderedIR
         """
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
-        order_by = self._ibis_order
+
+        all_columns = {
+            column_name: table[column_name]
+            for column_name in {
+                **self._column_names,
+                **self._hidden_ordering_column_names,
+            }
+        }
+        order_by = _convert_ordering_to_table_values(
+            all_columns,
+            self._ordering.all_ordering_columns,
+        )
+
         return self._aggregate_base(
             table,
             order_by=order_by,
