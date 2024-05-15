@@ -15,7 +15,7 @@
 import base64
 import decimal
 import functools
-from typing import Iterable, Optional, Set
+from typing import Iterable, Optional, Set, Union
 
 import geopandas as gpd  # type: ignore
 import google.api_core.operation
@@ -27,6 +27,23 @@ import pyarrow as pa  # type: ignore
 import pytest
 
 from bigframes.functions import remote_function
+
+ML_REGRESSION_METRICS = [
+    "mean_absolute_error",
+    "mean_squared_error",
+    "mean_squared_log_error",
+    "median_absolute_error",
+    "r2_score",
+    "explained_variance",
+]
+ML_CLASSFICATION_METRICS = [
+    "precision",
+    "recall",
+    "accuracy",
+    "f1_score",
+    "log_loss",
+    "roc_auc",
+]
 
 
 def skip_legacy_pandas(test):
@@ -247,6 +264,26 @@ def assert_pandas_df_equal_pca(actual, expected, **kwargs):
         except AssertionError:
             # Allow for sign difference per column
             pd.testing.assert_series_equal(-actual[column], expected[column], **kwargs)
+
+
+def check_pandas_df_schema_and_index(
+    actual: pd.DataFrame,
+    columns: Iterable,
+    index: Union[int, Iterable],
+    col_exact: bool = True,
+):
+    """Check pandas df schema and index. But not the values."""
+    if col_exact:
+        assert list(actual.columns) == list(columns)
+    else:
+        assert set(columns) <= set(actual.columns)
+
+    if isinstance(index, int):
+        assert len(actual) == index
+    elif isinstance(index, Iterable):
+        assert list(actual.index) == list(index)
+    else:
+        raise ValueError("Unsupported index type.")
 
 
 def get_remote_function_endpoints(
