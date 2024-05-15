@@ -51,17 +51,6 @@ def test_arima_plus_model_fit_score(
     result = arima_model.score(
         new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
     ).to_pandas()
-    # expected = pd.DataFrame(
-    #     {
-    #         "mean_absolute_error": [154.742547],
-    #         "mean_squared_error": [26844.868855],
-    #         "root_mean_squared_error": [163.844038],
-    #         "mean_absolute_percentage_error": [6.189702],
-    #         "symmetric_mean_absolute_percentage_error": [6.097155],
-    #     },
-    #     dtype="Float64",
-    # )
-    # expected = expected.reindex(index=expected.index.astype("Int64"))
     utils.check_pandas_df_schema_and_index(
         result,
         columns=[

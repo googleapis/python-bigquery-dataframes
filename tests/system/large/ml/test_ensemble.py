@@ -18,6 +18,7 @@ import bigframes.ml.ensemble
 from tests.system import utils
 
 
+@pytest.mark.flaky(retries=2)
 def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.XGBRegressor()
 
@@ -37,28 +38,9 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # expected = pandas.DataFrame(
-    #     {
-    #         "mean_absolute_error": [97.368139],
-    #         "mean_squared_error": [16284.877027],
-    #         "mean_squared_log_error": [0.0010189],
-    #         "median_absolute_error": [72.158691],
-    #         "r2_score": [0.974784],
-    #         "explained_variance": [0.974845],
-    #     },
-    #     dtype="Float64",
-    # )
-    # expected = expected.reindex(index=expected.index.astype("Int64"))
-    # pandas.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
-    eval_metrics = [
-        "mean_absolute_error",
-        "mean_squared_error",
-        "mean_squared_log_error",
-        "median_absolute_error",
-        "r2_score",
-        "explained_variance",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_REGRESSION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -70,7 +52,7 @@ def test_xgbregressor_default_params(penguins_df_default_index, dataset_id):
     )
 
 
-# @pytest.mark.flaky(retries=2)
+@pytest.mark.flaky(retries=2)
 def test_xgbregressor_dart_booster_multiple_params(
     penguins_df_default_index, dataset_id
 ):
@@ -107,25 +89,9 @@ def test_xgbregressor_dart_booster_multiple_params(
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "mean_absolute_error",
-    #     "mean_squared_error",
-    #     "mean_squared_log_error",
-    #     "median_absolute_error",
-    #     "r2_score",
-    #     "explained_variance",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "mean_absolute_error",
-        "mean_squared_error",
-        "mean_squared_log_error",
-        "median_absolute_error",
-        "r2_score",
-        "explained_variance",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_REGRESSION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -153,7 +119,7 @@ def test_xgbregressor_dart_booster_multiple_params(
     assert reloaded_model.n_estimators == 2
 
 
-# @pytest.mark.flaky(retries=2)
+@pytest.mark.flaky(retries=2)
 def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.XGBClassifier()
 
@@ -172,25 +138,9 @@ def test_xgbclassifier_default_params(penguins_df_default_index, dataset_id):
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "precision",
-    #     "recall",
-    #     "accuracy",
-    #     "f1_score",
-    #     "log_loss",
-    #     "roc_auc",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "precision",
-        "recall",
-        "accuracy",
-        "f1_score",
-        "log_loss",
-        "roc_auc",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_CLASSFICATION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -238,25 +188,9 @@ def test_xgbclassifier_dart_booster_multiple_params(
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "precision",
-    #     "recall",
-    #     "accuracy",
-    #     "f1_score",
-    #     "log_loss",
-    #     "roc_auc",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "precision",
-        "recall",
-        "accuracy",
-        "f1_score",
-        "log_loss",
-        "roc_auc",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_CLASSFICATION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -284,7 +218,7 @@ def test_xgbclassifier_dart_booster_multiple_params(
     assert reloaded_model.n_estimators == 2
 
 
-# @pytest.mark.flaky(retries=2)
+@pytest.mark.flaky(retries=2)
 def test_randomforestregressor_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestRegressor()
 
@@ -304,25 +238,9 @@ def test_randomforestregressor_default_params(penguins_df_default_index, dataset
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "mean_absolute_error",
-    #     "mean_squared_error",
-    #     "mean_squared_log_error",
-    #     "median_absolute_error",
-    #     "r2_score",
-    #     "explained_variance",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "mean_absolute_error",
-        "mean_squared_error",
-        "mean_squared_log_error",
-        "median_absolute_error",
-        "r2_score",
-        "explained_variance",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_REGRESSION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -334,7 +252,7 @@ def test_randomforestregressor_default_params(penguins_df_default_index, dataset
     )
 
 
-# @pytest.mark.flaky(retries=2)
+@pytest.mark.flaky(retries=2)
 def test_randomforestregressor_multiple_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestRegressor(
         tree_method="auto",
@@ -366,25 +284,9 @@ def test_randomforestregressor_multiple_params(penguins_df_default_index, datase
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "mean_absolute_error",
-    #     "mean_squared_error",
-    #     "mean_squared_log_error",
-    #     "median_absolute_error",
-    #     "r2_score",
-    #     "explained_variance",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "mean_absolute_error",
-        "mean_squared_error",
-        "mean_squared_log_error",
-        "median_absolute_error",
-        "r2_score",
-        "explained_variance",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_REGRESSION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -409,7 +311,7 @@ def test_randomforestregressor_multiple_params(penguins_df_default_index, datase
     assert reloaded_model.enable_global_explain is False
 
 
-# @pytest.mark.flaky(retries=2)
+@pytest.mark.flaky(retries=2)
 def test_randomforestclassifier_default_params(penguins_df_default_index, dataset_id):
     model = bigframes.ml.ensemble.RandomForestClassifier()
 
@@ -428,25 +330,9 @@ def test_randomforestclassifier_default_params(penguins_df_default_index, datase
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "precision",
-    #     "recall",
-    #     "accuracy",
-    #     "f1_score",
-    #     "log_loss",
-    #     "roc_auc",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "precision",
-        "recall",
-        "accuracy",
-        "f1_score",
-        "log_loss",
-        "roc_auc",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_CLASSFICATION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
@@ -489,25 +375,9 @@ def test_randomforestclassifier_multiple_params(penguins_df_default_index, datas
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
-    # TestCase().assertSequenceEqual(result.shape, (1, 6))
-    # for col_name in [
-    #     "precision",
-    #     "recall",
-    #     "accuracy",
-    #     "f1_score",
-    #     "log_loss",
-    #     "roc_auc",
-    # ]:
-    #     assert col_name in result.columns
-    eval_metrics = [
-        "precision",
-        "recall",
-        "accuracy",
-        "f1_score",
-        "log_loss",
-        "roc_auc",
-    ]
-    utils.check_pandas_df_schema_and_index(result, columns=eval_metrics, index=1)
+    utils.check_pandas_df_schema_and_index(
+        result, columns=utils.ML_CLASSFICATION_METRICS, index=1
+    )
 
     # save, load, check parameters to ensure configuration was kept
     reloaded_model = model.to_gbq(
