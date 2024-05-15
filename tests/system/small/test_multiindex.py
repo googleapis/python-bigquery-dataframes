@@ -1189,9 +1189,10 @@ def test_explode_w_multi_index():
 
     df = bpd.DataFrame(data, columns=multi_level_columns)
     pd_df = df.to_pandas()
+    # TODO(b/340884387): fix type error
     pandas.testing.assert_frame_equal(
         df["col0"].explode("col00").to_pandas(),
-        pd_df["col0"].explode("col00"),
+        pd_df["col0"].explode("col00"),  # type: ignore
         check_dtype=False,
         check_index_type=False,
     )
