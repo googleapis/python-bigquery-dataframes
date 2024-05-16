@@ -40,6 +40,7 @@ import bigframes.core as core
 import bigframes.core.compile
 import bigframes.core.guid as guid
 import bigframes.core.ordering as order
+import bigframes.core.sql
 import bigframes.dtypes
 import bigframes.session._io.bigquery
 import bigframes.session.clients
@@ -175,25 +176,14 @@ def are_index_cols_unique(
 
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
     # table_expression only selects just index_cols.
-    distinct_table = table_expression.select(*index_cols).distinct()
-    is_unique_sql = f"""WITH full_table AS (
-        {ibis_client.compile(table_expression)}
-    ),
-    distinct_table AS (
-        {ibis_client.compile(distinct_table)}
-    )
-
-    SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,
-    (SELECT COUNT(*) FROM distinct_table) AS `distinct_count`
-    """
+    table_sql = ibis_client.compile(table)
+    is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table_sql)
     job_config = bigquery.QueryJobConfig()
     job_config.labels["bigframes-api"] = api_name
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
-    total_count = row["total_count"]
-    distinct_count = row["distinct_count"]
-    return total_count == distinct_count
+    return row["total_count"] == row["distinct_count"]
 
 
 def _get_primary_keys(

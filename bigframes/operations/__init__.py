@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -490,7 +491,8 @@ class AsTypeOp(UnaryOp):
         if self.to_type == pa.string():
             return dtypes.STRING_DTYPE
         if isinstance(self.to_type, str):
-            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[self.to_type]
+            # TODO(b/340895446): fix type error
+            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[self.to_type]  # type: ignore
         return self.to_type
 
 
@@ -512,7 +514,8 @@ class RemoteFunctionOp(UnaryOp):
 
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        return self.func.output_dtype
+        # TODO(b/340895446): fix type error
+        return self.func.output_dtype  # type: ignore
 
 
 @dataclasses.dataclass(frozen=True)
@@ -527,13 +530,34 @@ class MapOp(UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class ToDatetimeOp(UnaryOp):
     name: typing.ClassVar[str] = "to_datetime"
-    utc: bool = False
     format: typing.Optional[str] = None
     unit: typing.Optional[str] = None
 
     def output_type(self, *input_types):
-        timezone = "UTC" if self.utc else None
-        return pd.ArrowDtype(pa.timestamp("us", tz=timezone))
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz=None))
+
+
+@dataclasses.dataclass(frozen=True)
+class ToTimestampOp(UnaryOp):
+    name: typing.ClassVar[str] = "to_timestamp"
+    format: typing.Optional[str] = None
+    unit: typing.Optional[str] = None
+
+    def output_type(self, *input_types):
+        # Must be numeric or string
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -605,7 +629,8 @@ class BinaryRemoteFunctionOp(BinaryOp):
 
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        return self.func.output_dtype
+        # TODO(b/340895446): fix type error
+        return self.func.output_dtype  # type: ignore
 
 
 add_op = AddOp()
