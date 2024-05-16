@@ -103,8 +103,8 @@ class GBQIOMixin:
             ...             filters=filters,
             ...         )
             >>> df.head(1)
-                     pitcherFirstName	pitcherLastName     year	pitchSpeed
-            0	                 John	           Gant	    2016            82
+              pitcherFirstName pitcherLastName  year  pitchSpeed
+            0             John            Gant  2016          80
             <BLANKLINE>
             [1 rows x 4 columns]
 
