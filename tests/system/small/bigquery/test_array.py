@@ -57,7 +57,7 @@ def test_array_agg_w_series_groupby(input_data, output_data):
 
     expected = bpd.Series(output_data, index=["a", "b", "c"])
     pd.testing.assert_series_equal(
-        result.to_pandas(),
+        result.to_pandas(),  # type: ignore
         expected.to_pandas(),
     )
 
@@ -79,15 +79,17 @@ def test_array_agg_w_dataframe_groupby():
     expected = bpd.DataFrame(expected_data).set_index("b")
 
     pd.testing.assert_frame_equal(
-        result.to_pandas(),
+        result.to_pandas(),  # type: ignore
         expected.to_pandas(),
     )
 
 
 def test_array_agg_w_series():
     series = bpd.Series([1, 2, 3, 4, 5], index=["a", "a", "b", "b", "c"])
+    # Mypy error expected: array_agg currently incompatible with Series.
+    # Test for coverage.
     with pytest.raises(ValueError):
-        bbq.array_agg(series)
+        bbq.array_agg(series)  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -118,7 +120,7 @@ def test_array_agg_reserve_order(ascending, expected_b, expected_c):
     expected = bpd.DataFrame(expected_data).set_index("a")
 
     pd.testing.assert_frame_equal(
-        result.to_pandas(),
+        result.to_pandas(),  # type: ignore
         expected.to_pandas(),
     )
 
@@ -134,6 +136,6 @@ def test_array_agg_matches_after_explode():
     result.index.name = "index"
 
     pd.testing.assert_frame_equal(
-        result.to_pandas(),
+        result.to_pandas(),  # type: ignore
         df.to_pandas(),
     )
