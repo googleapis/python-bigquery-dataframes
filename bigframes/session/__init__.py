@@ -62,6 +62,7 @@ import google.cloud.storage as storage  # type: ignore
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
 import ibis.expr.types as ibis_types
+import jellyfish
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -680,22 +681,40 @@ class Session(
             cache=self._df_snapshot,
             use_cache=use_cache,
         )
+        table_column_names = {field.name for field in table.schema}
 
         if table.location.casefold() != self._location.casefold():
             raise ValueError(
                 f"Current session is in {self._location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
-        # ----------------------------------------
-        # Convert index_col into a list of columns
-        # ----------------------------------------
+        for key in columns:
+            if key not in table_column_names:
+                possibility = min(
+                    table_column_names,
+                    key=lambda item: jellyfish.levenshtein_distance(key, item),
+                )
+                raise ValueError(
+                    f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
+                )
 
-        # This requires the table metadata because we might use the primary
-        # keys when constructing the index.
+        # Converting index_col into a list of column names requires
+        # the table metadata because we might use the primary keys
+        # when constructing the index.
         index_cols = bf_read_gbq_table.get_index_cols(
             table=table,
             index_col=index_col,
         )
+
+        for key in index_cols:
+            if key not in table_column_names:
+                possibility = min(
+                    table_column_names,
+                    key=lambda item: jellyfish.levenshtein_distance(key, item),
+                )
+                raise ValueError(
+                    f"Column '{key}' of `index_col` not found in this table. Did you mean '{possibility}'?"
+                )
 
         # -----------------------------
         # Optionally, execute the query
@@ -749,18 +768,6 @@ class Session(
             time_travel_timestamp=time_travel_timestamp,
         )
 
-        for key in columns:
-            if key not in table_expression.columns:
-                raise ValueError(
-                    f"Column '{key}' of `columns` not found in this table."
-                )
-
-        for key in index_cols:
-            if key not in table_expression.columns:
-                raise ValueError(
-                    f"Column `{key}` of `index_col` not found in this table."
-                )
-
         # ----------------------------
         # Create ordering and validate
         # ----------------------------
@@ -774,7 +781,6 @@ class Session(
             bqclient=self.bqclient,
             ibis_client=self.ibis_client,
             table=table,
-            table_expression=table_expression,
             index_cols=index_cols,
             api_name=api_name,
         )

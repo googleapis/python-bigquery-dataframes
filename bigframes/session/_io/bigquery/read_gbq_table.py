@@ -164,7 +164,6 @@ def are_index_cols_unique(
     bqclient: bigquery.Client,
     ibis_client: ibis.BaseBackend,
     table: bigquery.table.Table,
-    table_expression: ibis_types.Table,
     index_cols: List[str],
     api_name: str,
 ) -> bool:

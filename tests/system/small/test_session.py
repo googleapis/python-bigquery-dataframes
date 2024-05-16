@@ -14,6 +14,7 @@
 
 import io
 import random
+import re
 import tempfile
 import textwrap
 import time
@@ -68,15 +69,6 @@ def test_read_gbq_tokyo(
             ["my_strings"],
             id="one_cols_in_query",
         ),
-        pytest.param(
-            "{scalars_table_id}",
-            ["unknown"],
-            marks=pytest.mark.xfail(
-                raises=ValueError,
-                reason="Column `unknown` not found in this table.",
-            ),
-            id="unknown_col",
-        ),
     ],
 )
 def test_read_gbq_w_columns(
@@ -89,6 +81,38 @@ def test_read_gbq_w_columns(
         query_or_table.format(scalars_table_id=scalars_table_id), columns=columns
     )
     assert df.columns.tolist() == columns
+
+
+def test_read_gbq_w_unknown_column(
+    session: bigframes.Session,
+    scalars_table_id: str,
+):
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Column 'int63_col' of `columns` not found in this table. Did you mean 'int64_col'?"
+        ),
+    ):
+        session.read_gbq(
+            scalars_table_id,
+            columns=["string_col", "int63_col", "bool_col"],
+        )
+
+
+def test_read_gbq_w_unknown_index_col(
+    session: bigframes.Session,
+    scalars_table_id: str,
+):
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Column 'int64_two' of `index_col` not found in this table. Did you mean 'int64_too'?"
+        ),
+    ):
+        session.read_gbq(
+            scalars_table_id,
+            index_col=["int64_col", "int64_two"],
+        )
 
 
 @pytest.mark.parametrize(
