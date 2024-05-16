@@ -119,6 +119,22 @@ def test_empty_index_groupby_analytic(
     )
 
 
+def test_empty_index_stack(scalars_df_empty_index, scalars_pandas_df_default_index):
+    stacking_cols = ["int64_col", "int64_too"]
+    bf_result = scalars_df_empty_index[stacking_cols].stack().to_pandas()
+    pd_result = (
+        scalars_pandas_df_default_index[stacking_cols]
+        .stack(future_stack=True)
+        .droplevel(level=0, axis=0)
+    )
+    pd_result.index = pd_result.index.astype(bf_result.index.dtype)
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_dtype=False,
+    )
+
+
 def test_empty_index_series_self_aligns(
     scalars_df_empty_index, scalars_pandas_df_default_index
 ):

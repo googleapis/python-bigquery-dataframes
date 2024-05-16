@@ -2402,6 +2402,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
+    @requires_index
     def unstack(self, level: LevelsType = -1):
         if not utils.is_list_like(level):
             level = [level]

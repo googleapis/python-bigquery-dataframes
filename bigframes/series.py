@@ -1089,6 +1089,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
+    @requires_index
     def unstack(self, level: LevelsType = -1):
         if isinstance(level, int) or isinstance(level, str):
             level = [level]

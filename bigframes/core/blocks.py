@@ -121,10 +121,10 @@ class Block:
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
         if len(index_columns) == 0:
-            raise bigframes.exceptions.PreviewWarning(
-                "Creating object with Null Index. This feature is in preview."
+            warnings.warn(
+                "Creating object with Null Index. Null Index is a preview feature.",
+                category=bigframes.exceptions.PreviewWarning,
             )
-
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
         self._index_labels = (
@@ -1086,16 +1086,25 @@ class Block:
         aggregate_labels = self._get_labels_for_columns(
             [agg[0] for agg in aggregations]
         )
+
         names: typing.List[Label] = []
-        for by_col_id in by_column_ids:
-            if by_col_id in self.value_columns:
-                names.append(self.col_id_to_label[by_col_id])
-            else:
-                names.append(self.col_id_to_index_name[by_col_id])
+        if len(by_column_ids) == 0:
+            label_id = guid.generate_guid()
+            result_expr = result_expr.assign_constant(label_id, 0, pd.Int64Dtype())
+            index_columns = (label_id,)
+            names = [None]
+        else:
+            index_columns = tuple(by_column_ids)  # type: ignore
+            for by_col_id in by_column_ids:
+                if by_col_id in self.value_columns:
+                    names.append(self.col_id_to_label[by_col_id])
+                else:
+                    names.append(self.col_id_to_index_name[by_col_id])
+
         return (
             Block(
                 result_expr,
-                index_columns=by_column_ids,
+                index_columns=index_columns,
                 column_labels=aggregate_labels,
                 index_labels=names,
             ),
@@ -1248,11 +1257,12 @@ class Block:
             expr = self.expr.explode(column_ids)
 
         if ignore_index:
+            new_index_ids = guid.generate_guid()
             return Block(
-                expr.drop_columns(self.index_columns),
+                expr.drop_columns(self.index_columns).promote_offsets(new_index_ids),
                 column_labels=self.column_labels,
                 # Initiates default index creation using the block constructor.
-                index_columns=[],
+                index_columns=[new_index_ids],
             )
         else:
             return Block(

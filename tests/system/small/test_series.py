@@ -3683,10 +3683,10 @@ def test_series_explode_reserve_order(ignore_index, ordered):
 
     res = s.explode(ignore_index=ignore_index).to_pandas(ordered=ordered)
     pd_res = pd_s.explode(ignore_index=ignore_index).astype(pd.Int64Dtype())
+    pd_res.index = pd_res.index.astype(pd.Int64Dtype())
     pd.testing.assert_series_equal(
         res if ordered else res.sort_index(),
         pd_res,
-        check_index_type=False,
     )
 
 
