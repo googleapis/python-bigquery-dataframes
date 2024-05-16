@@ -71,6 +71,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
+        self._block.session._register_object(self)
 
     @property
     def dt(self) -> dt.DatetimeMethods:
@@ -1753,8 +1754,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         May generate many queries and take substantial time to execute.
         """
         # TODO: Move all this to session
-        new_expr = self._block.session._simplify_with_caching(self._block.expr)
-        self._set_block(self._block.swap_array_expr(new_expr))
+        self._block.session._simplify_with_caching(self._block.expr)
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:

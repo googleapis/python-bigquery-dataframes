@@ -1995,26 +1995,17 @@ class Block:
         )
 
     def cached(self, *, optimize_offsets=False, force: bool = False) -> Block:
-        """Write the block to a session table and create a new block object that references it."""
+        """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
         if (not force) and self.session._is_trivially_executable(self.expr):
             return self
         if optimize_offsets:
-            expr = self.session._cache_with_offsets(self.expr)
+            self.session._cache_with_offsets(self.expr)
         else:
-            expr = self.session._cache_with_cluster_cols(
+            self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
             )
-        return self.swap_array_expr(expr)
-
-    def swap_array_expr(self, expr: core.ArrayValue) -> Block:
-        # TODO: Validate schema unchanged
-        return Block(
-            expr,
-            index_columns=self.index_columns,
-            column_labels=self.column_labels,
-            index_labels=self.index.names,
-        )
+        return self
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
