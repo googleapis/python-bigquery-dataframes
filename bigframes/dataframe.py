@@ -2076,7 +2076,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             frame._block, frame._block.value_columns, qs=tuple(q) if multi_q else (q,)  # type: ignore
         )
         if multi_q:
-            return DataFrame(result.stack())
+            return DataFrame(result.stack()).droplevel(0)
         else:
             # Drop the last level, which contains q, unnecessary since only one q
             result = result.with_column_labels(result.column_labels.droplevel(-1))
