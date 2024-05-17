@@ -120,6 +120,7 @@ class Block:
                 raise ValueError(
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
+
         if len(index_columns) == 0:
             warnings.warn(
                 "Creating object with Null Index. Null Index is a preview feature.",
