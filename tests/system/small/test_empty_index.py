@@ -18,6 +18,7 @@ import pytest
 
 import bigframes.exceptions
 import bigframes.pandas as bpd
+from tests.system.utils import skip_legacy_pandas
 
 
 def test_empty_index_materialize(
@@ -97,6 +98,7 @@ def test_empty_index_groupby_aggregate(
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
+@skip_legacy_pandas
 def test_empty_index_analytic(scalars_df_empty_index, scalars_pandas_df_default_index):
     bf_result = scalars_df_empty_index["int64_col"].cumsum().to_pandas()
     pd_result = scalars_pandas_df_default_index["int64_col"].cumsum()
@@ -119,6 +121,7 @@ def test_empty_index_groupby_analytic(
     )
 
 
+@skip_legacy_pandas
 def test_empty_index_stack(scalars_df_empty_index, scalars_pandas_df_default_index):
     stacking_cols = ["int64_col", "int64_too"]
     bf_result = scalars_df_empty_index[stacking_cols].stack().to_pandas()
@@ -160,6 +163,16 @@ def test_empty_index_df_self_aligns(
     pd_result = (
         scalars_pandas_df_default_index[["int64_col", "float64_col"]]
         + scalars_pandas_df_default_index[["int64_col", "float64_col"]]
+    )
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(), pd_result.reset_index(drop=True), check_dtype=False
+    )
+
+
+def test_empty_index_df_concat(scalars_df_empty_index, scalars_pandas_df_default_index):
+    bf_result = bpd.concat([scalars_df_empty_index, scalars_df_empty_index])
+    pd_result = pd.concat(
+        [scalars_pandas_df_default_index, scalars_pandas_df_default_index]
     )
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(), pd_result.reset_index(drop=True), check_dtype=False
