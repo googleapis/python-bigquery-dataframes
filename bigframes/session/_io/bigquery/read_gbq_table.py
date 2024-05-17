@@ -170,7 +170,7 @@ def are_index_cols_unique(
     # If index_cols contain the primary_keys, the query engine assumes they are
     # provide a unique index.
     primary_keys = frozenset(_get_primary_keys(table))
-    if primary_keys <= frozenset(index_cols):
+    if (len(primary_keys) > 0) and primary_keys <= frozenset(index_cols):
         return True
 
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
