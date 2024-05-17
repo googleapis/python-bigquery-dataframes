@@ -1858,7 +1858,6 @@ class Session(
         )
         new_columns = [table_expression[column] for column in compiled_value.column_ids]
         new_hidden_columns = [table_expression["bigframes_offsets"]]
-        # TODO: Instead, keep session-wide map of cached results and automatically reuse
         cached_replacement = core.ArrayValue.from_ibis(
             self,
             table_expression,

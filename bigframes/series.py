@@ -1746,7 +1746,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._cached(force=True)
 
     def _cached(self, *, force: bool = True) -> Series:
-        self._set_block(self._block.cached(force=force))
+        self._block.cached(force=force)
         return self
 
     def _optimize_query_complexity(self):

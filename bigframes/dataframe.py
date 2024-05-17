@@ -3476,7 +3476,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         No-op if the dataframe represents a trivial transformation of an existing materialization.
         Force=True is used for BQML integration where need to copy data rather than use snapshot.
         """
-        self._set_block(self._block.cached(force=force))
+        self._block.cached(force=force)
         return self
 
     def _optimize_query_complexity(self):

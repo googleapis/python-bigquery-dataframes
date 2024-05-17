@@ -1994,18 +1994,17 @@ class Block:
             idx_labels,
         )
 
-    def cached(self, *, optimize_offsets=False, force: bool = False) -> Block:
+    def cached(self, *, optimize_offsets=False, force: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
         if (not force) and self.session._is_trivially_executable(self.expr):
-            return self
+            return
         if optimize_offsets:
             self.session._cache_with_offsets(self.expr)
         else:
             self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
             )
-        return self
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
@@ -2069,8 +2068,8 @@ class Block:
         # TODO(shobs): Replace direct SQL manipulation by structured expression
         # manipulation
         ordering_column_name = guid.generate_guid()
-        expr = self.session._cache_with_offsets(self.expr)
-        expr = expr.promote_offsets(ordering_column_name)
+        self.session._cache_with_offsets(self.expr)
+        expr = self.expr.promote_offsets(ordering_column_name)
         expr_sql = self.session._to_sql(expr)
 
         # Names of the columns to serialize for the row.
