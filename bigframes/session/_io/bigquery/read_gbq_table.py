@@ -175,8 +175,7 @@ def are_index_cols_unique(
 
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
     # table_expression only selects just index_cols.
-    table_sql = ibis_client.compile(table)
-    is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table_sql)
+    is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table.reference)
     job_config = bigquery.QueryJobConfig()
     job_config.labels["bigframes-api"] = api_name
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
