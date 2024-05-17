@@ -135,12 +135,12 @@ def select_table(table_ref: bigquery.TableReference):
     return textwrap.dedent(f"SELECT * FROM {table_reference(table_ref)}")
 
 
-def is_distinct_sql(columns: Iterable[str], table_sql: str) -> str:
+def is_distinct_sql(columns: Iterable[str], table_ref: bigquery.TableReference) -> str:
     is_unique_sql = f"""WITH full_table AS (
-        {select_from_table_ref(columns, table_sql)}
+        {select_from_table_ref(columns, table_ref)}
     ),
     distinct_table AS (
-        {select_from_table_ref(columns, table_sql, distinct=True)}
+        {select_from_table_ref(columns, table_ref, distinct=True)}
     )
 
     SELECT (SELECT COUNT(*) FROM full_table) AS `total_count`,

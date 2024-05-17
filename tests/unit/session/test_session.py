@@ -200,6 +200,7 @@ def test_default_index_warning_raised_by_read_gbq(table):
     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
+    bqclient.query_and_wait.return_value = ({"total_count": 3, "distinct_count": 2},)
     session = resources.create_bigquery_session(bqclient=bqclient)
     table._properties["location"] = session._location
 
@@ -222,6 +223,7 @@ def test_default_index_warning_not_raised_by_read_gbq_index_col_sequential_int64
     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
+    bqclient.query_and_wait.return_value = ({"total_count": 4, "distinct_count": 3},)
     session = resources.create_bigquery_session(bqclient=bqclient)
     table._properties["location"] = session._location
 
