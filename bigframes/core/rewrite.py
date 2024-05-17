@@ -98,7 +98,7 @@ class SquashedSelect:
             self.root, self.columns, self.predicate, new_ordering, self.reverse_root
         )
 
-    def can_join(self, right: SquashedSelect, join_def: join_defs.JoinDefinition):
+    def can_join(self, right: SquashedSelect, join_def: join_defs.JoinDefinition) -> bool:
         if join_def.type == "cross":
             # Cannot convert cross join to projection
             return False
