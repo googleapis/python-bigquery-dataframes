@@ -340,9 +340,9 @@ class GroupBy:
             >>> df = bpd.DataFrame(data, index=['dog', 'dog', 'dog',
             ...                    'mouse', 'mouse', 'mouse', 'mouse'])
             >>> df.groupby(level=0).var()
-                        a          b
-            dog    4.000000  12.333333
-            mouse  4.916667   2.250000
+                          a          b
+            dog         4.0  12.333333
+            mouse  4.916667       2.25
             <BLANKLINE>
             [2 rows x 2 columns]
 
