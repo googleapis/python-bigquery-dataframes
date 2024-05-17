@@ -759,13 +759,18 @@ class Session(
         # TODO(b/340540991): If a dry run query fails with time travel but
         # succeeds without it, omit the time travel clause and raise a warning
         # about potential non-determinism if the underlying tables are modified.
-        table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
-            ibis_client=self.ibis_client,
-            table_ref=table_ref,
+        maybe_timestamp = (
+            None if table_ref.dataset_id.startswith("_") else time_travel_timestamp
+        )
+        sql = bf_read_gbq_table.get_time_travel_sql(
+            table_ref,
             index_cols=index_cols,
             columns=columns,
             filters=filters,
-            time_travel_timestamp=time_travel_timestamp,
+            time_travel_timestamp=maybe_timestamp,
+        )
+        table_expression = bf_read_gbq_table.validate_and_convert_to_ibis(
+            sql, self.ibis_client
         )
 
         # ----------------------------
@@ -795,8 +800,15 @@ class Session(
             # Note: Even though we're adding a default ordering here, that's
             # just so we have a deterministic total ordering. If the user
             # specified a non-unique index, we still sort by that later.
-            array_value = bf_read_gbq_table.to_array_value_with_default_ordering(
-                session=self, table=table_expression, table_rows=table.num_rows
+            hash_id = "bf_row_hash"
+            sql_w_hash = bf_io_bigquery.add_row_hash(subquery=sql, row_hash_id=hash_id)
+            table_expression_w_hash = bf_read_gbq_table.validate_and_convert_to_ibis(
+                sql_w_hash, self.ibis_client
+            )
+            array_value = bf_read_gbq_table.to_array_value_with_total_ordering(
+                session=self,
+                table_expression=table_expression_w_hash,
+                total_ordering_cols=[hash_id],
             )
 
         # ----------------------------------------------------

@@ -439,3 +439,22 @@ def to_query(
         f"FROM {sub_query}"
         f"{time_travel_clause}{where_clause}{limit_clause}"
     )
+
+
+def add_row_hash(subquery: str, row_hash_id: str) -> str:
+    return f"SELECT *, {row_hash_sql(row_hash_id)}" f"FROM ({subquery})"
+
+
+def row_hash_sql(hash_id: str) -> str:
+    """Constructs row hash"""
+    hash_prefix = bigframes.core.sql.simple_literal("_")
+    row_as_string = "TO_JSON_STRING(STRUCT(*))"
+    row_as_string_modified = bigframes.core.sql.infix_op(
+        "||", hash_prefix, row_as_string
+    )  # hash is only 64 bits, so we run again with prefix to get 128bits of uncorrelated hash
+    hash_part_1 = f"FARM_FINGERPRINT({row_as_string})"
+    hash_part_2 = f"FARM_FINGERPRINT({row_as_string_modified})"
+    hash_string_p1 = f"CAST({hash_part_1} as STRING FORMAT '0000000X')"
+    hash_string_p2 = f"CAST({hash_part_2} as STRING FORMAT '0000000X')"
+    final_hash = f"FROM_HEX({hash_string_p1} || {hash_string_p2})"
+    return f"{final_hash} as {bigframes.core.sql.identifier(hash_id)}"

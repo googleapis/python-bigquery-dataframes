@@ -20,25 +20,19 @@ import google.cloud.bigquery as bigquery
 
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 
-from .. import resources
 
-
-def test_get_ibis_time_travel_table_doesnt_timetravel_anonymous_datasets():
-    bqsession = resources.create_bigquery_session()
-
+def test_get_time_travel_table_doesnt_timetravel_anonymous_datasets():
     table_ref = bigquery.TableReference.from_string(
         "my-test-project._e8166e0cdb.anonbb92cd"
     )
 
-    table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
-        bqsession.ibis_client,
+    sql = bf_read_gbq_table.get_time_travel_sql(
         table_ref,
         index_cols=(),
         columns=(),
         filters=(),
         time_travel_timestamp=datetime.datetime.now(datetime.timezone.utc),
     )
-    sql = table_expression.compile()
 
     # Anonymous query results tables don't support time travel.
     assert "SYSTEM_TIME" not in sql
