@@ -179,6 +179,9 @@ def test_read_gbq_cached_table():
         return table
 
     session.bqclient.get_table = get_table_mock
+    session.bqclient.query_and_wait.return_value = (
+        {"total_count": 3, "distinct_count": 2},
+    )
 
     with pytest.warns(UserWarning, match=re.escape("use_cache=False")):
         df = session.read_gbq("my-project.my_dataset.my_table")
