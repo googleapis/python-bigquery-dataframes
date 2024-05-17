@@ -1018,11 +1018,11 @@ def remote_function(
 
     bq_connection_manager = None if session is None else session.bqconnectionmanager
 
-    def wrapper(f):
-        if not callable(f):
-            raise TypeError("f must be callable, got {}".format(f))
+    def wrapper(func):
+        if not callable(func):
+            raise TypeError("f must be callable, got {}".format(func))
 
-        signature = inspect.signature(f)
+        signature = inspect.signature(func)
         # TODO(b/340898611): fix type error
         ibis_signature = ibis_signature_from_python_signature(
             signature, input_types, output_type  # type: ignore
@@ -1043,7 +1043,7 @@ def remote_function(
         )
 
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
-            f,
+            func,
             ibis_signature.input_types,
             ibis_signature.output_type,
             reuse,
@@ -1058,19 +1058,20 @@ def remote_function(
 
         # TODO: Move ibis logic to compiler step
         node = ibis.udf.scalar.builtin(
-            f,
+            func,
             name=rf_name,
             schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
             signature=(ibis_signature.input_types, ibis_signature.output_type),
         )
-        node.bigframes_cloud_function = (
+        func.bigframes_cloud_function = (
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
-        node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
-        node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
+        func.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
+        func.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
             ibis_signature.output_type
         )
-        return node
+        func.ibis_node = node
+        return func
 
     return wrapper
 
