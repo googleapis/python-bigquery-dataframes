@@ -31,7 +31,6 @@ import pandas
 import pandas.core.dtypes.common
 import typing_extensions
 
-import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
@@ -296,14 +295,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         pd_series = pandas_df.iloc[:, 0]
 
-        with display_options.pandas_repr(opts):
-            import pandas.io.formats
+        import pandas.io.formats
 
-            # safe to mutate this, this dict is owned by this code, and does not affect global config
-            to_string_kwargs = pandas.io.formats.format.get_series_repr_params()  # type: ignore
-            if len(self._block.index_columns) == 0:
-                to_string_kwargs.update({"index": False})
-            repr_string = pd_series.to_string(**to_string_kwargs)
+        # safe to mutate this, this dict is owned by this code, and does not affect global config
+        to_string_kwargs = pandas.io.formats.format.get_series_repr_params()  # type: ignore
+        if len(self._block.index_columns) == 0:
+            to_string_kwargs.update({"index": False})
+        repr_string = pd_series.to_string(**to_string_kwargs)
 
         return repr_string
 
