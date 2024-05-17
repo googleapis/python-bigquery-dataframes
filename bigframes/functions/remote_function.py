@@ -1094,6 +1094,11 @@ def read_gbq_function(
             f"{constants.FEEDBACK_LINK}"
         )
 
+    if session:
+        ibis_client = session.ibis_client
+    else:
+        ibis_client = ibis.bigquery.connect(client=bigquery_client)
+
     try:
         routine_ref = get_routine_reference(function_name, bigquery_client, session)
     except DatasetMissingError:
@@ -1124,8 +1129,10 @@ def read_gbq_function(
     # non-standard names for the arguments here.
     def func(*ignored_args, **ignored_kwargs):
         f"""Remote function {str(routine_ref)}."""
-        # TODO(swast): Construct an ibis client from bigquery_client and
-        # execute node via a query.
+        nonlocal node  # type: ignore
+
+        expr = node(*ignored_args, **ignored_kwargs)  # type: ignore
+        return ibis_client.execute(expr)
 
     # TODO: Move ibis logic to compiler step
     func.__name__ = routine_ref.routine_id
