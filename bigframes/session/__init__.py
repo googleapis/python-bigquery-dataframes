@@ -805,7 +805,7 @@ class Session(
         # Create Default Sequential Index if still have no index
         # ----------------------------------------------------
 
-        # If no idnex columns provided or found, fall back to sequential index
+        # If no index columns provided or found, fall back to sequential index
         if (index_col != bigframes.enums.DefaultIndexKind.NULL) and len(
             index_cols
         ) == 0:
