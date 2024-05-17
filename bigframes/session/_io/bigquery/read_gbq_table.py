@@ -153,6 +153,7 @@ def validate_and_convert_to_ibis(
     sql: str, ibis_client: ibis.BaseBackend
 ) -> ibis_types.Table:
     try:
+        print(sql)
         return ibis_client.sql(sql)
     except google.api_core.exceptions.Forbidden as ex:
         # Ibis does a dry run to get the types of the columns from the SQL.

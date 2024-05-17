@@ -31,6 +31,7 @@ import google.cloud.bigquery as bigquery
 
 import bigframes
 from bigframes.core import log_adapter
+import bigframes.core.guid
 import bigframes.core.sql
 import bigframes.formatting_helpers as formatting_helpers
 
@@ -441,20 +442,27 @@ def to_query(
     )
 
 
-def add_row_hash(subquery: str, row_hash_id: str) -> str:
-    return f"SELECT *, {row_hash_sql(row_hash_id)}" f"FROM ({subquery})"
+def add_row_id(subquery: str) -> Tuple[str, Tuple[str, ...]]:
+    subquery_id = bigframes.core.guid.generate_guid("t_")
+    hash_id_1 = bigframes.core.guid.generate_guid("hash_")
+    hash_id_2 = bigframes.core.guid.generate_guid("hash_")
+    rand_id = bigframes.core.guid.generate_guid("rand_")
+
+    select_sql_exprs = []
+    select_sql_exprs.append(row_hash_sql(hash_id_1, subquery_id))
+    select_sql_exprs.append(row_hash_sql(hash_id_2, subquery_id, "*"))
+    select_sql_exprs.append(f"RAND() AS {bigframes.core.sql.identifier(rand_id)}")
+    result_sql = f"SELECT *, {', '.join(select_sql_exprs)}\nFROM ({subquery}) {bigframes.core.sql.identifier(subquery_id)}"
+    return result_sql, (hash_id_1, hash_id_2, rand_id)
 
 
-def row_hash_sql(hash_id: str) -> str:
+def row_hash_sql(hash_id: str, table_id: str, modifier: str = "") -> str:
     """Constructs row hash"""
     hash_prefix = bigframes.core.sql.simple_literal("_")
-    row_as_string = "TO_JSON_STRING(STRUCT(*))"
-    row_as_string_modified = bigframes.core.sql.infix_op(
-        "||", hash_prefix, row_as_string
-    )  # hash is only 64 bits, so we run again with prefix to get 128bits of uncorrelated hash
-    hash_part_1 = f"FARM_FINGERPRINT({row_as_string})"
-    hash_part_2 = f"FARM_FINGERPRINT({row_as_string_modified})"
-    hash_string_p1 = f"CAST({hash_part_1} as STRING FORMAT '0000000X')"
-    hash_string_p2 = f"CAST({hash_part_2} as STRING FORMAT '0000000X')"
-    final_hash = f"FROM_HEX({hash_string_p1} || {hash_string_p2})"
-    return f"{final_hash} as {bigframes.core.sql.identifier(hash_id)}"
+    row_as_string = f"TO_JSON_STRING(STRUCT({bigframes.core.sql.identifier(table_id)}))"
+    if modifier:
+        row_as_string = bigframes.core.sql.infix_op(
+            "||", hash_prefix, row_as_string
+        )  # hash is only 64 bits, so we run again with prefix to get 128bits of uncorrelated hash
+    hash_expr = f"FARM_FINGERPRINT({row_as_string})"
+    return f"{hash_expr} as {bigframes.core.sql.identifier(hash_id)}"

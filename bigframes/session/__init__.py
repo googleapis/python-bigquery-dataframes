@@ -799,15 +799,14 @@ class Session(
             # Note: Even though we're adding a default ordering here, that's
             # just so we have a deterministic total ordering. If the user
             # specified a non-unique index, we still sort by that later.
-            hash_id = "bf_row_hash"
-            sql_w_hash = bf_io_bigquery.add_row_hash(subquery=sql, row_hash_id=hash_id)
+            sql_w_hash, row_id_parts = bf_io_bigquery.add_row_id(subquery=sql)
             table_expression_w_hash = bf_read_gbq_table.validate_and_convert_to_ibis(
                 sql_w_hash, self.ibis_client
             )
             array_value = bf_read_gbq_table.to_array_value_with_total_ordering(
                 session=self,
                 table_expression=table_expression_w_hash,
-                total_ordering_cols=[hash_id],
+                total_ordering_cols=list(row_id_parts),
             )
 
         # ----------------------------------------------------
