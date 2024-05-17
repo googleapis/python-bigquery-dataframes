@@ -162,11 +162,12 @@ def get_ibis_time_travel_table(
 
 def are_index_cols_unique(
     bqclient: bigquery.Client,
-    ibis_client: ibis.BaseBackend,
     table: bigquery.table.Table,
     index_cols: List[str],
     api_name: str,
 ) -> bool:
+    if len(index_cols) == 0:
+        return False
     # If index_cols contain the primary_keys, the query engine assumes they are
     # provide a unique index.
     primary_keys = frozenset(_get_primary_keys(table))
