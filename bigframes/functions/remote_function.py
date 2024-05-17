@@ -1122,19 +1122,23 @@ def read_gbq_function(
 
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
-    def node(*ignored_args, **ignored_kwargs):
+    def func(*ignored_args, **ignored_kwargs):
         f"""Remote function {str(routine_ref)}."""
+        # TODO(swast): Construct an ibis client from bigquery_client and
+        # execute node via a query.
 
     # TODO: Move ibis logic to compiler step
-    node.__name__ = routine_ref.routine_id
+    func.__name__ = routine_ref.routine_id
+
     node = ibis.udf.scalar.builtin(
-        node,
+        func,
         name=routine_ref.routine_id,
         schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
-    node.bigframes_remote_function = str(routine_ref)  # type: ignore
-    node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(  # type: ignore
+    func.bigframes_remote_function = str(routine_ref)  # type: ignore
+    func.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
-    return node
+    func.ibis_node = node  # type: ignore
+    return func
