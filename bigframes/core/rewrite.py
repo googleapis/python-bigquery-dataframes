@@ -98,7 +98,9 @@ class SquashedSelect:
             self.root, self.columns, self.predicate, new_ordering, self.reverse_root
         )
 
-    def can_join(self, right: SquashedSelect, join_def: join_defs.JoinDefinition) -> bool:
+    def can_join(
+        self, right: SquashedSelect, join_def: join_defs.JoinDefinition
+    ) -> bool:
         if join_def.type == "cross":
             # Cannot convert cross join to projection
             return False
@@ -211,7 +213,10 @@ def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
             right_side, join_node.join.type, join_node.join.mappings
         )
         import bigframes.constants
-        assert (merged is not None), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com." 
+
+        assert (
+            merged is not None
+        ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."
         return merged.expand()
     else:
         return join_node
