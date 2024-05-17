@@ -212,8 +212,6 @@ def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
         merged = left_side.maybe_merge(
             right_side, join_node.join.type, join_node.join.mappings
         )
-        import bigframes.constants
-
         assert (
             merged is not None
         ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."

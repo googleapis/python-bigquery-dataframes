@@ -1912,9 +1912,25 @@ class Block:
         other: Block,
         *,
         how="left",
-        sort=False,
+        sort: bool = False,
         block_identity_join: bool = False,
     ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+        """
+        Join two blocks objects together, and provide mappings between source columns and output columns.
+
+        Args:
+            other (Block):
+                The right operand of the join operation
+            how (str):
+                Describes the join type. 'inner', 'outer', 'left', or 'right'
+            sort (bool):
+                if true will sort result by index
+            block_identity_join (bool):
+                If true, will not convert join to a projection (implicitly assuming unique indices)
+
+        Returns:
+            Block, (left_mapping, right_mapping): Result block and mappers from input column ids to result column ids.
+        """
 
         if not isinstance(other, Block):
             # TODO(swast): We need to improve this error message to be more
@@ -1932,8 +1948,8 @@ class Block:
         # Special case for null index,
         if (
             (self.index.nlevels == other.index.nlevels == 0)
-            and (sort is False)
-            and (block_identity_join is False)
+            and not sort
+            and not block_identity_join
         ):
             return join_indexless(self, other, how=how)
 

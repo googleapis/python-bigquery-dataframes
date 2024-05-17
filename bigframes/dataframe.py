@@ -1359,6 +1359,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         block = self._block
         if index is not None:
+            self._throw_if_null_index("drop(axis=0)")
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
