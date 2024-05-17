@@ -82,6 +82,7 @@ import bigframes.core.compile
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
+import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as traversals
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
@@ -558,7 +559,7 @@ class Session(
                 query,
                 index_cols,
                 columns,
-                filters,
+                bf_io_bigquery.compile_filters(filters) if filters else None,
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
@@ -674,6 +675,7 @@ class Session(
         # Fetch table metadata and validate
         # ---------------------------------
 
+        time_travel_timestamp: Optional[datetime.datetime] = None
         (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
@@ -735,7 +737,9 @@ class Session(
                 query,
                 index_cols=index_cols,
                 columns=columns,
-                filters=filters,
+                sql_predicate=bf_io_bigquery.compile_filters(filters)
+                if filters
+                else None,
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
@@ -754,19 +758,26 @@ class Session(
         # Create Ibis table expression and validate
         # -----------------------------------------
 
+        if table_ref.dataset_id.startswith("_"):
+            time_travel_timestamp = None
+
         # Use a time travel to make sure the DataFrame is deterministic, even
         # if the underlying table changes.
         # TODO(b/340540991): If a dry run query fails with time travel but
         # succeeds without it, omit the time travel clause and raise a warning
         # about potential non-determinism if the underlying tables are modified.
-        table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
-            ibis_client=self.ibis_client,
-            table_ref=table_ref,
+        sql = bf_io_bigquery.to_query(
+            f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
             index_cols=index_cols,
             columns=columns,
-            filters=filters,
+            sql_predicate=bf_io_bigquery.compile_filters(filters) if filters else None,
             time_travel_timestamp=time_travel_timestamp,
+            # If we've made it this far, we know we don't have any
+            # max_results to worry about, because in that case we will
+            # have executed a query with a LIMIT clause.
+            max_results=None,
         )
+        bf_read_gbq_table.validate_sql_through_ibis(sql, self.ibis_client)
 
         # ----------------------------
         # Create ordering and validate
@@ -783,20 +794,17 @@ class Session(
             index_cols=index_cols,
             api_name=api_name,
         )
-
-        if is_index_unique:
-            array_value = bf_read_gbq_table.to_array_value_with_total_ordering(
-                session=self,
-                table_expression=table_expression,
-                total_ordering_cols=index_cols,
-            )
-        else:
-            # Note: Even though we're adding a default ordering here, that's
-            # just so we have a deterministic total ordering. If the user
-            # specified a non-unique index, we still sort by that later.
-            array_value = bf_read_gbq_table.to_array_value_with_default_ordering(
-                session=self, table=table_expression, table_rows=table.num_rows
-            )
+        schema = schemata.ArraySchema.from_bq_table(table)
+        if columns:
+            schema = schema.select(index_cols + columns)
+        array_value = core.ArrayValue.from_table(
+            table,
+            schema=schema,
+            predicate=bf_io_bigquery.compile_filters(filters) if filters else None,
+            snapshot_time=time_travel_timestamp,
+            primary_key=index_cols if is_index_unique else (),
+            session=self,
+        )
 
         # ----------------------------------------------------
         # Create Block & default index if len(index_cols) == 0

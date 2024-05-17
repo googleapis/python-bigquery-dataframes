@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field, fields, replace
+import datetime
 import functools
 import itertools
 import typing
@@ -338,6 +339,57 @@ class ReadGbqNode(BigFrameNode):
     def relation_ops_created(self) -> int:
         # Assume worst case, where readgbq actually has baked in analytic operation to generate index
         return 2
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
+
+## Put ordering in here or just add order_by node above?
+@dataclass(frozen=True)
+class ReadTableNode(BigFrameNode):
+    project_id: str = field()
+    dataset_id: str = field()
+    table_id: str = field()
+    # pairs of name and type string
+    gbq_schema: Tuple[Tuple[str, str], ...] = field()
+    columns: schemata.ArraySchema = field()
+
+    table_session: bigframes.session.Session = field()
+    # Should this even be stored here?
+    # Empty tuple if no primary key (primary key can be any set of columns that together form a unique key)
+    # Empty if no known unique key
+    primary_key: Tuple[str, ...] = field()  # subset of schema
+    # indicates a primary key that is exactly offsets 0, 1, 2, ..., N-2, N-1
+    primary_key_sequential: bool = False
+    snapshot_time: typing.Optional[datetime.datetime] = None
+    # Added for backwards compatibility, not validated
+    sql_predicate: typing.Optional[str] = None
+
+    @property
+    def session(self):
+        return self.table_session
+
+    def __hash__(self):
+        return self._node_hash
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
+    @property
+    def schema(self) -> schemata.ArraySchema:
+        return self.columns
+
+    @property
+    def relation_ops_created(self) -> int:
+        # Assume worst case, where readgbq actually has baked in analytic operation to generate index
+        return 3
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return len(self.schema.items) + 1
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]

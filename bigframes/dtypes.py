@@ -181,6 +181,10 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
         ibis_dtypes.Decimal(precision=76, scale=38, nullable=True),
         pd.ArrowDtype(pa.decimal256(76, 38)),
     ),
+    (
+        ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
+        gpd.array.GeometryDtype(),
+    ),
 )
 
 BIGFRAMES_TO_IBIS: Dict[Dtype, ibis_dtypes.DataType] = {
@@ -212,9 +216,6 @@ IBIS_TO_BIGFRAMES.update(
 )
 IBIS_TO_BIGFRAMES.update(
     {
-        ibis_dtypes.GeoSpatial(
-            geotype="geography", srid=4326, nullable=True
-        ): gpd.array.GeometryDtype(),
         # TODO: Interval
     }
 )

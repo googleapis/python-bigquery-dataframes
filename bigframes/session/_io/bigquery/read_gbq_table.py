@@ -19,27 +19,21 @@ Private helpers for loading a BigQuery table as a BigQuery DataFrames DataFrame.
 from __future__ import annotations
 
 import datetime
-import itertools
 import typing
 from typing import Dict, Iterable, List, Optional, Tuple
 import warnings
 
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
-import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import ibis
 import ibis.backends
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes
 import bigframes.clients
 import bigframes.constants
-import bigframes.core as core
 import bigframes.core.compile
-import bigframes.core.guid as guid
-import bigframes.core.ordering as order
+import bigframes.core.compile.default_ordering
 import bigframes.core.sql
 import bigframes.dtypes
 import bigframes.session._io.bigquery
@@ -49,28 +43,6 @@ import bigframes.version
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
     import bigframes.session
-
-
-def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringValue:
-    col_type = column.type()
-    if (
-        col_type.is_numeric()
-        or col_type.is_boolean()
-        or col_type.is_binary()
-        or col_type.is_temporal()
-    ):
-        result = column.cast(ibis_dtypes.String(nullable=True))
-    elif col_type.is_geospatial():
-        result = typing.cast(ibis_types.GeoSpatialColumn, column).as_text()
-    elif col_type.is_string():
-        result = column
-    else:
-        # TO_JSON_STRING works with all data types, but isn't the most efficient
-        # Needed for JSON, STRUCT and ARRAY datatypes
-        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
-    # Escape backslashes and use backslash as delineator
-    escaped = typing.cast(ibis_types.StringColumn, result.fillna("")).replace("\\", "\\\\")  # type: ignore
-    return typing.cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
 
 
 def get_table_metadata(
@@ -126,12 +98,11 @@ def get_table_metadata(
     return cached_table
 
 
-def get_ibis_time_travel_table(
-    ibis_client: ibis.BaseBackend,
+def get_time_travel_sql(
     table_ref: bigquery.TableReference,
     index_cols: Iterable[str],
     columns: Iterable[str],
-    filters: third_party_pandas_gbq.FiltersType,
+    sql_predicate: Optional[str],
     time_travel_timestamp: Optional[datetime.datetime],
 ) -> ibis_types.Table:
     # If we have an anonymous query results table, it can't be modified and
@@ -139,20 +110,23 @@ def get_ibis_time_travel_table(
     if table_ref.dataset_id.startswith("_"):
         time_travel_timestamp = None
 
+    return bigframes.session._io.bigquery.to_query(
+        f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
+        index_cols=index_cols,
+        columns=columns,
+        sql_predicate=sql_predicate,
+        time_travel_timestamp=time_travel_timestamp,
+        # If we've made it this far, we know we don't have any
+        # max_results to worry about, because in that case we will
+        # have executed a query with a LIMI clause.
+        max_results=None,
+    )
+
+
+def validate_sql_through_ibis(sql: str, ibis_client: ibis.BaseBackend) -> None:
+    # TODO: May as well directly use BQ client for this
     try:
-        return ibis_client.sql(
-            bigframes.session._io.bigquery.to_query(
-                f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
-                index_cols=index_cols,
-                columns=columns,
-                filters=filters,
-                time_travel_timestamp=time_travel_timestamp,
-                # If we've made it this far, we know we don't have any
-                # max_results to worry about, because in that case we will
-                # have executed a query with a LIMI clause.
-                max_results=None,
-            )
-        )
+        ibis_client.sql(sql)
     except google.api_core.exceptions.Forbidden as ex:
         # Ibis does a dry run to get the types of the columns from the SQL.
         if "Drive credentials" in ex.message:
@@ -336,83 +310,3 @@ def get_time_travel_datetime_and_table_metadata(
     cached_table = (snapshot_timestamp, table)
     cache[table_ref] = cached_table
     return cached_table
-
-
-def to_array_value_with_total_ordering(
-    session: bigframes.session.Session,
-    table_expression: ibis_types.Table,
-    total_ordering_cols: List[str],
-) -> core.ArrayValue:
-    """Create an ArrayValue, assuming we already have a total ordering."""
-    ordering = order.ExpressionOrdering(
-        ordering_value_columns=tuple(
-            order.ascending_over(column_id) for column_id in total_ordering_cols
-        ),
-        total_ordering_columns=frozenset(total_ordering_cols),
-    )
-    column_values = [table_expression[col] for col in table_expression.columns]
-    return core.ArrayValue.from_ibis(
-        session,
-        table_expression,
-        columns=column_values,
-        hidden_ordering_columns=[],
-        ordering=ordering,
-    )
-
-
-def to_array_value_with_default_ordering(
-    session: bigframes.session.Session,
-    table: ibis_types.Table,
-    table_rows: Optional[int],
-) -> core.ArrayValue:
-    """Create an ArrayValue with a deterministic default ordering."""
-    # Since this might also be used as the index, don't use the default
-    # "ordering ID" name.
-
-    # For small tables, 64 bits is enough to avoid collisions, 128 bits will never ever collide no matter what
-    # Assume table is large if table row count is unknown
-    use_double_hash = (table_rows is None) or (table_rows == 0) or (table_rows > 100000)
-
-    ordering_hash_part = guid.generate_guid("bigframes_ordering_")
-    ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
-    ordering_rand_part = guid.generate_guid("bigframes_ordering_")
-
-    # All inputs into hash must be non-null or resulting hash will be null
-    str_values = list(
-        map(lambda col: _convert_to_nonnull_string(table[col]), table.columns)
-    )
-    full_row_str = (
-        str_values[0].concat(*str_values[1:]) if len(str_values) > 1 else str_values[0]
-    )
-    full_row_hash = full_row_str.hash().name(ordering_hash_part)
-    # By modifying value slightly, we get another hash uncorrelated with the first
-    full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
-    # Used to disambiguate between identical rows (which will have identical hash)
-    random_value = ibis.random().name(ordering_rand_part)
-
-    order_values = (
-        [full_row_hash, full_row_hash_p2, random_value]
-        if use_double_hash
-        else [full_row_hash, random_value]
-    )
-
-    original_column_ids = table.columns
-    table_with_ordering = table.select(
-        itertools.chain(original_column_ids, order_values)
-    )
-
-    ordering = order.ExpressionOrdering(
-        ordering_value_columns=tuple(
-            order.ascending_over(col.get_name()) for col in order_values
-        ),
-        total_ordering_columns=frozenset(col.get_name() for col in order_values),
-    )
-    columns = [table_with_ordering[col] for col in original_column_ids]
-    hidden_columns = [table_with_ordering[col.get_name()] for col in order_values]
-    return core.ArrayValue.from_ibis(
-        session,
-        table_with_ordering,
-        columns,
-        hidden_ordering_columns=hidden_columns,
-        ordering=ordering,
-    )

@@ -317,7 +317,7 @@ def test_to_query(
         query_or_table,
         index_cols=index_cols,
         columns=columns,
-        filters=filters,
+        sql_predicate=io_bq.compile_filters(filters),
         max_results=max_results,
         time_travel_timestamp=time_travel_timestamp,
     )
@@ -339,7 +339,7 @@ def test_to_query_fails_with_bad_filters(filters, expected_message):
             "test_table",
             index_cols=(),
             columns=(),
-            filters=filters,
+            sql_predicate=io_bq.compile_filters(filters),
             max_results=None,
             time_travel_timestamp=None,
         )

@@ -14,12 +14,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import datetime
 import functools
 import io
 import itertools
 import typing
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 
+import google.cloud.bigquery
 import ibis.expr.types as ibis_types
 import pandas
 import pyarrow as pa
@@ -89,6 +91,30 @@ class ArrayValue:
             iobytes.getvalue(),
             data_schema=schema,
             session=session,
+        )
+        return cls(node)
+
+    @classmethod
+    def from_table(
+        cls,
+        table: google.cloud.bigquery.Table,
+        schema: schemata.ArraySchema,
+        session: Session,
+        *,
+        predicate: Optional[str] = None,
+        snapshot_time: Optional[datetime.datetime] = None,
+        primary_key: Sequence[str] = (),
+    ):
+        node = nodes.ReadTableNode(
+            project_id=table.reference.project,
+            dataset_id=table.reference.dataset_id,
+            table_id=table.reference.table_id,
+            gbq_schema=tuple((i.name, i.field_type) for i in table.schema),
+            primary_key=tuple(primary_key),
+            columns=schema,
+            snapshot_time=snapshot_time,
+            table_session=session,
+            sql_predicate=predicate,
         )
         return cls(node)
 

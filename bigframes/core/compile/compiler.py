@@ -17,12 +17,18 @@ import functools
 import io
 import typing
 
+import ibis
+import ibis.backends
+import ibis.backends.bigquery
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
+import bigframes.core.compile.default_ordering as default_ordering
+import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
 import bigframes.core.nodes as nodes
+import bigframes.core.ordering as bf_ordering
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -86,6 +92,69 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
         return ordered_ir
     else:
         return ordered_ir.to_unordered()
+
+
+@_compile_node.register
+def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
+    full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
+    import bigframes.core.compile.schema_translator
+
+    ibis_schema = bigframes.core.compile.schema_translator.convert_bf_schema(
+        node.schema
+    )
+    if node.snapshot_time is not None or node.sql_predicate is not None:
+        import bigframes.session._io.bigquery
+
+        sql = bigframes.session._io.bigquery.to_query(
+            full_table_name,
+            columns=node.schema.names,
+            sql_predicate=node.sql_predicate,
+            time_travel_timestamp=node.snapshot_time,
+            # These parameters should not be used
+            index_cols=(),
+            max_results=None,
+        )
+        ibis_table = ibis.backends.bigquery.Backend().sql(schema=ibis_schema, query=sql)
+    else:
+        ibis_table = ibis.table(ibis_schema, full_table_name)
+
+    if ordered:
+        if node.primary_key:
+            ordering_value_columns = tuple(
+                bf_ordering.ascending_over(col) for col in node.primary_key
+            )
+            if node.primary_key_sequential:
+                integer_encoding = bf_ordering.IntegerEncoding(
+                    is_encoded=True, is_sequential=True
+                )
+            else:
+                integer_encoding = bf_ordering.IntegerEncoding()
+            ordering = bf_ordering.ExpressionOrdering(
+                ordering_value_columns,
+                integer_encoding=integer_encoding,
+                total_ordering_columns=frozenset(node.primary_key),
+            )
+            hidden_columns = ()
+        else:
+            ibis_table, ordering = default_ordering.gen_default_ordering(
+                ibis_table, use_double_hash=True
+            )
+            hidden_columns = tuple(
+                ibis_table[col]
+                for col in ibis_table.columns
+                if col not in node.schema.names
+            )
+        return compiled.OrderedIR(
+            ibis_table,
+            columns=tuple(ibis_table[col] for col in node.schema.names),
+            ordering=ordering,
+            hidden_ordering_columns=hidden_columns,
+        )
+    else:
+        return compiled.UnorderedIR(
+            ibis_table,
+            tuple(ibis_table[col] for col in node.schema.names),
+        )
 
 
 @_compile_node.register
