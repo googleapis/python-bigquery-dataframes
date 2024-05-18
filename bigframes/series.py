@@ -48,6 +48,7 @@ import bigframes.core.window_spec
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
+import bigframes.geopandas
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
@@ -83,6 +84,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def dtypes(self):
         return self._dtype
+
+    @property
+    def geo(self) -> bigframes.geopandas.GeoSeries:
+        """
+        Accessor object for geography properties of the Series values.
+
+        Returns:
+            bigframes.geopandas.GeoSeries:
+                An accessor containing geography methods.
+
+        """
+        return bigframes.geopandas.GeoSeries(self)
 
     @property
     def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
