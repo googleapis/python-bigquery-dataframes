@@ -1,4 +1,5 @@
 # Authors: Nicolas Tresegnie <nicolas.tresegnie@gmail.com>
+#          Sergey Feldman <sergeyfeldman@gmail.com>
 # License: BSD 3 clause
 
 from bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
@@ -6,8 +7,19 @@ from bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
 from bigframes import constants
 
 
-class Imputer(BaseEstimator, TransformerMixin):
-    """Imputation transformer for completing missing values.
+class _BaseImputer(TransformerMixin, BaseEstimator):
+    """Base class for all imputers.
+
+    It adds automatically support for `add_indicator`.
+    """
+
+
+class SimpleImputer(_BaseImputer):
+    """
+    Univariate imputer for completing missing values with simple strategies.
+
+    Replace missing values using a descriptive statistic (e.g. mean, median, or
+    most frequent) along each column, or using a constant value.
 
     Args:
         strategy ({'mean', 'median', 'most_frequent'}, default='mean'):

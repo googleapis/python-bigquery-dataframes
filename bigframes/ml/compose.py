@@ -40,7 +40,7 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
         "ML.BUCKETIZE": preprocessing.KBinsDiscretizer,
         "ML.QUANTILE_BUCKETIZE": preprocessing.KBinsDiscretizer,
         "ML.LABEL_ENCODER": preprocessing.LabelEncoder,
-        "ML.IMPUTER": preprocessing.Imputer,
+        "ML.IMPUTER": preprocessing.SimpleImputer,
     }
 )
 

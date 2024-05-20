@@ -20,10 +20,10 @@ from __future__ import annotations
 import typing
 from typing import Any, cast, List, Literal, Optional, Tuple, Union
 
+import bigframes_vendored.sklearn.impute._base
 import bigframes_vendored.sklearn.preprocessing._data
 import bigframes_vendored.sklearn.preprocessing._discretization
 import bigframes_vendored.sklearn.preprocessing._encoder
-import bigframes_vendored.sklearn.preprocessing._imputation
 import bigframes_vendored.sklearn.preprocessing._label
 
 from bigframes.core import log_adapter
@@ -417,12 +417,12 @@ class KBinsDiscretizer(
 
 
 @log_adapter.class_logger
-class Imputer(
+class SimpleImputer(
     base.Transformer,
-    bigframes_vendored.sklearn.preprocessing._imputation.Imputer,
+    bigframes_vendored.sklearn.impute._base.SimpleImputer,
 ):
 
-    __doc__ = bigframes_vendored.sklearn.preprocessing._imputation.Imputer.__doc__
+    __doc__ = bigframes_vendored.sklearn.impute._base.SimpleImputer.__doc__
 
     def __init__(
         self,
@@ -436,7 +436,7 @@ class Imputer(
     # TODO(garrettwu): implement __hash__
     def __eq__(self, other: Any) -> bool:
         return (
-            type(other) is Imputer
+            type(other) is SimpleImputer
             and self.strategy == other.strategy
             and self._bqml_model == other._bqml_model
         )
@@ -467,14 +467,14 @@ class Imputer(
         ]
 
     @classmethod
-    def _parse_from_sql(cls, sql: str) -> tuple[Imputer, str]:
-        """Parse SQL to tuple(Imputer, column_label).
+    def _parse_from_sql(cls, sql: str) -> tuple[SimpleImputer, str]:
+        """Parse SQL to tuple(SimpleImputer, column_label).
 
         Args:
             sql: SQL string of format "ML.IMPUTER({col_label}, {strategy}) OVER()"
 
         Returns:
-            tuple(Imputer, column_label)"""
+            tuple(SimpleImputer, column_label)"""
         s = sql[sql.find("(") + 1 : sql.find(")")]
         col_label, strategy = s.split(", ")
         return cls(strategy[1:-1]), col_label  # type: ignore
@@ -483,7 +483,7 @@ class Imputer(
         self,
         X: Union[bpd.DataFrame, bpd.Series],
         y=None,  # ignored
-    ) -> Imputer:
+    ) -> SimpleImputer:
         (X,) = utils.convert_to_dataframe(X)
 
         compiled_transforms = self._compile_to_sql(X.columns.tolist(), X)
@@ -765,5 +765,5 @@ PreprocessingType = Union[
     MinMaxScaler,
     KBinsDiscretizer,
     LabelEncoder,
-    Imputer,
+    SimpleImputer,
 ]
