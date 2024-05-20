@@ -25,7 +25,7 @@ def write_stream_bigtable(
     sql: str,
     instance: str,
     table: str,
-    bq_client: bigquery.Client = None,
+    bq_client: Optional[bigquery.Client] = None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
     overwrite: bool = False,
