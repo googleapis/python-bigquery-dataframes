@@ -123,11 +123,10 @@ def write_stream_bigtable(
 
     # override continuous http parameter
     job_config = bigquery.job.QueryJobConfig()
-    job_config = job_config.from_api_repr({"query": {"continuous": True}})
-    job_config.to_api_repr()
+    job_config_filled = job_config.from_api_repr({"query": {"continuous": True}})
 
     # begin the query job
-    query_job = bq_client.query(sql, job_config=job_config)
+    query_job = bq_client.query(sql, job_config=job_config_filled)
 
     # return the query job to the user for lifetime management
     return query_job
