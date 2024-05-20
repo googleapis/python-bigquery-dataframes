@@ -1042,6 +1042,21 @@ def remote_function(
             cloud_function_docker_repository,
         )
 
+        # In the unlikely case where the user is trying to re-deploy the same
+        # function, cleanup the attributes we add below, first. This prevents
+        # the pickle from having dependencies that might not otherwise be
+        # present such as ibis or pandas.
+        def try_delattr(attr):
+            try:
+                delattr(func, attr)
+            except AttributeError:
+                pass
+
+        try_delattr("bigframes_cloud_function")
+        try_delattr("bigframes_remote_function")
+        try_delattr("output_dtype")
+        try_delattr("ibis_node")
+
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
             func,
             ibis_signature.input_types,
