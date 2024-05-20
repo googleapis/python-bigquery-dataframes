@@ -123,12 +123,11 @@ def write_stream_bigtable(
 
     # override continuous http parameter
     job_config = bigquery.job.QueryJobConfig()
-    job_config_filled: bigquery.job.QueryJobConfig = job_config.from_api_repr(
-        {"query": {"continuous": True}}
-    )
+    job_config_filled = job_config.from_api_repr({"query": {"continuous": True}})
 
     # begin the query job
-    query_job = bq_client.query(sql, job_config=job_config_filled)
+    query_job = bq_client.query(sql, job_config=job_config_filled)  # type:ignore
+    # typing error is in bq client library (should accept abstract, only takes concrete)
 
     # return the query job to the user for lifetime management
     return query_job
