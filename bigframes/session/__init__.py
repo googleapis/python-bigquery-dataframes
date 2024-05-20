@@ -267,6 +267,7 @@ class Session(
         # at the same time in the same region
         self._session_id: str = "session" + secrets.token_hex(3)
         self._table_ids: List[str] = []
+        self._strict_ordering = context._strict_ordering
         # store table ids and delete them when the session is closed
 
     @property

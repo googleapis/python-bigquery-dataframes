@@ -51,6 +51,7 @@ import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
+from bigframes.core.api_helpers import requires_strict_ordering
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
@@ -276,10 +277,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.LocDataFrameIndexer(self)
 
     @property
+    @requires_strict_ordering()
     def iloc(self) -> indexers.ILocDataFrameIndexer:
         return indexers.ILocDataFrameIndexer(self)
 
     @property
+    @requires_strict_ordering()
     def iat(self) -> indexers.IatDataFrameIndexer:
         return indexers.IatDataFrameIndexer(self)
 
@@ -336,12 +339,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return len(self._block.index_columns) > 0
 
     @property
+    @requires_strict_ordering()
     def T(self) -> DataFrame:
         return DataFrame(self._get_block().transpose())
 
     @requires_index
+    @requires_strict_ordering()
     def transpose(self) -> DataFrame:
         return self.T
+
+    @property
+    def _strict_ordering(self) -> bool:
+        return self._session._strict_ordering
 
     def __len__(self):
         rows, _ = self.shape
@@ -1283,6 +1292,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def head(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[:n])
 
+    @requires_strict_ordering()
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
@@ -1317,6 +1327,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
         return maybe_result.set_axis(self._block.column_labels, axis=1, copy=False)
 
+    # enforce keep == all
+    @requires_strict_ordering()
     def nlargest(
         self,
         n: int,
@@ -1328,6 +1340,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nlargest(self._block, n, column_ids, keep=keep))
 
+    # enforce keep == all
+    @requires_strict_ordering()
     def nsmallest(
         self,
         n: int,
@@ -1490,6 +1504,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             labels = [mapper]
         return DataFrame(self._block.with_index_labels(labels))
 
+    @requires_strict_ordering()
     def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
         # Must be same object type, same column dtypes, and same label values
         if not isinstance(other, DataFrame):
@@ -1887,6 +1902,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
+    @requires_strict_ordering()
     @requires_index
     def interpolate(self, method: str = "linear") -> DataFrame:
         if method == "pad":
@@ -1912,10 +1928,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
         )
 
+    @requires_strict_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
+    @requires_strict_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
@@ -2181,13 +2199,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
     @requires_index
+    @requires_strict_ordering()
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
 
     @requires_index
+    @requires_strict_ordering()
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
 
+    @requires_strict_ordering()
     def melt(
         self,
         id_vars: typing.Optional[typing.Iterable[typing.Hashable]] = None,
@@ -2292,6 +2313,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     @requires_index
+    @requires_strict_ordering()
     def pivot(
         self,
         *,
@@ -2306,6 +2328,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._pivot(columns=columns, index=index, values=values)
 
     @requires_index
+    @requires_strict_ordering()
     def pivot_table(
         self,
         values: typing.Optional[
@@ -2366,6 +2389,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Sort and reorder.
         return pivoted[pivoted.columns.sort_values()]
 
+    @requires_strict_ordering()
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
             if level not in [0, -1, self.columns.name]:
@@ -2405,6 +2429,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     @requires_index
+    @requires_strict_ordering()
     def unstack(self, level: LevelsType = -1):
         if not utils.is_list_like(level):
             level = [level]
@@ -2615,6 +2640,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block, _ = self._block.join(other._block, how=how, block_identity_join=True)
         return DataFrame(block)
 
+    @requires_strict_ordering()
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_def = window_spec.rows(
@@ -2624,6 +2650,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block, window_def, self._block.value_columns
         )
 
+    @requires_strict_ordering()
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
         window = window_spec.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
@@ -2726,6 +2753,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     notnull = notna
     notnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.notna)
 
+    @requires_strict_ordering()
     def cumsum(self):
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
@@ -2738,6 +2766,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             window_spec.cumulative_rows(),
         )
 
+    @requires_strict_ordering()
     def cumprod(self) -> DataFrame:
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
@@ -2750,18 +2779,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             window_spec.cumulative_rows(),
         )
 
+    @requires_strict_ordering()
     def cummin(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.min_op,
             window_spec.cumulative_rows(),
         )
 
+    @requires_strict_ordering()
     def cummax(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.max_op,
             window_spec.cumulative_rows(),
         )
 
+    @requires_strict_ordering()
     def shift(self, periods: int = 1) -> DataFrame:
         window = window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -2769,6 +2801,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
+    @requires_strict_ordering()
     def diff(self, periods: int = 1) -> DataFrame:
         window = window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -2776,6 +2809,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
+    @requires_strict_ordering()
     def pct_change(self, periods: int = 1) -> DataFrame:
         # Future versions of pandas will not perfrom ffill automatically
         df = self.ffill()
@@ -2793,6 +2827,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(block.select_columns(result_ids))
 
+    @requires_strict_ordering()
     def sample(
         self,
         n: Optional[int] = None,
@@ -3528,6 +3563,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
+    @requires_strict_ordering()
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
         if not isinstance(other, (DataFrame, bf_series.Series)):
             raise NotImplementedError(
