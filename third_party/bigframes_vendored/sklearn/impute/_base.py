@@ -8,10 +8,7 @@ from bigframes import constants
 
 
 class _BaseImputer(TransformerMixin, BaseEstimator):
-    """Base class for all imputers.
-
-    It adds automatically support for `add_indicator`.
-    """
+    """Base class for all imputers."""
 
 
 class SimpleImputer(_BaseImputer):
@@ -40,7 +37,7 @@ class SimpleImputer(_BaseImputer):
                 Ignored.
 
         Returns:
-            KBinsDiscretizer: Fitted scaler.
+            SimpleImputer: Fitted scaler.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

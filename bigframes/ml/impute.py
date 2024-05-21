@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Transformers for missing value imputation. This module is styled after
-scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html."""
+scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/impute.html."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class SimpleImputer(
 
         Args:
             columns:
-                a list of column names to transform
+                A list of column names to transform.
             X:
                 The Dataframe with training data.
 
@@ -88,7 +88,7 @@ class SimpleImputer(
             tuple(SimpleImputer, column_label)"""
         s = sql[sql.find("(") + 1 : sql.find(")")]
         col_label, strategy = s.split(", ")
-        return cls(strategy[1:-1]), col_label  # type: ignore
+        return cls(strategy[1:-1]), col_label  # type: ignore[arg-type]
 
     def fit(
         self,
