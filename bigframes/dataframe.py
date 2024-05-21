@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import functools
 import inspect
 import re
 import sys
@@ -42,6 +43,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+import pandas.io.formats.format
 import tabulate
 
 import bigframes
@@ -85,6 +87,15 @@ ERROR_IO_REQUIRES_WILDCARD = (
     "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
     f"{constants.FEEDBACK_LINK}"
 )
+
+
+def requires_index(meth):
+    @functools.wraps(meth)
+    def guarded_meth(df: DataFrame, *args, **kwargs):
+        df._throw_if_null_index(meth.__name__)
+        return meth(df, *args, **kwargs)
+
+    return guarded_meth
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -180,6 +191,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else:
                 self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
         self._query_job: Optional[bigquery.QueryJob] = None
+        self._block.session._register_object(self)
 
     def __dir__(self):
         return dir(type(self)) + [
@@ -244,6 +256,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return results
 
     @property
+    @requires_index
     def index(
         self,
     ) -> indexes.Index:
@@ -259,6 +272,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self.index.name = value.name if hasattr(value, "name") else None
 
     @property
+    @requires_index
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
 
@@ -271,6 +285,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.IatDataFrameIndexer(self)
 
     @property
+    @requires_index
     def at(self) -> indexers.AtDataFrameIndexer:
         return indexers.AtDataFrameIndexer(self)
 
@@ -318,9 +333,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._get_block().expr.session
 
     @property
+    def _has_index(self) -> bool:
+        return len(self._block.index_columns) > 0
+
+    @property
     def T(self) -> DataFrame:
         return DataFrame(self._get_block().transpose())
 
+    @requires_index
     def transpose(self) -> DataFrame:
         return self.T
 
@@ -613,7 +633,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
-            repr_string = repr(pandas_df)
+            import pandas.io.formats
+
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not self._has_index:
+                to_string_kwargs.update({"index": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
 
         # Modify the end of the string to reflect count.
         lines = repr_string.split("\n")
@@ -813,15 +841,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         # join columns schema
         # indexers will be none for exact match
-        columns, lcol_indexer, rcol_indexer = self.columns.join(
-            other.columns, how=how, return_indexers=True
-        )
+        if self.columns.equals(other.columns):
+            columns, lcol_indexer, rcol_indexer = self.columns, None, None
+        else:
+            columns, lcol_indexer, rcol_indexer = self.columns.join(
+                other.columns, how=how, return_indexers=True
+            )
 
         binop_result_ids = []
 
         column_indices = zip(
             lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (lcol_indexer is not None) else range(len(columns)),
+            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
         )
 
         for left_index, right_index in column_indices:
@@ -1329,6 +1360,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         block = self._block
         if index is not None:
+            self._throw_if_null_index("drop(axis=0)")
             level_id = self._resolve_levels(level or 0)[0]
 
             if utils.is_list_like(index):
@@ -1603,6 +1635,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
+    @requires_index
     def sort_index(
         self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
     ) -> DataFrame:
@@ -1804,6 +1837,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if columns is not None:
             return self._reindex_columns(columns)
 
+    @requires_index
     def _reindex_rows(
         self,
         index,
@@ -1850,9 +1884,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result_df.columns = new_column_index
         return result_df
 
+    @requires_index
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
+    @requires_index
     def interpolate(self, method: str = "linear") -> DataFrame:
         if method == "pad":
             return self.ffill()
@@ -2044,14 +2080,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if multi_q:
             return DataFrame(result.stack()).droplevel(0)
         else:
-            result_df = (
-                DataFrame(result)
-                .stack(list(range(0, frame.columns.nlevels)))
-                .droplevel(0)
+            # Drop the last level, which contains q, unnecessary since only one q
+            result = result.with_column_labels(result.column_labels.droplevel(-1))
+            result, index_col = result.create_constant(q, None)
+            result = result.set_index([index_col])
+            return bigframes.series.Series(
+                result.transpose(original_row_index=pandas.Index([q]))
             )
-            result_series = bigframes.series.Series(result_df._block)
-            result_series.name = q
-            return result_series
 
     def std(
         self, axis: typing.Union[str, int] = 0, *, numeric_only: bool = False
@@ -2146,9 +2181,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     aggregate = agg
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
+    @requires_index
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
 
+    @requires_index
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
 
@@ -2255,6 +2292,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
+    @requires_index
     def pivot(
         self,
         *,
@@ -2268,6 +2306,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
+    @requires_index
     def pivot_table(
         self,
         values: typing.Optional[
@@ -2366,6 +2405,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
+    @requires_index
     def unstack(self, level: LevelsType = -1):
         if not utils.is_list_like(level):
             level = [level]
@@ -2613,6 +2653,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             raise TypeError("You have to supply one of 'by' and 'level'")
 
+    @requires_index
     def _groupby_level(
         self,
         level: LevelsType,
@@ -3475,7 +3516,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         No-op if the dataframe represents a trivial transformation of an existing materialization.
         Force=True is used for BQML integration where need to copy data rather than use snapshot.
         """
-        self._set_block(self._block.cached(force=force))
+        self._block.cached(force=force)
         return self
 
     def _optimize_query_complexity(self):
@@ -3483,8 +3524,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         May generate many queries and take substantial time to execute.
         """
         # TODO: Move all this to session
-        new_expr = self._session._simplify_with_caching(self._block.expr)
-        self._set_block(self._block.swap_array_expr(new_expr))
+        self._session._simplify_with_caching(self._block.expr)
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
@@ -3578,3 +3618,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.dot(other)
 
     __matmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__matmul__)
+
+    def _throw_if_null_index(self, opname: str):
+        if not self._has_index:
+            raise bigframes.exceptions.NullIndexError(
+                f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
+            )
