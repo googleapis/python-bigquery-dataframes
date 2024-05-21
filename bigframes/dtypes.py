@@ -281,6 +281,10 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.Integer):
         return pd.Int64Dtype()
 
+    # Temporary: Will eventually support an explicit json type instead of casting to string.
+    if isinstance(ibis_dtype, ibis_dtypes.JSON):
+        return STRING_DTYPE
+
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     elif isinstance(ibis_dtype, ibis_dtypes.Decimal):

@@ -22,6 +22,8 @@ import itertools
 import typing
 from typing import Callable, Tuple
 
+import google.cloud.bigquery as bq
+
 import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.join_def import JoinColumnMapping, JoinDefinition, JoinSide
@@ -352,8 +354,9 @@ class ReadTableNode(BigFrameNode):
     project_id: str = field()
     dataset_id: str = field()
     table_id: str = field()
-    # pairs of name and type string
-    gbq_schema: Tuple[Tuple[str, str], ...] = field()
+
+    physical_schema: Tuple[bq.SchemaField, ...] = field()
+    # Subset of physical schema columns, with chosen BQ types
     columns: schemata.ArraySchema = field()
 
     table_session: bigframes.session.Session = field()

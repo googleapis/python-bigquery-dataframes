@@ -210,6 +210,7 @@ def start_query_with_client(
         )
 
     try:
+        print(sql)
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
     except google.api_core.exceptions.Forbidden as ex:
         if "Drive credentials" in ex.message:

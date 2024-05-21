@@ -109,7 +109,7 @@ class ArrayValue:
             project_id=table.reference.project,
             dataset_id=table.reference.dataset_id,
             table_id=table.reference.table_id,
-            gbq_schema=tuple((i.name, i.field_type) for i in table.schema),
+            physical_schema=tuple(table.schema),
             primary_key=tuple(primary_key),
             columns=schema,
             snapshot_time=snapshot_time,
