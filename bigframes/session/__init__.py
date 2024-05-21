@@ -776,12 +776,15 @@ class Session(
         try:
             self._start_query(sql, job_config=dry_run_config)
         except google.api_core.exceptions.NotFound:
+            # note that a notfound caused by a simple typo will be
+            # caught above when the metadata is fetched, not here
             time_travel_timestamp = None
             warnings.warn(
                 "NotFound error when reading table with time travel."
                 " Attempting query without time travel. Warning: Without"
                 " time travel, modifications to the underlying table may"
-                " result in errors or unexpected behavior."
+                " result in errors or unexpected behavior.",
+                category=bigframes.exceptions.TimeTravelDisabledWarning,
             )
 
         table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
