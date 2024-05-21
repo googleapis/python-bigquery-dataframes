@@ -19,7 +19,7 @@ class SimpleImputer(_BaseImputer):
     Univariate imputer for completing missing values with simple strategies.
 
     Replace missing values using a descriptive statistic (e.g. mean, median, or
-    most frequent) along each column, or using a constant value.
+    most frequent) along each column.
 
     Args:
         strategy ({'mean', 'median', 'most_frequent'}, default='mean'):
