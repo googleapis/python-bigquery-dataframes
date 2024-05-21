@@ -426,6 +426,39 @@ class GroupBy:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def kurtosis(
+        self,
+        *,
+        numeric_only: bool = False,
+    ):
+        """
+        Return unbiased kurtosis over requested axis.
+
+        Kurtosis obtained using Fisher's definition of
+        kurtosis (kurtosis of normal == 0.0). Normalized by N-1.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> lst = ['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b']
+            >>> ser = bpd.Series([0, 1, 1, 0, 0, 1, 2, 4, 5], index=lst)
+            >>> ser.groupby(level=0).kurtosis()
+            a        -6.0
+            b   -1.963223
+            dtype: Float64
+
+        Args:
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            Series or DataFrame
+                Variance of values within each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def sum(
         self,
         numeric_only: bool = False,
@@ -887,8 +920,6 @@ class GroupBy:
 
         **Examples:**
 
-        For SeriesGroupBy:
-
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
@@ -980,6 +1011,38 @@ class SeriesGroupBy(GroupBy):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def aggregate(self, func):
+        """
+        Aggregate using one or more operations.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
+            >>> s.groupby(level=0).aggregate(['min', 'max'])
+               min  max
+            1    1    2
+            2    3    4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            func : function, str, list, dict or None
+                Function to use for aggregating the data.
+
+                Accepted combinations are:
+
+                - string function name
+                - list of function names, e.g. ``['sum', 'mean']``
+
+        Returns:
+            Series or DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def nunique(self):
         """
         Return number of unique elements in the group.
@@ -1022,6 +1085,54 @@ class DataFrameGroupBy(GroupBy):
         The aggregation is for each column.
 
             >>> df.groupby('A').agg('min')
+                B         C
+            A
+            1  1  0.227877
+            2  3  -0.56286
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            func (function, str, list, dict or None):
+                Function to use for aggregating the data.
+
+                Accepted combinations are:
+
+                - string function name
+                - list of function names, e.g. ``['sum', 'mean']``
+                - dict of axis labels -> function names or list of such.
+                - None, in which case ``**kwargs`` are used with Named Aggregation. Here the
+                  output has one column for each element in ``**kwargs``. The name of the
+                  column is keyword, whereas the value determines the aggregation used to compute
+                  the values in the column.
+
+            kwargs
+                If ``func`` is None, ``**kwargs`` are used to define the output names and
+                aggregations via Named Aggregation. See ``func`` entry.
+
+        Returns:
+            DataFrame
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def aggregate(self, func, **kwargs):
+        """
+        Aggregate using one or more operations.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> data = {"A": [1, 1, 2, 2],
+            ...         "B": [1, 2, 3, 4],
+            ...         "C": [0.362838, 0.227877, 1.267767, -0.562860]}
+            >>> df = bpd.DataFrame(data)
+
+        The aggregation is for each column.
+
+            >>> df.groupby('A').aggregate('min')
                 B         C
             A
             1  1  0.227877
