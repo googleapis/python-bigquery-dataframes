@@ -29,6 +29,7 @@ import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -36,6 +37,7 @@ import test_utils.prefixer
 
 import bigframes
 import bigframes.dataframe
+import bigframes.pandas as bpd
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -392,6 +394,16 @@ def scalars_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_empty_index(
+    scalars_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
 def scalars_df_2_default_index(
     scalars_df_2_index: bigframes.dataframe.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
@@ -612,6 +624,18 @@ def new_penguins_pandas_df():
             "sex": ["MALE", "FEMALE", "FEMALE"],
         }
     ).set_index("tag_number")
+
+
+@pytest.fixture(scope="session")
+def missing_values_penguins_df():
+    """Additional data matching the missing values penguins dataset"""
+    return bpd.DataFrame(
+        {
+            "culmen_length_mm": [39.5, 38.5, 37.9],
+            "culmen_depth_mm": [np.nan, 17.2, 18.1],
+            "flipper_length_mm": [np.nan, 181.0, 188.0],
+        }
+    )
 
 
 @pytest.fixture(scope="session")
