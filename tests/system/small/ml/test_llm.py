@@ -303,10 +303,17 @@ def test_embedding_generator_predict_series_success(
     assert len(value) == 768
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    ("gemini-1.5-flash-preview-0514",),
+    # ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+)
 def test_create_gemini_text_generator_model(
-    gemini_text_generator_model, dataset_id, bq_connection
+    dataset_id, model_name, session, bq_connection
 ):
-    # Model creation doesn't return error
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
     assert gemini_text_generator_model is not None
     assert gemini_text_generator_model._bqml_model is not None
 
@@ -316,8 +323,14 @@ def test_create_gemini_text_generator_model(
     )
     assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
     assert reloaded_model.connection_name == bq_connection
+    assert reloaded_model.model_name == model_name
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    ("gemini-1.5-flash-preview-0514",),
+    # ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+)
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
     gemini_text_generator_model, llm_text_df
@@ -329,6 +342,11 @@ def test_gemini_text_generator_predict_default_params_success(
     assert all(series.str.len() > 20)
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    ("gemini-1.5-flash-preview-0514",),
+    # ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+)
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
     gemini_text_generator_model, llm_text_df
