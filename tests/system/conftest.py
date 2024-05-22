@@ -392,6 +392,16 @@ def scalars_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_empty_index(
+    scalars_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
 def scalars_df_2_default_index(
     scalars_df_2_index: bigframes.dataframe.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
@@ -1040,7 +1050,7 @@ def floats_pd():
         dtype=pd.Float64Dtype(),
     )
     # Index helps debug failed cases
-    df.index = df.float64_col
+    df.index = df.float64_col  # type: ignore
     # Upload fails if index name same as column name
     df.index.name = None
     return df.float64_col
@@ -1050,7 +1060,7 @@ def floats_pd():
 def floats_product_pd(floats_pd):
     df = pd.merge(floats_pd, floats_pd, how="cross")
     # Index helps debug failed cases
-    df = df.set_index([df.float64_col_x, df.float64_col_y])
+    df = df.set_index([df.float64_col_x, df.float64_col_y])  # type: ignore
     df.index.names = ["left", "right"]
     return df
 

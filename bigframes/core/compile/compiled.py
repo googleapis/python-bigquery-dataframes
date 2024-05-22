@@ -16,9 +16,8 @@ from __future__ import annotations
 import abc
 import functools
 import itertools
-import textwrap
 import typing
-from typing import Collection, Iterable, Literal, Optional, Sequence
+from typing import Collection, Literal, Optional, Sequence
 
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
@@ -40,6 +39,7 @@ from bigframes.core.ordering import (
     OrderingExpression,
 )
 import bigframes.core.schema as schemata
+import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
@@ -102,6 +102,12 @@ class BaseIbisIR(abc.ABC):
     def _ibis_bindings(self) -> dict[str, ibis_types.Value]:
         return {col: self._get_ibis_column(col) for col in self.column_ids}
 
+    @property
+    @abc.abstractmethod
+    def is_ordered_ir(self: T) -> bool:
+        """Whether it is a OrderedIR or UnorderedIR."""
+        ...
+
     @abc.abstractmethod
     def filter(self: T, predicate: ex.Expression) -> T:
         """Filter the table on a given expression, the predicate must be a boolean expression."""
@@ -163,6 +169,53 @@ class BaseIbisIR(abc.ABC):
             bigframes.dtypes.ibis_dtype_to_bigframes_dtype(ibis_type),
         )
 
+    def _aggregate_base(
+        self,
+        table: ibis_types.Table,
+        order_by: typing.Sequence[ibis_types.Value] = [],
+        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]] = [],
+        by_column_ids: typing.Sequence[str] = (),
+        dropna: bool = True,
+    ) -> OrderedIR:
+        assert not self.is_ordered_ir or len(order_by) > 0
+
+        bindings = {col: table[col] for col in self.column_ids}
+        stats = {
+            col_out: agg_compiler.compile_aggregate(
+                aggregate, bindings, order_by=order_by
+            )
+            for aggregate, col_out in aggregations
+        }
+        if by_column_ids:
+            result = table.group_by(by_column_ids).aggregate(**stats)
+            # Must have deterministic ordering, so order by the unique "by" column
+            ordering = ExpressionOrdering(
+                tuple([ascending_over(column_id) for column_id in by_column_ids]),
+                total_ordering_columns=frozenset(by_column_ids),
+            )
+            columns = tuple(result[key] for key in result.columns)
+            expr = OrderedIR(result, columns=columns, ordering=ordering)
+            if dropna:
+                for column_id in by_column_ids:
+                    expr = expr._filter(expr._get_ibis_column(column_id).notnull())
+            return expr
+        else:
+            aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
+            result = table.aggregate(**aggregates)
+            # Ordering is irrelevant for single-row output, but set ordering id regardless
+            # as other ops(join etc.) expect it.
+            # TODO: Maybe can make completely empty
+            ordering = ExpressionOrdering(
+                ordering_value_columns=tuple([]),
+                total_ordering_columns=frozenset([]),
+            )
+            return OrderedIR(
+                result,
+                columns=[result[col_id] for col_id in [*stats.keys()]],
+                hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
+                ordering=ordering,
+            )
+
 
 # Ibis Implementations
 class UnorderedIR(BaseIbisIR):
@@ -173,6 +226,10 @@ class UnorderedIR(BaseIbisIR):
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         super().__init__(table, columns, predicates)
+
+    @property
+    def is_ordered_ir(self) -> bool:
+        return False
 
     def builder(self):
         """Creates a mutable builder for expressions."""
@@ -310,44 +367,17 @@ class UnorderedIR(BaseIbisIR):
         Apply aggregations to the expression.
         Arguments:
             aggregations: input_column_id, operation, output_column_id tuples
-            by_column_id: column id of the aggregation key, this is preserved through the transform
+            by_column_ids: column ids of the aggregation key, this is preserved through
+              the transform
             dropna: whether null keys should be dropped
+        Returns:
+            OrderedIR: the grouping key is a unique-valued column and has ordering
+              information.
         """
         table = self._to_ibis_expr()
-        bindings = {col: table[col] for col in self.column_ids}
-        stats = {
-            col_out: agg_compiler.compile_aggregate(aggregate, bindings)
-            for aggregate, col_out in aggregations
-        }
-        if by_column_ids:
-            result = table.group_by(by_column_ids).aggregate(**stats)
-            # Must have deterministic ordering, so order by the unique "by" column
-            ordering = ExpressionOrdering(
-                tuple([ascending_over(column_id) for column_id in by_column_ids]),
-                total_ordering_columns=frozenset(by_column_ids),
-            )
-            columns = tuple(result[key] for key in result.columns)
-            expr = OrderedIR(result, columns=columns, ordering=ordering)
-            if dropna:
-                for column_id in by_column_ids:
-                    expr = expr._filter(expr._get_ibis_column(column_id).notnull())
-            # Can maybe remove this as Ordering id is redundant as by_column is unique after aggregation
-            return expr._project_offsets()
-        else:
-            aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
-            result = table.aggregate(**aggregates)
-            # Ordering is irrelevant for single-row output, but set ordering id regardless as other ops(join etc.) expect it.
-            # TODO: Maybe can make completely empty
-            ordering = ExpressionOrdering(
-                ordering_value_columns=tuple([]),
-                total_ordering_columns=frozenset([]),
-            )
-            return OrderedIR(
-                result,
-                columns=[result[col_id] for col_id in [*stats.keys()]],
-                hidden_ordering_columns=[result[ORDER_ID_COLUMN]],
-                ordering=ordering,
-            )
+        return self._aggregate_base(
+            table, aggregations=aggregations, by_column_ids=by_column_ids, dropna=dropna
+        )
 
     def _uniform_sampling(self, fraction: float) -> UnorderedIR:
         """Sampling the table on given fraction.
@@ -526,6 +556,10 @@ class OrderedIR(BaseIbisIR):
         if not ordering_valid:
             raise ValueError(f"Illegal ordering keys: {ordering.all_ordering_columns}")
 
+    @property
+    def is_ordered_ir(self) -> bool:
+        return True
+
     @classmethod
     def from_pandas(
         cls,
@@ -535,7 +569,8 @@ class OrderedIR(BaseIbisIR):
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
 
-        Assumed that the dataframe has unique string column names and bigframes-suppported dtypes.
+        Assumed that the dataframe has unique string column names and bigframes-suppported
+        dtypes.
         """
 
         # ibis memtable cannot handle NA, must convert to None
@@ -572,7 +607,8 @@ class OrderedIR(BaseIbisIR):
 
     @property
     def _ibis_order(self) -> Sequence[ibis_types.Value]:
-        """Returns a sequence of ibis values which can be directly used to order a table expression. Has direction modifiers applied."""
+        """Returns a sequence of ibis values which can be directly used to order a
+        table expression. Has direction modifiers applied."""
         return _convert_ordering_to_table_values(
             {**self._column_names, **self._hidden_ordering_column_names},
             self._ordering.all_ordering_columns,
@@ -603,6 +639,44 @@ class OrderedIR(BaseIbisIR):
         expr_builder = self.builder()
         expr_builder.ordering = self._ordering.with_reverse()
         return expr_builder.build()
+
+    def aggregate(
+        self,
+        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
+        by_column_ids: typing.Sequence[str] = (),
+        dropna: bool = True,
+    ) -> OrderedIR:
+        """
+        Apply aggregations to the expression.
+        Arguments:
+            aggregations: input_column_id, operation, output_column_id tuples
+            by_column_ids: column ids of the aggregation key, this is preserved through
+              the transform
+            dropna: whether null keys should be dropped
+        Returns:
+            OrderedIR
+        """
+        table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+
+        all_columns = {
+            column_name: table[column_name]
+            for column_name in {
+                **self._column_names,
+                **self._hidden_ordering_column_names,
+            }
+        }
+        order_by = _convert_ordering_to_table_values(
+            all_columns,
+            self._ordering.all_ordering_columns,
+        )
+
+        return self._aggregate_base(
+            table,
+            order_by=order_by,
+            aggregations=aggregations,
+            by_column_ids=by_column_ids,
+            dropna=dropna,
+        )
 
     def _uniform_sampling(self, fraction: float) -> OrderedIR:
         """Sampling the table on given fraction.
@@ -821,15 +895,13 @@ class OrderedIR(BaseIbisIR):
                 )
             )
             output_columns = [
-                col_id_overrides.get(col) if (col in col_id_overrides) else col
-                for col in baked_ir.column_ids
+                col_id_overrides.get(col, col) for col in baked_ir.column_ids
             ]
-            selection = ", ".join(map(lambda col_id: f"`{col_id}`", output_columns))
+            sql = bigframes.core.sql.select_from_subquery(output_columns, sql)
 
-            sql = textwrap.dedent(f"SELECT {selection}\n" "FROM (\n" f"{sql}\n" ")\n")
             # Single row frames may not have any ordering columns
             if len(baked_ir._ordering.all_ordering_columns) > 0:
-                order_by_clause = baked_ir._ordering_clause(
+                order_by_clause = bigframes.core.sql.ordering_clause(
                     baked_ir._ordering.all_ordering_columns
                 )
                 sql += f"{order_by_clause}\n"
@@ -842,22 +914,6 @@ class OrderedIR(BaseIbisIR):
                 )
             )
         return typing.cast(str, sql)
-
-    def _ordering_clause(self, ordering: Iterable[OrderingExpression]) -> str:
-        parts = []
-        for col_ref in ordering:
-            asc_desc = "ASC" if col_ref.direction.is_ascending else "DESC"
-            null_clause = "NULLS LAST" if col_ref.na_last else "NULLS FIRST"
-            ordering_expr = col_ref.scalar_expression
-            # We don't know how to compile scalar expressions in isolation
-            if ordering_expr.is_const:
-                # Probably shouldn't have constants in ordering definition, but best to ignore if somehow they end up here.
-                continue
-            if not isinstance(ordering_expr, ex.UnboundVariableExpression):
-                raise ValueError("Expected direct column reference.")
-            part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
-            parts.append(part)
-        return f"ORDER BY {' ,'.join(parts)}"
 
     def _to_ibis_expr(
         self,
@@ -1087,7 +1143,8 @@ class OrderedIR(BaseIbisIR):
         )
 
     def _project_offsets(self) -> OrderedIR:
-        """Create a new expression that contains offsets. Should only be executed when offsets are needed for an operations. Has no effect on expression semantics."""
+        """Create a new expression that contains offsets. Should only be executed when
+        offsets are needed for an operations. Has no effect on expression semantics."""
         if self._ordering.is_sequential:
             return self
         table = self._to_ibis_expr(

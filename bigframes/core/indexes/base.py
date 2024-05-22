@@ -91,15 +91,22 @@ class Index(vendored_pandas_index.Index):
         from bigframes.core.indexes.multi import MultiIndex
 
         klass = MultiIndex if len(block._index_columns) > 1 else cls
-        result = typing.cast(Index, object.__new__(klass))
+        # TODO(b/340893286): fix type error
+        result = typing.cast(Index, object.__new__(klass))  # type: ignore
         result._query_job = None
         result._block = block
+        block.session._register_object(result)
         return result
 
     @classmethod
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
+        if len(frame._block.index_columns) == 0:
+            raise bigframes.exceptions.NullIndexError(
+                "Cannot access index properties with Null Index. Set an index using set_index."
+            )
+        frame._block._throw_if_null_index("from_frame")
         index = Index(frame._block)
         index._linked_frame = frame
         return index

@@ -32,10 +32,30 @@ def _generate_array(translator, op: vendored_ibis_ops.GenerateArray):
     return f"GENERATE_ARRAY(0, {arg})"
 
 
+def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime):
+    arg = translator.translate(op.arg)
+    return f"SAFE_CAST({arg} AS DATETIME)"
+
+
 def _quantile(translator, op: ibis_reductions.Quantile):
     arg = translator.translate(op.arg)
     quantile = translator.translate(op.quantile)
     return f"PERCENTILE_CONT({arg}, {quantile})"
+
+
+def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
+    """This method provides the same functionality as the collect() method in Ibis, with
+    the added capability of ordering the results using order_by.
+    https://github.com/ibis-project/ibis/issues/9170
+    """
+    arg = translator.translate(op.arg)
+
+    order_by_sql = ""
+    if len(op.order_by) > 0:
+        order_by = ", ".join([translator.translate(column) for column in op.order_by])
+        order_by_sql = f"ORDER BY {order_by}"
+
+    return f"ARRAY_AGG({arg} IGNORE NULLS {order_by_sql})"
 
 
 patched_ops = {
@@ -44,7 +64,9 @@ patched_ops = {
     vendored_ibis_ops.LastNonNullValue: _last_non_null_value,  # type:ignore
     vendored_ibis_ops.ToJsonString: _to_json_string,  # type:ignore
     vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
+    vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
     ibis_reductions.Quantile: _quantile,  # type:ignore
+    vendored_ibis_ops.ArrayAggregate: _array_aggregate,  # type:ignore
 }
 
 OPERATION_REGISTRY.update(patched_ops)

@@ -184,7 +184,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).merge_projections()
+        )
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
@@ -209,7 +209,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).merge_projections()
+        )
 
     def assign_constant(
         self,
@@ -243,7 +243,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(exprs),
             )
-        ).merge_projections()
+        )
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         selections = ((ex.free_var(col_id), col_id) for col_id in column_ids)
@@ -252,7 +252,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(selections),
             )
-        ).merge_projections()
+        )
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         new_projection = (
@@ -265,7 +265,7 @@ class ArrayValue:
                 child=self.node,
                 assignments=tuple(new_projection),
             )
-        ).merge_projections()
+        )
 
     def aggregate(
         self,
@@ -455,6 +455,19 @@ class ArrayValue:
         if allow_row_identity_join:
             return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
         return ArrayValue(join_node)
+
+    def try_align_as_projection(
+        self,
+        other: ArrayValue,
+        join_type: join_def.JoinType,
+        mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
+    ) -> typing.Optional[ArrayValue]:
+        left_side = bigframes.core.rewrite.SquashedSelect.from_node(self.node)
+        right_side = bigframes.core.rewrite.SquashedSelect.from_node(other.node)
+        result = left_side.maybe_merge(right_side, join_type, mappings)
+        if result is not None:
+            return ArrayValue(result.expand())
+        return None
 
     def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         assert len(column_ids) > 0

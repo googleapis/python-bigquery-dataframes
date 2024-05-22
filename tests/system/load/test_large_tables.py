@@ -80,7 +80,8 @@ def test_to_pandas_batches_large_table():
     expected_row_count, expected_column_count = df.shape
 
     row_count = 0
-    for df in df.to_pandas_batches():
+    # TODO(b/340890167): fix type error
+    for df in df.to_pandas_batches():  # type: ignore
         batch_row_count, batch_column_count = df.shape
         assert batch_column_count == expected_column_count
         row_count += batch_row_count
@@ -92,12 +93,14 @@ def test_to_pandas_batches_large_table():
     assert row_count == expected_row_count
 
 
+@pytest.mark.skip(reason="See if it caused kokoro build aborted.")
 def test_to_pandas_large_table():
     df = bpd.read_gbq("load_testing.scalars_10gb")
     # df will be downloaded locally
     expected_row_count, expected_column_count = df.shape
 
-    df = df.to_pandas()
+    # TODO(b/340893653): fix type error
+    df = df.to_pandas()  # type: ignore
     row_count, column_count = df.shape
     assert column_count == expected_column_count
     assert row_count == expected_row_count

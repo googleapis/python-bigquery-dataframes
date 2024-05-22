@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections import namedtuple
 from datetime import datetime
 import inspect
-import resource
 import sys
 import typing
 from typing import (
@@ -69,6 +68,13 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+
+try:
+    import resource
+except ImportError:
+    # resource is only available on Unix-like systems.
+    # https://docs.python.org/3/library/resource.html
+    resource = None  # type: ignore
 
 
 # Include method definition so that the method appears in our docs for
@@ -543,6 +549,7 @@ def read_gbq_query(
     max_results: Optional[int] = None,
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
+    filters: vendored_pandas_gbq.FiltersType = (),
 ) -> bigframes.dataframe.DataFrame:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -554,6 +561,7 @@ def read_gbq_query(
         max_results=max_results,
         use_cache=use_cache,
         col_order=col_order,
+        filters=filters,
     )
 
 
@@ -810,12 +818,13 @@ reset_session = global_session.close_session
 # https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
 
-soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
-if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
-    try:
-        resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
-    except Exception:
-        pass
+if resource is not None:
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
+    if soft_limit < hard_limit or hard_limit == resource.RLIM_INFINITY:
+        try:
+            resource.setrlimit(resource.RLIMIT_STACK, (hard_limit, hard_limit))
+        except Exception:
+            pass
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all___ = [
