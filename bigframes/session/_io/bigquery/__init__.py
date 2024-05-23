@@ -392,12 +392,15 @@ def compile_filters(filters: third_party_pandas_gbq.FiltersType) -> str:
     }
 
     # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
-    if isinstance(filters[0], tuple) and (
-        len(filters[0]) == 0 or not isinstance(list(filters[0])[0], tuple)
+    filters_list: list = list(filters)
+    if isinstance(filters_list[0], tuple) and (
+        len(filters_list[0]) == 0 or not isinstance(list(filters_list[0])[0], tuple)
     ):
-        filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
+        filter_items = [filters_list]
+    else:
+        filter_items = filters_list
 
-    for group in filters:
+    for group in filter_items:
         if not isinstance(group, Iterable):
             group = [group]
 

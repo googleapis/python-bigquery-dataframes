@@ -29,7 +29,7 @@ import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
-import bigframes.dtypes
+import bigframes.dtypes as bigframes_dtypes
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -98,18 +98,20 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
     full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
-    import bigframes.core.compile.schema_translator
-
+    used_columns = (
+        *node.schema.names,
+        *[i for i in node.primary_key if i not in node.schema.names],
+    )
     # Physical schema might include unused columns, unsupported datatypes like JSON
     physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
-        list(node.physical_schema)
+        list(i for i in node.physical_schema if i.name in used_columns)
     )
     if node.snapshot_time is not None or node.sql_predicate is not None:
         import bigframes.session._io.bigquery
 
         sql = bigframes.session._io.bigquery.to_query(
             full_table_name,
-            columns=node.schema.names,
+            columns=used_columns,
             sql_predicate=node.sql_predicate,
             time_travel_timestamp=node.snapshot_time,
             # These parameters should not be used
@@ -151,7 +153,7 @@ def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
         return compiled.OrderedIR(
             ibis_table,
             columns=tuple(
-                bigframes.dtypes.ibis_value_to_canonical_type(ibis_table[col])
+                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
                 for col in node.schema.names
             ),
             ordering=ordering,
@@ -161,7 +163,7 @@ def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
-                bigframes.dtypes.ibis_value_to_canonical_type(ibis_table[col])
+                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
                 for col in node.schema.names
             ),
         )

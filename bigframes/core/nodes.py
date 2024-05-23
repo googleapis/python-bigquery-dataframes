@@ -370,6 +370,15 @@ class ReadTableNode(BigFrameNode):
     # Added for backwards compatibility, not validated
     sql_predicate: typing.Optional[str] = None
 
+    def __post_init__(self):
+        # enforce invariants
+        physical_names = set(map(lambda i: i.name, self.physical_schema))
+        assert len(self.columns.names) > 0
+        assert set(self.primary_key).issubset(physical_names)
+        assert set(self.columns.names).issubset(physical_names)
+        if self.primary_key_sequential:
+            assert len(self.primary_key) == 1
+
     @property
     def session(self):
         return self.table_session
