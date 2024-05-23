@@ -1146,7 +1146,5 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
             # backend flakiness.
             #
             # Let's stop further clean up and leave it to later.
-            warnings.warn(
-                f"Cloud functions cleanup failed: {str(exc)}"
-            )
+            warnings.warn(f"Cloud functions cleanup failed: {str(exc)}")
             break
