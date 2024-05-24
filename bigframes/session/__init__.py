@@ -19,6 +19,7 @@ from __future__ import annotations
 import collections.abc
 import copy
 import datetime
+import itertools
 import logging
 import math
 import os
@@ -594,10 +595,10 @@ class Session(
         if len(filters) != 0 or max_results is not None:
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
+            all_columns = itertools.chain(index_cols, columns) if columns else ()
             query = bf_io_bigquery.to_query(
                 query,
-                index_cols,
-                columns,
+                all_columns,
                 bf_io_bigquery.compile_filters(filters) if filters else None,
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
@@ -771,10 +772,10 @@ class Session(
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
+            all_columns = itertools.chain(index_cols, columns) if columns else ()
             query = bf_io_bigquery.to_query(
                 query,
-                index_cols=index_cols,
-                columns=columns,
+                columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
                 else None,
@@ -835,7 +836,7 @@ class Session(
             table,
             schema=schema,
             predicate=filter_str,
-            snapshot_time=time_travel_timestamp if supports_snapshot else None,
+            at_time=time_travel_timestamp if supports_snapshot else None,
             primary_key=index_cols if is_index_unique else (),
             session=self,
         )

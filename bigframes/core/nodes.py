@@ -366,7 +366,7 @@ class ReadTableNode(BigFrameNode):
     primary_key: Tuple[str, ...] = field()  # subset of schema
     # indicates a primary key that is exactly offsets 0, 1, 2, ..., N-2, N-1
     primary_key_sequential: bool = False
-    snapshot_time: typing.Optional[datetime.datetime] = None
+    at_time: typing.Optional[datetime.datetime] = None
     # Added for backwards compatibility, not validated
     sql_predicate: typing.Optional[str] = None
 

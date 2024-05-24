@@ -14,36 +14,14 @@
 
 """Unit tests for read_gbq_table helper functions."""
 
-import datetime
 import unittest.mock as mock
 
 import google.cloud.bigquery
-import google.cloud.bigquery as bigquery
 import pytest
 
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 
 from .. import resources
-
-
-def test_get_time_travel_sql_doesnt_timetravel_anonymous_datasets():
-    table_ref = bigquery.TableReference.from_string(
-        "my-test-project._e8166e0cdb.anonbb92cd"
-    )
-
-    sql = bf_read_gbq_table.get_time_travel_sql(
-        table_ref,
-        index_cols=(),
-        columns=(),
-        sql_predicate="",
-        time_travel_timestamp=datetime.datetime.now(datetime.timezone.utc),
-    )
-
-    # Anonymous query results tables don't support time travel.
-    assert "SYSTEM_TIME" not in sql
-
-    # Need fully-qualified table name.
-    assert "my-test-project" in sql
 
 
 @pytest.mark.parametrize(

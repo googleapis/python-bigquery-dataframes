@@ -106,17 +106,14 @@ def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
     physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
         list(i for i in node.physical_schema if i.name in used_columns)
     )
-    if node.snapshot_time is not None or node.sql_predicate is not None:
+    if node.at_time is not None or node.sql_predicate is not None:
         import bigframes.session._io.bigquery
 
         sql = bigframes.session._io.bigquery.to_query(
             full_table_name,
             columns=used_columns,
             sql_predicate=node.sql_predicate,
-            time_travel_timestamp=node.snapshot_time,
-            # These parameters should not be used
-            index_cols=(),
-            max_results=None,
+            time_travel_timestamp=node.at_time,
         )
         ibis_table = ibis.backends.bigquery.Backend().sql(
             schema=physical_schema, query=sql

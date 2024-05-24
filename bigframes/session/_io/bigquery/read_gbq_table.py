@@ -95,31 +95,6 @@ def get_table_metadata(
     return cached_table
 
 
-def get_time_travel_sql(
-    table_ref: bigquery.TableReference,
-    index_cols: Iterable[str],
-    columns: Iterable[str],
-    sql_predicate: Optional[str],
-    time_travel_timestamp: Optional[datetime.datetime],
-) -> str:
-    # If we have an anonymous query results table, it can't be modified and
-    # there isn't any BigQuery time travel.
-    if table_ref.dataset_id.startswith("_"):
-        time_travel_timestamp = None
-
-    return bigframes.session._io.bigquery.to_query(
-        f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
-        index_cols=index_cols,
-        columns=columns,
-        sql_predicate=sql_predicate,
-        time_travel_timestamp=time_travel_timestamp,
-        # If we've made it this far, we know we don't have any
-        # max_results to worry about, because in that case we will
-        # have executed a query with a LIMI clause.
-        max_results=None,
-    )
-
-
 def validate_table(
     bqclient: bigquery.Client,
     table_ref: bigquery.table.TableReference,
@@ -133,7 +108,6 @@ def validate_table(
         query_or_table=f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
         columns=columns or (),
         sql_predicate=filter_str,
-        index_cols=(),
     )
     dry_run_config = bigquery.QueryJobConfig()
     dry_run_config.dry_run = True
@@ -154,7 +128,6 @@ def validate_table(
         columns=columns or (),
         sql_predicate=filter_str,
         time_travel_timestamp=snapshot_time,
-        index_cols=(),
     )
     try:
         bqclient.query_and_wait(snapshot_sql, job_config=dry_run_config)

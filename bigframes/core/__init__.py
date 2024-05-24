@@ -102,7 +102,7 @@ class ArrayValue:
         session: Session,
         *,
         predicate: Optional[str] = None,
-        snapshot_time: Optional[datetime.datetime] = None,
+        at_time: Optional[datetime.datetime] = None,
         primary_key: Sequence[str] = (),
     ):
         node = nodes.ReadTableNode(
@@ -112,7 +112,7 @@ class ArrayValue:
             physical_schema=tuple(table.schema),
             primary_key=tuple(primary_key),
             columns=schema,
-            snapshot_time=snapshot_time,
+            at_time=at_time,
             table_session=session,
             sql_predicate=predicate,
         )

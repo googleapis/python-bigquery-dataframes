@@ -334,7 +334,6 @@ def is_table_with_wildcard_suffix(query_or_table: str) -> bool:
 
 def to_query(
     query_or_table: str,
-    index_cols: Iterable[str],
     columns: Iterable[str],
     sql_predicate: Optional[str],
     max_results: Optional[int] = None,
@@ -350,8 +349,7 @@ def to_query(
     if columns:
         # We only reduce the selection if columns is set, but we always
         # want to make sure index_cols is also included.
-        all_columns = itertools.chain(index_cols, columns)
-        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in all_columns)
+        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in columns)
     else:
         select_clause = "SELECT *"
 
