@@ -381,7 +381,7 @@ def test_read_gbq_external_table_no_drive_access(api_name, query_or_table):
 
         return session_query_mock(query, *args, **kwargs)
 
-    session.bqclient.query = query_mock
+    session.bqclient.query_and_wait = query_mock
 
     def get_table_mock(table_ref):
         table = google.cloud.bigquery.Table(

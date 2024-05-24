@@ -20,14 +20,11 @@ from __future__ import annotations
 
 import datetime
 import typing
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import warnings
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
-import ibis
-import ibis.backends
-import ibis.expr.types as ibis_types
 
 import bigframes
 import bigframes.clients
@@ -104,7 +101,7 @@ def get_time_travel_sql(
     columns: Iterable[str],
     sql_predicate: Optional[str],
     time_travel_timestamp: Optional[datetime.datetime],
-) -> ibis_types.Table:
+) -> str:
     # If we have an anonymous query results table, it can't be modified and
     # there isn't any BigQuery time travel.
     if table_ref.dataset_id.startswith("_"):
@@ -123,15 +120,56 @@ def get_time_travel_sql(
     )
 
 
-def validate_sql_through_ibis(sql: str, ibis_client: ibis.BaseBackend) -> None:
-    # TODO: May as well directly use BQ client for this
+def validate_table(
+    bqclient: bigquery.Client,
+    table_ref: bigquery.table.TableReference,
+    columns: Optional[Sequence[str]],
+    snapshot_time: datetime.datetime,
+    filter_str: Optional[str] = None,
+) -> bool:
+    """Validates that the table can be read, returns True iff snapshot is supported."""
+    # First run without snapshot to verify table can be read
+    sql = bigframes.session._io.bigquery.to_query(
+        query_or_table=f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
+        columns=columns or (),
+        sql_predicate=filter_str,
+        index_cols=(),
+    )
+    dry_run_config = bigquery.QueryJobConfig()
+    dry_run_config.dry_run = True
     try:
-        ibis_client.sql(sql)
+        bqclient.query_and_wait(sql, job_config=dry_run_config)
     except google.api_core.exceptions.Forbidden as ex:
-        # Ibis does a dry run to get the types of the columns from the SQL.
         if "Drive credentials" in ex.message:
             ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
         raise
+
+    # Anonymous dataset, does not support snapshot ever
+    if table_ref.dataset_id.startswith("_"):
+        return False
+
+    # Second, try with snapshot to verify table supports this feature
+    snapshot_sql = bigframes.session._io.bigquery.to_query(
+        query_or_table=f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
+        columns=columns or (),
+        sql_predicate=filter_str,
+        time_travel_timestamp=snapshot_time,
+        index_cols=(),
+    )
+    try:
+        bqclient.query_and_wait(snapshot_sql, job_config=dry_run_config)
+        return True
+    except google.api_core.exceptions.NotFound:
+        # note that a notfound caused by a simple typo will be
+        # caught above when the metadata is fetched, not here
+        warnings.warn(
+            "NotFound error when reading table with time travel."
+            " Attempting query without time travel. Warning: Without"
+            " time travel, modifications to the underlying table may"
+            " result in errors or unexpected behavior.",
+            category=bigframes.exceptions.TimeTravelDisabledWarning,
+        )
+        return False
 
 
 def are_index_cols_unique(

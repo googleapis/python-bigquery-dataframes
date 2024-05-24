@@ -714,8 +714,7 @@ class Session(
         # Fetch table metadata and validate
         # ---------------------------------
 
-        time_travel_timestamp: Optional[datetime.datetime] = None
-        (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
+        time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
             api_name=api_name,
@@ -794,29 +793,25 @@ class Session(
             )
 
         # -----------------------------------------
-        # Create Ibis table expression and validate
+        # Validate table access and features
         # -----------------------------------------
-
-        if table_ref.dataset_id.startswith("_"):
-            time_travel_timestamp = None
 
         # Use a time travel to make sure the DataFrame is deterministic, even
         # if the underlying table changes.
-        # TODO(b/340540991): If a dry run query fails with time travel but
+
+        # If a dry run query fails with time travel but
         # succeeds without it, omit the time travel clause and raise a warning
         # about potential non-determinism if the underlying tables are modified.
-        sql = bf_io_bigquery.to_query(
-            f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
-            index_cols=index_cols,
-            columns=columns,
-            sql_predicate=bf_io_bigquery.compile_filters(filters) if filters else None,
-            time_travel_timestamp=time_travel_timestamp,
-            # If we've made it this far, we know we don't have any
-            # max_results to worry about, because in that case we will
-            # have executed a query with a LIMIT clause.
-            max_results=None,
+        filter_str = bf_io_bigquery.compile_filters(filters) if filters else None
+        all_columns = (
+            ()
+            if len(columns) == 0
+            else (*columns, *[col for col in index_cols if col not in columns])
         )
-        bf_read_gbq_table.validate_sql_through_ibis(sql, self.ibis_client)
+
+        supports_snapshot = bf_read_gbq_table.validate_table(
+            self.bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
+        )
 
         # ----------------------------
         # Create ordering and validate
@@ -839,8 +834,8 @@ class Session(
         array_value = core.ArrayValue.from_table(
             table,
             schema=schema,
-            predicate=bf_io_bigquery.compile_filters(filters) if filters else None,
-            snapshot_time=time_travel_timestamp,
+            predicate=filter_str,
+            snapshot_time=time_travel_timestamp if supports_snapshot else None,
             primary_key=index_cols if is_index_unique else (),
             session=self,
         )

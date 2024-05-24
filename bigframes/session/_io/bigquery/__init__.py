@@ -210,7 +210,6 @@ def start_query_with_client(
         )
 
     try:
-        print(sql)
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
     except google.api_core.exceptions.Forbidden as ex:
         if "Drive credentials" in ex.message:
@@ -338,8 +337,8 @@ def to_query(
     index_cols: Iterable[str],
     columns: Iterable[str],
     sql_predicate: Optional[str],
-    max_results: Optional[int],
-    time_travel_timestamp: Optional[datetime.datetime],
+    max_results: Optional[int] = None,
+    time_travel_timestamp: Optional[datetime.datetime] = None,
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
     sub_query = (
