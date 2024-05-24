@@ -400,7 +400,8 @@ def _set_default_session_location_if_possible(query):
 
     if bigframes.session._io.bigquery.is_query(query):
         # Intentionally run outside of the session so that we can detect the
-        # location before creating the session.
+        # location before creating the session. Since it's a dry_run, labels
+        # aren't necessary.
         job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
         options.bigquery.location = job.location
     else:

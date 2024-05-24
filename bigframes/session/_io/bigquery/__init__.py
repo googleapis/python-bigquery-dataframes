@@ -47,6 +47,7 @@ CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-
 def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
     api_methods: typing.List[str],
+    api_name: Optional[str] = None,
 ) -> Dict[str, str]:
     if job_configs_labels is None:
         job_configs_labels = {}
@@ -55,6 +56,9 @@ def create_job_configs_labels(
     # they are preserved.
     for key, value in bigframes.options.compute.extra_query_labels.items():
         job_configs_labels[key] = value
+
+    if api_name is not None:
+        job_configs_labels["bigframes-api"] = api_name
 
     if api_methods and "bigframes-api" not in job_configs_labels:
         job_configs_labels["bigframes-api"] = api_methods[0]
@@ -205,11 +209,13 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     return f"{key}={repr(value)}"
 
 
-def add_labels_from_log_adapter(job_config):
+def add_labels(job_config, api_name: Optional[str] = None):
     if not job_config.dry_run:
         api_methods = log_adapter.get_and_reset_api_methods()
         job_config.labels = create_job_configs_labels(
-            job_configs_labels=job_config.labels, api_methods=api_methods
+            job_configs_labels=job_config.labels,
+            api_methods=api_methods,
+            api_name=api_name,
         )
 
 
@@ -219,11 +225,12 @@ def start_query_with_client(
     job_config: bigquery.job.QueryJobConfig,
     max_results: Optional[int] = None,
     timeout: Optional[float] = None,
+    api_name: Optional[str] = None,
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
     """
     Starts query job and waits for results.
     """
-    add_labels_from_log_adapter(job_config)
+    add_labels(job_config, api_name=api_name)
 
     try:
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
@@ -327,9 +334,7 @@ def create_bq_dataset_reference(
         bigquery.DatasetReference: The constructed reference to the anonymous dataset.
     """
     job_config = google.cloud.bigquery.QueryJobConfig()
-    job_config.labels = {
-        "bigframes-api": api_name,
-    }
+    add_labels(job_config, api_name=api_name)
     query_job = bq_client.query(
         "SELECT 1", location=location, project=project, job_config=job_config
     )

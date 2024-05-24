@@ -219,6 +219,7 @@ class RemoteFunctionClient:
             # This requires bigquery.datasets.create IAM permission
             self._bq_client.create_dataset(dataset, exists_ok=True)
 
+        # TODO(swast): plumb through the original, user-facing api_name.
         _, query_job = self._session._start_query(create_function_ddl)
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
