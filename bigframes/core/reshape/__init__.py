@@ -14,15 +14,15 @@
 from __future__ import annotations
 
 import typing
-from typing import Iterable, Literal, Optional, Tuple, Union
+from typing import Iterable, Literal, Optional, Union
 
 import pandas as pd
 
 import bigframes.constants as constants
-import bigframes.core as core
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
+import bigframes.core.window_spec as window_specs
 import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -113,7 +113,7 @@ def cut(
     bins: Union[
         int,
         pd.IntervalIndex,
-        Iterable[Tuple[Union[int, float], Union[int, float]]],
+        Iterable,
     ],
     *,
     labels: Optional[bool] = None,
@@ -125,9 +125,29 @@ def cut(
         if isinstance(bins, pd.IntervalIndex):
             as_index: pd.IntervalIndex = bins
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
-        else:
+        elif len(list(bins)) == 0:
+            raise ValueError("`bins` iterable should have at least one item")
+        elif isinstance(list(bins)[0], tuple):
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
+        elif pd.api.types.is_number(list(bins)[0]):
+            bins_list = list(bins)
+            if len(bins_list) < 2:
+                raise ValueError(
+                    "`bins` iterable of numeric breaks should have"
+                    " at least two items"
+                )
+            as_index = pd.IntervalIndex.from_breaks(bins_list)
+            single_type = all([isinstance(n, type(bins_list[0])) for n in bins_list])
+            numeric_type = type(bins_list[0]) if single_type else float
+            bins = tuple(
+                [
+                    (numeric_type(bins_list[i]), numeric_type(bins_list[i + 1]))
+                    for i in range(len(bins_list) - 1)
+                ]
+            )
+        else:
+            raise ValueError("`bins` iterable should contain tuples or numerics")
 
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
@@ -139,7 +159,7 @@ def cut(
         )
 
     return x._apply_window_op(
-        agg_ops.CutOp(bins, labels=labels), window_spec=core.WindowSpec()
+        agg_ops.CutOp(bins, labels=labels), window_spec=window_specs.unbound()
     )
 
 
@@ -169,7 +189,7 @@ def qcut(
     block, result = block.apply_window_op(
         x._value_column,
         agg_ops.QcutOp(q),  # type: ignore
-        window_spec=core.WindowSpec(
+        window_spec=window_specs.unbound(
             grouping_keys=(nullity_id,),
             ordering=(order.ascending_over(x._value_column),),
         ),

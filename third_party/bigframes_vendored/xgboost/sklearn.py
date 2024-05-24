@@ -1,4 +1,4 @@
-"""Scikit-Learn Wrapper interface for XGBoost."""
+"""scikit-learn Wrapper interface for XGBoost."""
 
 from typing import Any
 
@@ -38,7 +38,7 @@ class XGBModel(XGBModelBase):
                 Target values. Will be cast to X's dtype if necessary.
 
         Returns:
-            XGBModel: Fitted Estimator.
+            XGBModel: Fitted estimator.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -63,7 +63,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
             Type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
         tree_method (Optional[str]):
             Specify which tree method to use.  Default to "auto". If this parameter is set to
-            default, XGBoost will choose the most conservative option available. Possible values: ""exact", "approx",
+            default, XGBoost will choose the most conservative option available. Possible values: "exact", "approx",
             "hist".
         min_child_weight (Optional[float]):
             Minimum sum of instance weight(hessian) needed in a child. Default to 1.
@@ -110,7 +110,7 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
         tree_method (Optional[str]):
             Specify which tree method to use.  Default to "auto". If this parameter is set to
-            default, XGBoost will choose the most conservative option available. Possible values: ""exact", "approx",
+            default, XGBoost will choose the most conservative option available. Possible values: "exact", "approx",
             "hist".
         min_child_weight (Optional[float]):
             Minimum sum of instance weight(hessian) needed in a child. Default to 1.

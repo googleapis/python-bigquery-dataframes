@@ -34,15 +34,16 @@ scalar_compiler = scalar_compilers.scalar_op_compiler
 def compile_aggregate(
     aggregate: ex.Aggregation,
     bindings: typing.Dict[str, ibis_types.Value],
+    order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.Value:
     if isinstance(aggregate, ex.NullaryAggregation):
         return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        return compile_unary_agg(
-            aggregate.op,
-            input,
-        )
+        if aggregate.op.can_order_by:
+            return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)
+        else:
+            return compile_unary_agg(aggregate.op, input)
     elif isinstance(aggregate, ex.BinaryAggregation):
         left = scalar_compiler.compile_expression(aggregate.left, bindings=bindings)
         right = scalar_compiler.compile_expression(aggregate.right, bindings=bindings)
@@ -70,7 +71,8 @@ def compile_analytic(
 @functools.singledispatch
 def compile_binary_agg(
     op: agg_ops.WindowOp,
-    input: ibis_types.Column,
+    left: ibis_types.Column,
+    right: ibis_types.Column,
     window: Optional[window_spec.WindowSpec] = None,
 ) -> ibis_types.Value:
     raise ValueError(f"Can't compile unrecognized operation: {op}")
@@ -86,6 +88,16 @@ def compile_unary_agg(
 
 
 @functools.singledispatch
+def compile_ordered_unary_agg(
+    op: agg_ops.WindowOp,
+    input: ibis_types.Column,
+    window: Optional[window_spec.WindowSpec] = None,
+    order_by: typing.Sequence[ibis_types.Value] = [],
+) -> ibis_types.Value:
+    raise ValueError(f"Can't compile unrecognized operation: {op}")
+
+
+@functools.singledispatch
 def compile_nullary_agg(
     op: agg_ops.WindowOp,
     window: Optional[window_spec.WindowSpec] = None,
@@ -95,7 +107,12 @@ def compile_nullary_agg(
 
 def numeric_op(operation):
     @functools.wraps(operation)
-    def constrained_op(op, column: ibis_types.Column, window=None):
+    def constrained_op(
+        op,
+        column: ibis_types.Column,
+        window=None,
+        order_by: typing.Sequence[ibis_types.Value] = [],
+    ):
         if column.type().is_boolean():
             column = typing.cast(
                 ibis_types.NumericColumn, column.cast(ibis_dtypes.int64)
@@ -121,7 +138,9 @@ def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
 @compile_unary_agg.register
 @numeric_op
 def _(
-    op: agg_ops.SumOp, column: ibis_types.NumericColumn, window=None
+    op: agg_ops.SumOp,
+    column: ibis_types.NumericColumn,
+    window=None,
 ) -> ibis_types.NumericValue:
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     bq_sum = _apply_window_if_present(column.sum(), window)
@@ -133,7 +152,9 @@ def _(
 @compile_unary_agg.register
 @numeric_op
 def _(
-    op: agg_ops.MedianOp, column: ibis_types.NumericColumn, window=None
+    op: agg_ops.MedianOp,
+    column: ibis_types.NumericColumn,
+    window=None,
 ) -> ibis_types.NumericValue:
     # PERCENTILE_CONT has very few allowed windows. For example, "window
     # framing clause is not allowed for analytic function percentile_cont".
@@ -151,7 +172,9 @@ def _(
 @compile_unary_agg.register
 @numeric_op
 def _(
-    op: agg_ops.ApproxQuartilesOp, column: ibis_types.NumericColumn, window=None
+    op: agg_ops.ApproxQuartilesOp,
+    column: ibis_types.NumericColumn,
+    window=None,
 ) -> ibis_types.NumericValue:
     # PERCENTILE_CONT has very few allowed windows. For example, "window
     # framing clause is not allowed for analytic function percentile_cont".
@@ -168,7 +191,20 @@ def _(
 @compile_unary_agg.register
 @numeric_op
 def _(
-    op: agg_ops.MeanOp, column: ibis_types.NumericColumn, window=None
+    op: agg_ops.QuantileOp,
+    column: ibis_types.NumericColumn,
+    window=None,
+) -> ibis_types.NumericValue:
+    return _apply_window_if_present(column.quantile(op.q), window)
+
+
+@compile_unary_agg.register
+@numeric_op
+def _(
+    op: agg_ops.MeanOp,
+    column: ibis_types.NumericColumn,
+    window=None,
+    # order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.NumericValue:
     return _apply_window_if_present(column.mean(), window)
 
@@ -176,7 +212,9 @@ def _(
 @compile_unary_agg.register
 @numeric_op
 def _(
-    op: agg_ops.ProductOp, column: ibis_types.NumericColumn, window=None
+    op: agg_ops.ProductOp,
+    column: ibis_types.NumericColumn,
+    window=None,
 ) -> ibis_types.NumericValue:
     # Need to short-circuit as log with zeroes is illegal sql
     is_zero = cast(ibis_types.BooleanColumn, (column == 0))
@@ -211,30 +249,50 @@ def _(
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.MaxOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.MaxOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(column.max(), window)
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.MinOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.MinOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(column.min(), window)
 
 
 @compile_unary_agg.register
 @numeric_op
-def _(op: agg_ops.StdOp, x: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.StdOp,
+    x: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(cast(ibis_types.NumericColumn, x).std(), window)
 
 
 @compile_unary_agg.register
 @numeric_op
-def _(op: agg_ops.VarOp, x: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.VarOp,
+    x: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(cast(ibis_types.NumericColumn, x).var(), window)
 
 
 @compile_unary_agg.register
 @numeric_op
-def _(op: agg_ops.PopVarOp, x: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.PopVarOp,
+    x: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(
         cast(ibis_types.NumericColumn, x).var(how="pop"), window
     )
@@ -242,13 +300,19 @@ def _(op: agg_ops.PopVarOp, x: ibis_types.Column, window=None) -> ibis_types.Val
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.CountOp, column: ibis_types.Column, window=None
+    op: agg_ops.CountOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     return _apply_window_if_present(column.count(), window)
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
+def _(
+    op: agg_ops.CutOp,
+    x: ibis_types.Column,
+    window=None,
+):
     out = ibis.case()
     if isinstance(op.bins, int):
         col_min = _apply_window_if_present(x.min(), window)
@@ -301,7 +365,9 @@ def _(op: agg_ops.CutOp, x: ibis_types.Column, window=None):
 @compile_unary_agg.register
 @numeric_op
 def _(
-    self: agg_ops.QcutOp, column: ibis_types.Column, window=None
+    self: agg_ops.QcutOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     if isinstance(self.quantiles, int):
         quantiles_ibis = dtypes.literal_to_ibis_scalar(self.quantiles)
@@ -331,21 +397,27 @@ def _(
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.NuniqueOp, column: ibis_types.Column, window=None
+    op: agg_ops.NuniqueOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     return _apply_window_if_present(column.nunique(), window)
 
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.AnyValueOp, column: ibis_types.Column, window=None
+    op: agg_ops.AnyValueOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     return _apply_window_if_present(column.arbitrary(), window)
 
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.RankOp, column: ibis_types.Column, window=None
+    op: agg_ops.RankOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     # Ibis produces 0-based ranks, while pandas creates 1-based ranks
     return _apply_window_if_present(ibis.rank(), window) + 1
@@ -353,7 +425,9 @@ def _(
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.DenseRankOp, column: ibis_types.Column, window=None
+    op: agg_ops.DenseRankOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.IntegerValue:
     # Ibis produces 0-based ranks, while pandas creates 1-based ranks
     return _apply_window_if_present(column.dense_rank(), window) + 1
@@ -366,7 +440,9 @@ def _(op: agg_ops.FirstOp, column: ibis_types.Column, window=None) -> ibis_types
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.FirstNonNullOp, column: ibis_types.Column, window=None
+    op: agg_ops.FirstNonNullOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.Value:
     return _apply_window_if_present(
         vendored_ibis_ops.FirstNonNullValue(column).to_expr(), window  # type: ignore
@@ -374,13 +450,19 @@ def _(
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.LastOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.LastOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     return _apply_window_if_present(column.last(), window)
 
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.LastNonNullOp, column: ibis_types.Column, window=None
+    op: agg_ops.LastNonNullOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.Value:
     return _apply_window_if_present(
         vendored_ibis_ops.LastNonNullValue(column).to_expr(), window  # type: ignore
@@ -388,7 +470,11 @@ def _(
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.ShiftOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.ShiftOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     if op.periods == 0:  # No-op
         return column
     if op.periods > 0:
@@ -397,7 +483,11 @@ def _(op: agg_ops.ShiftOp, column: ibis_types.Column, window=None) -> ibis_types
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.DiffOp, column: ibis_types.Column, window=None) -> ibis_types.Value:
+def _(
+    op: agg_ops.DiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
     shifted = compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window)
     if column.type().is_boolean():
         return cast(ibis_types.BooleanColumn, column) != cast(
@@ -413,7 +503,9 @@ def _(op: agg_ops.DiffOp, column: ibis_types.Column, window=None) -> ibis_types.
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.AllOp, column: ibis_types.Column, window=None
+    op: agg_ops.AllOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be true in pandas.
     result = _is_true(column).all()
@@ -425,7 +517,9 @@ def _(
 
 @compile_unary_agg.register
 def _(
-    op: agg_ops.AnyOp, column: ibis_types.Column, window=None
+    op: agg_ops.AnyOp,
+    column: ibis_types.Column,
+    window=None,
 ) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be false in pandas.
     result = _is_true(column).any()
@@ -433,6 +527,31 @@ def _(
         ibis_types.BooleanScalar,
         _apply_window_if_present(result, window).fillna(ibis_types.literal(False)),
     )
+
+
+@compile_ordered_unary_agg.register
+def _(
+    op: agg_ops.ArrayAggOp,
+    column: ibis_types.Column,
+    window=None,
+    order_by: typing.Sequence[ibis_types.Value] = [],
+) -> ibis_types.ArrayValue:
+    # BigQuery doesn't currently support using ARRAY_AGG with both window and aggregate
+    # functions simultaneously. Some aggregate functions (or its equivalent syntax)
+    # are more important, such as:
+    #    - `IGNORE NULLS` are required to avoid an raised error if the final result
+    #      contains a NULL element.
+    #    - `ORDER BY` are required for the default ordering mode.
+    # To keep things simpler, windowing support is skipped for now.
+    if window is not None:
+        raise NotImplementedError(
+            f"ArrayAgg with windowing is not supported. {constants.FEEDBACK_LINK}"
+        )
+
+    return vendored_ibis_ops.ArrayAggregate(
+        column,
+        order_by=order_by,
+    ).to_expr()
 
 
 @compile_binary_agg.register

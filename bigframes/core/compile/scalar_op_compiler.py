@@ -17,6 +17,7 @@ from __future__ import annotations
 import functools
 import typing
 
+import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
@@ -183,6 +184,25 @@ class ScalarOpCompiler:
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
             def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
                 return impl(args[0], args[1], args[2])
+
+            self._register(key, normalized_impl)
+            return impl
+
+        return decorator
+
+    def register_nary_op(self, op_ref: typing.Union[ops.NaryOp, type[ops.NaryOp]]):
+        """
+        Decorator to register a nary op implementation.
+
+        Args:
+            op_ref (NaryOp or NaryOp type):
+                Class or instance of operator that is implemented by the decorated function.
+        """
+        key = typing.cast(str, op_ref.name)
+
+        def decorator(impl: typing.Callable[..., ibis_types.Value]):
+            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
+                return impl(*args)
 
             self._register(key, normalized_impl)
             return impl
@@ -397,7 +417,7 @@ def expm1_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.invert_op)
 def invert_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.NumericValue, x).negate()
+    return x.__invert__()
 
 
 ## String Operation
@@ -569,6 +589,11 @@ def endswith_op_impl(x: ibis_types.Value, op: ops.EndsWithOp):
     return any_match if any_match is not None else ibis_types.literal(False)
 
 
+@scalar_op_compiler.register_unary_op(ops.StringSplitOp, pass_op=True)
+def stringsplit_op_impl(x: ibis_types.Value, op: ops.StringSplitOp):
+    return typing.cast(ibis_types.StringValue, x).split(op.pat)
+
+
 @scalar_op_compiler.register_unary_op(ops.ZfillOp, pass_op=True)
 def zfill_op_impl(x: ibis_types.Value, op: ops.ZfillOp):
     str_value = typing.cast(ibis_types.StringValue, x)
@@ -713,7 +738,7 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
     return struct_value[name].name(name)
 
 
-def numeric_to_datatime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
+def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
     if not isinstance(x, ibis_types.IntegerValue) and not isinstance(
         x, ibis_types.FloatingValue
     ):
@@ -755,7 +780,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
         # with pandas converting int64[pyarrow] to timestamp[us][pyarrow],
         # timestamp[us, tz=UTC][pyarrow], and time64[us][pyarrow].
         unit = "us"
-        x_converted = numeric_to_datatime(x, unit)
+        x_converted = numeric_to_datetime(x, unit)
         if to_type == ibis_dtypes.timestamp:
             return x_converted.cast(ibis_dtypes.Timestamp())
         elif to_type == ibis_dtypes.Timestamp(timezone="UTC"):
@@ -794,23 +819,39 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        x = x.to_timestamp(op.format) if op.format else timestamp(x)
-    elif x.type() == ibis_dtypes.Timestamp(timezone="UTC"):
-        if op.format:
-            raise NotImplementedError(
-                f"Format parameter is not supported for Timestamp input types. {constants.FEEDBACK_LINK}"
-            )
-        return x
-    elif x.type() != ibis_dtypes.timestamp:
+        return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
+    else:
+        # Numerical inputs.
         if op.format:
             x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
         else:
             # The default unit is set to "ns" (nanoseconds) for consistency
             # with pandas, where "ns" is the default unit for datetime operations.
             unit = op.unit or "ns"
-            x = numeric_to_datatime(x, unit)
+            x = numeric_to_datetime(x, unit)
 
-    return x.cast(ibis_dtypes.Timestamp(timezone="UTC" if op.utc else None))
+    return x.cast(ibis_dtypes.Timestamp(None))
+
+
+@scalar_op_compiler.register_unary_op(ops.ToTimestampOp, pass_op=True)
+def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
+    if x.type() == ibis_dtypes.str:
+        x = (
+            typing.cast(ibis_types.StringValue, x).to_timestamp(op.format)
+            if op.format
+            else timestamp(x)
+        )
+    else:
+        # Numerical inputs.
+        if op.format:
+            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
+        else:
+            # The default unit is set to "ns" (nanoseconds) for consistency
+            # with pandas, where "ns" is the default unit for datetime operations.
+            unit = op.unit or "ns"
+            x = numeric_to_datetime(x, unit)
+
+    return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
@@ -1279,20 +1320,34 @@ def coalesce_impl(
         return ibis.coalesce(x, y)
 
 
-@scalar_op_compiler.register_binary_op(ops.cliplower_op)
-def clip_lower(
+@scalar_op_compiler.register_binary_op(ops.maximum_op)
+def maximum_impl(
     value: ibis_types.Value,
     lower: ibis_types.Value,
 ):
+    # Note: propagates nulls
     return ibis.case().when(lower.isnull() | (value < lower), lower).else_(value).end()
 
 
-@scalar_op_compiler.register_binary_op(ops.clipupper_op)
-def clip_upper(
+@scalar_op_compiler.register_binary_op(ops.minimum_op)
+def minimum_impl(
     value: ibis_types.Value,
     upper: ibis_types.Value,
 ):
+    # Note: propagates nulls
     return ibis.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
+
+
+@scalar_op_compiler.register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
+def binary_remote_function_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
+):
+    if not hasattr(op.func, "bigframes_remote_function"):
+        raise TypeError(
+            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
+        )
+    x_transformed = op.func(x, y)
+    return x_transformed
 
 
 # Ternary Operations
@@ -1344,6 +1399,25 @@ def clip_op(
             .else_(original)
             .end()
         )
+
+
+@scalar_op_compiler.register_nary_op(ops.case_when_op)
+def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
+    # ibis can handle most type coercions, but we need to force bool -> int
+    # TODO: dispatch coercion depending on bigframes dtype schema
+    result_values = cases_and_outputs[1::2]
+    do_upcast_bool = any(t.type().is_numeric() for t in result_values)
+    if do_upcast_bool:
+        # Just need to upcast to int, ibis can handle further coercion
+        result_values = tuple(
+            val.cast(ibis_dtypes.int64) if val.type().is_boolean() else val
+            for val in result_values
+        )
+
+    case_val = ibis.case()
+    for predicate, output in zip(cases_and_outputs[::2], result_values):
+        case_val = case_val.when(predicate, output)
+    return case_val.end()
 
 
 # Helpers

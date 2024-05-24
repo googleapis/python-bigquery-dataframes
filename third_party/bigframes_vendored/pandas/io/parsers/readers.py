@@ -21,6 +21,7 @@ from typing import (
 import numpy as np
 
 from bigframes import constants
+import bigframes.enums
 
 
 class ReaderIOMixin:
@@ -34,7 +35,13 @@ class ReaderIOMixin:
             Union[MutableSequence[Any], np.ndarray[Any, Any], Tuple[Any, ...], range]
         ] = None,
         index_col: Optional[
-            Union[int, str, Sequence[Union[str, int]], Literal[False]]
+            Union[
+                int,
+                str,
+                Sequence[Union[str, int]],
+                bigframes.enums.DefaultIndexKind,
+                Literal[False],
+            ]
         ] = None,
         usecols=None,
         dtype: Optional[Dict] = None,
@@ -54,6 +61,11 @@ class ReaderIOMixin:
             using `engine="bigquery"` will not guarantee the same ordering as the
             file. Instead, set a serialized index column as the index and sort by
             that in the resulting DataFrame.
+
+        .. note::
+            For non-bigquery engine, data is inlined in the query SQL if it is
+            small enough (roughly 5MB or less in memory). Larger size data is
+            loaded to a BigQuery table instead.
 
         **Examples:**
 
@@ -159,6 +171,11 @@ class ReaderIOMixin:
             using `engine="bigquery"` will not guarantee the same ordering as the
             file. Instead, set a serialized index column as the index and sort by
             that in the resulting DataFrame.
+
+        .. note::
+            For non-bigquery engine, data is inlined in the query SQL if it is
+            small enough (roughly 5MB or less in memory). Larger size data is
+            loaded to a BigQuery table instead.
 
         **Examples:**
 

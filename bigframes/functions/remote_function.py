@@ -24,9 +24,11 @@ import string
 import sys
 import tempfile
 import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
+from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
+import warnings
 
 import ibis
+import pandas
 import requests
 
 if TYPE_CHECKING:
@@ -145,7 +147,13 @@ class RemoteFunctionClient:
         self._cloud_function_docker_repository = cloud_function_docker_repository
 
     def create_bq_remote_function(
-        self, input_args, input_types, output_type, endpoint, bq_function_name
+        self,
+        input_args,
+        input_types,
+        output_type,
+        endpoint,
+        bq_function_name,
+        max_batching_rows,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
@@ -169,14 +177,25 @@ class RemoteFunctionClient:
             bq_function_args.append(
                 f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
             )
+
+        remote_function_options = {
+            "endpoint": endpoint,
+            "max_batching_rows": max_batching_rows,
+        }
+
+        remote_function_options_str = ", ".join(
+            [
+                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                for key, val in remote_function_options.items()
+                if val is not None
+            ]
+        )
+
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
-            OPTIONS (
-              endpoint = "{endpoint}",
-              max_batching_rows = 1000
-            )"""
+            OPTIONS ({remote_function_options_str})"""
 
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
 
@@ -245,7 +264,7 @@ class RemoteFunctionClient:
 
         return udf_code_file_name, udf_bytecode_file_name
 
-    def generate_cloud_function_main_code(self, def_, dir):
+    def generate_cloud_function_main_code(self, def_, dir, is_row_processor=False):
         """Get main.py code for the cloud function for the given user defined function."""
 
         # Pickle the udf with all its dependencies
@@ -268,38 +287,120 @@ class RemoteFunctionClient:
         #   ...
         # }
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
-        code_template = textwrap.dedent(
-            """\
-        import cloudpickle
-        import functions_framework
-        from flask import jsonify
-        import json
+        code = """\
+import cloudpickle
+import functions_framework
+from flask import jsonify
+import json
+"""
+        if is_row_processor:
+            code += """\
+import ast
+import math
+import pandas as pd
 
-        # original udf code is in {udf_code_file}
-        # serialized udf code is in {udf_bytecode_file}
-        with open("{udf_bytecode_file}", "rb") as f:
-          udf = cloudpickle.load(f)
+def get_pd_series(row):
+    row_json = json.loads(row)
+    col_names = row_json["names"]
+    col_types = row_json["types"]
+    col_values = row_json["values"]
+    index_length = row_json["indexlength"]
+    dtype = row_json["dtype"]
 
-        def {handler_func_name}(request):
-          try:
-            request_json = request.get_json(silent=True)
-            calls = request_json["calls"]
-            replies = []
-            for call in calls:
-              reply = udf(*call)
-              replies.append(reply)
-            return_json = json.dumps({{"replies" : replies}})
-            return return_json
-          except Exception as e:
-            return jsonify( {{ "errorMessage": str(e) }} ), 400
-        """
-        )
+    # At this point we are assuming that col_names, col_types and col_values are
+    # arrays of the same length, representing column names, types and values for
+    # one row of data
 
-        code = code_template.format(
-            udf_code_file=udf_code_file,
-            udf_bytecode_file=udf_bytecode_file,
-            handler_func_name=handler_func_name,
-        )
+    # column names are not necessarily strings
+    # they are serialized as repr(name) at source
+    evaluated_col_names = []
+    for col_name in col_names:
+        try:
+            col_name = ast.literal_eval(col_name)
+        except Exception as ex:
+            raise NameError(f"Failed to evaluate column name from '{col_name}': {ex}")
+        evaluated_col_names.append(col_name)
+    col_names = evaluated_col_names
+
+    # Supported converters for pandas to python types
+    value_converters = {
+        "boolean": lambda val: val == "true",
+        "Int64": int,
+        "Float64": float,
+        "string": str,
+    }
+
+    def convert_value(value, value_type):
+        value_converter = value_converters.get(value_type)
+        if value_converter is None:
+            raise ValueError(f"Don't know how to handle type '{value_type}'")
+        if value is None:
+            return None
+        return value_converter(value)
+
+    index_values = [
+        pd.Series([convert_value(col_values[i], col_types[i])], dtype=col_types[i])[0]
+        for i in range(index_length)
+    ]
+
+    data_col_names = col_names[index_length:]
+    data_col_types = col_types[index_length:]
+    data_col_values = col_values[index_length:]
+    data_col_values = [
+        pd.Series([convert_value(a, data_col_types[i])], dtype=data_col_types[i])[0]
+        for i, a in enumerate(data_col_values)
+    ]
+
+    row_index = index_values[0] if len(index_values) == 1 else tuple(index_values)
+    row_series = pd.Series(data_col_values, index=data_col_names, name=row_index, dtype=dtype)
+    return row_series
+"""
+        code += f"""\
+
+# original udf code is in {udf_code_file}
+# serialized udf code is in {udf_bytecode_file}
+with open("{udf_bytecode_file}", "rb") as f:
+    udf = cloudpickle.load(f)
+
+def {handler_func_name}(request):
+    try:
+        request_json = request.get_json(silent=True)
+        calls = request_json["calls"]
+        replies = []
+        for call in calls:
+"""
+
+        if is_row_processor:
+            code += """\
+            reply = udf(get_pd_series(call[0]))
+            if isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
+                # json serialization of the special float values (nan, inf, -inf)
+                # is not in strict compliance of the JSON specification
+                # https://docs.python.org/3/library/json.html#basic-usage.
+                # Let's convert them to a quoted string representation ("NaN",
+                # "Infinity", "-Infinity" respectively) which is handled by
+                # BigQuery
+                reply = json.dumps(reply)
+            elif pd.isna(reply):
+                # Pandas N/A values are not json serializable, so use a python
+                # equivalent instead
+                reply = None
+            elif hasattr(reply, "item"):
+                # Numpy types are not json serializable, so use its Python
+                # value instead
+                reply = reply.item()
+"""
+        else:
+            code += """\
+            reply = udf(*call)
+"""
+        code += """\
+            replies.append(reply)
+        return_json = json.dumps({"replies" : replies})
+        return return_json
+    except Exception as e:
+        return jsonify( { "errorMessage": str(e) } ), 400
+"""
 
         main_py = os.path.join(dir, "main.py")
         with open(main_py, "w") as f:
@@ -308,11 +409,17 @@ class RemoteFunctionClient:
 
         return handler_func_name
 
-    def generate_cloud_function_code(self, def_, dir, package_requirements=None):
+    def generate_cloud_function_code(
+        self, def_, dir, package_requirements=None, is_row_processor=False
+    ):
         """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         requirements = ["cloudpickle >= 2.1.0"]
+        if is_row_processor:
+            # bigframes remote function will send an entire row of data as json,
+            # which would be converted to a pandas series and processed
+            requirements.append(f"pandas=={pandas.__version__}")
         if package_requirements:
             requirements.extend(package_requirements)
         requirements = sorted(requirements)
@@ -321,16 +428,27 @@ class RemoteFunctionClient:
             f.write("\n".join(requirements))
 
         # main.py
-        entry_point = self.generate_cloud_function_main_code(def_, dir)
+        entry_point = self.generate_cloud_function_main_code(
+            def_, dir, is_row_processor
+        )
         return entry_point
 
-    def create_cloud_function(self, def_, cf_name, package_requirements=None):
+    def create_cloud_function(
+        self,
+        def_,
+        cf_name,
+        package_requirements=None,
+        timeout_seconds=600,
+        max_instance_count=None,
+        is_row_processor=False,
+        vpc_connector=None,
+    ):
         """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as dir:
             entry_point = self.generate_cloud_function_code(
-                def_, dir, package_requirements
+                def_, dir, package_requirements, is_row_processor
             )
             archive_path = shutil.make_archive(dir, "zip", dir)
 
@@ -392,7 +510,18 @@ class RemoteFunctionClient:
             )
             function.service_config = functions_v2.ServiceConfig()
             function.service_config.available_memory = "1024M"
-            function.service_config.timeout_seconds = 600
+            if timeout_seconds is not None:
+                if timeout_seconds > 1200:
+                    raise ValueError(
+                        "BigQuery remote function can wait only up to 20 minutes"
+                        ", see for more details "
+                        "https://cloud.google.com/bigquery/quotas#remote_function_limits."
+                    )
+                function.service_config.timeout_seconds = timeout_seconds
+            if max_instance_count is not None:
+                function.service_config.max_instance_count = max_instance_count
+            if vpc_connector is not None:
+                function.service_config.vpc_connector = vpc_connector
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
@@ -438,6 +567,11 @@ class RemoteFunctionClient:
         reuse,
         name,
         package_requirements,
+        max_batching_rows,
+        cloud_function_timeout,
+        cloud_function_max_instance_count,
+        is_row_processor,
+        cloud_function_vpc_connector,
     ):
         """Provision a BigQuery remote function."""
         # If reuse of any existing function with the same name (indicated by the
@@ -459,7 +593,13 @@ class RemoteFunctionClient:
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_, cloud_function_name, package_requirements
+                def_,
+                cloud_function_name,
+                package_requirements,
+                cloud_function_timeout,
+                cloud_function_max_instance_count,
+                is_row_processor,
+                cloud_function_vpc_connector,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -485,7 +625,12 @@ class RemoteFunctionClient:
                     "Exactly one type should be provided for every input arg."
                 )
             self.create_bq_remote_function(
-                input_args, input_types, output_type, cf_endpoint, remote_function_name
+                input_args,
+                input_types,
+                output_type,
+                cf_endpoint,
+                remote_function_name,
+                max_batching_rows,
             )
         else:
             logger.info(f"Remote function {remote_function_name} already exists.")
@@ -590,7 +735,7 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Sequence[type],
+    input_types: Union[type, Sequence[type]],
     output_type: type,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
@@ -607,6 +752,10 @@ def remote_function(
     cloud_function_service_account: Optional[str] = None,
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
+    max_batching_rows: Optional[int] = 1000,
+    cloud_function_timeout: Optional[int] = 600,
+    cloud_function_max_instances: Optional[int] = None,
+    cloud_function_vpc_connector: Optional[str] = None,
 ):
     """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -651,9 +800,11 @@ def remote_function(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
-        input_types list(type):
-            List of input data types in the user defined function.
-        output_type type:
+        input_types (type or sequence(type)):
+            For scalar user defined function it should be the input type or
+            sequence of input types. For row processing user defined function,
+            type `Series` should be specified.
+        output_type (type):
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
             BigQuery DataFrames session to use for getting default project,
@@ -723,7 +874,58 @@ def remote_function(
             projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
             For more details see
             https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
+        max_batching_rows (int, Optional):
+            The maximum number of rows to be batched for processing in the
+            BQ remote function. Default value is 1000. A lower number can be
+            passed to avoid timeouts in case the user code is too complex to
+            process large number of rows fast enough. A higher number can be
+            used to increase throughput in case the user code is fast enough.
+            `None` can be passed to let BQ remote functions service apply
+            default batching. See for more details
+            https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
+        cloud_function_timeout (int, Optional):
+            The maximum amount of time (in seconds) BigQuery should wait for
+            the cloud function to return a response. See for more details
+            https://cloud.google.com/functions/docs/configuring/timeout.
+            Please note that even though the cloud function (2nd gen) itself
+            allows seeting up to 60 minutes of timeout, BigQuery remote
+            function can wait only up to 20 minutes, see for more details
+            https://cloud.google.com/bigquery/quotas#remote_function_limits.
+            By default BigQuery DataFrames uses a 10 minute timeout. `None`
+            can be passed to let the cloud functions default timeout take effect.
+        cloud_function_max_instances (int, Optional):
+            The maximumm instance count for the cloud function created. This
+            can be used to control how many cloud function instances can be
+            active at max at any given point of time. Lower setting can help
+            control the spike in the billing. Higher setting can help
+            support processing larger scale data. When not specified, cloud
+            function's default setting applies. For more details see
+            https://cloud.google.com/functions/docs/configuring/max-instances.
+        cloud_function_vpc_connector (str, Optional):
+            The VPC connector you would like to configure for your cloud
+            function. This is useful if your code needs access to data or
+            service(s) that are on a VPC network. See for more details
+            https://cloud.google.com/functions/docs/networking/connecting-vpc.
     """
+    is_row_processor = False
+
+    import bigframes.series
+
+    if input_types == bigframes.series.Series:
+        warnings.warn(
+            "input_types=Series scenario is in preview.",
+            stacklevel=1,
+            category=bigframes.exceptions.PreviewWarning,
+        )
+
+        # we will model the row as a json serialized string containing the data
+        # and the metadata representing the row
+        input_types = [str]
+        is_row_processor = True
+    elif isinstance(input_types, type):
+        input_types = [input_types]
+
+    # Some defaults may be used from the session if not provided otherwise
     import bigframes.pandas as bpd
 
     session = session or bpd.get_global_session()
@@ -821,8 +1023,9 @@ def remote_function(
             raise TypeError("f must be callable, got {}".format(f))
 
         signature = inspect.signature(f)
+        # TODO(b/340898611): fix type error
         ibis_signature = ibis_signature_from_python_signature(
-            signature, input_types, output_type
+            signature, input_types, output_type  # type: ignore
         )
 
         remote_function_client = RemoteFunctionClient(
@@ -846,6 +1049,11 @@ def remote_function(
             reuse,
             name,
             packages,
+            max_batching_rows,
+            cloud_function_timeout,
+            cloud_function_max_instances,
+            is_row_processor,
+            cloud_function_vpc_connector,
         )
 
         # TODO: Move ibis logic to compiler step

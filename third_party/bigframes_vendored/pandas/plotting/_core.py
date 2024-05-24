@@ -11,6 +11,7 @@ class PlotAccessor:
     For Series:
 
         >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
         >>> ser = bpd.Series([1, 2, 3, 3])
         >>> plot = ser.plot(kind='hist', title="My plot")
 
@@ -56,7 +57,9 @@ class PlotAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(np.random.randint(1, 7, 6000), columns=['one'])
             >>> df['two'] = np.random.randint(1, 7, 6000) + np.random.randint(1, 7, 6000)
             >>> ax = df.plot.hist(bins=12, alpha=0.5)
@@ -93,6 +96,7 @@ class PlotAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(
             ...     {
             ...         'one': [1, 2, 3, 4],
@@ -160,6 +164,7 @@ class PlotAccessor:
         Draw an area plot based on basic business metrics:
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(
             ...     {
             ...         'sales': [3, 2, 3, 9, 10, 6],
@@ -231,6 +236,7 @@ class PlotAccessor:
         in a DataFrame's columns.
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([[5.1, 3.5, 0], [4.9, 3.0, 0], [7.0, 3.2, 1],
             ...                    [6.4, 3.2, 1], [5.9, 3.0, 2]],
             ...                   columns=['length', 'width', 'species'])
@@ -257,9 +263,6 @@ class PlotAccessor:
 
                 - A string with the name of the column to be used for marker's size.
                 - A single scalar so all points have the same size.
-                - A sequence of scalars, which will be used for each point's size
-                  recursively. For instance, when passing [2,14] all points size
-                  will be either 2 or 14, alternatively.
 
             c (str, int or array-like, optional):
                 The color of each point. Possible values are:

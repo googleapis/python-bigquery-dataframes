@@ -24,17 +24,20 @@ def test_index_construct_from_list():
     bf_result = bpd.Index(
         [3, 14, 159], dtype=pd.Int64Dtype(), name="my_index"
     ).to_pandas()
-    pd_result = pd.Index([3, 14, 159], dtype=pd.Int64Dtype(), name="my_index")
+    # TODO(b/340878489): fix type error
+    pd_result = pd.Index([3, 14, 159], dtype=pd.Int64Dtype(), name="my_index")  # type: ignore
     pd.testing.assert_index_equal(bf_result, pd_result)
 
 
 def test_index_construct_from_series():
+    # TODO(b/340878489): fix type error
     bf_result = bpd.Index(
         bpd.Series([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"),
         name="index_name",
         dtype=pd.Int64Dtype(),
-    ).to_pandas()
-    pd_result = pd.Index(
+    ).to_pandas()  # type: ignore
+    # TODO(b/340878489): fix type error
+    pd_result = pd.Index(  # type: ignore
         pd.Series([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"),
         name="index_name",
         dtype=pd.Int64Dtype(),
@@ -46,11 +49,14 @@ def test_index_construct_from_index():
     bf_index_input = bpd.Index(
         [3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"
     )
+    # TODO(b/340878489): fix type error
     bf_result = bpd.Index(
-        bf_index_input, dtype=pd.Int64Dtype(), name="index_name"
+        bf_index_input, dtype=pd.Int64Dtype(), name="index_name"  # type: ignore
     ).to_pandas()
-    pd_index_input = pd.Index([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name")
-    pd_result = pd.Index(pd_index_input, dtype=pd.Int64Dtype(), name="index_name")
+    # TODO(b/340878489): fix type error
+    pd_index_input = pd.Index([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name")  # type: ignore
+    # TODO(b/340878489): fix type error
+    pd_result = pd.Index(pd_index_input, dtype=pd.Int64Dtype(), name="index_name")  # type: ignore
     pd.testing.assert_index_equal(bf_result, pd_result)
 
 
@@ -365,8 +371,48 @@ def test_index_isin(scalars_df_index, scalars_pandas_df_index):
     pd_result_array = scalars_pandas_df_index.set_index("int64_col").index.isin(
         [2, 55555, 4]
     )
-    pd.testing.assert_index_equal(
+    # TODO(b/340878489): fix type error
+    pd.testing.assert_index_equal(  # type: ignore
         pd.Index(pd_result_array),
         bf_series,
         check_names=False,
     )
+
+
+def test_multiindex_name_is_none(session):
+    df = pd.DataFrame(
+        {
+            "A": [0, 0, 0, 1, 1, 1],
+            "B": ["x", "y", "z", "x", "y", "z"],
+            "C": [123, 345, 789, -123, -345, -789],
+            "D": ["a", "b", "c", "d", "e", "f"],
+        },
+    )
+    index = session.read_pandas(df).set_index(["A", "B"]).index
+    assert index.name is None
+
+
+def test_multiindex_names_not_none(session):
+    df = pd.DataFrame(
+        {
+            "A": [0, 0, 0, 1, 1, 1],
+            "B": ["x", "y", "z", "x", "y", "z"],
+            "C": [123, 345, 789, -123, -345, -789],
+            "D": ["a", "b", "c", "d", "e", "f"],
+        },
+    )
+    index = session.read_pandas(df).set_index(["A", "B"]).index
+    assert tuple(index.names) == ("A", "B")
+
+
+def test_multiindex_repr_includes_all_names(session):
+    df = pd.DataFrame(
+        {
+            "A": [0, 0, 0, 1, 1, 1],
+            "B": ["x", "y", "z", "x", "y", "z"],
+            "C": [123, 345, 789, -123, -345, -789],
+            "D": ["a", "b", "c", "d", "e", "f"],
+        },
+    )
+    index = session.read_pandas(df).set_index(["A", "B"]).index
+    assert "names=['A', 'B']" in repr(index)

@@ -32,6 +32,7 @@ _BQML_PARAMS_MAPPING = {
     "auto_arima_min_order": "autoArimaMinOrder",
     "order": "nonSeasonalOrder",
     "data_frequency": "dataFrequency",
+    "include_drift": "includeDrift",
     "holiday_region": "holidayRegion",
     "clean_spikes_and_dips": "cleanSpikesAndDips",
     "adjust_step_changes": "adjustStepChanges",
@@ -131,35 +132,18 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         self._bqml_model_factory = globals.bqml_model_factory()
 
     @classmethod
-    def _from_bq(cls, session: bigframes.Session, model: bigquery.Model) -> ARIMAPlus:
-        assert model.model_type == "ARIMA_PLUS"
+    def _from_bq(
+        cls, session: bigframes.Session, bq_model: bigquery.Model
+    ) -> ARIMAPlus:
+        assert bq_model.model_type == "ARIMA_PLUS"
 
-        kwargs: dict = {}
-        last_fitting = model.training_runs[-1]["trainingOptions"]
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        dummy_arima = cls()
-        for bf_param, bf_value in dummy_arima.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                # Convert types
-                if bf_param in ["time_series_length_fraction"]:
-                    kwargs[bf_param] = float(last_fitting[bqml_param])
-                elif bf_param in [
-                    "auto_arima_max_order",
-                    "auto_arima_min_order",
-                    "min_time_series_length",
-                    "max_time_series_length",
-                    "trend_smoothing_window_size",
-                ]:
-                    kwargs[bf_param] = int(last_fitting[bqml_param])
-                elif bf_param in ["holiday_region"]:
-                    kwargs[bf_param] = str(last_fitting[bqml_param])
-                else:
-                    kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_arima_plus = cls(**kwargs)
-        new_arima_plus._bqml_model = core.BqmlModel(session, model)
-        return new_arima_plus
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> dict:
@@ -248,12 +232,12 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
                 an int value that specifies the number of time points to forecast.
                 The default value is 3, and the maximum value is 1000.
             confidence_level (float, default 0.95):
-                a float value that specifies percentage of the future values that fall in the prediction interval.
+                A float value that specifies percentage of the future values that fall in the prediction interval.
                 The valid input range is [0.0, 1.0).
 
         Returns:
             bigframes.dataframe.DataFrame: The predicted DataFrames. Which
-                contains 2 columns "forecast_timestamp" and "forecast_value".
+                contains 2 columns: "forecast_timestamp" and "forecast_value".
         """
         if horizon < 1 or horizon > 1000:
             raise ValueError(f"horizon must be [1, 1000], but is {horizon}.")
@@ -268,6 +252,27 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         return self._bqml_model.forecast(
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
+
+    @property
+    def coef_(
+        self,
+    ) -> bpd.DataFrame:
+        """Inspect the coefficients of the model.
+
+        ..note::
+
+            Output matches that of the ML.ARIMA_COEFFICIENTS function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-arima-coefficients
+            for the outputs relevant to this model type.
+
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A DataFrame with the coefficients for the model.
+        """
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before inspect coefficients")
+        return self._bqml_model.arima_coefficients()
 
     def detect_anomalies(
         self,
@@ -284,7 +289,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
                 Identifies the custom threshold to use for anomaly detection. The value must be in the range [0, 1), with a default value of 0.95.
 
         Returns:
-            bigframes.dataframe.DataFrame: detected DataFrame."""
+            bigframes.dataframe.DataFrame: Detected DataFrame."""
         if anomaly_prob_threshold < 0.0 or anomaly_prob_threshold >= 1.0:
             raise ValueError(
                 f"anomaly_prob_threshold must be [0.0, 1.0), but is {anomaly_prob_threshold}."
@@ -361,12 +366,12 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            ARIMAPlus: saved model."""
+            ARIMAPlus: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

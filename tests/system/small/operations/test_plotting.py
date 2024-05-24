@@ -27,13 +27,10 @@ def _check_legend_labels(ax, labels):
     """
     assert ax.get_legend() is not None
     texts = ax.get_legend().get_texts()
-    if not isinstance(texts, list):
-        assert texts.get_text() == labels
-    else:
-        actual_labels = [t.get_text() for t in texts]
-        assert len(actual_labels) == len(labels)
-        for label, e in zip(actual_labels, labels):
-            assert label == e
+    actual_labels = [t.get_text() for t in texts]
+    assert len(actual_labels) == len(labels)
+    for label, e in zip(actual_labels, labels):
+        assert label == e
 
 
 def test_series_hist_bins(scalars_dfs):
@@ -238,6 +235,49 @@ def test_scatter_args_c(c):
             ax.collections[0].get_facecolor()[idx],
             pd_ax.collections[0].get_facecolor()[idx],
         )
+
+
+@pytest.mark.parametrize(
+    ("s"),
+    [
+        pytest.param([10, 34, 50], id="int"),
+        pytest.param([1.0, 3.4, 5.0], id="float"),
+        pytest.param(
+            [True, True, False], id="bool", marks=pytest.mark.xfail(raises=ValueError)
+        ),
+    ],
+)
+def test_scatter_args_s(s):
+    data = {
+        "a": [1, 2, 3],
+        "b": [1, 2, 3],
+    }
+    data["s"] = s
+    df = bpd.DataFrame(data)
+    pd_df = pd.DataFrame(data)
+
+    ax = df.plot.scatter(x="a", y="b", s="s")
+    pd_ax = pd_df.plot.scatter(x="a", y="b", s="s")
+    # TODO(b/340891723): fix type error
+    tm.assert_numpy_array_equal(
+        ax.collections[0].get_sizes(), pd_ax.collections[0].get_sizes()  # type: ignore
+    )
+
+
+@pytest.mark.parametrize(
+    ("arg_name"),
+    [
+        pytest.param("c", marks=pytest.mark.xfail(raises=NotImplementedError)),
+        pytest.param("s", marks=pytest.mark.xfail(raises=NotImplementedError)),
+    ],
+)
+def test_scatter_sequence_arg(arg_name):
+    data = {
+        "a": [1, 2, 3],
+        "b": [1, 2, 3],
+    }
+    arg_value = [3, 3, 1]
+    bpd.DataFrame(data).plot.scatter(x="a", y="b", **{arg_name: arg_value})
 
 
 def test_sampling_plot_args_n():

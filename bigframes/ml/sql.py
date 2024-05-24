@@ -103,14 +103,32 @@ class BaseSqlGenerator:
         """Encode ML.MIN_MAX_SCALER for BQML"""
         return f"""ML.MIN_MAX_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
+    def ml_imputer(
+        self,
+        expr_sql: str,
+        strategy: str,
+        name: str,
+    ) -> str:
+        """Encode ML.IMPUTER for BQML"""
+        return f"""ML.IMPUTER({expr_sql}, '{strategy}') OVER() AS {name}"""
+
     def ml_bucketize(
         self,
         numeric_expr_sql: str,
         array_split_points: Iterable[Union[int, float]],
         name: str,
     ) -> str:
-        """Encode ML.MIN_MAX_SCALER for BQML"""
+        """Encode ML.BUCKETIZE for BQML"""
         return f"""ML.BUCKETIZE({numeric_expr_sql}, {array_split_points}, FALSE) AS {name}"""
+
+    def ml_quantile_bucketize(
+        self,
+        numeric_expr_sql: str,
+        num_bucket: int,
+        name: str,
+    ) -> str:
+        """Encode ML.QUANTILE_BUCKETIZE for BQML"""
+        return f"""ML.QUANTILE_BUCKETIZE({numeric_expr_sql}, {num_bucket}) OVER() AS {name}"""
 
     def ml_one_hot_encoder(
         self,
@@ -172,6 +190,23 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
         if transforms:
             parts.append(self.transform(*transforms))
+        if options:
+            parts.append(self.options(**options))
+        parts.append(f"AS {source_sql}")
+        return "\n".join(parts)
+
+    def create_llm_remote_model(
+        self,
+        source_df: bpd.DataFrame,
+        connection_name: str,
+        model_ref: google.cloud.bigquery.ModelReference,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML"""
+        source_sql = source_df.sql
+
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        parts.append(self.connection(connection_name))
         if options:
             parts.append(self.options(**options))
         parts.append(f"AS {source_sql}")
@@ -300,6 +335,20 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         else:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
+
+    def ml_arima_coefficients(self) -> str:
+        """Encode ML.ARIMA_COEFFICIENTS for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `{self._model_name}`)"""
+
+    # ML evaluation TVFs
+    def ml_llm_evaluate(
+        self, source_df: bpd.DataFrame, task_type: Optional[str] = None
+    ) -> str:
+        """Encode ML.EVALUATE for BQML"""
+        # Note: don't need index as evaluate returns a new table
+        source_sql, _, _ = source_df._to_sql_query(include_index=False)
+        return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
+            ({source_sql}), STRUCT("{task_type}" AS task_type))"""
 
     # ML evaluation TVFs
     def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:

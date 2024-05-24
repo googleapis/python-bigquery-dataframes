@@ -57,12 +57,10 @@ DATE_DTYPE = pd.ArrowDtype(pa.date32())
 TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
 DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
 TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+GEO_DTYPE = gpd.array.GeometryDtype()
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
-
-# On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-UNORDERED_DTYPES = [gpd.array.GeometryDtype()]
 
 # Type hints for dtype strings supported by BigQuery DataFrame
 DtypeString = Literal[
@@ -129,29 +127,38 @@ def is_string_like(type: ExpressionType) -> bool:
 
 
 def is_array_like(type: ExpressionType) -> bool:
-    if isinstance(type, pd.ArrowDtype) and isinstance(type.pyarrow_dtype, pa.ListType):
-        return True
-    else:
-        return type in (STRING_DTYPE, BYTES_DTYPE)
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.ListType
+    )
+
+
+def is_struct_like(type: ExpressionType) -> bool:
+    return isinstance(type, pd.ArrowDtype) and isinstance(
+        type.pyarrow_dtype, pa.StructType
+    )
 
 
 def is_numeric(type: ExpressionType) -> bool:
     return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
 
 
+def is_iterable(type: ExpressionType) -> bool:
+    return type in (STRING_DTYPE, BYTES_DTYPE) or is_array_like(type)
+
+
 def is_comparable(type: ExpressionType) -> bool:
-    return (type is not None) and (type not in UNORDERED_DTYPES)
+    return (type is not None) and is_orderable(type)
 
 
-# Type hints for Ibis data types that can be read to Python objects by BigQuery DataFrame
-ReadOnlyIbisDtype = Union[
-    ibis_dtypes.Binary,
-    ibis_dtypes.JSON,
-    ibis_dtypes.Decimal,
-    ibis_dtypes.GeoSpatial,
-    ibis_dtypes.Array,
-    ibis_dtypes.Struct,
-]
+def is_orderable(type: ExpressionType) -> bool:
+    # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
+    return not is_array_like(type) and not is_struct_like(type) and (type != GEO_DTYPE)
+
+
+def is_bool_coercable(type: ExpressionType) -> bool:
+    # TODO: Implement more bool coercions
+    return (type is None) or is_numeric(type) or is_string_like(type)
+
 
 BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, Dtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
@@ -348,6 +355,10 @@ def arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
         )
 
 
+def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+    return ibis_dtype_to_bigframes_dtype(arrow_dtype_to_ibis_dtype(arrow_dtype))
+
+
 def bigframes_dtype_to_ibis_dtype(
     bigframes_dtype: Union[DtypeString, Dtype, np.dtype[Any]]
 ) -> ibis_dtypes.DataType:
@@ -392,6 +403,12 @@ def bigframes_dtype_to_ibis_dtype(
         )
 
     return BIGFRAMES_TO_IBIS[bigframes_dtype]
+
+
+def bigframes_dtype_to_arrow_dtype(
+    bigframes_dtype: Union[DtypeString, Dtype, np.dtype[Any]]
+) -> pa.DataType:
+    return ibis_dtype_to_arrow_dtype(bigframes_dtype_to_ibis_dtype(bigframes_dtype))
 
 
 def literal_to_ibis_scalar(
@@ -647,9 +664,14 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
     return None
 
 
-def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
-    if dtype1 == dtype2:
-        return dtype1
+def lcd_type(*dtypes: Dtype) -> Dtype:
+    if len(dtypes) < 1:
+        raise ValueError("at least one dypes should be provided")
+    if len(dtypes) == 1:
+        return dtypes[0]
+    unique_dtypes = set(dtypes)
+    if len(unique_dtypes) == 1:
+        return unique_dtypes.pop()
     # Implicit conversion currently only supported for numeric types
     hierarchy: list[Dtype] = [
         pd.BooleanDtype(),
@@ -658,18 +680,32 @@ def lcd_type(dtype1: Dtype, dtype2: Dtype) -> Dtype:
         pd.ArrowDtype(pa.decimal256(76, 38)),
         pd.Float64Dtype(),
     ]
-    if (dtype1 not in hierarchy) or (dtype2 not in hierarchy):
+    if any([dtype not in hierarchy for dtype in dtypes]):
         return None
-    lcd_index = max(hierarchy.index(dtype1), hierarchy.index(dtype2))
+    lcd_index = max([hierarchy.index(dtype) for dtype in dtypes])
     return hierarchy[lcd_index]
 
 
-def lcd_etype(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
-    if etype1 is None:
+def coerce_to_common(etype1: ExpressionType, etype2: ExpressionType) -> ExpressionType:
+    """Coerce types to a common type or throw a TypeError"""
+    if etype1 is not None and etype2 is not None:
+        common_supertype = lcd_type(etype1, etype2)
+        if common_supertype is not None:
+            return common_supertype
+    if can_coerce(etype1, etype2):
         return etype2
-    if etype2 is None:
+    if can_coerce(etype2, etype1):
         return etype1
-    return lcd_type_or_throw(etype1, etype2)
+    raise TypeError(f"Cannot coerce {etype1} and {etype2} to a common type.")
+
+
+def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool:
+    if source_type is None:
+        return True  # None can be coerced to any supported type
+    else:
+        return (source_type == STRING_DTYPE) and (
+            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+        )
 
 
 def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:

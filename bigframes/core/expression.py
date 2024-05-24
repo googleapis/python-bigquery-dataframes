@@ -118,6 +118,11 @@ class Expression(abc.ABC):
     def is_bijective(self) -> bool:
         return False
 
+    @property
+    def is_identity(self) -> bool:
+        """True for identity operation that does not transform input."""
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -183,6 +188,10 @@ class UnboundVariableExpression(Expression):
     def is_bijective(self) -> bool:
         return True
 
+    @property
+    def is_identity(self) -> bool:
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class OpExpression(Expression):
@@ -190,9 +199,6 @@ class OpExpression(Expression):
 
     op: bigframes.operations.RowOp
     inputs: typing.Tuple[Expression, ...]
-
-    def __post_init__(self):
-        assert self.op.arguments == len(self.inputs)
 
     @property
     def unbound_variables(self) -> typing.Tuple[str, ...]:

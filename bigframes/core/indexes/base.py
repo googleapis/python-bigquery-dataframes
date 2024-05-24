@@ -42,9 +42,15 @@ if typing.TYPE_CHECKING:
 
 class Index(vendored_pandas_index.Index):
     __doc__ = vendored_pandas_index.Index.__doc__
+    _query_job = None
+    _block: blocks.Block
+    _linked_frame: Union[
+        bigframes.dataframe.DataFrame, bigframes.series.Series, None
+    ] = None
 
-    def __init__(
-        self,
+    # Overrided on __new__ to create subclasses like pandas does
+    def __new__(
+        cls,
         data=None,
         dtype=None,
         *,
@@ -73,22 +79,46 @@ class Index(vendored_pandas_index.Index):
             if dtype is not None:
                 index = index.astype(dtype)
             block = index._block
+        elif isinstance(data, pandas.Index):
+            pd_df = pandas.DataFrame(index=data)
+            block = df.DataFrame(pd_df, session=session)._block
         else:
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df, session=session)._block
-        self._query_job = None
-        self._block: blocks.Block = block
+
+        # TODO: Support more index subtypes
+        from bigframes.core.indexes.multi import MultiIndex
+
+        klass = MultiIndex if len(block._index_columns) > 1 else cls
+        # TODO(b/340893286): fix type error
+        result = typing.cast(Index, object.__new__(klass))  # type: ignore
+        result._query_job = None
+        result._block = block
+        block.session._register_object(result)
+        return result
 
     @classmethod
     def from_frame(
         cls, frame: Union[bigframes.series.Series, bigframes.dataframe.DataFrame]
     ) -> Index:
-        return FrameIndex(frame)
+        if len(frame._block.index_columns) == 0:
+            raise bigframes.exceptions.NullIndexError(
+                "Cannot access index properties with Null Index. Set an index using set_index."
+            )
+        frame._block._throw_if_null_index("from_frame")
+        index = Index(frame._block)
+        index._linked_frame = frame
+        return index
 
     @property
     def name(self) -> blocks.Label:
-        return self.names[0]
+        names = self.names
+        if len(names) == 1:
+            return self.names[0]
+        else:
+            # pandas returns None for MultiIndex.name.
+            return None
 
     @name.setter
     def name(self, value: blocks.Label):
@@ -102,6 +132,10 @@ class Index(vendored_pandas_index.Index):
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
         new_block = self._block.with_index_labels(values)
+        if self._linked_frame is not None:
+            self._linked_frame._set_block(
+                self._linked_frame._block.with_index_labels(values)
+            )
         self._block = new_block
 
     @property
@@ -205,17 +239,17 @@ class Index(vendored_pandas_index.Index):
         return self._query_job
 
     def __repr__(self) -> str:
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole series by using job
+        # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        max_columns = opts.max_columns
         if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self.query_job)
+            return formatter.repr_query_job(self._block._compute_dry_run())
 
-        pandas_df, _, query_job = self._block.retrieve_repr_request_results(
-            max_results, max_columns
-        )
+        pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
-
         return repr(pandas_df.index)
 
     def copy(self, name: Optional[Hashable] = None):
@@ -447,34 +481,3 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
-
-
-# Index that mutates the originating dataframe/series
-class FrameIndex(Index):
-    def __init__(
-        self,
-        series_or_dataframe: typing.Union[
-            bigframes.series.Series, bigframes.dataframe.DataFrame
-        ],
-    ):
-        super().__init__(series_or_dataframe._block)
-        self._whole_frame = series_or_dataframe
-
-    @property
-    def name(self) -> blocks.Label:
-        return self.names[0]
-
-    @name.setter
-    def name(self, value: blocks.Label):
-        self.names = [value]
-
-    @property
-    def names(self) -> typing.Sequence[blocks.Label]:
-        """Returns the names of the Index."""
-        return self._block._index_labels
-
-    @names.setter
-    def names(self, values: typing.Sequence[blocks.Label]):
-        new_block = self._whole_frame._get_block().with_index_labels(values)
-        self._whole_frame._set_block(new_block)
-        self._block = new_block

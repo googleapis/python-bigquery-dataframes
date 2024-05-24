@@ -35,16 +35,21 @@ class SquashedSelect:
     columns: Tuple[Tuple[scalar_exprs.Expression, str], ...]
     predicate: Optional[scalar_exprs.Expression]
     ordering: Tuple[order.OrderingExpression, ...]
+    reverse_root: bool = False
 
     @classmethod
-    def from_node(cls, node: nodes.BigFrameNode) -> SquashedSelect:
+    def from_node(
+        cls, node: nodes.BigFrameNode, projections_only: bool = False
+    ) -> SquashedSelect:
         if isinstance(node, nodes.ProjectionNode):
-            return cls.from_node(node.child).project(node.assignments)
-        elif isinstance(node, nodes.FilterNode):
+            return cls.from_node(node.child, projections_only=projections_only).project(
+                node.assignments
+            )
+        elif not projections_only and isinstance(node, nodes.FilterNode):
             return cls.from_node(node.child).filter(node.predicate)
-        elif isinstance(node, nodes.ReversedNode):
+        elif not projections_only and isinstance(node, nodes.ReversedNode):
             return cls.from_node(node.child).reverse()
-        elif isinstance(node, nodes.OrderByNode):
+        elif not projections_only and isinstance(node, nodes.OrderByNode):
             return cls.from_node(node.child).order_with(node.by)
         else:
             selection = tuple(
@@ -63,7 +68,9 @@ class SquashedSelect:
         new_columns = tuple(
             (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
         )
-        return SquashedSelect(self.root, new_columns, self.predicate, self.ordering)
+        return SquashedSelect(
+            self.root, new_columns, self.predicate, self.ordering, self.reverse_root
+        )
 
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
         if self.predicate is None:
@@ -72,25 +79,31 @@ class SquashedSelect:
             new_predicate = ops.and_op.as_expr(
                 self.predicate, predicate.bind_all_variables(self.column_lookup)
             )
-        return SquashedSelect(self.root, self.columns, new_predicate, self.ordering)
+        return SquashedSelect(
+            self.root, self.columns, new_predicate, self.ordering, self.reverse_root
+        )
 
     def reverse(self) -> SquashedSelect:
         new_ordering = tuple(expr.with_reverse() for expr in self.ordering)
-        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(
+            self.root, self.columns, self.predicate, new_ordering, not self.reverse_root
+        )
 
     def order_with(self, by: Tuple[order.OrderingExpression, ...]):
         adjusted_orderings = [
             order_part.bind_variables(self.column_lookup) for order_part in by
         ]
         new_ordering = (*adjusted_orderings, *self.ordering)
-        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(
+            self.root, self.columns, self.predicate, new_ordering, self.reverse_root
+        )
 
-    def maybe_join(
+    def can_join(
         self, right: SquashedSelect, join_def: join_defs.JoinDefinition
-    ) -> Optional[SquashedSelect]:
+    ) -> bool:
         if join_def.type == "cross":
             # Cannot convert cross join to projection
-            return None
+            return False
 
         r_exprs_by_id = {id: expr for expr, id in right.columns}
         l_exprs_by_id = {id: expr for expr, id in self.columns}
@@ -100,10 +113,17 @@ class SquashedSelect:
         if (self.root != right.root) or any(
             l_expr != r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)
         ):
+            return False
+        return True
+
+    def maybe_merge(
+        self,
+        right: SquashedSelect,
+        join_type: join_defs.JoinType,
+        mappings: Tuple[join_defs.JoinColumnMapping, ...],
+    ) -> Optional[SquashedSelect]:
+        if self.root != right.root:
             return None
-
-        join_type = join_def.type
-
         # Mask columns and remap names to expected schema
         lselection = self.columns
         rselection = right.columns
@@ -123,11 +143,13 @@ class SquashedSelect:
             lselection = tuple((apply_mask(expr, lmask), id) for expr, id in lselection)
         if rmask is not None:
             rselection = tuple((apply_mask(expr, rmask), id) for expr, id in rselection)
-        new_columns = remap_names(join_def, lselection, rselection)
+        new_columns = remap_names(mappings, lselection, rselection)
 
         # Reconstruct ordering
+        reverse_root = self.reverse_root
         if join_type == "right":
             new_ordering = right.ordering
+            reverse_root = right.reverse_root
         elif join_type == "outer":
             if lmask is not None:
                 prefix = order.OrderingExpression(lmask, order.OrderingDirection.DESC)
@@ -158,11 +180,15 @@ class SquashedSelect:
             new_ordering = self.ordering
         else:
             raise ValueError(f"Unexpected join type {join_type}")
-        return SquashedSelect(self.root, new_columns, new_predicate, new_ordering)
+        return SquashedSelect(
+            self.root, new_columns, new_predicate, new_ordering, reverse_root
+        )
 
     def expand(self) -> nodes.BigFrameNode:
         # Safest to apply predicates first, as it may filter out inputs that cannot be handled by other expressions
         root = self.root
+        if self.reverse_root:
+            root = nodes.ReversedNode(child=root)
         if self.predicate:
             root = nodes.FilterNode(child=root, predicate=self.predicate)
         if self.ordering:
@@ -170,23 +196,39 @@ class SquashedSelect:
         return nodes.ProjectionNode(child=root, assignments=self.columns)
 
 
+def maybe_squash_projection(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    if isinstance(node, nodes.ProjectionNode) and isinstance(
+        node.child, nodes.ProjectionNode
+    ):
+        # Conservative approach, only squash consecutive projections, even though could also squash filters, reorderings
+        return SquashedSelect.from_node(node, projections_only=True).expand()
+    return node
+
+
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
     left_side = SquashedSelect.from_node(join_node.left_child)
     right_side = SquashedSelect.from_node(join_node.right_child)
-    joined = left_side.maybe_join(right_side, join_node.join)
-    if joined is not None:
-        return joined.expand()
+    if left_side.can_join(right_side, join_node.join):
+        merged = left_side.maybe_merge(
+            right_side, join_node.join.type, join_node.join.mappings
+        )
+        assert (
+            merged is not None
+        ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."
+        return merged.expand()
     else:
         return join_node
 
 
 def remap_names(
-    join: join_defs.JoinDefinition, lselection: Selection, rselection: Selection
+    mappings: Tuple[join_defs.JoinColumnMapping, ...],
+    lselection: Selection,
+    rselection: Selection,
 ) -> Selection:
     new_selection: Selection = tuple()
     l_exprs_by_id = {id: expr for expr, id in lselection}
     r_exprs_by_id = {id: expr for expr, id in rselection}
-    for mapping in join.mappings:
+    for mapping in mappings:
         if mapping.source_table == join_defs.JoinSide.LEFT:
             expr = l_exprs_by_id[mapping.source_id]
         else:  # Right

@@ -14,7 +14,6 @@
 
 import abc
 import typing
-import uuid
 
 import pandas as pd
 
@@ -40,7 +39,8 @@ class MPLPlot(abc.ABC):
 
     @property
     def result(self):
-        return self.axes
+        # TODO(b/340896123): fix type error
+        return self.axes  # type: ignore
 
 
 class SamplingPlot(MPLPlot):
@@ -98,6 +98,12 @@ class ScatterPlot(SamplingPlot):
                 f"Only support a single color string or a column name/posision. {constants.FEEDBACK_LINK}"
             )
 
+        s = self.kwargs.get("s", None)
+        if self._is_sequence_arg(s):
+            raise NotImplementedError(
+                f"Only support a single color string or a column name/posision. {constants.FEEDBACK_LINK}"
+            )
+
     def _compute_plot_data(self):
         sample = self._compute_sample_data(self.data)
 
@@ -108,6 +114,18 @@ class ScatterPlot(SamplingPlot):
             c = self.data.columns[c]
         if self._is_column_name(c, sample) and sample[c].dtype == dtypes.STRING_DTYPE:
             sample[c] = sample[c].astype("object")
+
+        # To avoid Matplotlib's automatic conversion of `Float64` or `Int64` columns
+        # to `object` types (which breaks float-like behavior), this code proactively
+        # converts the column to a compatible format.
+        s = self.kwargs.get("s", None)
+        if pd.core.dtypes.common.is_integer(s):
+            s = self.data.columns[s]
+        if self._is_column_name(s, sample):
+            if sample[s].dtype == dtypes.INT_DTYPE:
+                sample[s] = sample[s].astype("int64")
+            elif sample[s].dtype == dtypes.FLOAT_DTYPE:
+                sample[s] = sample[s].astype("float64")
 
         return sample
 
@@ -124,9 +142,3 @@ class ScatterPlot(SamplingPlot):
             and pd.core.dtypes.common.is_hashable(arg)
             and arg in data.columns
         )
-
-    def _generate_new_column_name(self, data):
-        col_name = None
-        while col_name is None or col_name in data.columns:
-            col_name = f"plot_temp_{str(uuid.uuid4())[:8]}"
-        return col_name

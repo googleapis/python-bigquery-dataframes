@@ -70,6 +70,24 @@ def test_dataframe_groupby_median(scalars_df_index, scalars_pandas_df_index):
 
 
 @pytest.mark.parametrize(
+    ("q"),
+    [
+        ([0.2, 0.4, 0.6, 0.8]),
+        (0.11),
+    ],
+)
+def test_dataframe_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
+    col_names = ["int64_too", "float64_col", "int64_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names].groupby("string_col").quantile(q)
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].groupby("string_col").quantile(q)
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     ("operator"),
     [
         (lambda x: x.count()),
@@ -357,7 +375,9 @@ def test_dataframe_groupby_nonnumeric_with_mean():
         }
     )
     pd_result = df.groupby(["key1", "key2"]).mean()
-    bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
+
+    with bpd.option_context("bigquery.location", "US"):
+        bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
 
     pd.testing.assert_frame_equal(
         pd_result, bf_result, check_index_type=False, check_dtype=False
@@ -448,3 +468,20 @@ def test_series_groupby_skew(scalars_df_index, scalars_pandas_df_index):
     )
 
     pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("q"),
+    [
+        ([0.2, 0.4, 0.6, 0.8]),
+        (0.11),
+    ],
+)
+def test_series_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
+    bf_result = (
+        scalars_df_index.groupby("string_col")["int64_col"].quantile(q)
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.groupby("string_col")["int64_col"].quantile(q)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )

@@ -53,7 +53,25 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         return self._apply_unary_op(ops.lower_op)
 
     def reverse(self) -> series.Series:
-        """Reverse strings in the Series."""
+        """Reverse strings in the Series.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
+            >>> s.str.reverse()
+            0     elppa
+            1    ananab
+            2
+            3      <NA>
+            dtype: string
+
+        Returns:
+            bigframes.series.Series: A Series of booleans indicating whether the given
+                pattern matches the start of each string element.
+        """
         # reverse method is in ibis, not pandas.
         return self._apply_unary_op(ops.reverse_op)
 
@@ -228,6 +246,18 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         if not isinstance(pat, tuple):
             pat = (pat,)
         return self._apply_unary_op(ops.EndsWithOp(pat=pat))
+
+    def split(
+        self,
+        pat: str = " ",
+        regex: Union[bool, None] = None,
+    ) -> series.Series:
+        if regex is True or (regex is None and len(pat) > 1):
+            raise NotImplementedError(
+                "Regular expressions aren't currently supported. Please set "
+                + f"`regex=False` and try again. {constants.FEEDBACK_LINK}"
+            )
+        return self._apply_unary_op(ops.StringSplitOp(pat=pat))
 
     def zfill(self, width: int) -> series.Series:
         return self._apply_unary_op(ops.ZfillOp(width=width))

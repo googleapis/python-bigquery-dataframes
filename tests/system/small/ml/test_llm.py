@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,61 +49,67 @@ def test_create_text_generator_32k_model(
     assert reloaded_model.connection_name == bq_connection
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_create_text_generator_model_default_session(
     bq_connection, llm_text_pandas_df, bigquery_client
 ):
     import bigframes.pandas as bpd
 
-    bpd.close_session()
-    bpd.options.bigquery.bq_connection = bq_connection
-    bpd.options.bigquery.location = "us"
+    # Note: This starts a thread-local session.
+    with bpd.option_context(
+        "bigquery.bq_connection",
+        bq_connection,
+        "bigquery.location",
+        "US",
+    ):
+        model = llm.PaLM2TextGenerator()
+        assert model is not None
+        assert model._bqml_model is not None
+        assert (
+            model.connection_name.casefold()
+            == f"{bigquery_client.project}.us.bigframes-rf-conn"
+        )
 
-    model = llm.PaLM2TextGenerator()
-    assert model is not None
-    assert model._bqml_model is not None
-    assert (
-        model.connection_name.casefold()
-        == f"{bigquery_client.project}.us.bigframes-rf-conn"
-    )
+        llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
-    llm_text_df = bpd.read_pandas(llm_text_pandas_df)
-
-    df = model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+        df = model.predict(llm_text_df).to_pandas()
+        assert df.shape == (3, 4)
+        assert "ml_generate_text_llm_result" in df.columns
+        series = df["ml_generate_text_llm_result"]
+        assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_create_text_generator_32k_model_default_session(
     bq_connection, llm_text_pandas_df, bigquery_client
 ):
     import bigframes.pandas as bpd
 
-    bpd.close_session()
-    bpd.options.bigquery.bq_connection = bq_connection
-    bpd.options.bigquery.location = "us"
+    # Note: This starts a thread-local session.
+    with bpd.option_context(
+        "bigquery.bq_connection",
+        bq_connection,
+        "bigquery.location",
+        "US",
+    ):
+        model = llm.PaLM2TextGenerator(model_name="text-bison-32k")
+        assert model is not None
+        assert model._bqml_model is not None
+        assert (
+            model.connection_name.casefold()
+            == f"{bigquery_client.project}.us.bigframes-rf-conn"
+        )
 
-    model = llm.PaLM2TextGenerator(model_name="text-bison-32k")
-    assert model is not None
-    assert model._bqml_model is not None
-    assert (
-        model.connection_name.casefold()
-        == f"{bigquery_client.project}.us.bigframes-rf-conn"
-    )
+        llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
-    llm_text_df = bpd.read_pandas(llm_text_pandas_df)
-
-    df = model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+        df = model.predict(llm_text_df).to_pandas()
+        assert df.shape == (3, 4)
+        assert "ml_generate_text_llm_result" in df.columns
+        series = df["ml_generate_text_llm_result"]
+        assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_create_text_generator_model_default_connection(
     llm_text_pandas_df, bigquery_client
 ):
@@ -131,7 +137,7 @@ def test_create_text_generator_model_default_connection(
 
 
 # Marked as flaky only because BQML LLM is in preview, the service only has limited capacity, not stable enough.
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_text_generator_predict_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
@@ -142,7 +148,7 @@ def test_text_generator_predict_default_params_success(
     assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_text_generator_predict_series_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
@@ -153,7 +159,7 @@ def test_text_generator_predict_series_default_params_success(
     assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_text_generator_predict_arbitrary_col_label_success(
     palm2_text_generator_model, llm_text_df
 ):
@@ -165,7 +171,7 @@ def test_text_generator_predict_arbitrary_col_label_success(
     assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_text_generator_predict_with_params_success(
     palm2_text_generator_model, llm_text_df
 ):
@@ -232,61 +238,67 @@ def test_create_embedding_generator_multilingual_model(
 def test_create_text_embedding_generator_model_defaults(bq_connection):
     import bigframes.pandas as bpd
 
-    bpd.close_session()
-    bpd.options.bigquery.bq_connection = bq_connection
-    bpd.options.bigquery.location = "us"
-
-    model = llm.PaLM2TextEmbeddingGenerator()
-    assert model is not None
-    assert model._bqml_model is not None
+    # Note: This starts a thread-local session.
+    with bpd.option_context(
+        "bigquery.bq_connection",
+        bq_connection,
+        "bigquery.location",
+        "US",
+    ):
+        model = llm.PaLM2TextEmbeddingGenerator()
+        assert model is not None
+        assert model._bqml_model is not None
 
 
 def test_create_text_embedding_generator_multilingual_model_defaults(bq_connection):
     import bigframes.pandas as bpd
 
-    bpd.close_session()
-    bpd.options.bigquery.bq_connection = bq_connection
-    bpd.options.bigquery.location = "us"
+    # Note: This starts a thread-local session.
+    with bpd.option_context(
+        "bigquery.bq_connection",
+        bq_connection,
+        "bigquery.location",
+        "US",
+    ):
+        model = llm.PaLM2TextEmbeddingGenerator(
+            model_name="textembedding-gecko-multilingual"
+        )
+        assert model is not None
+        assert model._bqml_model is not None
 
-    model = llm.PaLM2TextEmbeddingGenerator(
-        model_name="textembedding-gecko-multilingual"
-    )
-    assert model is not None
-    assert model._bqml_model is not None
 
-
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_embedding_generator_predict_success(
     palm2_embedding_generator_model, llm_text_df
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df).to_pandas()
     assert df.shape == (3, 4)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
     value = series[0]
     assert len(value) == 768
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_embedding_generator_multilingual_predict_success(
     palm2_embedding_generator_multilingual_model, llm_text_df
 ):
     df = palm2_embedding_generator_multilingual_model.predict(llm_text_df).to_pandas()
     assert df.shape == (3, 4)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
     value = series[0]
     assert len(value) == 768
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_embedding_generator_predict_series_success(
     palm2_embedding_generator_model, llm_text_df
 ):
     df = palm2_embedding_generator_model.predict(llm_text_df["prompt"]).to_pandas()
     assert df.shape == (3, 4)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
+    assert "text_embedding" in df.columns
+    series = df["text_embedding"]
     value = series[0]
     assert len(value) == 768
 
@@ -306,7 +318,7 @@ def test_create_gemini_text_generator_model(
     assert reloaded_model.connection_name == bq_connection
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
     gemini_text_generator_model, llm_text_df
 ):
@@ -317,7 +329,7 @@ def test_gemini_text_generator_predict_default_params_success(
     assert all(series.str.len() > 20)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
     gemini_text_generator_model, llm_text_df
 ):

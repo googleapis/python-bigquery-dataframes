@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import typing
+from typing import Sequence, Union
 
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 import pandas as pd
@@ -27,6 +28,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window as windows
+import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
 import bigframes.dtypes as dtypes
 import bigframes.operations.aggregations as agg_ops
@@ -126,16 +128,36 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             self._raise_on_non_numeric("mean")
         return self._aggregate_all(agg_ops.mean_op, numeric_only=True)
 
-    def median(
-        self, numeric_only: bool = False, *, exact: bool = False
-    ) -> df.DataFrame:
-        if exact:
-            raise NotImplementedError(
-                f"Only approximate median is supported. {constants.FEEDBACK_LINK}"
-            )
+    def median(self, numeric_only: bool = False, *, exact: bool = True) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("median")
+        if exact:
+            return self.quantile(0.5)
         return self._aggregate_all(agg_ops.median_op, numeric_only=True)
+
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ) -> df.DataFrame:
+        if not numeric_only:
+            self._raise_on_non_numeric("quantile")
+        q_cols = tuple(
+            col
+            for col in self._selected_cols
+            if self._column_type(col) in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+        )
+        multi_q = utils.is_list_like(q)
+        result = block_ops.quantile(
+            self._block,
+            q_cols,
+            qs=tuple(q) if multi_q else (q,),  # type: ignore
+            grouping_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        result_df = df.DataFrame(result)
+        if multi_q:
+            return result_df.stack()
+        else:
+            return result_df.droplevel(-1, 1)
 
     def min(self, numeric_only: bool = False, *args) -> df.DataFrame:
         return self._aggregate_all(agg_ops.min_op, numeric_only=numeric_only)
@@ -210,7 +232,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return self._apply_window_op(agg_ops.product_op, numeric_only=True)
 
     def shift(self, periods=1) -> series.Series:
-        window = core.WindowSpec(
+        window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -218,7 +240,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
     def diff(self, periods=1) -> series.Series:
-        window = core.WindowSpec(
+        window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -227,7 +249,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = core.WindowSpec(
+        window_spec = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=window - 1,
             following=0,
@@ -241,9 +263,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
 
     def expanding(self, min_periods: int = 1) -> windows.Window:
-        window_spec = core.WindowSpec(
+        window_spec = window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids),
-            following=0,
             min_periods=min_periods,
         )
         block = self._block.order_by(
@@ -417,8 +438,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         numeric_only: bool = False,
     ):
         """Apply window op to groupby. Defaults to grouped cumulative window."""
-        window_spec = window or core.WindowSpec(
-            grouping_keys=tuple(self._by_col_ids), following=0
+        window_spec = window or window_specs.cumulative_rows(
+            grouping_keys=tuple(self._by_col_ids)
         )
         columns = self._aggregated_columns(numeric_only=numeric_only)
         block, result_ids = self._block.multi_apply_window_op(
@@ -480,8 +501,32 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def mean(self, *args) -> series.Series:
         return self._aggregate(agg_ops.mean_op)
 
-    def median(self, *args, **kwargs) -> series.Series:
-        return self._aggregate(agg_ops.mean_op)
+    def median(
+        self,
+        *args,
+        exact: bool = True,
+        **kwargs,
+    ) -> series.Series:
+        if exact:
+            return self.quantile(0.5)
+        else:
+            return self._aggregate(agg_ops.median_op)
+
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ) -> series.Series:
+        multi_q = utils.is_list_like(q)
+        result = block_ops.quantile(
+            self._block,
+            (self._value_column,),
+            qs=tuple(q) if multi_q else (q,),  # type: ignore
+            grouping_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        if multi_q:
+            return series.Series(result.stack())
+        else:
+            return series.Series(result.stack()).droplevel(-1)
 
     def std(self, *args, **kwargs) -> series.Series:
         return self._aggregate(agg_ops.std_op)
@@ -570,7 +615,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def shift(self, periods=1) -> series.Series:
         """Shift index by desired number of periods."""
-        window = core.WindowSpec(
+        window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -578,7 +623,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
     def diff(self, periods=1) -> series.Series:
-        window = core.WindowSpec(
+        window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=periods if periods > 0 else None,
             following=-periods if periods < 0 else None,
@@ -587,7 +632,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = core.WindowSpec(
+        window_spec = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
             preceding=window - 1,
             following=0,
@@ -605,9 +650,8 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
 
     def expanding(self, min_periods: int = 1) -> windows.Window:
-        window_spec = core.WindowSpec(
+        window_spec = window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids),
-            following=0,
             min_periods=min_periods,
         )
         block = self._block.order_by(
@@ -637,8 +681,8 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         window: typing.Optional[core.WindowSpec] = None,
     ):
         """Apply window op to groupby. Defaults to grouped cumulative window."""
-        window_spec = window or core.WindowSpec(
-            grouping_keys=tuple(self._by_col_ids), following=0
+        window_spec = window or window_specs.cumulative_rows(
+            grouping_keys=tuple(self._by_col_ids)
         )
 
         label = self._value_name if not discard_name else None

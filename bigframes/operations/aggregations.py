@@ -17,12 +17,13 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar, Hashable, Optional, Tuple
+from typing import ClassVar, Iterable, Optional
 
 import pandas as pd
 import pyarrow as pa
 
 import bigframes.dtypes as dtypes
+import bigframes.operations.type as signatures
 
 
 @dataclasses.dataclass(frozen=True)
@@ -33,12 +34,16 @@ class WindowOp:
         return True
 
     @property
-    def handles_ties(self):
-        """Whether the operator can handle ties without nondeterministic output. (eg. rank operator can handle ties but not the count operator)"""
+    def uses_total_row_ordering(self):
+        """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
+        return False
+
+    @property
+    def can_order_by(self):
         return False
 
     @abc.abstractmethod
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
 
 
@@ -55,7 +60,7 @@ class UnaryWindowOp(WindowOp):
     def arguments(self) -> int:
         return 1
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return input_types[0]
 
 
@@ -107,7 +112,9 @@ class SizeOp(NullaryAggregateOp):
 class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if not dtypes.is_numeric(input_types[0]):
+            raise TypeError(f"Type {input_types[0]} is not numeric")
         if pd.api.types.is_bool_dtype(input_types[0]):
             return dtypes.INT_DTYPE
         else:
@@ -118,12 +125,26 @@ class SumOp(UnaryAggregateOp):
 class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         # These will change if median is changed to exact implementation.
+        if not dtypes.is_orderable(input_types[0]):
+            raise TypeError(f"Type {input_types[0]} is not orderable")
         if pd.api.types.is_bool_dtype(input_types[0]):
             return dtypes.INT_DTYPE
         else:
             return input_types[0]
+
+
+@dataclasses.dataclass(frozen=True)
+class QuantileOp(UnaryAggregateOp):
+    q: float
+
+    @property
+    def name(self):
+        return f"{int(self.q * 100)}%"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -132,9 +153,11 @@ class ApproxQuartilesOp(UnaryAggregateOp):
 
     @property
     def name(self):
-        return f"{self.quartile*25}%"
+        return f"{self.quartile * 25}%"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if not dtypes.is_orderable(input_types[0]):
+            raise TypeError(f"Type {input_types[0]} is not orderable")
         if pd.api.types.is_bool_dtype(input_types[0]) or pd.api.types.is_integer_dtype(
             input_types[0]
         ):
@@ -147,55 +170,68 @@ class ApproxQuartilesOp(UnaryAggregateOp):
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        if pd.api.types.is_bool_dtype(input_types[0]) or pd.api.types.is_integer_dtype(
-            input_types[0]
-        ):
-            return dtypes.FLOAT_DTYPE
-        else:
-            return input_types[0]
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class ProductOp(UnaryAggregateOp):
     name: ClassVar[str] = "product"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class MaxOp(UnaryAggregateOp):
     name: ClassVar[str] = "max"
 
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.TypePreserving(dtypes.is_orderable, "orderable").output_type(
+            input_types[0]
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class MinOp(UnaryAggregateOp):
     name: ClassVar[str] = "min"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.TypePreserving(dtypes.is_orderable, "orderable").output_type(
+            input_types[0]
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class StdOp(UnaryAggregateOp):
     name: ClassVar[str] = "std"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class VarOp(UnaryAggregateOp):
     name: ClassVar[str] = "var"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class PopVarOp(UnaryAggregateOp):
     name: ClassVar[str] = "popvar"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -206,25 +242,41 @@ class CountOp(UnaryAggregateOp):
     def skips_nulls(self):
         return False
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.INT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            lambda x: True, dtypes.INT_DTYPE, ""
+        ).output_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
+class ArrayAggOp(UnaryAggregateOp):
+    name: ClassVar[str] = "arrayagg"
+
+    @property
+    def can_order_by(self):
+        return True
+
+    @property
+    def skips_nulls(self):
+        return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_types[0]))
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
-    bins: typing.Union[int, Tuple[Tuple[Hashable, Hashable], ...]]
+    bins: typing.Union[int, Iterable]
     labels: Optional[bool]
 
     @property
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if isinstance(self.bins, int) and (self.labels is False):
             return dtypes.INT_DTYPE
         else:
@@ -232,7 +284,7 @@ class CutOp(UnaryWindowOp):
             interval_dtype = (
                 pa.float64()
                 if isinstance(self.bins, int)
-                else dtypes.infer_literal_arrow_type(self.bins[0][0])
+                else dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
             )
             pa_type = pa.struct(
                 [
@@ -255,12 +307,10 @@ class QcutOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.INT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -271,7 +321,7 @@ class NuniqueOp(UnaryAggregateOp):
     def skips_nulls(self):
         return False
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.INT_DTYPE
 
 
@@ -294,12 +344,10 @@ class RankOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.INT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -308,21 +356,27 @@ class DenseRankOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.INT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class FirstOp(UnaryWindowOp):
     name: ClassVar[str] = "first"
 
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class FirstNonNullOp(UnaryWindowOp):
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
     @property
     def skips_nulls(self):
         return False
@@ -332,9 +386,17 @@ class FirstNonNullOp(UnaryWindowOp):
 class LastOp(UnaryWindowOp):
     name: ClassVar[str] = "last"
 
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class LastNonNullOp(UnaryWindowOp):
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
     @property
     def skips_nulls(self):
         return False
@@ -343,6 +405,10 @@ class LastNonNullOp(UnaryWindowOp):
 @dataclasses.dataclass(frozen=True)
 class ShiftOp(UnaryWindowOp):
     periods: int
+
+    @property
+    def uses_total_row_ordering(self):
+        return True
 
     @property
     def skips_nulls(self):
@@ -354,6 +420,10 @@ class DiffOp(UnaryWindowOp):
     periods: int
 
     @property
+    def uses_total_row_ordering(self):
+        return True
+
+    @property
     def skips_nulls(self):
         return False
 
@@ -362,32 +432,40 @@ class DiffOp(UnaryWindowOp):
 class AllOp(UnaryAggregateOp):
     name: ClassVar[str] = "all"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.BOOL_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_bool_coercable, dtypes.BOOL_DTYPE, "convertible to boolean"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class AnyOp(UnaryAggregateOp):
     name: ClassVar[str] = "any"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.BOOL_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.FixedOutputType(
+            dtypes.is_bool_coercable, dtypes.BOOL_DTYPE, "convertible to boolean"
+        ).output_type(input_types[0])
 
 
 @dataclasses.dataclass(frozen=True)
 class CorrOp(BinaryAggregateOp):
     name: ClassVar[str] = "corr"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.BINARY_REAL_NUMERIC.output_type(
+            input_types[0], input_types[1]
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class CovOp(BinaryAggregateOp):
     name: ClassVar[str] = "cov"
 
-    def output_type(self, *input_types: dtypes.ExpressionType):
-        return dtypes.FLOAT_DTYPE
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.BINARY_REAL_NUMERIC.output_type(
+            input_types[0], input_types[1]
+        )
 
 
 size_op = SizeOp()

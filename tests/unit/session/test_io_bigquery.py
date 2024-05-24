@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import datetime
+import re
 from typing import Iterable
-import unittest.mock as mock
 
 import google.cloud.bigquery as bigquery
 import pytest
@@ -31,17 +31,13 @@ def test_create_job_configs_labels_is_none():
     labels = io_bq.create_job_configs_labels(
         job_configs_labels=None, api_methods=api_methods
     )
-    expected_dict = {
-        "recent-bigframes-api-0": "agg",
-        "recent-bigframes-api-1": "series-mode",
-    }
+    expected_dict = {"bigframes-api": "agg", "recent-bigframes-api-0": "series-mode"}
     assert labels is not None
     assert labels == expected_dict
 
 
 def test_create_job_configs_labels_length_limit_not_met():
     cur_labels = {
-        "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
     }
     api_methods = ["agg", "series-mode"]
@@ -49,20 +45,18 @@ def test_create_job_configs_labels_length_limit_not_met():
         job_configs_labels=cur_labels, api_methods=api_methods
     )
     expected_dict = {
-        "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
-        "recent-bigframes-api-0": "agg",
-        "recent-bigframes-api-1": "series-mode",
+        "bigframes-api": "agg",
+        "recent-bigframes-api-0": "series-mode",
     }
     assert labels is not None
-    assert len(labels) == 4
+    assert len(labels) == 3
     assert labels == expected_dict
 
 
 def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
     log_adapter.get_and_reset_api_methods()
     cur_labels = {
-        "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
     }
     df = bpd.DataFrame(
@@ -71,20 +65,18 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
     # Test running two methods
     df.head()
     df.max()
+    df.columns
     api_methods = log_adapter._api_methods
 
     labels = io_bq.create_job_configs_labels(
         job_configs_labels=cur_labels, api_methods=api_methods
     )
     expected_dict = {
-        "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
-        "recent-bigframes-api-0": "series-__init__",
-        "recent-bigframes-api-1": "dataframe-max",
+        "bigframes-api": "dataframe-columns",
+        "recent-bigframes-api-0": "dataframe-max",
+        "recent-bigframes-api-1": "dataframe-head",
         "recent-bigframes-api-2": "dataframe-__init__",
-        "recent-bigframes-api-3": "dataframe-head",
-        "recent-bigframes-api-4": "dataframe-__init__",
-        "recent-bigframes-api-5": "dataframe-__init__",
     }
     assert labels == expected_dict
 
@@ -95,7 +87,7 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
         {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
     )
     # Test running methods more than the labels' length limit
-    for i in range(66):
+    for i in range(100):
         df.head()
     api_methods = log_adapter._api_methods
 
@@ -113,7 +105,7 @@ def test_create_job_configs_labels_length_limit_met():
         "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
     }
-    for i in range(60):
+    for i in range(100):
         key = f"bigframes-api-test-{i}"
         value = f"test{i}"
         cur_labels[key] = value
@@ -137,34 +129,17 @@ def test_create_job_configs_labels_length_limit_met():
     assert "source" in labels.keys()
 
 
-def test_create_snapshot_sql_doesnt_timetravel_anonymous_datasets():
-    table_ref = bigquery.TableReference.from_string(
-        "my-test-project._e8166e0cdb.anonbb92cd"
-    )
-
-    sql = bigframes.session._io.bigquery.create_snapshot_sql(
-        table_ref, datetime.datetime.now(datetime.timezone.utc)
-    )
-
-    # Anonymous query results tables don't support time travel.
-    assert "SYSTEM_TIME" not in sql
-
-    # Need fully-qualified table name.
-    assert "`my-test-project`.`_e8166e0cdb`.`anonbb92cd`" in sql
-
-
 def test_create_temp_table_default_expiration():
     """Make sure the created table has an expiration."""
-    bqclient = mock.create_autospec(bigquery.Client)
-    dataset = bigquery.DatasetReference("test-project", "test_dataset")
     expiration = datetime.datetime(
         2023, 11, 2, 13, 44, 55, 678901, datetime.timezone.utc
     )
 
-    bigframes.session._io.bigquery.create_temp_table(bqclient, dataset, expiration)
+    session = resources.create_bigquery_session()
+    bigframes.session._io.bigquery.create_temp_table(session, expiration)
 
-    bqclient.create_table.assert_called_once()
-    call_args = bqclient.create_table.call_args
+    session.bqclient.create_table.assert_called_once()
+    call_args = session.bqclient.create_table.call_args
     table = call_args.args[0]
     assert table.project == "test-project"
     assert table.dataset_id == "test_dataset"
@@ -228,3 +203,143 @@ def test_create_temp_table_default_expiration():
 def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str):
     sql = io_bq.bq_schema_to_sql(schema)
     assert sql == expected
+
+
+@pytest.mark.parametrize(
+    (
+        "query_or_table",
+        "index_cols",
+        "columns",
+        "filters",
+        "max_results",
+        "time_travel_timestamp",
+        "expected_output",
+    ),
+    [
+        pytest.param(
+            "test_table",
+            ["row_index"],
+            ["string_col"],
+            [
+                (("rowindex", "not in", [0, 6]),),
+                (("string_col", "in", ["Hello, World!", "こんにちは"]),),
+            ],
+            123,  # max_results,
+            datetime.datetime(2024, 5, 14, 12, 42, 36, 125125),
+            (
+                "SELECT `row_index`, `string_col` FROM `test_table` "
+                "FOR SYSTEM_TIME AS OF TIMESTAMP('2024-05-14T12:42:36.125125') "
+                "WHERE `rowindex` NOT IN (0, 6) OR `string_col` IN ('Hello, World!', "
+                "'こんにちは') LIMIT 123"
+            ),
+            id="table-all_params-filter_or_operation",
+        ),
+        pytest.param(
+            (
+                """SELECT
+                    rowindex,
+                    string_col,
+                FROM `test_table` AS t
+                """
+            ),
+            ["rowindex"],
+            ["string_col"],
+            [
+                ("rowindex", "<", 4),
+                ("string_col", "==", "Hello, World!"),
+            ],
+            123,  # max_results,
+            datetime.datetime(2024, 5, 14, 12, 42, 36, 125125),
+            (
+                """SELECT `rowindex`, `string_col` FROM (SELECT
+                    rowindex,
+                    string_col,
+                FROM `test_table` AS t
+                ) """
+                "FOR SYSTEM_TIME AS OF TIMESTAMP('2024-05-14T12:42:36.125125') "
+                "WHERE `rowindex` < 4 AND `string_col` = 'Hello, World!' "
+                "LIMIT 123"
+            ),
+            id="subquery-all_params-filter_and_operation",
+        ),
+        pytest.param(
+            "test_table",
+            [],
+            ["col_a", "col_b"],
+            [],
+            None,  # max_results
+            None,  # time_travel_timestampe
+            "SELECT `col_a`, `col_b` FROM `test_table`",
+            id="table-columns",
+        ),
+        pytest.param(
+            "test_table",
+            [],
+            [],
+            [("date_col", ">", "2022-10-20")],
+            None,  # max_results
+            None,  # time_travel_timestampe
+            "SELECT * FROM `test_table` WHERE `date_col` > '2022-10-20'",
+            id="table-filter",
+        ),
+        pytest.param(
+            "test_table*",
+            [],
+            [],
+            [],
+            None,  # max_results
+            None,  # time_travel_timestampe
+            "SELECT * FROM `test_table*`",
+            id="wildcard-no_params",
+        ),
+        pytest.param(
+            "test_table*",
+            [],
+            [],
+            [("_TABLE_SUFFIX", ">", "2022-10-20")],
+            None,  # max_results
+            None,  # time_travel_timestampe
+            "SELECT * FROM `test_table*` WHERE `_TABLE_SUFFIX` > '2022-10-20'",
+            id="wildcard-filter",
+        ),
+    ],
+)
+def test_to_query(
+    query_or_table,
+    index_cols,
+    columns,
+    filters,
+    max_results,
+    time_travel_timestamp,
+    expected_output,
+):
+    query = io_bq.to_query(
+        query_or_table,
+        index_cols=index_cols,
+        columns=columns,
+        filters=filters,
+        max_results=max_results,
+        time_travel_timestamp=time_travel_timestamp,
+    )
+    assert query == expected_output
+
+
+@pytest.mark.parametrize(
+    ("filters", "expected_message"),
+    (
+        pytest.param(
+            ["date_col", ">", "2022-10-20"],
+            "Elements of filters must be tuples of length 3, but got 'd'",
+        ),
+    ),
+)
+def test_to_query_fails_with_bad_filters(filters, expected_message):
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        io_bq.to_query(
+            "test_table",
+            index_cols=(),
+            columns=(),
+            filters=filters,
+            max_results=None,
+            time_travel_timestamp=None,
+        )

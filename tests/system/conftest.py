@@ -19,7 +19,8 @@ import math
 import pathlib
 import textwrap
 import typing
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
+import warnings
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -29,6 +30,7 @@ import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -36,6 +38,7 @@ import test_utils.prefixer
 
 import bigframes
 import bigframes.dataframe
+import bigframes.pandas as bpd
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -127,16 +130,23 @@ def resourcemanager_client(
 
 
 @pytest.fixture(scope="session")
-def session() -> bigframes.Session:
-    return bigframes.Session()
+def session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        location="US",
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup time
 
 
 @pytest.fixture(scope="session")
-def session_tokyo(tokyo_location: str) -> bigframes.Session:
+def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(
         location=tokyo_location,
     )
-    return bigframes.Session(context=context)
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -385,6 +395,16 @@ def scalars_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_empty_index(
+    scalars_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
 def scalars_df_2_default_index(
     scalars_df_2_index: bigframes.dataframe.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
@@ -605,6 +625,18 @@ def new_penguins_pandas_df():
             "sex": ["MALE", "FEMALE", "FEMALE"],
         }
     ).set_index("tag_number")
+
+
+@pytest.fixture(scope="session")
+def missing_values_penguins_df():
+    """Additional data matching the missing values penguins dataset"""
+    return bpd.DataFrame(
+        {
+            "culmen_length_mm": [39.5, 38.5, 37.9],
+            "culmen_depth_mm": [np.nan, 17.2, 18.1],
+            "flipper_length_mm": [np.nan, 181.0, 188.0],
+        }
+    )
 
 
 @pytest.fixture(scope="session")
@@ -954,6 +986,14 @@ def restore_sampling_settings():
 
 
 @pytest.fixture()
+def with_multiquery_execution():
+    original_setting = bigframes.options.compute.enable_multi_query_execution
+    bigframes.options.compute.enable_multi_query_execution = True
+    yield
+    bigframes.options.compute.enable_multi_query_execution = original_setting
+
+
+@pytest.fixture()
 def weird_strings_pd():
     df = pd.DataFrame(
         {
@@ -1025,7 +1065,7 @@ def floats_pd():
         dtype=pd.Float64Dtype(),
     )
     # Index helps debug failed cases
-    df.index = df.float64_col
+    df.index = df.float64_col  # type: ignore
     # Upload fails if index name same as column name
     df.index.name = None
     return df.float64_col
@@ -1035,7 +1075,7 @@ def floats_pd():
 def floats_product_pd(floats_pd):
     df = pd.merge(floats_pd, floats_pd, how="cross")
     # Index helps debug failed cases
-    df = df.set_index([df.float64_col_x, df.float64_col_y])
+    df = df.set_index([df.float64_col_x, df.float64_col_y])  # type: ignore
     df.index.names = ["left", "right"]
     return df
 
@@ -1090,7 +1130,9 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
             # successfully, while the other instance will run into this
             # exception. Ignore this exception.
             pass
-        except google.api_core.exceptions.ResourceExhausted:
+        except Exception as exc:
+            # Don't fail the tests for unknown exceptions.
+            #
             # This can happen if we are hitting GCP limits, e.g.
             # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
             # for quota metric 'Per project mutation requests' and limit
@@ -1098,5 +1140,11 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
             # 'cloudfunctions.googleapis.com' for consumer
             # 'project_number:1084210331973'.
             # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
+            #
+            # It can also happen occasionally with
+            # google.api_core.exceptions.ServiceUnavailable when there is some
+            # backend flakiness.
+            #
             # Let's stop further clean up and leave it to later.
+            warnings.warn(f"Cloud functions cleanup failed: {str(exc)}")
             break
