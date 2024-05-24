@@ -2913,7 +2913,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             header=header,
         )
         _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="DataFrame.to_csv"
+            export_data_statement, api_name="dataframe-to_csv"
         )
         self._set_internal_query_job(query_job)
 
@@ -2957,7 +2957,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options={},
         )
         _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="DataFrame.to_json"
+            export_data_statement, api_name="dataframe-to_json"
         )
         self._set_internal_query_job(query_job)
 
@@ -3091,7 +3091,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_options=export_options,
         )
         _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="DataFrame.to_parquet"
+            export_data_statement, api_name="dataframe-to_parquet"
         )
         self._set_internal_query_job(query_job)
 
