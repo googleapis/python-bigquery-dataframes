@@ -340,7 +340,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             for f in func
         ]
         column_labels = [
-            (col_id, f) for col_id in self._aggregated_columns() for f in func
+            (self._block.col_id_to_label[col_id], f)
+            for col_id in self._aggregated_columns()
+            for f in func
         ]
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
