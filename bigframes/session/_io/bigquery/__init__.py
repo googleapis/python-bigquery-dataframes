@@ -210,13 +210,12 @@ def format_option(key: str, value: Union[bool, str]) -> str:
 
 
 def add_labels(job_config, api_name: Optional[str] = None):
-    if not job_config.dry_run:
-        api_methods = log_adapter.get_and_reset_api_methods()
-        job_config.labels = create_job_configs_labels(
-            job_configs_labels=job_config.labels,
-            api_methods=api_methods,
-            api_name=api_name,
-        )
+    api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
+    job_config.labels = create_job_configs_labels(
+        job_configs_labels=job_config.labels,
+        api_methods=api_methods,
+        api_name=api_name,
+    )
 
 
 def start_query_with_client(

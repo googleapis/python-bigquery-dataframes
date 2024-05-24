@@ -237,7 +237,7 @@ class Session(
             bigframes.session._io.bigquery.create_bq_dataset_reference(
                 self.bqclient,
                 location=self._location,
-                api_name="Session.__init__",
+                api_name="session-__init__",
             )
         )
 
