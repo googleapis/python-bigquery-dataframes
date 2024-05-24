@@ -20,6 +20,7 @@ import typing
 import ibis
 import ibis.backends
 import ibis.backends.bigquery
+import ibis.expr.types
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
@@ -97,6 +98,13 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
 
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
+    if ordered:
+        return compile_read_table_ordered(node)
+    else:
+        return compile_read_table_unordered(node)
+
+
+def read_table_as_unordered_ibis(node: nodes.ReadTableNode) -> ibis.expr.types.Table:
     full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
     used_columns = (
         *node.schema.names,
@@ -115,55 +123,58 @@ def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
             sql_predicate=node.sql_predicate,
             time_travel_timestamp=node.at_time,
         )
-        ibis_table = ibis.backends.bigquery.Backend().sql(
-            schema=physical_schema, query=sql
-        )
+        return ibis.backends.bigquery.Backend().sql(schema=physical_schema, query=sql)
     else:
-        ibis_table = ibis.table(physical_schema, full_table_name)
+        return ibis.table(physical_schema, full_table_name)
 
-    if ordered:
-        if node.primary_key:
-            ordering_value_columns = tuple(
-                bf_ordering.ascending_over(col) for col in node.primary_key
+
+def compile_read_table_unordered(node: nodes.ReadTableNode):
+    ibis_table = read_table_as_unordered_ibis(node)
+    return compiled.UnorderedIR(
+        ibis_table,
+        tuple(
+            bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
+            for col in node.schema.names
+        ),
+    )
+
+
+def compile_read_table_ordered(node: nodes.ReadTableNode):
+    ibis_table = read_table_as_unordered_ibis(node)
+    if node.primary_key:
+        ordering_value_columns = tuple(
+            bf_ordering.ascending_over(col) for col in node.primary_key
+        )
+        if node.primary_key_sequential:
+            integer_encoding = bf_ordering.IntegerEncoding(
+                is_encoded=True, is_sequential=True
             )
-            if node.primary_key_sequential:
-                integer_encoding = bf_ordering.IntegerEncoding(
-                    is_encoded=True, is_sequential=True
-                )
-            else:
-                integer_encoding = bf_ordering.IntegerEncoding()
-            ordering = bf_ordering.ExpressionOrdering(
-                ordering_value_columns,
-                integer_encoding=integer_encoding,
-                total_ordering_columns=frozenset(node.primary_key),
-            )
-            hidden_columns = ()
         else:
-            ibis_table, ordering = default_ordering.gen_default_ordering(
-                ibis_table, use_double_hash=True
-            )
-            hidden_columns = tuple(
-                ibis_table[col]
-                for col in ibis_table.columns
-                if col not in node.schema.names
-            )
-        return compiled.OrderedIR(
-            ibis_table,
-            columns=tuple(
-                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
-                for col in node.schema.names
-            ),
-            ordering=ordering,
-            hidden_ordering_columns=hidden_columns,
+            integer_encoding = bf_ordering.IntegerEncoding()
+        ordering = bf_ordering.ExpressionOrdering(
+            ordering_value_columns,
+            integer_encoding=integer_encoding,
+            total_ordering_columns=frozenset(node.primary_key),
         )
+        hidden_columns = ()
     else:
-        return compiled.UnorderedIR(
-            ibis_table,
-            tuple(
-                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
-                for col in node.schema.names
-            ),
+        ibis_table, ordering = default_ordering.gen_default_ordering(
+            ibis_table, use_double_hash=True
         )
+        hidden_columns = tuple(
+            ibis_table[col]
+            for col in ibis_table.columns
+            if col not in node.schema.names
+        )
+    return compiled.OrderedIR(
+        ibis_table,
+        columns=tuple(
+            bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
+            for col in node.schema.names
+        ),
+        ordering=ordering,
+        hidden_ordering_columns=hidden_columns,
+    )
 
 
 @_compile_node.register
