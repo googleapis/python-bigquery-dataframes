@@ -235,7 +235,9 @@ class Session(
 
         self._anonymous_dataset = (
             bigframes.session._io.bigquery.create_bq_dataset_reference(
-                self.bqclient, location=self._location
+                self.bqclient,
+                location=self._location,
+                api_name="Session.__init__",
             )
         )
 
@@ -1776,12 +1778,6 @@ class Session(
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-
-        current_labels = job_config.labels if job_config.labels else {}
-        for key, value in bigframes.options.compute.extra_query_labels.items():
-            if key not in current_labels:
-                current_labels[key] = value
-        job_config.labels = current_labels
 
         if self._bq_kms_key_name:
             job_config.destination_encryption_configuration = (

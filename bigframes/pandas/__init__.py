@@ -399,6 +399,8 @@ def _set_default_session_location_if_possible(query):
     bqclient = clients_provider.bqclient
 
     if bigframes.session._io.bigquery.is_query(query):
+        # Intentionally run outside of the session so that we can detect the
+        # location before creating the session.
         job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
         options.bigquery.location = job.location
     else:
@@ -773,7 +775,10 @@ def clean_up_by_session_id(
         dataset = session._anonymous_dataset
     else:
         dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
-            client, location=location, project=project
+            client,
+            location=location,
+            project=project,
+            api_name="clean_up_by_session_id",
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(

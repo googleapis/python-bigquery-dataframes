@@ -113,6 +113,7 @@ def get_table_metadata(
     # atomically.
     table = bqclient.get_table(table_ref)
 
+    # TODO(swast): Support custom labels via bigframes.options.compute.extra_query_labels setting.
     job_config = bigquery.QueryJobConfig()
     job_config.labels["bigframes-api"] = api_name
     snapshot_timestamp = list(
