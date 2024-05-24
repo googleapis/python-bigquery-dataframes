@@ -108,7 +108,7 @@ def read_table_as_unordered_ibis(node: nodes.ReadTableNode) -> ibis.expr.types.T
     full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
     used_columns = (
         *node.schema.names,
-        *[i for i in node.primary_key if i not in node.schema.names],
+        *[i for i in node.total_order_cols if i not in node.schema.names],
     )
     # Physical schema might include unused columns, unsupported datatypes like JSON
     physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
@@ -141,11 +141,11 @@ def compile_read_table_unordered(node: nodes.ReadTableNode):
 
 def compile_read_table_ordered(node: nodes.ReadTableNode):
     ibis_table = read_table_as_unordered_ibis(node)
-    if node.primary_key:
+    if node.total_order_cols:
         ordering_value_columns = tuple(
-            bf_ordering.ascending_over(col) for col in node.primary_key
+            bf_ordering.ascending_over(col) for col in node.total_order_cols
         )
-        if node.primary_key_sequential:
+        if node.order_col_is_sequential:
             integer_encoding = bf_ordering.IntegerEncoding(
                 is_encoded=True, is_sequential=True
             )
@@ -154,7 +154,7 @@ def compile_read_table_ordered(node: nodes.ReadTableNode):
         ordering = bf_ordering.ExpressionOrdering(
             ordering_value_columns,
             integer_encoding=integer_encoding,
-            total_ordering_columns=frozenset(node.primary_key),
+            total_ordering_columns=frozenset(node.total_order_cols),
         )
         hidden_columns = ()
     else:

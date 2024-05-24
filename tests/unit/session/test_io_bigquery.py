@@ -208,7 +208,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
 @pytest.mark.parametrize(
     (
         "query_or_table",
-        "index_cols",
         "columns",
         "filters",
         "max_results",
@@ -218,8 +217,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
     [
         pytest.param(
             "test_table",
-            ["row_index"],
-            ["string_col"],
+            ["row_index", "string_col"],
             [
                 (("rowindex", "not in", [0, 6]),),
                 (("string_col", "in", ["Hello, World!", "こんにちは"]),),
@@ -242,8 +240,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
                 FROM `test_table` AS t
                 """
             ),
-            ["rowindex"],
-            ["string_col"],
+            ["rowindex", "string_col"],
             [
                 ("rowindex", "<", 4),
                 ("string_col", "==", "Hello, World!"),
@@ -264,7 +261,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
         ),
         pytest.param(
             "test_table",
-            [],
             ["col_a", "col_b"],
             [],
             None,  # max_results
@@ -274,7 +270,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
         ),
         pytest.param(
             "test_table",
-            [],
             [],
             [("date_col", ">", "2022-10-20")],
             None,  # max_results
@@ -286,7 +281,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             "test_table*",
             [],
             [],
-            [],
             None,  # max_results
             None,  # time_travel_timestampe
             "SELECT * FROM `test_table*`",
@@ -294,7 +288,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
         ),
         pytest.param(
             "test_table*",
-            [],
             [],
             [("_TABLE_SUFFIX", ">", "2022-10-20")],
             None,  # max_results
@@ -306,7 +299,6 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
 )
 def test_to_query(
     query_or_table,
-    index_cols,
     columns,
     filters,
     max_results,
@@ -315,7 +307,6 @@ def test_to_query(
 ):
     query = io_bq.to_query(
         query_or_table,
-        index_cols=index_cols,
         columns=columns,
         sql_predicate=io_bq.compile_filters(filters),
         max_results=max_results,
@@ -337,7 +328,6 @@ def test_to_query_fails_with_bad_filters(filters, expected_message):
     with pytest.raises(ValueError, match=re.escape(expected_message)):
         io_bq.to_query(
             "test_table",
-            index_cols=(),
             columns=(),
             sql_predicate=io_bq.compile_filters(filters),
             max_results=None,

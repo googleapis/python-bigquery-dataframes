@@ -110,7 +110,7 @@ class ArrayValue:
             dataset_id=table.reference.dataset_id,
             table_id=table.reference.table_id,
             physical_schema=tuple(table.schema),
-            primary_key=tuple(primary_key),
+            total_order_cols=tuple(primary_key),
             columns=schema,
             at_time=at_time,
             table_session=session,

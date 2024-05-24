@@ -360,12 +360,11 @@ class ReadTableNode(BigFrameNode):
     columns: schemata.ArraySchema = field()
 
     table_session: bigframes.session.Session = field()
-    # Should this even be stored here?
     # Empty tuple if no primary key (primary key can be any set of columns that together form a unique key)
     # Empty if no known unique key
-    primary_key: Tuple[str, ...] = field()  # subset of schema
+    total_order_cols: Tuple[str, ...] = field()
     # indicates a primary key that is exactly offsets 0, 1, 2, ..., N-2, N-1
-    primary_key_sequential: bool = False
+    order_col_is_sequential: bool = False
     at_time: typing.Optional[datetime.datetime] = None
     # Added for backwards compatibility, not validated
     sql_predicate: typing.Optional[str] = None
@@ -373,11 +372,12 @@ class ReadTableNode(BigFrameNode):
     def __post_init__(self):
         # enforce invariants
         physical_names = set(map(lambda i: i.name, self.physical_schema))
-        assert len(self.columns.names) > 0
-        assert set(self.primary_key).issubset(physical_names)
-        assert set(self.columns.names).issubset(physical_names)
-        if self.primary_key_sequential:
-            assert len(self.primary_key) == 1
+        if not set(self.columns.names).issubset(physical_names):
+            raise ValueError(
+                f"Requested schema {self.columns} cannot be derived from table schemal {self.physical_schema}"
+            )
+        if self.order_col_is_sequential and len(self.total_order_cols) == 1:
+            raise ValueError("Sequential primary key must have only one component")
 
     @property
     def session(self):
