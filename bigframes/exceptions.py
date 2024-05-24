@@ -37,3 +37,11 @@ class DefaultIndexWarning(Warning):
 
 class PreviewWarning(Warning):
     """The feature is in preview."""
+
+
+class NullIndexError(ValueError):
+    """Object has no index."""
+
+
+class TimeTravelDisabledWarning(Warning):
+    """A query was reattempted without time travel."""
