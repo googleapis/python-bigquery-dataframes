@@ -350,10 +350,12 @@ class Session(
     def slot_millis_sum(self):
         return self._slot_millis_sum
 
-    def add_bytes_processed(self, amount: int):
+    def _add_bytes_processed(self, amount: int):
+        """Increment bytes_processed_sum by amount."""
         self._bytes_processed_sum += amount
 
-    def add_slot_millis(self, amount: int):
+    def _add_slot_millis(self, amount: int):
+        """Increment slot_millis_sum by amount."""
         self._slot_millis_sum += amount
 
     def __hash__(self):
