@@ -2939,7 +2939,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             field_delimiter=sep,
             header=header,
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_csv"
+        )
         self._set_internal_query_job(query_job)
 
     def to_json(
@@ -2981,7 +2983,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="JSON",
             export_options={},
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_json"
+        )
         self._set_internal_query_job(query_job)
 
     def to_gbq(
@@ -3113,7 +3117,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="PARQUET",
             export_options=export_options,
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_parquet"
+        )
         self._set_internal_query_job(query_job)
 
     def to_dict(
