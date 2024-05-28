@@ -807,9 +807,9 @@ def notebook(session: nox.Session):
 
 
 def _print_performance_report():
-    """Add an informational report about http queries and bytes
-    processed to the testlog output for purposes of measuring
-    bigquery-related performance changes.
+    """Add an informational report about http queries, bytes
+    processed, and slot time to the testlog output for purposes
+    of measuring bigquery-related performance changes.
     """
     print("---BIGQUERY USAGE REPORT---")
     results_dict = {}
