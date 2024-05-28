@@ -82,8 +82,10 @@ def get_table_metadata(
     # atomically.
     table = bqclient.get_table(table_ref)
 
+    # TODO(swast): Use session._start_query instead?
+    # TODO(swast): Use query_and_wait since we know these are small results.
     job_config = bigquery.QueryJobConfig()
-    job_config.labels["bigframes-api"] = api_name
+    bigframes.session._io.bigquery.add_labels(job_config, api_name=api_name)
     snapshot_timestamp = list(
         bqclient.query(
             "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
