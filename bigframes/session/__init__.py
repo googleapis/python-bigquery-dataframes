@@ -235,7 +235,9 @@ class Session(
 
         self._anonymous_dataset = (
             bigframes.session._io.bigquery.create_bq_dataset_reference(
-                self.bqclient, location=self._location
+                self.bqclient,
+                location=self._location,
+                api_name="session-__init__",
             )
         )
 
@@ -420,9 +422,11 @@ class Session(
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        _, dry_run_job = self._start_query(
+            query, job_config=dry_run_config, api_name=api_name
+        )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, api_name=api_name)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -451,7 +455,6 @@ class Session(
             bigquery.QueryJobConfig,
             bigquery.QueryJobConfig.from_api_repr(configuration),
         )
-        job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
 
         try:
@@ -459,7 +462,10 @@ class Session(
             # limit. See: internal issue 303057336.
             job_config.labels["error_caught"] = "true"
             _, query_job = self._start_query(
-                query, job_config=job_config, timeout=timeout
+                query,
+                job_config=job_config,
+                timeout=timeout,
+                api_name=api_name,
             )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -467,7 +473,7 @@ class Session(
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query, timeout=timeout)
+            _, query_job = self._start_query(query, timeout=timeout, api_name=api_name)
             return query_job.destination, query_job
 
     def read_gbq_query(
@@ -713,7 +719,8 @@ class Session(
         # Fetch table metadata and validate
         # ---------------------------------
 
-        (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
+        time_travel_timestamp: Optional[datetime.datetime] = None
+        time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
             api_name=api_name,
@@ -795,9 +802,34 @@ class Session(
 
         # Use a time travel to make sure the DataFrame is deterministic, even
         # if the underlying table changes.
-        # TODO(b/340540991): If a dry run query fails with time travel but
+
+        # If a dry run query fails with time travel but
         # succeeds without it, omit the time travel clause and raise a warning
         # about potential non-determinism if the underlying tables are modified.
+        sql = bigframes.session._io.bigquery.to_query(
+            f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
+            index_cols=index_cols,
+            columns=columns,
+            filters=filters,
+            time_travel_timestamp=time_travel_timestamp,
+            max_results=None,
+        )
+        dry_run_config = bigquery.QueryJobConfig()
+        dry_run_config.dry_run = True
+        try:
+            self._start_query(sql, job_config=dry_run_config, api_name=api_name)
+        except google.api_core.exceptions.NotFound:
+            # note that a notfound caused by a simple typo will be
+            # caught above when the metadata is fetched, not here
+            time_travel_timestamp = None
+            warnings.warn(
+                "NotFound error when reading table with time travel."
+                " Attempting query without time travel. Warning: Without"
+                " time travel, modifications to the underlying table may"
+                " result in errors or unexpected behavior.",
+                category=bigframes.exceptions.TimeTravelDisabledWarning,
+            )
+
         table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
             ibis_client=self.ibis_client,
             table_ref=table_ref,
@@ -1751,12 +1783,6 @@ class Session(
                 bigframes.options.compute.maximum_bytes_billed
             )
 
-        current_labels = job_config.labels if job_config.labels else {}
-        for key, value in bigframes.options.compute.extra_query_labels.items():
-            if key not in current_labels:
-                current_labels[key] = value
-        job_config.labels = current_labels
-
         if self._bq_kms_key_name:
             job_config.destination_encryption_configuration = (
                 bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
@@ -1792,13 +1818,19 @@ class Session(
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
         timeout: Optional[float] = None,
+        api_name: Optional[str] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery query job and waits for results.
         """
         job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, max_results, timeout
+            self.bqclient,
+            sql,
+            job_config,
+            max_results,
+            timeout,
+            api_name=api_name,
         )
 
     def _start_query_ml_ddl(
@@ -1944,6 +1976,9 @@ class Session(
             job_config = bigquery.QueryJobConfig(dry_run=dry_run)
         else:
             job_config.dry_run = dry_run
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
         return self._start_query(
             sql=sql,
             job_config=job_config,
@@ -1956,6 +1991,9 @@ class Session(
         if not tree_properties.peekable(self._with_cached_executions(array_value.node)):
             warnings.warn("Peeking this value cannot be done efficiently.")
         sql = self._compile_unordered(array_value).peek_sql(n_rows)
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
         return self._start_query(
             sql=sql,
         )
