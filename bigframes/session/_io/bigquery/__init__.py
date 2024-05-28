@@ -219,7 +219,7 @@ def add_labels(job_config, api_name: Optional[str] = None):
 
 
 def start_query_with_client(
-    session: bigquery.session.Session,
+    session: bigframes.session.Session,
     sql: str,
     job_config: bigquery.job.QueryJobConfig,
     max_results: Optional[int] = None,
