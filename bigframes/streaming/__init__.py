@@ -139,8 +139,11 @@ def to_bigtable(
 
     # begin the query job
     query_job = bq_client.query(
-        sql, job_config=job_config_filled, job_id=job_id, job_id_prefix=job_id_prefix
-    )  # type:ignore
+        sql,
+        job_config=job_config_filled,  # type:ignore
+        job_id=job_id,
+        job_id_prefix=job_id_prefix,
+    )
     # typing error is in bq client library (should accept abstract job_config, only takes concrete)
 
     # return the query job to the user for lifetime management
