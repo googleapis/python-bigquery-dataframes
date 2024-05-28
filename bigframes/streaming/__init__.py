@@ -14,6 +14,7 @@
 
 """Module for bigquery continuous queries"""
 
+import json
 from typing import Optional
 
 from google.cloud import bigquery
@@ -21,8 +22,8 @@ from google.cloud import bigquery
 import bigframes
 
 
-def write_stream_bigtable(
-    sql: str,
+def to_bigtable(
+    query: str,
     instance: str,
     table: str,
     bq_client: Optional[bigquery.Client] = None,
@@ -30,7 +31,9 @@ def write_stream_bigtable(
     truncate: bool = False,
     overwrite: bool = False,
     auto_create_column_families: bool = False,
-    bigtable_options: Optional[str] = None,
+    bigtable_options: Optional[dict] = None,
+    job_id: Optional[str] = None,
+    job_id_prefix: Optional[str] = None,
 ) -> bigquery.QueryJob:
     """Launches a BigQuery continuous query and returns a
     QueryJob object for some management functionality.
@@ -41,7 +44,7 @@ def write_stream_bigtable(
     https://cloud.google.com/bigquery/docs/export-to-bigtable.
 
     Args:
-        sql (str):
+        query (str):
             The sql statement to execute as a continuous function.
             For example: "SELECT * FROM dataset.table"
             This will be wrapped in an EXPORT DATA statement to
@@ -66,10 +69,19 @@ def write_stream_bigtable(
         auto_create_column_families (bool, default False):
             The auto_create_column_families option, see
             https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
-        bigtable_options (str, default None):
-            The bigtable options JSON string, see
+        bigtable_options (dict, default None):
+            The bigtable options dict, which will be converted to JSON
+            using json.dumps, see
             https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
             If None, no bigtable_options parameter will be passed.
+        job_id (str, default None):
+            If specified, replace the default job id for the query,
+            see job_id parameter of
+            https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+        job_id_prefix (str, default None):
+            If specified, a job id prefix for the query, see
+            job_id_prefix parameter of
+            https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
 
     Returns:
         google.cloud.bigquery.QueryJob:
@@ -104,7 +116,7 @@ def write_stream_bigtable(
     bigtable_options_parameter_string = ""
     if bigtable_options is not None:
         bigtable_options_parameter_string = (
-            'bigtable_options = """' + bigtable_options + '""",\n'
+            'bigtable_options = """' + json.dumps(bigtable_options) + '""",\n'
         )
 
     sql = (
@@ -118,7 +130,7 @@ def write_stream_bigtable(
         f'uri = "https://bigtable.googleapis.com/projects/{project}/instances/{instance}/{app_profile_url_string}tables/{table}"\n'
         ")\n"
         "AS (\n"
-        f"{sql});"
+        f"{query});"
     )
 
     # override continuous http parameter
@@ -126,8 +138,10 @@ def write_stream_bigtable(
     job_config_filled = job_config.from_api_repr({"query": {"continuous": True}})
 
     # begin the query job
-    query_job = bq_client.query(sql, job_config=job_config_filled)  # type:ignore
-    # typing error is in bq client library (should accept abstract, only takes concrete)
+    query_job = bq_client.query(
+        sql, job_config=job_config_filled, job_id=job_id, job_id_prefix=job_id_prefix
+    )  # type:ignore
+    # typing error is in bq client library (should accept abstract job_config, only takes concrete)
 
     # return the query job to the user for lifetime management
     return query_job

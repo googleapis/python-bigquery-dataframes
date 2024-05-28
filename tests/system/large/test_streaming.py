@@ -17,12 +17,12 @@ import time
 import bigframes.streaming
 
 
-def test_streaming():
+def test_streaming_to_bigtable():
     # launch a continuous query
     sql = """SELECT
         body_mass_g, island as rowkey
         FROM birds.penguins"""
-    query_job = bigframes.streaming.write_stream_bigtable(
+    query_job = bigframes.streaming.to_bigtable(
         sql,
         "streaming-testing-instance",
         "table-testing",
@@ -30,7 +30,9 @@ def test_streaming():
         truncate=True,
         overwrite=True,
         auto_create_column_families=True,
-        bigtable_options="{}",
+        bigtable_options={},
+        job_id="test_streaming",
+        job_id_prefix="large_test",
     )
 
     try:
