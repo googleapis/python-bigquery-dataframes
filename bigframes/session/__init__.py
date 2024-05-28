@@ -289,6 +289,10 @@ class Session(
             nodes.BigFrameNode, nodes.BigFrameNode
         ] = weakref.WeakKeyDictionary()
 
+        # performance logging
+        self._bytes_processed_sum = 0
+        self._slot_millis_sum = 0
+
     @property
     def bqclient(self):
         return self._clients_provider.bqclient
@@ -337,6 +341,20 @@ class Session(
     @property
     def _project(self):
         return self.bqclient.project
+
+    @property
+    def bytes_processed_sum(self):
+        return self._bytes_processed_sum
+
+    @property
+    def slot_millis_sum(self):
+        return self._slot_millis_sum
+
+    def add_bytes_processed(self, amount: int):
+        self._bytes_processed_sum += amount
+
+    def add_slot_millis(self, amount: int):
+        self._slot_millis_sum += amount
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -1825,7 +1843,7 @@ class Session(
         """
         job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient,
+            self,
             sql,
             job_config,
             max_results,
@@ -1849,7 +1867,7 @@ class Session(
         job_config.destination_encryption_configuration = None
 
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config
+            self, sql, job_config
         )
 
     def _cache_with_cluster_cols(
