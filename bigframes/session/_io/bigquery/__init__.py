@@ -252,9 +252,9 @@ def start_query_with_client(
         bytes_processed, slot_millis = stats
         session.add_bytes_processed(bytes_processed)
         session.add_slot_millis(slot_millis)
-    if LOGGING_NAME_ENV_VAR in os.environ:
-        # when running notebooks via pytest nbmake
-        write_stats_to_disk(bytes_processed, slot_millis)
+        if LOGGING_NAME_ENV_VAR in os.environ:
+            # when running notebooks via pytest nbmake
+            write_stats_to_disk(bytes_processed, slot_millis)
 
     return results_iterator, query_job
 
