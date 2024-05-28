@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import collections.abc
 import copy
 import datetime
 import logging
@@ -85,6 +84,7 @@ import bigframes.core.guid
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
+import bigframes.core.pruning
 import bigframes.core.tree_properties as traversals
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
@@ -100,6 +100,7 @@ from bigframes.functions.remote_function import remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
+import bigframes.session.planner
 import bigframes.version
 
 # Avoid circular imports.
@@ -326,13 +327,15 @@ class Session(
     @property
     def objects(
         self,
-    ) -> collections.abc.Set[
+    ) -> Tuple[
         Union[
             bigframes.core.indexes.Index, bigframes.series.Series, dataframe.DataFrame
         ]
     ]:
+        still_alive = [i for i in self._objects if i() is not None]
+        self._objects = still_alive
         # Create a set with strong references, be careful not to hold onto this needlessly, as will prevent garbage collection.
-        return set(i() for i in self._objects if i() is not None)  # type: ignore
+        return tuple(i() for i in self._objects if i() is not None)  # type: ignore
 
     @property
     def _project(self):
@@ -1912,6 +1915,18 @@ class Session(
             ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         ).node
         self._cached_executions[array_value.node] = cached_replacement
+
+    def _session_aware_caching(self, array_value: core.ArrayValue) -> None:
+        # this is the occurence count across the whole session
+        forest = [obj._block.expr.node for obj in self.objects]
+        # These node types are cheap to re-compute
+        target, cluster_col = bigframes.session.planner.session_aware_cache_plan(
+            array_value.node, forest
+        )
+        if cluster_col:
+            self._cache_with_cluster_cols(core.ArrayValue(target), [cluster_col])
+        else:
+            self._cache_with_offsets(core.ArrayValue(target))
 
     def _simplify_with_caching(self, array_value: core.ArrayValue):
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
