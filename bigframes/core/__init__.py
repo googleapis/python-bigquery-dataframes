@@ -20,6 +20,7 @@ import io
 import itertools
 import typing
 from typing import Iterable, Optional, Sequence
+import warnings
 
 import google.cloud.bigquery
 import ibis.expr.types as ibis_types
@@ -105,6 +106,11 @@ class ArrayValue:
         at_time: Optional[datetime.datetime] = None,
         primary_key: Sequence[str] = (),
     ):
+        if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
+            warnings.warn(
+                "Interpreting JSON column(s) as StringDtype. This behavior may change in future versions.",
+                bigframes.exceptions.PreviewWarning,
+            )
         node = nodes.ReadTableNode(
             project_id=table.reference.project,
             dataset_id=table.reference.dataset_id,

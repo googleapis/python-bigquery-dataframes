@@ -19,6 +19,7 @@ import decimal
 import textwrap
 import typing
 from typing import Any, Dict, Iterable, Literal, Tuple, Union
+import warnings
 
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
@@ -33,6 +34,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.constants as constants
+import bigframes.exceptions
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -283,6 +285,10 @@ def ibis_dtype_to_bigframes_dtype(
 
     # Temporary: Will eventually support an explicit json type instead of casting to string.
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
+        warnings.warn(
+            "Interpreting JSON as string. This behavior may change in future versions.",
+            bigframes.exceptions.PreviewWarning,
+        )
         return STRING_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
