@@ -247,9 +247,11 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
 
-    bytes_processed, slot_millis = get_performance_stats(query_job)
-    session.add_bytes_processed(bytes_processed)
-    session.add_slot_millis(slot_millis)
+    stats = get_performance_stats(query_job)
+    if stats is not None:
+        bytes_processed, slot_millis = stats
+        session.add_bytes_processed(bytes_processed)
+        session.add_slot_millis(slot_millis)
     if LOGGING_NAME_ENV_VAR in os.environ:
         # when running notebooks via pytest nbmake
         write_stats_to_disk(bytes_processed, slot_millis)
@@ -257,17 +259,21 @@ def start_query_with_client(
     return results_iterator, query_job
 
 
-def get_performance_stats(query_job: bigquery.QueryJob):
+def get_performance_stats(query_job: bigquery.QueryJob) -> Optional[Tuple[int, int]]:
+    """Parse the query job for performance stats.
+
+    Return None if the stats do not reflect real work done in bigquery.
+    """
     bytes_processed = query_job.total_bytes_processed
     if not isinstance(bytes_processed, int):
-        return  # filter out mocks
+        return None  # filter out mocks
     if query_job.configuration.dry_run:
         # dry run stats are just predictions of the real run
         bytes_processed = 0
 
     slot_millis = query_job.slot_millis
     if not isinstance(slot_millis, int):
-        return  # filter out mocks
+        return None  # filter out mocks
     if query_job.configuration.dry_run:
         # dry run stats are just predictions of the real run
         slot_millis = 0
