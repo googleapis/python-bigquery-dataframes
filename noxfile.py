@@ -841,12 +841,11 @@ def _print_performance_report():
         cumulative_queries += query_count
         cumulative_bytes += total_bytes
         cumulative_slot_millis += total_slot_millis
-        format_string = (
+        print(
             f"{filename} - query count: {query_count},"
             f" bytes processed sum: {total_bytes},"
             f" slot millis sum: {total_slot_millis}"
         )
-        print(format_string)
 
     print(
         f"---total queries: {cumulative_queries}, "

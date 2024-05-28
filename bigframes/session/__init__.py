@@ -344,10 +344,12 @@ class Session(
 
     @property
     def bytes_processed_sum(self):
+        """The sum of all bytes processed by bigquery jobs using this session."""
         return self._bytes_processed_sum
 
     @property
     def slot_millis_sum(self):
+        """The sum of all slot time used by bigquery jobs in this session."""
         return self._slot_millis_sum
 
     def _add_bytes_processed(self, amount: int):
