@@ -372,7 +372,7 @@ def ceil_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.abs_op)
 def abs_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.NumericValue, x)
+    return typing.cast(ibis_types.NumericValue, x).abs()
 
 
 @scalar_op_compiler.register_unary_op(ops.pos_op)
