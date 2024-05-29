@@ -399,6 +399,9 @@ def _set_default_session_location_if_possible(query):
     bqclient = clients_provider.bqclient
 
     if bigframes.session._io.bigquery.is_query(query):
+        # Intentionally run outside of the session so that we can detect the
+        # location before creating the session. Since it's a dry_run, labels
+        # aren't necessary.
         job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
         options.bigquery.location = job.location
     else:
@@ -649,8 +652,8 @@ read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
 def remote_function(
-    input_types: Union[type, Sequence[type]],
-    output_type: type,
+    input_types: Union[None, type, Sequence[type]] = None,
+    output_type: Optional[type] = None,
     dataset: Optional[str] = None,
     bigquery_connection: Optional[str] = None,
     reuse: bool = True,
@@ -773,7 +776,10 @@ def clean_up_by_session_id(
         dataset = session._anonymous_dataset
     else:
         dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
-            client, location=location, project=project
+            client,
+            location=location,
+            project=project,
+            api_name="clean_up_by_session_id",
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
