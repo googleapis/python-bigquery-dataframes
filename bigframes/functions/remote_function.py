@@ -1040,7 +1040,7 @@ def remote_function(
                     raise ValueError(
                         "'input_types' was not set and parameter "
                         f"'{parameter.name}' is missing a type annotation. "
-                        "Types are required to use @remote_function."
+                        "Types are required to use @remote_function()."
                     )
                 input_types.append(param_type)
 
@@ -1049,7 +1049,7 @@ def remote_function(
                 raise ValueError(
                     "'output_type' was not set and function is missing a "
                     "return type annotation. Types are required to use "
-                    "@remote_function."
+                    "@remote_function()."
                 )
 
         # The function will actually be receiving a pandas Series, but allow both

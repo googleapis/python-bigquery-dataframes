@@ -513,7 +513,8 @@ class RemoteFunctionOp(UnaryOp):
     apply_on_null: bool
 
     def output_type(self, *input_types):
-        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        # This property should be set to a valid Dtype by the @remote_function()
+        # decorator or read_gbq_function method
         # TODO(b/340895446): fix type error
         return self.func.output_dtype  # type: ignore
 
@@ -628,7 +629,8 @@ class BinaryRemoteFunctionOp(BinaryOp):
     func: typing.Callable
 
     def output_type(self, *input_types):
-        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        # This property should be set to a valid Dtype by the @remote_function()
+        # decorator or read_gbq_function method
         # TODO(b/340895446): fix type error
         return self.func.output_dtype  # type: ignore
 
