@@ -4224,7 +4224,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise AND with the Series.
 
         Returns:
-            Series: The result of the operation.
+            bigframes.series.Series: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4262,7 +4262,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise OR with the Series.
 
         Returns:
-            Series: The result of the operation.
+            bigframes.series.Series: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4300,7 +4300,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise XOR with the Series.
 
         Returns:
-            Series: The result of the operation.
+            bigframes.series.Series: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

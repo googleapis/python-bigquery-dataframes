@@ -3563,7 +3563,7 @@ class DataFrame(generic.NDFrame):
                 Object to bitwise AND with the DataFrame.
 
         Returns:
-            DataFrame: The result of the operation.
+            bigframes.dataframe.DataFrame: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3575,7 +3575,7 @@ class DataFrame(generic.NDFrame):
                 Object to bitwise OR with the DataFrame.
 
         Returns:
-            DataFrame: The result of the operation.
+            bigframes.dataframe.DataFrame: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3587,7 +3587,7 @@ class DataFrame(generic.NDFrame):
                 Object to bitwise XOR with the DataFrame.
 
         Returns:
-            DataFrame: The result of the operation.
+            bigframes.dataframe.DataFrame: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
