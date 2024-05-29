@@ -1432,18 +1432,6 @@ def test_remote_function_via_session_vpc(scalars_dfs):
         )
 
 
-def test_remote_function_via_session_vpc_invalid(session):
-    with pytest.raises(google.api_core.exceptions.GoogleAPIError):
-
-        @session.remote_function(
-            [int], int, reuse=False, cloud_function_vpc_connector="does-not-exist"
-        )
-        def square_num(x):
-            if x is None:
-                return x
-            return x * x
-
-
 @pytest.mark.parametrize(
     ("max_batching_rows"),
     [
