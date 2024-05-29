@@ -28,6 +28,7 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.table
 
 import bigframes
 from bigframes.core import log_adapter
@@ -40,18 +41,33 @@ _LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
 # will be limited to this many tables
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
+CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
 
 
 def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
     api_methods: typing.List[str],
+    api_name: Optional[str] = None,
 ) -> Dict[str, str]:
     if job_configs_labels is None:
         job_configs_labels = {}
 
-    if api_methods:
+    # If the user has labels they wish to set, make sure we set those first so
+    # they are preserved.
+    for key, value in bigframes.options.compute.extra_query_labels.items():
+        job_configs_labels[key] = value
+
+    if api_name is not None:
+        job_configs_labels["bigframes-api"] = api_name
+
+    if api_methods and "bigframes-api" not in job_configs_labels:
         job_configs_labels["bigframes-api"] = api_methods[0]
         del api_methods[0]
+
+    # Make sure we always populate bigframes-api with _something_, even if we
+    # have a code path which doesn't populate the list of api_methods. See
+    # internal issue 336521938.
+    job_configs_labels.setdefault("bigframes-api", "unknown")
 
     labels = list(
         itertools.chain(
@@ -193,27 +209,34 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     return f"{key}={repr(value)}"
 
 
+def add_labels(job_config, api_name: Optional[str] = None):
+    api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
+    job_config.labels = create_job_configs_labels(
+        job_configs_labels=job_config.labels,
+        api_methods=api_methods,
+        api_name=api_name,
+    )
+
+
 def start_query_with_client(
-    bq_client: bigquery.Client,
+    session: bigframes.session.Session,
     sql: str,
     job_config: bigquery.job.QueryJobConfig,
     max_results: Optional[int] = None,
     timeout: Optional[float] = None,
+    api_name: Optional[str] = None,
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
     """
     Starts query job and waits for results.
     """
-    if not job_config.dry_run:
-        api_methods = log_adapter.get_and_reset_api_methods()
-        job_config.labels = create_job_configs_labels(
-            job_configs_labels=job_config.labels, api_methods=api_methods
-        )
+    bq_client: bigquery.Client = session.bqclient
+    add_labels(job_config, api_name=api_name)
 
     try:
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
     except google.api_core.exceptions.Forbidden as ex:
         if "Drive credentials" in ex.message:
-            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            ex.message += CHECK_DRIVE_PERMISSIONS
         raise
 
     opts = bigframes.options.display
@@ -224,14 +247,41 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
 
-    if LOGGING_NAME_ENV_VAR in os.environ:
-        # when running notebooks via pytest nbmake
-        pytest_log_job(query_job)
+    stats = get_performance_stats(query_job)
+    if stats is not None:
+        bytes_processed, slot_millis = stats
+        session._add_bytes_processed(bytes_processed)
+        session._add_slot_millis(slot_millis)
+        if LOGGING_NAME_ENV_VAR in os.environ:
+            # when running notebooks via pytest nbmake
+            write_stats_to_disk(bytes_processed, slot_millis)
 
     return results_iterator, query_job
 
 
-def pytest_log_job(query_job: bigquery.QueryJob):
+def get_performance_stats(query_job: bigquery.QueryJob) -> Optional[Tuple[int, int]]:
+    """Parse the query job for performance stats.
+
+    Return None if the stats do not reflect real work done in bigquery.
+    """
+    bytes_processed = query_job.total_bytes_processed
+    if not isinstance(bytes_processed, int):
+        return None  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry run stats are just predictions of the real run
+        bytes_processed = 0
+
+    slot_millis = query_job.slot_millis
+    if not isinstance(slot_millis, int):
+        return None  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry run stats are just predictions of the real run
+        slot_millis = 0
+
+    return bytes_processed, slot_millis
+
+
+def write_stats_to_disk(bytes_processed: int, slot_millis: int):
     """For pytest runs only, log information about the query job
     to a file in order to create a performance report.
     """
@@ -243,15 +293,16 @@ def pytest_log_job(query_job: bigquery.QueryJob):
         )
     test_name = os.environ[LOGGING_NAME_ENV_VAR]
     current_directory = os.getcwd()
-    bytes_processed = query_job.total_bytes_processed
-    if not isinstance(bytes_processed, int):
-        return  # filter out mocks
-    if query_job.configuration.dry_run:
-        # dry runs don't process their total_bytes_processed
-        bytes_processed = 0
+
+    # store bytes processed
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
+
+    # store slot milliseconds
+    bytes_file = os.path.join(current_directory, test_name + ".slotmillis")
+    with open(bytes_file, "a") as f:
+        f.write(str(slot_millis) + "\n")
 
 
 def delete_tables_matching_session_id(
@@ -286,7 +337,10 @@ def delete_tables_matching_session_id(
 
 
 def create_bq_dataset_reference(
-    bq_client: bigquery.Client, location=None, project=None
+    bq_client: bigquery.Client,
+    location=None,
+    project=None,
+    api_name: str = "unknown",
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.
 
@@ -307,7 +361,11 @@ def create_bq_dataset_reference(
     Returns:
         bigquery.DatasetReference: The constructed reference to the anonymous dataset.
     """
-    query_job = bq_client.query("SELECT 1", location=location, project=project)
+    job_config = google.cloud.bigquery.QueryJobConfig()
+    add_labels(job_config, api_name=api_name)
+    query_job = bq_client.query(
+        "SELECT 1", location=location, project=project, job_config=job_config
+    )
     query_job.result()  # blocks until finished
 
     # The anonymous dataset is used by BigQuery to write query results and

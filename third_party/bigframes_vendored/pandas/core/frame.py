@@ -13,11 +13,10 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
-
-from bigframes import constants
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -3916,8 +3915,8 @@ class DataFrame(generic.NDFrame):
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function(int, float, reuse=False)
-            ... def minutes_to_hours(x):
+            >>> @bpd.remote_function(reuse=False)
+            ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
             >>> df_minutes = bpd.DataFrame(
@@ -4238,6 +4237,7 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -4259,16 +4259,19 @@ class DataFrame(generic.NDFrame):
             [2 rows x 2 columns]
 
         You could apply a user defined function to every row of the DataFrame by
-        creating a remote function out of it, and using it with `axis=1`.
+        creating a remote function out of it, and using it with `axis=1`. Within
+        the function, each row is passed as a ``pandas.Series``. It is recommended
+        to select only the necessary columns before calling `apply()`. Note: This
+        feature is currently in **preview**.
 
-            >>> @bpd.remote_function(bpd.Series, int, reuse=False)
-            ... def foo(row):
+            >>> @bpd.remote_function(reuse=False)
+            ... def foo(row: pd.Series) -> int:
             ...     result = 1
             ...     result += row["col1"]
             ...     result += row["col2"]*row["col2"]
             ...     return result
 
-            >>> df.apply(foo, axis=1)
+            >>> df[["col1", "col2"]].apply(foo, axis=1)
             0    11
             1    19
             dtype: Int64
