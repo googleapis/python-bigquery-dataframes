@@ -292,6 +292,7 @@ class Session(
         # performance logging
         self._bytes_processed_sum = 0
         self._slot_millis_sum = 0
+        self._execution_count = 0
 
     @property
     def bqclient(self):
@@ -359,6 +360,10 @@ class Session(
     def _add_slot_millis(self, amount: int):
         """Increment slot_millis_sum by amount."""
         self._slot_millis_sum += amount
+
+    def _add_execution(self, amount: int = 1):
+        """Increment slot_millis_sum by amount."""
+        self._execution_count += amount
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -440,6 +445,7 @@ class Session(
         configuration: dict = {"query": {"useQueryCache": True}},
         do_clustering=True,
     ) -> Tuple[Optional[bigquery.TableReference], bigquery.QueryJob]:
+        self._add_execution(1)
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
@@ -1993,6 +1999,8 @@ class Session(
         dry_run=False,
         col_id_overrides: Mapping[str, str] = {},
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        if not dry_run:
+            self._add_execution(1)
         sql = self._to_sql(
             array_value, sorted=sorted, col_id_overrides=col_id_overrides
         )  # type:ignore

@@ -88,13 +88,13 @@ class SeriesMethods:
             block = data
 
         # interpret these cases as both index and data
-        elif isinstance(data, SeriesMethods) or pd.api.types.is_dict_like(
+        elif isinstance(data, bigframes.pandas.Series) or pd.api.types.is_dict_like(
             data
         ):  # includes pd.Series
-            if isinstance(data, SeriesMethods):
-                data = read_pandas_func(data)
+            if isinstance(data, bigframes.pandas.Series):
+                data = data.copy()
                 if name is not None:
-                    data.names = [name]
+                    data.name = name
                 if dtype is not None:
                     data = data.astype(dtype)
             else:  # local dict-like data
