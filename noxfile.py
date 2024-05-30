@@ -705,7 +705,7 @@ def notebook(session: nox.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def benchmark(session: nox.Session):
     folders = ["benchmark"]
-    denylist: List[str] = []
+    denylist: List[str] = list()
     run_session_with_notebooks(session, folders, denylist)
 
 
@@ -729,8 +729,9 @@ def run_session_with_notebooks(
         "seaborn",
     )
 
+    notebooks_list = list()
     for folder in folders:
-        notebooks_list = list(Path(f"notebooks/{folder}").glob("*/*.ipynb"))
+        notebooks_list += list(Path(f"notebooks/{folder}").glob("*/*.ipynb"))
 
     # Convert each Path notebook object to a string using a list comprehension.
     notebooks = [str(nb) for nb in notebooks_list]
