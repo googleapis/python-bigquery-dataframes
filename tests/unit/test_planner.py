@@ -55,3 +55,24 @@ def test_session_aware_caching_unusable_filter():
     )
     assert result == LEAF.node
     assert cluster_col is None
+
+
+def test_session_aware_caching_fork_after_window_op():
+    other = LEAF.promote_offsets("offsets_col").assign_constant(
+        "col_d", 5, pd.Int64Dtype()
+    )
+    target = (
+        LEAF.promote_offsets("offsets_col")
+        .assign_constant("col_c", 4, pd.Int64Dtype())
+        .filter(
+            ops.eq_op.as_expr("col_a", ops.add_op.as_expr(ex.const(4), ex.const(3)))
+        )
+    )
+    result, cluster_col = planner.session_aware_cache_plan(
+        target.node,
+        [
+            other.node,
+        ],
+    )
+    assert result == LEAF.promote_offsets("offsets_col").node
+    assert cluster_col == "col_a"
