@@ -658,25 +658,16 @@ def system_prerelease(session: nox.sessions.Session):
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def notebook(session: nox.Session):
-    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if not GOOGLE_CLOUD_PROJECT:
-        session.error(
-            "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
-        )
-
-    session.install("-e", ".[all]")
-    session.install(
-        "pytest",
-        "pytest-xdist",
-        "pytest-retry",
-        "nbmake",
-        "google-cloud-aiplatform",
-        "matplotlib",
-        "seaborn",
-    )
-
-    notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
-
+    folders = [
+        "apps",
+        "dataframes",
+        "generative_ai",
+        "getting_started",
+        "location",
+        "regression",
+        "remote_functions",
+        "visualization",
+    ]
     denylist = [
         # Regionalized testing is manually added later.
         "notebooks/location/regionalized.ipynb",
@@ -708,6 +699,38 @@ def notebook(session: nox.Session):
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
     ]
+    run_session_with_notebooks(session, folders, denylist)
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
+def benchmark(session: nox.Session):
+    folders = ["benchmark"]
+    denylist: List[str] = []
+    run_session_with_notebooks(session, folders, denylist)
+
+
+def run_session_with_notebooks(
+    session: nox.Session, folders: List[str], denylist: List[str]
+):
+    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not GOOGLE_CLOUD_PROJECT:
+        session.error(
+            "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
+        )
+
+    session.install("-e", ".[all]")
+    session.install(
+        "pytest",
+        "pytest-xdist",
+        "pytest-retry",
+        "nbmake",
+        "google-cloud-aiplatform",
+        "matplotlib",
+        "seaborn",
+    )
+
+    for folder in folders:
+        notebooks_list = list(Path(f"notebooks/{folder}").glob("*/*.ipynb"))
 
     # Convert each Path notebook object to a string using a list comprehension.
     notebooks = [str(nb) for nb in notebooks_list]
