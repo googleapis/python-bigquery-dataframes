@@ -409,6 +409,49 @@ class ReadTableNode(BigFrameNode):
         return self
 
 
+@dataclass(frozen=True)
+class CachedTableNode(BigFrameNode):
+    # The original BFET subtree
+    # note: this isn't a "child" node.
+    original_node: BigFrameNode = field()
+    # reference to cached materialization
+    project_id: str = field()
+    dataset_id: str = field()
+    table_id: str = field()
+    physical_schema: Tuple[bq.SchemaField, ...] = field()
+
+    ordering: orderings.ExpressionOrdering = field()
+
+    @property
+    def session(self):
+        return self.original_node.session
+
+    def __hash__(self):
+        return self._node_hash
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
+    @property
+    def schema(self) -> schemata.ArraySchema:
+        return self.original_node.schema
+
+    @property
+    def relation_ops_created(self) -> int:
+        # Assume worst case, where readgbq actually has baked in analytic operation to generate index
+        return 3
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return len(self.schema.items) + 1
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
+
 # Unary nodes
 @dataclass(frozen=True)
 class PromoteOffsetsNode(UnaryNode):

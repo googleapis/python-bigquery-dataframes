@@ -97,6 +97,42 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
 
 
 @_compile_node.register
+def compile_cached_table(node: nodes.CachedTableNode, ordered: bool = True):
+    full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
+    hidden_col_names = [
+        col for col in node.ordering.referenced_columns if col not in node.schema.names
+    ]
+    used_columns = (
+        *node.schema.names,
+        *hidden_col_names,
+    )
+    # Physical schema might include unused columns, unsupported datatypes like JSON
+    physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
+        list(i for i in node.physical_schema if i.name in used_columns)
+    )
+    ibis_table = ibis.table(physical_schema, full_table_name)
+    if ordered:
+        return compiled.OrderedIR(
+            ibis_table,
+            columns=tuple(
+                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
+                for col in node.schema.names
+            ),
+            ordering=node.ordering,
+            hidden_ordering_columns=[ibis_table[c] for c in hidden_col_names],
+        )
+
+    else:
+        return compiled.UnorderedIR(
+            ibis_table,
+            columns=tuple(
+                bigframes_dtypes.ibis_value_to_canonical_type(ibis_table[col])
+                for col in node.schema.names
+            ),
+        )
+
+
+@_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, ordered: bool = True):
     if ordered:
         return compile_read_table_ordered(node)
