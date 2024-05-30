@@ -104,6 +104,20 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 dropna=self._dropna,
             )
 
+    def size(self) -> typing.Union[df.DataFrame, series.Series]:
+        agg_block, _ = self._block.aggregate_size(
+            by_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        agg_block = agg_block.with_column_labels(pd.Index(["size"]))
+        dataframe = df.DataFrame(agg_block)
+
+        if self._as_index:
+            series = dataframe["size"]
+            return series.rename(None)
+        else:
+            return self._convert_index(dataframe)
+
     def sum(self, numeric_only: bool = False, *args) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("sum")
@@ -325,9 +339,30 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             for col_id in self._aggregated_columns()
             for f in func
         ]
-        column_labels = [
-            (col_id, f) for col_id in self._aggregated_columns() for f in func
-        ]
+
+        if self._block.column_labels.nlevels > 1:
+            # Restructure MultiIndex for proper format: (idx1, idx2, func)
+            # rather than ((idx1, idx2), func).
+            aggregated_columns = pd.MultiIndex.from_tuples(
+                [
+                    self._block.col_id_to_label[col_id]
+                    for col_id in self._aggregated_columns()
+                ],
+                names=[*self._block.column_labels.names],
+            ).to_frame(index=False)
+
+            column_labels = [
+                tuple(col_id) + (f,)
+                for col_id in aggregated_columns.to_numpy()
+                for f in func
+            ]
+        else:
+            column_labels = [
+                (self._block.col_id_to_label[col_id], f)
+                for col_id in self._aggregated_columns()
+                for f in func
+            ]
+
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
@@ -519,6 +554,13 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def var(self, *args, **kwargs) -> series.Series:
         return self._aggregate(agg_ops.var_op)
+
+    def size(self) -> series.Series:
+        agg_block, _ = self._block.aggregate_size(
+            by_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        return series.Series(agg_block, name=self._value_name)
 
     def skew(self, *args, **kwargs) -> series.Series:
         block = block_ops.skew(self._block, [self._value_column], self._by_col_ids)

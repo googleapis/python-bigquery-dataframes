@@ -19,6 +19,7 @@ from __future__ import annotations
 import collections.abc
 import copy
 import datetime
+import itertools
 import logging
 import math
 import os
@@ -85,6 +86,7 @@ import bigframes.core.guid
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
+import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as traversals
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
@@ -235,7 +237,9 @@ class Session(
 
         self._anonymous_dataset = (
             bigframes.session._io.bigquery.create_bq_dataset_reference(
-                self.bqclient, location=self._location
+                self.bqclient,
+                location=self._location,
+                api_name="session-__init__",
             )
         )
 
@@ -287,6 +291,10 @@ class Session(
             nodes.BigFrameNode, nodes.BigFrameNode
         ] = weakref.WeakKeyDictionary()
 
+        # performance logging
+        self._bytes_processed_sum = 0
+        self._slot_millis_sum = 0
+
     @property
     def bqclient(self):
         return self._clients_provider.bqclient
@@ -335,6 +343,24 @@ class Session(
     @property
     def _project(self):
         return self.bqclient.project
+
+    @property
+    def bytes_processed_sum(self):
+        """The sum of all bytes processed by bigquery jobs using this session."""
+        return self._bytes_processed_sum
+
+    @property
+    def slot_millis_sum(self):
+        """The sum of all slot time used by bigquery jobs in this session."""
+        return self._slot_millis_sum
+
+    def _add_bytes_processed(self, amount: int):
+        """Increment bytes_processed_sum by amount."""
+        self._bytes_processed_sum += amount
+
+    def _add_slot_millis(self, amount: int):
+        """Increment slot_millis_sum by amount."""
+        self._slot_millis_sum += amount
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -420,9 +446,11 @@ class Session(
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        _, dry_run_job = self._start_query(
+            query, job_config=dry_run_config, api_name=api_name
+        )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, api_name=api_name)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -451,7 +479,6 @@ class Session(
             bigquery.QueryJobConfig,
             bigquery.QueryJobConfig.from_api_repr(configuration),
         )
-        job_config.labels["bigframes-api"] = api_name
         job_config.destination = temp_table
 
         try:
@@ -459,7 +486,10 @@ class Session(
             # limit. See: internal issue 303057336.
             job_config.labels["error_caught"] = "true"
             _, query_job = self._start_query(
-                query, job_config=job_config, timeout=timeout
+                query,
+                job_config=job_config,
+                timeout=timeout,
+                api_name=api_name,
             )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -467,7 +497,7 @@ class Session(
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query, timeout=timeout)
+            _, query_job = self._start_query(query, timeout=timeout, api_name=api_name)
             return query_job.destination, query_job
 
     def read_gbq_query(
@@ -593,11 +623,11 @@ class Session(
         if len(filters) != 0 or max_results is not None:
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
+            all_columns = itertools.chain(index_cols, columns) if columns else ()
             query = bf_io_bigquery.to_query(
                 query,
-                index_cols,
-                columns,
-                filters,
+                all_columns,
+                bf_io_bigquery.compile_filters(filters) if filters else None,
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
@@ -713,7 +743,7 @@ class Session(
         # Fetch table metadata and validate
         # ---------------------------------
 
-        (time_travel_timestamp, table,) = bf_read_gbq_table.get_table_metadata(
+        time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self.bqclient,
             table_ref=table_ref,
             api_name=api_name,
@@ -770,11 +800,13 @@ class Session(
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
+            all_columns = itertools.chain(index_cols, columns) if columns else ()
             query = bf_io_bigquery.to_query(
                 query,
-                index_cols=index_cols,
-                columns=columns,
-                filters=filters,
+                columns=all_columns,
+                sql_predicate=bf_io_bigquery.compile_filters(filters)
+                if filters
+                else None,
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
@@ -790,21 +822,24 @@ class Session(
             )
 
         # -----------------------------------------
-        # Create Ibis table expression and validate
+        # Validate table access and features
         # -----------------------------------------
 
         # Use a time travel to make sure the DataFrame is deterministic, even
         # if the underlying table changes.
-        # TODO(b/340540991): If a dry run query fails with time travel but
+
+        # If a dry run query fails with time travel but
         # succeeds without it, omit the time travel clause and raise a warning
         # about potential non-determinism if the underlying tables are modified.
-        table_expression = bf_read_gbq_table.get_ibis_time_travel_table(
-            ibis_client=self.ibis_client,
-            table_ref=table_ref,
-            index_cols=index_cols,
-            columns=columns,
-            filters=filters,
-            time_travel_timestamp=time_travel_timestamp,
+        filter_str = bf_io_bigquery.compile_filters(filters) if filters else None
+        all_columns = (
+            ()
+            if len(columns) == 0
+            else (*columns, *[col for col in index_cols if col not in columns])
+        )
+
+        supports_snapshot = bf_read_gbq_table.validate_table(
+            self.bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
         )
 
         # ----------------------------
@@ -822,20 +857,17 @@ class Session(
             index_cols=index_cols,
             api_name=api_name,
         )
-
-        if is_index_unique:
-            array_value = bf_read_gbq_table.to_array_value_with_total_ordering(
-                session=self,
-                table_expression=table_expression,
-                total_ordering_cols=index_cols,
-            )
-        else:
-            # Note: Even though we're adding a default ordering here, that's
-            # just so we have a deterministic total ordering. If the user
-            # specified a non-unique index, we still sort by that later.
-            array_value = bf_read_gbq_table.to_array_value_with_default_ordering(
-                session=self, table=table_expression, table_rows=table.num_rows
-            )
+        schema = schemata.ArraySchema.from_bq_table(table)
+        if columns:
+            schema = schema.select(index_cols + columns)
+        array_value = core.ArrayValue.from_table(
+            table,
+            schema=schema,
+            predicate=filter_str,
+            at_time=time_travel_timestamp if supports_snapshot else None,
+            primary_key=index_cols if is_index_unique else (),
+            session=self,
+        )
 
         # ----------------------------------------------------
         # Create Default Sequential Index if still have no index
@@ -1495,8 +1527,8 @@ class Session(
 
     def remote_function(
         self,
-        input_types: Union[type, Sequence[type]],
-        output_type: type,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
@@ -1751,12 +1783,6 @@ class Session(
                 bigframes.options.compute.maximum_bytes_billed
             )
 
-        current_labels = job_config.labels if job_config.labels else {}
-        for key, value in bigframes.options.compute.extra_query_labels.items():
-            if key not in current_labels:
-                current_labels[key] = value
-        job_config.labels = current_labels
-
         if self._bq_kms_key_name:
             job_config.destination_encryption_configuration = (
                 bigquery.EncryptionConfiguration(kms_key_name=self._bq_kms_key_name)
@@ -1792,13 +1818,19 @@ class Session(
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         max_results: Optional[int] = None,
         timeout: Optional[float] = None,
+        api_name: Optional[str] = None,
     ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery query job and waits for results.
         """
         job_config = self._prepare_query_job_config(job_config)
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, max_results, timeout
+            self,
+            sql,
+            job_config,
+            max_results,
+            timeout,
+            api_name=api_name,
         )
 
     def _start_query_ml_ddl(
@@ -1817,7 +1849,7 @@ class Session(
         job_config.destination_encryption_configuration = None
 
         return bigframes.session._io.bigquery.start_query_with_client(
-            self.bqclient, sql, job_config
+            self, sql, job_config
         )
 
     def _cache_with_cluster_cols(
@@ -1944,6 +1976,9 @@ class Session(
             job_config = bigquery.QueryJobConfig(dry_run=dry_run)
         else:
             job_config.dry_run = dry_run
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
         return self._start_query(
             sql=sql,
             job_config=job_config,
@@ -1956,6 +1991,9 @@ class Session(
         if not tree_properties.peekable(self._with_cached_executions(array_value.node)):
             warnings.warn("Peeking this value cannot be done efficiently.")
         sql = self._compile_unordered(array_value).peek_sql(n_rows)
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
         return self._start_query(
             sql=sql,
         )

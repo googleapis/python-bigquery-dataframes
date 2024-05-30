@@ -13,11 +13,10 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
-
-from bigframes import constants
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -2003,6 +2002,30 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __invert__(self) -> DataFrame:
+        """
+        Returns the bitwise inversion of the DataFrame, element-wise
+        using operator `~`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'a':[True, False, True], 'b':[-1, 0, 1]})
+            >>> ~df
+                   a  b
+            0  False  0
+            1   True -1
+            2  False -2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Returns:
+            DataFrame: The result of inverting elements in the input.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def ne(self, other, axis: str | int = "columns") -> DataFrame:
         """
         Get not equal to of DataFrame and other, element-wise (binary operator `ne`).
@@ -3532,6 +3555,42 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __and__(self, other):
+        """Get bitwise AND of DataFrame and other, element-wise, using operator `&`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise AND with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __or__(self, other):
+        """Get bitwise OR of DataFrame and other, element-wise, using operator `|`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise OR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __xor__(self, other):
+        """Get bitwise XOR of DataFrame and other, element-wise, using operator `^`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise XOR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def combine(
         self, other, func, fill_value=None, overwrite: bool = True
     ) -> DataFrame:
@@ -3892,8 +3951,8 @@ class DataFrame(generic.NDFrame):
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function(int, float, reuse=False)
-            ... def minutes_to_hours(x):
+            >>> @bpd.remote_function(reuse=False)
+            ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
             >>> df_minutes = bpd.DataFrame(
@@ -4214,6 +4273,7 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -4235,16 +4295,19 @@ class DataFrame(generic.NDFrame):
             [2 rows x 2 columns]
 
         You could apply a user defined function to every row of the DataFrame by
-        creating a remote function out of it, and using it with `axis=1`.
+        creating a remote function out of it, and using it with `axis=1`. Within
+        the function, each row is passed as a ``pandas.Series``. It is recommended
+        to select only the necessary columns before calling `apply()`. Note: This
+        feature is currently in **preview**.
 
-            >>> @bpd.remote_function(bpd.Series, int, reuse=False)
-            ... def foo(row):
+            >>> @bpd.remote_function(reuse=False)
+            ... def foo(row: pd.Series) -> int:
             ...     result = 1
             ...     result += row["col1"]
             ...     result += row["col2"]*row["col2"]
             ...     return result
 
-            >>> df.apply(foo, axis=1)
+            >>> df[["col1", "col2"]].apply(foo, axis=1)
             0    11
             1    19
             dtype: Int64

@@ -375,6 +375,16 @@ def abs_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).abs()
 
 
+@scalar_op_compiler.register_unary_op(ops.pos_op)
+def pos_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x)
+
+
+@scalar_op_compiler.register_unary_op(ops.neg_op)
+def neg_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).negate()
+
+
 @scalar_op_compiler.register_unary_op(ops.sqrt_op)
 def sqrt_op_impl(x: ibis_types.Value):
     numeric_value = typing.cast(ibis_types.NumericValue, x)
@@ -856,11 +866,12 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
-    if not hasattr(op.func, "bigframes_remote_function"):
+    ibis_node = getattr(op.func, "ibis_node", None)
+    if ibis_node is None:
         raise TypeError(
             f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
         )
-    x_transformed = op.func(x)
+    x_transformed = ibis_node(x)
     if not op.apply_on_null:
         x_transformed = ibis.case().when(x.isnull(), x).else_(x_transformed).end()
     return x_transformed
@@ -872,6 +883,12 @@ def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
     for mapping in op.mappings:
         case = case.when(x == mapping[0], mapping[1])
     return case.else_(x).end()
+
+
+# Array Ops
+@scalar_op_compiler.register_unary_op(ops.ArrayToStringOp, pass_op=True)
+def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
+    return typing.cast(ibis_types.ArrayValue, x).join(op.delimiter)
 
 
 ### Binary Ops
@@ -974,6 +991,16 @@ def or_op(
     if isinstance(y, ibis_types.NullScalar):
         return _null_or_value(x, x == ibis.literal(True))
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
+        ibis_types.BooleanValue, y
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.xor_op)
+def xor_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return typing.cast(ibis_types.BooleanValue, x) ^ typing.cast(
         ibis_types.BooleanValue, y
     )
 
@@ -1342,11 +1369,12 @@ def minimum_impl(
 def binary_remote_function_op_impl(
     x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
 ):
-    if not hasattr(op.func, "bigframes_remote_function"):
+    ibis_node = getattr(op.func, "ibis_node", None)
+    if ibis_node is None:
         raise TypeError(
             f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
         )
-    x_transformed = op.func(x, y)
+    x_transformed = ibis_node(x, y)
     return x_transformed
 
 

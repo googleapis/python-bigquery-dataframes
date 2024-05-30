@@ -400,11 +400,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_sizes = self.dtypes.map(
             lambda dtype: bigframes.dtypes.DTYPE_BYTE_SIZES.get(dtype, 8) * n_rows
         )
-        if index:
+        if index and self._has_index:
             index_size = pandas.Series([self.index._memory_usage()], index=["Index"])
             column_sizes = pandas.concat([index_size, column_sizes])
         return column_sizes
 
+    @requires_index
     def info(
         self,
         verbose: Optional[bool] = None,
@@ -768,7 +769,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.drop_columns([get_column_left[column_id]])
 
         block = block.drop_columns([series_col])
-        block = block.with_index_labels(self.index.names)
+        block = block.with_index_labels(self._block.index.names)
         return DataFrame(block)
 
     def _apply_series_binop_axis_1(
@@ -902,6 +903,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.ne(other)
 
     __ne__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__ne__)
+
+    def __invert__(self) -> DataFrame:
+        return self._apply_unary_op(ops.invert_op)
+
+    __invert__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__invert__)
 
     def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.le_op, axis=axis)
@@ -1105,6 +1111,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.rpow(other)
 
     __rpow__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rpow__)
+
+    def __and__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
+        return self._apply_binop(other, ops.and_op)
+
+    __and__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__and__)
+
+    __rand__ = __and__
+
+    def __or__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
+        return self._apply_binop(other, ops.or_op)
+
+    __or__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__or__)
+
+    __ror__ = __or__
+
+    def __xor__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
+        return self._apply_binop(other, ops.xor_op)
+
+    __xor__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__xor__)
+
+    __rxor__ = __xor__
+
+    def __pos__(self) -> DataFrame:
+        return self._apply_unary_op(ops.pos_op)
+
+    def __neg__(self) -> DataFrame:
+        return self._apply_unary_op(ops.neg_op)
 
     def align(
         self,
@@ -1611,7 +1644,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Update case, remove after copying into columns
             block = block.drop_columns([source_column])
 
-        return DataFrame(block.with_index_labels(self.index.names))
+        return DataFrame(block.with_index_labels(self._block.index.names))
 
     def reset_index(self, *, drop: bool = False) -> DataFrame:
         block = self._block.reset_index(drop)
@@ -2906,7 +2939,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             field_delimiter=sep,
             header=header,
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_csv"
+        )
         self._set_internal_query_job(query_job)
 
     def to_json(
@@ -2948,7 +2983,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="JSON",
             export_options={},
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_json"
+        )
         self._set_internal_query_job(query_job)
 
     def to_gbq(
@@ -3080,7 +3117,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             format="PARQUET",
             export_options=export_options,
         )
-        _, query_job = self._block.expr.session._start_query(export_data_statement)
+        _, query_job = self._block.expr.session._start_query(
+            export_data_statement, api_name="dataframe-to_parquet"
+        )
         self._set_internal_query_job(query_job)
 
     def to_dict(
@@ -3283,7 +3322,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         array_value = self._block.expr
 
         new_col_labels, new_idx_labels = utils.get_standardized_ids(
-            self._block.column_labels, self.index.names
+            self._block.column_labels, self._block.index.names
         )
 
         columns = list(self._block.value_columns)
@@ -3320,7 +3359,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         session = self._block.expr.session
         self._optimize_query_complexity()
         export_array, id_overrides = self._prepare_export(
-            index=index, ordering_id=ordering_id
+            index=index and self._has_index, ordering_id=ordering_id
         )
 
         _, query_job = session._execute(
