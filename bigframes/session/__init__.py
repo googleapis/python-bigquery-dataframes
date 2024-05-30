@@ -1087,10 +1087,7 @@ class Session(
 
         try:
             local_block = blocks.Block.from_local(pandas_dataframe, self)
-            assert local_block._transpose_cache is not None
             inline_df = dataframe.DataFrame(local_block)
-            ### REMOVE BEFORE SUBMIT!!!!!
-            assert inline_df._block._transpose_cache is not None
         except pa.ArrowInvalid as e:
             raise pa.ArrowInvalid(
                 f"Could not convert with a BigQuery type: `{e}`. "

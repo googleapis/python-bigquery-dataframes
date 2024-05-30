@@ -131,7 +131,7 @@ class SeriesMethods:
                 data_block = data_block.with_index_labels(bf_index.names)
             block = data_block
 
-        else:  # Scalar case  handle name and dtype
+        else:  # Scalar case
             if index is not None:
                 bf_index = indexes.Index(index, session=session)
             else:

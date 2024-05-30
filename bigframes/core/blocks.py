@@ -2026,7 +2026,7 @@ class Block:
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
             columns, lcol_indexer, rcol_indexer = self.column_labels.join(
-                other.transpose().column_labels, how="outer", return_indexers=True
+                other.transpose().column_labels, how=how, return_indexers=True
             )
         lcol_indexer = (
             lcol_indexer if (lcol_indexer is not None) else range(len(columns))

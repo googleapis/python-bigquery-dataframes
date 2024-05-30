@@ -765,7 +765,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         """Align dataframe with pandas series by inlining series values as literals."""
-        # If we already know the row schema (from transpose cache), we don't need any materialization
+        # If we already know the transposed schema (from the transpose cache), we don't need to materialize rows from other
+        # Instead, can fully defer execution (as a cross-join)
         if (
             isinstance(other, bigframes.series.Series)
             and other._block._transpose_cache is not None
@@ -774,6 +775,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 other._block, how=how
             )
         else:
+            # Fallback path, materialize `other` locally
             pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
             aligned_block, columns, expr_pairs = self._block._align_pd_series_axis_1(
                 pd_series, how=how
