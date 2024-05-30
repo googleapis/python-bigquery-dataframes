@@ -608,6 +608,13 @@ def test_read_gbq_function_like_original(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_runs_existing_udf(session, bigquery_client, dataset_id):
+    func = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
+    got = func("AURÉLIE")
+    assert got == "aurÉlie"
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
