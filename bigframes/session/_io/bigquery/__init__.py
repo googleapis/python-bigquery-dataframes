@@ -219,7 +219,7 @@ def add_labels(job_config, api_name: Optional[str] = None):
 
 
 def start_query_with_client(
-    bq_client: bigquery.Client,
+    session: bigframes.session.Session,
     sql: str,
     job_config: bigquery.job.QueryJobConfig,
     max_results: Optional[int] = None,
@@ -229,6 +229,7 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
+    bq_client: bigquery.Client = session.bqclient
     add_labels(job_config, api_name=api_name)
 
     try:
@@ -246,14 +247,41 @@ def start_query_with_client(
     else:
         results_iterator = query_job.result(max_results=max_results)
 
-    if LOGGING_NAME_ENV_VAR in os.environ:
-        # when running notebooks via pytest nbmake
-        pytest_log_job(query_job)
+    stats = get_performance_stats(query_job)
+    if stats is not None:
+        bytes_processed, slot_millis = stats
+        session._add_bytes_processed(bytes_processed)
+        session._add_slot_millis(slot_millis)
+        if LOGGING_NAME_ENV_VAR in os.environ:
+            # when running notebooks via pytest nbmake
+            write_stats_to_disk(bytes_processed, slot_millis)
 
     return results_iterator, query_job
 
 
-def pytest_log_job(query_job: bigquery.QueryJob):
+def get_performance_stats(query_job: bigquery.QueryJob) -> Optional[Tuple[int, int]]:
+    """Parse the query job for performance stats.
+
+    Return None if the stats do not reflect real work done in bigquery.
+    """
+    bytes_processed = query_job.total_bytes_processed
+    if not isinstance(bytes_processed, int):
+        return None  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry run stats are just predictions of the real run
+        bytes_processed = 0
+
+    slot_millis = query_job.slot_millis
+    if not isinstance(slot_millis, int):
+        return None  # filter out mocks
+    if query_job.configuration.dry_run:
+        # dry run stats are just predictions of the real run
+        slot_millis = 0
+
+    return bytes_processed, slot_millis
+
+
+def write_stats_to_disk(bytes_processed: int, slot_millis: int):
     """For pytest runs only, log information about the query job
     to a file in order to create a performance report.
     """
@@ -265,15 +293,16 @@ def pytest_log_job(query_job: bigquery.QueryJob):
         )
     test_name = os.environ[LOGGING_NAME_ENV_VAR]
     current_directory = os.getcwd()
-    bytes_processed = query_job.total_bytes_processed
-    if not isinstance(bytes_processed, int):
-        return  # filter out mocks
-    if query_job.configuration.dry_run:
-        # dry runs don't process their total_bytes_processed
-        bytes_processed = 0
+
+    # store bytes processed
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
+
+    # store slot milliseconds
+    bytes_file = os.path.join(current_directory, test_name + ".slotmillis")
+    with open(bytes_file, "a") as f:
+        f.write(str(slot_millis) + "\n")
 
 
 def delete_tables_matching_session_id(
@@ -363,14 +392,12 @@ def is_table_with_wildcard_suffix(query_or_table: str) -> bool:
 
 def to_query(
     query_or_table: str,
-    index_cols: Iterable[str],
     columns: Iterable[str],
-    filters: third_party_pandas_gbq.FiltersType,
-    max_results: Optional[int],
-    time_travel_timestamp: Optional[datetime.datetime],
+    sql_predicate: Optional[str],
+    max_results: Optional[int] = None,
+    time_travel_timestamp: Optional[datetime.datetime] = None,
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
-    filters = list(filters)
     sub_query = (
         f"({query_or_table})" if is_query(query_or_table) else f"`{query_or_table}`"
     )
@@ -380,8 +407,7 @@ def to_query(
     if columns:
         # We only reduce the selection if columns is set, but we always
         # want to make sure index_cols is also included.
-        all_columns = itertools.chain(index_cols, columns)
-        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in all_columns)
+        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in columns)
     else:
         select_clause = "SELECT *"
 
@@ -394,77 +420,84 @@ def to_query(
     if max_results is not None:
         limit_clause = f" LIMIT {bigframes.core.sql.simple_literal(max_results)}"
 
-    filter_string = ""
-    if filters:
-        valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
-            "in": "IN",
-            "not in": "NOT IN",
-            "LIKE": "LIKE",
-            "==": "=",
-            ">": ">",
-            "<": "<",
-            ">=": ">=",
-            "<=": "<=",
-            "!=": "!=",
-        }
-
-        # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
-        if isinstance(filters[0], tuple) and (
-            len(filters[0]) == 0 or not isinstance(list(filters[0])[0], tuple)
-        ):
-            filters = typing.cast(third_party_pandas_gbq.FiltersType, [filters])
-
-        for group in filters:
-            if not isinstance(group, Iterable):
-                group = [group]
-
-            and_expression = ""
-            for filter_item in group:
-                if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
-                    raise ValueError(
-                        f"Elements of filters must be tuples of length 3, but got {repr(filter_item)}.",
-                    )
-
-                column, operator, value = filter_item
-
-                if not isinstance(column, str):
-                    raise ValueError(
-                        f"Column name should be a string, but received '{column}' of type {type(column).__name__}."
-                    )
-
-                if operator not in valid_operators:
-                    raise ValueError(f"Operator {operator} is not valid.")
-
-                operator_str = valid_operators[operator]
-
-                column_ref = bigframes.core.sql.identifier(column)
-                if operator_str in ["IN", "NOT IN"]:
-                    value_literal = bigframes.core.sql.multi_literal(*value)
-                else:
-                    value_literal = bigframes.core.sql.simple_literal(value)
-                expression = bigframes.core.sql.infix_op(
-                    operator_str, column_ref, value_literal
-                )
-                if and_expression:
-                    and_expression = bigframes.core.sql.infix_op(
-                        "AND", and_expression, expression
-                    )
-                else:
-                    and_expression = expression
-
-            if filter_string:
-                filter_string = bigframes.core.sql.infix_op(
-                    "OR", filter_string, and_expression
-                )
-            else:
-                filter_string = and_expression
-
-    where_clause = ""
-    if filter_string:
-        where_clause = f" WHERE {filter_string}"
+    where_clause = f" WHERE {sql_predicate}" if sql_predicate else ""
 
     return (
         f"{select_clause} "
         f"FROM {sub_query}"
         f"{time_travel_clause}{where_clause}{limit_clause}"
     )
+
+
+def compile_filters(filters: third_party_pandas_gbq.FiltersType) -> str:
+    """Compiles a set of filters into a boolean sql expression"""
+    if not filters:
+        return ""
+    filter_string = ""
+    valid_operators: Mapping[third_party_pandas_gbq.FilterOps, str] = {
+        "in": "IN",
+        "not in": "NOT IN",
+        "LIKE": "LIKE",
+        "==": "=",
+        ">": ">",
+        "<": "<",
+        ">=": ">=",
+        "<=": "<=",
+        "!=": "!=",
+    }
+
+    # If single layer filter, add another pseudo layer. So the single layer represents "and" logic.
+    filters_list: list = list(filters)
+    if isinstance(filters_list[0], tuple) and (
+        len(filters_list[0]) == 0 or not isinstance(list(filters_list[0])[0], tuple)
+    ):
+        filter_items = [filters_list]
+    else:
+        filter_items = filters_list
+
+    for group in filter_items:
+        if not isinstance(group, Iterable):
+            group = [group]
+
+        and_expression = ""
+        for filter_item in group:
+            if not isinstance(filter_item, tuple) or (len(filter_item) != 3):
+                raise ValueError(
+                    f"Elements of filters must be tuples of length 3, but got {repr(filter_item)}.",
+                )
+
+            column, operator, value = filter_item
+
+            if not isinstance(column, str):
+                raise ValueError(
+                    f"Column name should be a string, but received '{column}' of type {type(column).__name__}."
+                )
+
+            if operator not in valid_operators:
+                raise ValueError(f"Operator {operator} is not valid.")
+
+            operator_str = valid_operators[operator]
+
+            column_ref = bigframes.core.sql.identifier(column)
+            if operator_str in ["IN", "NOT IN"]:
+                value_literal = bigframes.core.sql.multi_literal(*value)
+            else:
+                value_literal = bigframes.core.sql.simple_literal(value)
+            expression = bigframes.core.sql.infix_op(
+                operator_str, column_ref, value_literal
+            )
+            if and_expression:
+                and_expression = bigframes.core.sql.infix_op(
+                    "AND", and_expression, expression
+                )
+            else:
+                and_expression = expression
+
+        if filter_string:
+            filter_string = bigframes.core.sql.infix_op(
+                "OR", filter_string, and_expression
+            )
+        else:
+            filter_string = and_expression
+
+    return filter_string
