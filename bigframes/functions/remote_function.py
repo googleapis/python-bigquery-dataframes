@@ -1159,6 +1159,7 @@ def read_gbq_function(
     if session:
         ibis_client = session.ibis_client
     else:
+        # Construct an ibis client so that directly executing the function can work.
         ibis_client = ibis.bigquery.connect(client=bigquery_client)
 
     try:

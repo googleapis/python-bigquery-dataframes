@@ -13,11 +13,10 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
-
-from bigframes import constants
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -3553,6 +3552,42 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: The result of the exponentiation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __and__(self, other):
+        """Get bitwise AND of DataFrame and other, element-wise, using operator `&`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise AND with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __or__(self, other):
+        """Get bitwise OR of DataFrame and other, element-wise, using operator `|`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise OR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __xor__(self, other):
+        """Get bitwise XOR of DataFrame and other, element-wise, using operator `^`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise XOR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
