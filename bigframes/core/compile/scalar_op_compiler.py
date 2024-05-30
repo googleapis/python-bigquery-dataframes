@@ -375,6 +375,16 @@ def abs_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).abs()
 
 
+@scalar_op_compiler.register_unary_op(ops.pos_op)
+def pos_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x)
+
+
+@scalar_op_compiler.register_unary_op(ops.neg_op)
+def neg_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).negate()
+
+
 @scalar_op_compiler.register_unary_op(ops.sqrt_op)
 def sqrt_op_impl(x: ibis_types.Value):
     numeric_value = typing.cast(ibis_types.NumericValue, x)
@@ -875,6 +885,12 @@ def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
     return case.else_(x).end()
 
 
+# Array Ops
+@scalar_op_compiler.register_unary_op(ops.ArrayToStringOp, pass_op=True)
+def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
+    return typing.cast(ibis_types.ArrayValue, x).join(op.delimiter)
+
+
 ### Binary Ops
 def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = None):
     """Wraps a binary operator to generate nulls of the expected type if either input is a null scalar."""
@@ -975,6 +991,16 @@ def or_op(
     if isinstance(y, ibis_types.NullScalar):
         return _null_or_value(x, x == ibis.literal(True))
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
+        ibis_types.BooleanValue, y
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.xor_op)
+def xor_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return typing.cast(ibis_types.BooleanValue, x) ^ typing.cast(
         ibis_types.BooleanValue, y
     )
 
