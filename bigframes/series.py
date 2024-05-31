@@ -619,7 +619,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
         """
-        Preview n arbitrary elements from the series. No guarantees about row selection or ordering.
+        Preview n arbitrary elements from the series without guarantees about row selection or ordering.
+
         ``Series.peek(force=False)`` will always be very fast, but will not succeed if data requires
         full data scanning. Using ``force=True`` will always succeed, but may be perform queries.
         Query results will be cached so that future steps will benefit from these queries.

@@ -333,7 +333,7 @@ class Session(
     @property
     def objects(
         self,
-    ) -> Tuple[
+    ) -> Iterable[
         Union[
             bigframes.core.indexes.Index, bigframes.series.Series, dataframe.DataFrame
         ]

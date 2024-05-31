@@ -60,11 +60,6 @@ class ScalarOp:
         """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
         return False
 
-    @property
-    def pruning_compatible(self) -> bool:
-        """Whether the operation preserves locality o"""
-        return False
-
 
 @dataclasses.dataclass(frozen=True)
 class NaryOp(ScalarOp):

@@ -33,7 +33,7 @@ COMPARISON_OP_TYPES = tuple(
 
 def cluster_cols_for_predicate(predicate: ex.Expression) -> Sequence[str]:
     """Try to determine cluster col candidates that work with given predicates."""
-    # TODO: Prioritize equality predicates over ranges
+    # TODO: Prioritize based on predicted selectivity (eg. equality conditions are probably very selective)
     if isinstance(predicate, ex.UnboundVariableExpression):
         return [predicate.id]
     if isinstance(predicate, ex.OpExpression):
@@ -56,6 +56,8 @@ def cluster_cols_for_predicate(predicate: ex.Expression) -> Sequence[str]:
 def cluster_cols_for_comparison(
     left_ex: ex.Expression, right_ex: ex.Expression
 ) -> Sequence[str]:
+    # TODO: Try to normalize expressions such that one side is a single variable.
+    # eg. Convert -cola>=3 to cola<-3 and colb+3 < 4 to colb < 1
     if left_ex.is_const:
         # There are some invertible ops that would also be ok
         if isinstance(right_ex, ex.UnboundVariableExpression):

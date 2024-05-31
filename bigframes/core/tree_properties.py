@@ -92,6 +92,19 @@ def select_cache_target(
 
 
 def count_nodes(forest: Sequence[nodes.BigFrameNode]) -> dict[nodes.BigFrameNode, int]:
+    """
+    Counts the number of instances of each subtree present within a forest.
+
+    Memoizes internally to accelerate execution, but cache not persisted (not reused between invocations).
+
+    Args:
+        forest (Sequence of BigFrameNode):
+            The roots of each tree in the forest
+
+    Returns:
+        dict[BigFramesNode, int]: The number of occurences of each subtree.
+    """
+
     def _combine_counts(
         left: Dict[nodes.BigFrameNode, int], right: Dict[nodes.BigFrameNode, int]
     ) -> Dict[nodes.BigFrameNode, int]:
