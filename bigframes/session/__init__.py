@@ -1160,7 +1160,7 @@ class Session(
             schema=schemata.ArraySchema.from_bq_table(destination_table),
             session=self,
             offsets_col=ordering_col,
-        )
+        ).drop_columns([ordering_col])
 
         block = blocks.Block(
             array_value,

@@ -376,7 +376,7 @@ class ReadTableNode(BigFrameNode):
             raise ValueError(
                 f"Requested schema {self.columns} cannot be derived from table schemal {self.physical_schema}"
             )
-        if self.order_col_is_sequential and len(self.total_order_cols) == 1:
+        if self.order_col_is_sequential and len(self.total_order_cols) != 1:
             raise ValueError("Sequential primary key must have only one component")
 
     @property
