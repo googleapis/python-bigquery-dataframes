@@ -178,7 +178,7 @@ def vector_search(
         ...             column_to_search="my_embedding",
         ...             query=search_query,
         ...             top_k=2)
-            query_id  embedding  id my_embedding  distance
+          query_id  embedding  id my_embedding  distance
         1      cat  [3.  5.2]   5    [5.  5.4]  2.009975
         0      dog    [1. 2.]   1      [1. 2.]       0.0
         0      dog    [1. 2.]   4    [1.  3.2]       1.2
