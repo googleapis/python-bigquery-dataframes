@@ -26,7 +26,7 @@ def test_streaming_to_bigtable():
         sql,
         "streaming-testing-instance",
         "table-testing",
-        app_profile="test-profile",
+        app_profile=None,
         truncate=True,
         overwrite=True,
         auto_create_column_families=True,
