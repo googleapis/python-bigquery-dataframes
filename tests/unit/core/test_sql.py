@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes.bigquery as bbq
+
+from bigframes.core import sql
 
 
 def test_create_vector_search_sql_simple():
@@ -39,7 +40,7 @@ def test_create_vector_search_sql_simple():
     )
     """
 
-    result_query = bbq.utils.create_vector_search_sql(
+    result_query = sql.create_vector_search_sql(
         sql_string, options  # type:ignore
     )
     assert result_query == expected_query
@@ -71,7 +72,7 @@ def test_create_vector_search_sql_query_column_to_search():
     )
     """
 
-    result_query = bbq.utils.create_vector_search_sql(
+    result_query = sql.create_vector_search_sql(
         sql_string, options  # type:ignore
     )
     assert result_query == expected_query
