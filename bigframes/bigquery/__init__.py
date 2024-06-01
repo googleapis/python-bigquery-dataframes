@@ -166,7 +166,7 @@ def vector_search(
     use_brute_force: bool = False,
 ) -> dataframe.DataFrame:
     """
-    Conduct vector search to earch embeddings to find semantically similar entities.
+    Conduct vector search which searches embeddings to find semantically similar entities.
 
     **Examples:**
 
@@ -233,7 +233,7 @@ def vector_search(
     Args:
         base_table (str):
             The table to search for nearest neighbor embeddings.
-        column_to_search (groupby.SeriesGroupBy | groupby.DataFrameGroupBy):
+        column_to_search (str):
             The name of the base table column to search for nearest neighbor embeddings.
             The column must have a type of ``ARRAY<FLOAT64>``. All elements in the array must be non-NULL.
         query (bigframes.dataframe.DataFrame | bigframes.dataframe.Series):
@@ -271,7 +271,7 @@ def vector_search(
         raise ValueError(
             "You can't specify query_column_to_search when query is a Series."
         )
-    # TODO(ashleyxu): ashleyxu. Support options in vector search. b/344019989
+    # TODO(ashleyxu): Support options in vector search. b/344019989
     if fraction_lists_to_search is not None or use_brute_force is True:
         raise NotImplementedError(
             f"fraction_lists_to_search and use_brute_force is not supported. {constants.FEEDBACK_LINK}"
