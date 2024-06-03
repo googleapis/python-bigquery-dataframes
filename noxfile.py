@@ -838,6 +838,9 @@ def _print_performance_report(path: str):
     """Add an informational report about http queries, bytes
     processed, and slot time to the testlog output for purposes
     of measuring bigquery-related performance changes.
+
+    Looks specifically for output files in subfolders of the
+    passed path. (*/*.bytesprocessed and */*.slotmillis)
     """
     print("---BIGQUERY USAGE REPORT---")
     results_dict = {}
