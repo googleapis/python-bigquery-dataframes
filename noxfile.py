@@ -76,6 +76,8 @@ SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
+LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
+
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # Sessions are executed in the order so putting the smaller sessions
@@ -748,8 +750,6 @@ def notebook(session: nox.Session):
         "--nbmake-timeout=900",  # 15 minutes
     ]
 
-    logging_name_env_var = "BIGFRAMES_PERFORMANCE_LOG_NAME"
-
     try:
         # Populate notebook parameters and make a backup so that the notebooks
         # are runnable.
@@ -763,7 +763,7 @@ def notebook(session: nox.Session):
         # takes an environment variable for performance logging
         processes = []
         for notebook in notebooks:
-            session.env[logging_name_env_var] = os.path.basename(notebook)
+            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
@@ -788,7 +788,7 @@ def notebook(session: nox.Session):
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
-            session.env[logging_name_env_var] = os.path.basename(notebook)
+            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
@@ -796,6 +796,31 @@ def notebook(session: nox.Session):
             )
             process.start()
             processes.append(process)
+
+    for process in processes:
+        process.join()
+
+    # when the environment variable is set as it is above,
+    # notebooks output a .bytesprocessed and .slotmillis report
+    # collect those reports and print a summary
+    _print_performance_report()
+
+
+@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
+def benchmark(session: nox.Session):
+    benchmark_script_list = list(Path("scripts/benchmark").glob("*/*.py"))
+
+    # Run benchmarks in parallel session.run's, since each benchmark
+    # takes an environment variable for performance logging
+    processes = []
+    for benchmark in benchmark_script_list:
+        session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(benchmark)
+        process = Process(
+            target=session.run,
+            args=("python", benchmark),
+        )
+        process.start()
+        processes.append(process)
 
     for process in processes:
         process.join()
