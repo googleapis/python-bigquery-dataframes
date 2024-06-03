@@ -859,7 +859,6 @@ def _print_performance_report(path: str):
     cumulative_bytes = 0
     cumulative_slot_millis = 0
     for results in results_dict.values():
-        print(results)
         if len(results) != 3:
             raise IOError(
                 "Mismatch in performance logging output. "
