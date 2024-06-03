@@ -766,7 +766,7 @@ def notebook(session: nox.Session):
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
-                kwargs={"env": {LOGGING_NAME_ENV_VAR: notebook}},
+                kwargs={"env": {LOGGING_NAME_ENV_VAR: os.path.basename(notebook)}},
             )
             process.start()
             processes.append(process)
@@ -792,7 +792,10 @@ def notebook(session: nox.Session):
                 target=session.run,
                 args=(*pytest_command, notebook),
                 kwargs={
-                    "env": {"BIGQUERY_LOCATION": region, LOGGING_NAME_ENV_VAR: notebook}
+                    "env": {
+                        "BIGQUERY_LOCATION": region,
+                        LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
+                    }
                 },
             )
             process.start()
@@ -811,7 +814,7 @@ def notebook(session: nox.Session):
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
 
-    benchmark_script_list = list(Path("scripts/benchmark").glob("*.py"))
+    benchmark_script_list = list(Path("scripts/").glob("*/*.py"))
 
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
@@ -820,7 +823,7 @@ def benchmark(session: nox.Session):
         process = Process(
             target=session.run,
             args=("python", benchmark),
-            kwargs={"env": {LOGGING_NAME_ENV_VAR: benchmark}},
+            kwargs={"env": {LOGGING_NAME_ENV_VAR: os.path.basename(benchmark)}},
         )
         process.start()
         processes.append(process)
