@@ -763,10 +763,10 @@ def notebook(session: nox.Session):
         # takes an environment variable for performance logging
         processes = []
         for notebook in notebooks:
-            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
+                kwargs={"env": {LOGGING_NAME_ENV_VAR: notebook}},
             )
             process.start()
             processes.append(process)
@@ -788,11 +788,12 @@ def notebook(session: nox.Session):
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
-            session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(notebook)
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
-                kwargs={"env": {"BIGQUERY_LOCATION": region}},
+                kwargs={
+                    "env": {"BIGQUERY_LOCATION": region, LOGGING_NAME_ENV_VAR: notebook}
+                },
             )
             process.start()
             processes.append(process)
@@ -803,21 +804,23 @@ def notebook(session: nox.Session):
     # when the environment variable is set as it is above,
     # notebooks output a .bytesprocessed and .slotmillis report
     # collect those reports and print a summary
-    _print_performance_report()
+    _print_performance_report("notebooks/")
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def benchmark(session: nox.Session):
-    benchmark_script_list = list(Path("scripts/benchmark").glob("*/*.py"))
+    session.install("-e", ".[all]")
+
+    benchmark_script_list = list(Path("scripts/benchmark").glob("*.py"))
 
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
     processes = []
     for benchmark in benchmark_script_list:
-        session.env[LOGGING_NAME_ENV_VAR] = os.path.basename(benchmark)
         process = Process(
             target=session.run,
             args=("python", benchmark),
+            kwargs={"env": {LOGGING_NAME_ENV_VAR: benchmark}},
         )
         process.start()
         processes.append(process)
@@ -828,24 +831,24 @@ def benchmark(session: nox.Session):
     # when the environment variable is set as it is above,
     # notebooks output a .bytesprocessed and .slotmillis report
     # collect those reports and print a summary
-    _print_performance_report()
+    _print_performance_report("scripts/")
 
 
-def _print_performance_report():
+def _print_performance_report(path: str):
     """Add an informational report about http queries, bytes
     processed, and slot time to the testlog output for purposes
     of measuring bigquery-related performance changes.
     """
     print("---BIGQUERY USAGE REPORT---")
     results_dict = {}
-    for bytes_report in Path("notebooks/").glob("*/*.bytesprocessed"):
+    for bytes_report in Path(path).glob("*/*.bytesprocessed"):
         with open(bytes_report, "r") as bytes_file:
             filename = bytes_report.stem
             lines = bytes_file.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
             results_dict[filename] = [query_count, total_bytes]
-    for millis_report in Path("notebooks/").glob("*/*.slotmillis"):
+    for millis_report in Path(path).glob("*/*.slotmillis"):
         with open(millis_report, "r") as millis_file:
             filename = millis_report.stem
             lines = millis_file.read().splitlines()
@@ -856,6 +859,7 @@ def _print_performance_report():
     cumulative_bytes = 0
     cumulative_slot_millis = 0
     for results in results_dict.values():
+        print(results)
         if len(results) != 3:
             raise IOError(
                 "Mismatch in performance logging output. "

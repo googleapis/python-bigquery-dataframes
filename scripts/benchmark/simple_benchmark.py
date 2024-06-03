@@ -20,6 +20,8 @@ import bigframes.pandas as bpd
 
 print("Performing simple benchmark.")
 df = bpd.DataFrame()
-df["column_1"] = bpd.Series([i for i in range(1000)])
-df["column_2"] = bpd.Series([i + 1000 for i in range(1000)])
+df["column_1"] = bpd.Series([i for i in range(100000)])
+df["column_2"] = bpd.Series([i * 2 for i in range(100000)])
 df["column_3"] = df["column_1"] + df["column_2"]
+df.__repr__()
+bpd.reset_session()
