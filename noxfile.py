@@ -814,7 +814,7 @@ def notebook(session: nox.Session):
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
 
-    benchmark_script_list = list(Path("scripts/").glob("*/*.py"))
+    benchmark_script_list = list(Path("scripts/benchmark/").glob("*.py"))
 
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
@@ -823,7 +823,12 @@ def benchmark(session: nox.Session):
         process = Process(
             target=session.run,
             args=("python", benchmark),
-            kwargs={"env": {LOGGING_NAME_ENV_VAR: os.path.basename(benchmark)}},
+            kwargs={
+                "env": {
+                    LOGGING_NAME_ENV_VAR: "scripts/benchmark/"
+                    + os.path.basename(benchmark)
+                }
+            },
         )
         process.start()
         processes.append(process)
@@ -864,7 +869,7 @@ def _print_performance_report(path: str):
     cumulative_queries = 0
     cumulative_bytes = 0
     cumulative_slot_millis = 0
-    for results in results_dict.values():
+    for name, results in results_dict.items():
         if len(results) != 3:
             raise IOError(
                 "Mismatch in performance logging output. "
@@ -876,7 +881,7 @@ def _print_performance_report(path: str):
         cumulative_bytes += total_bytes
         cumulative_slot_millis += total_slot_millis
         print(
-            f"{filename} - query count: {query_count},"
+            f"{name} - query count: {query_count},"
             f" bytes processed sum: {total_bytes},"
             f" slot millis sum: {total_slot_millis}"
         )
