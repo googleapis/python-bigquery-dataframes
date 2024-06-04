@@ -30,9 +30,6 @@ import bigframes.functions.remote_function_template as remote_function_template
                     "names": ["'my-index'", "'col1'", "'col2'", "'col3'"],
                     "types": ["string", "Int64", "Int64", "Int64"],
                     "values": ["my-index-value", "1", None, "-1"],
-                    # TODO: Why do we even have this? Does it matter if a
-                    # column was an index column or not? Looks like the index
-                    # columns get completely discarded, anyway?
                     "indexlength": 1,
                     "dtype": "Int64",
                 }
