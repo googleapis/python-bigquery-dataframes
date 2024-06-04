@@ -1215,10 +1215,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
+    def to_pandas_batches(
+        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+    ) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame"""
         self._optimize_query_complexity()
-        return self._block.to_pandas_batches()
+        return self._block.to_pandas_batches(
+            page_size=page_size, max_results=max_results
+        )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
