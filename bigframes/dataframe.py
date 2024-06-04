@@ -3313,11 +3313,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Early check whether the dataframe dtypes are currently supported
             # in the remote function
             # NOTE: Keep in sync with the value converters used in the gcf code
-            # generated in generate_cloud_function_main_code in remote_function.py
+            # generated in  in remote_function_template.py
             remote_function_supported_dtypes = (
                 bigframes.dtypes.INT_DTYPE,
                 bigframes.dtypes.FLOAT_DTYPE,
                 bigframes.dtypes.BOOL_DTYPE,
+                bigframes.dtypes.BYTES_DTYPE,
                 bigframes.dtypes.STRING_DTYPE,
             )
             supported_dtypes_types = tuple(
