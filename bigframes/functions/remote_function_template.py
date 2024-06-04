@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 _pickle_protocol_version = 4
 
 
+# get_pd_series is the inverse of Block._get_rows_as_json_values
 def get_pd_series(row):
     import ast
     import json
