@@ -740,7 +740,7 @@ class GeminiTextGenerator(base.BaseEstimator):
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
     ) -> bpd.DataFrame:
-        """Calculate evaluation metrics of the model.
+        """Calculate evaluation metrics of the model. Only "gemini-pro" model is supported for now.
 
         .. note::
 
@@ -772,10 +772,9 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
+        # TODO(ashleyxu): Support gemini-1.5 when the rollout is ready. b/344891364.
         if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError(
-                "Score is not supported for gemini-1.5 model. Please use gemini-pro-1.0 model instead."
-            )
+            raise NotImplementedError("Score is not supported for gemini-1.5 model.")
 
         X, y = utils.convert_to_dataframe(X, y)
 

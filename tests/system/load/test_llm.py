@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes.ml.llm
+from tests.system import utils
 
 
 @pytest.fixture(scope="session")
@@ -114,7 +115,6 @@ def test_llm_palm_score_params(llm_fine_tune_df_default_index):
     assert all(col in score_result_col for col in expected_col)
 
 
-@pytest.mark.flaky(retries=2)
 def test_llm_gemini_pro_score(llm_fine_tune_df_default_index):
     model = bigframes.ml.llm.GeminiTextGenerator(model_name="gemini-pro")
 
@@ -123,18 +123,19 @@ def test_llm_gemini_pro_score(llm_fine_tune_df_default_index):
         X=llm_fine_tune_df_default_index[["prompt"]],
         y=llm_fine_tune_df_default_index[["label"]],
     ).to_pandas()
-    score_result_col = score_result.columns.to_list()
-    expected_col = [
-        "bleu4_score",
-        "rouge-l_precision",
-        "rouge-l_recall",
-        "rouge-l_f1_score",
-        "evaluation_status",
-    ]
-    assert all(col in score_result_col for col in expected_col)
+    utils.check_pandas_df_schema_and_index(
+        score_result,
+        columns=[
+            "bleu4_score",
+            "rouge-l_precision",
+            "rouge-l_recall",
+            "rouge-l_f1_score",
+            "evaluation_status",
+        ],
+        index=1,
+    )
 
 
-@pytest.mark.flaky(retries=2)
 def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index):
     model = bigframes.ml.llm.GeminiTextGenerator(model_name="gemini-pro")
 
@@ -144,12 +145,14 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index):
         y=llm_fine_tune_df_default_index["label"],
         task_type="classification",
     ).to_pandas()
-    score_result_col = score_result.columns.to_list()
-    expected_col = [
-        "precision",
-        "recall",
-        "f1_score",
-        "label",
-        "evaluation_status",
-    ]
-    assert all(col in score_result_col for col in expected_col)
+    utils.check_pandas_df_schema_and_index(
+        score_result,
+        columns=[
+            "precision",
+            "recall",
+            "f1_score",
+            "label",
+            "evaluation_status",
+        ],
+        index=1,
+    )
