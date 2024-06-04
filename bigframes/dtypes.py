@@ -165,6 +165,16 @@ def is_orderable(type: ExpressionType) -> bool:
     return not is_array_like(type) and not is_struct_like(type) and (type != GEO_DTYPE)
 
 
+def is_clusterable(type: ExpressionType) -> bool:
+    # https://cloud.google.com/bigquery/docs/clustered-tables#cluster_column_types
+    # This is based on default database type mapping, could in theory represent in non-default bq type to cluster.
+    return (
+        not is_array_like(type)
+        and not is_struct_like(type)
+        and (type not in (GEO_DTYPE, TIME_DTYPE, FLOAT_DTYPE))
+    )
+
+
 def is_bool_coercable(type: ExpressionType) -> bool:
     # TODO: Implement more bool coercions
     return (type is None) or is_numeric(type) or is_string_like(type)

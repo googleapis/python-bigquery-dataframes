@@ -2240,7 +2240,7 @@ class Block:
         if (not force) and self.session._is_trivially_executable(self.expr):
             return
         elif session_aware:
-            self.session._session_aware_caching(self.expr)
+            self.session._cache_with_session_awareness(self.expr)
         else:
             self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns

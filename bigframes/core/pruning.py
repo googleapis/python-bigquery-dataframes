@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence
-
 import bigframes.core.expression as ex
+import bigframes.core.schema as schemata
+import bigframes.dtypes
 import bigframes.operations as ops
+
+LOW_CARDINALITY_TYPES = [bigframes.dtypes.BOOL_DTYPE]
 
 COMPARISON_OP_TYPES = tuple(
     type(i)
@@ -31,31 +33,36 @@ COMPARISON_OP_TYPES = tuple(
 )
 
 
-def cluster_cols_for_predicate(predicate: ex.Expression) -> Sequence[str]:
+def cluster_cols_for_predicate(
+    predicate: ex.Expression, schema: schemata.ArraySchema
+) -> list[str]:
     """Try to determine cluster col candidates that work with given predicates."""
     # TODO: Prioritize based on predicted selectivity (eg. equality conditions are probably very selective)
     if isinstance(predicate, ex.UnboundVariableExpression):
-        return [predicate.id]
-    if isinstance(predicate, ex.OpExpression):
+        cols = [predicate.id]
+    elif isinstance(predicate, ex.OpExpression):
         op = predicate.op
         if isinstance(op, COMPARISON_OP_TYPES):
-            return cluster_cols_for_comparison(predicate.inputs[0], predicate.inputs[1])
-        if isinstance(op, (type(ops.invert_op))):
-            return cluster_cols_for_predicate(predicate.inputs[0])
-        if isinstance(op, (type(ops.and_op), type(ops.or_op))):
-            left_cols = cluster_cols_for_predicate(predicate.inputs[0])
-            right_cols = cluster_cols_for_predicate(predicate.inputs[1])
-            return [*left_cols, *[col for col in right_cols if col not in left_cols]]
+            cols = cluster_cols_for_comparison(predicate.inputs[0], predicate.inputs[1])
+        elif isinstance(op, (type(ops.invert_op))):
+            cols = cluster_cols_for_predicate(predicate.inputs[0], schema)
+        elif isinstance(op, (type(ops.and_op), type(ops.or_op))):
+            left_cols = cluster_cols_for_predicate(predicate.inputs[0], schema)
+            right_cols = cluster_cols_for_predicate(predicate.inputs[1], schema)
+            cols = [*left_cols, *[col for col in right_cols if col not in left_cols]]
         else:
-            return []
+            cols = []
     else:
         # Constant
-        return []
+        cols = []
+    return [
+        col for col in cols if bigframes.dtypes.is_clusterable(schema.get_type(col))
+    ]
 
 
 def cluster_cols_for_comparison(
     left_ex: ex.Expression, right_ex: ex.Expression
-) -> Sequence[str]:
+) -> list[str]:
     # TODO: Try to normalize expressions such that one side is a single variable.
     # eg. Convert -cola>=3 to cola<-3 and colb+3 < 4 to colb < 1
     if left_ex.is_const:

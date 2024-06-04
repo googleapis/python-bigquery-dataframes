@@ -34,30 +34,43 @@ LEAF: core.ArrayValue = core.ArrayValue.from_ibis(
 
 
 def test_session_aware_caching_project_filter():
+    """
+    Test that if a node is filtered by a column, the node is cached pre-filter and clustered by the filter column.
+    """
     session_objects = [LEAF, LEAF.assign_constant("col_c", 4, pd.Int64Dtype())]
     target = LEAF.assign_constant("col_c", 4, pd.Int64Dtype()).filter(
         ops.gt_op.as_expr("col_a", ex.const(3))
     )
-    result, cluster_col = planner.session_aware_cache_plan(
+    result, cluster_cols = planner.session_aware_cache_plan(
         target.node, [obj.node for obj in session_objects]
     )
     assert result == LEAF.node
-    assert cluster_col == "col_a"
+    assert cluster_cols == ["col_a"]
 
 
 def test_session_aware_caching_unusable_filter():
+    """
+    Test that if a node is filtered by multiple columns in the same comparison, the node is cached pre-filter and not clustered by either column.
+
+    Most filters with multiple column references cannot be used for scan pruning, as they cannot be converted to fixed value ranges.
+    """
     session_objects = [LEAF, LEAF.assign_constant("col_c", 4, pd.Int64Dtype())]
     target = LEAF.assign_constant("col_c", 4, pd.Int64Dtype()).filter(
         ops.gt_op.as_expr("col_a", "col_b")
     )
-    result, cluster_col = planner.session_aware_cache_plan(
+    result, cluster_cols = planner.session_aware_cache_plan(
         target.node, [obj.node for obj in session_objects]
     )
     assert result == LEAF.node
-    assert cluster_col is None
+    assert cluster_cols == []
 
 
 def test_session_aware_caching_fork_after_window_op():
+    """
+    Test that caching happens only after an windowed operation, but before filtering, projecting.
+
+    Windowing is expensive, so caching should always compute the window function, in order to avoid later recomputation.
+    """
     other = LEAF.promote_offsets("offsets_col").assign_constant(
         "col_d", 5, pd.Int64Dtype()
     )
@@ -68,11 +81,11 @@ def test_session_aware_caching_fork_after_window_op():
             ops.eq_op.as_expr("col_a", ops.add_op.as_expr(ex.const(4), ex.const(3)))
         )
     )
-    result, cluster_col = planner.session_aware_cache_plan(
+    result, cluster_cols = planner.session_aware_cache_plan(
         target.node,
         [
             other.node,
         ],
     )
     assert result == LEAF.promote_offsets("offsets_col").node
-    assert cluster_col == "col_a"
+    assert cluster_cols == ["col_a"]

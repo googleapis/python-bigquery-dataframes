@@ -1921,15 +1921,15 @@ class Session(
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
-    def _session_aware_caching(self, array_value: core.ArrayValue) -> None:
+    def _cache_with_session_awareness(self, array_value: core.ArrayValue) -> None:
         # this is the occurence count across the whole session
         forest = [obj._block.expr.node for obj in self.objects]
         # These node types are cheap to re-compute
-        target, cluster_col = bigframes.session.planner.session_aware_cache_plan(
+        target, cluster_cols = bigframes.session.planner.session_aware_cache_plan(
             array_value.node, forest
         )
-        if cluster_col:
-            self._cache_with_cluster_cols(core.ArrayValue(target), [cluster_col])
+        if len(cluster_cols) > 0:
+            self._cache_with_cluster_cols(core.ArrayValue(target), cluster_cols)
         else:
             self._cache_with_offsets(core.ArrayValue(target))
 
