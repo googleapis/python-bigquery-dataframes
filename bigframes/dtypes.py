@@ -755,10 +755,11 @@ def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
 # Input and output types supported by BigQuery DataFrames remote functions.
 # TODO(shobs): Extend the support to all types supported by BQ remote functions
 # https://cloud.google.com/bigquery/docs/remote-functions#limitations
-SUPPORTED_IO_PYTHON_TYPES = {bool, float, int, str}
+SUPPORTED_IO_PYTHON_TYPES = {bool, bytes, float, int, str}
 SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
     "BOOLEAN",
     "BOOL",
+    "BYTES",
     "FLOAT",
     "FLOAT64",
     "INT64",

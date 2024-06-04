@@ -483,18 +483,20 @@ def test_dataframe_applymap_na_ignore(session_with_bq_connection, scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+# @pytest.mark.flaky(retries=2, delay=120)
 def test_series_map(session_with_bq_connection, scalars_dfs):
-    def add_one(x):
-        return x + 1
-
-    remote_add_one = session_with_bq_connection.remote_function([int], int)(add_one)
-
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    bf_result = scalars_df.int64_too.map(remote_add_one).to_pandas()
-    pd_result = scalars_pandas_df.int64_too.map(add_one)
-    pd_result = pd_result.astype("Int64")  # pandas type differences
+    def bytes_to_hex(mybytes: bytes) -> str:
+        return mybytes.hex() if mybytes is not None else None
+
+    # "Optional" not yet supported as a type annotation in remote_function().
+    assert bytes_to_hex(None) is None  # type: ignore
+    assert bytes_to_hex(b"\x00\xdd\xba\x11") == "00ddba11"
+    remote_bytes_to_hex = session_with_bq_connection.remote_function()(bytes_to_hex)
+
+    bf_result = scalars_df.bytes_col.map(remote_bytes_to_hex).to_pandas()
+    pd_result = scalars_pandas_df.bytes_col.map(bytes_to_hex)
 
     pd.testing.assert_series_equal(
         bf_result,
