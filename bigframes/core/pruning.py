@@ -42,6 +42,8 @@ def cluster_cols_for_predicate(
         cols = [predicate.id]
     elif isinstance(predicate, ex.OpExpression):
         op = predicate.op
+        # TODO: Support geo predicates, which support pruning if clustered (other than st_disjoint)
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_functions
         if isinstance(op, COMPARISON_OP_TYPES):
             cols = cluster_cols_for_comparison(predicate.inputs[0], predicate.inputs[1])
         elif isinstance(op, (type(ops.invert_op))):
