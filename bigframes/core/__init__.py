@@ -171,6 +171,24 @@ class ArrayValue:
         )
         return schemata.ArraySchema(items)
 
+    def as_cached(
+        self: ArrayValue,
+        cache_table: google.cloud.bigquery.Table,
+        ordering: orderings.ExpressionOrdering,
+    ) -> ArrayValue:
+        """
+        Replace the node with an equivalent one that references a tabel where the value has been materialized to.
+        """
+        node = nodes.CachedTableNode(
+            original_node=self.node,
+            project_id=cache_table.reference.project,
+            dataset_id=cache_table.reference.dataset_id,
+            table_id=cache_table.reference.table_id,
+            physical_schema=tuple(cache_table.schema),
+            ordering=ordering,
+        )
+        return ArrayValue(node)
+
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
         import ibis

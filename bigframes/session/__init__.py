@@ -1844,9 +1844,8 @@ class Session(
         tmp_table = self._ibis_to_temp_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cached"
         )
-        cached_replacement = core.ArrayValue.from_cached(
-            original=array_value,
-            table=self.bqclient.get_table(tmp_table),
+        cached_replacement = array_value.as_cached(
+            cache_table=self.bqclient.get_table(tmp_table),
             ordering=compiled_value._ordering,
         ).node
         self._cached_executions[array_value.node] = cached_replacement
@@ -1863,9 +1862,8 @@ class Session(
         tmp_table = self._ibis_to_temp_table(
             ibis_expr, cluster_cols=["bigframes_offsets"], api_name="cached"
         )
-        cached_replacement = core.ArrayValue.from_cached(
-            original=array_value,
-            table=self.bqclient.get_table(tmp_table),
+        cached_replacement = array_value.as_cached(
+            cache_table=self.bqclient.get_table(tmp_table),
             ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         ).node
         self._cached_executions[array_value.node] = cached_replacement

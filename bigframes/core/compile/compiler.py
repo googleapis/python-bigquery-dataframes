@@ -99,12 +99,9 @@ def compile_readlocal(node: nodes.ReadLocalNode, ordered: bool = True):
 @_compile_node.register
 def compile_cached_table(node: nodes.CachedTableNode, ordered: bool = True):
     full_table_name = f"{node.project_id}.{node.dataset_id}.{node.table_id}"
-    hidden_col_names = [
-        col for col in node.ordering.referenced_columns if col not in node.schema.names
-    ]
     used_columns = (
         *node.schema.names,
-        *hidden_col_names,
+        *node.hidden_columns,
     )
     # Physical schema might include unused columns, unsupported datatypes like JSON
     physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
@@ -119,7 +116,7 @@ def compile_cached_table(node: nodes.CachedTableNode, ordered: bool = True):
                 for col in node.schema.names
             ),
             ordering=node.ordering,
-            hidden_ordering_columns=[ibis_table[c] for c in hidden_col_names],
+            hidden_ordering_columns=[ibis_table[c] for c in node.hidden_columns],
         )
 
     else:

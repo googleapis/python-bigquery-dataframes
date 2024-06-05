@@ -411,10 +411,10 @@ class ReadTableNode(BigFrameNode):
 
 @dataclass(frozen=True)
 class CachedTableNode(BigFrameNode):
-    # The original BFET subtree
+    # The original BFET subtree that was cached
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
-    # reference to cached materialization
+    # reference to cached materialization of original_node
     project_id: str = field()
     dataset_id: str = field()
     table_id: str = field()
@@ -437,14 +437,18 @@ class CachedTableNode(BigFrameNode):
     def schema(self) -> schemata.ArraySchema:
         return self.original_node.schema
 
-    @property
-    def relation_ops_created(self) -> int:
-        # Assume worst case, where readgbq actually has baked in analytic operation to generate index
-        return 3
-
     @functools.cached_property
     def variables_introduced(self) -> int:
-        return len(self.schema.items) + 1
+        return len(self.schema.items) + OVERHEAD_VARIABLES
+
+    @property
+    def hidden_columns(self) -> typing.Tuple[str, ...]:
+        """Physical columns used to define ordering but not directly exposed as value columns."""
+        return tuple(
+            col
+            for col in sorted(self.ordering.referenced_columns)
+            if col not in self.schema.names
+        )
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
