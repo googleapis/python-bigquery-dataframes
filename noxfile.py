@@ -814,8 +814,7 @@ def notebook(session: nox.Session):
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
 
-    benchmark_script_list = list(Path("scripts/benchmark/").glob("*.py"))
-
+    benchmark_script_list = list(Path("scripts/benchmark/").rglob("*.py"))
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
     processes = []
@@ -823,12 +822,7 @@ def benchmark(session: nox.Session):
         process = Process(
             target=session.run,
             args=("python", benchmark),
-            kwargs={
-                "env": {
-                    LOGGING_NAME_ENV_VAR: "scripts/benchmark/"
-                    + os.path.basename(benchmark)
-                }
-            },
+            kwargs={"env": {LOGGING_NAME_ENV_VAR: benchmark.as_posix()}},
         )
         process.start()
         processes.append(process)
