@@ -75,24 +75,16 @@ def test_index_repr_large_table():
 
 
 def test_to_pandas_batches_large_table():
-    df = bpd.read_gbq("load_testing.scalars_10gb")
-    # double size to catch 10gb limit errors
-    for column in df:
-        df[column + "_2"] = df[column]
-    # df will be downloaded locally
-    expected_row_count, expected_column_count = df.shape
+    df = bpd.read_gbq("load_testing.scalars_1tb")
+    _, expected_column_count = df.shape
 
-    row_count = 0
-    for pdf in df.to_pandas_batches(page_size=500000):
+    # download only a few batches, since 1tb would be too much
+    iterator = iter(df.to_pandas_batches())
+    for _ in range(3):
+        pdf = next(iterator)
         batch_row_count, batch_column_count = pdf.shape
         assert batch_column_count == expected_column_count
-        row_count += batch_row_count
-
-        # Attempt to save on memory by manually removing the batch df
-        # from local memory after finishing with processing.
-        del pdf
-
-    assert row_count == expected_row_count
+        assert batch_row_count > 0
 
 
 @pytest.mark.skip(reason="See if it caused kokoro build aborted.")
