@@ -1720,7 +1720,7 @@ class Block:
         )
         # TODO: Determine if single row from expression tree (after aggregation without groupby)
         if single_row_mode:
-            numbered_block, offsets = numbered_block.create_constant(1)
+            numbered_block, offsets = numbered_block.create_constant(0)
         else:
             numbered_block, offsets = numbered_block.promote_offsets()
 
