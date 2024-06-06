@@ -35,7 +35,15 @@ ISORT_VERSION = "isort==5.12.0"
 # https://github.com/str0zzapreti/pytest-retry/issues/32
 PYTEST_VERSION = "pytest<8.0.0dev"
 SPHINX_VERSION = "sphinx==4.5.0"
-LINT_PATHS = ["docs", "bigframes", "tests", "third_party", "noxfile.py", "setup.py"]
+LINT_PATHS = [
+    "docs",
+    "bigframes",
+    "tests",
+    "third_party",
+    "noxfile.py",
+    "setup.py",
+    os.path.join("scripts", "benchmark"),
+]
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
