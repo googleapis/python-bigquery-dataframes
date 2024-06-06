@@ -858,17 +858,17 @@ def _print_performance_report(path: str):
     bytes_reports = sorted(Path(path).rglob("*.bytesprocessed"), key=lambda x: x.name)
     for bytes_report in bytes_reports:
         with open(bytes_report, "r") as bytes_file:
-            filename = bytes_report.relative_to(path).with_suffix('')
+            filename = bytes_report.relative_to(path).with_suffix("")
             lines = bytes_file.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
             results_dict[filename] = [query_count, total_bytes]
         os.remove(bytes_report)
-    
+
     millis_reports = sorted(Path(path).rglob("*.slotmillis"), key=lambda x: x.name)
     for millis_report in millis_reports:
         with open(millis_report, "r") as millis_file:
-            filename = millis_report.relative_to(path).with_suffix('')
+            filename = millis_report.relative_to(path).with_suffix("")
             lines = millis_file.read().splitlines()
             total_slot_millis = sum([int(line) for line in lines])
             results_dict[filename] += [total_slot_millis]
