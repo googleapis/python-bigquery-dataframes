@@ -79,11 +79,10 @@ def test_to_pandas_batches_large_table():
     _, expected_column_count = df.shape
 
     # download only a few batches, since 1tb would be too much
-    iterator = iter(df.to_pandas_batches(page_size=500))
+    iterable = df.to_pandas_batches(page_size=500, max_results=1500)
     # use page size since client library doesn't support
     # streaming only part of the dataframe via bqstorage
-    for _ in range(3):
-        pdf = next(iterator)
+    for pdf in iterable:
         batch_row_count, batch_column_count = pdf.shape
         assert batch_column_count == expected_column_count
         assert batch_row_count > 0
