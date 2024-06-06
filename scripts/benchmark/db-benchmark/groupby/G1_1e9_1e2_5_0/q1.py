@@ -1,3 +1,5 @@
+# Contains code from https://github.com/duckdblabs/db-benchmark/blob/master/pandas/groupby-pandas.py
+
 import bigframes.pandas as bpd
 
 print("Groupby benchmark 1: sum v1 by id1")
