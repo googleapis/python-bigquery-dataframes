@@ -157,6 +157,7 @@ def udf(*args):
 def udf_http(request):
     global input_types, output_type
     import json
+    import traceback
 
     from flask import jsonify
 
@@ -171,14 +172,15 @@ def udf_http(request):
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
         return return_json
-    except Exception as e:
-        return jsonify({"errorMessage": str(e)}), 400
+    except Exception:
+        return jsonify({"errorMessage": traceback.format_exc()}), 400
 
 
 def udf_http_row_processor(request):
     global output_type
     import json
     import math
+    import traceback
 
     from flask import jsonify
     import pandas as pd
@@ -208,8 +210,8 @@ def udf_http_row_processor(request):
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
         return return_json
-    except Exception as e:
-        return jsonify({"errorMessage": str(e)}), 400
+    except Exception:
+        return jsonify({"errorMessage": traceback.format_exc()}), 400
 
 
 def generate_udf_code(def_, directory):
