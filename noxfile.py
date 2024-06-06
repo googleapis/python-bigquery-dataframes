@@ -821,8 +821,9 @@ def notebook(session: nox.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
+    base_path = os.path.join("scripts", "benchmark")
 
-    benchmark_script_list = list(Path("scripts/benchmark/").rglob("*.py"))
+    benchmark_script_list = list(Path(base_path).rglob("*.py"))
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
     processes = []
@@ -841,7 +842,7 @@ def benchmark(session: nox.Session):
     # when the environment variable is set as it is above,
     # notebooks output a .bytesprocessed and .slotmillis report
     # collect those reports and print a summary
-    _print_performance_report("scripts/")
+    _print_performance_report(base_path)
 
 
 def _print_performance_report(path: str):
@@ -854,19 +855,24 @@ def _print_performance_report(path: str):
     """
     print("---BIGQUERY USAGE REPORT---")
     results_dict = {}
-    for bytes_report in Path(path).glob("*/*.bytesprocessed"):
+    bytes_reports = sorted(Path(path).rglob("*.bytesprocessed"), key=lambda x: x.name)
+    for bytes_report in bytes_reports:
         with open(bytes_report, "r") as bytes_file:
-            filename = bytes_report.stem
+            filename = bytes_report.relative_to(path).with_suffix('')
             lines = bytes_file.read().splitlines()
             query_count = len(lines)
             total_bytes = sum([int(line) for line in lines])
             results_dict[filename] = [query_count, total_bytes]
-    for millis_report in Path(path).glob("*/*.slotmillis"):
+        os.remove(bytes_report)
+    
+    millis_reports = sorted(Path(path).rglob("*.slotmillis"), key=lambda x: x.name)
+    for millis_report in millis_reports:
         with open(millis_report, "r") as millis_file:
-            filename = millis_report.stem
+            filename = millis_report.relative_to(path).with_suffix('')
             lines = millis_file.read().splitlines()
             total_slot_millis = sum([int(line) for line in lines])
             results_dict[filename] += [total_slot_millis]
+        os.remove(millis_report)
 
     cumulative_queries = 0
     cumulative_bytes = 0
