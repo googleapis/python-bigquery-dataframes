@@ -183,6 +183,7 @@ def generate_udf_code(def_, directory):
 
     # serialized bytecode
     udf_bytecode_file_path = os.path.join(directory, udf_bytecode_file_name)
+    # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
     with open(udf_bytecode_file_path, "wb") as f:
         cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
 
