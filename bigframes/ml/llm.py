@@ -665,7 +665,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         X: Union[bpd.DataFrame, bpd.Series],
         y: Union[bpd.DataFrame, bpd.Series],
     ) -> GeminiTextGenerator:
-        """Fine tune GeminiTextGenerator model.
+        """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
 
         .. note::
 

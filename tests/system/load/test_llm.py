@@ -107,9 +107,8 @@ def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_tex
         model_name="gemini-pro", max_iterations=1
     )
 
-    df = llm_fine_tune_df_default_index.dropna().sample(n=100)
-    X_train = df[["prompt"]]
-    y_train = df[["label"]]
+    X_train = llm_fine_tune_df_default_index[["prompt"]]
+    y_train = llm_fine_tune_df_default_index[["label"]]
     model.fit(X_train, y_train)
 
     assert model is not None
