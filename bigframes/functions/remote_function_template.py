@@ -165,7 +165,6 @@ def udf_http(request):
         calls = request_json["calls"]
         replies = []
         for call in calls:
-            # TODO: bytes via base64???
             reply = convert_to_bq_json(
                 output_type, udf(*convert_call(input_types, call))
             )
