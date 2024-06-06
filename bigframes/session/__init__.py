@@ -1865,7 +1865,7 @@ class Session(
         """Executes the query and uses the resulting table to rewrite future executions."""
         # TODO: Use this for all executions? Problem is that caching materializes extra
         # ordering columns
-        if self._strictly_ordered:
+        if not self._strictly_ordered:
             raise ValueError(
                 "Caching with offsets only supported in strictly ordered mode."
             )

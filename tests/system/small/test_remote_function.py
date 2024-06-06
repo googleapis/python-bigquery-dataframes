@@ -797,7 +797,7 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs):
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+# @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_multiindex(session):
     pd_df = pd.DataFrame(
         {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
