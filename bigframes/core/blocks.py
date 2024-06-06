@@ -527,9 +527,7 @@ class Block:
             page_size=page_size, max_results=max_results
         )
         for arrow_table in results_iterator.to_arrow_iterable(
-            # we can't pass bqstorage_client=self.session.bqstoragereadclient
-            # because large results will take too long to be downloaded to the
-            # storage and won't be streamed
+            bqstorage_client=self.session.bqstoragereadclient
         ):
             df = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
             self._copy_index_to_pandas(df)
