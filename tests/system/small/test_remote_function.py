@@ -742,7 +742,7 @@ def test_read_gbq_function_enforces_explicit_types(
         )
 
 
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs):
     columns = [
         "bool_col",
@@ -762,7 +762,8 @@ def test_df_apply_axis_1(session, scalars_dfs):
         match="input_types=Series is in preview.",
     ):
         add_ints_remote = session.remote_function(
-            bigframes.series.Series, int, reuse=False
+            bigframes.series.Series,
+            int,
         )(add_ints)
 
     with pytest.warns(
