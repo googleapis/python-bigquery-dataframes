@@ -175,7 +175,8 @@ def vector_search(
         >>> import bigframes.bigquery as bbq
         >>> bpd.options.display.progress_bar = None
 
-    DataFrame embeddings for which to find nearest neighbors:
+    DataFrame embeddings for which to find nearest neighbors, and ARRAY<FLOAT> column
+    is used as the search query:
 
         >>> search_query = bpd.DataFrame({"query_id": ["dog", "cat"],
         ...                               "embedding": [[1.0, 2.0], [3.0, 5.2]]})
@@ -210,7 +211,9 @@ def vector_search(
         <BLANKLINE>
         [4 rows x 4 columns]
 
-    You can specify the name of the column in the query DataFrame embeddings and distance type:
+    You can specify the name of the column in the query DataFrame embeddings and distance type.
+    If you specify query_column_to_search_value, it will use the provided column which contains
+    the embeddings for which to find nearest neighbors. Otherwiese, it uses the column_to_search value.
 
         >>> search_query = bpd.DataFrame({"query_id": ["dog", "cat"],
         ...                               "embedding": [[1.0, 2.0], [3.0, 5.2]],
