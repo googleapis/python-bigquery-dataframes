@@ -33,9 +33,9 @@ def test_create_vector_search_sql_simple():
         distance,
     FROM VECTOR_SEARCH(
         TABLE `my_base_table`,
-        "my_embedding_column",
+        'my_embedding_column',
         ({sql_string}),
-        distance_type => "COSINE",
+        distance_type => 'COSINE',
         top_k => 10
     )
     """
@@ -63,11 +63,11 @@ def test_create_vector_search_sql_query_column_to_search():
         base.*,
         distance,
     FROM VECTOR_SEARCH(
-        TABLE `my_base_table`,
-        "my_embedding_column",
+        TABLE my_base_table,
+        'my_embedding_column',
         ({sql_string}),
-        "new_embedding_column",
-        distance_type => "COSINE",
+        'new_embedding_column',
+        distance_type => 'COSINE',
         top_k => 10
     )
     """

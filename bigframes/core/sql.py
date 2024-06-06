@@ -173,7 +173,7 @@ def ordering_clause(
 
 def create_vector_search_sql(
     sql_string: str,
-    options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    options: Mapping[str, Union[str | int | bool | float]] = {},
 ) -> str:
     """Encode the VECTOR SEARCH statement for BigQuery Vector Search."""
 
@@ -191,11 +191,11 @@ def create_vector_search_sql(
         distance,
     FROM VECTOR_SEARCH(
         TABLE `{base_table}`,
-        "{column_to_search}",
+        {simple_literal(column_to_search)},
         ({sql_string}),
-        "{query_column_to_search}",
-        distance_type => "{distance_type}",
-        top_k => {top_k}
+        {simple_literal(query_column_to_search)},
+        distance_type => {simple_literal(distance_type)},
+        top_k => {simple_literal(top_k)}
     )
     """
     else:
@@ -206,10 +206,10 @@ def create_vector_search_sql(
         distance,
     FROM VECTOR_SEARCH(
         TABLE `{base_table}`,
-        "{column_to_search}",
+        {simple_literal(column_to_search)},
         ({sql_string}),
-        distance_type => "{distance_type}",
-        top_k => {top_k}
+        distance_type => {simple_literal(distance_type)},
+        top_k => {simple_literal(top_k)}
     )
     """
     return query_str
