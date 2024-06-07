@@ -862,7 +862,6 @@ def test_df_apply_axis_1_unsupported_callable(scalars_dfs):
 @pytest.mark.parametrize(
     ("column"),
     [
-        pytest.param("bytes_col"),
         pytest.param("date_col"),
         pytest.param("datetime_col"),
         pytest.param("geography_col"),
