@@ -74,6 +74,19 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
+IBIS_TO_BIGFRAMES: Dict[ibis_dtypes.DataType, bigframes.dtypes.Dtype] = {
+    ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS
+}
+# Allow REQUIRED fields to map correctly.
+IBIS_TO_BIGFRAMES.update(
+    {ibis.copy(nullable=False): pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
+)
+IBIS_TO_BIGFRAMES.update(
+    {
+        # TODO: Interval
+    }
+)
+
 
 IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.boolean: pa.bool_(),
@@ -88,21 +101,11 @@ IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
     ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pa.decimal128(38, 9),
     ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pa.decimal256(76, 38),
 }
-
-ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in IBIS_TO_ARROW.items()}
-
-IBIS_TO_BIGFRAMES: Dict[ibis_dtypes.DataType, bigframes.dtypes.Dtype] = {
-    ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS
+_IBIS_TO_ARROW = {
+    ibis_type: bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
+    for ibis_type, dtype in BIDIRECTIONAL_MAPPINGS
 }
-# Allow REQUIRED fields to map correctly.
-IBIS_TO_BIGFRAMES.update(
-    {ibis.copy(nullable=False): pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS}
-)
-IBIS_TO_BIGFRAMES.update(
-    {
-        # TODO: Interval
-    }
-)
+_ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in _IBIS_TO_ARROW.items()}
 
 
 def cast_ibis_value(
@@ -348,8 +351,8 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
             ]
         )
 
-    if ibis_dtype in IBIS_TO_ARROW:
-        return IBIS_TO_ARROW[ibis_dtype]
+    if ibis_dtype in _IBIS_TO_ARROW:
+        return _IBIS_TO_ARROW[ibis_dtype]
     else:
         raise ValueError(
             f"Unexpected Ibis data type {ibis_dtype}. {constants.FEEDBACK_LINK}"
@@ -366,8 +369,8 @@ def _arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType
             ]
         )
 
-    if arrow_dtype in ARROW_TO_IBIS:
-        return ARROW_TO_IBIS[arrow_dtype]
+    if arrow_dtype in _ARROW_TO_IBIS:
+        return _ARROW_TO_IBIS[arrow_dtype]
     if arrow_dtype == pa.null():
         # Used for empty local dataframes where pyarrow has null type
         return ibis_dtypes.float64

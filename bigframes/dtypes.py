@@ -336,7 +336,7 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
 def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
     if pd.isna(literal):
         return None  # Null value without a definite type
-    return infer_literal_arrow_type(infer_literal_type(literal))
+    return bigframes_dtype_to_arrow_dtype(infer_literal_type(literal))
 
 
 # Don't have dtype for json, so just end up interpreting as STRING
