@@ -281,10 +281,11 @@ def bigframes_dtype_to_arrow_dtype(
 ) -> pa.DataType:
     if bigframes_dtype in _BIGFRAMES_TO_ARROW:
         return _BIGFRAMES_TO_ARROW[bigframes_dtype]
-    if pa.types.is_list(bigframes_dtype):
-        return pd.ArrowDtype(bigframes_dtype)
-    if pa.types.is_struct(bigframes_dtype):
-        return pd.ArrowDtype(bigframes_dtype)
+    if isinstance(bigframes_dtype, pd.ArrowDtype):
+        if pa.types.is_list(bigframes_dtype.pyarrow_dtype):
+            return bigframes_dtype.pyarrow_dtype
+        if pa.types.is_struct(bigframes_dtype.pyarrow_dtype):
+            return bigframes_dtype.pyarrow_dtype
     else:
         raise ValueError(
             f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
