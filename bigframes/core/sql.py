@@ -20,7 +20,7 @@ Utility functions for SQL construction.
 import datetime
 import math
 import textwrap
-from typing import Iterable, TYPE_CHECKING
+from typing import Iterable, Mapping, TYPE_CHECKING, Union
 
 # Literals and identifiers matching this pattern can be unquoted
 unquoted = r"^[A-Za-z_][A-Za-z_0-9]*$"
@@ -96,6 +96,12 @@ def cast_as_string(column_name: str) -> str:
     return f"CAST({identifier(column_name)} AS STRING)"
 
 
+def to_json_string(column_name: str) -> str:
+    """Return a string representing JSON version of a column."""
+
+    return f"TO_JSON_STRING({identifier(column_name)})"
+
+
 def csv(values: Iterable[str]) -> str:
     """Return a string of comma separated values."""
     return ", ".join(values)
@@ -169,3 +175,47 @@ def ordering_clause(
         part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
         parts.append(part)
     return f"ORDER BY {' ,'.join(parts)}"
+
+
+def create_vector_search_sql(
+    sql_string: str,
+    options: Mapping[str, Union[str | int | bool | float]] = {},
+) -> str:
+    """Encode the VECTOR SEARCH statement for BigQuery Vector Search."""
+
+    base_table = options["base_table"]
+    column_to_search = options["column_to_search"]
+    distance_type = options["distance_type"]
+    top_k = options["top_k"]
+    query_column_to_search = options.get("query_column_to_search", None)
+
+    if query_column_to_search is not None:
+        query_str = f"""
+    SELECT
+        query.*,
+        base.*,
+        distance,
+    FROM VECTOR_SEARCH(
+        TABLE `{base_table}`,
+        {simple_literal(column_to_search)},
+        ({sql_string}),
+        {simple_literal(query_column_to_search)},
+        distance_type => {simple_literal(distance_type)},
+        top_k => {simple_literal(top_k)}
+    )
+    """
+    else:
+        query_str = f"""
+    SELECT
+        query.*,
+        base.*,
+        distance,
+    FROM VECTOR_SEARCH(
+        TABLE `{base_table}`,
+        {simple_literal(column_to_search)},
+        ({sql_string}),
+        distance_type => {simple_literal(distance_type)},
+        top_k => {simple_literal(top_k)}
+    )
+    """
+    return query_str

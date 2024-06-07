@@ -1215,10 +1215,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
-        """Stream DataFrame results to an iterable of pandas DataFrame"""
+    def to_pandas_batches(
+        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+    ) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame.
+
+        page_size and max_results determine the size and number of batches,
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+
+        Args:
+            page_size (int, default None):
+                The size of each batch.
+            max_results (int, default None):
+                If given, only download this many rows at maximum.
+
+        Returns:
+            Iterable[pandas.DataFrame]:
+                An iterable of smaller dataframes which combine to
+                form the original dataframe. Results stream from bigquery,
+                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+        """
         self._optimize_query_complexity()
-        return self._block.to_pandas_batches()
+        return self._block.to_pandas_batches(
+            page_size=page_size, max_results=max_results
+        )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
@@ -3313,22 +3333,43 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Early check whether the dataframe dtypes are currently supported
             # in the remote function
             # NOTE: Keep in sync with the value converters used in the gcf code
-            # generated in generate_cloud_function_main_code in remote_function.py
+            # generated in remote_function_template.py
             remote_function_supported_dtypes = (
                 bigframes.dtypes.INT_DTYPE,
                 bigframes.dtypes.FLOAT_DTYPE,
                 bigframes.dtypes.BOOL_DTYPE,
+                bigframes.dtypes.BYTES_DTYPE,
                 bigframes.dtypes.STRING_DTYPE,
             )
             supported_dtypes_types = tuple(
-                type(dtype) for dtype in remote_function_supported_dtypes
+                type(dtype)
+                for dtype in remote_function_supported_dtypes
+                if not isinstance(dtype, pandas.ArrowDtype)
+            )
+            # Check ArrowDtype separately since multiple BigQuery types map to
+            # ArrowDtype, including BYTES and TIMESTAMP.
+            supported_arrow_types = tuple(
+                dtype.pyarrow_dtype
+                for dtype in remote_function_supported_dtypes
+                if isinstance(dtype, pandas.ArrowDtype)
             )
             supported_dtypes_hints = tuple(
                 str(dtype) for dtype in remote_function_supported_dtypes
             )
 
             for dtype in self.dtypes:
-                if not isinstance(dtype, supported_dtypes_types):
+                if (
+                    # Not one of the pandas/numpy types.
+                    not isinstance(dtype, supported_dtypes_types)
+                    # And not one of the arrow types.
+                    and not (
+                        isinstance(dtype, pandas.ArrowDtype)
+                        and any(
+                            dtype.pyarrow_dtype.equals(arrow_type)
+                            for arrow_type in supported_arrow_types
+                        )
+                    )
+                ):
                     raise NotImplementedError(
                         f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
                         f" Supported dtypes are {supported_dtypes_hints}."

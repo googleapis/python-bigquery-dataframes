@@ -32,6 +32,7 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
+    Tuple,
     TYPE_CHECKING,
     Union,
 )
@@ -39,6 +40,7 @@ import warnings
 
 import ibis
 import pandas
+import pyarrow
 import requests
 
 if TYPE_CHECKING:
@@ -59,7 +61,7 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 
 from bigframes import clients
 import bigframes.constants as constants
-import bigframes.dtypes
+import bigframes.core.compile.ibis_types
 import bigframes.functions.remote_function_template
 
 logger = logging.getLogger(__name__)
@@ -182,15 +184,11 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
-            output_type
-        )
+        bq_function_return_type = output_type
 
         # We are expecting the input type annotations to be 1:1 with the input args
-        for idx, name in enumerate(input_args):
-            bq_function_args.append(
-                f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
-            )
+        for name, type_ in zip(input_args, input_types):
+            bq_function_args.append(f"{name} {type_}")
 
         remote_function_options = {
             "endpoint": endpoint,
@@ -259,9 +257,23 @@ class RemoteFunctionClient:
         return None
 
     def generate_cloud_function_code(
-        self, def_, directory, package_requirements=None, is_row_processor=False
+        self,
+        def_,
+        directory,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
+        package_requirements=None,
+        is_row_processor=False,
     ):
-        """Generate the cloud function code for a given user defined function."""
+        """Generate the cloud function code for a given user defined function.
+
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
+        """
 
         # requirements.txt
         requirements = ["cloudpickle >= 2.1.0"]
@@ -269,6 +281,7 @@ class RemoteFunctionClient:
             # bigframes remote function will send an entire row of data as json,
             # which would be converted to a pandas series and processed
             requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
         if package_requirements:
             requirements.extend(package_requirements)
         requirements = sorted(requirements)
@@ -278,7 +291,11 @@ class RemoteFunctionClient:
 
         # main.py
         entry_point = bigframes.functions.remote_function_template.generate_cloud_function_main_code(
-            def_, directory, is_row_processor
+            def_,
+            directory,
+            input_types=input_types,
+            output_type=output_type,
+            is_row_processor=is_row_processor,
         )
         return entry_point
 
@@ -286,18 +303,33 @@ class RemoteFunctionClient:
         self,
         def_,
         cf_name,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
         package_requirements=None,
         timeout_seconds=600,
         max_instance_count=None,
         is_row_processor=False,
         vpc_connector=None,
     ):
-        """Create a cloud function from the given user defined function."""
+        """Create a cloud function from the given user defined function.
+
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
+        """
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as directory:
             entry_point = self.generate_cloud_function_code(
-                def_, directory, package_requirements, is_row_processor
+                def_,
+                directory,
+                package_requirements=package_requirements,
+                input_types=input_types,
+                output_type=output_type,
+                is_row_processor=is_row_processor,
             )
             archive_path = shutil.make_archive(directory, "zip", directory)
 
@@ -444,11 +476,13 @@ class RemoteFunctionClient:
             cf_endpoint = self.create_cloud_function(
                 def_,
                 cloud_function_name,
-                package_requirements,
-                cloud_function_timeout,
-                cloud_function_max_instance_count,
-                is_row_processor,
-                cloud_function_vpc_connector,
+                input_types=input_types,
+                output_type=output_type,
+                package_requirements=package_requirements,
+                timeout_seconds=cloud_function_timeout,
+                max_instance_count=cloud_function_max_instance_count,
+                is_row_processor=is_row_processor,
+                vpc_connector=cloud_function_vpc_connector,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -523,12 +557,16 @@ def ibis_signature_from_python_signature(
     input_types: Sequence[type],
     output_type: type,
 ) -> IbisSignature:
+
     return IbisSignature(
         parameter_names=list(signature.parameters.keys()),
         input_types=[
-            bigframes.dtypes.ibis_type_from_python_type(t) for t in input_types
+            bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
+            for t in input_types
         ],
-        output_type=bigframes.dtypes.ibis_type_from_python_type(output_type),
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_python_type(
+            output_type
+        ),
     )
 
 
@@ -536,6 +574,7 @@ class ReturnTypeMissingError(ValueError):
     pass
 
 
+# TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     if not routine.return_type:
         raise ReturnTypeMissingError
@@ -543,12 +582,14 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     return IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
-            bigframes.dtypes.ibis_type_from_type_kind(arg.data_type.type_kind)
+            bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
+                arg.data_type.type_kind
+            )
             if arg.data_type
             else None
             for arg in routine.arguments
         ],
-        output_type=bigframes.dtypes.ibis_type_from_type_kind(
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
             routine.return_type.type_kind
         ),
     )
@@ -757,8 +798,9 @@ def remote_function(
             https://cloud.google.com/functions/docs/networking/connecting-vpc.
     """
     # Some defaults may be used from the session if not provided otherwise
+    import bigframes.exceptions as bf_exceptions
     import bigframes.pandas as bpd
-    import bigframes.series
+    import bigframes.series as bf_series
     import bigframes.session
 
     session = cast(bigframes.session.Session, session or bpd.get_global_session())
@@ -896,13 +938,13 @@ def remote_function(
         # BigQuery DataFrames and pandas object types for compatibility.
         is_row_processor = False
         if len(input_types) == 1 and (
-            (input_type := input_types[0]) == bigframes.series.Series
+            (input_type := input_types[0]) == bf_series.Series
             or input_type == pandas.Series
         ):
             warnings.warn(
                 "input_types=Series is in preview.",
                 stacklevel=1,
-                category=bigframes.exceptions.PreviewWarning,
+                category=bf_exceptions.PreviewWarning,
             )
 
             # we will model the row as a json serialized string containing the data
@@ -949,16 +991,21 @@ def remote_function(
 
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
             func,
-            ibis_signature.input_types,
-            ibis_signature.output_type,
-            reuse,
-            name,
-            packages,
-            max_batching_rows,
-            cloud_function_timeout,
-            cloud_function_max_instances,
-            is_row_processor,
-            cloud_function_vpc_connector,
+            input_types=tuple(
+                third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
+                for type_ in ibis_signature.input_types
+            ),
+            output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
+                ibis_signature.output_type
+            ),
+            reuse=reuse,
+            name=name,
+            package_requirements=packages,
+            max_batching_rows=max_batching_rows,
+            cloud_function_timeout=cloud_function_timeout,
+            cloud_function_max_instance_count=cloud_function_max_instances,
+            is_row_processor=is_row_processor,
+            cloud_function_vpc_connector=cloud_function_vpc_connector,
         )
 
         # TODO: Move ibis logic to compiler step
@@ -972,8 +1019,11 @@ def remote_function(
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
         func.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
-        func.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-            ibis_signature.output_type
+
+        func.output_dtype = (
+            bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                ibis_signature.output_type
+            )
         )
         func.ibis_node = node
         return func
@@ -1012,7 +1062,7 @@ def read_gbq_function(
         raise ValueError(
             f"Function return type must be specified. {constants.FEEDBACK_LINK}"
         )
-    except bigframes.dtypes.UnsupportedTypeError as e:
+    except bigframes.core.compile.ibis_types.UnsupportedTypeError as e:
         raise ValueError(
             f"Type {e.type} not supported, supported types are {e.supported_types}. "
             f"{constants.FEEDBACK_LINK}"
@@ -1028,6 +1078,7 @@ def read_gbq_function(
         return ibis_client.execute(expr)
 
     # TODO: Move ibis logic to compiler step
+
     func.__name__ = routine_ref.routine_id
 
     node = ibis.udf.scalar.builtin(
@@ -1037,7 +1088,7 @@ def read_gbq_function(
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
-    func.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(  # type: ignore
+    func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
     func.ibis_node = node  # type: ignore
