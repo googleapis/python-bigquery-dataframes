@@ -1,7 +1,7 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/tools/datetimes.py
 
 from datetime import datetime
-from typing import Iterable, List, Mapping, Tuple, Union
+from typing import List, Mapping, Tuple, Union
 
 import pandas as pd
 
