@@ -22,6 +22,7 @@ from typing import Dict, Literal, Union
 
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 
@@ -293,30 +294,49 @@ def bigframes_dtype_to_arrow_dtype(
 
 
 def infer_literal_type(literal) -> typing.Optional[Dtype]:
+    # Maybe also normalize literal to canonical python representation to remove this burden from compilers?
+    if pd.api.types.is_list_like(literal):
+        element_types = [infer_literal_type(i) for i in literal]
+        common_type = lcd_type(*element_types)
+        as_arrow = bigframes_dtype_to_arrow_dtype(common_type)
+        return pd.ArrowDtype(as_arrow)
+    if pd.api.types.is_dict_like(literal):
+        fields = [
+            (key, bigframes_dtype_to_arrow_dtype(infer_literal_type(literal[key])))
+            for key in literal.keys()
+        ]
+        return pd.ArrowDtype(pa.struct(fields))
     if pd.isna(literal):
         return None  # Null value without a definite type
-    # Temporary logic, use ibis inferred type
-    from bigframes.core.compile.ibis_types import (
-        ibis_dtype_to_bigframes_dtype,
-        literal_to_ibis_scalar,
-    )
-
-    ibis_literal = literal_to_ibis_scalar(literal)
-    return ibis_dtype_to_bigframes_dtype(ibis_literal.type())
+    if isinstance(literal, (bool, np.bool_)):
+        return BOOL_DTYPE
+    if isinstance(literal, (int, np.integer)):
+        return INT_DTYPE
+    if isinstance(literal, (float, np.floating)):
+        return FLOAT_DTYPE
+    if isinstance(literal, decimal.Decimal):
+        return NUMERIC_DTYPE
+    if isinstance(literal, (str, np.str_)):
+        return STRING_DTYPE
+    if isinstance(literal, (bytes, np.bytes_)):
+        return BYTES_DTYPE
+    if isinstance(literal, datetime.date):
+        return DATE_DTYPE
+    if isinstance(literal, datetime.time):
+        return TIME_DTYPE
+    if isinstance(literal, (datetime.datetime, pd.Timestamp)):
+        if literal.tzinfo is not None:
+            return TIMESTAMP_DTYPE
+        else:
+            return DATETIME_DTYPE
+    else:
+        raise ValueError(f"Unable to infer type for value: {literal}")
 
 
 def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
     if pd.isna(literal):
         return None  # Null value without a definite type
-    # Temporary logic, use ibis inferred type
-    # TODO: Directly convert instead of using ibis dtype as intermediate step
-    from bigframes.core.compile.ibis_types import (
-        _ibis_dtype_to_arrow_dtype,
-        literal_to_ibis_scalar,
-    )
-
-    ibis_literal = literal_to_ibis_scalar(literal)
-    return _ibis_dtype_to_arrow_dtype(ibis_literal.type())
+    return infer_literal_arrow_type(infer_literal_type(literal))
 
 
 # Don't have dtype for json, so just end up interpreting as STRING
