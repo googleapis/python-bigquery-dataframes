@@ -20,13 +20,15 @@ import typing
 import bigframes.core.transpiler.googlesql.abc as abc
 import bigframes.core.transpiler.googlesql.expression as expr
 
-"""Python classes to defind GoogleSQL syntax nodes, adhering to the official syntax rules:
+"""This module provides a structured representation of GoogleSQL syntax using nodes.
+Each node's name and child nodes are designed to strictly follow the official GoogleSQL
+syntax rules outlined in the documentation:
 https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax"""
 
 
 @dataclasses.dataclass
 class QueryExpr(abc.SQLSyntax):
-    """GoogleSQL query_expr syntax."""
+    """This class represents GoogleSQL `query_expr` syntax."""
 
     select: Select
     with_cte_list: typing.Sequence[NonRecursiveCTE] = ()
@@ -44,26 +46,8 @@ class QueryExpr(abc.SQLSyntax):
 
 
 @dataclasses.dataclass
-class SelectExpression(abc.SQLSyntax):
-    """GoogleSQL select_expression and select_all syntax."""
-
-    expression: expr.Expression
-    alias: typing.Optional[expr.AliasExpression] = None
-
-    def __post_init__(self):
-        if isinstance(self.expression, expr.StarExpression) and self.alias is not None:
-            raise ValueError("Cannot alias when select star.")
-
-    def sql(self) -> str:
-        if self.alias is None:
-            return self.expression.sql()
-        else:
-            return f"{self.expression.sql()} {self.alias.sql()}"
-
-
-@dataclasses.dataclass
 class Select(abc.SQLSyntax):
-    """GoogleSQL select syntax."""
+    """This class represents GoogleSQL `select` syntax."""
 
     select_list: typing.Sequence[SelectExpression]
     from_clause_list: typing.Sequence[FromClause] = ()
@@ -83,12 +67,45 @@ class Select(abc.SQLSyntax):
 
 
 @dataclasses.dataclass
+class SelectExpression(abc.SQLSyntax):
+    """This class represents `select_expression` and `select_all` (aka. `SELECT *`)
+    syntaxes from GoogleSQL. Merges both syntaxes because `expr.Expression` can represent
+    single columns or the '*' wildcard.
+    """
+
+    expression: expr.Expression
+    alias: typing.Optional[expr.AliasExpression] = None
+
+    def __post_init__(self):
+        if isinstance(self.expression, expr.StarExpression) and self.alias is not None:
+            raise ValueError("Cannot alias when select star.")
+
+    def sql(self) -> str:
+        if self.alias is None:
+            return self.expression.sql()
+        else:
+            return f"{self.expression.sql()} AS {self.alias.sql()}"
+
+
+@dataclasses.dataclass
+class FromClause(abc.SQLSyntax):
+    """This class represents GoogleSQL `from_clause` syntax."""
+
+    from_item: FromItem
+
+    def sql(self) -> str:
+        return self.from_item.sql()
+
+
+@dataclasses.dataclass
 class FromItem(abc.SQLSyntax):
-    """GoogleSQL from_item syntax."""
+    """This class represents GoogleSQL `from_item` syntax."""
 
     table_name: typing.Optional[expr.TableExpression] = None
     query_expr: typing.Optional[QueryExpr | str] = None
     cte_name: typing.Optional[expr.Expression] = None
+    # Note: We haven't defined a separate `as_alias` class because the "AliasExpression"
+    # class already adequately handles the concept of aliasing in SQL.
     alias: typing.Optional[expr.AliasExpression] = None
 
     def __post_init__(self):
@@ -116,26 +133,16 @@ class FromItem(abc.SQLSyntax):
         elif self.cte_name is not None:
             text = self.cte_name.sql()
         else:
-            raise ValueError("One of from item must be provided.")
+            raise ValueError("One of from items must be provided.")
 
         if self.alias is not None:
-            text = f"{text} {self.alias.sql()}"
+            text = f"{text} AS {self.alias.sql()}"
         return text
 
 
 @dataclasses.dataclass
-class FromClause(abc.SQLSyntax):
-    """GoogleSQL from_clause syntax."""
-
-    from_item: FromItem
-
-    def sql(self) -> str:
-        return self.from_item.sql()
-
-
-@dataclasses.dataclass
 class NonRecursiveCTE(abc.SQLSyntax):
-    """GoogleSQL non_recursive_cte syntax."""
+    """This class represents GoogleSQL `non_recursive_cte` syntax."""
 
     cte_name: expr.CTEExpression
     query_expr: QueryExpr

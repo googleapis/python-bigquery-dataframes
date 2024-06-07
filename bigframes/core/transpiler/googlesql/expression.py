@@ -19,6 +19,19 @@ import typing
 
 import bigframes.core.transpiler.googlesql.abc as abc
 
+"""This module represents GoogleSQL `expression` and its extensions.
+Core class:
+
+* `expression`: Models basic SQL expressions.
+
+Extended classes (not part of standard GoogleSQL syntax, but added for convenience):
+
+* `ColumnExpression`:  Represents column references.
+* `TableExpression`:   Represents table references.
+* `AliasExpression`:   Represents aliased expressions.
+* ...
+"""
+
 
 @dataclasses.dataclass
 class Expression(abc.SQLSyntax):
@@ -71,7 +84,7 @@ class AliasExpression(Expression):
     alias: str
 
     def sql(self) -> str:
-        return f"AS {self.alias}"
+        return f"{self.alias}"
 
 
 @dataclasses.dataclass
