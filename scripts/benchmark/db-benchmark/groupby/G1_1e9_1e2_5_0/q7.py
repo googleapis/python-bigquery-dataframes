@@ -2,7 +2,7 @@
 
 import bigframes.pandas as bpd
 
-print("Groupby benchmark 6: max v1 - min v2 by id3")
+print("Groupby benchmark 7: max v1 - min v2 by id3")
 
 x = bpd.read_gbq("bigframes-dev-perf.dbbenchmark.G1_1e9_1e2_5_0")
 

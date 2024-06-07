@@ -2,7 +2,7 @@
 
 import bigframes.pandas as bpd
 
-print("Groupby benchmark 3: mean v1:v3 by id4")
+print("Groupby benchmark 4: mean v1:v3 by id4")
 
 x = bpd.read_gbq("bigframes-dev-perf.dbbenchmark.G1_1e9_1e2_5_0")
 
