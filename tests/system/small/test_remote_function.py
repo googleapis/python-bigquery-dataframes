@@ -886,7 +886,9 @@ def test_df_apply_axis_1_unsupported_dtype(scalars_dfs, column):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1. Supported dtypes are ('Int64', 'Float64', 'boolean', 'string')."
+            f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1. Supported dtypes are ("
         ),
+    ), pytest.warns(
+        bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
     ):
         scalars_df[[column]].apply(echo, axis=1)
