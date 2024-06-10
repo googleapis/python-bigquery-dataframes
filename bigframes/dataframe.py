@@ -1326,7 +1326,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = df._get_block()
         value_columns = typing.cast(List, block.value_columns)
         value_columns, new_column = value_columns[:-1], value_columns[-1]
-        value_columns = value_columns.insert(loc, new_column)
+        value_columns.insert(loc, new_column)
 
         block = block.select_columns(value_columns)
         block = block.rename(columns={temp_column: column})
