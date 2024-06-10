@@ -3731,7 +3731,7 @@ def test_df_setattr_index():
     )
     bf_df = dataframe.DataFrame(pd_df)
 
-    pd_df.index = typing.cast(pandas.Index, [4, 5])
+    pd_df.index = pandas.Index([4, 5])
     bf_df.index = [4, 5]
 
     assert_pandas_df_equal(
@@ -3745,9 +3745,9 @@ def test_df_setattr_columns():
     )
     bf_df = dataframe.DataFrame(pd_df)
 
-    pd_df.columns = typing.cast(pandas.Index, [4, 5, 6])
+    pd_df.columns = typing.cast(pandas.Index, pandas.Index([4, 5, 6]))
 
-    bf_df.columns = typing.cast(pandas.Index, [4, 5, 6])
+    bf_df.columns = pandas.Index([4, 5, 6])
 
     assert_pandas_df_equal(
         pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
