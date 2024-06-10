@@ -88,26 +88,6 @@ IBIS_TO_BIGFRAMES.update(
 )
 
 
-IBIS_TO_ARROW: Dict[ibis_dtypes.DataType, pa.DataType] = {
-    ibis_dtypes.boolean: pa.bool_(),
-    ibis_dtypes.date: pa.date32(),
-    ibis_dtypes.float64: pa.float64(),
-    ibis_dtypes.int64: pa.int64(),
-    ibis_dtypes.string: pa.string(),
-    ibis_dtypes.time: pa.time64("us"),
-    ibis_dtypes.Timestamp(timezone=None): pa.timestamp("us"),
-    ibis_dtypes.Timestamp(timezone="UTC"): pa.timestamp("us", tz="UTC"),
-    ibis_dtypes.binary: pa.binary(),
-    ibis_dtypes.Decimal(precision=38, scale=9, nullable=True): pa.decimal128(38, 9),
-    ibis_dtypes.Decimal(precision=76, scale=38, nullable=True): pa.decimal256(76, 38),
-}
-_IBIS_TO_ARROW = {
-    ibis_type: bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
-    for ibis_type, dtype in BIDIRECTIONAL_MAPPINGS
-}
-_ARROW_TO_IBIS = {arrow: ibis for ibis, arrow in _IBIS_TO_ARROW.items()}
-
-
 def cast_ibis_value(
     value: ibis_types.Value, to_type: ibis_dtypes.DataType
 ) -> ibis_types.Value:
@@ -351,8 +331,10 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
             ]
         )
 
-    if ibis_dtype in _IBIS_TO_ARROW:
-        return _IBIS_TO_ARROW[ibis_dtype]
+    if ibis_dtype in IBIS_TO_BIGFRAMES:
+        dtype = IBIS_TO_BIGFRAMES[ibis_dtype]
+        # Note: arrow mappings are incomplete, no geography type
+        return bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
     else:
         raise ValueError(
             f"Unexpected Ibis data type {ibis_dtype}. {constants.FEEDBACK_LINK}"
@@ -360,24 +342,12 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
 
 
 def _arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
-    if pa.types.is_struct(arrow_dtype):
-        struct_dtype = cast(pa.StructType, arrow_dtype)
-        return ibis_dtypes.Struct.from_tuples(
-            [
-                (field.name, _arrow_dtype_to_ibis_dtype(field.type))
-                for field in struct_dtype
-            ]
-        )
-
-    if arrow_dtype in _ARROW_TO_IBIS:
-        return _ARROW_TO_IBIS[arrow_dtype]
     if arrow_dtype == pa.null():
         # Used for empty local dataframes where pyarrow has null type
         return ibis_dtypes.float64
     else:
-        raise ValueError(
-            f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
-        )
+        bigframes_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(arrow_dtype)
+        return bigframes.dtypes.bigframes_dtype_to_arrow_dtype(bigframes_type)
 
 
 def literal_to_ibis_scalar(
