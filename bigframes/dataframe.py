@@ -1315,7 +1315,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_count = len(self.columns)
         if loc > column_count:
             raise IndexError(
-                f"index {loc} is out of bounds for axis 0 with size {column_count}"
+                f"Column index {loc} is out of bounds with {column_count} total columns."
             )
         if (column in self.columns) and not allow_duplicates:
             raise ValueError(f"cannot insert {column}, already exists")
@@ -1325,11 +1325,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         block = df._get_block()
         value_columns = typing.cast(List, block.value_columns)
-        value_columns = (
-            value_columns
-            if loc == column_count
-            else value_columns[:loc] + [value_columns[-1]] + value_columns[loc:-1]
-        )
+        value_columns, new_column = value_columns[:-1], value_columns[-1]
+        value_columns = value_columns.insert(loc, new_column)
+
         block = block.select_columns(value_columns)
         block = block.rename(columns={temp_column: column})
 
