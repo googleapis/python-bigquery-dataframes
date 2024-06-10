@@ -14,7 +14,7 @@
 
 import pytest
 
-import bigframes.core.transpiler.googlesql as sql
+import bigframes.core.compile.googlesql as sql
 
 
 @pytest.mark.parametrize(
@@ -38,7 +38,7 @@ def test_table_expression(table_id, dataset_id, project_id, expected):
     [
         pytest.param(None, None, None, marks=pytest.mark.xfail(raises=ValueError)),
         pytest.param("a", None, "`a`"),
-        pytest.param("a", "aa", "`a` AS aa"),
+        pytest.param("a", "aa", "`a` AS `aa`"),
     ],
 )
 def test_from_item_w_table_name(table_name, alias, expected):
@@ -46,7 +46,9 @@ def test_from_item_w_table_name(table_name, alias, expected):
         table_name=None
         if table_name is None
         else sql.TableExpression(table_id=table_name),
-        alias=None if alias is None else sql.AliasExpression(alias=alias),
+        as_alias=None
+        if alias is None
+        else sql.AsAlias(sql.AliasExpression(alias=alias)),
     )
     assert expr.sql() == expected
 
@@ -56,7 +58,7 @@ def test_from_item_w_query_expr():
         sql.FromItem(table_name=sql.TableExpression(table_id="table_a"))
     )
     select = sql.Select(
-        select_list=[sql.SelectExpression(sql.StarExpression())],
+        select_list=[sql.SelectAll(sql.StarExpression())],
         from_clause_list=[from_clause],
     )
     query_expr = sql.QueryExpr(select=select)
@@ -73,14 +75,14 @@ def test_from_item_w_query_expr():
 
 def test_from_item_w_cte():
     expr = sql.FromItem(cte_name=sql.CTEExpression("test"))
-    assert expr.sql() == "test"
+    assert expr.sql() == "`test`"
 
 
 @pytest.mark.parametrize(
     ("col_name", "alias", "expected"),
     [
         pytest.param("a", None, "`a`"),
-        pytest.param("a", "aa", "`a` AS aa"),
+        pytest.param("a", "aa", "`a` AS `aa`"),
     ],
 )
 def test_select_expression(col_name, alias, expected):
@@ -99,24 +101,24 @@ def test_select():
     from_1 = sql.FromItem(table_name=sql.TableExpression(table_id="table_a"))
     from_2 = sql.FromItem(
         query_expr="SELECT * FROM project.table_b",
-        alias=sql.AliasExpression(alias="table_b"),
+        as_alias=sql.AsAlias(sql.AliasExpression(alias="table_b")),
     )
     expr = sql.Select(
         select_list=[select_1, select_2],
         from_clause_list=[sql.FromClause(from_1), sql.FromClause(from_2)],
     )
-    expected = "SELECT\n`a`,\n`b` AS bb\nFROM\n`table_a`,\n(SELECT * FROM project.table_b) AS table_b"
+    expected = "SELECT\n`a`,\n`b` AS `bb`\nFROM\n`table_a`,\n(SELECT * FROM project.table_b) AS `table_b`"
 
     assert expr.sql() == expected
 
 
-def test_query_expr():
+def test_query_expr_w_cte():
     # Test a simple SELECT query.
     from_clause1 = sql.FromClause(
         sql.FromItem(table_name=sql.TableExpression(table_id="table_a"))
     )
     select1 = sql.Select(
-        select_list=[sql.SelectExpression(sql.StarExpression())],
+        select_list=[sql.SelectAll(sql.StarExpression())],
         from_clause_list=[from_clause1],
     )
     query1 = sql.QueryExpr(select=select1)
@@ -127,8 +129,8 @@ def test_query_expr():
     cte1 = sql.NonRecursiveCTE(cte_name=sql.CTEExpression("a"), query_expr=query1)
     cte2 = sql.NonRecursiveCTE(cte_name=sql.CTEExpression("b"), query_expr=query1)
 
-    cte1_sql = f"a AS (\n{query1_sql}\n)"
-    cte2_sql = f"b AS (\n{query1_sql}\n)"
+    cte1_sql = f"`a` AS (\n{query1_sql}\n)"
+    cte2_sql = f"`b` AS (\n{query1_sql}\n)"
     assert cte1.sql() == cte1_sql
     assert cte2.sql() == cte2_sql
 
@@ -138,14 +140,14 @@ def test_query_expr():
             sql.SelectExpression(
                 sql.ColumnExpression(parent=cte1.cte_name, name="column_x")
             ),
-            sql.SelectExpression(sql.StarExpression(parent=cte2.cte_name)),
+            sql.SelectAll(sql.StarExpression(parent=cte2.cte_name)),
         ],
         from_clause_list=[
             sql.FromClause(sql.FromItem(cte_name=cte1.cte_name)),
             sql.FromClause(sql.FromItem(cte_name=cte2.cte_name)),
         ],
     )
-    select2_sql = "SELECT\na.`column_x`,\nb.*\nFROM\na,\nb"
+    select2_sql = "SELECT\n`a`.`column_x`,\n`b`.*\nFROM\n`a`,\n`b`"
     assert select2.sql() == select2_sql
 
     query2 = sql.QueryExpr(select=select2, with_cte_list=with_cte_list)

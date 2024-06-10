@@ -17,7 +17,7 @@ from __future__ import annotations
 import dataclasses
 import typing
 
-import bigframes.core.transpiler.googlesql.abc as abc
+import bigframes.core.compile.googlesql.abc as abc
 
 """This module represents GoogleSQL `expression` and its extensions.
 Core class:
@@ -84,7 +84,7 @@ class AliasExpression(Expression):
     alias: str
 
     def sql(self) -> str:
-        return f"{self.alias}"
+        return f"`{self.alias}`"
 
 
 @dataclasses.dataclass
@@ -92,4 +92,4 @@ class CTEExpression(Expression):
     name: str
 
     def sql(self) -> str:
-        return f"{self.name}"
+        return f"`{self.name}`"
