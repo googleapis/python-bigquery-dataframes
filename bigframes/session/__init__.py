@@ -296,7 +296,13 @@ class Session(
         self._execution_count = 0
         # Whether this session treats objects as totally ordered.
         # Will expose as feature later, only False for internal testing
-        self._strictly_ordered = True
+        self._strictly_ordered: bool = context._strictly_ordered
+        # Sequential index needs total ordering to generate, so use null index with unstrict ordering.
+        self._default_index_type: bigframes.enums.DefaultIndexKind = (
+            bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
+            if context._strictly_ordered
+            else bigframes.enums.DefaultIndexKind.NULL
+        )
 
     @property
     def bqclient(self):
@@ -881,11 +887,11 @@ class Session(
         # Create Default Sequential Index if still have no index
         # ----------------------------------------------------
 
-        # If no index columns provided or found, fall back to sequential index
+        # If no index columns provided or found, fall back to session default
         if (index_col != bigframes.enums.DefaultIndexKind.NULL) and len(
             index_cols
         ) == 0:
-            index_col = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
+            index_col = self._default_index_type
 
         index_names: Sequence[Hashable] = index_cols
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:

@@ -518,7 +518,7 @@ class Block:
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, sorted=True),
+            self.session._to_sql(self.expr, sorted=self.session._strictly_ordered),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -1716,7 +1716,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas()
+            else self.index.to_pandas(sorted=True)
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2474,7 +2474,7 @@ class BlockIndexProperties:
         """Column(s) to use as row labels."""
         return self._block._index_columns
 
-    def to_pandas(self) -> pd.Index:
+    def to_pandas(self, *, sorted: Optional[bool] = None) -> pd.Index:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
@@ -2484,7 +2484,10 @@ class BlockIndexProperties:
         index_columns = list(self._block.index_columns)
         dtypes = dict(zip(index_columns, self.dtypes))
         expr = self._expr.select_columns(index_columns)
-        results, _ = self.session._execute(expr)
+        results, _ = self.session._execute(
+            expr,
+            sorted=sorted if (sorted is not None) else self.session._strictly_ordered,
+        )
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
         index = df.index

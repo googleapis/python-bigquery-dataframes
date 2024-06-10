@@ -1175,7 +1175,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
         *,
-        ordered: bool = True,
+        ordered: Optional[bool] = None,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1195,7 +1195,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
-            ordered (bool, default True):
+            ordered (bool, default None):
                 Determines whether the resulting pandas dataframe will be deterministically ordered.
                 In some cases, unordered may result in a faster-executing query.
 
@@ -1210,7 +1210,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
-            ordered=ordered,
+            ordered=ordered or self._session._strictly_ordered,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
