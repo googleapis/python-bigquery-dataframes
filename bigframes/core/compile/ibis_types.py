@@ -231,14 +231,17 @@ def bigframes_dtype_to_ibis_dtype(
     Raises:
         ValueError: If passed a dtype not supported by BigQuery DataFrames.
     """
-    if isinstance(bigframes_dtype, pd.ArrowDtype):
+    if str(bigframes_dtype) in bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES:
+        bigframes_dtype = bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
+            cast(bigframes.dtypes.DtypeString, str(bigframes_dtype))
+        ]
+
+    if bigframes_dtype in BIGFRAMES_TO_IBIS.keys():
+        return BIGFRAMES_TO_IBIS[bigframes_dtype]
+
+    elif isinstance(bigframes_dtype, pd.ArrowDtype) and bigframes_dtype.pyarrow_dtype:
         return _arrow_dtype_to_ibis_dtype(bigframes_dtype.pyarrow_dtype)
 
-    type_string = str(bigframes_dtype)
-    if type_string in bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES:
-        bigframes_dtype = bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
-            cast(bigframes.dtypes.DtypeString, type_string)
-        ]
     else:
         raise ValueError(
             textwrap.dedent(
@@ -258,8 +261,6 @@ def bigframes_dtype_to_ibis_dtype(
                 """
             )
         )
-
-    return BIGFRAMES_TO_IBIS[bigframes_dtype]
 
 
 def ibis_dtype_to_bigframes_dtype(
@@ -341,13 +342,34 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
         )
 
 
+_ARROW_TO_IBIS = {
+    mapping.arrow_dtype: bigframes_dtype_to_ibis_dtype(mapping.dtype)
+    for mapping in bigframes.dtypes.SIMPLE_TYPES
+    if mapping.arrow_dtype is not None
+}
+
+
 def _arrow_dtype_to_ibis_dtype(arrow_dtype: pa.DataType) -> ibis_dtypes.DataType:
     if arrow_dtype == pa.null():
         # Used for empty local dataframes where pyarrow has null type
         return ibis_dtypes.float64
+    if pa.types.is_struct(arrow_dtype):
+        struct_dtype = cast(pa.StructType, arrow_dtype)
+        return ibis_dtypes.Struct.from_tuples(
+            [
+                (field.name, _arrow_dtype_to_ibis_dtype(field.type))
+                for field in struct_dtype
+            ]
+        )
+    if pa.types.is_list(arrow_dtype):
+        list_dtype = cast(pa.ListType, arrow_dtype)
+        value_dtype = list_dtype.value_type
+        value_ibis_type = _arrow_dtype_to_ibis_dtype(value_dtype)
+        return ibis_dtypes.Array(value_type=value_ibis_type)
+    elif arrow_dtype in _ARROW_TO_IBIS:
+        return _ARROW_TO_IBIS[arrow_dtype]
     else:
-        bigframes_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(arrow_dtype)
-        return bigframes.dtypes.bigframes_dtype_to_arrow_dtype(bigframes_type)
+        raise ValueError(f"Unexpected arrow type: {arrow_dtype}")
 
 
 def literal_to_ibis_scalar(
