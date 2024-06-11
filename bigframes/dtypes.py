@@ -320,15 +320,16 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
         return STRING_DTYPE
     if isinstance(literal, (bytes, np.bytes_)):
         return BYTES_DTYPE
-    if isinstance(literal, datetime.date):
-        return DATE_DTYPE
-    if isinstance(literal, datetime.time):
-        return TIME_DTYPE
+    # Make sure to check datetime before date as datetimes are also dates
     if isinstance(literal, (datetime.datetime, pd.Timestamp)):
         if literal.tzinfo is not None:
             return TIMESTAMP_DTYPE
         else:
             return DATETIME_DTYPE
+    if isinstance(literal, datetime.date):
+        return DATE_DTYPE
+    if isinstance(literal, datetime.time):
+        return TIME_DTYPE
     else:
         raise ValueError(f"Unable to infer type for value: {literal}")
 
