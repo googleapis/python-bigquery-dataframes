@@ -34,6 +34,7 @@ from bigframes.core.compile.googlesql.query import (
     SelectAll,
     SelectExpression,
 )
+from bigframes.core.compile.googlesql.utils import _escape_special_characters
 
 __all__ = [
     "AliasExpression",
@@ -49,4 +50,6 @@ __all__ = [
     "SelectExpression",
     "StarExpression",
     "TableExpression",
+    # utils
+    "_escape_special_characters",
 ]

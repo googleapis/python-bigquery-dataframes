@@ -18,6 +18,7 @@ import dataclasses
 import typing
 
 import bigframes.core.compile.googlesql.abc as abc
+import bigframes.core.compile.googlesql.utils as utils
 
 """This module represents GoogleSQL `expression` and its extensions.
 Core class:
@@ -72,10 +73,10 @@ class TableExpression(Expression):
     def sql(self) -> str:
         text = []
         if self.project_id is not None:
-            text.append(f"`{self.project_id}`")
+            text.append(f"`{utils._escape_special_characters(self.project_id)}`")
         if self.dataset_id is not None:
-            text.append(f"`{self.dataset_id}`")
-        text.append(f"`{self.table_id}`")
+            text.append(f"`{utils._escape_special_characters(self.dataset_id)}`")
+        text.append(f"`{utils._escape_special_characters(self.table_id)}`")
         return ".".join(text)
 
 

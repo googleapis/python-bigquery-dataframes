@@ -39,7 +39,7 @@ def simple_literal(value: str | int | bool | float | datetime.datetime):
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
     if isinstance(value, str):
         # Single quoting seems to work nicer with ibis than double quoting
-        return f"'{escape_special_characters(value)}'"
+        return f"'{googlesql._escape_special_characters(value)}'"
     elif isinstance(value, (bool, int)):
         return str(value)
     elif isinstance(value, float):
@@ -66,29 +66,7 @@ def identifier(id: str) -> str:
     """Return a string representing column reference in a SQL."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#identifiers
     # Just always escape, otherwise need to check against every reserved sql keyword
-    return f"`{escape_special_characters(id)}`"
-
-
-def escape_special_characters(value: str):
-    """Escapes all special charactesrs"""
-    # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#string_and_bytes_literals
-    trans_table = str.maketrans(
-        {
-            "\a": r"\a",
-            "\b": r"\b",
-            "\f": r"\f",
-            "\n": r"\n",
-            "\r": r"\r",
-            "\t": r"\t",
-            "\v": r"\v",
-            "\\": r"\\",
-            "?": r"\?",
-            '"': r"\"",
-            "'": r"\'",
-            "`": r"\`",
-        }
-    )
-    return value.translate(trans_table)
+    return f"`{googlesql._escape_special_characters(id)}`"
 
 
 def cast_as_string(column_name: str) -> str:
@@ -106,10 +84,6 @@ def to_json_string(column_name: str) -> str:
 def csv(values: Iterable[str]) -> str:
     """Return a string of comma separated values."""
     return ", ".join(values)
-
-
-def table_reference(table_ref: bigquery.TableReference) -> str:
-    return f"`{escape_special_characters(table_ref.project)}`.`{escape_special_characters(table_ref.dataset_id)}`.`{escape_special_characters(table_ref.table_id)}`"
 
 
 def infix_op(opname: str, left_arg: str, right_arg: str):
