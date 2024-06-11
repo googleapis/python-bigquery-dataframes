@@ -166,8 +166,5 @@ def test_query_expr_w_cte():
     assert query2.sql() == query2_sql
 
 
-def test_escape_special_characters():
-    assert (
-        sql._escape_special_characters("\a\b\f\n\r\t\v\\?'\"`")
-        == r"\a\b\f\n\r\t\v\\\?\'\"\`"
-    )
+def test_escape_chars():
+    assert sql._escape_chars("\a\b\f\n\r\t\v\\?'\"`") == r"\a\b\f\n\r\t\v\\\?\'\"\`"

@@ -18,6 +18,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax"""
 from __future__ import annotations
 
 from bigframes.core.compile.googlesql.expression import (
+    _escape_chars,
     AliasExpression,
     ColumnExpression,
     CTEExpression,
@@ -34,9 +35,9 @@ from bigframes.core.compile.googlesql.query import (
     SelectAll,
     SelectExpression,
 )
-from bigframes.core.compile.googlesql.utils import _escape_special_characters
 
 __all__ = [
+    "_escape_chars",
     "AliasExpression",
     "AsAlias",
     "ColumnExpression",
@@ -50,6 +51,4 @@ __all__ = [
     "SelectExpression",
     "StarExpression",
     "TableExpression",
-    # utils
-    "_escape_special_characters",
 ]
