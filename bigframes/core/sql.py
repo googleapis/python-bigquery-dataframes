@@ -75,18 +75,18 @@ def cast_as_string(column_name: str) -> str:
     return f"CAST({identifier(column_name)} AS STRING)"
 
 
+def to_json_string(column_name: str) -> str:
+    """Return a string representing JSON version of a column."""
+
+    return f"TO_JSON_STRING({identifier(column_name)})"
+
+
 def table_reference(table_ref: bigquery.TableReference) -> str:
     return (
         f"`{googlesql._escape_special_characters(table_ref.project)}`."
         f"`{googlesql._escape_special_characters(table_ref.dataset_id)}`."
         f"`{googlesql._escape_special_characters(table_ref.table_id)}`"
     )
-
-
-def to_json_string(column_name: str) -> str:
-    """Return a string representing JSON version of a column."""
-
-    return f"TO_JSON_STRING({identifier(column_name)})"
 
 
 def csv(values: Iterable[str]) -> str:
