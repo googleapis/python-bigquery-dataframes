@@ -894,6 +894,15 @@ def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
     return typing.cast(ibis_types.ArrayValue, x).join(op.delimiter)
 
 
+# JSON Ops
+@scalar_op_compiler.register_unary_op(ops.JSONSet, pass_op=True)
+def json_set_op_impl(x: ibis_types.Value, op: ops.JSONSet):
+    return vendored_ibis_ops.JSONSet(
+        x,
+        json_path_value_pairs=op.json_path_value_pairs,
+    ).to_expr()
+
+
 ### Binary Ops
 def short_circuit_nulls(type_override: typing.Optional[ibis_dtypes.DataType] = None):
     """Wraps a binary operator to generate nulls of the expected type if either input is a null scalar."""

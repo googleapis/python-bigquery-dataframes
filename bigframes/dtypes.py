@@ -240,6 +240,11 @@ def is_struct_like(type: ExpressionType) -> bool:
     )
 
 
+def is_json_like(type: ExpressionType) -> bool:
+    # TODO: Add JSON type support
+    return type == STRING_DTYPE
+
+
 def is_numeric(type: ExpressionType) -> bool:
     return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
 
