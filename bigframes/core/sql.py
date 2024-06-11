@@ -81,17 +81,17 @@ def to_json_string(column_name: str) -> str:
     return f"TO_JSON_STRING({identifier(column_name)})"
 
 
+def csv(values: Iterable[str]) -> str:
+    """Return a string of comma separated values."""
+    return ", ".join(values)
+
+
 def table_reference(table_ref: bigquery.TableReference) -> str:
     return (
         f"`{googlesql._escape_special_characters(table_ref.project)}`."
         f"`{googlesql._escape_special_characters(table_ref.dataset_id)}`."
         f"`{googlesql._escape_special_characters(table_ref.table_id)}`"
     )
-
-
-def csv(values: Iterable[str]) -> str:
-    """Return a string of comma separated values."""
-    return ", ".join(values)
 
 
 def infix_op(opname: str, left_arg: str, right_arg: str):
