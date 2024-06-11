@@ -270,6 +270,44 @@ def test_get_columns_default(scalars_dfs):
     assert result == "default_val"
 
 
+@pytest.mark.parametrize(
+    ("loc", "column", "value", "allow_duplicates"),
+    [
+        (0, 666, 2, False),
+        (5, "float64_col", 2.2, True),
+        (13, "rowindex_2", [8, 7, 6, 5, 4, 3, 2, 1, 0], True),
+        pytest.param(
+            14,
+            "test",
+            2,
+            False,
+            marks=pytest.mark.xfail(
+                raises=IndexError,
+            ),
+        ),
+        pytest.param(
+            12,
+            "int64_col",
+            2,
+            False,
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
+    ],
+)
+def test_insert(scalars_dfs, loc, column, value, allow_duplicates):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # insert works inplace, so will influence other tests.
+    # make a copy to avoid inplace changes.
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.insert(loc, column, value, allow_duplicates)
+    pd_df.insert(loc, column, value, allow_duplicates)
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df, check_dtype=False)
+
+
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -346,7 +384,7 @@ def test_df_info(scalars_dfs):
         " 11  time_col       6 non-null        time64[us][pyarrow]\n"
         " 12  timestamp_col  6 non-null        timestamp[us, tz=UTC][pyarrow]\n"
         "dtypes: Float64(1), Int64(3), binary[pyarrow](1), boolean(1), date32[day][pyarrow](1), decimal128(38, 9)[pyarrow](1), geometry(1), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
-        "memory usage: 945 bytes\n"
+        "memory usage: 1269 bytes\n"
     )
 
     scalars_df, _ = scalars_dfs
