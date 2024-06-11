@@ -85,7 +85,7 @@ class AliasExpression(Expression):
     alias: str
 
     def sql(self) -> str:
-        return f"`{self.alias}`"
+        return f"`{utils._escape_special_characters(self.alias)}`"
 
 
 @dataclasses.dataclass
@@ -93,4 +93,4 @@ class CTEExpression(Expression):
     name: str
 
     def sql(self) -> str:
-        return f"`{self.name}`"
+        return f"`{utils._escape_special_characters(self.name)}`"

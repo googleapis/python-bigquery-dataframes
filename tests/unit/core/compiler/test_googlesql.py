@@ -164,3 +164,10 @@ def test_query_expr_w_cte():
     query2 = sql.QueryExpr(select=select2, with_cte_list=with_cte_list)
     query2_sql = f"WITH {cte1_sql},\n{cte2_sql}\n{select2_sql}"
     assert query2.sql() == query2_sql
+
+
+def test_escape_special_characters():
+    assert (
+        sql._escape_special_characters("\a\b\f\n\r\t\v\\?'\"`")
+        == r"\a\b\f\n\r\t\v\\\?\'\"\`"
+    )
