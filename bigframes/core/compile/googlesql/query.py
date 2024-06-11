@@ -112,6 +112,8 @@ class FromClause(abc.SQLSyntax):
 class FromItem(abc.SQLSyntax):
     """This class represents GoogleSQL `from_item` syntax."""
 
+    # Note: Temporarily introduces the `str` type to interact with pre-existing,
+    # compiled SQL strings.
     expression: typing.Union[expr.TableExpression, QueryExpr, str, expr.CTEExpression]
     as_alias: typing.Optional[AsAlias] = None
 
