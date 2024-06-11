@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import Mock
+
 import pytest
 
 import bigframes.core.compile.googlesql as sql
@@ -73,6 +75,17 @@ def test_from_item_w_query_expr():
 def test_from_item_w_cte():
     expr = sql.FromItem(expression=sql.CTEExpression("test"))
     assert expr.sql() == "`test`"
+
+
+def test_from_item_w_table_ref():
+    mock_table_ref = Mock()
+    mock_table_ref.table_id = "mock_table"
+    mock_table_ref.dataset_id = "mock_dataset"
+    mock_table_ref.project = "mock_project"
+
+    from_item = sql.FromItem.from_table_ref(mock_table_ref)
+
+    assert from_item.sql() == "`mock_project`.`mock_dataset`.`mock_table`"
 
 
 @pytest.mark.parametrize(
@@ -143,8 +156,9 @@ def test_query_expr_w_cte():
             sql.FromClause(sql.FromItem(expression=cte1.cte_name)),
             sql.FromClause(sql.FromItem(expression=cte2.cte_name)),
         ],
+        distinct=True,
     )
-    select2_sql = "SELECT\n`a`.`column_x`,\n`b`.*\nFROM\n`a`,\n`b`"
+    select2_sql = "SELECT\nDISTINCT\n`a`.`column_x`,\n`b`.*\nFROM\n`a`,\n`b`"
     assert select2.sql() == select2_sql
 
     query2 = sql.QueryExpr(select=select2, with_cte_list=with_cte_list)

@@ -117,6 +117,21 @@ class FromItem(abc.SQLSyntax):
     expression: typing.Union[expr.TableExpression, QueryExpr, str, expr.CTEExpression]
     as_alias: typing.Optional[AsAlias] = None
 
+    @classmethod
+    def from_table_ref(
+        cls,
+        table_ref: bigquery.TableReference,
+        as_alias: typing.Optional[AsAlias] = None,
+    ):
+        return cls(
+            expression=expr.TableExpression(
+                table_id=table_ref.table_id,
+                dataset_id=table_ref.dataset_id,
+                project_id=table_ref.project,
+            ),
+            as_alias=as_alias,
+        )
+
     def sql(self) -> str:
         if isinstance(self.expression, (expr.TableExpression, expr.CTEExpression)):
             text = self.expression.sql()
@@ -134,21 +149,6 @@ class FromItem(abc.SQLSyntax):
             return text
         else:
             return f"{text} {self.as_alias.sql()}"
-
-    @classmethod
-    def from_table_ref(
-        cls,
-        table_ref: bigquery.TableReference,
-        as_alias: typing.Optional[AsAlias] = None,
-    ):
-        return cls(
-            expression=expr.TableExpression(
-                table_id=table_ref.table_id,
-                dataset_id=table_ref.dataset_id,
-                project_id=table_ref.project,
-            ),
-            as_alias=as_alias,
-        )
 
 
 @dataclasses.dataclass
