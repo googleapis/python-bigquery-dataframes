@@ -166,7 +166,8 @@ def json_set(
     series: series.Series,
     json_path_value_pairs: typing.Sequence[typing.Tuple[str, typing.Any]],
 ) -> series.Series:
-    """Produces a new JSON value by inserting or replacing values at specified paths.
+    """Produces a new JSON value within a Series by inserting or replacing values at
+    specified paths.
 
     **Examples:**
 
