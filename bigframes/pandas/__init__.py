@@ -142,7 +142,7 @@ def cut(
     x: bigframes.series.Series,
     bins: int,
     *,
-    labels: Optional[bool] = None,
+    labels: Union[Iterable[str], bool, None] = None,
 ) -> bigframes.series.Series:
     return bigframes.core.reshape.cut(
         x,
@@ -699,9 +699,35 @@ def read_gbq_function(function_name: str):
 read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_function)
 
 
+@typing.overload
 def to_datetime(
     arg: Union[
-        vendored_pandas_datetimes.local_scalars,
+        vendored_pandas_datetimes.local_iterables,
+        bigframes.series.Series,
+        bigframes.dataframe.DataFrame,
+    ],
+    *,
+    utc: bool = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
+) -> bigframes.series.Series:
+    ...
+
+
+@typing.overload
+def to_datetime(
+    arg: Union[int, float, str, datetime],
+    *,
+    utc: bool = False,
+    format: Optional[str] = None,
+    unit: Optional[str] = None,
+) -> Union[pandas.Timestamp, datetime]:
+    ...
+
+
+def to_datetime(
+    arg: Union[
+        Union[int, float, str, datetime],
         vendored_pandas_datetimes.local_iterables,
         bigframes.series.Series,
         bigframes.dataframe.DataFrame,

@@ -574,9 +574,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def __getattr__(self, key: str):
+        # Protect against recursion errors with uninitialized DataFrame
+        # objects. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key == "_block":
+            raise AttributeError("_block")
+
         if key in self._block.column_labels:
             return self.__getitem__(key)
-        elif hasattr(pandas.DataFrame, key):
+
+        if hasattr(pandas.DataFrame, key):
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -585,8 +594,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     """
                 )
             )
-        else:
-            raise AttributeError(key)
+        raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
         if key in ["_block", "_query_job"]:
@@ -616,6 +624,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Only represents the first `bigframes.options.display.max_rows`.
         """
+        # Protect against errors with uninitialized DataFrame. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        if not hasattr(self, "_block"):
+            return object.__repr__(self)
+
         opts = bigframes.options.display
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
@@ -1215,10 +1228,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
-        """Stream DataFrame results to an iterable of pandas DataFrame"""
+    def to_pandas_batches(
+        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+    ) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame.
+
+        page_size and max_results determine the size and number of batches,
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+
+        Args:
+            page_size (int, default None):
+                The size of each batch.
+            max_results (int, default None):
+                If given, only download this many rows at maximum.
+
+        Returns:
+            Iterable[pandas.DataFrame]:
+                An iterable of smaller dataframes which combine to
+                form the original dataframe. Results stream from bigquery,
+                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+        """
         self._optimize_query_complexity()
-        return self._block.to_pandas_batches()
+        return self._block.to_pandas_batches(
+            page_size=page_size, max_results=max_results
+        )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
@@ -1284,6 +1317,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nsmallest(self._block, n, column_ids, keep=keep))
+
+    def insert(
+        self,
+        loc: int,
+        column: blocks.Label,
+        value: SingleItemValue,
+        allow_duplicates: bool = False,
+    ):
+        column_count = len(self.columns)
+        if loc > column_count:
+            raise IndexError(
+                f"Column index {loc} is out of bounds with {column_count} total columns."
+            )
+        if (column in self.columns) and not allow_duplicates:
+            raise ValueError(f"cannot insert {column}, already exists")
+
+        temp_column = bigframes.core.guid.generate_guid(prefix=str(column))
+        df = self._assign_single_item(temp_column, value)
+
+        block = df._get_block()
+        value_columns = typing.cast(List, block.value_columns)
+        value_columns, new_column = value_columns[:-1], value_columns[-1]
+        value_columns.insert(loc, new_column)
+
+        block = block.select_columns(value_columns)
+        block = block.rename(columns={temp_column: column})
+
+        self._set_block(block)
 
     def drop(
         self,
@@ -3313,22 +3374,43 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Early check whether the dataframe dtypes are currently supported
             # in the remote function
             # NOTE: Keep in sync with the value converters used in the gcf code
-            # generated in generate_cloud_function_main_code in remote_function.py
+            # generated in remote_function_template.py
             remote_function_supported_dtypes = (
                 bigframes.dtypes.INT_DTYPE,
                 bigframes.dtypes.FLOAT_DTYPE,
                 bigframes.dtypes.BOOL_DTYPE,
+                bigframes.dtypes.BYTES_DTYPE,
                 bigframes.dtypes.STRING_DTYPE,
             )
             supported_dtypes_types = tuple(
-                type(dtype) for dtype in remote_function_supported_dtypes
+                type(dtype)
+                for dtype in remote_function_supported_dtypes
+                if not isinstance(dtype, pandas.ArrowDtype)
+            )
+            # Check ArrowDtype separately since multiple BigQuery types map to
+            # ArrowDtype, including BYTES and TIMESTAMP.
+            supported_arrow_types = tuple(
+                dtype.pyarrow_dtype
+                for dtype in remote_function_supported_dtypes
+                if isinstance(dtype, pandas.ArrowDtype)
             )
             supported_dtypes_hints = tuple(
                 str(dtype) for dtype in remote_function_supported_dtypes
             )
 
             for dtype in self.dtypes:
-                if not isinstance(dtype, supported_dtypes_types):
+                if (
+                    # Not one of the pandas/numpy types.
+                    not isinstance(dtype, supported_dtypes_types)
+                    # And not one of the arrow types.
+                    and not (
+                        isinstance(dtype, pandas.ArrowDtype)
+                        and any(
+                            dtype.pyarrow_dtype.equals(arrow_type)
+                            for arrow_type in supported_arrow_types
+                        )
+                    )
+                ):
                     raise NotImplementedError(
                         f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
                         f" Supported dtypes are {supported_dtypes_hints}."

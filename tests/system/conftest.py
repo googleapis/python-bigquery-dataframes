@@ -140,6 +140,17 @@ def session() -> Generator[bigframes.Session, None, None]:
 
 
 @pytest.fixture(scope="session")
+def unordered_session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        location="US",
+    )
+    session = bigframes.Session(context=context)
+    session._strictly_ordered = False
+    yield session
+    session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
 def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(
         location=tokyo_location,
@@ -944,6 +955,18 @@ WHERE
         session.bqclient.query(sql).result()
     finally:
         return model_name
+
+
+@pytest.fixture(scope="session")
+def llm_fine_tune_df_default_index(
+    session: bigframes.Session,
+) -> bigframes.dataframe.DataFrame:
+    training_table_name = "llm_tuning.emotion_classification_train"
+    df = session.read_gbq(training_table_name).dropna().head(30)
+    prefix = "Please do sentiment analysis on the following text and only output a number from 0 to 5 where 0 means sadness, 1 means joy, 2 means love, 3 means anger, 4 means fear, and 5 means surprise. Text: "
+    df["prompt"] = prefix + df["text"]
+    df["label"] = df["label"].astype("string")
+    return df
 
 
 @pytest.fixture(scope="session")

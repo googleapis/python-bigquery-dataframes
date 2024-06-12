@@ -83,7 +83,6 @@ import bigframes.core.blocks as blocks
 import bigframes.core.compile
 import bigframes.core.guid
 import bigframes.core.nodes as nodes
-from bigframes.core.ordering import IntegerEncoding
 import bigframes.core.ordering as order
 import bigframes.core.pruning
 import bigframes.core.schema as schemata
@@ -296,6 +295,9 @@ class Session(
         self._bytes_processed_sum = 0
         self._slot_millis_sum = 0
         self._execution_count = 0
+        # Whether this session treats objects as totally ordered.
+        # Will expose as feature later, only False for internal testing
+        self._strictly_ordered = True
 
     @property
     def bqclient(self):
@@ -1162,35 +1164,14 @@ class Session(
         )
         self._start_generic_job(load_job)
 
-        ordering = order.ExpressionOrdering(
-            ordering_value_columns=tuple([order.ascending_over(ordering_col)]),
-            total_ordering_columns=frozenset([ordering_col]),
-            integer_encoding=IntegerEncoding(True, is_sequential=True),
-        )
-        table_expression = self.ibis_client.table(  # type: ignore
-            load_table_destination.table_id,
-            schema=load_table_destination.dataset_id,
-            database=load_table_destination.project,
-        )
-
-        # b/297590178 Potentially a bug in bqclient.load_table_from_dataframe(), that only when the DF is empty, the index columns disappear in table_expression.
-        if any(
-            [new_idx_id not in table_expression.columns for new_idx_id in new_idx_ids]
-        ):
-            new_idx_ids, idx_labels = [], []
-
-        column_values = [
-            table_expression[col]
-            for col in table_expression.columns
-            if col != ordering_col
-        ]
-        array_value = core.ArrayValue.from_ibis(
-            self,
-            table_expression,
-            columns=column_values,
-            hidden_ordering_columns=[table_expression[ordering_col]],
-            ordering=ordering,
-        )
+        destination_table = self.bqclient.get_table(load_table_destination)
+        array_value = core.ArrayValue.from_table(
+            table=destination_table,
+            # TODO: Generate this directly from original pandas df.
+            schema=schemata.ArraySchema.from_bq_table(destination_table),
+            session=self,
+            offsets_col=ordering_col,
+        ).drop_columns([ordering_col])
 
         block = blocks.Block(
             array_value,
@@ -1866,30 +1847,20 @@ class Session(
         """Executes the query and uses the resulting table to rewrite future executions."""
         # TODO: Use this for all executions? Problem is that caching materializes extra
         # ordering columns
+        # TODO: May want to support some partial ordering info even for non-strict ordering mode
+        keep_order_info = self._strictly_ordered
+
         compiled_value = self._compile_ordered(array_value)
 
         ibis_expr = compiled_value._to_ibis_expr(
-            ordering_mode="unordered", expose_hidden_cols=True
+            ordering_mode="unordered", expose_hidden_cols=keep_order_info
         )
         tmp_table = self._ibis_to_temp_table(
             ibis_expr, cluster_cols=cluster_cols, api_name="cached"
         )
-        table_expression = self.ibis_client.table(
-            tmp_table.table_id,
-            schema=tmp_table.dataset_id,
-            database=tmp_table.project,
-        )
-        new_columns = [table_expression[column] for column in compiled_value.column_ids]
-        new_hidden_columns = [
-            table_expression[column]
-            for column in compiled_value._hidden_ordering_column_names
-        ]
-        cached_replacement = core.ArrayValue.from_ibis(
-            self,
-            table_expression,
-            columns=new_columns,
-            hidden_ordering_columns=new_hidden_columns,
-            ordering=compiled_value._ordering,
+        cached_replacement = array_value.as_cached(
+            cache_table=self.bqclient.get_table(tmp_table),
+            ordering=compiled_value._ordering if keep_order_info else None,
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
@@ -1897,6 +1868,10 @@ class Session(
         """Executes the query and uses the resulting table to rewrite future executions."""
         # TODO: Use this for all executions? Problem is that caching materializes extra
         # ordering columns
+        if not self._strictly_ordered:
+            raise ValueError(
+                "Caching with offsets only supported in strictly ordered mode."
+            )
         compiled_value = self._compile_ordered(array_value)
 
         ibis_expr = compiled_value._to_ibis_expr(
@@ -1905,18 +1880,8 @@ class Session(
         tmp_table = self._ibis_to_temp_table(
             ibis_expr, cluster_cols=["bigframes_offsets"], api_name="cached"
         )
-        table_expression = self.ibis_client.table(
-            tmp_table.table_id,
-            schema=tmp_table.dataset_id,
-            database=tmp_table.project,
-        )
-        new_columns = [table_expression[column] for column in compiled_value.column_ids]
-        new_hidden_columns = [table_expression["bigframes_offsets"]]
-        cached_replacement = core.ArrayValue.from_ibis(
-            self,
-            table_expression,
-            columns=new_columns,
-            hidden_ordering_columns=new_hidden_columns,
+        cached_replacement = array_value.as_cached(
+            cache_table=self.bqclient.get_table(tmp_table),
             ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
         ).node
         self._cached_executions[array_value.node] = cached_replacement
