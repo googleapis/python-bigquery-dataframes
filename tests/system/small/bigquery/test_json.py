@@ -62,7 +62,7 @@ def test_json_set_w_nested_json():
 
 
 def test_json_set_w_ordered_pairs():
-    init_json = [
+    init_json: object = [
         {"a": {"b": {"c": {}}}},
     ]
     s = _get_series_from_json(init_json)
@@ -70,7 +70,7 @@ def test_json_set_w_ordered_pairs():
         s, json_path_value_pairs=[("$.a.b.e", "user"), ("$.a.b.e", "dev")]
     )
 
-    expected_json = [
+    expected_json: object = [
         {"a": {"b": {"c": {}, "e": "dev"}}},
     ]
     expected = _get_series_from_json(expected_json)
