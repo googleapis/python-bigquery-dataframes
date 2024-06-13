@@ -3023,7 +3023,7 @@ def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_in
 def test_loc_select_with_column_condition_bf_series(
     scalars_df_index, scalars_pandas_df_index
 ):
-    # (b/347072677) GEOGRAPH type doesn't support UNIQUE op
+    # (b/347072677) GEOGRAPH type doesn't support DISTINCT op
     columns = [
         item for item in scalars_pandas_df_index.columns if item != "geography_col"
     ]
