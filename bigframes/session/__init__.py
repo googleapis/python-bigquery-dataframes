@@ -1941,14 +1941,14 @@ class Session(
         array_value: core.ArrayValue,
         job_config: Optional[bigquery.job.QueryJobConfig] = None,
         *,
-        sorted: bool = True,
+        ordered: bool = True,
         dry_run=False,
         col_id_overrides: Mapping[str, str] = {},
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         if not dry_run:
             self._add_execution(1)
         sql = self._to_sql(
-            array_value, sorted=sorted, col_id_overrides=col_id_overrides
+            array_value, ordered=ordered, col_id_overrides=col_id_overrides
         )  # type:ignore
         if job_config is None:
             job_config = bigquery.QueryJobConfig(dry_run=dry_run)
@@ -1981,13 +1981,13 @@ class Session(
         array_value: core.ArrayValue,
         offset_column: typing.Optional[str] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
-        sorted: bool = False,
+        ordered: bool = False,
     ) -> str:
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
-        if sorted:
+        if ordered:
             return self._compile_ordered(array_value).to_sql(
-                col_id_overrides=col_id_overrides, sorted=True
+                col_id_overrides=col_id_overrides, ordered=True
             )
         return self._compile_unordered(array_value).to_sql(
             col_id_overrides=col_id_overrides

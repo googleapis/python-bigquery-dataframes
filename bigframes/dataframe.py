@@ -3339,7 +3339,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         _, query_job = session._execute(
             export_array,
             job_config=job_config,
-            sorted=False,
+            ordered=False,
             col_id_overrides=id_overrides,
         )
         self._set_internal_query_job(query_job)

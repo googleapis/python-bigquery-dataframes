@@ -890,9 +890,9 @@ class OrderedIR(BaseIbisIR):
     def to_sql(
         self,
         col_id_overrides: typing.Mapping[str, str] = {},
-        sorted: bool = False,
+        ordered: bool = False,
     ) -> str:
-        if sorted:
+        if ordered:
             # Need to bake ordering expressions into the selected column in order for our ordering clause builder to work.
             baked_ir = self._bake_ordering()
             sql = ibis_bigquery.Backend().compile(

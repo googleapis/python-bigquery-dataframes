@@ -209,7 +209,7 @@ class Block:
             except Exception:
                 pass
 
-        iter, _ = self.session._execute(row_count_expr, sorted=False)
+        iter, _ = self.session._execute(row_count_expr, ordered=False)
         row_count = next(iter)[0]
         return (row_count, len(self.value_columns))
 
@@ -518,7 +518,7 @@ class Block:
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, sorted=self.session._strictly_ordered),
+            self.session._to_sql(self.expr, ordered=self.session._strictly_ordered),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -553,7 +553,7 @@ class Block:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, sorted=materialize_options.ordered),
+            self.session._to_sql(self.expr, ordered=materialize_options.ordered),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -2486,7 +2486,9 @@ class BlockIndexProperties:
         expr = self._expr.select_columns(index_columns)
         results, _ = self.session._execute(
             expr,
-            sorted=ordered if (ordered is not None) else self.session._strictly_ordered,
+            ordered=ordered
+            if (ordered is not None)
+            else self.session._strictly_ordered,
         )
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
