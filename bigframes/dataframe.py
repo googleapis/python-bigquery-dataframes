@@ -1210,7 +1210,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 None, this will supersede the global config.
             ordered (bool, default None):
                 Determines whether the resulting pandas dataframe will be deterministically ordered.
-                In some cases, unordered may result in a faster-executing query.
+                In some cases, unordered may result in a faster-executing query. If set to a value
+                other than None, will override Session default.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the

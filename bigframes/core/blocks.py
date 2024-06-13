@@ -1716,7 +1716,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas(sorted=True)
+            else self.index.to_pandas(ordered=True)
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2474,7 +2474,7 @@ class BlockIndexProperties:
         """Column(s) to use as row labels."""
         return self._block._index_columns
 
-    def to_pandas(self, *, sorted: Optional[bool] = None) -> pd.Index:
+    def to_pandas(self, *, ordered: Optional[bool] = None) -> pd.Index:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
@@ -2486,7 +2486,7 @@ class BlockIndexProperties:
         expr = self._expr.select_columns(index_columns)
         results, _ = self.session._execute(
             expr,
-            sorted=sorted if (sorted is not None) else self.session._strictly_ordered,
+            sorted=ordered if (ordered is not None) else self.session._strictly_ordered,
         )
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
