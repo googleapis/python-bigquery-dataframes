@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import dataclasses
-import re
 import typing
 
 import google.cloud.bigquery as bigquery
@@ -157,23 +156,21 @@ class FromItem(abc.SQLSyntax):
     @classmethod
     def from_source(
         cls,
-        source: typing.Union[bigquery.TableReference, str],
+        subquery_or_tableref: typing.Union[bigquery.TableReference, str],
         as_alias: typing.Optional[AsAlias] = None,
     ):
-        if isinstance(source, bigquery.TableReference):
+        if isinstance(subquery_or_tableref, bigquery.TableReference):
             return cls(
                 expression=expr.TableExpression(
-                    table_id=source.table_id,
-                    dataset_id=source.dataset_id,
-                    project_id=source.project,
+                    table_id=subquery_or_tableref.table_id,
+                    dataset_id=subquery_or_tableref.dataset_id,
+                    project_id=subquery_or_tableref.project,
                 ),
                 as_alias=as_alias,
             )
-        elif isinstance(source, str):
-            if not is_query(source):
-                return cls(expression=expr.TableExpression(table_id=source))
+        elif isinstance(subquery_or_tableref, str):
             return cls(
-                expression=source,
+                expression=subquery_or_tableref,
                 as_alias=as_alias,
             )
         else:
@@ -217,8 +214,3 @@ class AsAlias(abc.SQLSyntax):
 
     def sql(self) -> str:
         return f"AS {self.alias.sql()}"
-
-
-def is_query(query_or_table: str) -> bool:
-    """Determine if `query_or_table` is a table ID or a SQL string"""
-    return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None

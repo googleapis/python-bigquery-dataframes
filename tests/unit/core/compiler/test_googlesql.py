@@ -128,8 +128,8 @@ def test_select():
     [
         (
             ["a", "b", "c"],
-            "table_name",
-            "SELECT\nDISTINCT\n`a`,\n`b`,\n`c`\nFROM\n`table_name`",
+            "select * from test",
+            "SELECT\nDISTINCT\n`a`,\n`b`,\n`c`\nFROM\n(select * from test)",
         ),
         (
             "a",
