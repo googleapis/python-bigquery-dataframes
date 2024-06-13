@@ -19,6 +19,7 @@ import bigframes.streaming
 
 def test_streaming_to_bigtable():
     # launch a continuous query
+    job_id = "test_streaming"
     sql = """SELECT
         body_mass_g, island as rowkey
         FROM birds.penguins"""
@@ -31,8 +32,8 @@ def test_streaming_to_bigtable():
         overwrite=True,
         auto_create_column_families=True,
         bigtable_options={},
-        job_id="test_streaming",
-        job_id_prefix="large_test",
+        job_id=job_id,
+        job_id_prefix="ignored_due_to_job_id",
     )
 
     try:
@@ -41,5 +42,6 @@ def test_streaming_to_bigtable():
         time.sleep(100)
         assert query_job.errors is None
         assert not query_job.done()
+        assert query_job.job_id == job_id
     finally:
         query_job.cancel()
