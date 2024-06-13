@@ -13,6 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
+import unittest.mock as mock
+
 import google.cloud.bigquery
 import pandas as pd
 
@@ -31,8 +33,10 @@ TABLE = google.cloud.bigquery.Table(
     table_ref=TABLE_REF,
     schema=SCHEMA,
 )
+FAKE_SESSION = mock.create_autospec(bigframes.Session, instance=True)
+type(FAKE_SESSION)._strictly_ordered = mock.PropertyMock(return_value=True)
 LEAF: core.ArrayValue = core.ArrayValue.from_table(
-    session=None,  # type: ignore
+    session=FAKE_SESSION,
     table=TABLE,
     schema=bigframes.core.schema.ArraySchema.from_bq_table(TABLE),
 )
