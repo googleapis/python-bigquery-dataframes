@@ -1224,7 +1224,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
-            ordered=ordered or self._session._strictly_ordered,
+            ordered=ordered if ordered is not None else self._session._strictly_ordered,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)

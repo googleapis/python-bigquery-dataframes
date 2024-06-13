@@ -358,7 +358,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
-            ordered=ordered or self._session._strictly_ordered,
+            ordered=ordered if ordered is not None else self._session._strictly_ordered,
         )
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
