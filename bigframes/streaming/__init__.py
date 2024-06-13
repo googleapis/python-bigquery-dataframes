@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,14 +99,6 @@ def to_bigtable(
     if app_profile is not None:
         app_profile_url_string = f"appProfiles/{app_profile}/"
 
-    truncate_string = "FALSE"
-    if truncate:
-        truncate_string = "TRUE"
-
-    overwrite_string = "FALSE"
-    if overwrite:
-        overwrite_string = "TRUE"
-
     auto_create_column_families_string = "FALSE"
     if auto_create_column_families:
         auto_create_column_families_string = "TRUE"
@@ -124,8 +116,8 @@ def to_bigtable(
         "OPTIONS (\n"
         "format = 'CLOUD_BIGTABLE',\n"
         f"{bigtable_options_parameter_string}"
-        f"truncate = {truncate_string},\n"
-        f"overwrite = {overwrite_string},\n"
+        f"truncate = {str(truncate)},\n"
+        f"overwrite = {str(overwrite)},\n"
         f"auto_create_column_families = {auto_create_column_families_string},\n"
         f'uri = "https://bigtable.googleapis.com/projects/{project}/instances/{instance}/{app_profile_url_string}tables/{table}"\n'
         ")\n"
