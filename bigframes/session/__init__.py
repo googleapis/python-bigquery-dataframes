@@ -1848,7 +1848,9 @@ class Session(
         # TODO: May want to support some partial ordering info even for non-strict ordering mode
         keep_order_info = self._strictly_ordered
 
-        sql, ordering_info = bigframes.core.compile.compile_raw(array_value.node)
+        sql, ordering_info = bigframes.core.compile.compile_raw(
+            self._with_cached_executions(array_value.node)
+        )
         tmp_table = self._sql_to_temp_table(
             sql, cluster_cols=cluster_cols, api_name="cached"
         )
@@ -1867,7 +1869,9 @@ class Session(
                 "Caching with offsets only supported in strictly ordered mode."
             )
         sql = bigframes.core.compile.compile_unordered(
-            array_value.promote_offsets("bigframes_offsets").node
+            self._with_cached_executions(
+                array_value.promote_offsets("bigframes_offsets").node
+            )
         )
 
         tmp_table = self._sql_to_temp_table(
@@ -1958,7 +1962,9 @@ class Session(
         """A 'peek' efficiently accesses a small number of rows in the dataframe."""
         if not tree_properties.peekable(self._with_cached_executions(array_value.node)):
             warnings.warn("Peeking this value cannot be done efficiently.")
-        sql = bigframes.core.compile.compile_peek(array_value.node, n_rows)
+        sql = bigframes.core.compile.compile_peek(
+            self._with_cached_executions(array_value.node), n_rows
+        )
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
@@ -1975,12 +1981,13 @@ class Session(
     ) -> str:
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
+        node_w_cached = self._with_cached_executions(array_value.node)
         if sorted:
             return bigframes.core.compile.compile_ordered(
-                array_value.node, col_id_overrides=col_id_overrides
+                node_w_cached, col_id_overrides=col_id_overrides
             )
         return bigframes.core.compile.compile_unordered(
-            array_value.node, col_id_overrides=col_id_overrides
+            node_w_cached, col_id_overrides=col_id_overrides
         )
 
     def _get_table_size(self, destination_table):
