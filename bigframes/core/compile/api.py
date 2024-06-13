@@ -49,7 +49,7 @@ def compile_raw(
 ) -> Tuple[str, bigframes.core.ordering.ExpressionOrdering]:
     """Compile node into sql that exposes all columns, including hidden ordering-only columns."""
     ir = compiler.compile_ordered_ir(node)
-    sql = ir.to_sql()
+    sql = ir.raw_sql()
     ordering_info = ir._ordering
     return sql, ordering_info
 
