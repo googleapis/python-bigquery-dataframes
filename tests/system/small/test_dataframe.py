@@ -3020,6 +3020,21 @@ def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_in
     )
 
 
+def test_loc_select_with_column_condition_bf_series(
+    scalars_df_index, scalars_pandas_df_index
+):
+    bf_result = scalars_df_index.loc[
+        :, series.Series(scalars_df_index.dtypes == "Int64")
+    ].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.dtypes == "Int64"
+    ]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_loc_single_index_with_duplicate(scalars_df_index, scalars_pandas_df_index):
     scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(

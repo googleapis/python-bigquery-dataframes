@@ -159,7 +159,12 @@ class LocDataFrameIndexer:
                 )
 
                 columns = key[1]
-                if isinstance(columns, pd.Series) and columns.dtype == "bool":
+                if isinstance(columns, bigframes.series.Series):
+                    columns = columns.to_pandas()
+                if isinstance(columns, pd.Series) and columns.dtype in (
+                    "bool",
+                    "boolean",
+                ):
                     # TODO(b/340892590): fix type error
                     columns = df.columns[columns]  # type: ignore
 
