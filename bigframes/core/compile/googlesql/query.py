@@ -15,19 +15,20 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 import typing
-from typing import TYPE_CHECKING
+
+import google.cloud.bigquery as bigquery
 
 import bigframes.core.compile.googlesql.abc as abc
 import bigframes.core.compile.googlesql.expression as expr
-
-if TYPE_CHECKING:
-    import google.cloud.bigquery as bigquery
 
 """This module provides a structured representation of GoogleSQL syntax using nodes.
 Each node's name and child nodes are designed to strictly follow the official GoogleSQL
 syntax rules outlined in the documentation:
 https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax"""
+
+TABLE_SOURCE_TYPE = typing.Union[str, bigquery.TableReference]
 
 
 @dataclasses.dataclass
@@ -53,11 +54,47 @@ class QueryExpr(abc.SQLSyntax):
 class Select(abc.SQLSyntax):
     """This class represents GoogleSQL `select` syntax."""
 
-    select_list: typing.Sequence[typing.Union[SelectExpression, SelectAll]]
-    from_clause_list: typing.Sequence[FromClause] = ()
+    select_list: typing.Sequence[
+        typing.Union[SelectExpression, SelectAll]
+    ] = dataclasses.field(default_factory=list)
+    from_clause_list: typing.Sequence[FromClause] = dataclasses.field(
+        default_factory=list
+    )
     distinct: bool = False
 
+    def select(
+        self,
+        columns: typing.Union[typing.Iterable[str], str, None] = None,
+        distinct: bool = False,
+    ) -> Select:
+        if isinstance(columns, str):
+            columns = [columns]
+        self.select_list: typing.List[typing.Union[SelectExpression, SelectAll]] = (
+            [
+                SelectExpression(expression=expr.ColumnExpression(name=column))
+                for column in columns
+            ]
+            if columns
+            else [SelectAll(expression=expr.StarExpression())]
+        )
+        self.distinct = distinct
+        return self
+
+    def from_(
+        self,
+        sources: typing.Union[TABLE_SOURCE_TYPE, typing.Iterable[TABLE_SOURCE_TYPE]],
+    ) -> Select:
+        if (not isinstance(sources, typing.Iterable)) or isinstance(sources, str):
+            sources = [sources]
+        self.from_clause_list = [
+            FromClause(FromItem.from_source(source)) for source in sources
+        ]
+        return self
+
     def sql(self) -> str:
+        if (self.select_list is not None) and (not self.select_list):
+            raise ValueError("Select clause has not been properly initialized.")
+
         text = ["SELECT"]
 
         if self.distinct:
@@ -66,7 +103,7 @@ class Select(abc.SQLSyntax):
         select_list_sql = ",\n".join([select.sql() for select in self.select_list])
         text.append(select_list_sql)
 
-        if self.from_clause_list is not None:
+        if self.from_clause_list:
             from_clauses_sql = ",\n".join(
                 [clause.sql() for clause in self.from_clause_list]
             )
@@ -118,25 +155,37 @@ class FromItem(abc.SQLSyntax):
     as_alias: typing.Optional[AsAlias] = None
 
     @classmethod
-    def from_table_ref(
+    def from_source(
         cls,
-        table_ref: bigquery.TableReference,
+        source: typing.Union[bigquery.TableReference, str],
         as_alias: typing.Optional[AsAlias] = None,
     ):
-        return cls(
-            expression=expr.TableExpression(
-                table_id=table_ref.table_id,
-                dataset_id=table_ref.dataset_id,
-                project_id=table_ref.project,
-            ),
-            as_alias=as_alias,
-        )
+        if isinstance(source, bigquery.TableReference):
+            return cls(
+                expression=expr.TableExpression(
+                    table_id=source.table_id,
+                    dataset_id=source.dataset_id,
+                    project_id=source.project,
+                ),
+                as_alias=as_alias,
+            )
+        elif isinstance(source, str):
+            return cls(
+                expression=source,
+                as_alias=as_alias,
+            )
+        else:
+            raise ValueError("The source must be bigquery.TableReference or str.")
 
     def sql(self) -> str:
         if isinstance(self.expression, (expr.TableExpression, expr.CTEExpression)):
             text = self.expression.sql()
         elif isinstance(self.expression, str):
-            text = f"({self.expression})"
+            text = (
+                f"({self.expression})"
+                if is_query(self.expression)
+                else f"`{self.expression}`"
+            )
         elif isinstance(self.expression, QueryExpr):
             text = f"({self.expression.sql()})"
         else:
@@ -170,3 +219,8 @@ class AsAlias(abc.SQLSyntax):
 
     def sql(self) -> str:
         return f"AS {self.alias.sql()}"
+
+
+def is_query(query_or_table: str) -> bool:
+    """Determine if `query_or_table` is a table ID or a SQL string"""
+    return re.search(r"\s", query_or_table.strip(), re.MULTILINE) is not None
