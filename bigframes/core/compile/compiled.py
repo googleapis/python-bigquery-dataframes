@@ -257,9 +257,9 @@ class UnorderedIR(BaseIbisIR):
         self,
         offset_column: typing.Optional[str] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
-        sorted: bool = False,
+        ordered: bool = False,
     ) -> str:
-        if offset_column or sorted:
+        if offset_column or ordered:
             raise ValueError("Cannot produce sorted sql in unordered mode")
         sql = ibis_bigquery.Backend().compile(
             self._to_ibis_expr(
