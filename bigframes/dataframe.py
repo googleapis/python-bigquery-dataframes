@@ -574,9 +574,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def __getattr__(self, key: str):
+        # Protect against recursion errors with uninitialized DataFrame
+        # objects. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key == "_block":
+            raise AttributeError("_block")
+
         if key in self._block.column_labels:
             return self.__getitem__(key)
-        elif hasattr(pandas.DataFrame, key):
+
+        if hasattr(pandas.DataFrame, key):
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -585,8 +594,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     """
                 )
             )
-        else:
-            raise AttributeError(key)
+        raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
         if key in ["_block", "_query_job"]:
@@ -616,6 +624,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Only represents the first `bigframes.options.display.max_rows`.
         """
+        # Protect against errors with uninitialized DataFrame. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        if not hasattr(self, "_block"):
+            return object.__repr__(self)
+
         opts = bigframes.options.display
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
@@ -714,13 +727,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 DataFrame(other), op, how=how, reverse=reverse
             )
         elif utils.get_axis_number(axis) == 0:
-            bf_series = bigframes.core.convert.to_bf_series(
-                other, self.index, self._session
-            )
-            return self._apply_series_binop_axis_0(bf_series, op, how, reverse)
+            return self._apply_series_binop_axis_0(other, op, how, reverse)
         elif utils.get_axis_number(axis) == 1:
-            pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
-            return self._apply_series_binop_axis_1(pd_series, op, how, reverse)
+            return self._apply_series_binop_axis_1(other, op, how, reverse)
         raise NotImplementedError(
             f"binary operation is not implemented on the second operand of type {type(other).__name__}."
             f"{constants.FEEDBACK_LINK}"
@@ -745,89 +754,49 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_series_binop_axis_0(
         self,
-        other: bigframes.series.Series,
+        other,
         op: ops.BinaryOp,
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
-        block, (get_column_left, get_column_right) = self._block.join(
-            other._block, how=how
+        bf_series = bigframes.core.convert.to_bf_series(
+            other, self.index, self._session
         )
-
-        series_column_id = other._value_column
-        series_col = get_column_right[series_column_id]
-        for column_id, label in zip(
-            self._block.value_columns, self._block.column_labels
-        ):
-            self_col = get_column_left[column_id]
-            expr = (
-                op.as_expr(series_col, self_col)
-                if reverse
-                else op.as_expr(self_col, series_col)
-            )
-            block, _ = block.project_expr(expr, label)
-            block = block.drop_columns([get_column_left[column_id]])
-
-        block = block.drop_columns([series_col])
-        block = block.with_index_labels(self._block.index.names)
-        return DataFrame(block)
+        aligned_block, columns, expr_pairs = self._block._align_axis_0(
+            bf_series._block, how=how
+        )
+        result = aligned_block._apply_binop(
+            op, inputs=expr_pairs, labels=columns, reverse=reverse
+        )
+        return DataFrame(result)
 
     def _apply_series_binop_axis_1(
         self,
-        other: pandas.Series,
+        other,
         op: ops.BinaryOp,
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
-        # Somewhat different alignment than df-df so separate codepath for now.
-        if self.columns.equals(other.index):
-            columns, lcol_indexer, rcol_indexer = self.columns, None, None
-        else:
-            if not (self.columns.is_unique and other.index.is_unique):
-                raise ValueError("Cannot align non-unique indices")
-            columns, lcol_indexer, rcol_indexer = self.columns.join(
-                other.index, how=how, return_indexers=True
+        """Align dataframe with pandas series by inlining series values as literals."""
+        # If we already know the transposed schema (from the transpose cache), we don't need to materialize rows from other
+        # Instead, can fully defer execution (as a cross-join)
+        if (
+            isinstance(other, bigframes.series.Series)
+            and other._block._transpose_cache is not None
+        ):
+            aligned_block, columns, expr_pairs = self._block._align_series_block_axis_1(
+                other._block, how=how
             )
-
-        binop_result_ids = []
-
-        column_indices = zip(
-            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
+        else:
+            # Fallback path, materialize `other` locally
+            pd_series = bigframes.core.convert.to_pd_series(other, self.columns)
+            aligned_block, columns, expr_pairs = self._block._align_pd_series_axis_1(
+                pd_series, how=how
+            )
+        result = aligned_block._apply_binop(
+            op, inputs=expr_pairs, labels=columns, reverse=reverse
         )
-
-        block = self._block
-        for left_index, right_index in column_indices:
-            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
-                self_col_id = self._block.value_columns[left_index]
-                other_scalar = other.iloc[right_index]
-                expr = (
-                    op.as_expr(ex.const(other_scalar), self_col_id)
-                    if reverse
-                    else op.as_expr(self_col_id, ex.const(other_scalar))
-                )
-            elif left_index >= 0:
-                self_col_id = self._block.value_columns[left_index]
-                expr = (
-                    op.as_expr(ex.const(None), self_col_id)
-                    if reverse
-                    else op.as_expr(self_col_id, ex.const(None))
-                )
-            elif right_index >= 0:
-                other_scalar = other.iloc[right_index]
-                expr = (
-                    op.as_expr(ex.const(other_scalar), ex.const(None))
-                    if reverse
-                    else op.as_expr(ex.const(None), ex.const(other_scalar))
-                )
-            else:
-                # Should not be possible
-                raise ValueError("No right or left index.")
-            block, result_col_id = block.project_expr(expr)
-            binop_result_ids.append(result_col_id)
-
-        block = block.select_columns(binop_result_ids)
-        return DataFrame(block.with_column_labels(columns))
+        return DataFrame(result)
 
     def _apply_dataframe_binop(
         self,
@@ -836,57 +805,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ) -> DataFrame:
-        # Join rows
-        block, (get_column_left, get_column_right) = self._block.join(
+        aligned_block, columns, expr_pairs = self._block._align_both_axes(
             other._block, how=how
         )
-        # join columns schema
-        # indexers will be none for exact match
-        if self.columns.equals(other.columns):
-            columns, lcol_indexer, rcol_indexer = self.columns, None, None
-        else:
-            columns, lcol_indexer, rcol_indexer = self.columns.join(
-                other.columns, how=how, return_indexers=True
-            )
-
-        binop_result_ids = []
-
-        column_indices = zip(
-            lcol_indexer if (lcol_indexer is not None) else range(len(columns)),
-            rcol_indexer if (rcol_indexer is not None) else range(len(columns)),
+        result = aligned_block._apply_binop(
+            op, inputs=expr_pairs, labels=columns, reverse=reverse
         )
-
-        for left_index, right_index in column_indices:
-            if left_index >= 0 and right_index >= 0:  # -1 indices indicate missing
-                self_col_id = get_column_left[self._block.value_columns[left_index]]
-                other_col_id = get_column_right[other._block.value_columns[right_index]]
-                expr = (
-                    op.as_expr(other_col_id, self_col_id)
-                    if reverse
-                    else op.as_expr(self_col_id, other_col_id)
-                )
-            elif left_index >= 0:
-                self_col_id = get_column_left[self._block.value_columns[left_index]]
-                expr = (
-                    op.as_expr(ex.const(None), self_col_id)
-                    if reverse
-                    else op.as_expr(self_col_id, ex.const(None))
-                )
-            elif right_index >= 0:
-                other_col_id = get_column_right[other._block.value_columns[right_index]]
-                expr = (
-                    op.as_expr(other_col_id, ex.const(None))
-                    if reverse
-                    else op.as_expr(ex.const(None), other_col_id)
-                )
-            else:
-                # Should not be possible
-                raise ValueError("No right or left index.")
-            block, result_col_id = block.project_expr(expr)
-            binop_result_ids.append(result_col_id)
-
-        block = block.select_columns(binop_result_ids).with_column_labels(columns)
-        return DataFrame(block)
+        return DataFrame(result)
 
     def eq(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.eq_op, axis=axis)
@@ -1303,10 +1228,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    def to_pandas_batches(self) -> Iterable[pandas.DataFrame]:
-        """Stream DataFrame results to an iterable of pandas DataFrame"""
+    def to_pandas_batches(
+        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+    ) -> Iterable[pandas.DataFrame]:
+        """Stream DataFrame results to an iterable of pandas DataFrame.
+
+        page_size and max_results determine the size and number of batches,
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+
+        Args:
+            page_size (int, default None):
+                The size of each batch.
+            max_results (int, default None):
+                If given, only download this many rows at maximum.
+
+        Returns:
+            Iterable[pandas.DataFrame]:
+                An iterable of smaller dataframes which combine to
+                form the original dataframe. Results stream from bigquery,
+                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+        """
         self._optimize_query_complexity()
-        return self._block.to_pandas_batches()
+        return self._block.to_pandas_batches(
+            page_size=page_size, max_results=max_results
+        )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         return self._block._compute_dry_run()
@@ -1372,6 +1317,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nsmallest(self._block, n, column_ids, keep=keep))
+
+    def insert(
+        self,
+        loc: int,
+        column: blocks.Label,
+        value: SingleItemValue,
+        allow_duplicates: bool = False,
+    ):
+        column_count = len(self.columns)
+        if loc > column_count:
+            raise IndexError(
+                f"Column index {loc} is out of bounds with {column_count} total columns."
+            )
+        if (column in self.columns) and not allow_duplicates:
+            raise ValueError(f"cannot insert {column}, already exists")
+
+        temp_column = bigframes.core.guid.generate_guid(prefix=str(column))
+        df = self._assign_single_item(temp_column, value)
+
+        block = df._get_block()
+        value_columns = typing.cast(List, block.value_columns)
+        value_columns, new_column = value_columns[:-1], value_columns[-1]
+        value_columns.insert(loc, new_column)
+
+        block = block.select_columns(value_columns)
+        block = block.rename(columns={temp_column: column})
+
+        self._set_block(block)
 
     def drop(
         self,
@@ -3401,22 +3374,43 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Early check whether the dataframe dtypes are currently supported
             # in the remote function
             # NOTE: Keep in sync with the value converters used in the gcf code
-            # generated in generate_cloud_function_main_code in remote_function.py
+            # generated in remote_function_template.py
             remote_function_supported_dtypes = (
                 bigframes.dtypes.INT_DTYPE,
                 bigframes.dtypes.FLOAT_DTYPE,
                 bigframes.dtypes.BOOL_DTYPE,
+                bigframes.dtypes.BYTES_DTYPE,
                 bigframes.dtypes.STRING_DTYPE,
             )
             supported_dtypes_types = tuple(
-                type(dtype) for dtype in remote_function_supported_dtypes
+                type(dtype)
+                for dtype in remote_function_supported_dtypes
+                if not isinstance(dtype, pandas.ArrowDtype)
+            )
+            # Check ArrowDtype separately since multiple BigQuery types map to
+            # ArrowDtype, including BYTES and TIMESTAMP.
+            supported_arrow_types = tuple(
+                dtype.pyarrow_dtype
+                for dtype in remote_function_supported_dtypes
+                if isinstance(dtype, pandas.ArrowDtype)
             )
             supported_dtypes_hints = tuple(
                 str(dtype) for dtype in remote_function_supported_dtypes
             )
 
             for dtype in self.dtypes:
-                if not isinstance(dtype, supported_dtypes_types):
+                if (
+                    # Not one of the pandas/numpy types.
+                    not isinstance(dtype, supported_dtypes_types)
+                    # And not one of the arrow types.
+                    and not (
+                        isinstance(dtype, pandas.ArrowDtype)
+                        and any(
+                            dtype.pyarrow_dtype.equals(arrow_type)
+                            for arrow_type in supported_arrow_types
+                        )
+                    )
+                ):
                     raise NotImplementedError(
                         f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
                         f" Supported dtypes are {supported_dtypes_hints}."

@@ -17,7 +17,7 @@ import operator
 import sys
 import tempfile
 import typing
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import geopandas as gpd  # type: ignore
 import numpy as np
@@ -146,9 +146,9 @@ def test_df_construct_inline_respects_location():
     with bpd.option_context("bigquery.location", "europe-west1"):
         df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
         repr(df)
+        assert df.query_job is not None
+        table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
 
-        # TODO(b/340876936): fix type error
-        table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)  # type: ignore
         assert table.location == "europe-west1"
 
 
@@ -270,6 +270,44 @@ def test_get_columns_default(scalars_dfs):
     assert result == "default_val"
 
 
+@pytest.mark.parametrize(
+    ("loc", "column", "value", "allow_duplicates"),
+    [
+        (0, 666, 2, False),
+        (5, "float64_col", 2.2, True),
+        (13, "rowindex_2", [8, 7, 6, 5, 4, 3, 2, 1, 0], True),
+        pytest.param(
+            14,
+            "test",
+            2,
+            False,
+            marks=pytest.mark.xfail(
+                raises=IndexError,
+            ),
+        ),
+        pytest.param(
+            12,
+            "int64_col",
+            2,
+            False,
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
+    ],
+)
+def test_insert(scalars_dfs, loc, column, value, allow_duplicates):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    # insert works inplace, so will influence other tests.
+    # make a copy to avoid inplace changes.
+    bf_df = scalars_df.copy()
+    pd_df = scalars_pandas_df.copy()
+    bf_df.insert(loc, column, value, allow_duplicates)
+    pd_df.insert(loc, column, value, allow_duplicates)
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df, check_dtype=False)
+
+
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -346,7 +384,7 @@ def test_df_info(scalars_dfs):
         " 11  time_col       6 non-null        time64[us][pyarrow]\n"
         " 12  timestamp_col  6 non-null        timestamp[us, tz=UTC][pyarrow]\n"
         "dtypes: Float64(1), Int64(3), binary[pyarrow](1), boolean(1), date32[day][pyarrow](1), decimal128(38, 9)[pyarrow](1), geometry(1), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
-        "memory usage: 945 bytes\n"
+        "memory usage: 1269 bytes\n"
     )
 
     scalars_df, _ = scalars_dfs
@@ -753,10 +791,9 @@ def test_assign_listlike_to_empty_df(session):
 def test_assign_to_empty_df_multiindex_error(session):
     empty_df = dataframe.DataFrame(session=session)
     empty_pandas_df = pd.DataFrame()
-    # TODO(b/340876936): fix type error
-    empty_df["empty_col_1"] = []  # type: ignore
-    # TODO(b/340876936): fix type error
-    empty_df["empty_col_2"] = []  # type: ignore
+
+    empty_df["empty_col_1"] = typing.cast(series.Series, [])
+    empty_df["empty_col_2"] = typing.cast(series.Series, [])
     empty_pandas_df["empty_col_1"] = []
     empty_pandas_df["empty_col_2"] = []
     empty_df = empty_df.set_index(["empty_col_1", "empty_col_2"])
@@ -1340,40 +1377,25 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
 
 def test_get_dtypes(scalars_df_default_index):
     dtypes = scalars_df_default_index.dtypes
+    dtypes_dict: Dict[str, bigframes.dtypes.Dtype] = {
+        "bool_col": pd.BooleanDtype(),
+        "bytes_col": pd.ArrowDtype(pa.binary()),
+        "date_col": pd.ArrowDtype(pa.date32()),
+        "datetime_col": pd.ArrowDtype(pa.timestamp("us")),
+        "geography_col": gpd.array.GeometryDtype(),
+        "int64_col": pd.Int64Dtype(),
+        "int64_too": pd.Int64Dtype(),
+        "numeric_col": pd.ArrowDtype(pa.decimal128(38, 9)),
+        "float64_col": pd.Float64Dtype(),
+        "rowindex": pd.Int64Dtype(),
+        "rowindex_2": pd.Int64Dtype(),
+        "string_col": pd.StringDtype(storage="pyarrow"),
+        "time_col": pd.ArrowDtype(pa.time64("us")),
+        "timestamp_col": pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
+    }
     pd.testing.assert_series_equal(
         dtypes,
-        pd.Series(
-            {
-                # TODO(b/340876936): fix type error
-                "bool_col": pd.BooleanDtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "bytes_col": pd.ArrowDtype(pa.binary()),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "date_col": pd.ArrowDtype(pa.date32()),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "datetime_col": pd.ArrowDtype(pa.timestamp("us")),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "geography_col": gpd.array.GeometryDtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "int64_col": pd.Int64Dtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "int64_too": pd.Int64Dtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "numeric_col": pd.ArrowDtype(pa.decimal128(38, 9)),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "float64_col": pd.Float64Dtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "rowindex": pd.Int64Dtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "rowindex_2": pd.Int64Dtype(),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "string_col": pd.StringDtype(storage="pyarrow"),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "time_col": pd.ArrowDtype(pa.time64("us")),  # type: ignore
-                # TODO(b/340876936): fix type error
-                "timestamp_col": pd.ArrowDtype(pa.timestamp("us", tz="UTC")),  # type: ignore
-            }
-        ),
+        pd.Series(dtypes_dict),
     )
 
 
@@ -1828,10 +1850,9 @@ def test_df_update(overwrite, filter_func):
     if pd.__version__.startswith("1."):
         pytest.skip("dtype handled differently in pandas 1.x.")
 
-    # TODO(b/340876936): fix type error
-    index1 = pandas.Index([1, 2, 3, 4], dtype="Int64")  # type: ignore
-    # TODO(b/340876936): fix type error
-    index2 = pandas.Index([1, 2, 4, 5], dtype="Int64")  # type: ignore
+    index1: pandas.Index = pandas.Index([1, 2, 3, 4], dtype="Int64")
+
+    index2: pandas.Index = pandas.Index([1, 2, 4, 5], dtype="Int64")
     pd_df1 = pandas.DataFrame(
         {"a": [1, None, 3, 4], "b": [5, 6, None, 8]}, dtype="Int64", index=index1
     )
@@ -1891,10 +1912,10 @@ def test_df_idxmax():
     ],
 )
 def test_df_align(join, axis):
-    # TODO(b/340876936): fix type error
-    index1 = pandas.Index([1, 2, 3, 4], dtype="Int64")  # type: ignore
-    # TODO(b/340876936): fix type error
-    index2 = pandas.Index([1, 2, 4, 5], dtype="Int64")  # type: ignore
+
+    index1: pandas.Index = pandas.Index([1, 2, 3, 4], dtype="Int64")
+
+    index2: pandas.Index = pandas.Index([1, 2, 4, 5], dtype="Int64")
     pd_df1 = pandas.DataFrame(
         {"a": [1, None, 3, 4], "b": [5, 6, None, 8]}, dtype="Int64", index=index1
     )
@@ -1911,10 +1932,11 @@ def test_df_align(join, axis):
     pd_result1, pd_result2 = pd_df1.align(pd_df2, join=join, axis=axis)
 
     # Don't check dtype as pandas does unnecessary float conversion
-    # TODO(b/340876936): fix type error
-    pd.testing.assert_frame_equal(bf_result1.to_pandas(), pd_result1, check_dtype=False)  # type: ignore
-    # TODO(b/340876936): fix type error
-    pd.testing.assert_frame_equal(bf_result2.to_pandas(), pd_result2, check_dtype=False)  # type: ignore
+    assert isinstance(bf_result1, dataframe.DataFrame) and isinstance(
+        bf_result2, dataframe.DataFrame
+    )
+    pd.testing.assert_frame_equal(bf_result1.to_pandas(), pd_result1, check_dtype=False)
+    pd.testing.assert_frame_equal(bf_result2.to_pandas(), pd_result2, check_dtype=False)
 
 
 def test_combine_first(
@@ -2130,14 +2152,12 @@ def test_series_binop_axis_index(
         (pd.Index([1000, 2000, 3000])),
         (bf_indexes.Index([1000, 2000, 3000])),
         (pd.Series((1000, 2000), index=["int64_too", "float64_col"])),
-        (series.Series((1000, 2000), index=["int64_too", "float64_col"])),
     ],
     ids=[
         "tuple",
         "pd_index",
         "bf_index",
         "pd_series",
-        "bf_series",
     ],
 )
 def test_listlike_binop_axis_1(scalars_dfs, input):
@@ -2150,6 +2170,26 @@ def test_listlike_binop_axis_1(scalars_dfs, input):
         input = input.to_pandas()
     pd_result = scalars_pandas_df[df_columns].add(input, axis=1)
 
+    assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_binop_with_self_aggregate(session, scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    # Ensure that this takes the optimized single-query path by counting executions
+    execution_count_before = session._execution_count
+    bf_df = scalars_df[df_columns]
+    bf_result = (bf_df - bf_df.mean()).to_pandas()
+    execution_count_after = session._execution_count
+
+    pd_df = scalars_pandas_df[df_columns]
+    pd_result = pd_df - pd_df.mean()
+
+    executions = execution_count_after - execution_count_before
+
+    assert executions == 1
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
 
@@ -2550,11 +2590,15 @@ def test_df_transpose():
     # Include some floats to ensure type coercion
     values = [[0, 3.5, True], [1, 4.5, False], [2, 6.5, None]]
     # Test complex case of both axes being multi-indices with non-unique elements
-    # TODO(b/340876936): fix type error
-    columns = pd.Index(["A", "B", "A"], dtype=pd.StringDtype(storage="pyarrow"))  # type: ignore
+
+    columns: pandas.Index = pd.Index(
+        ["A", "B", "A"], dtype=pd.StringDtype(storage="pyarrow")
+    )
     columns_multi = pd.MultiIndex.from_arrays([columns, columns], names=["c1", "c2"])
-    # TODO(b/340876936): fix type error
-    index = pd.Index(["b", "a", "a"], dtype=pd.StringDtype(storage="pyarrow"))  # type: ignore
+
+    index: pandas.Index = pd.Index(
+        ["b", "a", "a"], dtype=pd.StringDtype(storage="pyarrow")
+    )
     rows_multi = pd.MultiIndex.from_arrays([index, index], names=["r1", "r2"])
 
     pd_df = pandas.DataFrame(values, index=rows_multi, columns=columns_multi)
@@ -3106,9 +3150,9 @@ def test_dataframe_aggregate_int(scalars_df_index, scalars_pandas_df_index, col,
 
     # Check dtype separately
     assert bf_result.dtype == "Int64"
-
+    # Is otherwise "object" dtype
+    pd_result.index = pd_result.index.astype("string[pyarrow]")
     # Pandas may produce narrower numeric types
-    # Pandas has object index type
     assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
 
@@ -3128,6 +3172,7 @@ def test_dataframe_aggregate_bool(scalars_df_index, scalars_pandas_df_index, col
 
     # Pandas may produce narrower numeric types
     # Pandas has object index type
+    pd_result.index = pd_result.index.astype("string[pyarrow]")
     assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
 
@@ -3165,6 +3210,7 @@ def test_dataframe_aggregates(
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
     # Pandas has object index type
+    pd_result.index = pd_result.index.astype("string[pyarrow]")
     assert_series_equal(
         pd_result,
         bf_result,
@@ -3722,10 +3768,9 @@ def test_df_setattr_index():
         [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
     )
     bf_df = dataframe.DataFrame(pd_df)
-    # TODO(b/340876936): fix type error
-    pd_df.index = [4, 5]  # type: ignore
-    # TODO(b/340876936): fix type error
-    bf_df.index = [4, 5]  # type: ignore
+
+    pd_df.index = pandas.Index([4, 5])
+    bf_df.index = [4, 5]
 
     assert_pandas_df_equal(
         pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
@@ -3737,10 +3782,10 @@ def test_df_setattr_columns():
         [[1, 1, 1], [1, 1, 1]], columns=["index", "columns", "my_column"]
     )
     bf_df = dataframe.DataFrame(pd_df)
-    # TODO(b/340876936): fix type error
-    pd_df.columns = [4, 5, 6]  # type: ignore
-    # TODO(b/340876936): fix type error
-    bf_df.columns = [4, 5, 6]  # type: ignore
+
+    pd_df.columns = typing.cast(pandas.Index, pandas.Index([4, 5, 6]))
+
+    bf_df.columns = pandas.Index([4, 5, 6])
 
     assert_pandas_df_equal(
         pd_df, bf_df.to_pandas(), check_index_type=False, check_dtype=False
@@ -3834,8 +3879,8 @@ def test_iloc_list_multiindex(scalars_dfs):
 
 
 def test_iloc_empty_list(scalars_df_index, scalars_pandas_df_index):
-    # TODO(b/340876936): fix type error
-    index_list = []  # type: ignore
+
+    index_list: List[int] = []
 
     bf_result = scalars_df_index.iloc[index_list]
     pd_result = scalars_pandas_df_index.iloc[index_list]
