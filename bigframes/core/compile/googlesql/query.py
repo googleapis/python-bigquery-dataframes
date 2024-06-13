@@ -170,6 +170,8 @@ class FromItem(abc.SQLSyntax):
                 as_alias=as_alias,
             )
         elif isinstance(source, str):
+            if not is_query(source):
+                return cls(expression=expr.TableExpression(table_id=source))
             return cls(
                 expression=source,
                 as_alias=as_alias,
@@ -181,11 +183,7 @@ class FromItem(abc.SQLSyntax):
         if isinstance(self.expression, (expr.TableExpression, expr.CTEExpression)):
             text = self.expression.sql()
         elif isinstance(self.expression, str):
-            text = (
-                f"({self.expression})"
-                if is_query(self.expression)
-                else f"`{self.expression}`"
-            )
+            text = f"({self.expression})"
         elif isinstance(self.expression, QueryExpr):
             text = f"({self.expression.sql()})"
         else:
