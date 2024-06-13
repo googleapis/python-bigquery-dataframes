@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.9.0"
+import bigframes.series
+
+
+def test_series_repr_with_uninitialized_object():
+    """Ensures Series.__init__ can be paused in a visual debugger without crashing.
+
+    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/728
+    """
+    # Avoid calling __init__ to simulate pausing __init__ in a debugger.
+    # https://stackoverflow.com/a/6384982/101923
+    series = bigframes.series.Series.__new__(bigframes.series.Series)
+    got = repr(series)
+    assert "Series" in got
