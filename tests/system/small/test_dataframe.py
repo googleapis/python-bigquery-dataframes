@@ -3023,11 +3023,19 @@ def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_in
 def test_loc_select_with_column_condition_bf_series(
     scalars_df_index, scalars_pandas_df_index
 ):
+    # (b/347072677) GEOGRAPH type doesn't support UNIQUE op
+    columns = [
+        item for item in scalars_pandas_df_index.columns if item != "geography_col"
+    ]
+    scalars_df_index = scalars_df_index[columns]
+    scalars_pandas_df_index = scalars_pandas_df_index[columns]
+
+    size_half = len(scalars_pandas_df_index) / 2
     bf_result = scalars_df_index.loc[
-        :, series.Series(scalars_df_index.dtypes == "Int64")
+        :, scalars_df_index.nunique() > size_half
     ].to_pandas()
     pd_result = scalars_pandas_df_index.loc[
-        :, scalars_pandas_df_index.dtypes == "Int64"
+        :, scalars_pandas_df_index.nunique() > size_half
     ]
     pd.testing.assert_frame_equal(
         bf_result,
