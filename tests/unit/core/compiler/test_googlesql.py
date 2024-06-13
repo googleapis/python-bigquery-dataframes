@@ -124,17 +124,21 @@ def test_select():
 
 
 @pytest.mark.parametrize(
-    "source, expected",
+    "columns, source, expected",
     [
-        ("table_name", "SELECT\nDISTINCT\n`a`,\n`b`,\n`c`\nFROM\n`table_name`"),
         (
+            ["a", "b", "c"],
+            "table_name",
+            "SELECT\nDISTINCT\n`a`,\n`b`,\n`c`\nFROM\n`table_name`",
+        ),
+        (
+            "a",
             "select * from test",
-            "SELECT\nDISTINCT\n`a`,\n`b`,\n`c`\nFROM\n(select * from test)",
+            "SELECT\nDISTINCT\n`a`\nFROM\n(select * from test)",
         ),
     ],
 )
-def test_select_from_str(source, expected):
-    columns = ["a", "b", "c"]
+def test_select_from_str(columns, source, expected):
     expr = sql.Select().from_(source).select(columns, distinct=True)
     assert expr.sql() == expected
 
