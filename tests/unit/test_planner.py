@@ -13,23 +13,28 @@
 # limitations under the License.
 from __future__ import annotations
 
-import ibis
+import google.cloud.bigquery
 import pandas as pd
 
 import bigframes.core as core
 import bigframes.core.expression as ex
-import bigframes.core.ordering as bf_order
+import bigframes.core.schema
 import bigframes.operations as ops
 import bigframes.session.planner as planner
 
-ibis_table = ibis.memtable({"col_a": [1, 2, 3], "col_b": [4, 5, 6]})
-cols = [ibis_table["col_a"], ibis_table["col_b"]]
-LEAF: core.ArrayValue = core.ArrayValue.from_ibis(
+TABLE_REF = google.cloud.bigquery.TableReference.from_string("project.dataset.table")
+SCHEMA = (
+    google.cloud.bigquery.SchemaField("col_a", "INTEGER"),
+    google.cloud.bigquery.SchemaField("col_b", "INTEGER"),
+)
+TABLE = google.cloud.bigquery.Table(
+    table_ref=TABLE_REF,
+    schema=SCHEMA,
+)
+LEAF: core.ArrayValue = core.ArrayValue.from_table(
     session=None,  # type: ignore
-    table=ibis_table,
-    columns=cols,
-    hidden_ordering_columns=[],
-    ordering=bf_order.ExpressionOrdering((bf_order.ascending_over("col_a"),)),
+    table=TABLE,
+    schema=bigframes.core.schema.ArraySchema.from_bq_table(TABLE),
 )
 
 
