@@ -1384,25 +1384,6 @@ class Block:
             raise ValueError("Unexpected number of value columns.")
         return expr.select_columns([*index_columns, *value_columns])
 
-    def slice(
-        self,
-        start: typing.Optional[int] = None,
-        stop: typing.Optional[int] = None,
-        step: typing.Optional[int] = None,
-    ) -> bigframes.core.blocks.Block:
-        if step is None:
-            step = 1
-        if step == 0:
-            raise ValueError("slice step cannot be zero")
-        if step < 0:
-            reverse_start = (-start - 1) if start else 0
-            reverse_stop = (-stop - 1) if stop else None
-            reverse_step = -step
-            return self.reversed()._forward_slice(
-                reverse_start, reverse_stop, reverse_step
-            )
-        return self._forward_slice(start or 0, stop, step)
-
     def grouped_head(
         self,
         by_column_ids: typing.Sequence[str],
@@ -1422,6 +1403,25 @@ class Block:
         block = block.filter_by_id(cond_id)
         if value_columns:
             return block.select_columns(value_columns)
+
+    def slice(
+        self,
+        start: typing.Optional[int] = None,
+        stop: typing.Optional[int] = None,
+        step: typing.Optional[int] = None,
+    ) -> bigframes.core.blocks.Block:
+        if step is None:
+            step = 1
+        if step == 0:
+            raise ValueError("slice step cannot be zero")
+        if step < 0:
+            reverse_start = (-start - 1) if start else 0
+            reverse_stop = (-stop - 1) if stop else None
+            reverse_step = -step
+            return self.reversed()._forward_slice(
+                reverse_start, reverse_stop, reverse_step
+            )
+        return self._forward_slice(start or 0, stop, step)
 
     def _forward_slice(self, start: int = 0, stop=None, step: int = 1):
         """Performs slice but only for positive step size."""
