@@ -1403,6 +1403,27 @@ class Block:
             )
         return self._forward_slice(start or 0, stop, step)
 
+    def grouped_head(
+        self,
+        by_column_ids,
+        value_columns,
+        n: int,
+    ):
+
+        window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
+
+        block, result_id = self.apply_window_op(
+            value_columns[0],
+            agg_ops.rank_op,
+            window_spec=window_spec,
+        )
+
+        cond = ops.lt_op.as_expr(result_id, ex.const(n + 1))
+        block, cond_id = block.project_expr(cond)
+        block = block.filter_by_id(cond_id)
+        if value_columns:
+            return block.select_columns(value_columns)
+
     def _forward_slice(self, start: int = 0, stop=None, step: int = 1):
         """Performs slice but only for positive step size."""
         if step <= 0:
