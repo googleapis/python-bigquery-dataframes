@@ -104,7 +104,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 dropna=self._dropna,
             )
 
-    def head(self, n=5) -> series.Series:
+    def head(self, n: int = 5) -> df.DataFrame:
         block = self._block
         if self._dropna:
             block = block_ops.dropna(self._block, self._by_col_ids, how="any")
@@ -510,7 +510,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._value_name = value_name
         self._dropna = dropna  # Applies to aggregations but not windowing
 
-    def head(self, n=5) -> series.Series:
+    def head(self, n: int = 5) -> series.Series:
         block = self._block
         if self._dropna:
             block = block_ops.dropna(self._block, self._by_col_ids, how="any")

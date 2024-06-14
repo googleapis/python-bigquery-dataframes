@@ -1405,11 +1405,10 @@ class Block:
 
     def grouped_head(
         self,
-        by_column_ids,
-        value_columns,
+        by_column_ids: typing.Sequence[str],
+        value_columns: typing.Sequence[str],
         n: int,
     ):
-
         window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
 
         block, result_id = self.apply_window_op(
