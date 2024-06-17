@@ -277,7 +277,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def agg(self, func=None, **kwargs) -> df.DataFrame:
         if func:
             if isinstance(func, str):
-                return self._agg_string(func)
+                return self.size() if func == "size" else self._agg_string(func)
             elif utils.is_dict_like(func):
                 return self._agg_dict(func)
             elif utils.is_list_like(func):
