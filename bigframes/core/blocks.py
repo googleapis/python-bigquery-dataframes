@@ -996,7 +996,7 @@ class Block:
         self,
         operation: typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp],
         *,
-        axis: int | str = 1,
+        axis: int | str = 0,
         value_col_id: str = "values",
         dropna: bool = True,
     ) -> Block:
