@@ -303,7 +303,11 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
-        aggregations: typing.List[typing.Tuple[str, agg_ops.UnaryAggregateOp]] = []
+        aggregations: typing.List[
+            typing.Tuple[
+                str, typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
+            ]
+        ] = []
         column_labels = []
 
         want_aggfunc_level = any(utils.is_list_like(aggs) for aggs in func.values())
