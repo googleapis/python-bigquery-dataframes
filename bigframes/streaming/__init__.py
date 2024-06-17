@@ -95,22 +95,12 @@ def to_bigtable(
         bq_client = bigframes.get_global_session().bqclient
 
     # build export string from parameters
-    app_profile_url_string = ""
-    if app_profile is not None:
-        app_profile_url_string = f"appProfiles/{app_profile}/"
-
-    auto_create_column_families_string = "FALSE"
-    if auto_create_column_families:
-        auto_create_column_families_string = "TRUE"
-
     project = bq_client.project
-
     bigtable_options_parameter_string = ""
     if bigtable_options is not None:
         bigtable_options_parameter_string = (
             'bigtable_options = """' + json.dumps(bigtable_options) + '""",\n'
         )
-
     sql = (
         "EXPORT DATA\n"
         "OPTIONS (\n"
@@ -118,8 +108,8 @@ def to_bigtable(
         f"{bigtable_options_parameter_string}"
         f"truncate = {str(truncate)},\n"
         f"overwrite = {str(overwrite)},\n"
-        f"auto_create_column_families = {auto_create_column_families_string},\n"
-        f'uri = "https://bigtable.googleapis.com/projects/{project}/instances/{instance}/{app_profile_url_string}tables/{table}"\n'
+        f"auto_create_column_families = {auto_create_column_families},\n"
+        f'uri = "https://bigtable.googleapis.com/projects/{project}/instances/{instance}/appProfiles/{app_profile}/tables/{table}"\n'
         ")\n"
         "AS (\n"
         f"{query});"
@@ -133,10 +123,10 @@ def to_bigtable(
     query_job = bq_client.query(
         sql,
         job_config=job_config_filled,  # type:ignore
+        # typing error is in bq client library (should accept abstract job_config, only takes concrete)
         job_id=job_id,
         job_id_prefix=job_id_prefix,
     )
-    # typing error is in bq client library (should accept abstract job_config, only takes concrete)
 
     # return the query job to the user for lifetime management
     return query_job
