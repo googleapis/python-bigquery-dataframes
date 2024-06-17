@@ -57,4 +57,4 @@ def test_unordered_mode_read_gbq(unordered_session):
             ),
         }
     )
-    assert_pandas_df_equal(df.to_pandas(), expected)
+    assert_pandas_df_equal(df.to_pandas(), expected, ignore_order=True)
