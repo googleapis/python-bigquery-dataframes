@@ -19,7 +19,7 @@ import bigframes.streaming
 
 def test_streaming_to_bigtable():
     # launch a continuous query
-    job_id = "test_streaming"
+    job_id_prefix = "test_streaming_"
     sql = """SELECT
         body_mass_g, island as rowkey
         FROM birds.penguins"""
@@ -32,16 +32,17 @@ def test_streaming_to_bigtable():
         overwrite=True,
         auto_create_column_families=True,
         bigtable_options={},
-        job_id=job_id,
-        job_id_prefix="ignored_due_to_job_id",
+        job_id=None,
+        job_id_prefix=job_id_prefix,
     )
 
     try:
         # wait 100 seconds in order to ensure the query doesn't stop
         # (i.e. it is continuous)
         time.sleep(100)
+        assert query_job.error_result is None
         assert query_job.errors is None
-        assert not query_job.done()
-        assert query_job.job_id == job_id
+        assert query_job.running()
+        assert str(query_job.job_id).startswith(job_id_prefix)
     finally:
         query_job.cancel()
