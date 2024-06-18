@@ -322,7 +322,7 @@ def run_system(
     pytest_cmd = [
         "py.test",
         "--quiet",
-        # "-n=20",
+        "-n=20",
         # Any individual test taking longer than 15 mins will be terminated.
         f"--timeout={timeout_seconds}",
         # Log 20 slowest tests
@@ -361,7 +361,7 @@ def system(session: nox.sessions.Session):
     run_system(
         session=session,
         prefix_name="system",
-        test_folder="tests/system/large/test_remote_function.py::test_df_apply_axis_1",  # os.path.join("tests", "system", "small"),
+        test_folder=os.path.join("tests", "system", "small"),
         check_cov=True,
     )
 
