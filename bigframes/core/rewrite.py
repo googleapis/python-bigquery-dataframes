@@ -123,14 +123,14 @@ class SquashedSelect:
             return False
         return True
 
-    def maybe_merge(
+    def merge(
         self,
         right: SquashedSelect,
         join_type: join_defs.JoinType,
         mappings: Tuple[join_defs.JoinColumnMapping, ...],
-    ) -> Optional[SquashedSelect]:
+    ) -> SquashedSelect:
         if self.root != right.root:
-            return None
+            raise ValueError("Cannot merge expressions with different roots")
         # Mask columns and remap names to expected schema
         lselection = self.columns
         rselection = right.columns
@@ -204,13 +204,16 @@ class SquashedSelect:
 
 
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
-    rewritten = join_as_projection(
-        join_node.left_child,
-        join_node.right_child,
-        join_node.join.mappings,
-        join_node.join.type,
-    )
-    return rewritten if rewritten is not None else join_node
+    rewrite_common_node = common_subtree(join_node.left_child, join_node.right_child)
+    if rewrite_common_node is None:
+        return join_node
+    left_side = SquashedSelect.from_node(join_node.left_child, rewrite_common_node)
+    right_side = SquashedSelect.from_node(join_node.right_child, rewrite_common_node)
+    if left_side.can_join(right_side, join_node.join):
+        return left_side.merge(
+            right_side, join_node.join.type, join_node.join.mappings
+        ).expand()
+    return join_node
 
 
 def join_as_projection(
@@ -223,7 +226,7 @@ def join_as_projection(
     if rewrite_common_node is not None:
         left_side = SquashedSelect.from_node(l_node, rewrite_common_node)
         right_side = SquashedSelect.from_node(r_node, rewrite_common_node)
-        merged = left_side.maybe_merge(right_side, how, mappings)
+        merged = left_side.merge(right_side, how, mappings)
         assert (
             merged is not None
         ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."
