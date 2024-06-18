@@ -742,6 +742,9 @@ def test_read_gbq_function_enforces_explicit_types(
         )
 
 
+@pytest.mark.skip(
+    reason="TODO(b/345549684): avoid reusing cloud functions with stale package versions"
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs):
     columns = [
@@ -784,6 +787,9 @@ def test_df_apply_axis_1(session, scalars_dfs):
     )
 
 
+@pytest.mark.skip(
+    reason="TODO(b/345549684): avoid reusing cloud functions with stale package versions"
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_ordering(session, scalars_dfs):
     columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
@@ -816,6 +822,9 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs):
     )
 
 
+@pytest.mark.skip(
+    reason="TODO(b/345549684): avoid reusing cloud functions with stale package versions"
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1_multiindex(session):
     pd_df = pd.DataFrame(
