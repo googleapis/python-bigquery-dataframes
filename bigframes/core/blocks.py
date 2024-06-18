@@ -1384,6 +1384,26 @@ class Block:
             raise ValueError("Unexpected number of value columns.")
         return expr.select_columns([*index_columns, *value_columns])
 
+    def grouped_head(
+        self,
+        by_column_ids: typing.Sequence[str],
+        value_columns: typing.Sequence[str],
+        n: int,
+    ):
+        window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
+
+        block, result_id = self.apply_window_op(
+            value_columns[0],
+            agg_ops.rank_op,
+            window_spec=window_spec,
+        )
+
+        cond = ops.lt_op.as_expr(result_id, ex.const(n + 1))
+        block, cond_id = block.project_expr(cond)
+        block = block.filter_by_id(cond_id)
+        if value_columns:
+            return block.select_columns(value_columns)
+
     def slice(
         self,
         start: typing.Optional[int] = None,
@@ -2345,7 +2365,6 @@ class Block:
         # TODO(shobs): Replace direct SQL manipulation by structured expression
         # manipulation
         ordering_column_name = guid.generate_guid()
-        self.session._cache_with_offsets(self.expr)
         expr = self.expr.promote_offsets(ordering_column_name)
         expr_sql = self.session._to_sql(expr)
 
@@ -2415,17 +2434,31 @@ T1 AS (
 )
 SELECT {select_columns_csv} FROM T1
 """
-        ibis_table = self.session.ibis_client.sql(json_sql)
-        order_for_ibis_table = ordering.ExpressionOrdering.from_offset_col(
-            ordering_column_name
+        # The only ways this code is used is through df.apply(axis=1) cope path
+        destination, query_job = self.session._query_to_destination(
+            json_sql, index_cols=[ordering_column_name], api_name="apply"
         )
-        expr = core.ArrayValue.from_ibis(
-            self.session,
-            ibis_table,
-            [ibis_table[col] for col in select_columns if col != ordering_column_name],
-            hidden_ordering_columns=[ibis_table[ordering_column_name]],
-            ordering=order_for_ibis_table,
+        if not destination:
+            raise ValueError(f"Query job {query_job} did not produce result table")
+
+        new_schema = (
+            self.expr.schema.select([*self.index_columns])
+            .append(
+                bf_schema.SchemaItem(
+                    row_json_column_name, bigframes.dtypes.STRING_DTYPE
+                )
+            )
+            .append(
+                bf_schema.SchemaItem(ordering_column_name, bigframes.dtypes.INT_DTYPE)
+            )
         )
+
+        expr = core.ArrayValue.from_table(
+            self.session.bqclient.get_table(destination),
+            schema=new_schema,
+            session=self.session,
+            offsets_col=ordering_column_name,
+        ).drop_columns([ordering_column_name])
         block = Block(
             expr,
             index_columns=self.index_columns,
