@@ -865,11 +865,6 @@ def test_assign_same_table_different_index_performs_self_join(
     bf_result = bf_df.assign(new_col=bf_df_2[column_name] * 10).to_pandas()
     pd_result = pd_df.assign(new_col=pd_df_2[column_name] * 10)
 
-    print("pandas")
-    print(pd_result.to_string())
-    print("bigframes")
-    print(bf_result.to_string())
-
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
