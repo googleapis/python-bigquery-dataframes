@@ -39,6 +39,7 @@ from typing import (
 import warnings
 
 import ibis
+import numpy
 import pandas
 import pyarrow
 import requests
@@ -280,6 +281,7 @@ class RemoteFunctionClient:
         if is_row_processor:
             # bigframes remote function will send an entire row of data as json,
             # which would be converted to a pandas series and processed
+            requirements.append(f"numpy=={numpy.__version__}")
             requirements.append(f"pandas=={pandas.__version__}")
             requirements.append(f"pyarrow=={pyarrow.__version__}")
         if package_requirements:

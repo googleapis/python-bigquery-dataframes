@@ -1554,7 +1554,7 @@ def test_remote_function_max_instances(
         )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+# @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs):
     columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
