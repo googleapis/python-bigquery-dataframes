@@ -276,18 +276,10 @@ class RemoteFunctionClient:
         """
 
         # requirements.txt
-        requirements = ["cloudpickle >= 2.1.0"]
-        if is_row_processor:
-            # bigframes remote function will send an entire row of data as json,
-            # which would be converted to a pandas series and processed
-            requirements.append(f"pandas=={pandas.__version__}")
-            requirements.append(f"pyarrow=={pyarrow.__version__}")
         if package_requirements:
-            requirements.extend(package_requirements)
-        requirements = sorted(requirements)
-        requirements_txt = os.path.join(directory, "requirements.txt")
-        with open(requirements_txt, "w") as f:
-            f.write("\n".join(requirements))
+            requirements_txt = os.path.join(directory, "requirements.txt")
+            with open(requirements_txt, "w") as f:
+                f.write("\n".join(package_requirements))
 
         # main.py
         entry_point = bigframes.functions.remote_function_template.generate_cloud_function_main_code(
@@ -440,6 +432,20 @@ class RemoteFunctionClient:
         )
         return endpoint
 
+    def _get_updated_package_requirements(self, package_requirements, is_row_processor):
+        requirements = ["cloudpickle>=2.1.0"]
+        if is_row_processor:
+            # bigframes remote function will send an entire row of data as json,
+            # which would be converted to a pandas series and processed
+            requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
+
+        if package_requirements:
+            requirements.extend(package_requirements)
+
+        requirements = sorted(requirements)
+        return requirements
+
     def provision_bq_remote_function(
         self,
         def_,
@@ -463,6 +469,12 @@ class RemoteFunctionClient:
             uniq_suffix = "".join(
                 random.choices(string.ascii_lowercase + string.digits, k=8)
             )
+
+        # Augment user package requirements with any internal package
+        # requirements
+        package_requirements = self._get_updated_package_requirements(
+            package_requirements, is_row_processor
+        )
 
         # Derive the name of the cloud function underlying the intended BQ
         # remote function
