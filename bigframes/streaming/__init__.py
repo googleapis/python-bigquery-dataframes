@@ -114,7 +114,7 @@ def to_bigtable(
         f"{bigtable_options_parameter_string}"
         f"truncate = {str(truncate)},\n"
         f"overwrite = {str(overwrite)},\n"
-        f"auto_create_column_families = {auto_create_column_families},\n"
+        f"auto_create_column_families = {str(auto_create_column_families)},\n"
         f'uri = "https://bigtable.googleapis.com/projects/{project}/instances/{instance}/{app_profile_url_string}tables/{table}"\n'
         ")\n"
         "AS (\n"
