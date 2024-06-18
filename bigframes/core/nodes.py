@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field, fields, replace
+import datetime
 import functools
 import itertools
 import typing
 from typing import Callable, Tuple
+
+import google.cloud.bigquery as bq
 
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -31,8 +34,6 @@ import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
-    import ibis.expr.types as ibis_types
-
     import bigframes.core.ordering as orderings
     import bigframes.session
 
@@ -299,14 +300,36 @@ class ReadLocalNode(BigFrameNode):
         return self
 
 
-# TODO: Refactor to take raw gbq object reference
+## Put ordering in here or just add order_by node above?
 @dataclass(frozen=True)
-class ReadGbqNode(BigFrameNode):
-    table: ibis_types.Table = field()
+class ReadTableNode(BigFrameNode):
+    project_id: str = field()
+    dataset_id: str = field()
+    table_id: str = field()
+
+    physical_schema: Tuple[bq.SchemaField, ...] = field()
+    # Subset of physical schema columns, with chosen BQ types
+    columns: schemata.ArraySchema = field()
+
     table_session: bigframes.session.Session = field()
-    columns: Tuple[ibis_types.Value, ...] = field()
-    hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
-    ordering: orderings.ExpressionOrdering = field()
+    # Empty tuple if no primary key (primary key can be any set of columns that together form a unique key)
+    # Empty if no known unique key
+    total_order_cols: Tuple[str, ...] = field()
+    # indicates a primary key that is exactly offsets 0, 1, 2, ..., N-2, N-1
+    order_col_is_sequential: bool = False
+    at_time: typing.Optional[datetime.datetime] = None
+    # Added for backwards compatibility, not validated
+    sql_predicate: typing.Optional[str] = None
+
+    def __post_init__(self):
+        # enforce invariants
+        physical_names = set(map(lambda i: i.name, self.physical_schema))
+        if not set(self.columns.names).issubset(physical_names):
+            raise ValueError(
+                f"Requested schema {self.columns} cannot be derived from table schemal {self.physical_schema}"
+            )
+        if self.order_col_is_sequential and len(self.total_order_cols) != 1:
+            raise ValueError("Sequential primary key must have only one component")
 
     @property
     def session(self):
@@ -319,25 +342,68 @@ class ReadGbqNode(BigFrameNode):
     def roots(self) -> typing.Set[BigFrameNode]:
         return {self}
 
-    @functools.cached_property
+    @property
     def schema(self) -> schemata.ArraySchema:
-        items = tuple(
-            schemata.SchemaItem(
-                value.get_name(),
-                bigframes.dtypes.ibis_dtype_to_bigframes_dtype(value.type()),
-            )
-            for value in self.columns
-        )
-        return schemata.ArraySchema(items)
-
-    @functools.cached_property
-    def variables_introduced(self) -> int:
-        return len(self.columns) + len(self.hidden_ordering_columns)
+        return self.columns
 
     @property
     def relation_ops_created(self) -> int:
         # Assume worst case, where readgbq actually has baked in analytic operation to generate index
-        return 2
+        return 3
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return len(self.schema.items) + 1
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
+
+# This node shouldn't be used in the "original" expression tree, only used as replacement for original during planning
+@dataclass(frozen=True)
+class CachedTableNode(BigFrameNode):
+    # The original BFET subtree that was cached
+    # note: this isn't a "child" node.
+    original_node: BigFrameNode = field()
+    # reference to cached materialization of original_node
+    project_id: str = field()
+    dataset_id: str = field()
+    table_id: str = field()
+    physical_schema: Tuple[bq.SchemaField, ...] = field()
+
+    ordering: typing.Optional[orderings.ExpressionOrdering] = field()
+
+    @property
+    def session(self):
+        return self.original_node.session
+
+    def __hash__(self):
+        return self._node_hash
+
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
+    @property
+    def schema(self) -> schemata.ArraySchema:
+        return self.original_node.schema
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return len(self.schema.items) + OVERHEAD_VARIABLES
+
+    @property
+    def hidden_columns(self) -> typing.Tuple[str, ...]:
+        """Physical columns used to define ordering but not directly exposed as value columns."""
+        if self.ordering is None:
+            return ()
+        return tuple(
+            col
+            for col in sorted(self.ordering.referenced_columns)
+            if col not in self.schema.names
+        )
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]

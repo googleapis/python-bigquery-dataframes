@@ -15,6 +15,7 @@
 import pytest
 
 from bigframes.ml import llm
+from tests.system import utils
 
 
 def test_create_text_generator_model(
@@ -303,10 +304,16 @@ def test_embedding_generator_predict_series_success(
     assert len(value) == 768
 
 
-def test_create_gemini_text_generator_model(
-    gemini_text_generator_model, dataset_id, bq_connection
+@pytest.mark.parametrize(
+    "model_name",
+    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+)
+def test_create_load_gemini_text_generator_model(
+    dataset_id, model_name, session, bq_connection
 ):
-    # Model creation doesn't return error
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
     assert gemini_text_generator_model is not None
     assert gemini_text_generator_model._bqml_model is not None
 
@@ -316,12 +323,25 @@ def test_create_gemini_text_generator_model(
     )
     assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
     assert reloaded_model.connection_name == bq_connection
+    assert reloaded_model.model_name == model_name
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        # TODO(garrrettwu): enable when cl/637028077 is in prod.
+        #  "gemini-1.5-flash-preview-0514"
+    ),
+)
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
-    gemini_text_generator_model, llm_text_df
+    llm_text_df, model_name, session, bq_connection
 ):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
     df = gemini_text_generator_model.predict(llm_text_df).to_pandas()
     assert df.shape == (3, 4)
     assert "ml_generate_text_llm_result" in df.columns
@@ -329,10 +349,17 @@ def test_gemini_text_generator_predict_default_params_success(
     assert all(series.str.len() > 20)
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+)
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
-    gemini_text_generator_model, llm_text_df
+    llm_text_df, model_name, session, bq_connection
 ):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
     df = gemini_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
@@ -340,3 +367,48 @@ def test_gemini_text_generator_predict_with_params_success(
     assert "ml_generate_text_llm_result" in df.columns
     series = df["ml_generate_text_llm_result"]
     assert all(series.str.len() > 20)
+
+
+@pytest.mark.flaky(retries=2)
+def test_llm_gemini_pro_score(llm_fine_tune_df_default_index):
+    model = llm.GeminiTextGenerator(model_name="gemini-pro")
+
+    # Check score to ensure the model was fitted
+    score_result = model.score(
+        X=llm_fine_tune_df_default_index[["prompt"]],
+        y=llm_fine_tune_df_default_index[["label"]],
+    ).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        score_result,
+        columns=[
+            "bleu4_score",
+            "rouge-l_precision",
+            "rouge-l_recall",
+            "rouge-l_f1_score",
+            "evaluation_status",
+        ],
+        index=1,
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index):
+    model = llm.GeminiTextGenerator(model_name="gemini-pro")
+
+    # Check score to ensure the model was fitted
+    score_result = model.score(
+        X=llm_fine_tune_df_default_index["prompt"],
+        y=llm_fine_tune_df_default_index["label"],
+        task_type="classification",
+    ).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        score_result,
+        columns=[
+            "precision",
+            "recall",
+            "f1_score",
+            "label",
+            "evaluation_status",
+        ],
+        index=6,
+    )

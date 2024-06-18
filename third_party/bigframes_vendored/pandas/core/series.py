@@ -1183,8 +1183,8 @@ class Series(NDFrame):  # type: ignore[misc]
         to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
-            >>> @bpd.remote_function(int, float, reuse=False)
-            ... def minutes_to_hours(x):
+            >>> @bpd.remote_function(reuse=False)
+            ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
             >>> minutes = bpd.Series([0, 30, 60, 90, 120])
@@ -1210,12 +1210,10 @@ class Series(NDFrame):  # type: ignore[misc]
         `packages` param.
 
             >>> @bpd.remote_function(
-            ...     str,
-            ...     str,
             ...     reuse=False,
             ...     packages=["cryptography"],
             ... )
-            ... def get_hash(input):
+            ... def get_hash(input: str) -> str:
             ...     from cryptography.fernet import Fernet
             ...
             ...     # handle missing value
@@ -3452,8 +3450,8 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function(str, bool, reuse=False)
-            ... def should_mask(name):
+            >>> @bpd.remote_function(reuse=False)
+            ... def should_mask(name: str) -> bool:
             ...     hash = 0
             ...     for char_ in name:
             ...         hash += ord(char_)
@@ -3971,8 +3969,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function(str, str)
-            ... def my_mapper(val):
+            >>> @bpd.remote_function()
+            ... def my_mapper(val: str) -> str:
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:
             ...         return "".join([
@@ -4226,7 +4224,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise AND with the Series.
 
         Returns:
-            Series: The result of the operation.
+            bigframes.series.Series: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4264,7 +4262,45 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise OR with the Series.
 
         Returns:
-            Series: The result of the operation.
+            bigframes.series.Series: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __xor__(self, other):
+        """Get bitwise XOR of Series and other, element-wise, using operator `^`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0, 1, 2, 3])
+
+        You can operate with a scalar.
+
+            >>> s ^ 6
+            0    6
+            1    7
+            2    4
+            3    5
+            dtype: Int64
+
+        You can operate with another Series.
+
+            >>> s1 = bpd.Series([5, 6, 7, 8])
+            >>> s ^ s1
+            0     5
+            1     7
+            2     5
+            3    11
+            dtype: Int64
+
+        Args:
+            other (scalar or Series):
+                Object to bitwise XOR with the Series.
+
+        Returns:
+            bigframes.series.Series: The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

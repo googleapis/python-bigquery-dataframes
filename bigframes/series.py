@@ -73,6 +73,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
+        self._block.session._register_object(self)
 
     @property
     def dt(self) -> dt.DatetimeMethods:
@@ -286,6 +287,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return bigframes.dataframe.DataFrame(block)
 
     def __repr__(self) -> str:
+        # Protect against errors with uninitialized Series. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        if not hasattr(self, "_block"):
+            return object.__repr__(self)
+
         # TODO(swast): Add a timeout here? If the query is taking a long time,
         # maybe we just print the job metadata that we have so far?
         # TODO(swast): Avoid downloading the whole series by using job
@@ -688,6 +694,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     __ror__ = __or__
 
+    def __xor__(self, other: bool | int | Series) -> Series:
+        return self._apply_binary_op(other, ops.xor_op)
+
+    __or__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__xor__)
+
+    __rxor__ = __xor__
+
     def __add__(self, other: float | int | Series) -> Series:
         return self.add(other)
 
@@ -796,10 +809,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rpow(self, other: float | int | Series) -> Series:
         return self._apply_binary_op(other, ops.pow_op, reverse=True)
 
-    def __lt__(self, other: float | int | Series) -> Series:  # type: ignore
+    def __lt__(self, other: float | int | str | Series) -> Series:
         return self.lt(other)
 
-    def __le__(self, other: float | int | Series) -> Series:  # type: ignore
+    def __le__(self, other: float | int | str | Series) -> Series:
         return self.le(other)
 
     def lt(self, other) -> Series:
@@ -808,10 +821,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def le(self, other) -> Series:
         return self._apply_binary_op(other, ops.le_op)
 
-    def __gt__(self, other: float | int | Series) -> Series:  # type: ignore
+    def __gt__(self, other: float | int | str | Series) -> Series:
         return self.gt(other)
 
-    def __ge__(self, other: float | int | Series) -> Series:  # type: ignore
+    def __ge__(self, other: float | int | str | Series) -> Series:
         return self.ge(other)
 
     def gt(self, other) -> Series:
@@ -1055,6 +1068,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_unary_op(ops.invert_op)
 
     __invert__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__invert__)
+
+    def __pos__(self) -> Series:
+        return self._apply_unary_op(ops.pos_op)
+
+    def __neg__(self) -> Series:
+        return self._apply_unary_op(ops.neg_op)
 
     def eq(self, other: object) -> Series:
         # TODO: enforce stricter alignment
@@ -1807,7 +1826,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._cached(force=True)
 
     def _cached(self, *, force: bool = True) -> Series:
-        self._set_block(self._block.cached(force=force))
+        self._block.cached(force=force)
         return self
 
     def _optimize_query_complexity(self):
@@ -1815,8 +1834,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         May generate many queries and take substantial time to execute.
         """
         # TODO: Move all this to session
-        new_expr = self._block.session._simplify_with_caching(self._block.expr)
-        self._set_block(self._block.swap_array_expr(new_expr))
+        self._block.session._simplify_with_caching(self._block.expr)
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:

@@ -161,7 +161,10 @@ def _convert_expr_input(
 def create_unary_op(name: str, type_signature: op_typing.UnaryTypeSignature) -> UnaryOp:
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method)],  # type: ignore
+        [
+            ("name", typing.ClassVar[str], name),
+            ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method),
+        ],
         bases=(UnaryOp,),
         frozen=True,
     )()
@@ -172,7 +175,10 @@ def create_binary_op(
 ) -> BinaryOp:
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method)],  # type: ignore
+        [
+            ("name", typing.ClassVar[str], name),
+            ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method),
+        ],
         bases=(BinaryOp,),
         frozen=True,
     )()
@@ -186,7 +192,7 @@ invert_op = create_unary_op(
         dtypes.is_binary_like,
         description="binary-like",
     ),
-)  # numeric
+)
 isnull_op = create_unary_op(
     name="isnull",
     type_signature=op_typing.FixedOutputType(
@@ -311,6 +317,8 @@ arctanh_op = create_unary_op(
 floor_op = create_unary_op(name="floor", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ceil_op = create_unary_op(name="ceil", type_signature=op_typing.UNARY_REAL_NUMERIC)
 abs_op = create_unary_op(name="abs", type_signature=op_typing.UNARY_NUMERIC)
+pos_op = create_unary_op(name="pos", type_signature=op_typing.UNARY_NUMERIC)
+neg_op = create_unary_op(name="neg", type_signature=op_typing.UNARY_NUMERIC)
 exp_op = create_unary_op(name="exp", type_signature=op_typing.UNARY_REAL_NUMERIC)
 expm1_op = create_unary_op(name="expm1", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ln_op = create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
@@ -491,8 +499,9 @@ class AsTypeOp(UnaryOp):
         if self.to_type == pa.string():
             return dtypes.STRING_DTYPE
         if isinstance(self.to_type, str):
-            # TODO(b/340895446): fix type error
-            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[self.to_type]  # type: ignore
+            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
+                typing.cast(dtypes.DtypeString, self.to_type)
+            ]
         return self.to_type
 
 
@@ -514,8 +523,10 @@ class RemoteFunctionOp(UnaryOp):
 
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        # TODO(b/340895446): fix type error
-        return self.func.output_dtype  # type: ignore
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -578,6 +589,19 @@ class FloorDtOp(UnaryOp):
         return input_types[0]
 
 
+## Array Ops
+@dataclasses.dataclass(frozen=True)
+class ArrayToStringOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_to_string"
+    delimiter: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_array_string_like(input_type):
+            raise TypeError("Input type must be an array of string type.")
+        return dtypes.STRING_DTYPE
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -629,8 +653,10 @@ class BinaryRemoteFunctionOp(BinaryOp):
 
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        # TODO(b/340895446): fix type error
-        return self.func.output_dtype  # type: ignore
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
 
 
 add_op = AddOp()
@@ -650,6 +676,7 @@ unsafe_pow_op = create_binary_op(
 # Logical Ops
 and_op = create_binary_op(name="and", type_signature=op_typing.LOGICAL)
 or_op = create_binary_op(name="or", type_signature=op_typing.LOGICAL)
+xor_op = create_binary_op(name="xor", type_signature=op_typing.LOGICAL)
 
 ## Comparison Ops
 eq_op = create_binary_op(name="eq", type_signature=op_typing.COMPARISON)

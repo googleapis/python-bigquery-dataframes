@@ -39,5 +39,13 @@ class PreviewWarning(Warning):
     """The feature is in preview."""
 
 
+class NullIndexPreviewWarning(PreviewWarning):
+    """Null index feature is in preview."""
+
+
 class NullIndexError(ValueError):
     """Object has no index."""
+
+
+class TimeTravelDisabledWarning(Warning):
+    """A query was reattempted without time travel."""

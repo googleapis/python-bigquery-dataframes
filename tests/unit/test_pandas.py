@@ -50,7 +50,7 @@ def all_session_methods():
     [(method_name,) for method_name in all_session_methods()],
 )
 def test_method_matches_session(method_name: str):
-    if sys.version_info <= (3, 10):
+    if sys.version_info < (3, 10):
         pytest.skip(
             "Need Python 3.10 to reconcile deferred annotations."
         )  # pragma: no cover
@@ -95,8 +95,7 @@ def test_cut_raises_with_labels():
         match="The 'labels' parameter must be either False or None.",
     ):
         mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
-        # TODO(b/340893280): fix type error
-        bigframes.pandas.cut(mock_series, 4, labels=["a", "b", "c", "d"])  # type: ignore
+        bigframes.pandas.cut(mock_series, 4, labels=["a", "b", "c", "d"])
 
 
 @pytest.mark.parametrize(

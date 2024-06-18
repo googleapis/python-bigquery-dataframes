@@ -20,9 +20,11 @@ import google.auth.credentials
 import google.cloud.bigquery
 import ibis
 import pandas
+import pyarrow as pa
 import pytest
 
 import bigframes
+import bigframes.clients
 import bigframes.core as core
 import bigframes.core.ordering
 import bigframes.dataframe
@@ -39,6 +41,7 @@ def create_bigquery_session(
     session_id: str = "abcxyz",
     table_schema: Sequence[google.cloud.bigquery.SchemaField] = TEST_SCHEMA,
     anonymous_dataset: Optional[google.cloud.bigquery.DatasetReference] = None,
+    location: str = "test-region",
 ) -> bigframes.Session:
     credentials = mock.create_autospec(
         google.auth.credentials.Credentials, instance=True
@@ -53,11 +56,12 @@ def create_bigquery_session(
     if bqclient is None:
         bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
         bqclient.project = "test-project"
+        bqclient.location = location
 
         # Mock the location.
         table = mock.create_autospec(google.cloud.bigquery.Table, instance=True)
         table._properties = {}
-        type(table).location = mock.PropertyMock(return_value="test-region")
+        type(table).location = mock.PropertyMock(return_value=location)
         type(table).schema = mock.PropertyMock(return_value=table_schema)
         type(table).reference = mock.PropertyMock(
             return_value=anonymous_dataset.table("test_table")
@@ -93,10 +97,11 @@ def create_bigquery_session(
     type(clients_provider).bqclient = mock.PropertyMock(return_value=bqclient)
     clients_provider._credentials = credentials
 
-    bqoptions = bigframes.BigQueryOptions(
-        credentials=credentials, location="test-region"
-    )
+    bqoptions = bigframes.BigQueryOptions(credentials=credentials, location=location)
     session = bigframes.Session(context=bqoptions, clients_provider=clients_provider)
+    session._bq_connection_manager = mock.create_autospec(
+        bigframes.clients.BqConnectionManager, instance=True
+    )
     return session
 
 
@@ -126,18 +131,9 @@ def create_arrayvalue(
     df: pandas.DataFrame, total_ordering_columns: List[str]
 ) -> core.ArrayValue:
     session = create_pandas_session({"test_table": df})
-    ibis_table = session.ibis_client.table("test_table")
-    columns = tuple(ibis_table[key] for key in ibis_table.columns)
-    ordering = bigframes.core.ordering.ExpressionOrdering(
-        tuple(
-            [core.orderings.ascending_over(column) for column in total_ordering_columns]
-        ),
-        total_ordering_columns=frozenset(total_ordering_columns),
-    )
-    return core.ArrayValue.from_ibis(
+    return core.ArrayValue.from_pyarrow(
+        arrow_table=pa.Table.from_pandas(df, preserve_index=False),
         session=session,
-        table=ibis_table,
-        columns=columns,
-        hidden_ordering_columns=(),
-        ordering=ordering,
+    ).order_by(
+        [bigframes.core.ordering.ascending_over(col) for col in total_ordering_columns]
     )

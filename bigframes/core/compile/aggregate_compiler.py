@@ -22,10 +22,10 @@ import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.compile.ibis_types as compile_ibis_types
 import bigframes.core.compile.scalar_op_compiler as scalar_compilers
 import bigframes.core.expression as ex
 import bigframes.core.window_spec as window_spec
-import bigframes.dtypes as dtypes
 import bigframes.operations.aggregations as agg_ops
 
 scalar_compiler = scalar_compilers.scalar_op_compiler
@@ -36,6 +36,8 @@ def compile_aggregate(
     bindings: typing.Dict[str, ibis_types.Value],
     order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.Value:
+    if isinstance(aggregate, ex.NullaryAggregation):
+        return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         if aggregate.op.can_order_by:
@@ -55,7 +57,9 @@ def compile_analytic(
     window: window_spec.WindowSpec,
     bindings: typing.Dict[str, ibis_types.Value],
 ) -> ibis_types.Value:
-    if isinstance(aggregate, ex.UnaryAggregation):
+    if isinstance(aggregate, ex.NullaryAggregation):
+        return compile_nullary_agg(aggregate.op, window)
+    elif isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         return compile_unary_agg(aggregate.op, input, window)
     elif isinstance(aggregate, ex.BinaryAggregation):
@@ -93,6 +97,14 @@ def compile_ordered_unary_agg(
     raise ValueError(f"Can't compile unrecognized operation: {op}")
 
 
+@functools.singledispatch
+def compile_nullary_agg(
+    op: agg_ops.WindowOp,
+    window: Optional[window_spec.WindowSpec] = None,
+) -> ibis_types.Value:
+    raise ValueError(f"Can't compile unrecognized operation: {op}")
+
+
 def numeric_op(operation):
     @functools.wraps(operation)
     def constrained_op(
@@ -116,6 +128,11 @@ def numeric_op(operation):
 
 
 ### Specific Op implementations Below
+
+
+@compile_nullary_agg.register
+def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
+    return _apply_window_if_present(vendored_ibis_ops.count(1), window)
 
 
 @compile_unary_agg.register
@@ -306,7 +323,7 @@ def _(
             for this_bin in range(op.bins - 1):
                 out = out.when(
                     x <= (col_min + (this_bin + 1) * bin_width),
-                    dtypes.literal_to_ibis_scalar(
+                    compile_ibis_types.literal_to_ibis_scalar(
                         this_bin, force_dtype=pd.Int64Dtype()
                     ),
                 )
@@ -335,8 +352,8 @@ def _(
                     out = out.when(x.notnull(), interval_struct)
     else:  # Interpret as intervals
         for interval in op.bins:
-            left = dtypes.literal_to_ibis_scalar(interval[0])
-            right = dtypes.literal_to_ibis_scalar(interval[1])
+            left = compile_ibis_types.literal_to_ibis_scalar(interval[0])
+            right = compile_ibis_types.literal_to_ibis_scalar(interval[1])
             condition = (x > left) & (x <= right)
             interval_struct = ibis.struct(
                 {"left_exclusive": left, "right_inclusive": right}
@@ -353,7 +370,7 @@ def _(
     window=None,
 ) -> ibis_types.IntegerValue:
     if isinstance(self.quantiles, int):
-        quantiles_ibis = dtypes.literal_to_ibis_scalar(self.quantiles)
+        quantiles_ibis = compile_ibis_types.literal_to_ibis_scalar(self.quantiles)
         percent_ranks = cast(
             ibis_types.FloatingColumn,
             _apply_window_if_present(column.percent_rank(), window),
@@ -366,13 +383,19 @@ def _(
             _apply_window_if_present(column.percent_rank(), window),
         )
         out = ibis.case()
-        first_ibis_quantile = dtypes.literal_to_ibis_scalar(self.quantiles[0])
+        first_ibis_quantile = compile_ibis_types.literal_to_ibis_scalar(
+            self.quantiles[0]
+        )
         out = out.when(percent_ranks < first_ibis_quantile, None)
         for bucket_n in range(len(self.quantiles) - 1):
-            ibis_quantile = dtypes.literal_to_ibis_scalar(self.quantiles[bucket_n + 1])
+            ibis_quantile = compile_ibis_types.literal_to_ibis_scalar(
+                self.quantiles[bucket_n + 1]
+            )
             out = out.when(
                 percent_ranks <= ibis_quantile,
-                dtypes.literal_to_ibis_scalar(bucket_n, force_dtype=pd.Int64Dtype()),
+                compile_ibis_types.literal_to_ibis_scalar(
+                    bucket_n, force_dtype=pd.Int64Dtype()
+                ),
             )
         out = out.else_(None)
         return out.end()  # type: ignore

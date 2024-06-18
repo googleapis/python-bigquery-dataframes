@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 import bigframes.constants as constants
+import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -78,7 +79,7 @@ class ScalarOpCompiler:
         expression: ex.ScalarConstantExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
-        return bigframes.dtypes.literal_to_ibis_scalar(
+        return bigframes.core.compile.ibis_types.literal_to_ibis_scalar(
             expression.value, expression.dtype
         )
 
@@ -373,6 +374,16 @@ def ceil_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.abs_op)
 def abs_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).abs()
+
+
+@scalar_op_compiler.register_unary_op(ops.pos_op)
+def pos_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x)
+
+
+@scalar_op_compiler.register_unary_op(ops.neg_op)
+def neg_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).negate()
 
 
 @scalar_op_compiler.register_unary_op(ops.sqrt_op)
@@ -761,14 +772,16 @@ def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampV
 
 @scalar_op_compiler.register_unary_op(ops.AsTypeOp, pass_op=True)
 def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
-    to_type = bigframes.dtypes.bigframes_dtype_to_ibis_dtype(op.to_type)
+    to_type = bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
+        op.to_type
+    )
     if isinstance(x, ibis_types.NullScalar):
         return ibis_types.null().cast(to_type)
 
     # When casting DATETIME column into INT column, we need to convert the column into TIMESTAMP first.
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.timestamp:
         x_converted = x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
-        return bigframes.dtypes.cast_ibis_value(x_converted, to_type)
+        return bigframes.core.compile.ibis_types.cast_ibis_value(x_converted, to_type)
 
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.time:
         # The conversion unit is set to "us" (microseconds) for consistency
@@ -788,7 +801,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
         elif to_type == ibis_dtypes.time:
             return x_converted.time()
 
-    return bigframes.dtypes.cast_ibis_value(x, to_type)
+    return bigframes.core.compile.ibis_types.cast_ibis_value(x, to_type)
 
 
 @scalar_op_compiler.register_unary_op(ops.IsInOp, pass_op=True)
@@ -856,11 +869,12 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
-    if not hasattr(op.func, "bigframes_remote_function"):
+    ibis_node = getattr(op.func, "ibis_node", None)
+    if ibis_node is None:
         raise TypeError(
             f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
         )
-    x_transformed = op.func(x)
+    x_transformed = ibis_node(x)
     if not op.apply_on_null:
         x_transformed = ibis.case().when(x.isnull(), x).else_(x_transformed).end()
     return x_transformed
@@ -872,6 +886,12 @@ def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
     for mapping in op.mappings:
         case = case.when(x == mapping[0], mapping[1])
     return case.else_(x).end()
+
+
+# Array Ops
+@scalar_op_compiler.register_unary_op(ops.ArrayToStringOp, pass_op=True)
+def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
+    return typing.cast(ibis_types.ArrayValue, x).join(op.delimiter)
 
 
 ### Binary Ops
@@ -978,6 +998,16 @@ def or_op(
     )
 
 
+@scalar_op_compiler.register_binary_op(ops.xor_op)
+def xor_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    return typing.cast(ibis_types.BooleanValue, x) ^ typing.cast(
+        ibis_types.BooleanValue, y
+    )
+
+
 @scalar_op_compiler.register_binary_op(ops.add_op)
 @short_circuit_nulls()
 def add_op(
@@ -986,15 +1016,7 @@ def add_op(
 ):
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
         return ibis.null()
-    try:
-        # Could be string concatenation or numeric addition.
-        return x + y  # type: ignore
-    except ibis.common.annotations.SignatureValidationError as exc:
-        left_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(x.type())
-        right_type = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(y.type())
-        raise TypeError(
-            f"Cannot add {repr(left_type)} and {repr(right_type)}. {constants.FEEDBACK_LINK}"
-        ) from exc
+    return x + y  # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.sub_op)
@@ -1342,11 +1364,12 @@ def minimum_impl(
 def binary_remote_function_op_impl(
     x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
 ):
-    if not hasattr(op.func, "bigframes_remote_function"):
+    ibis_node = getattr(op.func, "ibis_node", None)
+    if ibis_node is None:
         raise TypeError(
             f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
         )
-    x_transformed = op.func(x, y)
+    x_transformed = ibis_node(x, y)
     return x_transformed
 
 

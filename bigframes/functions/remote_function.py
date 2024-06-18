@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import collections.abc
 import hashlib
 import inspect
 import logging
@@ -23,12 +24,23 @@ import shutil
 import string
 import sys
 import tempfile
-import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    cast,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 import warnings
 
 import ibis
 import pandas
+import pyarrow
 import requests
 
 if TYPE_CHECKING:
@@ -49,7 +61,8 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 
 from bigframes import clients
 import bigframes.constants as constants
-import bigframes.dtypes
+import bigframes.core.compile.ibis_types
+import bigframes.functions.remote_function_template
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +146,8 @@ class RemoteFunctionClient:
         cloud_function_service_account,
         cloud_function_kms_key_name,
         cloud_function_docker_repository,
+        *,
+        session: Session,
     ):
         self._gcp_project_id = gcp_project_id
         self._cloud_function_region = cloud_function_region
@@ -145,6 +160,7 @@ class RemoteFunctionClient:
         self._cloud_function_service_account = cloud_function_service_account
         self._cloud_function_kms_key_name = cloud_function_kms_key_name
         self._cloud_function_docker_repository = cloud_function_docker_repository
+        self._session = session
 
     def create_bq_remote_function(
         self,
@@ -168,15 +184,11 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
-            output_type
-        )
+        bq_function_return_type = output_type
 
         # We are expecting the input type annotations to be 1:1 with the input args
-        for idx, name in enumerate(input_args):
-            bq_function_args.append(
-                f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
-            )
+        for name, type_ in zip(input_args, input_types):
+            bq_function_args.append(f"{name} {type_}")
 
         remote_function_options = {
             "endpoint": endpoint,
@@ -216,10 +228,8 @@ class RemoteFunctionClient:
             # This requires bigquery.datasets.create IAM permission
             self._bq_client.create_dataset(dataset, exists_ok=True)
 
-        # TODO: Use session._start_query() so we get progress bar
-        query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
-        query_job.result()  # Wait for the job to complete.
-
+        # TODO(swast): plumb through the original, user-facing api_name.
+        _, query_job = self._session._start_query(create_function_ddl)
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_fully_qualified_parent(self):
@@ -246,173 +256,24 @@ class RemoteFunctionClient:
             pass
         return None
 
-    def generate_udf_code(self, def_, dir):
-        """Generate serialized bytecode using cloudpickle given a udf."""
-        udf_code_file_name = "udf.py"
-        udf_bytecode_file_name = "udf.cloudpickle"
-
-        # original code, only for debugging purpose
-        udf_code = textwrap.dedent(inspect.getsource(def_))
-        udf_code_file_path = os.path.join(dir, udf_code_file_name)
-        with open(udf_code_file_path, "w") as f:
-            f.write(udf_code)
-
-        # serialized bytecode
-        udf_bytecode_file_path = os.path.join(dir, udf_bytecode_file_name)
-        with open(udf_bytecode_file_path, "wb") as f:
-            cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
-
-        return udf_code_file_name, udf_bytecode_file_name
-
-    def generate_cloud_function_main_code(self, def_, dir, is_row_processor=False):
-        """Get main.py code for the cloud function for the given user defined function."""
-
-        # Pickle the udf with all its dependencies
-        udf_code_file, udf_bytecode_file = self.generate_udf_code(def_, dir)
-        handler_func_name = "udf_http"
-
-        # We want to build a cloud function that works for BQ remote functions,
-        # where we receive `calls` in json which is a batch of rows from BQ SQL.
-        # The number and the order of values in each row is expected to exactly
-        # match to the number and order of arguments in the udf , e.g. if the udf is
-        #   def foo(x: int, y: str):
-        #     ...
-        # then the http request body could look like
-        # {
-        #   ...
-        #   "calls" : [
-        #     [123, "hello"],
-        #     [456, "world"]
-        #   ]
-        #   ...
-        # }
-        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
-        code = """\
-import cloudpickle
-import functions_framework
-from flask import jsonify
-import json
-"""
-        if is_row_processor:
-            code += """\
-import ast
-import math
-import pandas as pd
-
-def get_pd_series(row):
-    row_json = json.loads(row)
-    col_names = row_json["names"]
-    col_types = row_json["types"]
-    col_values = row_json["values"]
-    index_length = row_json["indexlength"]
-    dtype = row_json["dtype"]
-
-    # At this point we are assuming that col_names, col_types and col_values are
-    # arrays of the same length, representing column names, types and values for
-    # one row of data
-
-    # column names are not necessarily strings
-    # they are serialized as repr(name) at source
-    evaluated_col_names = []
-    for col_name in col_names:
-        try:
-            col_name = ast.literal_eval(col_name)
-        except Exception as ex:
-            raise NameError(f"Failed to evaluate column name from '{col_name}': {ex}")
-        evaluated_col_names.append(col_name)
-    col_names = evaluated_col_names
-
-    # Supported converters for pandas to python types
-    value_converters = {
-        "boolean": lambda val: val == "true",
-        "Int64": int,
-        "Float64": float,
-        "string": str,
-    }
-
-    def convert_value(value, value_type):
-        value_converter = value_converters.get(value_type)
-        if value_converter is None:
-            raise ValueError(f"Don't know how to handle type '{value_type}'")
-        if value is None:
-            return None
-        return value_converter(value)
-
-    index_values = [
-        pd.Series([convert_value(col_values[i], col_types[i])], dtype=col_types[i])[0]
-        for i in range(index_length)
-    ]
-
-    data_col_names = col_names[index_length:]
-    data_col_types = col_types[index_length:]
-    data_col_values = col_values[index_length:]
-    data_col_values = [
-        pd.Series([convert_value(a, data_col_types[i])], dtype=data_col_types[i])[0]
-        for i, a in enumerate(data_col_values)
-    ]
-
-    row_index = index_values[0] if len(index_values) == 1 else tuple(index_values)
-    row_series = pd.Series(data_col_values, index=data_col_names, name=row_index, dtype=dtype)
-    return row_series
-"""
-        code += f"""\
-
-# original udf code is in {udf_code_file}
-# serialized udf code is in {udf_bytecode_file}
-with open("{udf_bytecode_file}", "rb") as f:
-    udf = cloudpickle.load(f)
-
-def {handler_func_name}(request):
-    try:
-        request_json = request.get_json(silent=True)
-        calls = request_json["calls"]
-        replies = []
-        for call in calls:
-"""
-
-        if is_row_processor:
-            code += """\
-            reply = udf(get_pd_series(call[0]))
-            if isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
-                # json serialization of the special float values (nan, inf, -inf)
-                # is not in strict compliance of the JSON specification
-                # https://docs.python.org/3/library/json.html#basic-usage.
-                # Let's convert them to a quoted string representation ("NaN",
-                # "Infinity", "-Infinity" respectively) which is handled by
-                # BigQuery
-                reply = json.dumps(reply)
-            elif pd.isna(reply):
-                # Pandas N/A values are not json serializable, so use a python
-                # equivalent instead
-                reply = None
-            elif hasattr(reply, "item"):
-                # Numpy types are not json serializable, so use its Python
-                # value instead
-                reply = reply.item()
-"""
-        else:
-            code += """\
-            reply = udf(*call)
-"""
-        code += """\
-            replies.append(reply)
-        return_json = json.dumps({"replies" : replies})
-        return return_json
-    except Exception as e:
-        return jsonify( { "errorMessage": str(e) } ), 400
-"""
-
-        main_py = os.path.join(dir, "main.py")
-        with open(main_py, "w") as f:
-            f.write(code)
-        logger.debug(f"Wrote {os.path.abspath(main_py)}:\n{open(main_py).read()}")
-
-        return handler_func_name
-
     def generate_cloud_function_code(
-        self, def_, dir, package_requirements=None, is_row_processor=False
+        self,
+        def_,
+        directory,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
+        package_requirements=None,
+        is_row_processor=False,
     ):
-        """Generate the cloud function code for a given user defined function."""
+        """Generate the cloud function code for a given user defined function.
+
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
+        """
 
         # requirements.txt
         requirements = ["cloudpickle >= 2.1.0"]
@@ -420,16 +281,21 @@ def {handler_func_name}(request):
             # bigframes remote function will send an entire row of data as json,
             # which would be converted to a pandas series and processed
             requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
         if package_requirements:
             requirements.extend(package_requirements)
         requirements = sorted(requirements)
-        requirements_txt = os.path.join(dir, "requirements.txt")
+        requirements_txt = os.path.join(directory, "requirements.txt")
         with open(requirements_txt, "w") as f:
             f.write("\n".join(requirements))
 
         # main.py
-        entry_point = self.generate_cloud_function_main_code(
-            def_, dir, is_row_processor
+        entry_point = bigframes.functions.remote_function_template.generate_cloud_function_main_code(
+            def_,
+            directory,
+            input_types=input_types,
+            output_type=output_type,
+            is_row_processor=is_row_processor,
         )
         return entry_point
 
@@ -437,20 +303,35 @@ def {handler_func_name}(request):
         self,
         def_,
         cf_name,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
         package_requirements=None,
         timeout_seconds=600,
         max_instance_count=None,
         is_row_processor=False,
         vpc_connector=None,
     ):
-        """Create a cloud function from the given user defined function."""
+        """Create a cloud function from the given user defined function.
+
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
+        """
 
         # Build and deploy folder structure containing cloud function
-        with tempfile.TemporaryDirectory() as dir:
+        with tempfile.TemporaryDirectory() as directory:
             entry_point = self.generate_cloud_function_code(
-                def_, dir, package_requirements, is_row_processor
+                def_,
+                directory,
+                package_requirements=package_requirements,
+                input_types=input_types,
+                output_type=output_type,
+                is_row_processor=is_row_processor,
             )
-            archive_path = shutil.make_archive(dir, "zip", dir)
+            archive_path = shutil.make_archive(directory, "zip", directory)
 
             # We are creating cloud function source code from the currently running
             # python version. Use the same version to deploy. This is necessary
@@ -595,11 +476,13 @@ def {handler_func_name}(request):
             cf_endpoint = self.create_cloud_function(
                 def_,
                 cloud_function_name,
-                package_requirements,
-                cloud_function_timeout,
-                cloud_function_max_instance_count,
-                is_row_processor,
-                cloud_function_vpc_connector,
+                input_types=input_types,
+                output_type=output_type,
+                package_requirements=package_requirements,
+                timeout_seconds=cloud_function_timeout,
+                max_instance_count=cloud_function_max_instance_count,
+                is_row_processor=is_row_processor,
+                vpc_connector=cloud_function_vpc_connector,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -674,12 +557,16 @@ def ibis_signature_from_python_signature(
     input_types: Sequence[type],
     output_type: type,
 ) -> IbisSignature:
+
     return IbisSignature(
         parameter_names=list(signature.parameters.keys()),
         input_types=[
-            bigframes.dtypes.ibis_type_from_python_type(t) for t in input_types
+            bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
+            for t in input_types
         ],
-        output_type=bigframes.dtypes.ibis_type_from_python_type(output_type),
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_python_type(
+            output_type
+        ),
     )
 
 
@@ -687,6 +574,7 @@ class ReturnTypeMissingError(ValueError):
     pass
 
 
+# TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     if not routine.return_type:
         raise ReturnTypeMissingError
@@ -694,12 +582,14 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     return IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
-            bigframes.dtypes.ibis_type_from_type_kind(arg.data_type.type_kind)
+            bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
+                arg.data_type.type_kind
+            )
             if arg.data_type
             else None
             for arg in routine.arguments
         ],
-        output_type=bigframes.dtypes.ibis_type_from_type_kind(
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
             routine.return_type.type_kind
         ),
     )
@@ -735,8 +625,8 @@ def get_routine_reference(
 # which has moved as @js to the ibis package
 # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
 def remote_function(
-    input_types: Union[type, Sequence[type]],
-    output_type: type,
+    input_types: Union[None, type, Sequence[type]] = None,
+    output_type: Optional[type] = None,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
     bigquery_connection_client: Optional[
@@ -800,11 +690,11 @@ def remote_function(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
     Args:
-        input_types (type or sequence(type)):
+        input_types (None, type, or sequence(type)):
             For scalar user defined function it should be the input type or
             sequence of input types. For row processing user defined function,
             type `Series` should be specified.
-        output_type (type):
+        output_type (Optional[type]):
             Data type of the output in the user defined function.
         session (bigframes.Session, Optional):
             BigQuery DataFrames session to use for getting default project,
@@ -907,28 +797,13 @@ def remote_function(
             service(s) that are on a VPC network. See for more details
             https://cloud.google.com/functions/docs/networking/connecting-vpc.
     """
-    is_row_processor = False
-
-    import bigframes.series
-
-    if input_types == bigframes.series.Series:
-        warnings.warn(
-            "input_types=Series scenario is in preview.",
-            stacklevel=1,
-            category=bigframes.exceptions.PreviewWarning,
-        )
-
-        # we will model the row as a json serialized string containing the data
-        # and the metadata representing the row
-        input_types = [str]
-        is_row_processor = True
-    elif isinstance(input_types, type):
-        input_types = [input_types]
-
     # Some defaults may be used from the session if not provided otherwise
+    import bigframes.exceptions as bf_exceptions
     import bigframes.pandas as bpd
+    import bigframes.series as bf_series
+    import bigframes.session
 
-    session = session or bpd.get_global_session()
+    session = cast(bigframes.session.Session, session or bpd.get_global_session())
 
     # A BigQuery client is required to perform BQ operations
     if not bigquery_client:
@@ -1018,11 +893,67 @@ def remote_function(
 
     bq_connection_manager = None if session is None else session.bqconnectionmanager
 
-    def wrapper(f):
-        if not callable(f):
-            raise TypeError("f must be callable, got {}".format(f))
+    def wrapper(func):
+        nonlocal input_types, output_type
 
-        signature = inspect.signature(f)
+        if not callable(func):
+            raise TypeError("f must be callable, got {}".format(func))
+
+        if sys.version_info >= (3, 10):
+            # Add `eval_str = True` so that deferred annotations are turned into their
+            # corresponding type objects. Need Python 3.10 for eval_str parameter.
+            # https://docs.python.org/3/library/inspect.html#inspect.signature
+            signature_kwargs: Mapping[str, Any] = {"eval_str": True}
+        else:
+            signature_kwargs = {}
+
+        signature = inspect.signature(
+            func,
+            **signature_kwargs,
+        )
+
+        # Try to get input types via type annotations.
+        if input_types is None:
+            input_types = []
+            for parameter in signature.parameters.values():
+                if (param_type := parameter.annotation) is inspect.Signature.empty:
+                    raise ValueError(
+                        "'input_types' was not set and parameter "
+                        f"'{parameter.name}' is missing a type annotation. "
+                        "Types are required to use @remote_function."
+                    )
+                input_types.append(param_type)
+        elif not isinstance(input_types, collections.abc.Sequence):
+            input_types = [input_types]
+
+        if output_type is None:
+            if (output_type := signature.return_annotation) is inspect.Signature.empty:
+                raise ValueError(
+                    "'output_type' was not set and function is missing a "
+                    "return type annotation. Types are required to use "
+                    "@remote_function."
+                )
+
+        # The function will actually be receiving a pandas Series, but allow both
+        # BigQuery DataFrames and pandas object types for compatibility.
+        is_row_processor = False
+        if len(input_types) == 1 and (
+            (input_type := input_types[0]) == bf_series.Series
+            or input_type == pandas.Series
+        ):
+            warnings.warn(
+                "input_types=Series is in preview.",
+                stacklevel=1,
+                category=bf_exceptions.PreviewWarning,
+            )
+
+            # we will model the row as a json serialized string containing the data
+            # and the metadata representing the row
+            input_types = [str]
+            is_row_processor = True
+        elif isinstance(input_types, type):
+            input_types = [input_types]
+
         # TODO(b/340898611): fix type error
         ibis_signature = ibis_signature_from_python_signature(
             signature, input_types, output_type  # type: ignore
@@ -1040,58 +971,76 @@ def remote_function(
             cloud_function_service_account,
             cloud_function_kms_key_name,
             cloud_function_docker_repository,
+            session=session,  # type: ignore
         )
 
+        # In the unlikely case where the user is trying to re-deploy the same
+        # function, cleanup the attributes we add below, first. This prevents
+        # the pickle from having dependencies that might not otherwise be
+        # present such as ibis or pandas.
+        def try_delattr(attr):
+            try:
+                delattr(func, attr)
+            except AttributeError:
+                pass
+
+        try_delattr("bigframes_cloud_function")
+        try_delattr("bigframes_remote_function")
+        try_delattr("output_dtype")
+        try_delattr("ibis_node")
+
         rf_name, cf_name = remote_function_client.provision_bq_remote_function(
-            f,
-            ibis_signature.input_types,
-            ibis_signature.output_type,
-            reuse,
-            name,
-            packages,
-            max_batching_rows,
-            cloud_function_timeout,
-            cloud_function_max_instances,
-            is_row_processor,
-            cloud_function_vpc_connector,
+            func,
+            input_types=tuple(
+                third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
+                for type_ in ibis_signature.input_types
+            ),
+            output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
+                ibis_signature.output_type
+            ),
+            reuse=reuse,
+            name=name,
+            package_requirements=packages,
+            max_batching_rows=max_batching_rows,
+            cloud_function_timeout=cloud_function_timeout,
+            cloud_function_max_instance_count=cloud_function_max_instances,
+            is_row_processor=is_row_processor,
+            cloud_function_vpc_connector=cloud_function_vpc_connector,
         )
 
         # TODO: Move ibis logic to compiler step
         node = ibis.udf.scalar.builtin(
-            f,
+            func,
             name=rf_name,
             schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
             signature=(ibis_signature.input_types, ibis_signature.output_type),
         )
-        node.bigframes_cloud_function = (
+        func.bigframes_cloud_function = (
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
-        node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
-        node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-            ibis_signature.output_type
+        func.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
+
+        func.output_dtype = (
+            bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                ibis_signature.output_type
+            )
         )
-        return node
+        func.ibis_node = node
+        return func
 
     return wrapper
 
 
 def read_gbq_function(
     function_name: str,
-    session: Optional[Session] = None,
-    bigquery_client: Optional[bigquery.Client] = None,
+    *,
+    session: Session,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
     """
-
-    # A BigQuery client is required to perform BQ operations
-    if not bigquery_client and session:
-        bigquery_client = session.bqclient
-    if not bigquery_client:
-        raise ValueError(
-            "A bigquery client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
+    bigquery_client = session.bqclient
+    ibis_client = session.ibis_client
 
     try:
         routine_ref = get_routine_reference(function_name, bigquery_client, session)
@@ -1113,7 +1062,7 @@ def read_gbq_function(
         raise ValueError(
             f"Function return type must be specified. {constants.FEEDBACK_LINK}"
         )
-    except bigframes.dtypes.UnsupportedTypeError as e:
+    except bigframes.core.compile.ibis_types.UnsupportedTypeError as e:
         raise ValueError(
             f"Type {e.type} not supported, supported types are {e.supported_types}. "
             f"{constants.FEEDBACK_LINK}"
@@ -1121,19 +1070,26 @@ def read_gbq_function(
 
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
-    def node(*ignored_args, **ignored_kwargs):
+    def func(*ignored_args, **ignored_kwargs):
         f"""Remote function {str(routine_ref)}."""
+        nonlocal node  # type: ignore
+
+        expr = node(*ignored_args, **ignored_kwargs)  # type: ignore
+        return ibis_client.execute(expr)
 
     # TODO: Move ibis logic to compiler step
-    node.__name__ = routine_ref.routine_id
+
+    func.__name__ = routine_ref.routine_id
+
     node = ibis.udf.scalar.builtin(
-        node,
+        func,
         name=routine_ref.routine_id,
         schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
-    node.bigframes_remote_function = str(routine_ref)  # type: ignore
-    node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(  # type: ignore
+    func.bigframes_remote_function = str(routine_ref)  # type: ignore
+    func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
-    return node
+    func.ibis_node = node  # type: ignore
+    return func

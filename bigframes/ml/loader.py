@@ -29,6 +29,7 @@ from bigframes.ml import (
     ensemble,
     forecasting,
     imported,
+    impute,
     linear_model,
     llm,
     pipeline,
@@ -60,6 +61,8 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._EMBEDDING_GENERATOR_GECKO_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
         llm._EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
         llm._GEMINI_PRO_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
     }
 )
 
@@ -84,6 +87,7 @@ def from_bq(
     pipeline.Pipeline,
     compose.ColumnTransformer,
     preprocessing.PreprocessingType,
+    impute.SimpleImputer,
 ]:
     """Load a BQML model to BigQuery DataFrames ML.
 
@@ -94,13 +98,7 @@ def from_bq(
     Returns:
         A BigQuery DataFrames ML model object.
     """
-    # TODO(garrettwu): the entire condition only to TRANSFORM_ONLY when b/331679273 is fixed.
-    if (
-        bq_model.model_type == "TRANSFORM_ONLY"
-        or bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
-        and "transformColumns" in bq_model._properties
-        and not _is_bq_model_remote(bq_model)
-    ):
+    if bq_model.model_type == "TRANSFORM_ONLY":
         return _transformer_from_bq(session, bq_model)
 
     if _is_bq_model_pipeline(bq_model):
