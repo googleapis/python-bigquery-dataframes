@@ -274,7 +274,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
         )
 
-    def agg(self, func=None, **kwargs) -> df.DataFrame:
+    def agg(self, func=None, **kwargs) -> typing.Union[df.DataFrame, series.Series]:
         if func:
             if isinstance(func, str):
                 return self.size() if func == "size" else self._agg_string(func)
