@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pandas as pd
+import pytest
 
+import bigframes.exceptions
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal
 
@@ -26,3 +28,24 @@ def test_unordered_mode_cache_aggregate(unordered_session):
     pd_result = pd_df - pd_df.mean()
 
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
+@pytest.mark.parametrize(
+    ("function"),
+    [
+        pytest.param(
+            lambda x: x.cumsum(),
+            id="cumsum",
+            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
+        ),
+        pytest.param(
+            lambda x: x.idxmin(),
+            id="idxmin",
+            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
+        ),
+    ],
+)
+def test_unordered_mode_blocks_windowing(unordered_session, function):
+    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session)
+    function(df)

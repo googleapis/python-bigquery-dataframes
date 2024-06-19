@@ -51,7 +51,6 @@ import bigframes._config.display_options as display_options
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
-from bigframes.core.api_helpers import requires_strict_ordering
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
@@ -62,6 +61,7 @@ import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
+from bigframes.core.validate import requires_strict_ordering
 import bigframes.core.window
 import bigframes.core.window_spec as window_spec
 import bigframes.dtypes
@@ -2397,7 +2397,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Sort and reorder.
         return pivoted[pivoted.columns.sort_values()]
 
-    @requires_strict_ordering()
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
             if level not in [0, -1, self.columns.name]:

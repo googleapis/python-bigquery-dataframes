@@ -275,7 +275,6 @@ class Session(
         # at the same time in the same region
         self._session_id: str = "session" + secrets.token_hex(3)
         self._table_ids: List[str] = []
-        self._strict_ordering = context._strict_ordering
         # store table ids and delete them when the session is closed
 
         self._objects: list[
@@ -295,9 +294,13 @@ class Session(
         self._bytes_processed_sum = 0
         self._slot_millis_sum = 0
         self._execution_count = 0
-        # Whether this session treats objects as totally ordered.
-        # Will expose as feature later, only False for internal testing
-        self._strictly_ordered = True
+        self._strictly_ordered: bool = context._strictly_ordered
+        # Sequential index needs total ordering to generate, so use null index with unstrict ordering.
+        self._default_index_type: bigframes.enums.DefaultIndexKind = (
+            bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
+            if context._strictly_ordered
+            else bigframes.enums.DefaultIndexKind.NULL
+        )
 
     @property
     def bqclient(self):

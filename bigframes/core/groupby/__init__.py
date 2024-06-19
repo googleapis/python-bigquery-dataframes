@@ -23,11 +23,11 @@ import pandas as pd
 import bigframes.constants as constants
 from bigframes.core import log_adapter
 import bigframes.core as core
-from bigframes.core.api_helpers import requires_strict_ordering
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
+from bigframes.core.validate import requires_strict_ordering
 import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df

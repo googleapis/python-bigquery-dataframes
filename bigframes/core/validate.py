@@ -19,6 +19,9 @@ from __future__ import annotations
 import functools
 from typing import Protocol, TYPE_CHECKING
 
+import bigframes.constants
+import bigframes.exceptions
+
 if TYPE_CHECKING:
     from bigframes import Session
 
@@ -31,12 +34,12 @@ class HasSession(Protocol):
 
 def requires_strict_ordering(where={}):
     def decorator(meth):
-        # TODO :SUpport where
+        # TODO: Support where clause to guard certain parameterizations
         @functools.wraps(meth)
         def guarded_meth(object: HasSession, *args, **kwargs):
             if not object._session._strict_ordering:
-                raise NotImplementedError(
-                    f"Op {meth.__name__} not yet supported when strict ordering is disabled."
+                raise bigframes.exceptions.OrderRequiredError(
+                    f"Op {meth.__name__} not supported when strict ordering is disabled. {bigframes.constants.FEEDBACK_LINK}"
                 )
             return meth(object, *args, **kwargs)
 

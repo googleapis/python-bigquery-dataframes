@@ -34,7 +34,6 @@ import typing_extensions
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
-from bigframes.core.api_helpers import requires_strict_ordering
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -44,6 +43,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
+from bigframes.core.validate import requires_strict_ordering
 import bigframes.core.window
 import bigframes.core.window_spec
 import bigframes.dataframe
