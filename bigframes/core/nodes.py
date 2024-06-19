@@ -34,8 +34,6 @@ import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
-    import ibis.expr.types as ibis_types
-
     import bigframes.core.ordering as orderings
     import bigframes.session
 
@@ -302,54 +300,6 @@ class ReadLocalNode(BigFrameNode):
         return self
 
 
-# TODO: Refactor to take raw gbq object reference
-@dataclass(frozen=True)
-class ReadGbqNode(BigFrameNode):
-    table: ibis_types.Table = field()
-    table_session: bigframes.session.Session = field()
-    columns: Tuple[ibis_types.Value, ...] = field()
-    hidden_ordering_columns: Tuple[ibis_types.Value, ...] = field()
-    ordering: orderings.ExpressionOrdering = field()
-
-    @property
-    def session(self):
-        return self.table_session
-
-    def __hash__(self):
-        return self._node_hash
-
-    @property
-    def roots(self) -> typing.Set[BigFrameNode]:
-        return {self}
-
-    @functools.cached_property
-    def schema(self) -> schemata.ArraySchema:
-        from bigframes.core.compile.ibis_types import ibis_dtype_to_bigframes_dtype
-
-        items = tuple(
-            schemata.SchemaItem(
-                value.get_name(),
-                ibis_dtype_to_bigframes_dtype(value.type()),
-            )
-            for value in self.columns
-        )
-        return schemata.ArraySchema(items)
-
-    @functools.cached_property
-    def variables_introduced(self) -> int:
-        return len(self.columns) + len(self.hidden_ordering_columns)
-
-    @property
-    def relation_ops_created(self) -> int:
-        # Assume worst case, where readgbq actually has baked in analytic operation to generate index
-        return 2
-
-    def transform_children(
-        self, t: Callable[[BigFrameNode], BigFrameNode]
-    ) -> BigFrameNode:
-        return self
-
-
 ## Put ordering in here or just add order_by node above?
 @dataclass(frozen=True)
 class ReadTableNode(BigFrameNode):
@@ -424,6 +374,19 @@ class CachedTableNode(BigFrameNode):
     physical_schema: Tuple[bq.SchemaField, ...] = field()
 
     ordering: typing.Optional[orderings.ExpressionOrdering] = field()
+
+    def __post_init__(self):
+        # enforce invariants
+        physical_names = set(map(lambda i: i.name, self.physical_schema))
+        logical_names = self.original_node.schema.names
+        if not set(logical_names).issubset(physical_names):
+            raise ValueError(
+                f"Requested schema {logical_names} cannot be derived from table schema {self.physical_schema}"
+            )
+        if not set(self.hidden_columns).issubset(physical_names):
+            raise ValueError(
+                f"Requested hidden columns {self.hidden_columns} cannot be derived from table schema {self.physical_schema}"
+            )
 
     @property
     def session(self):

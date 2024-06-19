@@ -23,12 +23,11 @@ from typing import Iterable, Optional, Sequence
 import warnings
 
 import google.cloud.bigquery
-import ibis.expr.types as ibis_types
 import pandas
 import pyarrow as pa
 import pyarrow.feather as pa_feather
 
-import bigframes.core.compile as compiling
+import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.join_def as join_def
@@ -59,30 +58,6 @@ class ArrayValue:
     """
 
     node: nodes.BigFrameNode
-
-    # DO NOT use, on deprecation path
-    @classmethod
-    def from_ibis(
-        cls,
-        session: Session,
-        table: ibis_types.Table,
-        columns: Sequence[ibis_types.Value],
-        hidden_ordering_columns: Sequence[ibis_types.Value],
-        ordering: orderings.ExpressionOrdering,
-    ):
-        import bigframes.core.compile.ibis_types
-
-        node = nodes.ReadGbqNode(
-            table=table,
-            table_session=session,
-            columns=tuple(
-                bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(column)
-                for column in columns
-            ),
-            hidden_ordering_columns=tuple(hidden_ordering_columns),
-            ordering=ordering,
-        )
-        return cls(node)
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
@@ -167,12 +142,7 @@ class ArrayValue:
 
     @functools.cached_property
     def _compiled_schema(self) -> schemata.ArraySchema:
-        compiled = self._compile_unordered()
-        items = tuple(
-            schemata.SchemaItem(id, compiled.get_column_type(id))
-            for id in compiled.column_ids
-        )
-        return schemata.ArraySchema(items)
+        return bigframes.core.compile.test_only_ibis_inferred_schema(self.node)
 
     def as_cached(
         self: ArrayValue,
@@ -194,20 +164,10 @@ class ArrayValue:
 
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
-        import ibis
-
-        return ibis.pandas.connect({}).execute(
-            self._compile_ordered()._to_ibis_expr(ordering_mode="unordered")
-        )
+        return bigframes.core.compile.test_only_try_evaluate(self.node)
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self.schema.get_type(key)
-
-    def _compile_ordered(self) -> compiling.OrderedIR:
-        return compiling.compile_ordered_ir(self.node)
-
-    def _compile_unordered(self) -> compiling.UnorderedIR:
-        return compiling.compile_unordered_ir(self.node)
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
