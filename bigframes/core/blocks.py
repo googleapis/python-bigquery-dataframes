@@ -100,6 +100,8 @@ class MaterializationOptions:
     ordered: bool = True
 
 
+# wraps operation expresison, knows index and value columns in the pandas sense (fallback for mergin if not derived from same data frame)
+#TODO: look ad apply {unary, binary, ...}_op, they build the expression tree
 class Block:
     """A immutable 2D data structure."""
 
@@ -169,6 +171,7 @@ class Block:
 
         # unique internal ids
         column_ids = [f"column_{i}" for i in range(len(pd_data.columns))]
+        #TODO: No index not working, always assumes first col
         index_ids = [f"level_{level}" for level in range(pd_data.index.nlevels)]
 
         pd_data = pd_data.set_axis(column_ids, axis=1)
@@ -1080,6 +1083,7 @@ class Block:
         return self.select_columns([id])
 
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
+        #TODO: why self.index_columns?
         expr = self._expr.select_columns([*self.index_columns, *ids])
         col_labels = self._get_labels_for_columns(ids)
         return Block(expr, self.index_columns, col_labels, self.index.names)

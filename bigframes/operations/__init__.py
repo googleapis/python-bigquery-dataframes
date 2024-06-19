@@ -46,6 +46,9 @@ class RowOp(typing.Protocol):
         ...
 
 
+# These classes can be used to create simple ops that don't take local parameters
+# All is needed is a unique name, and to register an implementation in ibis_mappings.py
+#TODO: Create universal operator base class...?
 @dataclasses.dataclass(frozen=True)
 class ScalarOp:
     @property

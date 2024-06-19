@@ -45,7 +45,6 @@ import numpy
 import pandas
 import pandas.io.formats.format
 import tabulate
-
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants as constants
@@ -618,8 +617,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Can this be removed?
         except (AttributeError, TypeError):
             object.__setattr__(self, key, value)
-
-    def __repr__(self) -> str:
+    
+    #TODO: problemati.. rename back to __repr__ 
+    def __my_repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
 
         Only represents the first `bigframes.options.display.max_rows`.
@@ -710,6 +710,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
 
+    #TODO: _apply should be comparabe to _align_n, adds to expression tree
     def _apply_binop(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1919,6 +1920,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
         )
 
+    #TODO: WindowSpec defines over clause
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)

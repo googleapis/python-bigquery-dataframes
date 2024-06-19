@@ -62,3 +62,6 @@ system_tests/local_test_setup
 # Make sure a generated file isn't accidentally committed.
 pylintrc
 pylintrc.test
+Dockerfile
+bigframes/operations/python-bigquery-dataframes.code-workspace
+pyproject.toml_
