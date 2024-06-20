@@ -149,10 +149,12 @@ def to_pubsub(
     """Launches a BigQuery continuous query and returns a
     QueryJob object for some management functionality.
 
-    This method requires an existing bigtable preconfigured to
-    accept the continuous query export statement. For instructions
-    on export to bigtable, see
-    https://cloud.google.com/bigquery/docs/export-to-bigtable.
+    This method requires an existing pubsub topic. For instructions
+    on creating a pubsub topic, see
+    https://cloud.google.com/pubsub/docs/samples/pubsub-quickstart-create-topic?hl=en
+
+    Note that a service account is a requirement for continuous queries
+    exporting to pubsub.
 
     Args:
         query (str):
