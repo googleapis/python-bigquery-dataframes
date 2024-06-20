@@ -159,7 +159,7 @@ def to_pubsub(
             The sql statement to execute as a continuous function.
             For example: "SELECT * FROM dataset.table"
             This will be wrapped in an EXPORT DATA statement to
-            launch a continuous query writing to bigtable.
+            launch a continuous query writing to pubsub.
         topic (str):
             The name of the pubsub topic to export to.
             For example: "taxi-rides"
