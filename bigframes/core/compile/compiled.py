@@ -257,9 +257,9 @@ class UnorderedIR(BaseIbisIR):
         self,
         offset_column: typing.Optional[str] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
-        sorted: bool = False,
+        ordered: bool = False,
     ) -> str:
-        if offset_column or sorted:
+        if offset_column or ordered:
             raise ValueError("Cannot produce sorted sql in unordered mode")
         sql = ibis_bigquery.Backend().compile(
             self._to_ibis_expr(
@@ -890,9 +890,9 @@ class OrderedIR(BaseIbisIR):
     def to_sql(
         self,
         col_id_overrides: typing.Mapping[str, str] = {},
-        sorted: bool = False,
+        ordered: bool = False,
     ) -> str:
-        if sorted:
+        if ordered:
             # Need to bake ordering expressions into the selected column in order for our ordering clause builder to work.
             baked_ir = self._bake_ordering()
             sql = ibis_bigquery.Backend().compile(
@@ -922,6 +922,15 @@ class OrderedIR(BaseIbisIR):
                 )
             )
         return typing.cast(str, sql)
+
+    def raw_sql(self) -> str:
+        """Return sql with all hidden columns. Used to cache with ordering information."""
+        return ibis_bigquery.Backend().compile(
+            self._to_ibis_expr(
+                ordering_mode="unordered",
+                expose_hidden_cols=True,
+            )
+        )
 
     def _to_ibis_expr(
         self,
