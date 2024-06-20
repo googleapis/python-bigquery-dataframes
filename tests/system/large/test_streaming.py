@@ -46,3 +46,28 @@ def test_streaming_to_bigtable():
         assert str(query_job.job_id).startswith(job_id_prefix)
     finally:
         query_job.cancel()
+
+
+def test_streaming_to_pubsub():
+    # launch a continuous query
+    job_id_prefix = "test_streaming_pubsub_"
+    sql = """SELECT
+        island
+        FROM birds.penguins"""
+    query_job = bigframes.streaming.to_pubsub(
+        sql,
+        "penguins",
+        job_id=None,
+        job_id_prefix=job_id_prefix,
+    )
+
+    try:
+        # wait 100 seconds in order to ensure the query doesn't stop
+        # (i.e. it is continuous)
+        time.sleep(100)
+        assert query_job.error_result is None
+        assert query_job.errors is None
+        assert query_job.running()
+        assert str(query_job.job_id).startswith(job_id_prefix)
+    finally:
+        query_job.cancel()
