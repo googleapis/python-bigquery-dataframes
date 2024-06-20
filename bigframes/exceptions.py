@@ -48,7 +48,7 @@ class NullIndexError(ValueError):
 
 
 class OrderRequiredError(ValueError):
-    """"""
+    """Operation requires total row ordering to be enabled."""
 
 
 class TimeTravelDisabledWarning(Warning):
