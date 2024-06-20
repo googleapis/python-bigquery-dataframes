@@ -76,6 +76,11 @@ def test_unordered_mode_read_gbq(unordered_session):
             id="idxmin",
             marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
         ),
+        pytest.param(
+            lambda x: x.a.iloc[1::2],
+            id="series_iloc",
+            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
+        ),
     ],
 )
 def test_unordered_mode_blocks_windowing(unordered_session, function):

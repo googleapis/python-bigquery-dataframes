@@ -37,7 +37,7 @@ def requires_strict_ordering(where={}):
         # TODO: Support where clause to guard certain parameterizations
         @functools.wraps(meth)
         def guarded_meth(object: HasSession, *args, **kwargs):
-            if not object._session._strict_ordering:
+            if not object._session._strictly_ordered:
                 raise bigframes.exceptions.OrderRequiredError(
                     f"Op {meth.__name__} not supported when strict ordering is disabled. {bigframes.constants.FEEDBACK_LINK}"
                 )
