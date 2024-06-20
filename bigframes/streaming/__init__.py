@@ -15,7 +15,7 @@
 """Module for bigquery continuous queries"""
 
 import json
-from typing import Optional
+from typing import List, Optional
 
 from google.cloud import bigquery
 
@@ -94,7 +94,7 @@ def to_bigtable(
     if session is None:
         session = bigframes.get_global_session()
     bq_client = session.bqclient
-    service_account = create_service_account(session)
+    service_account = create_service_account(session, ["bigtable.user"])
 
     # build export string from parameters
     project = bq_client.project
@@ -202,7 +202,9 @@ def to_pubsub(
         session = bigframes.get_global_session()
     bq_client = session.bqclient
 
-    service_account = create_service_account(session)
+    service_account = create_service_account(
+        session, ["pubsub.publisher", "pubsub.viewer"]
+    )
 
     # build export string from parameters
     sql = (
@@ -243,7 +245,7 @@ def to_pubsub(
     return query_job
 
 
-def create_service_account(session: bigframes.Session) -> str:
+def create_service_account(session: bigframes.Session, roles: List[str]) -> str:
     # create service account
     bq_connection_manager = session.bqconnectionmanager
     connection_name = session._bq_connection
@@ -263,8 +265,6 @@ def create_service_account(session: bigframes.Session) -> str:
         connection_name_parts[2],
     )
     project = session.bqclient.project
-    bq_connection_manager._ensure_iam_binding(
-        project, service_account, "pubsub.publisher"
-    )
-    bq_connection_manager._ensure_iam_binding(project, service_account, "pubsub.viewer")
+    for role in roles:
+        bq_connection_manager._ensure_iam_binding(project, service_account, role)
     return service_account
