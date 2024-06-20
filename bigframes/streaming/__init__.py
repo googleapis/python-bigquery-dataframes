@@ -26,7 +26,7 @@ def to_bigtable(
     query: str,
     instance: str,
     table: str,
-    bq_client: Optional[bigquery.Client] = None,
+    session=None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
     overwrite: bool = False,
@@ -91,8 +91,10 @@ def to_bigtable(
             can be examined.
     """
     # get default client if not passed
-    if bq_client is None:
-        bq_client = bigframes.get_global_session().bqclient
+    if session is None:
+        session = bigframes.get_global_session()
+    bq_client = session.bqclient
+    service_account = create_service_account(session)
 
     # build export string from parameters
     project = bq_client.project
@@ -123,7 +125,17 @@ def to_bigtable(
 
     # override continuous http parameter
     job_config = bigquery.job.QueryJobConfig()
-    job_config_filled = job_config.from_api_repr({"query": {"continuous": True}})
+    job_config_filled = job_config.from_api_repr(
+        {
+            "query": {
+                "continuous": True,
+                "connectionProperties": {
+                    "key": "service_account",
+                    "value": service_account,
+                },
+            }
+        }
+    )
 
     # begin the query job
     query_job = bq_client.query(
@@ -142,7 +154,7 @@ def to_bigtable(
 def to_pubsub(
     query: str,
     topic: str,
-    bq_client: Optional[bigquery.Client] = None,
+    session=None,
     job_id: Optional[str] = None,
     job_id_prefix: Optional[str] = None,
 ) -> bigquery.QueryJob:
@@ -186,17 +198,18 @@ def to_pubsub(
             can be examined.
     """
     # get default client if not passed
-    if bq_client is None:
-        bq_client = bigframes.get_global_session().bqclient
+    if session is None:
+        session = bigframes.get_global_session()
+    bq_client = session.bqclient
+
+    service_account = create_service_account(session)
 
     # build export string from parameters
-    project = bq_client.project
-
     sql = (
         "EXPORT DATA\n"
         "OPTIONS (\n"
         "format = 'CLOUD_PUBSUB',\n"
-        f'uri = "https://pubsub.googleapis.com/projects/{project}/topics/{topic}"\n'
+        f'uri = "https://pubsub.googleapis.com/projects/{bq_client.project}/topics/{topic}"\n'
         ")\n"
         "AS (\n"
         f"{query});"
@@ -204,7 +217,17 @@ def to_pubsub(
 
     # override continuous http parameter
     job_config = bigquery.job.QueryJobConfig()
-    job_config_filled = job_config.from_api_repr({"query": {"continuous": True}})
+    job_config_filled = job_config.from_api_repr(
+        {
+            "query": {
+                "continuous": True,
+                "connectionProperties": {
+                    "key": "service_account",
+                    "value": service_account,
+                },
+            }
+        }
+    )
 
     # begin the query job
     query_job = bq_client.query(
@@ -218,3 +241,29 @@ def to_pubsub(
 
     # return the query job to the user for lifetime management
     return query_job
+
+
+def create_service_account(session):
+    # create service account
+    bq_connection_manager = session.bqconnectionmanager
+    connection_name = session._bq_connection
+    connection_name = bigframes.clients.resolve_full_bq_connection_name(
+        connection_name,
+        default_project=session._project,
+        default_location=session._location,
+    )
+    connection_name_parts = connection_name.split(".")
+    if len(connection_name_parts) != 3:
+        raise ValueError(
+            f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {connection_name}."
+        )
+    service_account = bq_connection_manager._get_service_account_if_connection_exists(
+        connection_name_parts[0],
+        connection_name_parts[1],
+        connection_name_parts[2],
+    )
+    project = session.bqclient.project
+    bq_connection_manager._ensure_iam_binding(
+        project, service_account, "pubsub.publisher"
+    )
+    bq_connection_manager._ensure_iam_binding(project, service_account, "pubsub.viewer")
