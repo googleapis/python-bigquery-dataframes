@@ -205,7 +205,9 @@ class SquashedSelect:
 
 
 def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
-    rewrite_common_node = common_subtree(join_node.left_child, join_node.right_child)
+    rewrite_common_node = common_selection_root(
+        join_node.left_child, join_node.right_child
+    )
     if rewrite_common_node is None:
         return join_node
     left_side = SquashedSelect.from_node_span(join_node.left_child, rewrite_common_node)
@@ -225,7 +227,7 @@ def join_as_projection(
     mappings: Tuple[join_defs.JoinColumnMapping, ...],
     how: join_defs.JoinType,
 ) -> Optional[nodes.BigFrameNode]:
-    rewrite_common_node = common_subtree(l_node, r_node)
+    rewrite_common_node = common_selection_root(l_node, r_node)
     if rewrite_common_node is not None:
         left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
         right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
@@ -331,7 +333,7 @@ def get_node_column_ids(node: nodes.BigFrameNode) -> Tuple[str, ...]:
     return tuple(bigframes.core.ArrayValue(node).column_ids)
 
 
-def common_subtree(
+def common_selection_root(
     l_tree: nodes.BigFrameNode, r_tree: nodes.BigFrameNode
 ) -> Optional[nodes.BigFrameNode]:
     """Find common subtree between join subtrees"""
