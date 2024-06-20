@@ -116,6 +116,10 @@ class Index(vendored_pandas_index.Index):
         return index
 
     @property
+    def _session(self):
+        return self._block.session
+
+    @property
     def name(self) -> blocks.Label:
         names = self.names
         if len(names) == 1:
