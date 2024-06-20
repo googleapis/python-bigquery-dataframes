@@ -349,10 +349,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def transpose(self) -> DataFrame:
         return self.T
 
-    @property
-    def _strict_ordering(self) -> bool:
-        return self._session._strict_ordering
-
     def __len__(self):
         rows, _ = self.shape
         return rows
