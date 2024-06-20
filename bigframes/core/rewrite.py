@@ -45,7 +45,7 @@ class SquashedSelect:
     reverse_root: bool = False
 
     @classmethod
-    def from_node(
+    def from_node_span(
         cls, node: nodes.BigFrameNode, target: nodes.BigFrameNode
     ) -> SquashedSelect:
         if node == target:
@@ -55,13 +55,13 @@ class SquashedSelect:
             )
             return cls(node, selection, None, ())
         if isinstance(node, nodes.ProjectionNode):
-            return cls.from_node(node.child, target).project(node.assignments)
+            return cls.from_node_span(node.child, target).project(node.assignments)
         elif isinstance(node, nodes.FilterNode):
-            return cls.from_node(node.child, target).filter(node.predicate)
+            return cls.from_node_span(node.child, target).filter(node.predicate)
         elif isinstance(node, nodes.ReversedNode):
-            return cls.from_node(node.child, target).reverse()
+            return cls.from_node_span(node.child, target).reverse()
         elif isinstance(node, nodes.OrderByNode):
-            return cls.from_node(node.child, target).order_with(node.by)
+            return cls.from_node_span(node.child, target).order_with(node.by)
         else:
             raise ValueError(f"Cannot rewrite node {node}")
 
@@ -105,9 +105,10 @@ class SquashedSelect:
             self.root, self.columns, self.predicate, new_ordering, self.reverse_root
         )
 
-    def can_join(
+    def can_merge(
         self, right: SquashedSelect, join_def: join_defs.JoinDefinition
     ) -> bool:
+        """Determines whether the two selections can be merged into a single selection."""
         if join_def.type == "cross":
             # Cannot convert cross join to projection
             return False
@@ -207,9 +208,11 @@ def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
     rewrite_common_node = common_subtree(join_node.left_child, join_node.right_child)
     if rewrite_common_node is None:
         return join_node
-    left_side = SquashedSelect.from_node(join_node.left_child, rewrite_common_node)
-    right_side = SquashedSelect.from_node(join_node.right_child, rewrite_common_node)
-    if left_side.can_join(right_side, join_node.join):
+    left_side = SquashedSelect.from_node_span(join_node.left_child, rewrite_common_node)
+    right_side = SquashedSelect.from_node_span(
+        join_node.right_child, rewrite_common_node
+    )
+    if left_side.can_merge(right_side, join_node.join):
         return left_side.merge(
             right_side, join_node.join.type, join_node.join.mappings
         ).expand()
@@ -224,8 +227,8 @@ def join_as_projection(
 ) -> Optional[nodes.BigFrameNode]:
     rewrite_common_node = common_subtree(l_node, r_node)
     if rewrite_common_node is not None:
-        left_side = SquashedSelect.from_node(l_node, rewrite_common_node)
-        right_side = SquashedSelect.from_node(r_node, rewrite_common_node)
+        left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
+        right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
         merged = left_side.merge(right_side, how, mappings)
         assert (
             merged is not None
