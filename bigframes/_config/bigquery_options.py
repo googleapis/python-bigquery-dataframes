@@ -82,6 +82,7 @@ class BigQueryOptions:
         self._kms_key_name = kms_key_name
         self._skip_bq_connection_check = skip_bq_connection_check
         self._session_started = False
+        # Determines the ordering strictness for the session. For internal use only.
         self._strictly_ordered_internal = _strictly_ordered
 
     @property
