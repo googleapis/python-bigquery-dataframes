@@ -26,7 +26,7 @@ def to_bigtable(
     query: str,
     instance: str,
     table: str,
-    session=None,
+    session: Optional[bigframes.Session] = None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
     overwrite: bool = False,
@@ -53,10 +53,10 @@ def to_bigtable(
             The name of the bigtable instance to export to.
         table (str):
             The name of the bigtable table to export to.
-        bq_client (str, default None):
-            The Client object to use for the query. This determines
+        session (bigframes.Session, default None):
+            The session object to use for the query. This determines
             the project id and location of the query. If None, will
-            default to the bigframes global session default client.
+            default to the bigframes global session.
         app_profile (str, default None):
             The bigtable app profile to export to. If None, no app
             profile will be used.
@@ -154,7 +154,7 @@ def to_bigtable(
 def to_pubsub(
     query: str,
     topic: str,
-    session=None,
+    session: Optional[bigframes.Session] = None,
     job_id: Optional[str] = None,
     job_id_prefix: Optional[str] = None,
 ) -> bigquery.QueryJob:
@@ -177,10 +177,10 @@ def to_pubsub(
         topic (str):
             The name of the pubsub topic to export to.
             For example: "taxi-rides"
-        bq_client (str, default None):
-            The Client object to use for the query. This determines
+        session (bigframes.Session, default None):
+            The session object to use for the query. This determines
             the project id and location of the query. If None, will
-            default to the bigframes global session default client.
+            default to the bigframes global session.
         job_id (str, default None):
             If specified, replace the default job id for the query,
             see job_id parameter of
@@ -243,7 +243,7 @@ def to_pubsub(
     return query_job
 
 
-def create_service_account(session):
+def create_service_account(session: bigframes.Session) -> str:
     # create service account
     bq_connection_manager = session.bqconnectionmanager
     connection_name = session._bq_connection
@@ -267,3 +267,4 @@ def create_service_account(session):
         project, service_account, "pubsub.publisher"
     )
     bq_connection_manager._ensure_iam_binding(project, service_account, "pubsub.viewer")
+    return service_account
