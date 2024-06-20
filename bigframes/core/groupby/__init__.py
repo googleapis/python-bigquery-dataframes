@@ -73,6 +73,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 if col_id not in self._by_col_ids
             ]
 
+    @property
+    def _session(self) -> core.Session:
+        return self._block.session
+
     def __getitem__(
         self,
         key: typing.Union[
@@ -518,6 +522,10 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._by_col_ids = by_col_ids
         self._value_name = value_name
         self._dropna = dropna  # Applies to aggregations but not windowing
+
+    @property
+    def _session(self) -> core.Session:
+        return self._block.session
 
     def head(self, n: int = 5) -> series.Series:
         block = self._block
