@@ -146,7 +146,7 @@ def to_bigtable(
             "value": service_account,
         }
     job_config_filled = job_config.from_api_repr(job_config_dict)
-    job_config_filled.labels = {"bigframes-api": "streaming.to_bigtable"}
+    job_config_filled.labels = {"bigframes-api": "streaming_to_bigtable"}
 
     # begin the query job
     query_job = bq_client.query(
@@ -248,7 +248,7 @@ def to_pubsub(
             }
         }
     )
-    job_config_filled.labels = {"bigframes-api": "streaming.to_pubsub"}
+    job_config_filled.labels = {"bigframes-api": "streaming_to_pubsub"}
 
     # begin the query job
     query_job = bq_client.query(
